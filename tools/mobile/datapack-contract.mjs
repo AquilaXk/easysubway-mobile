@@ -20,7 +20,8 @@ export function canonicalJson(value) {
   }
   if (Array.isArray(value)) {
     const keys = Object.keys(value);
-    if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
+    const ownKeys = Reflect.ownKeys(value);
+    if (keys.length !== value.length || keys.some((key, index) => key !== String(index)) || ownKeys.length !== value.length + 1 || ownKeys.some((key, index) => key !== (index === value.length ? "length" : String(index)))) {
       throw new Error("canonical JSON requires dense arrays");
     }
     return `[${Array.from({ length: value.length }, (_, index) => canonicalJson(value[index])).join(",")}]`;
@@ -192,7 +193,8 @@ export function buildMobileComponentManifest(input) {
     versionCode: input.versionCode,
     versionName: input.versionName,
   };
-  return { manifest, text: `${canonicalJson(manifest)}\n`, sha256: sha256(canonicalJson(manifest)) };
+  const text = `${canonicalJson(manifest)}\n`;
+  return { manifest, text, sha256: sha256(text) };
 }
 
 export async function writeMobileComponentManifest({ targetPath, input, writeFileImpl = writeFile }) {
