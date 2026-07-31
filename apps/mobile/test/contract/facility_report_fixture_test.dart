@@ -9,7 +9,7 @@ void main() {
     final decoded =
         jsonDecode(
               File(
-                '../../contracts/api/fixtures/report-status.ok.json',
+                'test/fixtures/contracts/api/report-status.ok.json',
               ).readAsStringSync(),
             )
             as Map<String, Object?>;
@@ -32,7 +32,7 @@ void main() {
     final decoded =
         jsonDecode(
               File(
-                '../../contracts/api/fixtures/report-upload-intent.created.json',
+                'test/fixtures/contracts/api/report-upload-intent.created.json',
               ).readAsStringSync(),
             )
             as Map<String, Object?>;

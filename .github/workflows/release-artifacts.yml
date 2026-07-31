@@ -1,0 +1,61 @@
+name: Mobile Artifact Preflight
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  android-aab:
+    name: Android AAB Preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Set up Java
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: "3.44.0"
+          cache: true
+      - name: Create ephemeral preflight key
+        env:
+          EASYSUBWAY_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mobile-preflight.p12
+          EASYSUBWAY_ANDROID_STORE_PASSWORD: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_ALIAS: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_PASSWORD: mobile-preflight
+        run: |
+          keytool -genkeypair -storetype PKCS12 \
+            -keystore "${EASYSUBWAY_ANDROID_KEYSTORE_PATH}" \
+            -storepass "${EASYSUBWAY_ANDROID_STORE_PASSWORD}" \
+            -keypass "${EASYSUBWAY_ANDROID_KEY_PASSWORD}" \
+            -alias "${EASYSUBWAY_ANDROID_KEY_ALIAS}" \
+            -keyalg RSA -keysize 2048 -validity 1 \
+            -dname "CN=EasySubway Mobile Preflight"
+      - name: Build and hash no-upload AAB
+        working-directory: apps/mobile
+        env:
+          EASYSUBWAY_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mobile-preflight.p12
+          EASYSUBWAY_ANDROID_STORE_PASSWORD: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_ALIAS: mobile-preflight
+          EASYSUBWAY_ANDROID_KEY_PASSWORD: mobile-preflight
+        run: |
+          flutter pub get
+          defines=(
+            --dart-define=EASYSUBWAY_API_BASE_URL=https://easysubway-api.aquilaxk.site
+            --dart-define=EASYSUBWAY_KAKAO_MAP_NATIVE_APP_KEY=ci-preflight
+          )
+          ../../tools/mobile/validate-release-dart-defines.sh "${defines[@]}"
+          flutter build appbundle --release "${defines[@]}"
+          node ../../tools/release/hash-android-bundle-payload.mjs \
+            --aab build/app/outputs/bundle/release/app-release.aab

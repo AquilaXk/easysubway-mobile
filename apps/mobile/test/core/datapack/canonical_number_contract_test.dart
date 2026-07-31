@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:easysubway_mobile/core/datapack/canonical_json.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// `contracts/datapack/canonical-number-contract.json` 은 Node·Java·Dart 세 구현이
+/// 고정된 canonical-number contract snapshot은 Node·Java·Dart 세 구현이
 /// 공유하는 정준 숫자 표기 계약이다. 기대 문자열은 세 런타임 실측으로 고정된 상수이며
 /// 이 테스트는 구현을 복제하지 않고 저장된 상수와만 비교한다.
 void main() {
@@ -157,7 +157,7 @@ Map<String, Object?> _loadContract() {
   var directory = Directory.current;
   for (var depth = 0; depth < 8; depth += 1) {
     final file = File(
-      '${directory.path}/contracts/datapack/canonical-number-contract.json',
+      '${directory.path}/apps/mobile/test/fixtures/contracts/datapack/canonical-number-contract.json',
     );
     if (file.existsSync()) {
       return jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
@@ -165,7 +165,7 @@ Map<String, Object?> _loadContract() {
     directory = directory.parent;
   }
   fail(
-    'contracts/datapack/canonical-number-contract.json not found from '
+    'canonical-number-contract snapshot not found from '
     '${Directory.current.path}',
   );
 }

@@ -1,0 +1,26 @@
+name: Store Metadata Preflight
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  metadata:
+    name: Store Metadata Preflight
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - name: Validate tracked metadata without credentials or writes
+        run: |
+          jq -e '.schemaVersion == 1 and .androidApplicationId == "com.easysubway.app"' \
+            apps/mobile/release/store-submission-readiness.json
+          jq -e '.schemaVersion == 1 and .androidApplicationId == "com.easysubway.app"' \
+            apps/mobile/release/play-store-submission-content.json
+          jq -e '.schemaVersion == 1 and .applicationId == "easysubway"' \
+            apps/mobile/release/store-privacy-inventory.json

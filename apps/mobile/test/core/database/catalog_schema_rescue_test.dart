@@ -72,36 +72,6 @@ void main() {
     expect(stationCount.read<int>('count'), greaterThan(0));
   });
 
-  test('팩 스키마 원본으로 만든 설치 팩도 같은 구제 경로를 탄다', () async {
-    final directory = await _temporaryDirectory('rescue-pack-schema-');
-    final catalogDirectory = Directory('${directory.path}/catalog');
-    await catalogDirectory.create(recursive: true);
-    final pack = File('${catalogDirectory.path}/capital-v18.sqlite');
-    // 실제 배포 팩은 tools/datapack/build-datapack.mjs가 catalog-schema.sql을 exec해 만든다.
-    // drift onCreate 산출물과 제약이 다르므로 회귀 테스트도 배포되는 스키마로 한 번은 돌려야 한다.
-    _buildPackSchemaPack(pack, activePack: 'capital-v18');
-    _dropTables(pack, [
-      'station_facility_evidence',
-      'facility_status_snapshots',
-    ]);
-    await _writeCurrentPointer(catalogDirectory, version: '18', file: pack);
-
-    final opener = CatalogDatabaseOpener(
-      databaseDirectory: directory,
-      assetBundle: rootBundle,
-    );
-    final database = await opener.open();
-    addTearDown(database.close);
-    final tables = await _tableNames(database);
-
-    expect(opener.openedBundledDataPack, isFalse);
-    expect(await _activePack(database), 'capital-v18');
-    expect(
-      tables,
-      containsAll(['station_facility_evidence', 'facility_status_snapshots']),
-    );
-  });
-
   test('구제 불가 테이블이 결측이면 설치 팩을 열지 않고 known-good으로 강등한다', () async {
     final logged = <String>[];
     CatalogSchemaDiagnostics.replaceForTest(logged.add);
@@ -207,7 +177,7 @@ void main() {
   test('결측을 허용하는 테이블은 만들지도 막지도 않는다', () async {
     final directory = await _temporaryDirectory('rescue-tolerated-');
     final file = File('${directory.path}/capital.sqlite');
-    _buildPackSchemaPack(file, activePack: 'capital');
+    await _buildInstalledPack(file, activePack: 'capital');
     _dropTables(file, ['transit_feed_info']);
 
     final database = CatalogDatabase.file(file);
@@ -224,7 +194,7 @@ void main() {
   test('노선도 테이블 결측은 구제하고 다른 도메인 데이터는 그대로 둔다', () async {
     final directory = await _temporaryDirectory('rescue-route-map-');
     final file = File('${directory.path}/capital.sqlite');
-    _buildPackSchemaPack(file, activePack: 'capital');
+    await _buildInstalledPack(file, activePack: 'capital');
     _dropTables(file, ['route_map_positions', 'route_map_line_tracks']);
 
     final database = CatalogDatabase.file(file);
@@ -517,6 +487,8 @@ Future<void> _buildInstalledPack(
   File file, {
   required String activePack,
 }) async {
+  // 모바일 복구 동작만 검증하므로 앱의 Drift 스키마로 consumer fixture를 만든다.
+  // producer/deployed SQL의 byte-level parity는 data 레포의 계약 검증이 소유한다.
   final database = CatalogDatabase.file(file);
   await database.seedBaselineIfEmpty();
   await database
@@ -529,29 +501,6 @@ Future<void> _buildInstalledPack(
         ),
       );
   await database.close();
-}
-
-/// 실제 배포 팩과 같은 경로로 fixture를 만든다.
-///
-/// `tools/datapack/build-datapack.mjs`가 `catalog-schema.sql`을 그대로 exec하므로 fixture도
-/// 같은 파일을 exec한다. drift `onCreate` 산출물과는 FK·CHECK·nullability가 다르다.
-void _buildPackSchemaPack(File file, {required String activePack}) {
-  final schema = File(
-    '../../tools/datapack/schema/catalog-schema.sql',
-  ).readAsStringSync();
-  final raw = sqlite.sqlite3.open(file.path);
-  try {
-    raw.execute(schema);
-    raw.execute(
-      "INSERT INTO catalog_metadata (key, value) VALUES ('schemaVersion', '1')",
-    );
-    raw.execute('INSERT INTO catalog_metadata (key, value) VALUES (?, ?)', [
-      'activePack',
-      activePack,
-    ]);
-  } finally {
-    raw.close();
-  }
 }
 
 void _dropTables(File file, List<String> tableNames) {

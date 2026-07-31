@@ -14,9 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// `DataPackSigningPublicKey.verify`(RSASSA-PKCS1-v1_5 직접 구현)를 덮는다.
 ///
 /// 기대값은 전부 `apps/mobile/test/core/datapack/fixtures/`의 저장 fixture에서
-/// 읽는다. 그 fixture는 Node 구현(`tools/datapack/lib/manifest-validation.mjs`,
-/// `node:crypto`)이 만들었고 생성기는
-/// `tools/mobile/build-manifest-envelope-signature-fixture.mjs`다. 테스트가 정준
+/// 읽는다. 그 fixture는 data producer의 Node 구현과 `node:crypto`로 만들었다. 테스트가 정준
 /// 문자열이나 서명을 스스로 계산하면 검증 대상 구현을 복제하게 되어(tautology) 회귀를
 /// 잡지 못하므로, 여기서는 저장된 값과 비교만 한다.
 ///
@@ -29,7 +27,7 @@ void main() {
     'apps/mobile/test/core/datapack/fixtures/production_manifest_envelope.json',
   );
   final contract = _loadJson(
-    'contracts/datapack/canonical-number-contract.json',
+    'apps/mobile/test/fixtures/contracts/datapack/canonical-number-contract.json',
   );
 
   final publicKeyJson = fixture['publicKey']! as Map<String, Object?>;
@@ -448,8 +446,7 @@ void main() {
       expect(
         contractCanonical[contractId],
         boundary['canonical'],
-        reason:
-            '$contractId 표기가 contracts/datapack/canonical-number-contract.json 과 다르다',
+        reason: '$contractId 표기가 canonical-number contract snapshot과 다르다',
       );
     }
   });

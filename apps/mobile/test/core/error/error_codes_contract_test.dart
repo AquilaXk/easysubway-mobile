@@ -7,10 +7,8 @@ import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  final repoRoot = _findRepoRoot();
-
   test('errorCodeCatalog mirrors contracts/error-codes.json wire fields', () {
-    final contractPath = File('${repoRoot.path}/contracts/error-codes.json');
+    final contractPath = File('test/fixtures/contracts/error-codes.json');
     expect(contractPath.existsSync(), isTrue);
 
     final contract = (jsonDecode(contractPath.readAsStringSync()) as List)
@@ -30,7 +28,7 @@ void main() {
 
   test('errorCodeCatalog userMessage matches backend messages.properties', () {
     final properties = File(
-      '${repoRoot.path}/backend/src/main/resources/messages.properties',
+      'test/fixtures/contracts/backend/messages.properties',
     ).readAsStringSync();
     final messages = <String, String>{};
     for (final line in properties.split('\n')) {
@@ -84,15 +82,4 @@ void main() {
     expect(mapped.correlationId, 'corr-unknown');
     expect(mapped.userMessage.contains('TOTALLY_UNKNOWN'), isFalse);
   });
-}
-
-Directory _findRepoRoot() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    if (File('${dir.path}/contracts/error-codes.json').existsSync()) {
-      return dir;
-    }
-    dir = dir.parent;
-  }
-  fail('contracts/error-codes.json not found from ${Directory.current.path}');
 }
