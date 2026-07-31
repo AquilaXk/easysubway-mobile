@@ -1,1 +1,3 @@
 apps/mobile/assets/datapacks/maps/*.svg -diff -text
+tools/mobile/fixtures/datapack-lock.schema.json text eol=lf
+tools/mobile/fixtures/mobile-component-manifest.schema.json text eol=lf
