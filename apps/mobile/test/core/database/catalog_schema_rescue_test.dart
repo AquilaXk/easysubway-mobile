@@ -487,6 +487,8 @@ Future<void> _buildInstalledPack(
   File file, {
   required String activePack,
 }) async {
+  // 모바일 복구 동작만 검증하므로 앱의 Drift 스키마로 consumer fixture를 만든다.
+  // producer/deployed SQL의 byte-level parity는 data 레포의 계약 검증이 소유한다.
   final database = CatalogDatabase.file(file);
   await database.seedBaselineIfEmpty();
   await database

@@ -6,7 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   // 제품 정책에서 고정한 consumer snapshot과 Dart 상수가 어긋나지 않게 한다.
-  test('Dart 프리셋 상수는 release policy JSON과 동기화된다', () {
+  test('Dart 프리셋 상수는 consumer snapshot과 동기화된다', () {
     final json =
         jsonDecode(
               File(
@@ -77,7 +77,7 @@ void main() {
     );
   });
 
-  test('Dart 이동 유형 매핑은 release policy JSON과 동기화된다', () {
+  test('Dart 이동 유형 매핑은 consumer snapshot과 동기화된다', () {
     final json =
         jsonDecode(
               File(
