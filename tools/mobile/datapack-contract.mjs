@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { codepointCompare } from "../lib/codepoint-compare.mjs";
@@ -92,8 +92,14 @@ function validateIdentity(value, label) {
   };
 }
 
+// JSON Schema는 pack 객체의 구조를 고정하고, id/path별 배열 유일성은 이 소비 entrypoint가
+// 함께 강제한다. 표준 JSON Schema의 uniqueItems만으로는 이 두 property를 표현할 수 없다.
+export function validateDatapackLock(lock) {
+  return validateIdentity(lock, "lock");
+}
+
 export function validateOfflineCandidate({ lock, candidateManifest }) {
-  const expected = validateIdentity(lock, "lock");
+  const expected = validateDatapackLock(lock);
   const candidate = validateIdentity(candidateManifest, "candidateManifest");
   if (canonicalJson(expected) !== canonicalJson(candidate)) throw new Error("candidate manifest identity does not match the pinned lock");
   return candidate;
@@ -114,14 +120,16 @@ export async function writeAtomicStagingPlan({ targetPath, lock, candidateManife
 
 async function writeAtomicText(targetPath, text, writeFileImpl) {
   const directory = path.dirname(targetPath);
-  const temporaryPath = path.join(directory, `.${path.basename(targetPath)}.tmp-${process.pid}-${Date.now()}`);
+  let temporaryPath;
   try {
     await mkdir(directory, { recursive: true });
-    await writeFileImpl(temporaryPath, text, "utf8");
+    temporaryPath = path.join(directory, `.${path.basename(targetPath)}.tmp-${randomUUID()}`);
+    await writeFileImpl(temporaryPath, text, { encoding: "utf8", flag: "wx" });
     await rename(temporaryPath, targetPath);
   } catch (error) {
-    await rm(temporaryPath, { force: true }).catch(() => {});
     throw new Error("failed to write contract output");
+  } finally {
+    if (temporaryPath) await rm(temporaryPath, { force: true }).catch(() => {});
   }
 }
 

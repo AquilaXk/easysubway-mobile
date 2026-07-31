@@ -4,6 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import * as contract from "./datapack-contract.mjs";
 
 import {
   CONTRACT_VERSION,
@@ -61,6 +62,17 @@ test("offline candidate rejects unknown root and pack fields", () => {
   assert.throws(() => validateOfflineCandidate({ lock: valid, candidateManifest: candidateWithUnknownPackField }));
 });
 
+test("datapack lock contract rejects schema-shaped duplicate pack ids and paths", () => {
+  const valid = identityWithFixtureBytes();
+  assert.equal(typeof contract.validateDatapackLock, "function");
+  const duplicateId = clone(valid);
+  duplicateId.packs[1] = { ...duplicateId.packs[1], id: duplicateId.packs[0].id };
+  assert.throws(() => contract.validateDatapackLock(duplicateId));
+  const duplicatePath = clone(valid);
+  duplicatePath.packs[1] = { ...duplicatePath.packs[1], path: duplicatePath.packs[0].path };
+  assert.throws(() => contract.validateDatapackLock(duplicatePath));
+});
+
 test("offline candidate rejects noncanonical POSIX pack path aliases", () => {
   const valid = identityWithFixtureBytes();
   for (const alias of ["nested//core.sqlite.gz", "nested/./core.sqlite.gz", "nested/core.sqlite.gz/"]) {
@@ -107,6 +119,37 @@ test("atomic staging plan is deterministic and preserves old output on failure",
   }));
   assert.equal(await readFile(targetPath, "utf8"), "old-plan");
   assert.deepEqual((await readdir(directory)).filter((name) => name.includes(".tmp-")), []);
+});
+
+test("concurrent same-millisecond staging writes publish one complete plan and clean temps", async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), "datapack-contract-concurrent-"));
+  const targetPath = path.join(directory, "plan.json");
+  const first = identityWithFixtureBytes();
+  const second = clone(first);
+  second.releaseSequence += 1;
+  second.manifestSha256 = "b".repeat(64);
+  let arrivals = 0;
+  let releaseBothWrites;
+  const bothWrites = new Promise((resolve) => { releaseBothWrites = resolve; });
+  const synchronizedWrite = async (filePath, text, encoding) => {
+    await writeFile(filePath, text, encoding);
+    arrivals += 1;
+    if (arrivals === 2) releaseBothWrites();
+    await bothWrites;
+  };
+  const originalNow = Date.now;
+  Date.now = () => 1;
+  try {
+    const plans = await Promise.all([
+      writeAtomicStagingPlan({ targetPath, lock: first, candidateManifest: clone(first), writeFileImpl: synchronizedWrite }),
+      writeAtomicStagingPlan({ targetPath, lock: second, candidateManifest: clone(second), writeFileImpl: synchronizedWrite }),
+    ]);
+    const output = await readFile(targetPath, "utf8");
+    assert.ok([`${canonicalJson(plans[0])}\n`, `${canonicalJson(plans[1])}\n`].includes(output));
+    assert.deepEqual((await readdir(directory)).filter((name) => name.startsWith(".plan.json.tmp-")), []);
+  } finally {
+    Date.now = originalNow;
+  }
 });
 
 test("trusted AAB entries require exact, unique, safe pinned bytes", () => {
