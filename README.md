@@ -9,18 +9,6 @@
 계단 하나가 누군가에게는 벽이 됩니다.
 <br><strong>쉬운 지하철은 이동 가능성을 먼저 보는 지하철 앱입니다.</strong>
 
-<br>
-
-[![CI](https://github.com/AquilaXk/easysubway-mobile/actions/workflows/ci.yml/badge.svg)](https://github.com/AquilaXk/easysubway-mobile/actions/workflows/ci.yml)
-![Flutter](https://img.shields.io/badge/Flutter-02569B?logo=flutter&logoColor=white)
-![Android](https://img.shields.io/badge/Android-3DDC84?logo=android&logoColor=white)
-
-<br>
-
-<img alt="쉬운 지하철 길찾기 화면" src="apps/mobile/test/evidence/issue-1415/planned-result.png" width="320" />
-
-<sub>개발 중인 Android 길찾기 화면</sub>
-
 </div>
 
 ## 갈 수 있는 길을 먼저 보여줍니다
@@ -44,7 +32,7 @@ Google Play 출시를 준비하고 있습니다. 공개 다운로드 링크는 �
 
 ## 문의
 
-버그 제보, 기능 제안, 출시 소식은 [EasySubway 프로젝트](https://github.com/AquilaXk/easysubway/issues)에서 확인할 수 있습니다.
+버그 제보, 기능 제안, 출시 소식은 [쉬운 지하철 모바일 저장소](https://github.com/AquilaXk/easysubway-mobile/issues)에서 확인할 수 있습니다.
 
 ---
 
