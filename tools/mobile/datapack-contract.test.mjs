@@ -125,7 +125,7 @@ test("datapack lock release sequence accepts only safe integers", () => {
 
 test("offline candidate rejects noncanonical POSIX pack path aliases", () => {
   const valid = identityWithFixtureBytes();
-  for (const alias of ["nested//core.sqlite.gz", "nested/./core.sqlite.gz", "nested/core.sqlite.gz/"]) {
+  for (const alias of ["nested//core.sqlite.gz", "nested/./core.sqlite.gz", "nested/core.sqlite.gz/", "nested/core.sqlite.gz\n", "nested/core.sqlite.gz\r"]) {
     const invalid = clone(valid);
     invalid.packs[0].path = alias;
     assert.throws(() => validateOfflineCandidate({ lock: invalid, candidateManifest: invalid }));
@@ -236,6 +236,12 @@ test("trusted AAB entries require exact, unique, safe pinned bytes", () => {
     [{ name: "assets//datapacks/core.sqlite.gz", bytes: Buffer.from("core") }, ...valid.slice(2)],
     [{ ...valid[0], bytes: Buffer.from("wrong") }, ...valid.slice(1)],
   ]) assert.throws(() => verifyTrustedAabEntries({ identity, entries }));
+  for (const suffix of ["\n", "\r"]) {
+    assert.throws(
+      () => verifyTrustedAabEntries({ identity, entries: [{ ...valid[0], name: `${valid[0].name}${suffix}` }, ...valid.slice(1)] }),
+      /trusted AAB entry.name must be a canonical POSIX relative path/,
+    );
+  }
 });
 
 test("component manifest is deterministic and rejects noncanonical evidence", async () => {

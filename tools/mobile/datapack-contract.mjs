@@ -52,7 +52,8 @@ function requirePositiveInteger(value, label) {
 }
 
 function requireSafePath(value, label) {
-  if (typeof value !== "string" || value.endsWith("/") || !SAFE_RELATIVE_PATH.test(value) || path.posix.normalize(value) !== value) throw new Error(`${label} must be a canonical POSIX relative path`);
+  const match = typeof value === "string" ? value.match(SAFE_RELATIVE_PATH) : null;
+  if (!match || match[0].length !== value.length || value.endsWith("/") || path.posix.normalize(value) !== value) throw new Error(`${label} must be a canonical POSIX relative path`);
   return value;
 }
 
