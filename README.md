@@ -32,7 +32,7 @@ Google Play 출시를 준비하고 있습니다. 공개 다운로드 링크는 �
 
 ## 문의
 
-버그 제보, 기능 제안, 출시 소식은 [쉬운 지하철 모바일 저장소](https://github.com/AquilaXk/easysubway-mobile/issues)에서 확인할 수 있습니다.
+[aquila@aquilaxk.site](mailto:aquila@aquilaxk.site)로 연락해 주세요.
 
 ---
 
