@@ -111,9 +111,11 @@ test("canonical JSON accepts only recursive JSON values and remains deterministi
   assert.equal(canonicalJson({ a: { enabled: true }, z: [null, false, 0.5, "text"] }), canonicalJson(valid));
   const sparse = [];
   sparse[1] = "missing-first";
+  const sparseWithExtraProperty = new Array(1);
+  sparseWithExtraProperty.extra = "masks-hole";
   for (const invalid of [
     new Date(), new Map(), new Set(), Object.create(null), new (class NonPlain {})(),
-    undefined, () => {}, Symbol("value"), 1n, sparse,
+    undefined, () => {}, Symbol("value"), 1n, sparse, sparseWithExtraProperty,
     { nested: new Date() }, { nested: [undefined] },
   ]) assert.throws(() => canonicalJson(invalid));
 });

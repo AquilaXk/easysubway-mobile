@@ -19,10 +19,11 @@ export function canonicalJson(value) {
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) {
-    if (Object.keys(value).length !== value.length || value.some((_, index) => !Object.hasOwn(value, index))) {
+    const keys = Object.keys(value);
+    if (keys.length !== value.length || keys.some((key, index) => key !== String(index))) {
       throw new Error("canonical JSON requires dense arrays");
     }
-    return `[${value.map(canonicalJson).join(",")}]`;
+    return `[${Array.from({ length: value.length }, (_, index) => canonicalJson(value[index])).join(",")}]`;
   }
   if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype || Reflect.ownKeys(value).length !== Object.keys(value).length) {
     throw new Error("canonical JSON requires plain JSON records");
