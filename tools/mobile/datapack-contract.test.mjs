@@ -33,9 +33,11 @@ function identityWithFixtureBytes() {
 test("schema snapshots are fixed to the Task 6 contract version and digest", async () => {
   const lockSchema = await readFile(path.join(here, "fixtures/datapack-lock.schema.json"));
   const componentSchema = await readFile(path.join(here, "fixtures/mobile-component-manifest.schema.json"));
+  assert.equal(JSON.parse(lockSchema).properties.releaseSequence.maximum, Number.MAX_SAFE_INTEGER);
+  assert.equal(JSON.parse(componentSchema).properties.versionCode.maximum, Number.MAX_SAFE_INTEGER);
   assert.equal(CONTRACT_VERSION, "mobile-datapack-contract-v1");
-  assert.equal(sha256(lockSchema), "0f7a840784b80f07610f38db63e14b3e81a9eec940ea2cff80ee7f7abee8c821");
-  assert.equal(sha256(componentSchema), "5ea2b4e05dd80822ebebef4e6674cddb1cd4d107c75f74182a7c7a512c480175");
+  assert.equal(sha256(lockSchema), "eb907158c08ded9e3f4bdd3d9896d572836f76523e4190c0297bfde4520da900");
+  assert.equal(sha256(componentSchema), "7412b718cd8be3bec784882fa24720db4077f1e218e1055415994215e89b04a3");
 });
 
 test("offline candidate accepts only the exactly pinned identity", () => {
@@ -72,6 +74,27 @@ test("datapack lock contract rejects schema-shaped duplicate pack ids and paths"
   const duplicatePath = clone(valid);
   duplicatePath.packs[1] = { ...duplicatePath.packs[1], path: duplicatePath.packs[0].path };
   assert.throws(() => contract.validateDatapackLock(duplicatePath));
+});
+
+test("datapack lock contract rejects pack path ancestors and manifest descendants", () => {
+  const valid = identityWithFixtureBytes();
+  for (const paths of [["nested", "nested/core.sqlite.gz"], ["nested/core.sqlite.gz", "nested"]]) {
+    const invalid = clone(valid);
+    invalid.packs[0].path = paths[0];
+    invalid.packs[1].path = paths[1];
+    assert.throws(() => contract.validateDatapackLock(invalid));
+  }
+  const invalid = identityWithFixtureBytes();
+  invalid.packs[0].path = "index.json/backup";
+  assert.throws(() => contract.validateDatapackLock(invalid));
+});
+
+test("datapack lock release sequence accepts only safe integers", () => {
+  const valid = identityWithFixtureBytes();
+  valid.releaseSequence = Number.MAX_SAFE_INTEGER;
+  assert.equal(contract.validateDatapackLock(valid).releaseSequence, Number.MAX_SAFE_INTEGER);
+  valid.releaseSequence += 1;
+  assert.throws(() => contract.validateDatapackLock(valid));
 });
 
 test("offline candidate rejects noncanonical POSIX pack path aliases", () => {
@@ -206,6 +229,8 @@ test("component manifest is deterministic and rejects noncanonical evidence", as
   const first = buildMobileComponentManifest(input);
   const second = buildMobileComponentManifest({ ...input, evidence: { verified: true, aabEntries: 2 }, issueRefs: [...input.issueRefs].reverse() });
   assert.deepEqual(first, second);
+  assert.equal(buildMobileComponentManifest({ ...input, versionCode: Number.MAX_SAFE_INTEGER }).manifest.versionCode, Number.MAX_SAFE_INTEGER);
+  assert.throws(() => buildMobileComponentManifest({ ...input, versionCode: Number.MAX_SAFE_INTEGER + 1 }));
   assert.throws(() => buildMobileComponentManifest({ ...input, evidenceSha256: "0".repeat(64) }));
   assert.throws(() => buildMobileComponentManifest({ ...input, unreviewed: true }));
   for (const invalid of [

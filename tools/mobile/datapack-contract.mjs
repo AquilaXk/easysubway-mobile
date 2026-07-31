@@ -73,7 +73,7 @@ function validatePack(pack, label) {
   requireExactKeys(pack, ["id", "path", "sha256"], label);
   if (typeof pack.id !== "string" || !pack.id) throw new Error(`${label}.id is required`);
   const packPath = requireSafePath(pack.path, `${label}.path`);
-  if (packPath === "index.json") throw new Error(`${label}.path is reserved for the datapack manifest`);
+  if (packPath === "index.json" || packPath.startsWith("index.json/")) throw new Error(`${label}.path is reserved for the datapack manifest`);
   return {
     id: pack.id,
     path: packPath,
@@ -91,7 +91,7 @@ function validateIdentity(value, label) {
   const normalizedPacks = packs.map((pack, index) => validatePack(pack, `${label}.packs[${index}]`));
   const ids = new Set(normalizedPacks.map((pack) => pack.id));
   const paths = new Set(normalizedPacks.map((pack) => pack.path));
-  if (ids.size !== normalizedPacks.length || paths.size !== normalizedPacks.length) throw new Error(`${label}.packs contains duplicate identities`);
+  if (ids.size !== normalizedPacks.length || paths.size !== normalizedPacks.length || normalizedPacks.some((pack, index) => normalizedPacks.some((other, otherIndex) => index !== otherIndex && other.path.startsWith(`${pack.path}/`)))) throw new Error(`${label}.packs contains duplicate identities`);
   return {
     schemaVersion: 1,
     contractVersion: CONTRACT_VERSION,
