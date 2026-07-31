@@ -32,7 +32,7 @@ test("schema snapshots are fixed to the Task 6 contract version and digest", asy
   const lockSchema = await readFile(path.join(here, "fixtures/datapack-lock.schema.json"));
   const componentSchema = await readFile(path.join(here, "fixtures/mobile-component-manifest.schema.json"));
   assert.equal(CONTRACT_VERSION, "mobile-datapack-contract-v1");
-  assert.equal(sha256(lockSchema), "2f55469b913016d531be32bd4360bc0079d1ae5a7b3ce305466a6ede6116be11");
+  assert.equal(sha256(lockSchema), "0f7a840784b80f07610f38db63e14b3e81a9eec940ea2cff80ee7f7abee8c821");
   assert.equal(sha256(componentSchema), "5ea2b4e05dd80822ebebef4e6674cddb1cd4d107c75f74182a7c7a512c480175");
 });
 
@@ -76,6 +76,19 @@ test("offline candidate rejects traversal pack paths", () => {
     const invalid = clone(valid);
     invalid.packs[0].path = traversal;
     assert.throws(() => validateOfflineCandidate({ lock: invalid, candidateManifest: invalid }));
+  }
+});
+
+test("offline candidate rejects the reserved manifest pack path", () => {
+  const invalid = identityWithFixtureBytes();
+  invalid.packs[0].path = "index.json";
+  assert.throws(() => validateOfflineCandidate({ lock: invalid, candidateManifest: invalid }));
+});
+
+test("canonical JSON preserves finite fractional evidence within safe magnitude", () => {
+  assert.equal(canonicalJson({ evidence: { fraction: 100.5 } }), '{"evidence":{"fraction":100.5}}');
+  for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
+    assert.throws(() => canonicalJson({ evidence: { fraction: invalid } }));
   }
 });
 

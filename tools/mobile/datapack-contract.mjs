@@ -15,7 +15,7 @@ export function canonicalJson(value) {
     return JSON.stringify(value);
   }
   if (typeof value === "number") {
-    if (!Number.isSafeInteger(value)) throw new Error("canonical JSON requires safe integer numbers");
+    if (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER) throw new Error("canonical JSON requires finite numbers within safe magnitude");
     return JSON.stringify(value);
   }
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
@@ -63,9 +63,11 @@ function validatePack(pack, label) {
   requireObject(pack, label);
   requireExactKeys(pack, ["id", "path", "sha256"], label);
   if (typeof pack.id !== "string" || !pack.id) throw new Error(`${label}.id is required`);
+  const packPath = requireSafePath(pack.path, `${label}.path`);
+  if (packPath === "index.json") throw new Error(`${label}.path is reserved for the datapack manifest`);
   return {
     id: pack.id,
-    path: requireSafePath(pack.path, `${label}.path`),
+    path: packPath,
     sha256: requireSha256(pack.sha256, `${label}.sha256`),
   };
 }
