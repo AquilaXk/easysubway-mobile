@@ -70,6 +70,15 @@ test("offline candidate rejects noncanonical POSIX pack path aliases", () => {
   }
 });
 
+test("offline candidate rejects traversal pack paths", () => {
+  const valid = identityWithFixtureBytes();
+  for (const traversal of ["../assets/core.sqlite.gz", "nested/../core.sqlite.gz"]) {
+    const invalid = clone(valid);
+    invalid.packs[0].path = traversal;
+    assert.throws(() => validateOfflineCandidate({ lock: invalid, candidateManifest: invalid }));
+  }
+});
+
 test("atomic staging plan is deterministic and preserves old output on failure", async () => {
   const directory = await mkdtemp(path.join(tmpdir(), "datapack-contract-"));
   const targetPath = path.join(directory, "plan.json");
