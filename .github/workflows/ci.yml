@@ -34,6 +34,7 @@ jobs:
         run: |
           node --test \
             tools/ci/filter-mobile-lcov.test.mjs \
+            tools/mobile/datapack-contract.test.mjs \
             tools/mobile/status-voice-inventory.test.mjs \
             tools/release/hash-android-bundle-payload.test.mjs
           node tools/ci/audit-mobile-datapack-assets.mjs \
