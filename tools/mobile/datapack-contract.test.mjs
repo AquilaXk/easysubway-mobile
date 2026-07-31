@@ -84,9 +84,35 @@ test("datapack lock contract rejects pack path ancestors and manifest descendant
     invalid.packs[1].path = paths[1];
     assert.throws(() => contract.validateDatapackLock(invalid));
   }
+  const separatedByPrefixSibling = clone(valid);
+  separatedByPrefixSibling.packs[0].path = "nested";
+  separatedByPrefixSibling.packs[1].path = "nested-core.sqlite.gz";
+  separatedByPrefixSibling.packs.push({ ...separatedByPrefixSibling.packs[0], id: "nested-child", path: "nested/core.sqlite.gz" });
+  assert.throws(() => contract.validateDatapackLock(separatedByPrefixSibling));
   const invalid = identityWithFixtureBytes();
   invalid.packs[0].path = "index.json/backup";
   assert.throws(() => contract.validateDatapackLock(invalid));
+});
+
+test("datapack lock checks many unique paths without pairwise prefix scans", () => {
+  const valid = identityWithFixtureBytes();
+  valid.packs = Array.from({ length: 256 }, (_, index) => ({
+    ...valid.packs[0],
+    id: `pack-${index}`,
+    path: `packs/${String(index).padStart(3, "0")}.sqlite.gz`,
+  }));
+  const originalStartsWith = String.prototype.startsWith;
+  let startsWithCalls = 0;
+  String.prototype.startsWith = function (...arguments_) {
+    startsWithCalls += 1;
+    return originalStartsWith.apply(this, arguments_);
+  };
+  try {
+    assert.equal(contract.validateDatapackLock(valid).packs.length, valid.packs.length);
+  } finally {
+    String.prototype.startsWith = originalStartsWith;
+  }
+  assert.ok(startsWithCalls <= valid.packs.length * 2);
 });
 
 test("datapack lock release sequence accepts only safe integers", () => {

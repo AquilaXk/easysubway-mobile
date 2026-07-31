@@ -90,8 +90,8 @@ function validateIdentity(value, label) {
   if (!Array.isArray(packs) || packs.length === 0) throw new Error(`${label}.packs must be a non-empty array`);
   const normalizedPacks = packs.map((pack, index) => validatePack(pack, `${label}.packs[${index}]`));
   const ids = new Set(normalizedPacks.map((pack) => pack.id));
-  const paths = new Set(normalizedPacks.map((pack) => pack.path));
-  if (ids.size !== normalizedPacks.length || paths.size !== normalizedPacks.length || normalizedPacks.some((pack, index) => normalizedPacks.some((other, otherIndex) => index !== otherIndex && other.path.startsWith(`${pack.path}/`)))) throw new Error(`${label}.packs contains duplicate identities`);
+  const paths = normalizedPacks.map((pack) => pack.path).sort((a, b) => codepointCompare(a.replaceAll("/", "\0"), b.replaceAll("/", "\0")));
+  if (ids.size !== normalizedPacks.length || new Set(paths).size !== paths.length || paths.some((packPath, index) => index > 0 && packPath.startsWith(`${paths[index - 1]}/`))) throw new Error(`${label}.packs contains duplicate identities`);
   return {
     schemaVersion: 1,
     contractVersion: CONTRACT_VERSION,
