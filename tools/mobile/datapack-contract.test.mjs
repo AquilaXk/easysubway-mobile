@@ -4,6 +4,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 import * as contract from "./datapack-contract.mjs";
 
 import {
@@ -17,7 +18,7 @@ import {
   writeAtomicStagingPlan,
 } from "./datapack-contract.mjs";
 
-const here = path.dirname(new URL(import.meta.url).pathname);
+const here = path.dirname(fileURLToPath(import.meta.url));
 const fixture = JSON.parse(await readFile(path.join(here, "fixtures/datapack-lock.valid.json"), "utf8"));
 
 function clone(value) { return JSON.parse(JSON.stringify(value)); }
@@ -102,6 +103,19 @@ test("canonical JSON preserves finite fractional evidence within safe magnitude"
   for (const invalid of [Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY, Number.MAX_SAFE_INTEGER + 1]) {
     assert.throws(() => canonicalJson({ evidence: { fraction: invalid } }));
   }
+});
+
+test("canonical JSON accepts only recursive JSON values and remains deterministic", () => {
+  const valid = { z: [null, false, 0.5, "text"], a: { enabled: true } };
+  assert.equal(canonicalJson(valid), '{"a":{"enabled":true},"z":[null,false,0.5,"text"]}');
+  assert.equal(canonicalJson({ a: { enabled: true }, z: [null, false, 0.5, "text"] }), canonicalJson(valid));
+  const sparse = [];
+  sparse[1] = "missing-first";
+  for (const invalid of [
+    new Date(), new Map(), new Set(), Object.create(null), new (class NonPlain {})(),
+    undefined, () => {}, Symbol("value"), 1n, sparse,
+    { nested: new Date() }, { nested: [undefined] },
+  ]) assert.throws(() => canonicalJson(invalid));
 });
 
 test("atomic staging plan is deterministic and preserves old output on failure", async () => {

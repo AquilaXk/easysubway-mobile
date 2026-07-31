@@ -18,8 +18,15 @@ export function canonicalJson(value) {
     if (!Number.isFinite(value) || Math.abs(value) > Number.MAX_SAFE_INTEGER) throw new Error("canonical JSON requires finite numbers within safe magnitude");
     return JSON.stringify(value);
   }
-  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
-  if (!value || typeof value !== "object") throw new Error("canonical JSON requires JSON values");
+  if (Array.isArray(value)) {
+    if (Object.keys(value).length !== value.length || value.some((_, index) => !Object.hasOwn(value, index))) {
+      throw new Error("canonical JSON requires dense arrays");
+    }
+    return `[${value.map(canonicalJson).join(",")}]`;
+  }
+  if (!value || typeof value !== "object" || Object.getPrototypeOf(value) !== Object.prototype || Reflect.ownKeys(value).length !== Object.keys(value).length) {
+    throw new Error("canonical JSON requires plain JSON records");
+  }
   return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(",")}}`;
 }
 
