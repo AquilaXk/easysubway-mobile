@@ -52,7 +52,7 @@ UI, 접근성, 수동 QA, store 제출 확인이 필요한 항목은 증거 첨�
 - mobile versionCode:
 - datapack version:
 - mobile contract (contracts/mobile):
-- consumer snapshot (consumer-snapshots.sha256):
+- consumer snapshot (contracts/mobile/consumer-snapshots.sha256):
 - AAB identity:
 
 ## 리뷰어 메모

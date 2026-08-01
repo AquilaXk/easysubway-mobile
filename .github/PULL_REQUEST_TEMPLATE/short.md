@@ -28,5 +28,6 @@ Refs #
 
 - [ ] 이 PR은 B/C등급 작업이며 full template이 필요 없다.
 - [ ] CI 결과를 확인했다.
+- [ ] CodeRabbit 리뷰 결과와 필요한 조치를 확인하고 반영했다.
 - [ ] GitHub PR Review 객체가 있는지 확인했다. CodeRabbit status check만으로는 리뷰 완료로 보지 않는다.
 - [ ] CodeRabbit 실행이 불가능하거나 PR Review 객체가 없으면 폴백 리뷰를 단일 PR review로 게시했다.
