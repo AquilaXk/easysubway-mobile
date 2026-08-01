@@ -89,18 +89,21 @@ jobs:
             printf 'mobile versionCode must be a positive integer.\n' >&2
             exit 1
           fi
+          service_account_base64="${EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64//[[:space:]]/}"
           env_file="${RUNNER_TEMP}/google-play-preflight.env"
           {
             printf 'EASYSUBWAY_GOOGLE_PLAY_PACKAGE_NAME=%s\n' "${package_name}"
             printf 'EASYSUBWAY_GOOGLE_PLAY_LATEST_VERSION_CODE=%s\n' "${version_code}"
             printf 'EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64=%s\n' \
-              "${EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64}"
+              "${service_account_base64}"
           } > "${env_file}"
+          play_status=0
           node tools/ci/check-google-play-api-access.mjs \
             --env-file "${env_file}" \
             --github-output "${GITHUB_OUTPUT}" \
-            --report "${RUNNER_TEMP}/google-play-api-access.txt"
+            --report "${RUNNER_TEMP}/google-play-api-access.txt" || play_status=$?
           cat "${RUNNER_TEMP}/google-play-api-access.txt"
+          exit "${play_status}"
       - name: Require Google Play readiness
         env:
           GOOGLE_PLAY_API_ACCESS_READY: ${{ steps.play.outputs.google_play_api_access_ready }}

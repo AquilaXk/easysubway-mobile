@@ -20,7 +20,12 @@ test("store preflight validates signing and temporary Play access without publis
   }
   assert.match(workflow, /keytool -list/);
   assert.match(workflow, /version_code.*=~.*\[0-9\]/);
+  assert.match(workflow, /service_account_base64=.*\[\[:space:\]\]/);
   assert.match(workflow, /node tools\/ci\/check-google-play-api-access\.mjs/);
+  assert.match(
+    workflow,
+    /play_status=0[\s\S]*\|\| play_status=\$\?[\s\S]*cat .*google-play-api-access\.txt[\s\S]*exit "\$\{play_status\}"/,
+  );
   assert.doesNotMatch(workflow, /upload-play|edits\/.*:commit|bundle upload|play publish/i);
 
   assert.match(access, /method: "POST"/);
