@@ -34,6 +34,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'author_association == "OWNER"',
     '. == "APPROVED"',
     'reduce .[] as $review',
+    'del(.[$review.user.login])',
     '.submitted_at',
     'reviewThreads(first: 100)',
     'hasNextPage',
@@ -163,6 +164,79 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.notEqual(
     runReviewFilter([
       review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, {
+        commit_id: 'previous-head',
+      }),
+    ]),
+    0,
+  );
+
+  // dismiss된 change request는 더 이상 활성이 아니므로 큐를 막지 않는다.
+  assert.equal(
+    runReviewFilter([
+      review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-one' },
+      }),
+      review(2, 'APPROVED', '2026-08-01T00:01:00Z', '', {
+        user: { login: 'reviewer-two' },
+      }),
+    ]),
+    0,
+  );
+  // dismiss_stale_reviews로 무효화된 이전 head 승인도 큐를 막지 않는다.
+  assert.equal(
+    runReviewFilter([
+      review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-one' },
+      }),
+      review(2, 'APPROVED', '2026-08-01T00:01:00Z', '', {
+        user: { login: 'reviewer-two' },
+      }),
+      review(3, 'APPROVED', '2026-08-01T00:02:00Z', '', {
+        user: { login: 'reviewer-three' },
+      }),
+    ]),
+    0,
+  );
+  // dismissed가 섞여 있어도 다른 리뷰어의 활성 change request는 그대로 막는다.
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-one' },
+      }),
+      review(2, 'CHANGES_REQUESTED', '2026-08-01T00:01:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-two' },
+      }),
+      review(3, 'APPROVED', '2026-08-01T00:02:00Z', '', {
+        user: { login: 'reviewer-three' },
+      }),
+    ]),
+    0,
+  );
+  // dismiss 이후 같은 리뷰어가 다시 남긴 change request는 정상 반영된다.
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-one' },
+      }),
+      review(2, 'CHANGES_REQUESTED', '2026-08-01T00:01:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-one' },
+      }),
+      review(3, 'APPROVED', '2026-08-01T00:02:00Z', '', {
+        user: { login: 'reviewer-two' },
+      }),
+    ]),
+    0,
+  );
+  // dismissed 리뷰만 남으면 활성 리뷰가 없으므로 fail-closed로 막는다.
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
       }),
     ]),

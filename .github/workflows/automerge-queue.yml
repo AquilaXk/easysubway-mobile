@@ -84,6 +84,8 @@ jobs:
             reduce .[] as $review ({};
               if $review.state == "COMMENTED" then
                 .[$review.user.login] //= "COMMENTED"
+              elif $review.state == "DISMISSED" then
+                del(.[$review.user.login])
               else
                 .[$review.user.login] = $review.state
               end
