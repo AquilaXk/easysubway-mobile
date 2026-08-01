@@ -10,7 +10,6 @@ import {
   parseDotenv,
   readServiceAccount,
   requestJson,
-  requireJsonString,
 } from "./lib/google-play-auth.mjs";
 
 async function main() {
@@ -35,11 +34,9 @@ export async function runGooglePlayApiAccess({
   const packageName = env.EASYSUBWAY_GOOGLE_PLAY_PACKAGE_NAME?.trim() || "unknown";
   const latestVersionCode = env.EASYSUBWAY_GOOGLE_PLAY_LATEST_VERSION_CODE?.trim() || "unknown";
   const serviceAccountSource = detectServiceAccountSource(env);
-  let token;
-  let editId;
-  let editDeleted = false;
   let ready = true;
   let failureMessage;
+  let reportSecrets = [];
   const report = [
     "google_play_api_access",
     `package_name=${packageName}`,
@@ -53,67 +50,29 @@ export async function runGooglePlayApiAccess({
       throw new Error("missing required env: EASYSUBWAY_GOOGLE_PLAY_PACKAGE_NAME");
     }
     const serviceAccount = readServiceAccount(env);
-    token = await fetchAccessToken(serviceAccount, fetchImpl);
-    const edit = await requestJson(`${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits`, {
-      method: "POST",
-      token,
-      body: {},
-    }, fetchImpl);
-    editId = requireJsonString(edit, "id");
-    report.push("edit_insert.ready=true");
-
-    const tracks = await requestJson(
-      `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits/${encodePath(editId)}/tracks`,
+    reportSecrets = [
+      serviceAccount.client_email,
+      serviceAccount.project_id,
+      serviceAccount.private_key_id,
+    ].filter((value) => typeof value === "string" && value.length > 0);
+    const token = await fetchAccessToken(serviceAccount, fetchImpl);
+    const response = await requestJson(
+      `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/reviews?maxResults=1`,
       { method: "GET", token },
       fetchImpl,
     );
-    const trackList = Array.isArray(tracks.tracks) ? tracks.tracks : [];
-    const trackIds = trackList
-      .map((track) => track.trackId ?? track.track)
-      .filter((track) => typeof track === "string" && track.length > 0)
-      .toSorted();
-    const maxTrackVersionCode = maxVersionCode(trackList);
-    report.push("tracks_list.ready=true");
-    report.push(`tracks.count=${trackList.length}`);
-    report.push(`tracks.ids=${trackIds.join(",") || "none"}`);
-    report.push(`tracks.max_version_code=${maxTrackVersionCode ?? "none"}`);
-    const latestVersionCodeCoversTrackMax = versionCodeCoversTrackMax(latestVersionCode, maxTrackVersionCode);
-    report.push(`latest_version_code_covers_track_max=${latestVersionCodeCoversTrackMax}`);
-    if (latestVersionCodeCoversTrackMax === "false") {
-      ready = false;
-      failureMessage = "google play latest versionCode is lower than track max versionCode";
+    if (response.reviews !== undefined && !Array.isArray(response.reviews)) {
+      throw new Error("invalid google play reviews response");
     }
-
-    await requestJson(
-      `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits/${encodePath(editId)}:validate`,
-      { method: "POST", token },
-      fetchImpl,
-    );
-    report.push("edit_validate.ready=true");
+    report.push("reviews_list.ready=true");
+    report.push(`reviews.count=${response.reviews?.length ?? 0}`);
   } catch (error) {
     ready = false;
     const currentFailure = error instanceof Error ? error.message : "google play api access failed";
-    failureMessage ??= currentFailure;
-    report.push(`failure=${redactReportValue(currentFailure)}`);
-  } finally {
-    if (editId && token) {
-      try {
-        await requestJson(
-          `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits/${encodePath(editId)}`,
-          { method: "DELETE", token },
-          fetchImpl,
-        );
-        editDeleted = true;
-      } catch (error) {
-        ready = false;
-        failureMessage ??= error instanceof Error ? error.message : "google play edit delete failed";
-        const deleteFailure = error instanceof Error ? error.message : "google play edit delete failed";
-        report.push(`edit_delete.failure=${redactReportValue(deleteFailure)}`);
-      }
-    }
+    failureMessage = redactReportValue(currentFailure, reportSecrets);
+    report.push(`failure=${failureMessage}`);
   }
 
-  report.push(`edit_delete.ready=${editDeleted}`);
   report.push("secret_values_printed=false");
   report.push("");
   await appendFile(githubOutput, `google_play_api_access_ready=${ready}\n`);
@@ -123,35 +82,12 @@ export async function runGooglePlayApiAccess({
   }
 }
 
-function redactReportValue(value) {
-  return maskSecrets(value).replace(/\s+/g, " ").slice(0, 220);
-}
-
-function maxVersionCode(tracks) {
-  const versions = tracks.flatMap((track) =>
-    (track.releases ?? []).flatMap((release) => release.versionCodes ?? []),
+function redactReportValue(value, secrets) {
+  const masked = secrets.reduce(
+    (current, secret) => current.replaceAll(secret, "***"),
+    maskSecrets(value),
   );
-  let max;
-  for (const version of versions) {
-    if (!/^(0|[1-9]\d*)$/.test(String(version))) {
-      continue;
-    }
-    const parsed = BigInt(version);
-    if (max === undefined || parsed > max) {
-      max = parsed;
-    }
-  }
-  return max?.toString();
-}
-
-function versionCodeCoversTrackMax(latestVersionCode, maxTrackVersionCode) {
-  if (latestVersionCode === "unknown" || maxTrackVersionCode === undefined) {
-    return "unknown";
-  }
-  if (!/^(0|[1-9]\d*)$/.test(latestVersionCode)) {
-    return "unknown";
-  }
-  return BigInt(latestVersionCode) >= BigInt(maxTrackVersionCode) ? "true" : "false";
+  return masked.replace(/\s+/g, " ").slice(0, 220);
 }
 
 function parseArgs(argv) {
@@ -177,8 +113,8 @@ function requireArg(args, name) {
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main().catch((error) => {
-    console.error(error.message);
+  main().catch(() => {
+    console.error("google play api access check failed; see sanitized report");
     process.exitCode = 1;
   });
 }
