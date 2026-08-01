@@ -62,8 +62,25 @@ jobs:
           # 건너뛰기는 병합을 하지 않는 방향이라 게이트를 약화시키지 않으며, 각 후보는 리뷰·
           # 미해결 thread·required context 검증을 그대로 통과해야 한다. 실제 동작(병합 예약
           # 또는 base 갱신)은 한 실행에 최대 한 건이므로 병합 직렬화는 그대로 유지된다.
-          # 후보를 20건으로 제한해 job timeout(5분) 안에서 끝나게 한다.
           # queue-loop-begin
+          # 한 실행에서 평가할 후보 수는 job timeout(5분) 때문에 제한해야 한다. 후보마다
+          # API를 5회쯤 호출하므로 무제한으로 훑으면 큐가 길어질수록 job이 timeout으로
+          # 죽는다. 다만 창을 큐 앞쪽에 고정하면 창 밖의 후보는 매 실행 제외되어, 없애려던
+          # head 차단이 1건에서 window건 규모로 옮겨갈 뿐이다. 그래서 실행마다 창 시작점을
+          # window만큼 밀어 큐를 순환한다. 연속한 두 실행이 덮는 구간은 이어져 있으므로
+          # 큐 크기가 그대로면 ceil(total/window)회 안에 모든 후보가 최소 한 번 평가된다
+          # (10분 스케줄 기준 total=100이어도 1시간 이내). 시작점은 실행마다 증가하는
+          # GITHUB_RUN_NUMBER에서 유도하므로 별도 상태 저장이 필요 없다.
+          # 후보가 창 안에 다 들어오면(total <= window) 시작점을 0으로 고정해, 회전이
+          # 필요 없는 평상시에는 오래된 순 그대로 훑는다. 회전이 걸린 실행에서도 선택된
+          # 후보를 원래 순서(오래된 순)로 되돌려 평가하므로, 한 실행 안에서 "평가한 후보
+          # 중 가장 오래된 병합 가능 후보가 이긴다"는 성질은 유지된다.
+          window=20
+          total="$(jq 'length' <<<"${candidates}")"
+          offset=0
+          if [[ "${total}" -gt "${window}" ]]; then
+            offset="$(( (GITHUB_RUN_NUMBER * window) % total ))"
+          fi
           while IFS= read -r pr; do
             info="$(gh pr view "${pr}" --repo "${repo}" \
               --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
@@ -225,7 +242,15 @@ jobs:
                 ;;
             esac
             # merge-state-dispatch-end
-          done < <(jq -r '.[0:20][]' <<<"${candidates}")
+          # candidate-window-begin
+          done < <(jq -r --argjson window "${window}" --argjson offset "${offset}" '
+            . as $all |
+            length as $total |
+            if $total == 0 then empty
+            else [range($offset; $offset + $window) | . % $total] | unique | map($all[.])[]
+            end
+          ' <<<"${candidates}")
+          # candidate-window-end
 
           echo "No pull request in the automerge queue is ready to merge."
           # queue-loop-end

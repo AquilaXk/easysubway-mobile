@@ -45,6 +45,9 @@ test('automerge coordinator fails closed around the native merge queue', async (
     '# merge-state-dispatch-begin',
     'CLEAN | HAS_HOOKS | UNSTABLE)',
     '# queue-loop-begin',
+    '# candidate-window-begin',
+    'window=20',
+    '(GITHUB_RUN_NUMBER * window) % total',
     '[sort_by(.createdAt)[].number]',
     'gh pr merge --squash --auto',
     '--match-head-commit "${head}"',
@@ -493,7 +496,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       },
     ],
   ];
-  const runQueue = (prs) => {
+  const runQueue = (prs, runNumber = 0) => {
     const dir = mkdtempSync(join(tmpdir(), 'automerge-queue-loop-'));
     const log = join(dir, 'gh.log');
     for (const pr of prs) {
@@ -551,6 +554,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'set -euo pipefail',
       `GH_LOG=${JSON.stringify(log)}`,
       `FIX=${JSON.stringify(dir)}`,
+      `GITHUB_RUN_NUMBER=${JSON.stringify(String(runNumber))}`,
       ': > "$GH_LOG"',
       'gh() {',
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
@@ -578,6 +582,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     return {
       status: result.status,
       mergedPr: merged ? Number(merged) : null,
+      evaluated: [...calls.matchAll(/gh pr view (\d+) --repo/g)].map((m) => Number(m[1])),
       stdout: result.stdout,
     };
   };
@@ -635,4 +640,102 @@ test('automerge coordinator fails closed around the native merge queue', async (
   ]);
   assert.equal(allBlocked.status, 0);
   assert.equal(allBlocked.mergedPr, null);
+
+  // 후보 창(window)은 job timeout 때문에 필요하지만, 창을 큐 앞쪽에 고정하면 창 밖의
+  // 후보가 매 실행 제외되어 굶는다. 창 선택 jq를 직접 돌려 세 가지를 고정한다.
+  //   ① 한 실행에서 고르는 후보는 window를 넘지 않는다(timeout 상한 유지).
+  //   ② 고른 후보는 항상 오래된 순이다(창이 회전해도 FIFO 우선순위 유지).
+  //   ③ 연속 ceil(total/window)회 안에 모든 후보가 최소 한 번 평가된다(굶주림 없음).
+  const windowSize = 20;
+  const windowProgram = workflow.match(
+    /# candidate-window-begin\n\s+done < <\(jq -r --argjson window "\$\{window\}" --argjson offset "\$\{offset\}" '\n([\s\S]*?)\n\s+' <<<"\$\{candidates\}"\)/,
+  )?.[1];
+  assert.ok(windowProgram, 'candidate window jq program must stay testable');
+  const pickWindow = (total, offset) => {
+    const stdout = spawnSync(
+      'jq',
+      [
+        '-r',
+        '--argjson',
+        'window',
+        String(windowSize),
+        '--argjson',
+        'offset',
+        String(offset),
+        windowProgram,
+      ],
+      {
+        input: JSON.stringify(Array.from({ length: total }, (_, index) => index)),
+        encoding: 'utf8',
+      },
+    ).stdout.trim();
+    return stdout === '' ? [] : stdout.split('\n').map(Number);
+  };
+  // 워크플로의 offset 계산과 같은 식이다. 창 안에 다 들어오면 회전하지 않는다.
+  const windowOffset = (total, runNumber) =>
+    total > windowSize ? (runNumber * windowSize) % total : 0;
+  assert.deepEqual(pickWindow(0, 0), []);
+  for (const total of [1, 20, 21, 45, 100]) {
+    const runs = Math.ceil(total / windowSize);
+    for (let start = 0; start < 8; start += 1) {
+      const seen = new Set();
+      for (let runNumber = start; runNumber < start + runs; runNumber += 1) {
+        const slice = pickWindow(total, windowOffset(total, runNumber));
+        assert.ok(slice.length <= windowSize, `window exceeded at total=${total}`);
+        assert.deepEqual(
+          slice,
+          [...slice].sort((a, b) => a - b),
+          `candidate window must stay oldest-first at total=${total}`,
+        );
+        for (const index of slice) seen.add(index);
+      }
+      assert.equal(
+        seen.size,
+        total,
+        `every candidate must be evaluated within ${runs} runs at total=${total}`,
+      );
+    }
+  }
+
+  // 창보다 큰 큐에서 뒤쪽 후보만 병합 가능한 경우를 큐 루프로 직접 실측한다.
+  const oversizedQueue = [];
+  for (let number = 1; number <= windowSize; number += 1) {
+    oversizedQueue.push({ number, mergeStateStatus: 'BLOCKED' });
+  }
+  oversizedQueue.push({ number: windowSize + 1, mergeStateStatus: 'CLEAN' });
+  // 창이 큐 앞쪽에 고정되면(회전 전 실행) 21번째는 평가조차 되지 않는다.
+  const firstPass = runQueue(oversizedQueue, 0);
+  assert.equal(firstPass.status, 0);
+  assert.ok(!firstPass.evaluated.includes(windowSize + 1));
+  // 다음 실행에서 창이 밀려 21번째가 평가되고 병합된다. 어느 실행 번호에서 시작하든
+  // 연속 두 실행(= ceil(21/20)) 안에 반드시 병합된다.
+  for (let start = 0; start < 4; start += 1) {
+    const window2 = [
+      runQueue(oversizedQueue, start),
+      runQueue(oversizedQueue, start + 1),
+    ];
+    assert.ok(
+      window2.some((run) => run.mergedPr === windowSize + 1),
+      `a ready candidate past the window must merge within two runs (start=${start})`,
+    );
+    for (const run of window2) assert.equal(run.status, 0);
+  }
+
+  // 창이 회전해도 평가한 후보 중 가장 오래된 병합 가능 후보가 이긴다.
+  const rotatedFifoQueue = oversizedQueue.map((candidate, index) =>
+    index === 0 ? { ...candidate, mergeStateStatus: 'CLEAN' } : candidate,
+  );
+  assert.equal(runQueue(rotatedFifoQueue, 1).mergedPr, 1);
+
+  // 후보가 창 안에 다 들어오면 실행 번호와 무관하게 회전하지 않는다.
+  assert.equal(
+    runQueue(
+      [
+        { number: 1, mergeStateStatus: 'CLEAN' },
+        { number: 2, mergeStateStatus: 'CLEAN' },
+      ],
+      7,
+    ).mergedPr,
+    1,
+  );
 });
