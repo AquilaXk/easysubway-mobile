@@ -1,7 +1,4 @@
-// Shared Google Play (Android Publisher API v3) service-account auth and request
-// helpers. Extracted from check-google-play-api-access.mjs so the internal-track
-// upload tool can reuse the exact JWT flow instead of a third-party action
-// (issue #1689 — keeps the supply-chain surface minimal).
+// Google Play (Android Publisher API v3) service-account auth and request helpers.
 import { createSign } from "node:crypto";
 
 export const androidPublisherScope = "https://www.googleapis.com/auth/androidpublisher";
@@ -69,21 +66,6 @@ export async function requestJson(url, { method, token, body }, fetchImpl = fetc
   const parsed = readResponseBody(text, `google play api ${method}`, response);
   if (!response.ok) {
     throw new PlayApiError(`google play api ${method} failed`, response.status, text, parsed);
-  }
-  return parsed;
-}
-
-// Uploads a binary body (AAB / mapping) to an Android Publisher upload endpoint.
-export async function uploadMedia(url, { token, contentType, data }, fetchImpl = fetch) {
-  const response = await fetchImpl(assertRequestUrl(url), {
-    method: "POST",
-    headers: { authorization: `Bearer ${token}`, "content-type": contentType },
-    body: data,
-  });
-  const text = await response.text();
-  const parsed = readResponseBody(text, "google play upload", response);
-  if (!response.ok) {
-    throw new PlayApiError("google play upload failed", response.status, text, parsed);
   }
   return parsed;
 }
@@ -224,13 +206,6 @@ export function hasValue(env, name) {
   return typeof env[name] === "string" && env[name].trim().length > 0;
 }
 
-export function requireEnv(env, name) {
-  if (!hasValue(env, name)) {
-    throw new Error(`missing required env: ${name}`);
-  }
-  return env[name].trim();
-}
-
 export function requireJsonString(value, field) {
   if (typeof value[field] !== "string" || value[field].trim().length === 0) {
     throw new Error(`missing service account field: ${field}`);
@@ -243,5 +218,5 @@ export function base64UrlJson(value) {
 }
 
 export function encodePath(value) {
-  return encodeURIComponent(value).replaceAll("%2E", ".");
+  return encodeURIComponent(value);
 }

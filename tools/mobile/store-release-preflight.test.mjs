@@ -40,6 +40,9 @@ test("store preflight validates signing and temporary Play access without publis
   assert.match(access, /:validate`/);
   assert.match(access, /method: "DELETE"/);
   assert.match(access, /finally/);
+  assert.match(access, /maskSecrets\(value\)/);
   assert.match(auth, /google play request url must be https/);
   assert.match(auth, /maskSecrets/);
+  assert.doesNotMatch(auth, /uploadMedia|google play upload/);
+  assert.doesNotMatch(auth, /replaceAll\("%2E"/);
 });

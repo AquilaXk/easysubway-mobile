@@ -3,10 +3,17 @@ import test from "node:test";
 
 import {
   apiErrorSummary,
+  assertRequestUrl,
   maskSecrets,
   PlayApiError,
   readResponseBody,
 } from "./google-play-auth.mjs";
+
+test("assertRequestUrl은 HTTPS가 아닌 URL을 거부한다", () => {
+  assert.throws(() => assertRequestUrl("http://androidpublisher.googleapis.com"), /must be https/);
+  assert.throws(() => assertRequestUrl("file:///tmp/credential"), /must be https/);
+  assert.throws(() => assertRequestUrl("not a url"), /invalid google play request url/);
+});
 
 test("maskSecrets redacts bearer tokens and access_token values", () => {
   assert.equal(maskSecrets("authorization: Bearer ya29.abcDEF-123_xyz"), "authorization: Bearer ***");

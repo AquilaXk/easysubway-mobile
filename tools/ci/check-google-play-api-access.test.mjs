@@ -84,8 +84,7 @@ test("Google Play API access checker는 env versionCode가 Play track max보다 
       reportPath: reportFile,
       apiBaseUrl: "https://androidpublisher.example.invalid/androidpublisher/v3",
       fetchImpl: mockGooglePlayFetch(requests, "7", {
-        validateStatus: 403,
-        validateBody: { error: { status: "PERMISSION_DENIED", message: "validate failed" } },
+        validateError: new Error("Bearer validate-secret"),
       }),
     }),
     /latest versionCode is lower than track max/,
@@ -95,7 +94,8 @@ test("Google Play API access checker는 env versionCode가 Play track max보다 
   const report = readFileSync(reportFile, "utf8");
   assert.match(output, /^google_play_api_access_ready=false$/m);
   assert.match(report, /^latest_version_code_covers_track_max=false$/m);
-  assert.match(report, /^failure=google play api POST failed: 403 status=PERMISSION_DENIED/m);
+  assert.match(report, /^failure=Bearer \*\*\*$/m);
+  assert.doesNotMatch(report, /validate-secret/);
   assert.match(report, /^edit_delete\.ready=true$/m);
   assert.ok(requests.includes("DELETE https://androidpublisher.example.invalid/androidpublisher/v3/applications/com.easysubway.app/edits/edit-1"));
 });
@@ -282,6 +282,9 @@ function mockGooglePlayFetch(requests, maxVersionCode, config = {}) {
     if (method === "POST" && url === "https://androidpublisher.example.invalid/androidpublisher/v3/applications/com.easysubway.app/edits/edit-1:validate") {
       assert.equal(requestOptions.body, undefined);
       assert.equal(requestOptions.headers?.["content-type"], undefined);
+      if (config.validateError) {
+        throw config.validateError;
+      }
       return jsonResponse(config.validateBody ?? { id: "edit-1" }, config.validateStatus ?? 200);
     }
     if (method === "DELETE" && url === "https://androidpublisher.example.invalid/androidpublisher/v3/applications/com.easysubway.app/edits/edit-1") {

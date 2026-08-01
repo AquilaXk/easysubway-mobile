@@ -6,6 +6,7 @@ import {
   detectServiceAccountSource,
   encodePath,
   fetchAccessToken,
+  maskSecrets,
   parseDotenv,
   readServiceAccount,
   requestJson,
@@ -123,7 +124,7 @@ export async function runGooglePlayApiAccess({
 }
 
 function redactReportValue(value) {
-  return value.replace(/\s+/g, " ").slice(0, 220);
+  return maskSecrets(value).replace(/\s+/g, " ").slice(0, 220);
 }
 
 function maxVersionCode(tracks) {
