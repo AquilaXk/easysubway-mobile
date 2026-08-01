@@ -1,0 +1,61 @@
+import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
+import test from "node:test";
+
+test("store preflight validates signing and read-only Play access from trusted main", async () => {
+  const workflow = await readFile(".github/workflows/store-distribution-evidence.yml", "utf8");
+  const access = await readFile("tools/ci/check-google-play-api-access.mjs", "utf8");
+  const auth = await readFile("tools/ci/lib/google-play-auth.mjs", "utf8");
+
+  assert.match(workflow, /environment:\s+name: store-release/);
+  assert.match(workflow, /if: github\.ref == 'refs\/heads\/main'/);
+  assert.match(workflow, /ref: main/);
+  assert.match(workflow, /permissions:\s+contents: read/);
+  for (const name of [
+    "EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64",
+    "EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64",
+    "EASYSUBWAY_ANDROID_STORE_PASSWORD",
+    "EASYSUBWAY_ANDROID_KEY_ALIAS",
+    "EASYSUBWAY_ANDROID_KEY_PASSWORD",
+  ]) {
+    assert.match(workflow, new RegExp(`${name}: \\$\\{\\{ secrets\\.${name} \\}\\}`));
+  }
+  assert.match(
+    workflow,
+    /EASYSUBWAY_ANDROID_UPLOAD_CERT_SHA256: \$\{\{ vars\.EASYSUBWAY_ANDROID_UPLOAD_CERT_SHA256 \}\}/,
+  );
+  assert.match(workflow, /trim_signing_value/);
+  assert.match(workflow, /keytool .* -list/);
+  assert.match(workflow, /-J-Duser\.language=en -J-Duser\.country=US/);
+  assert.match(workflow, /Entry type: PrivateKeyEntry/);
+  assert.match(workflow, /fingerprint256/);
+  assert.match(workflow, /"\$\{fingerprint\}" != "\$\{expected_fingerprint\}"/);
+  assert.match(workflow, /trap .* EXIT/);
+  assert.match(workflow, /-storepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD/);
+  assert.match(workflow, /-srcstorepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD/);
+  assert.match(workflow, /-srckeypass:env EASYSUBWAY_ANDROID_KEY_PASSWORD/);
+  assert.match(workflow, /randomBytes/);
+  assert.match(workflow, /-deststorepass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD/);
+  assert.match(workflow, /rm -f .*signing_check/);
+  assert.doesNotMatch(workflow, /changeit-for-ephemeral-check/);
+  assert.match(workflow, /version_code.*=~.*\[1-9\]/);
+  assert.match(workflow, /2100000000/);
+  assert.match(workflow, /service_account_base64=.*\[\[:space:\]\]/);
+  assert.match(workflow, /node tools\/ci\/check-google-play-api-access\.mjs/);
+  assert.match(
+    workflow,
+    /play_status=0[\s\S]*\|\| play_status=\$\?[\s\S]*cat .*google-play-api-access\.txt[\s\S]*exit "\$\{play_status\}"/,
+  );
+  assert.doesNotMatch(workflow, /upload-play|edits\/.*:commit|bundle upload|play publish/i);
+
+  assert.match(access, /\/reviews\?maxResults=1/);
+  assert.match(access, /method: "GET"/);
+  assert.doesNotMatch(access, /\/edits|\/tracks|:validate|method: "POST"|method: "DELETE"/);
+  assert.match(access, /maskSecrets\(value\)/);
+  assert.match(access, /console\.error\("google play api access check failed; see sanitized report"\)/);
+  assert.doesNotMatch(access, /console\.error\(error\.message\)/);
+  assert.match(auth, /google play request url must be https/);
+  assert.match(auth, /maskSecrets/);
+  assert.doesNotMatch(auth, /uploadMedia|google play upload/);
+  assert.doesNotMatch(auth, /replaceAll\("%2E"/);
+});

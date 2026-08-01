@@ -1,0 +1,168 @@
+name: Automerge Queue
+
+on:
+  pull_request_target:
+    types: [labeled]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  push:
+    branches: [main]
+  schedule:
+    - cron: "*/10 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: automerge-queue
+  cancel-in-progress: false
+
+jobs:
+  coordinate:
+    if: github.event_name != 'pull_request_target' || github.event.label.name == 'automerge'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write
+      checks: read
+      contents: write
+      pull-requests: write
+      statuses: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Coordinate oldest eligible pull request
+        shell: bash
+        run: |
+          # shellcheck disable=SC2016
+          set -euo pipefail
+
+          repo="${GITHUB_REPOSITORY}"
+          pr="$(gh pr list --repo "${repo}" --base main --state open --label automerge \
+            --limit 1000 --json number,createdAt \
+            --jq 'sort_by(.createdAt)[0].number // empty')"
+          [[ -n "${pr}" ]] || exit 0
+
+          info="$(gh pr view "${pr}" --repo "${repo}" \
+            --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
+          jq -e '
+            .state == "OPEN" and
+            .isDraft == false and
+            .baseRefName == "main" and
+            any(.labels[]; .name == "automerge")
+          ' <<<"${info}" >/dev/null
+
+          head="$(jq -r '.headRefOid' <<<"${info}")"
+          head_ref="$(jq -r '.headRefName' <<<"${info}")"
+          head_repo="$(jq -r '.headRepository.nameWithOwner // ""' <<<"${info}")"
+          merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
+
+          rules="$(gh api "repos/${repo}/rules/branches/main")"
+          required="$(jq -c '
+            [.[] |
+              select(.type == "required_status_checks") |
+              .parameters.required_status_checks[] |
+              {context, integration_id: (.integration_id // null)}] |
+            unique_by(.context, .integration_id)
+          ' <<<"${rules}")"
+          jq -e 'length > 0' <<<"${required}" >/dev/null
+
+          reviews="$(gh api --paginate --slurp \
+            "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
+          # review-state-filter-begin
+          jq -e --arg head "${head}" '
+            [flatten[] |
+              select(.commit_id == $head) |
+              select(
+                .author_association == "OWNER" or
+                .author_association == "MEMBER" or
+                .author_association == "COLLABORATOR"
+              )] as $trusted |
+            ($trusted |
+            sort_by(.submitted_at, .id) |
+            reduce .[] as $review ({};
+              if $review.state == "COMMENTED" then
+                .[$review.user.login] //= "COMMENTED"
+              else
+                .[$review.user.login] = $review.state
+              end
+            )) as $states |
+            ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
+            any($trusted[];
+              .state == "APPROVED" or
+              (.state == "COMMENTED" and
+                (.body // "" | startswith("**Actionable comments posted: ")) and
+                (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"))))
+          ' <<<"${reviews}" >/dev/null
+          # review-state-filter-end
+
+          owner="${repo%%/*}"
+          name="${repo#*/}"
+          # shellcheck disable=SC2016
+          threads="$(gh api graphql -f owner="${owner}" -f name="${name}" -F number="${pr}" -f query='
+            query($owner: String!, $name: String!, $number: Int!) {
+              repository(owner: $owner, name: $name) {
+                pullRequest(number: $number) {
+                  reviewThreads(first: 100) {
+                    nodes { isResolved }
+                    pageInfo { hasNextPage }
+                  }
+                }
+              }
+            }
+          ')"
+          jq -e '
+            .data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage == false and
+            all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved)
+          ' <<<"${threads}" >/dev/null
+
+          checks="$(gh api --paginate --slurp \
+            -H 'Accept: application/vnd.github+json' \
+            "repos/${repo}/commits/${head}/check-runs?per_page=100")"
+          statuses="$(gh api -H 'Accept: application/vnd.github+json' \
+            "repos/${repo}/commits/${head}/status?per_page=100")"
+          while IFS= read -r required_check; do
+            # required-context-filter-begin
+            jq -e --argjson required_check "${required_check}" --argjson statuses "${statuses}" '
+              ([.[].check_runs[] |
+                select(.name == $required_check.context) |
+                select($required_check.integration_id == null or .app.id == $required_check.integration_id)] |
+                sort_by(.started_at, .id) |
+                last |
+                .conclusion == "success") or
+              ($required_check.integration_id == null and
+                ([$statuses.statuses[] | select(.context == $required_check.context)] |
+                  sort_by((.updated_at // .created_at // ""), .id) |
+                  last |
+                  .state == "success"))
+            ' <<<"${checks}" >/dev/null
+            # required-context-filter-end
+          done < <(jq -c '.[]' <<<"${required}")
+
+          if [[ "${merge_state}" == "CLEAN" ]]; then
+            gh pr merge --squash --auto "${pr}" --repo "${repo}" \
+              --match-head-commit "${head}"
+            exit 0
+          fi
+
+          if [[ "${merge_state}" == "BEHIND" ]]; then
+            [[ "${head_repo}" == "${repo}" ]] || {
+              echo "PR #${pr} uses a fork head; refusing base-repository CI dispatch." >&2
+              exit 1
+            }
+            gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
+              -f expected_head_sha="${head}" >/dev/null
+            # ponytail: bounded wait only; the API applies the base merge asynchronously.
+            for _ in {1..12}; do
+              new_head="$(gh pr view "${pr}" --repo "${repo}" --json headRefOid --jq '.headRefOid')"
+              [[ "${new_head}" != "${head}" ]] && break
+              sleep 5
+            done
+            [[ "${new_head}" != "${head}" ]]
+            gh workflow run ci.yml --repo "${repo}" --ref "${head_ref}"
+            exit 0
+          fi
+
+          echo "PR #${pr} is not mergeable: ${merge_state}" >&2
+          exit 1
