@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 
 const workflowUrl = new URL(
@@ -39,6 +42,8 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'reviewThreads(first: 100)',
     'hasNextPage',
     'mergeStateStatus',
+    '# merge-state-dispatch-begin',
+    'CLEAN | HAS_HOOKS | UNSTABLE)',
     'gh pr merge --squash --auto',
     '--match-head-commit "${head}"',
     '--limit 1000',
@@ -339,4 +344,85 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ),
     0,
   );
+
+  // merge-state 분기는 리뷰·thread·required context 게이트를 모두 통과한 뒤에만 도달한다.
+  // `set -e` 아래에서 그 게이트들은 `jq -e` 실패 시 즉시 종료되므로, 계약 위반은 분기에
+  // 닿기 전에 exit 1로 끝난다.
+  assert.ok(workflow.includes('set -euo pipefail'));
+  const reviewGateAt = workflow.indexOf('# review-state-filter-end');
+  const contextGateAt = workflow.indexOf('# required-context-filter-end');
+  const dispatchAt = workflow.indexOf('# merge-state-dispatch-begin');
+  assert.ok(reviewGateAt > 0 && contextGateAt > reviewGateAt && dispatchAt > contextGateAt);
+
+  const dispatchBlock = workflow.match(
+    /# merge-state-dispatch-begin\n([\s\S]*?)\n\s+# merge-state-dispatch-end/,
+  )?.[1];
+  assert.ok(dispatchBlock, 'merge state dispatch must stay testable');
+  // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다.
+  const runDispatch = (mergeState, { headRepo = 'o/r' } = {}) => {
+    const log = join(mkdtempSync(join(tmpdir(), 'automerge-queue-')), 'gh.log');
+    const script = [
+      'set -euo pipefail',
+      `GH_LOG=${JSON.stringify(log)}`,
+      ': > "$GH_LOG"',
+      'gh() {',
+      `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
+      '  case "$*" in',
+      `    *"pr view"*headRefOid*) printf '%s\\n' "updated-head" ;;`,
+      '  esac',
+      '}',
+      'sleep() { :; }',
+      'pr=44',
+      'repo=o/r',
+      'head=old-head',
+      `head_repo=${JSON.stringify(headRepo)}`,
+      'head_ref=feature',
+      `merge_state=${JSON.stringify(mergeState)}`,
+      dispatchBlock.replace(/^ {10}/gm, ''),
+    ].join('\n');
+    const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    const calls = existsSync(log) ? readFileSync(log, 'utf8') : '';
+    return {
+      status: result.status,
+      merged: calls.includes('gh pr merge'),
+      updatedBranch: calls.includes('update-branch'),
+    };
+  };
+
+  // 병합 가능 상태. UNSTABLE은 "필수가 아닌 check가 green이 아님"일 뿐이고 required
+  // context는 위에서 ruleset 기준으로 이미 검증했으므로 병합을 진행한다.
+  for (const mergeState of ['CLEAN', 'HAS_HOOKS', 'UNSTABLE']) {
+    assert.deepEqual(
+      runDispatch(mergeState),
+      { status: 0, merged: true, updatedBranch: false },
+      `${mergeState} must proceed to merge`,
+    );
+  }
+  // base 갱신이 필요한 상태는 update-branch 경로로 간다.
+  assert.deepEqual(runDispatch('BEHIND'), {
+    status: 0,
+    merged: false,
+    updatedBranch: true,
+  });
+  // fork head에 base 저장소 CI를 dispatch하지 않는다(계약 위반 → exit 1 유지).
+  const forkBehind = runDispatch('BEHIND', { headRepo: 'fork/r' });
+  assert.notEqual(forkBehind.status, 0);
+  assert.equal(forkBehind.updatedBranch, false);
+  // 전이·대기 상태에서 exit 1을 내면 그 실패 check가 PR을 UNSTABLE로 만들어 다음
+  // 실행을 같은 자리에서 죽인다. 조용히 물러나 다음 트리거에서 재시도한다.
+  for (const mergeState of ['BLOCKED', 'UNKNOWN']) {
+    assert.deepEqual(
+      runDispatch(mergeState),
+      { status: 0, merged: false, updatedBranch: false },
+      `${mergeState} must back off without failing the run`,
+    );
+  }
+  // 충돌은 사람이 해소해야 하므로 계약 위반으로 실패시킨다.
+  const dirty = runDispatch('DIRTY');
+  assert.notEqual(dirty.status, 0);
+  assert.equal(dirty.merged, false);
+  // 알 수 없는 상태에서 조용히 물러나면 큐가 원인 없이 멈추므로 실패시킨다.
+  const unknownEnum = runDispatch('SOME_NEW_STATE');
+  assert.notEqual(unknownEnum.status, 0);
+  assert.equal(unknownEnum.merged, false);
 });
