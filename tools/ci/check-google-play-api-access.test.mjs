@@ -83,7 +83,10 @@ test("Google Play API access checker는 env versionCode가 Play track max보다 
       githubOutput: outputFile,
       reportPath: reportFile,
       apiBaseUrl: "https://androidpublisher.example.invalid/androidpublisher/v3",
-      fetchImpl: mockGooglePlayFetch(requests, "7"),
+      fetchImpl: mockGooglePlayFetch(requests, "7", {
+        validateStatus: 403,
+        validateBody: { error: { status: "PERMISSION_DENIED", message: "validate failed" } },
+      }),
     }),
     /latest versionCode is lower than track max/,
   );
@@ -92,6 +95,7 @@ test("Google Play API access checker는 env versionCode가 Play track max보다 
   const report = readFileSync(reportFile, "utf8");
   assert.match(output, /^google_play_api_access_ready=false$/m);
   assert.match(report, /^latest_version_code_covers_track_max=false$/m);
+  assert.match(report, /^failure=google play api POST failed: 403 status=PERMISSION_DENIED/m);
   assert.match(report, /^edit_delete\.ready=true$/m);
   assert.ok(requests.includes("DELETE https://androidpublisher.example.invalid/androidpublisher/v3/applications/com.easysubway.app/edits/edit-1"));
 });

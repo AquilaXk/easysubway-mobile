@@ -56,21 +56,25 @@ jobs:
             fi
           done
           keystore="${RUNNER_TEMP}/upload-keystore"
+          signing_check="${RUNNER_TEMP}/signing-check.p12"
+          export EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD
+          EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
           printf '%s' "${EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64}" | base64 --decode > "${keystore}"
           keytool -list \
             -keystore "${keystore}" \
-            -storepass "${EASYSUBWAY_ANDROID_STORE_PASSWORD}" \
+            -storepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD \
             -alias "${EASYSUBWAY_ANDROID_KEY_ALIAS}"
           keytool -importkeystore \
             -srckeystore "${keystore}" \
-            -srcstorepass "${EASYSUBWAY_ANDROID_STORE_PASSWORD}" \
+            -srcstorepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD \
             -srcalias "${EASYSUBWAY_ANDROID_KEY_ALIAS}" \
-            -srckeypass "${EASYSUBWAY_ANDROID_KEY_PASSWORD}" \
-            -destkeystore "${RUNNER_TEMP}/signing-check.p12" \
+            -srckeypass:env EASYSUBWAY_ANDROID_KEY_PASSWORD \
+            -destkeystore "${signing_check}" \
             -deststoretype PKCS12 \
-            -deststorepass changeit-for-ephemeral-check \
-            -destkeypass changeit-for-ephemeral-check \
+            -deststorepass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
+            -destkeypass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
             -noprompt
+          rm -f "${keystore}" "${signing_check}"
       - name: Validate temporary Google Play edit access
         id: play
         shell: bash

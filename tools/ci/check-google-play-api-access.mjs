@@ -91,8 +91,9 @@ export async function runGooglePlayApiAccess({
     report.push("edit_validate.ready=true");
   } catch (error) {
     ready = false;
-    failureMessage = error instanceof Error ? error.message : "google play api access failed";
-    report.push(`failure=${redactReportValue(failureMessage)}`);
+    const currentFailure = error instanceof Error ? error.message : "google play api access failed";
+    failureMessage ??= currentFailure;
+    report.push(`failure=${redactReportValue(currentFailure)}`);
   } finally {
     if (editId && token) {
       try {

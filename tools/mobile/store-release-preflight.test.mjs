@@ -19,6 +19,13 @@ test("store preflight validates signing and temporary Play access without publis
     assert.match(workflow, new RegExp(`${name}: \\$\\{\\{ secrets\\.${name} \\}\\}`));
   }
   assert.match(workflow, /keytool -list/);
+  assert.match(workflow, /-storepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD/);
+  assert.match(workflow, /-srcstorepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD/);
+  assert.match(workflow, /-srckeypass:env EASYSUBWAY_ANDROID_KEY_PASSWORD/);
+  assert.match(workflow, /randomBytes/);
+  assert.match(workflow, /-deststorepass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD/);
+  assert.match(workflow, /rm -f .*signing_check/);
+  assert.doesNotMatch(workflow, /changeit-for-ephemeral-check/);
   assert.match(workflow, /version_code.*=~.*\[0-9\]/);
   assert.match(workflow, /service_account_base64=.*\[\[:space:\]\]/);
   assert.match(workflow, /node tools\/ci\/check-google-play-api-access\.mjs/);
