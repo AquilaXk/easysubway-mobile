@@ -42,14 +42,24 @@ jobs:
           EASYSUBWAY_ANDROID_STORE_PASSWORD: ${{ secrets.EASYSUBWAY_ANDROID_STORE_PASSWORD }}
           EASYSUBWAY_ANDROID_KEY_ALIAS: ${{ secrets.EASYSUBWAY_ANDROID_KEY_ALIAS }}
           EASYSUBWAY_ANDROID_KEY_PASSWORD: ${{ secrets.EASYSUBWAY_ANDROID_KEY_PASSWORD }}
+          EASYSUBWAY_ANDROID_UPLOAD_CERT_SHA256: ${{ vars.EASYSUBWAY_ANDROID_UPLOAD_CERT_SHA256 }}
         run: |
           set -euo pipefail
           umask 077
+          trim_signing_value() {
+            local value="$1"
+            value="${value#"${value%%[![:space:]]*}"}"
+            printf '%s' "${value%"${value##*[![:space:]]}"}"
+          }
+          EASYSUBWAY_ANDROID_STORE_PASSWORD="$(trim_signing_value "${EASYSUBWAY_ANDROID_STORE_PASSWORD}")"
+          EASYSUBWAY_ANDROID_KEY_ALIAS="$(trim_signing_value "${EASYSUBWAY_ANDROID_KEY_ALIAS}")"
+          EASYSUBWAY_ANDROID_KEY_PASSWORD="$(trim_signing_value "${EASYSUBWAY_ANDROID_KEY_PASSWORD}")"
           for name in \
             EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64 \
             EASYSUBWAY_ANDROID_STORE_PASSWORD \
             EASYSUBWAY_ANDROID_KEY_ALIAS \
-            EASYSUBWAY_ANDROID_KEY_PASSWORD; do
+            EASYSUBWAY_ANDROID_KEY_PASSWORD \
+            EASYSUBWAY_ANDROID_UPLOAD_CERT_SHA256; do
             if [[ -z "${!name:-}" ]]; then
               printf '%s is required.\n' "${name}" >&2
               exit 1
@@ -57,13 +67,28 @@ jobs:
           done
           keystore="${RUNNER_TEMP}/upload-keystore"
           signing_check="${RUNNER_TEMP}/signing-check.p12"
+          key_info="${RUNNER_TEMP}/upload-key-info.txt"
+          certificate="${RUNNER_TEMP}/upload-cert.der"
           export EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD
           EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
           printf '%s' "${EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64}" | base64 --decode > "${keystore}"
-          keytool -list \
+          keytool -J-Duser.language=en -J-Duser.country=US -list -v \
             -keystore "${keystore}" \
             -storepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD \
-            -alias "${EASYSUBWAY_ANDROID_KEY_ALIAS}"
+            -alias "${EASYSUBWAY_ANDROID_KEY_ALIAS}" > "${key_info}"
+          grep -Fxq 'Entry type: PrivateKeyEntry' "${key_info}"
+          keytool -exportcert \
+            -keystore "${keystore}" \
+            -storepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD \
+            -alias "${EASYSUBWAY_ANDROID_KEY_ALIAS}" \
+            -file "${certificate}" > /dev/null
+          fingerprint="$(node -e 'const { X509Certificate } = require("node:crypto"); const { readFileSync } = require("node:fs"); process.stdout.write(new X509Certificate(readFileSync(process.argv[1])).fingerprint256.replaceAll(":", ""));' "${certificate}")"
+          expected_fingerprint="${EASYSUBWAY_ANDROID_UPLOAD_CERT_SHA256//[[:space:]:]/}"
+          expected_fingerprint="${expected_fingerprint^^}"
+          if [[ ! "${expected_fingerprint}" =~ ^[A-F0-9]{64}$ || "${fingerprint}" != "${expected_fingerprint}" ]]; then
+            printf 'upload certificate SHA-256 fingerprint mismatch.\n' >&2
+            exit 1
+          fi
           keytool -importkeystore \
             -srckeystore "${keystore}" \
             -srcstorepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD \
@@ -74,7 +99,7 @@ jobs:
             -deststorepass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
             -destkeypass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
             -noprompt
-          rm -f "${keystore}" "${signing_check}"
+          rm -f "${keystore}" "${signing_check}" "${key_info}" "${certificate}"
       - name: Validate temporary Google Play edit access
         id: play
         shell: bash
@@ -89,8 +114,8 @@ jobs:
           fi
           package_name="$(jq -er '.androidApplicationId' apps/mobile/release/store-submission-readiness.json)"
           version_code="$(sed -n 's/^version: [^+]*+//p' apps/mobile/pubspec.yaml)"
-          if [[ ! "${version_code}" =~ ^[0-9]+$ ]]; then
-            printf 'mobile versionCode must be a positive integer.\n' >&2
+          if [[ ! "${version_code}" =~ ^[1-9][0-9]{0,9}$ ]] || (( version_code > 2100000000 )); then
+            printf 'mobile versionCode must be between 1 and 2100000000.\n' >&2
             exit 1
           fi
           service_account_base64="${EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64//[[:space:]]/}"
