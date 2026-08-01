@@ -46,8 +46,9 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'CLEAN | HAS_HOOKS | UNSTABLE)',
     '# queue-loop-begin',
     '# candidate-window-begin',
+    '# candidate-offset-begin',
     'window=20',
-    '(GITHUB_RUN_NUMBER * window) % total',
+    'offset="$(( RANDOM % total ))"',
     '[sort_by(.createdAt)[].number]',
     'gh pr merge --squash --auto',
     '--match-head-commit "${head}"',
@@ -496,6 +497,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       },
     ],
   ];
+  // runNumber는 실행 컨텍스트 주입값이다. 큐 루프 결과가 이 값에 좌우되지 않아야 한다.
   const runQueue = (prs, runNumber = 0) => {
     const dir = mkdtempSync(join(tmpdir(), 'automerge-queue-loop-'));
     const log = join(dir, 'gh.log');
@@ -642,10 +644,11 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.equal(allBlocked.mergedPr, null);
 
   // 후보 창(window)은 job timeout 때문에 필요하지만, 창을 큐 앞쪽에 고정하면 창 밖의
-  // 후보가 매 실행 제외되어 굶는다. 창 선택 jq를 직접 돌려 세 가지를 고정한다.
-  //   ① 한 실행에서 고르는 후보는 window를 넘지 않는다(timeout 상한 유지).
-  //   ② 고른 후보는 항상 오래된 순이다(창이 회전해도 FIFO 우선순위 유지).
-  //   ③ 연속 ceil(total/window)회 안에 모든 후보가 최소 한 번 평가된다(굶주림 없음).
+  // 후보가 매 실행 제외되어 굶는다. 굶주림 제거는 두 성질의 곱으로 고정한다.
+  //   ① 도달 가능성(결정적): 어떤 시작점에서든 선택 수는 window 이하이고 오래된 순이며,
+  //      시작점 전체를 훑으면 모든 후보가 창에 들어온다.
+  //   ② 시작점 분포(구조적): 시작점이 실행 컨텍스트를 읽지 않고 실행마다 새로 뽑히므로
+  //      모든 시작점의 확률이 0보다 크고, 그 값이 실행 간격에 좌우되지 않는다.
   const windowSize = 20;
   const windowProgram = workflow.match(
     /# candidate-window-begin\n\s+done < <\(jq -r --argjson window "\$\{window\}" --argjson offset "\$\{offset\}" '\n([\s\S]*?)\n\s+' <<<"\$\{candidates\}"\)/,
@@ -671,71 +674,124 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ).stdout.trim();
     return stdout === '' ? [] : stdout.split('\n').map(Number);
   };
-  // 워크플로의 offset 계산과 같은 식이다. 창 안에 다 들어오면 회전하지 않는다.
-  const windowOffset = (total, runNumber) =>
-    total > windowSize ? (runNumber * windowSize) % total : 0;
   assert.deepEqual(pickWindow(0, 0), []);
-  for (const total of [1, 20, 21, 45, 100]) {
-    const runs = Math.ceil(total / windowSize);
-    for (let start = 0; start < 8; start += 1) {
-      const seen = new Set();
-      for (let runNumber = start; runNumber < start + runs; runNumber += 1) {
-        const slice = pickWindow(total, windowOffset(total, runNumber));
-        assert.ok(slice.length <= windowSize, `window exceeded at total=${total}`);
-        assert.deepEqual(
-          slice,
-          [...slice].sort((a, b) => a - b),
-          `candidate window must stay oldest-first at total=${total}`,
-        );
-        for (const index of slice) seen.add(index);
-      }
-      assert.equal(
-        seen.size,
-        total,
-        `every candidate must be evaluated within ${runs} runs at total=${total}`,
+  // 도달 가능성은 결정적으로 고정한다. 시작점이 어떤 값이든 선택 수는 window 이하이고
+  // 오래된 순이며, 시작점 전체를 훑으면 모든 후보가 최소 한 번은 창에 들어온다.
+  for (const total of [21, 40]) {
+    const reachable = new Set();
+    for (let offset = 0; offset < total; offset += 1) {
+      const slice = pickWindow(total, offset);
+      assert.ok(slice.length <= windowSize, `window exceeded at total=${total}`);
+      assert.deepEqual(
+        slice,
+        [...slice].sort((a, b) => a - b),
+        `candidate window must stay oldest-first at total=${total}`,
       );
+      for (const index of slice) reachable.add(index);
+    }
+    assert.equal(
+      reachable.size,
+      total,
+      `every candidate must be reachable from some offset at total=${total}`,
+    );
+  }
+
+  // 시작점 산출. 커버리지 보장이 실행 간격에 의존하지 않으려면 시작점이 실행 컨텍스트
+  // 값의 함수가 아니어야 한다. run number 기반 결정적 회전은 실제 coordinator 실행 사이의
+  // 간격 d(라벨 이벤트 스킵·concurrency 폐기 때문에 1이 아니다)가 유효 보폭에 곱해져,
+  // gcd(유효 보폭, total) > window인 조합에서 시작점이 고정된다. 실행 컨텍스트를 아예
+  // 읽지 않는다는 것을 구조 계약으로 먼저 고정한다.
+  const offsetBlock = workflow.match(
+    /# candidate-offset-begin\n([\s\S]*?)\n\s+# candidate-offset-end/,
+  )?.[1];
+  assert.ok(offsetBlock, 'candidate offset block must stay testable');
+  assert.doesNotMatch(
+    offsetBlock,
+    /GITHUB_RUN_NUMBER|GITHUB_RUN_ID|GITHUB_RUN_ATTEMPT|GITHUB_SHA/,
+    'candidate offset must not depend on run context',
+  );
+  const drawOffset = (total, runNumber) => {
+    const script = [
+      'set -euo pipefail',
+      `GITHUB_RUN_NUMBER=${JSON.stringify(String(runNumber))}`,
+      `candidates=${JSON.stringify(
+        JSON.stringify(Array.from({ length: total }, (_, index) => index)),
+      )}`,
+      offsetBlock.replace(/^ {10}/gm, ''),
+      `printf '%s %s\\n' "$window" "$offset"`,
+    ].join('\n');
+    const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    assert.equal(result.status, 0, `offset block failed: ${result.stderr}`);
+    const [drawnWindow, offset] = result.stdout.trim().split(' ').map(Number);
+    assert.equal(drawnWindow, windowSize, 'window constant must stay in sync with the test');
+    return offset;
+  };
+  // 창 안에 다 들어오면 회전하지 않는다. 빈 큐에서도 죽지 않는다.
+  for (const total of [0, 1, 20]) {
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      assert.equal(drawOffset(total, attempt), 0, `must not rotate at total=${total}`);
     }
   }
-
-  // 창보다 큰 큐에서 뒤쪽 후보만 병합 가능한 경우를 큐 루프로 직접 실측한다.
-  const oversizedQueue = [];
-  for (let number = 1; number <= windowSize; number += 1) {
-    oversizedQueue.push({ number, mergeStateStatus: 'BLOCKED' });
+  // total > window면 시작점이 실행마다 새로 뽑히고 범위 안에 있다. run number를 고정해
+  // 두는 것은 최악의 앨리어싱 입력(간격 0)이며, 그래도 성질이 유지되어야 한다.
+  const rotationTotal = 2 * windowSize;
+  const drawn = [];
+  for (let attempt = 0; attempt < 48; attempt += 1) {
+    drawn.push(drawOffset(rotationTotal, 7));
   }
-  oversizedQueue.push({ number: windowSize + 1, mergeStateStatus: 'CLEAN' });
-  // 창이 큐 앞쪽에 고정되면(회전 전 실행) 21번째는 평가조차 되지 않는다.
-  const firstPass = runQueue(oversizedQueue, 0);
-  assert.equal(firstPass.status, 0);
-  assert.ok(!firstPass.evaluated.includes(windowSize + 1));
-  // 다음 실행에서 창이 밀려 21번째가 평가되고 병합된다. 어느 실행 번호에서 시작하든
-  // 연속 두 실행(= ceil(21/20)) 안에 반드시 병합된다.
-  for (let start = 0; start < 4; start += 1) {
-    const window2 = [
-      runQueue(oversizedQueue, start),
-      runQueue(oversizedQueue, start + 1),
-    ];
+  for (const offset of drawn) {
     assert.ok(
-      window2.some((run) => run.mergedPr === windowSize + 1),
-      `a ready candidate past the window must merge within two runs (start=${start})`,
+      Number.isInteger(offset) && offset >= 0 && offset < rotationTotal,
+      `offset out of range: ${offset}`,
     );
-    for (const run of window2) assert.equal(run.status, 0);
   }
-
-  // 창이 회전해도 평가한 후보 중 가장 오래된 병합 가능 후보가 이긴다.
-  const rotatedFifoQueue = oversizedQueue.map((candidate, index) =>
-    index === 0 ? { ...candidate, mergeStateStatus: 'CLEAN' } : candidate,
+  assert.ok(
+    new Set(drawn).size > 1,
+    'candidate offset must vary across executions even with a fixed run number',
   );
-  assert.equal(runQueue(rotatedFifoQueue, 1).mergedPr, 1);
+  // 뽑힌 시작점들의 창 합집합이 전 후보를 덮는다. 후보 하나가 한 실행에서 제외될 확률은
+  // 1 - window/total = 1/2이므로 48회에서 누락 확률은 total * 2^-48 수준이다.
+  const covered = new Set();
+  for (const offset of drawn) {
+    for (const index of pickWindow(rotationTotal, offset)) covered.add(index);
+  }
+  assert.equal(covered.size, rotationTotal, 'drawn offsets must cover the whole queue');
 
-  // 후보가 창 안에 다 들어오면 실행 번호와 무관하게 회전하지 않는다.
-  assert.equal(
-    runQueue(
-      [
-        { number: 1, mergeStateStatus: 'CLEAN' },
-        { number: 2, mergeStateStatus: 'CLEAN' },
-      ],
-      7,
-    ).mergedPr,
-    1,
+  // 리뷰가 지목한 정확한 시나리오를 큐 루프로 실측한다. total = 2 * window이고 실행 번호
+  // 간격이 2로 일정한 시퀀스 — 결정적 회전에서는 시작점이 0에 고정돼 뒤쪽 절반이 영원히
+  // 평가되지 않았다. 병합 가능한 후보는 큐 맨 뒤 1건뿐이다.
+  // 하네스 비용을 줄이려고 미끼 후보는 첫 게이트(열린 라벨 PR 검사)에서 걸리게 둔다.
+  // 스킵 사유별 계약은 위 시나리오들에서 이미 고정했고, 여기서 보는 것은 창 도달성이다.
+  const aliasingQueue = [];
+  for (let number = 1; number < rotationTotal; number += 1) {
+    aliasingQueue.push({ number, mergeStateStatus: 'CLEAN', state: 'CLOSED' });
+  }
+  aliasingQueue.push({ number: rotationTotal, mergeStateStatus: 'CLEAN' });
+  let lateMergeRun = null;
+  const attempts = 24;
+  for (let attempt = 0; attempt < attempts && lateMergeRun === null; attempt += 1) {
+    // 간격 2의 비연속 run number. 시작점이 이 값을 읽지 않으므로 결과에 영향이 없다.
+    const run = runQueue(aliasingQueue, 100 + attempt * 2);
+    assert.equal(run.status, 0);
+    if (run.mergedPr === rotationTotal) lateMergeRun = attempt;
+  }
+  assert.notEqual(
+    lateMergeRun,
+    null,
+    `the only mergeable candidate sits past the window and must still merge within ${attempts} runs`,
   );
+
+  // 후보가 창 안에 다 들어오면 실행 번호와 무관하게 오래된 후보가 먼저 병합된다.
+  for (const runNumber of [0, 7, 40]) {
+    assert.equal(
+      runQueue(
+        [
+          { number: 1, mergeStateStatus: 'CLEAN' },
+          { number: 2, mergeStateStatus: 'CLEAN' },
+        ],
+        runNumber,
+      ).mergedPr,
+      1,
+    );
+  }
 });
