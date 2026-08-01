@@ -44,6 +44,8 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'mergeStateStatus',
     '# merge-state-dispatch-begin',
     'CLEAN | HAS_HOOKS | UNSTABLE)',
+    'BLOCKED_TRANSIENT_SECONDS',
+    '--remove-label automerge',
     'gh pr merge --squash --auto',
     '--match-head-commit "${head}"',
     '--limit 1000',
@@ -58,6 +60,19 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.doesNotMatch(workflow, /--admin|gh pr merge.+--merge|gh pr merge.+--rebase/);
   assert.doesNotMatch(workflow, /LABELED_PR/);
   assert.ok(ciWorkflow.includes('  workflow_dispatch:'));
+
+  // run은 YAML block scalar라 본문 줄이 블록 들여쓰기 아래로 내려가면 워크플로 전체가
+  // 파싱되지 않는다. 이 테스트는 파일을 텍스트로 읽어 셸을 뽑으므로 그 파손을 그냥
+  // 지나치고, CI에는 actionlint가 없다. 들여쓰기 불변식을 여기서 직접 고정한다.
+  const runBlockAt = workflow.indexOf('        run: |\n');
+  assert.ok(runBlockAt > 0, 'coordinate step run block must stay findable');
+  for (const line of workflow.slice(runBlockAt).split('\n').slice(1)) {
+    if (line.trim() === '') continue;
+    assert.ok(
+      line.startsWith('          '),
+      `run block line escapes the YAML block scalar: ${line.slice(0, 48)}`,
+    );
+  }
 
   // classic commit status는 check-runs와 동일하게 전 페이지를 모아야 한다.
   const statusRequest = workflow.match(/statuses="\$\(gh api ([\s\S]*?)"\)"/)?.[1];
@@ -361,7 +376,27 @@ test('automerge coordinator fails closed around the native merge queue', async (
   )?.[1];
   assert.ok(dispatchBlock, 'merge state dispatch must stay testable');
   // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다.
-  const runDispatch = (mergeState, { headRepo = 'o/r', newHead = 'updated-head' } = {}) => {
+  const labeledSecondsAgo = (seconds) =>
+    new Date(Date.now() - seconds * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
+  const timelinePayload = (labeledAt) =>
+    JSON.stringify({
+      data: {
+        repository: {
+          pullRequest: {
+            timelineItems: {
+              nodes:
+                labeledAt === null
+                  ? []
+                  : [{ createdAt: labeledAt, label: { name: 'automerge' } }],
+            },
+          },
+        },
+      },
+    });
+  const runDispatch = (
+    mergeState,
+    { headRepo = 'o/r', newHead = 'updated-head', labeledAt = labeledSecondsAgo(60) } = {},
+  ) => {
     const log = join(mkdtempSync(join(tmpdir(), 'automerge-queue-')), 'gh.log');
     const script = [
       'set -euo pipefail',
@@ -371,11 +406,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
       '  case "$*" in',
       `    *"pr view"*headRefOid*) printf '%s\\n' ${JSON.stringify(newHead)} ;;`,
+      `    *graphql*) printf '%s\\n' ${JSON.stringify(timelinePayload(labeledAt))} ;;`,
       '  esac',
       '}',
       'sleep() { :; }',
       'pr=44',
       'repo=o/r',
+      'owner=o',
+      'name=r',
       'head=old-head',
       `head_repo=${JSON.stringify(headRepo)}`,
       'head_ref=feature',
@@ -389,15 +427,18 @@ test('automerge coordinator fails closed around the native merge queue', async (
       merged: calls.includes('gh pr merge'),
       updatedBranch: calls.includes('update-branch'),
       dispatchedCi: calls.includes('workflow run ci.yml'),
+      commented: calls.includes('pr comment'),
+      labelRemoved: calls.includes('--remove-label automerge'),
     };
   };
+  const quiet = { commented: false, labelRemoved: false };
 
   // 병합 가능 상태. UNSTABLE은 "필수가 아닌 check가 green이 아님"일 뿐이고 required
   // context는 위에서 ruleset 기준으로 이미 검증했으므로 병합을 진행한다.
   for (const mergeState of ['CLEAN', 'HAS_HOOKS', 'UNSTABLE']) {
     assert.deepEqual(
       runDispatch(mergeState),
-      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false },
+      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false, ...quiet },
       `${mergeState} must proceed to merge`,
     );
   }
@@ -407,6 +448,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     merged: false,
     updatedBranch: true,
     dispatchedCi: true,
+    ...quiet,
   });
   // update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. 이는 계약
   // 위반이 아니라 대기 상태이므로, stale ref로 CI를 쏘지도 말고 실패하지도 말고
@@ -417,6 +459,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     merged: false,
     updatedBranch: true,
     dispatchedCi: false,
+    ...quiet,
   });
   // fork head에 base 저장소 CI를 dispatch하지 않는다(계약 위반 → exit 1 유지).
   const forkBehind = runDispatch('BEHIND', { headRepo: 'fork/r' });
@@ -424,13 +467,45 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.equal(forkBehind.updatedBranch, false);
   // 전이·대기 상태에서 exit 1을 내면 그 실패 check가 PR을 UNSTABLE로 만들어 다음
   // 실행을 같은 자리에서 죽인다. 조용히 물러나 다음 트리거에서 재시도한다.
-  for (const mergeState of ['BLOCKED', 'UNKNOWN']) {
+  // UNKNOWN은 GitHub이 mergeability를 계산 중인 상태라 큐 대기 시간과 무관하게 전이다.
+  for (const labeledAt of [labeledSecondsAgo(60), labeledSecondsAgo(86400)]) {
     assert.deepEqual(
-      runDispatch(mergeState),
-      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false },
-      `${mergeState} must back off without failing the run`,
+      runDispatch('UNKNOWN', { labeledAt }),
+      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, ...quiet },
+      'UNKNOWN must stay a transient retry regardless of queue age',
     );
   }
+  // 짧은 BLOCKED은 GitHub 쪽 상태 반영 지연이므로 재시도한다.
+  assert.deepEqual(
+    runDispatch('BLOCKED', { labeledAt: labeledSecondsAgo(60) }),
+    { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, ...quiet },
+    'short-lived BLOCKED must retry on the next trigger',
+  );
+  assert.deepEqual(
+    runDispatch('BLOCKED', { labeledAt: labeledSecondsAgo(1799) }),
+    { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, ...quiet },
+    'BLOCKED below the threshold must still retry',
+  );
+  // 지속 BLOCKED은 이 워크플로가 검사하지 않는 네이티브 규칙이 남아 있다는 뜻이다.
+  // coordinator는 가장 오래된 라벨 PR 하나만 처리하므로 그대로 두면 뒤의 automerge PR이
+  // 전부 굶는다. derail 코멘트를 남기고 라벨을 떼어 큐에서 빼 사람이 알 수 있게 한다.
+  assert.deepEqual(
+    runDispatch('BLOCKED', { labeledAt: labeledSecondsAgo(1801) }),
+    {
+      status: 0,
+      merged: false,
+      updatedBranch: false,
+      dispatchedCi: false,
+      commented: true,
+      labelRemoved: true,
+    },
+    'persistent BLOCKED must be derailed out of the queue',
+  );
+  // 큐 대기 시간을 알 수 없으면 추측하지 않고 드러낸다.
+  const blockedUnknownAge = runDispatch('BLOCKED', { labeledAt: null });
+  assert.notEqual(blockedUnknownAge.status, 0);
+  assert.equal(blockedUnknownAge.merged, false);
+  assert.equal(blockedUnknownAge.labelRemoved, false);
   // 충돌은 사람이 해소해야 하므로 계약 위반으로 실패시킨다.
   const dirty = runDispatch('DIRTY');
   assert.notEqual(dirty.status, 0);
