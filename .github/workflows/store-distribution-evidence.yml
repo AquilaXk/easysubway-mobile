@@ -1,4 +1,4 @@
-name: Store Metadata Preflight
+name: Store Credential Preflight
 
 on:
   workflow_dispatch:
@@ -6,9 +6,11 @@ on:
 permissions: {}
 
 jobs:
-  metadata:
-    name: Store Metadata Preflight
+  preflight:
+    name: Store Credential Preflight
     runs-on: ubuntu-latest
+    environment:
+      name: store-release
     permissions:
       contents: read
     steps:
@@ -16,6 +18,15 @@ jobs:
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
         with:
           persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e
+        with:
+          node-version: 24
+      - name: Set up Java
+        uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654
+        with:
+          distribution: temurin
+          java-version: "21"
       - name: Validate tracked metadata without credentials or writes
         run: |
           jq -e '.schemaVersion == 1 and .androidApplicationId == "com.easysubway.app"' \
@@ -24,3 +35,73 @@ jobs:
             apps/mobile/release/play-store-submission-content.json
           jq -e '.schemaVersion == 1 and .applicationId == "easysubway"' \
             apps/mobile/release/store-privacy-inventory.json
+      - name: Validate upload signing credentials
+        shell: bash
+        env:
+          EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64: ${{ secrets.EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64 }}
+          EASYSUBWAY_ANDROID_STORE_PASSWORD: ${{ secrets.EASYSUBWAY_ANDROID_STORE_PASSWORD }}
+          EASYSUBWAY_ANDROID_KEY_ALIAS: ${{ secrets.EASYSUBWAY_ANDROID_KEY_ALIAS }}
+          EASYSUBWAY_ANDROID_KEY_PASSWORD: ${{ secrets.EASYSUBWAY_ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          umask 077
+          for name in \
+            EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64 \
+            EASYSUBWAY_ANDROID_STORE_PASSWORD \
+            EASYSUBWAY_ANDROID_KEY_ALIAS \
+            EASYSUBWAY_ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              printf '%s is required.\n' "${name}" >&2
+              exit 1
+            fi
+          done
+          keystore="${RUNNER_TEMP}/upload-keystore"
+          printf '%s' "${EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64}" | base64 --decode > "${keystore}"
+          keytool -list \
+            -keystore "${keystore}" \
+            -storepass "${EASYSUBWAY_ANDROID_STORE_PASSWORD}" \
+            -alias "${EASYSUBWAY_ANDROID_KEY_ALIAS}"
+          keytool -importkeystore \
+            -srckeystore "${keystore}" \
+            -srcstorepass "${EASYSUBWAY_ANDROID_STORE_PASSWORD}" \
+            -srcalias "${EASYSUBWAY_ANDROID_KEY_ALIAS}" \
+            -srckeypass "${EASYSUBWAY_ANDROID_KEY_PASSWORD}" \
+            -destkeystore "${RUNNER_TEMP}/signing-check.p12" \
+            -deststoretype PKCS12 \
+            -deststorepass changeit-for-ephemeral-check \
+            -destkeypass changeit-for-ephemeral-check \
+            -noprompt
+      - name: Validate temporary Google Play edit access
+        id: play
+        shell: bash
+        env:
+          EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64: ${{ secrets.EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64 }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [[ -z "${EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64}" ]]; then
+            printf 'EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64 is required.\n' >&2
+            exit 1
+          fi
+          package_name="$(jq -er '.androidApplicationId' apps/mobile/release/store-submission-readiness.json)"
+          version_code="$(sed -n 's/^version: [^+]*+//p' apps/mobile/pubspec.yaml)"
+          if [[ ! "${version_code}" =~ ^[0-9]+$ ]]; then
+            printf 'mobile versionCode must be a positive integer.\n' >&2
+            exit 1
+          fi
+          env_file="${RUNNER_TEMP}/google-play-preflight.env"
+          {
+            printf 'EASYSUBWAY_GOOGLE_PLAY_PACKAGE_NAME=%s\n' "${package_name}"
+            printf 'EASYSUBWAY_GOOGLE_PLAY_LATEST_VERSION_CODE=%s\n' "${version_code}"
+            printf 'EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64=%s\n' \
+              "${EASYSUBWAY_GOOGLE_PLAY_SERVICE_ACCOUNT_BASE64}"
+          } > "${env_file}"
+          node tools/ci/check-google-play-api-access.mjs \
+            --env-file "${env_file}" \
+            --github-output "${GITHUB_OUTPUT}" \
+            --report "${RUNNER_TEMP}/google-play-api-access.txt"
+          cat "${RUNNER_TEMP}/google-play-api-access.txt"
+      - name: Require Google Play readiness
+        env:
+          GOOGLE_PLAY_API_ACCESS_READY: ${{ steps.play.outputs.google_play_api_access_ready }}
+        run: test "${GOOGLE_PLAY_API_ACCESS_READY}" = true

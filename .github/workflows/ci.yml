@@ -33,8 +33,11 @@ jobs:
       - name: Run owned Node checks
         run: |
           node --test \
+            tools/ci/check-google-play-api-access.test.mjs \
             tools/ci/filter-mobile-lcov.test.mjs \
+            tools/ci/lib/google-play-auth.test.mjs \
             tools/mobile/datapack-contract.test.mjs \
+            tools/mobile/store-release-preflight.test.mjs \
             tools/mobile/status-voice-inventory.test.mjs \
             tools/release/hash-android-bundle-payload.test.mjs
           node tools/ci/audit-mobile-datapack-assets.mjs \
