@@ -71,6 +71,7 @@ jobs:
           signing_check="${RUNNER_TEMP}/signing-check.p12"
           key_info="${RUNNER_TEMP}/upload-key-info.txt"
           certificate="${RUNNER_TEMP}/upload-cert.der"
+          trap 'rm -f "${keystore}" "${signing_check}" "${key_info}" "${certificate}"' EXIT
           export EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD
           EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD="$(node -e 'process.stdout.write(require("node:crypto").randomBytes(32).toString("base64url"))')"
           printf '%s' "${EASYSUBWAY_ANDROID_UPLOAD_KEYSTORE_BASE64}" | base64 --decode > "${keystore}"
@@ -101,7 +102,6 @@ jobs:
             -deststorepass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
             -destkeypass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
             -noprompt
-          rm -f "${keystore}" "${signing_check}" "${key_info}" "${certificate}"
       - name: Validate read-only Google Play access
         id: play
         shell: bash

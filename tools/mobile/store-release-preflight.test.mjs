@@ -29,6 +29,8 @@ test("store preflight validates signing and read-only Play access from trusted m
   assert.match(workflow, /-J-Duser\.language=en -J-Duser\.country=US/);
   assert.match(workflow, /Entry type: PrivateKeyEntry/);
   assert.match(workflow, /fingerprint256/);
+  assert.match(workflow, /"\$\{fingerprint\}" != "\$\{expected_fingerprint\}"/);
+  assert.match(workflow, /trap .* EXIT/);
   assert.match(workflow, /-storepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD/);
   assert.match(workflow, /-srcstorepass:env EASYSUBWAY_ANDROID_STORE_PASSWORD/);
   assert.match(workflow, /-srckeypass:env EASYSUBWAY_ANDROID_KEY_PASSWORD/);

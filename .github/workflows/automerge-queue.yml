@@ -71,7 +71,13 @@ jobs:
             "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
           # review-state-filter-begin
           jq -e --arg head "${head}" '
-            [flatten[] | select(.commit_id == $head)] |
+            [flatten[] |
+              select(.commit_id == $head) |
+              select(
+                .author_association == "OWNER" or
+                .author_association == "MEMBER" or
+                .author_association == "COLLABORATOR"
+              )] |
             sort_by(.submitted_at, .id) |
             reduce .[] as $review ({};
               if $review.state == "COMMENTED" then
@@ -111,12 +117,16 @@ jobs:
           statuses="$(gh api -H 'Accept: application/vnd.github+json' \
             "repos/${repo}/commits/${head}/status?per_page=100")"
           while IFS= read -r required_check; do
+            # required-context-filter-begin
             jq -e --arg required_check "${required_check}" --argjson statuses "${statuses}" '
-              ([.[].check_runs[]] |
-                any(.[]; .name == $required_check and .conclusion == "success")) or
+              ([.[].check_runs[] | select(.name == $required_check)] |
+                sort_by(.started_at, .id) |
+                last |
+                .conclusion == "success") or
               ($statuses.statuses |
                 any(.[]; .context == $required_check and .state == "success"))
             ' <<<"${checks}" >/dev/null
+            # required-context-filter-end
           done < <(jq -r '.[]' <<<"${required}")
 
           if [[ "${merge_state}" == "CLEAN" ]]; then

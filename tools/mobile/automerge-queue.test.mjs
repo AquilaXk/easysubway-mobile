@@ -29,6 +29,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     '/commits/${head}/status',
     '$statuses.statuses',
     'commit_id == $head',
+    'author_association == "OWNER"',
     '. == "APPROVED"',
     'reduce .[] as $review',
     '.submitted_at',
@@ -60,6 +61,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     state,
     submitted_at: submittedAt,
     commit_id: 'head',
+    author_association: 'OWNER',
     user: { login: 'reviewer' },
   });
   const runReviewFilter = (reviews) =>
@@ -78,6 +80,49 @@ test('automerge coordinator fails closed around the native merge queue', async (
     runReviewFilter([
       review(1, 'CHANGES_REQUESTED', '2026-08-01T00:00:00Z'),
       review(2, 'COMMENTED', '2026-08-01T00:01:00Z'),
+    ]),
+    0,
+  );
+  assert.notEqual(
+    runReviewFilter([
+      {
+        ...review(1, 'COMMENTED', '2026-08-01T00:00:00Z'),
+        author_association: 'NONE',
+      },
+    ]),
+    0,
+  );
+
+  const checkProgram = workflow.match(
+    /# required-context-filter-begin\n\s+jq -e [^']+'\n([\s\S]*?)\n\s+' <<<"\$\{checks\}" >\/dev\/null/,
+  )?.[1];
+  assert.ok(checkProgram, 'required context jq program must stay testable');
+  const runCheckFilter = (checkRuns) =>
+    spawnSync(
+      'jq',
+      [
+        '-e',
+        '--arg',
+        'required_check',
+        'Required CI',
+        '--argjson',
+        'statuses',
+        '{"statuses":[]}',
+        checkProgram,
+      ],
+      { input: JSON.stringify([{ check_runs: checkRuns }]) },
+    ).status;
+  assert.notEqual(
+    runCheckFilter([
+      { id: 1, name: 'Required CI', conclusion: 'success', started_at: '2026-08-01T00:00:00Z' },
+      { id: 2, name: 'Required CI', conclusion: 'failure', started_at: '2026-08-01T00:01:00Z' },
+    ]),
+    0,
+  );
+  assert.equal(
+    runCheckFilter([
+      { id: 1, name: 'Required CI', conclusion: 'failure', started_at: '2026-08-01T00:00:00Z' },
+      { id: 2, name: 'Required CI', conclusion: 'success', started_at: '2026-08-01T00:01:00Z' },
     ]),
     0,
   );
