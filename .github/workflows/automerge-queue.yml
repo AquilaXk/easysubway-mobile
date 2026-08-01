@@ -28,6 +28,7 @@ jobs:
       checks: read
       contents: write
       pull-requests: write
+      statuses: read
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
@@ -107,10 +108,14 @@ jobs:
           checks="$(gh api --paginate --slurp \
             -H 'Accept: application/vnd.github+json' \
             "repos/${repo}/commits/${head}/check-runs?per_page=100")"
+          statuses="$(gh api -H 'Accept: application/vnd.github+json' \
+            "repos/${repo}/commits/${head}/status?per_page=100")"
           while IFS= read -r required_check; do
-            jq -e --arg required_check "${required_check}" '
-              [.[].check_runs[]] |
-              any(.[]; .name == $required_check and .conclusion == "success")
+            jq -e --arg required_check "${required_check}" --argjson statuses "${statuses}" '
+              ([.[].check_runs[]] |
+                any(.[]; .name == $required_check and .conclusion == "success")) or
+              ($statuses.statuses |
+                any(.[]; .context == $required_check and .state == "success"))
             ' <<<"${checks}" >/dev/null
           done < <(jq -r '.[]' <<<"${required}")
 
