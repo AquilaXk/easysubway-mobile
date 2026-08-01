@@ -26,6 +26,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'pull-requests: write',
     '/rules/branches/main',
     'required_status_checks',
+    'integration_id',
     '/commits/${head}/status',
     '$statuses.statuses',
     'commit_id == $head',
@@ -56,12 +57,13 @@ test('automerge coordinator fails closed around the native merge queue', async (
   )?.[1];
   assert.ok(reviewProgram, 'review state jq program must stay testable');
 
-  const review = (id, state, submittedAt) => ({
+  const review = (id, state, submittedAt, body = '') => ({
     id,
     state,
     submitted_at: submittedAt,
     commit_id: 'head',
     author_association: 'OWNER',
+    body,
     user: { login: 'reviewer' },
   });
   const runReviewFilter = (reviews) =>
@@ -84,6 +86,21 @@ test('automerge coordinator fails closed around the native merge queue', async (
     0,
   );
   assert.notEqual(
+    runReviewFilter([review(1, 'COMMENTED', '2026-08-01T00:00:00Z')]),
+    0,
+  );
+  assert.equal(
+    runReviewFilter([
+      review(
+        1,
+        'COMMENTED',
+        '2026-08-01T00:00:00Z',
+        '**Actionable comments posted: 0**\n<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->',
+      ),
+    ]),
+    0,
+  );
+  assert.notEqual(
     runReviewFilter([
       {
         ...review(1, 'COMMENTED', '2026-08-01T00:00:00Z'),
@@ -97,17 +114,21 @@ test('automerge coordinator fails closed around the native merge queue', async (
     /# required-context-filter-begin\n\s+jq -e [^']+'\n([\s\S]*?)\n\s+' <<<"\$\{checks\}" >\/dev\/null/,
   )?.[1];
   assert.ok(checkProgram, 'required context jq program must stay testable');
-  const runCheckFilter = (checkRuns) =>
+  const runCheckFilter = (
+    checkRuns,
+    statuses = [],
+    requiredCheck = { context: 'Required CI', integration_id: null },
+  ) =>
     spawnSync(
       'jq',
       [
         '-e',
-        '--arg',
+        '--argjson',
         'required_check',
-        'Required CI',
+        JSON.stringify(requiredCheck),
         '--argjson',
         'statuses',
-        '{"statuses":[]}',
+        JSON.stringify({ statuses }),
         checkProgram,
       ],
       { input: JSON.stringify([{ check_runs: checkRuns }]) },
@@ -124,6 +145,42 @@ test('automerge coordinator fails closed around the native merge queue', async (
       { id: 1, name: 'Required CI', conclusion: 'failure', started_at: '2026-08-01T00:00:00Z' },
       { id: 2, name: 'Required CI', conclusion: 'success', started_at: '2026-08-01T00:01:00Z' },
     ]),
+    0,
+  );
+  assert.notEqual(
+    runCheckFilter(
+      [],
+      [
+        { id: 1, context: 'Required CI', state: 'success', updated_at: '2026-08-01T00:00:00Z' },
+        { id: 2, context: 'Required CI', state: 'failure', updated_at: '2026-08-01T00:01:00Z' },
+      ],
+    ),
+    0,
+  );
+  assert.equal(
+    runCheckFilter(
+      [],
+      [
+        { id: 1, context: 'Required CI', state: 'failure', updated_at: '2026-08-01T00:00:00Z' },
+        { id: 2, context: 'Required CI', state: 'success', updated_at: '2026-08-01T00:01:00Z' },
+      ],
+    ),
+    0,
+  );
+  assert.notEqual(
+    runCheckFilter(
+      [{ id: 1, name: 'Required CI', conclusion: 'success', started_at: '2026-08-01T00:00:00Z', app: { id: 7 } }],
+      [{ id: 2, context: 'Required CI', state: 'success', updated_at: '2026-08-01T00:01:00Z' }],
+      { context: 'Required CI', integration_id: 42 },
+    ),
+    0,
+  );
+  assert.equal(
+    runCheckFilter(
+      [{ id: 1, name: 'Required CI', conclusion: 'success', started_at: '2026-08-01T00:00:00Z', app: { id: 42 } }],
+      [],
+      { context: 'Required CI', integration_id: 42 },
+    ),
     0,
   );
 });

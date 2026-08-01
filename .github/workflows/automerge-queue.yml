@@ -62,8 +62,9 @@ jobs:
           required="$(jq -c '
             [.[] |
               select(.type == "required_status_checks") |
-              .parameters.required_status_checks[].context] |
-            unique
+              .parameters.required_status_checks[] |
+              {context, integration_id: (.integration_id // null)}] |
+            unique_by(.context, .integration_id)
           ' <<<"${rules}")"
           jq -e 'length > 0' <<<"${required}" >/dev/null
 
@@ -77,7 +78,8 @@ jobs:
                 .author_association == "OWNER" or
                 .author_association == "MEMBER" or
                 .author_association == "COLLABORATOR"
-              )] |
+              )] as $trusted |
+            ($trusted |
             sort_by(.submitted_at, .id) |
             reduce .[] as $review ({};
               if $review.state == "COMMENTED" then
@@ -85,9 +87,13 @@ jobs:
               else
                 .[$review.user.login] = $review.state
               end
-            ) |
-            length > 0 and
-            all(.[]; . == "APPROVED" or . == "COMMENTED")
+            )) as $states |
+            ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
+            any($trusted[];
+              .state == "APPROVED" or
+              (.state == "COMMENTED" and
+                (.body // "" | startswith("**Actionable comments posted: ")) and
+                (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"))))
           ' <<<"${reviews}" >/dev/null
           # review-state-filter-end
 
@@ -118,16 +124,21 @@ jobs:
             "repos/${repo}/commits/${head}/status?per_page=100")"
           while IFS= read -r required_check; do
             # required-context-filter-begin
-            jq -e --arg required_check "${required_check}" --argjson statuses "${statuses}" '
-              ([.[].check_runs[] | select(.name == $required_check)] |
+            jq -e --argjson required_check "${required_check}" --argjson statuses "${statuses}" '
+              ([.[].check_runs[] |
+                select(.name == $required_check.context) |
+                select($required_check.integration_id == null or .app.id == $required_check.integration_id)] |
                 sort_by(.started_at, .id) |
                 last |
                 .conclusion == "success") or
-              ($statuses.statuses |
-                any(.[]; .context == $required_check and .state == "success"))
+              ($required_check.integration_id == null and
+                ([$statuses.statuses[] | select(.context == $required_check.context)] |
+                  sort_by((.updated_at // .created_at // ""), .id) |
+                  last |
+                  .state == "success"))
             ' <<<"${checks}" >/dev/null
             # required-context-filter-end
-          done < <(jq -r '.[]' <<<"${required}")
+          done < <(jq -c '.[]' <<<"${required}")
 
           if [[ "${merge_state}" == "CLEAN" ]]; then
             gh pr merge --squash --auto "${pr}" --repo "${repo}" \
