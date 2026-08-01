@@ -189,17 +189,19 @@ test('automerge coordinator fails closed around the native merge queue', async (
     0,
   );
   // dismiss_stale_reviews로 무효화된 이전 head 승인도 큐를 막지 않는다.
+  // 같은 리뷰어가 승인을 남긴 뒤 그 승인이 dismiss된 순서를 그대로 고정한다.
   assert.equal(
     runReviewFilter([
-      review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
+      review(1, 'APPROVED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
         user: { login: 'reviewer-one' },
       }),
-      review(2, 'APPROVED', '2026-08-01T00:01:00Z', '', {
-        user: { login: 'reviewer-two' },
+      review(2, 'DISMISSED', '2026-08-01T00:01:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-one' },
       }),
       review(3, 'APPROVED', '2026-08-01T00:02:00Z', '', {
-        user: { login: 'reviewer-three' },
+        user: { login: 'reviewer-two' },
       }),
     ]),
     0,
@@ -359,7 +361,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   )?.[1];
   assert.ok(dispatchBlock, 'merge state dispatch must stay testable');
   // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다.
-  const runDispatch = (mergeState, { headRepo = 'o/r' } = {}) => {
+  const runDispatch = (mergeState, { headRepo = 'o/r', newHead = 'updated-head' } = {}) => {
     const log = join(mkdtempSync(join(tmpdir(), 'automerge-queue-')), 'gh.log');
     const script = [
       'set -euo pipefail',
@@ -368,7 +370,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'gh() {',
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
       '  case "$*" in',
-      `    *"pr view"*headRefOid*) printf '%s\\n' "updated-head" ;;`,
+      `    *"pr view"*headRefOid*) printf '%s\\n' ${JSON.stringify(newHead)} ;;`,
       '  esac',
       '}',
       'sleep() { :; }',
@@ -386,6 +388,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       status: result.status,
       merged: calls.includes('gh pr merge'),
       updatedBranch: calls.includes('update-branch'),
+      dispatchedCi: calls.includes('workflow run ci.yml'),
     };
   };
 
@@ -394,7 +397,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   for (const mergeState of ['CLEAN', 'HAS_HOOKS', 'UNSTABLE']) {
     assert.deepEqual(
       runDispatch(mergeState),
-      { status: 0, merged: true, updatedBranch: false },
+      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false },
       `${mergeState} must proceed to merge`,
     );
   }
@@ -403,6 +406,17 @@ test('automerge coordinator fails closed around the native merge queue', async (
     status: 0,
     merged: false,
     updatedBranch: true,
+    dispatchedCi: true,
+  });
+  // update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. 이는 계약
+  // 위반이 아니라 대기 상태이므로, stale ref로 CI를 쏘지도 말고 실패하지도 말고
+  // 다음 트리거에서 재시도한다. 판정을 bash 버전에 맡기지 않으려면 명시적 분기여야
+  // 한다 — bare `[[ ]]`는 bash 5에서 조용히 job을 죽이고 bash 3.2에서는 그냥 통과한다.
+  assert.deepEqual(runDispatch('BEHIND', { newHead: 'old-head' }), {
+    status: 0,
+    merged: false,
+    updatedBranch: true,
+    dispatchedCi: false,
   });
   // fork head에 base 저장소 CI를 dispatch하지 않는다(계약 위반 → exit 1 유지).
   const forkBehind = runDispatch('BEHIND', { headRepo: 'fork/r' });
@@ -413,7 +427,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   for (const mergeState of ['BLOCKED', 'UNKNOWN']) {
     assert.deepEqual(
       runDispatch(mergeState),
-      { status: 0, merged: false, updatedBranch: false },
+      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false },
       `${mergeState} must back off without failing the run`,
     );
   }

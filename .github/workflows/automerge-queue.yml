@@ -171,7 +171,14 @@ jobs:
                 [[ "${new_head}" != "${head}" ]] && break
                 sleep 5
               done
-              [[ "${new_head}" != "${head}" ]]
+              if [[ "${new_head}" == "${head}" ]]; then
+                # update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다.
+                # 이는 계약 위반이 아니라 대기 상태다. stale ref로 CI를 쏘지 않고
+                # 다음 트리거에서 재시도한다. bare `[[ ]]`로 두면 bash 5에서는
+                # 아무 메시지 없이 job이 죽고 bash 3.2에서는 그냥 통과해버린다.
+                echo "PR #${pr} base update has not landed yet; retrying on the next trigger."
+                exit 0
+              fi
               gh workflow run ci.yml --repo "${repo}" --ref "${head_ref}"
               exit 0
               ;;
