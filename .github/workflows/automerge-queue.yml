@@ -44,7 +44,7 @@ jobs:
           [[ -n "${pr}" ]] || exit 0
 
           info="$(gh pr view "${pr}" --repo "${repo}" \
-            --json baseRefName,headRefName,headRefOid,isDraft,labels,mergeStateStatus,state)"
+            --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
           jq -e '
             .state == "OPEN" and
             .isDraft == false and
@@ -54,6 +54,7 @@ jobs:
 
           head="$(jq -r '.headRefOid' <<<"${info}")"
           head_ref="$(jq -r '.headRefName' <<<"${info}")"
+          head_repo="$(jq -r '.headRepository.nameWithOwner // ""' <<<"${info}")"
           merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
 
           rules="$(gh api "repos/${repo}/rules/branches/main")"
@@ -67,14 +68,21 @@ jobs:
 
           reviews="$(gh api --paginate --slurp \
             "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
+          # review-state-filter-begin
           jq -e --arg head "${head}" '
-            flatten |
-            any(.[];
-              .commit_id == $head and
-              (.state == "APPROVED" or .state == "COMMENTED")) and
-            all(.[];
-              .commit_id != $head or .state != "CHANGES_REQUESTED")
+            [flatten[] | select(.commit_id == $head)] |
+            sort_by(.submitted_at, .id) |
+            reduce .[] as $review ({};
+              if $review.state == "COMMENTED" then
+                .[$review.user.login] //= "COMMENTED"
+              else
+                .[$review.user.login] = $review.state
+              end
+            ) |
+            length > 0 and
+            all(.[]; . == "APPROVED" or . == "COMMENTED")
           ' <<<"${reviews}" >/dev/null
+          # review-state-filter-end
 
           owner="${repo%%/*}"
           name="${repo#*/}"
@@ -113,6 +121,10 @@ jobs:
           fi
 
           if [[ "${merge_state}" == "BEHIND" ]]; then
+            [[ "${head_repo}" == "${repo}" ]] || {
+              echo "PR #${pr} uses a fork head; refusing base-repository CI dispatch." >&2
+              exit 1
+            }
             gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
               -f expected_head_sha="${head}" >/dev/null
             # ponytail: bounded wait only; the API applies the base merge asynchronously.
