@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,14 +44,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'mergeStateStatus',
     '# merge-state-dispatch-begin',
     'CLEAN | HAS_HOOKS | UNSTABLE)',
-    'BLOCKED_TRANSIENT_SECONDS',
-    '--remove-label automerge',
+    '# queue-loop-begin',
+    '[sort_by(.createdAt)[].number]',
     'gh pr merge --squash --auto',
     '--match-head-commit "${head}"',
     '--limit 1000',
     '/update-branch',
     'headRepository',
-    '[[ "${head_repo}" == "${repo}" ]]',
+    '[[ "${head_repo}" != "${repo}" ]]',
     'gh workflow run ci.yml',
   ]) {
     assert.ok(workflow.includes(contract), `missing contract: ${contract}`);
@@ -82,7 +82,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   }
 
   const reviewProgram = workflow.match(
-    /# review-state-filter-begin\n\s+jq -e --arg head "\$\{head\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null/,
+    /# review-state-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
   )?.[1];
   assert.ok(reviewProgram, 'review state jq program must stay testable');
 
@@ -266,7 +266,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   );
 
   const checkProgram = workflow.match(
-    /# required-context-filter-begin\n\s+jq -e [^']+'\n([\s\S]*?)\n\s+' <<<"\$\{checks\}" >\/dev\/null/,
+    /# required-context-filter-begin\n\s+if ! jq -e [^']+'\n([\s\S]*?)\n\s+' <<<"\$\{checks\}" >\/dev\/null; then/,
   )?.[1];
   assert.ok(checkProgram, 'required context jq program must stay testable');
   // statusPages는 `gh api --paginate --slurp` 결과와 같은 페이지 배열이다.
@@ -362,41 +362,41 @@ test('automerge coordinator fails closed around the native merge queue', async (
     0,
   );
 
-  // merge-state 분기는 리뷰·thread·required context 게이트를 모두 통과한 뒤에만 도달한다.
-  // `set -e` 아래에서 그 게이트들은 `jq -e` 실패 시 즉시 종료되므로, 계약 위반은 분기에
-  // 닿기 전에 exit 1로 끝난다.
+  // 게이트는 후보별로 수행되고, 실패하면 그 후보만 건너뛴다. 순서 계약은 유지한다.
   assert.ok(workflow.includes('set -euo pipefail'));
+  const queueLoopAt = workflow.indexOf('# queue-loop-begin');
   const reviewGateAt = workflow.indexOf('# review-state-filter-end');
   const contextGateAt = workflow.indexOf('# required-context-filter-end');
   const dispatchAt = workflow.indexOf('# merge-state-dispatch-begin');
-  assert.ok(reviewGateAt > 0 && contextGateAt > reviewGateAt && dispatchAt > contextGateAt);
+  assert.ok(
+    queueLoopAt > 0 &&
+      reviewGateAt > queueLoopAt &&
+      contextGateAt > reviewGateAt &&
+      dispatchAt > contextGateAt,
+    'gates must run per candidate, before the merge dispatch',
+  );
+
+  // 후보 목록은 오래된 순이어야 한다(best-effort FIFO).
+  const orderProgram = workflow.match(/--jq '(\[sort_by\(\.createdAt\)\[\]\.number\])'/)?.[1];
+  assert.ok(orderProgram, 'candidate ordering must stay testable');
+  const ordered = spawnSync('jq', ['-c', orderProgram], {
+    input: JSON.stringify([
+      { number: 9, createdAt: '2026-08-01T02:00:00Z' },
+      { number: 3, createdAt: '2026-08-01T00:00:00Z' },
+      { number: 7, createdAt: '2026-08-01T01:00:00Z' },
+    ]),
+    encoding: 'utf8',
+  });
+  assert.equal(ordered.stdout.trim(), '[3,7,9]');
 
   const dispatchBlock = workflow.match(
     /# merge-state-dispatch-begin\n([\s\S]*?)\n\s+# merge-state-dispatch-end/,
   )?.[1];
   assert.ok(dispatchBlock, 'merge state dispatch must stay testable');
-  // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다.
-  const labeledSecondsAgo = (seconds) =>
-    new Date(Date.now() - seconds * 1000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-  const timelinePayload = (labeledAt) =>
-    JSON.stringify({
-      data: {
-        repository: {
-          pullRequest: {
-            timelineItems: {
-              nodes:
-                labeledAt === null
-                  ? []
-                  : [{ createdAt: labeledAt, label: { name: 'automerge' } }],
-            },
-          },
-        },
-      },
-    });
-  const runDispatch = (
-    mergeState,
-    { headRepo = 'o/r', newHead = 'updated-head', labeledAt = labeledSecondsAgo(60) } = {},
-  ) => {
+  // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다. 분기는 큐 루프
+  // 안에 있으므로 `continue`가 유효하도록 1회 루프로 감싸고, 루프를 빠져나오면
+  // SKIPPED를 남겨 "이 후보를 건너뛰었다"를 관측한다.
+  const runDispatch = (mergeState, { headRepo = 'o/r', newHead = 'updated-head' } = {}) => {
     const log = join(mkdtempSync(join(tmpdir(), 'automerge-queue-')), 'gh.log');
     const script = [
       'set -euo pipefail',
@@ -406,19 +406,19 @@ test('automerge coordinator fails closed around the native merge queue', async (
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
       '  case "$*" in',
       `    *"pr view"*headRefOid*) printf '%s\\n' ${JSON.stringify(newHead)} ;;`,
-      `    *graphql*) printf '%s\\n' ${JSON.stringify(timelinePayload(labeledAt))} ;;`,
       '  esac',
       '}',
       'sleep() { :; }',
       'pr=44',
       'repo=o/r',
-      'owner=o',
-      'name=r',
       'head=old-head',
       `head_repo=${JSON.stringify(headRepo)}`,
       'head_ref=feature',
       `merge_state=${JSON.stringify(mergeState)}`,
-      dispatchBlock.replace(/^ {10}/gm, ''),
+      'for _ in 1; do',
+      dispatchBlock.replace(/^ {12}/gm, ''),
+      'done',
+      `printf 'SKIPPED\\n' >> "$GH_LOG"`,
     ].join('\n');
     const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
     const calls = existsSync(log) ? readFileSync(log, 'utf8') : '';
@@ -427,18 +427,16 @@ test('automerge coordinator fails closed around the native merge queue', async (
       merged: calls.includes('gh pr merge'),
       updatedBranch: calls.includes('update-branch'),
       dispatchedCi: calls.includes('workflow run ci.yml'),
-      commented: calls.includes('pr comment'),
-      labelRemoved: calls.includes('--remove-label automerge'),
+      skipped: calls.includes('SKIPPED'),
     };
   };
-  const quiet = { commented: false, labelRemoved: false };
 
   // 병합 가능 상태. UNSTABLE은 "필수가 아닌 check가 green이 아님"일 뿐이고 required
   // context는 위에서 ruleset 기준으로 이미 검증했으므로 병합을 진행한다.
   for (const mergeState of ['CLEAN', 'HAS_HOOKS', 'UNSTABLE']) {
     assert.deepEqual(
       runDispatch(mergeState),
-      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false, ...quiet },
+      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false, skipped: false },
       `${mergeState} must proceed to merge`,
     );
   }
@@ -448,70 +446,193 @@ test('automerge coordinator fails closed around the native merge queue', async (
     merged: false,
     updatedBranch: true,
     dispatchedCi: true,
-    ...quiet,
+    skipped: false,
   });
-  // update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. 이는 계약
-  // 위반이 아니라 대기 상태이므로, stale ref로 CI를 쏘지도 말고 실패하지도 말고
-  // 다음 트리거에서 재시도한다. 판정을 bash 버전에 맡기지 않으려면 명시적 분기여야
-  // 한다 — bare `[[ ]]`는 bash 5에서 조용히 job을 죽이고 bash 3.2에서는 그냥 통과한다.
+  // update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. stale ref로 CI를
+  // 쏘지도 말고 실패하지도 말고 다음 트리거에서 재시도한다. 판정을 bash 버전에 맡기지
+  // 않으려면 명시적 분기여야 한다 — bare `[[ ]]`는 bash 5에서 조용히 job을 죽이고
+  // bash 3.2에서는 그냥 통과한다.
   assert.deepEqual(runDispatch('BEHIND', { newHead: 'old-head' }), {
     status: 0,
     merged: false,
     updatedBranch: true,
     dispatchedCi: false,
-    ...quiet,
+    skipped: false,
   });
-  // fork head에 base 저장소 CI를 dispatch하지 않는다(계약 위반 → exit 1 유지).
-  const forkBehind = runDispatch('BEHIND', { headRepo: 'fork/r' });
-  assert.notEqual(forkBehind.status, 0);
-  assert.equal(forkBehind.updatedBranch, false);
-  // 전이·대기 상태에서 exit 1을 내면 그 실패 check가 PR을 UNSTABLE로 만들어 다음
-  // 실행을 같은 자리에서 죽인다. 조용히 물러나 다음 트리거에서 재시도한다.
-  // UNKNOWN은 GitHub이 mergeability를 계산 중인 상태라 큐 대기 시간과 무관하게 전이다.
-  for (const labeledAt of [labeledSecondsAgo(60), labeledSecondsAgo(86400)]) {
+  // 병합할 수 없는 상태는 전부 "이 후보만 건너뛴다"로 수렴한다. 실행을 실패시키지도,
+  // 라벨을 건드리지도 않는다. 뒤의 후보는 계속 평가된다.
+  for (const mergeState of ['DIRTY', 'BLOCKED', 'UNKNOWN', 'SOME_NEW_STATE']) {
     assert.deepEqual(
-      runDispatch('UNKNOWN', { labeledAt }),
-      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, ...quiet },
-      'UNKNOWN must stay a transient retry regardless of queue age',
+      runDispatch(mergeState),
+      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, skipped: true },
+      `${mergeState} must skip to the next candidate`,
     );
   }
-  // 짧은 BLOCKED은 GitHub 쪽 상태 반영 지연이므로 재시도한다.
-  assert.deepEqual(
-    runDispatch('BLOCKED', { labeledAt: labeledSecondsAgo(60) }),
-    { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, ...quiet },
-    'short-lived BLOCKED must retry on the next trigger',
+  // fork head에 base 저장소 CI를 dispatch하지 않는다. 거부하되 큐는 계속 진행한다.
+  assert.deepEqual(runDispatch('BEHIND', { headRepo: 'fork/r' }), {
+    status: 0,
+    merged: false,
+    updatedBranch: false,
+    dispatchedCi: false,
+    skipped: true,
+  });
+
+  // 큐 루프 전체를 돌려 "막힌 후보가 뒤의 후보를 굶기지 않는다"를 직접 실측한다.
+  const queueLoop = workflow.match(/# queue-loop-begin\n([\s\S]*?)\n\s+# queue-loop-end/)?.[1];
+  assert.ok(queueLoop, 'queue loop must stay testable');
+  const trustedReview = (head) => [
+    [
+      {
+        id: 1,
+        state: 'APPROVED',
+        submitted_at: '2026-08-01T00:00:00Z',
+        commit_id: head,
+        author_association: 'OWNER',
+        body: '',
+        user: { login: 'reviewer' },
+      },
+    ],
+  ];
+  const runQueue = (prs) => {
+    const dir = mkdtempSync(join(tmpdir(), 'automerge-queue-loop-'));
+    const log = join(dir, 'gh.log');
+    for (const pr of prs) {
+      const head = `head${pr.number}`;
+      writeFileSync(
+        join(dir, `pr-${pr.number}.json`),
+        JSON.stringify({
+          state: pr.state ?? 'OPEN',
+          isDraft: false,
+          baseRefName: 'main',
+          labels: [{ name: 'automerge' }],
+          headRefName: `feature-${pr.number}`,
+          headRefOid: head,
+          headRepository: { nameWithOwner: 'o/r' },
+          mergeStateStatus: pr.mergeStateStatus,
+        }),
+      );
+      writeFileSync(
+        join(dir, `reviews-${pr.number}.json`),
+        JSON.stringify(pr.reviewed === false ? [[]] : trustedReview(head)),
+      );
+      writeFileSync(
+        join(dir, `threads-${pr.number}.json`),
+        JSON.stringify({
+          data: {
+            repository: {
+              pullRequest: {
+                reviewThreads: {
+                  nodes: pr.unresolvedThread ? [{ isResolved: false }] : [],
+                  pageInfo: { hasNextPage: false },
+                },
+              },
+            },
+          },
+        }),
+      );
+      writeFileSync(
+        join(dir, `checks-${head}.json`),
+        JSON.stringify([
+          {
+            check_runs: [
+              {
+                id: 1,
+                name: 'Required CI',
+                conclusion: pr.checkFailed ? 'failure' : 'success',
+                started_at: '2026-08-01T00:00:00Z',
+              },
+            ],
+          },
+        ]),
+      );
+      writeFileSync(join(dir, `statuses-${head}.json`), JSON.stringify([[]]));
+    }
+    const script = [
+      'set -euo pipefail',
+      `GH_LOG=${JSON.stringify(log)}`,
+      `FIX=${JSON.stringify(dir)}`,
+      ': > "$GH_LOG"',
+      'gh() {',
+      `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
+      '  local all="$*"',
+      '  case "$all" in',
+      `    "pr list"*) printf '%s\\n' ${JSON.stringify(JSON.stringify(prs.map((p) => p.number)))} ;;`,
+      '    "pr view "*) set -- $all; cat "$FIX/pr-$3.json" ;;',
+      '    *pulls/*/reviews*) n="${all#*pulls/}"; n="${n%%/reviews*}"; cat "$FIX/reviews-$n.json" ;;',
+      '    *graphql*) n="${all#*number=}"; n="${n%% *}"; cat "$FIX/threads-$n.json" ;;',
+      '    *check-runs*) h="${all#*commits/}"; h="${h%%/check-runs*}"; cat "$FIX/checks-$h.json" ;;',
+      '    *statuses*) h="${all#*commits/}"; h="${h%%/statuses*}"; cat "$FIX/statuses-$h.json" ;;',
+      '  esac',
+      '}',
+      'sleep() { :; }',
+      'repo=o/r',
+      'owner=o',
+      'name=r',
+      `required='[{"context":"Required CI","integration_id":null}]'`,
+      'candidates="$(gh pr list)"',
+      queueLoop.replace(/^ {10}/gm, ''),
+    ].join('\n');
+    const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    const calls = existsSync(log) ? readFileSync(log, 'utf8') : '';
+    const merged = calls.match(/gh pr merge [^\n]*?(\d+) --repo/)?.[1];
+    return {
+      status: result.status,
+      mergedPr: merged ? Number(merged) : null,
+      stdout: result.stdout,
+    };
+  };
+
+  // 큐 head가 BLOCKED이어도 뒤의 병합 가능한 후보가 처리된다. 이것이 이 설계의 핵심이다.
+  assert.equal(
+    runQueue([
+      { number: 1, mergeStateStatus: 'BLOCKED' },
+      { number: 2, mergeStateStatus: 'CLEAN' },
+    ]).mergedPr,
+    2,
   );
-  assert.deepEqual(
-    runDispatch('BLOCKED', { labeledAt: labeledSecondsAgo(1799) }),
-    { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, ...quiet },
-    'BLOCKED below the threshold must still retry',
+  // 충돌한 후보도 뒤를 막지 않는다.
+  assert.equal(
+    runQueue([
+      { number: 1, mergeStateStatus: 'DIRTY' },
+      { number: 2, mergeStateStatus: 'CLEAN' },
+    ]).mergedPr,
+    2,
   );
-  // 지속 BLOCKED은 이 워크플로가 검사하지 않는 네이티브 규칙이 남아 있다는 뜻이다.
-  // coordinator는 가장 오래된 라벨 PR 하나만 처리하므로 그대로 두면 뒤의 automerge PR이
-  // 전부 굶는다. derail 코멘트를 남기고 라벨을 떼어 큐에서 빼 사람이 알 수 있게 한다.
-  assert.deepEqual(
-    runDispatch('BLOCKED', { labeledAt: labeledSecondsAgo(1801) }),
-    {
-      status: 0,
-      merged: false,
-      updatedBranch: false,
-      dispatchedCi: false,
-      commented: true,
-      labelRemoved: true,
-    },
-    'persistent BLOCKED must be derailed out of the queue',
+  // 게이트는 후보별로 그대로 강제된다 — 리뷰 없는 후보는 건너뛰고 병합되지 않는다.
+  const reviewGateQueue = runQueue([
+    { number: 1, mergeStateStatus: 'CLEAN', reviewed: false },
+    { number: 2, mergeStateStatus: 'CLEAN' },
+  ]);
+  assert.equal(reviewGateQueue.mergedPr, 2);
+  // 미해결 thread가 있는 후보도 건너뛴다.
+  assert.equal(
+    runQueue([
+      { number: 1, mergeStateStatus: 'CLEAN', unresolvedThread: true },
+      { number: 2, mergeStateStatus: 'CLEAN' },
+    ]).mergedPr,
+    2,
   );
-  // 큐 대기 시간을 알 수 없으면 추측하지 않고 드러낸다.
-  const blockedUnknownAge = runDispatch('BLOCKED', { labeledAt: null });
-  assert.notEqual(blockedUnknownAge.status, 0);
-  assert.equal(blockedUnknownAge.merged, false);
-  assert.equal(blockedUnknownAge.labelRemoved, false);
-  // 충돌은 사람이 해소해야 하므로 계약 위반으로 실패시킨다.
-  const dirty = runDispatch('DIRTY');
-  assert.notEqual(dirty.status, 0);
-  assert.equal(dirty.merged, false);
-  // 알 수 없는 상태에서 조용히 물러나면 큐가 원인 없이 멈추므로 실패시킨다.
-  const unknownEnum = runDispatch('SOME_NEW_STATE');
-  assert.notEqual(unknownEnum.status, 0);
-  assert.equal(unknownEnum.merged, false);
+  // required check가 실패한 후보도 건너뛴다.
+  assert.equal(
+    runQueue([
+      { number: 1, mergeStateStatus: 'CLEAN', checkFailed: true },
+      { number: 2, mergeStateStatus: 'CLEAN' },
+    ]).mergedPr,
+    2,
+  );
+  // 게이트를 통과한 가장 오래된 후보가 우선한다(best-effort FIFO).
+  assert.equal(
+    runQueue([
+      { number: 1, mergeStateStatus: 'CLEAN' },
+      { number: 2, mergeStateStatus: 'CLEAN' },
+    ]).mergedPr,
+    1,
+  );
+  // 아무 후보도 병합할 수 없으면 병합 없이 성공으로 끝난다. 라벨은 건드리지 않는다.
+  const allBlocked = runQueue([
+    { number: 1, mergeStateStatus: 'BLOCKED' },
+    { number: 2, mergeStateStatus: 'DIRTY' },
+  ]);
+  assert.equal(allBlocked.status, 0);
+  assert.equal(allBlocked.mergedPr, null);
 });

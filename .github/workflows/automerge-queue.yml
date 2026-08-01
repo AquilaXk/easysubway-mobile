@@ -39,24 +39,8 @@ jobs:
           set -euo pipefail
 
           repo="${GITHUB_REPOSITORY}"
-          pr="$(gh pr list --repo "${repo}" --base main --state open --label automerge \
-            --limit 1000 --json number,createdAt \
-            --jq 'sort_by(.createdAt)[0].number // empty')"
-          [[ -n "${pr}" ]] || exit 0
-
-          info="$(gh pr view "${pr}" --repo "${repo}" \
-            --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
-          jq -e '
-            .state == "OPEN" and
-            .isDraft == false and
-            .baseRefName == "main" and
-            any(.labels[]; .name == "automerge")
-          ' <<<"${info}" >/dev/null
-
-          head="$(jq -r '.headRefOid' <<<"${info}")"
-          head_ref="$(jq -r '.headRefName' <<<"${info}")"
-          head_repo="$(jq -r '.headRepository.nameWithOwner // ""' <<<"${info}")"
-          merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
+          owner="${repo%%/*}"
+          name="${repo#*/}"
 
           rules="$(gh api "repos/${repo}/rules/branches/main")"
           required="$(jq -c '
@@ -68,189 +52,180 @@ jobs:
           ' <<<"${rules}")"
           jq -e 'length > 0' <<<"${required}" >/dev/null
 
-          reviews="$(gh api --paginate --slurp \
-            "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
-          # review-state-filter-begin
-          jq -e --arg head "${head}" '
-            [flatten[] |
-              select(
-                .author_association == "OWNER" or
-                .author_association == "MEMBER" or
-                .author_association == "COLLABORATOR"
-              )] as $trusted |
-            ($trusted | map(select(.commit_id == $head))) as $current |
-            ($trusted |
-            sort_by(.submitted_at, .id) |
-            reduce .[] as $review ({};
-              if $review.state == "COMMENTED" then
-                .[$review.user.login] //= "COMMENTED"
-              elif $review.state == "DISMISSED" then
-                del(.[$review.user.login])
-              else
-                .[$review.user.login] = $review.state
-              end
-            )) as $states |
-            ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
-            any($current[];
-              .state == "APPROVED" or
-              (.state == "COMMENTED" and
-                (.body // "" | startswith("**Actionable comments posted: ")) and
-                (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"))))
-          ' <<<"${reviews}" >/dev/null
-          # review-state-filter-end
+          candidates="$(gh pr list --repo "${repo}" --base main --state open --label automerge \
+            --limit 1000 --json number,createdAt \
+            --jq '[sort_by(.createdAt)[].number]')"
 
-          owner="${repo%%/*}"
-          name="${repo#*/}"
-          # shellcheck disable=SC2016
-          threads="$(gh api graphql -f owner="${owner}" -f name="${name}" -F number="${pr}" -f query='
-            query($owner: String!, $name: String!, $number: Int!) {
-              repository(owner: $owner, name: $name) {
-                pullRequest(number: $number) {
-                  reviewThreads(first: 100) {
-                    nodes { isResolved }
-                    pageInfo { hasNextPage }
-                  }
-                }
-              }
-            }
-          ')"
-          jq -e '
-            .data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage == false and
-            all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved)
-          ' <<<"${threads}" >/dev/null
+          # 큐는 strict FIFO가 아니라 best-effort FIFO다. 오래된 순으로 후보를 훑되 병합할 수
+          # 없는 후보는 사유를 남기고 건너뛴다. head 하나만 처리하면 그 한 건이 막혔을 때 뒤의
+          # PR이 전부 굶고, 굶주림을 막으려 타이머·derail을 넣으면 다시 오작동 표면이 생긴다.
+          # 건너뛰기는 병합을 하지 않는 방향이라 게이트를 약화시키지 않으며, 각 후보는 리뷰·
+          # 미해결 thread·required context 검증을 그대로 통과해야 한다. 실제 동작(병합 예약
+          # 또는 base 갱신)은 한 실행에 최대 한 건이므로 병합 직렬화는 그대로 유지된다.
+          # 후보를 20건으로 제한해 job timeout(5분) 안에서 끝나게 한다.
+          # queue-loop-begin
+          while IFS= read -r pr; do
+            info="$(gh pr view "${pr}" --repo "${repo}" \
+              --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
+            if ! jq -e '
+              .state == "OPEN" and
+              .isDraft == false and
+              .baseRefName == "main" and
+              any(.labels[]; .name == "automerge")
+            ' <<<"${info}" >/dev/null; then
+              echo "PR #${pr}: no longer an open labeled pull request against main; skipping."
+              continue
+            fi
 
-          checks="$(gh api --paginate --slurp \
-            -H 'Accept: application/vnd.github+json' \
-            "repos/${repo}/commits/${head}/check-runs?per_page=100")"
-          statuses="$(gh api --paginate --slurp \
-            -H 'Accept: application/vnd.github+json' \
-            "repos/${repo}/commits/${head}/statuses?per_page=100")"
-          while IFS= read -r required_check; do
-            # required-context-filter-begin
-            jq -e --argjson required_check "${required_check}" --argjson statuses "${statuses}" '
-              ($statuses | flatten) as $status_records |
-              ([.[].check_runs[] |
-                select(.name == $required_check.context) |
-                select($required_check.integration_id == null or .app.id == $required_check.integration_id)] |
-                sort_by(.started_at, .id) |
-                last |
-                .conclusion == "success") or
-              ($required_check.integration_id == null and
-                ([$status_records[] | select(.context == $required_check.context)] |
-                  sort_by((.updated_at // .created_at // ""), .id) |
-                  last |
-                  .state == "success"))
-            ' <<<"${checks}" >/dev/null
-            # required-context-filter-end
-          done < <(jq -c '.[]' <<<"${required}")
+            head="$(jq -r '.headRefOid' <<<"${info}")"
+            head_ref="$(jq -r '.headRefName' <<<"${info}")"
+            head_repo="$(jq -r '.headRepository.nameWithOwner // ""' <<<"${info}")"
+            merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
 
-          # required context 검증이 병합 가능 여부의 정본이다. mergeStateStatus는 여기서
-          # 실제로 병합이 불가능한 상태(base 갱신 필요·충돌)를 가려내는 데만 쓴다.
-          # 전이·대기 상태에서 exit 1을 내면 그 실패가 이 PR의 check로 붙어 PR을
-          # UNSTABLE로 만들고, 다음 실행이 다시 그 UNSTABLE을 보고 죽는 자기 유발
-          # 교착이 된다. 그래서 exit 1은 사람이 고쳐야 하는 계약 위반에만 남긴다.
-          # merge-state-dispatch-begin
-          case "${merge_state}" in
-            CLEAN | HAS_HOOKS | UNSTABLE)
-              # UNSTABLE은 "mergeable하지만 필수가 아닌 check가 green이 아님"이다.
-              # ruleset이 필수로 두지 않은 check로 병합을 막지 않는다.
-              gh pr merge --squash --auto "${pr}" --repo "${repo}" \
-                --match-head-commit "${head}"
-              exit 0
-              ;;
-            BEHIND)
-              [[ "${head_repo}" == "${repo}" ]] || {
-                echo "PR #${pr} uses a fork head; refusing base-repository CI dispatch." >&2
-                exit 1
-              }
-              gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
-                -f expected_head_sha="${head}" >/dev/null
-              # ponytail: bounded wait only; the API applies the base merge asynchronously.
-              for _ in {1..12}; do
-                new_head="$(gh pr view "${pr}" --repo "${repo}" --json headRefOid --jq '.headRefOid')"
-                [[ "${new_head}" != "${head}" ]] && break
-                sleep 5
-              done
-              if [[ "${new_head}" == "${head}" ]]; then
-                # update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다.
-                # 이는 계약 위반이 아니라 대기 상태다. stale ref로 CI를 쏘지 않고
-                # 다음 트리거에서 재시도한다. bare `[[ ]]`로 두면 bash 5에서는
-                # 아무 메시지 없이 job이 죽고 bash 3.2에서는 그냥 통과해버린다.
-                echo "PR #${pr} base update has not landed yet; retrying on the next trigger."
-                exit 0
-              fi
-              gh workflow run ci.yml --repo "${repo}" --ref "${head_ref}"
-              exit 0
-              ;;
-            UNKNOWN)
-              # GitHub이 mergeability를 아직 계산 중인 상태다. 계산은 곧 끝나므로 큐에
-              # 머문 시간과 무관하게 전이로 보고 다음 트리거에서 재시도한다.
-              echo "PR #${pr} is not ready yet: ${merge_state}; retrying on the next trigger."
-              exit 0
-              ;;
-            BLOCKED)
-              # 이 job의 리뷰·thread·required context 계약을 모두 통과한 뒤의 BLOCKED은
-              # 대개 GitHub 쪽 상태 반영 지연이지만, 이 워크플로가 검사하지 않는 네이티브
-              # 규칙(추가 승인 수·code owner 리뷰·필수 배포 승인)이 남아 있을 수도 있다.
-              # 후자는 재시도로 풀리지 않는데 coordinator는 가장 오래된 라벨 PR 하나만
-              # 처리하므로, 그 한 건이 뒤의 automerge PR을 전부 굶기면서 실행은 계속
-              # 성공(no-op)으로 끝나 실패 신호조차 남지 않는다. 큐에 머문 시간으로 전이와
-              # 지속을 가른다. 기준은 schedule 재시도 주기(10분)의 3배이고, 전이 지연이
-              # 최소 두 번은 재시도되면서 큐 정지는 30분으로 묶인다.
-              BLOCKED_TRANSIENT_SECONDS=1800
-              # shellcheck disable=SC2016
-              labeled="$(gh api graphql -f owner="${owner}" -f name="${name}" -F number="${pr}" -f query='
-                query($owner: String!, $name: String!, $number: Int!) {
-                  repository(owner: $owner, name: $name) {
-                    pullRequest(number: $number) {
-                      timelineItems(last: 100, itemTypes: [LABELED_EVENT]) {
-                        nodes { ... on LabeledEvent { createdAt label { name } } }
-                      }
+            reviews="$(gh api --paginate --slurp \
+              "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
+            # review-state-filter-begin
+            if ! jq -e --arg head "${head}" '
+              [flatten[] |
+                select(
+                  .author_association == "OWNER" or
+                  .author_association == "MEMBER" or
+                  .author_association == "COLLABORATOR"
+                )] as $trusted |
+              ($trusted | map(select(.commit_id == $head))) as $current |
+              ($trusted |
+              sort_by(.submitted_at, .id) |
+              reduce .[] as $review ({};
+                if $review.state == "COMMENTED" then
+                  .[$review.user.login] //= "COMMENTED"
+                elif $review.state == "DISMISSED" then
+                  del(.[$review.user.login])
+                else
+                  .[$review.user.login] = $review.state
+                end
+              )) as $states |
+              ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
+              any($current[];
+                .state == "APPROVED" or
+                (.state == "COMMENTED" and
+                  (.body // "" | startswith("**Actionable comments posted: ")) and
+                  (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"))))
+            ' <<<"${reviews}" >/dev/null; then
+              echo "PR #${pr}: no trusted review on the current head, or an active change request is open; skipping."
+              continue
+            fi
+            # review-state-filter-end
+
+            # shellcheck disable=SC2016
+            threads="$(gh api graphql -f owner="${owner}" -f name="${name}" -F number="${pr}" -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    reviewThreads(first: 100) {
+                      nodes { isResolved }
+                      pageInfo { hasNextPage }
                     }
                   }
                 }
-              ')"
-              # 경과 시간은 jq의 now로 계산한다. date의 -d 옵션은 GNU와 BSD가 달라
-              # 러너와 로컬에서 결과가 갈린다.
-              queued_for="$(jq -r '
-                [.data.repository.pullRequest.timelineItems.nodes[] |
-                  select(.label.name == "automerge") |
-                  (.createdAt | fromdateiso8601)] |
-                if length == 0 then -1 else (now - max | floor) end
-              ' <<<"${labeled}")"
-              if [[ "${queued_for}" -lt 0 ]]; then
-                echo "PR #${pr} is ${merge_state} but the automerge label timestamp is unavailable; refusing to guess." >&2
-                exit 1
+              }
+            ')"
+            if ! jq -e '
+              .data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage == false and
+              all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved)
+            ' <<<"${threads}" >/dev/null; then
+              echo "PR #${pr}: unresolved review threads remain; skipping."
+              continue
+            fi
+
+            checks="$(gh api --paginate --slurp \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/${repo}/commits/${head}/check-runs?per_page=100")"
+            statuses="$(gh api --paginate --slurp \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/${repo}/commits/${head}/statuses?per_page=100")"
+            contexts_ok=true
+            while IFS= read -r required_check; do
+              # required-context-filter-begin
+              if ! jq -e --argjson required_check "${required_check}" --argjson statuses "${statuses}" '
+                ($statuses | flatten) as $status_records |
+                ([.[].check_runs[] |
+                  select(.name == $required_check.context) |
+                  select($required_check.integration_id == null or .app.id == $required_check.integration_id)] |
+                  sort_by(.started_at, .id) |
+                  last |
+                  .conclusion == "success") or
+                ($required_check.integration_id == null and
+                  ([$status_records[] | select(.context == $required_check.context)] |
+                    sort_by((.updated_at // .created_at // ""), .id) |
+                    last |
+                    .state == "success"))
+              ' <<<"${checks}" >/dev/null; then
+                contexts_ok=false
+                echo "PR #${pr}: a required context is not successful; skipping."
+                break
               fi
-              if [[ "${queued_for}" -lt "${BLOCKED_TRANSIENT_SECONDS}" ]]; then
-                echo "PR #${pr} is not ready yet: ${merge_state} for ${queued_for}s; retrying on the next trigger."
+              # required-context-filter-end
+            done < <(jq -c '.[]' <<<"${required}")
+            [[ "${contexts_ok}" == true ]] || continue
+
+            # merge-state-dispatch-begin
+            case "${merge_state}" in
+              CLEAN | HAS_HOOKS | UNSTABLE)
+                # UNSTABLE은 "mergeable하지만 필수가 아닌 check가 green이 아님"이다.
+                # required context는 위에서 ruleset 기준으로 이미 검증했으므로, ruleset이
+                # 필수로 두지 않은 check로 병합을 막지 않는다.
+                gh pr merge --squash --auto "${pr}" --repo "${repo}" \
+                  --match-head-commit "${head}"
+                echo "PR #${pr}: merge scheduled (${merge_state})."
                 exit 0
-              fi
-              # 라벨 제거는 병합을 막는 방향이라 게이트 우회가 되지 않는다. 사유를 PR에
-              # 남겨 사람이 알 수 있게 하고, 큐에서 빼 뒤의 PR이 진행되게 한다.
-              derail_body="$(printf '%s\n' \
-                "automerge 큐에서 ${queued_for}초 동안 ${merge_state} 상태로 머물러 큐에서 제외했습니다." \
-                "" \
-                "coordinator는 가장 오래된 automerge 라벨 PR 하나만 처리하므로, 이 PR을 그대로 두면 뒤의 automerge PR이 전부 대기하게 됩니다." \
-                "" \
-                "${merge_state}는 이 워크플로가 검사하는 리뷰 객체·미해결 thread·필수 check 계약을 모두 통과한 뒤에도 GitHub이 병합을 막고 있다는 뜻입니다. 워크플로가 확인하지 않는 네이티브 규칙(추가 승인 수, code owner 리뷰, 필수 배포 승인 등)이 남아 있는지 확인해 주세요." \
-                "" \
-                "해소한 뒤 automerge 라벨을 다시 붙이면 큐에 재진입합니다.")"
-              gh pr comment "${pr}" --repo "${repo}" --body "${derail_body}"
-              gh pr edit "${pr}" --repo "${repo}" --remove-label automerge
-              echo "PR #${pr} stayed ${merge_state} for ${queued_for}s; derailed from the queue."
-              exit 0
-              ;;
-            DIRTY)
-              # base와 충돌. 소유 세션이 rebase 해야 풀리므로 계약 위반으로 실패시킨다.
-              echo "PR #${pr} conflicts with the base branch: ${merge_state}" >&2
-              exit 1
-              ;;
-            *)
-              # DRAFT는 위 isDraft 검증에서 이미 걸러진다. 그 밖의 미지 상태에서 조용히
-              # 물러나면 큐가 원인 없이 멈추므로 사람이 보도록 실패시킨다.
-              echo "PR #${pr} is not mergeable: ${merge_state}" >&2
-              exit 1
-              ;;
-          esac
-          # merge-state-dispatch-end
+                ;;
+              BEHIND)
+                if [[ "${head_repo}" != "${repo}" ]]; then
+                  echo "::warning::PR #${pr} uses a fork head; refusing base-repository CI dispatch."
+                  continue
+                fi
+                gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
+                  -f expected_head_sha="${head}" >/dev/null
+                # ponytail: bounded wait only; the API applies the base merge asynchronously.
+                for _ in {1..12}; do
+                  new_head="$(gh pr view "${pr}" --repo "${repo}" --json headRefOid --jq '.headRefOid')"
+                  [[ "${new_head}" != "${head}" ]] && break
+                  sleep 5
+                done
+                if [[ "${new_head}" == "${head}" ]]; then
+                  # update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. stale
+                  # ref로 CI를 쏘지 않고 다음 트리거에서 재시도한다. bare `[[ ]]`로 두면 bash
+                  # 5에서는 아무 메시지 없이 job이 죽고 bash 3.2에서는 그냥 통과한다.
+                  echo "PR #${pr}: base update has not landed yet; retrying on the next trigger."
+                  exit 0
+                fi
+                gh workflow run ci.yml --repo "${repo}" --ref "${head_ref}"
+                echo "PR #${pr}: base updated; CI dispatched."
+                exit 0
+                ;;
+              DIRTY)
+                # 충돌은 소유 세션이 rebase 해야 풀린다. GitHub이 PR에 충돌을 직접 표시하므로
+                # 실행을 실패시키지 않고 경고만 남긴 뒤 다음 후보로 넘어간다.
+                echo "::warning::PR #${pr} conflicts with the base branch; skipping until it is rebased."
+                continue
+                ;;
+              BLOCKED | UNKNOWN)
+                # UNKNOWN은 GitHub이 mergeability를 계산 중인 상태다. BLOCKED은 이 job이
+                # 검사하지 않는 네이티브 규칙(추가 승인 수·code owner 리뷰·필수 배포 승인)이
+                # 남아 있다는 뜻일 수 있다. 어느 쪽이든 이번 실행에서 할 수 있는 일이 없다.
+                # 이 후보가 뒤를 막지 않으므로 지속 여부를 타이머로 판정할 필요가 없다.
+                echo "PR #${pr}: not mergeable yet (${merge_state}); skipping."
+                continue
+                ;;
+              *)
+                # DRAFT는 위 검증에서 이미 걸러진다. 그 밖의 값은 GitHub이 enum을 늘렸다는
+                # 뜻이라 사람이 봐야 하지만, 실행을 실패시키면 큐 전체가 멈추므로 경고만 남긴다.
+                echo "::warning::PR #${pr} has an unrecognized merge state (${merge_state}); skipping."
+                continue
+                ;;
+            esac
+            # merge-state-dispatch-end
+          done < <(jq -r '.[0:20][]' <<<"${candidates}")
+
+          echo "No pull request in the automerge queue is ready to merge."
+          # queue-loop-end
