@@ -128,7 +128,7 @@ jobs:
           flutter build appbundle --release "${defines[@]}"
           bundle_config="$RUNNER_TEMP/android-16kb-aab-evidence/bundle-config.txt"
           ./android/gradlew -p android :app:dumpReleaseBundleConfig \
-            -Pandroid16kbAab=build/app/outputs/bundle/release/app-release.aab \
+            -Pandroid16kbAab="$PWD/build/app/outputs/bundle/release/app-release.aab" \
             -Pandroid16kbBundleConfig="$bundle_config"
           ../../tools/mobile/check-android-aab-16kb-page-size.sh \
             --aab build/app/outputs/bundle/release/app-release.aab \

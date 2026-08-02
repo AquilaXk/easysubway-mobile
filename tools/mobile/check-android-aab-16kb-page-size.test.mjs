@@ -43,6 +43,7 @@ test("pins AGP-loaded bundletool and orders config inspection before hashing", a
     assert.ok(configTask > build, `${workflow} generates the bundle config after building the AAB`);
     assert.ok(gateInvocation > configTask, `${workflow} runs the gate after generating the config`);
     assert.ok(hash > gateInvocation, `${workflow} accepts the AAB hash after the gate`);
+    assert.ok(text.indexOf('-Pandroid16kbAab="$PWD/build/app/outputs/bundle/release/app-release.aab"', configTask) > configTask, `${workflow} passes the AAB to Gradle as an absolute path`);
     assert.ok(text.indexOf("--bundle-config \"$bundle_config\"", configTask) > configTask, `${workflow} passes generated config to the gate`);
   }
 });
