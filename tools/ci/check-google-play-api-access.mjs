@@ -10,7 +10,6 @@ import {
   parseDotenv,
   readServiceAccount,
   requestJson,
-  requireJsonString,
 } from "./lib/google-play-auth.mjs";
 
 async function main() {
@@ -69,7 +68,10 @@ export async function runGooglePlayApiAccess({
       token,
       body: {},
     }, fetchImpl);
-    editId = requireJsonString(edit, "id");
+    if (typeof edit.id !== "string" || edit.id.trim().length === 0) {
+      throw new Error("google play edit insert returned no edit id");
+    }
+    editId = edit.id;
     report.push("edit_insert.ready=true");
 
     const tracks = await requestJson(
@@ -87,12 +89,19 @@ export async function runGooglePlayApiAccess({
     report.push(`tracks.count=${trackList.length}`);
     report.push(`tracks.ids=${trackIds.join(",") || "none"}`);
     report.push(`tracks.max_version_code=${maxTrackVersionCode ?? "none"}`);
-    const latestVersionCodeCoversTrackMax = versionCodeCoversTrackMax(latestVersionCode, maxTrackVersionCode);
+    const versionCodeComparison = compareVersionCode(latestVersionCode, maxTrackVersionCode);
+    const latestVersionCodeCoversTrackMax = booleanOrUnknown(versionCodeComparison, (value) => value >= 0);
     report.push(`latest_version_code_covers_track_max=${latestVersionCodeCoversTrackMax}`);
+    // Play는 새 업로드에 track 최고값보다 "큰" versionCode만 허용한다. no-upload
+    // preflight이므로 동률을 실패로 보지는 않고, 업로드 가능 여부는 별도 근거로 남긴다.
+    report.push(
+      `latest_version_code_exceeds_track_max=${booleanOrUnknown(versionCodeComparison, (value) => value > 0)}`,
+    );
     if (latestVersionCodeCoversTrackMax === "false") {
       // 증거를 더 모으기 위해 validate까지 진행하되 readiness는 이미 실패다.
       ready = false;
       failureMessage = "google play latest versionCode is lower than track max versionCode";
+      report.push(`failure=${failureMessage}`);
     }
 
     await requestJson(
@@ -163,14 +172,25 @@ function maxVersionCode(tracks) {
   return max?.toString();
 }
 
-function versionCodeCoversTrackMax(latestVersionCode, maxTrackVersionCode) {
+// 로컬 versionCode와 track 최고 versionCode를 비교한다. 어느 한쪽이 없거나
+// 정수가 아니면 판정 불가를 뜻하는 undefined를 돌려준다.
+function compareVersionCode(latestVersionCode, maxTrackVersionCode) {
   if (latestVersionCode === "unknown" || maxTrackVersionCode === undefined) {
-    return "unknown";
+    return undefined;
   }
   if (!/^(0|[1-9]\d*)$/.test(latestVersionCode)) {
-    return "unknown";
+    return undefined;
   }
-  return BigInt(latestVersionCode) >= BigInt(maxTrackVersionCode) ? "true" : "false";
+  const latest = BigInt(latestVersionCode);
+  const max = BigInt(maxTrackVersionCode);
+  if (latest > max) {
+    return 1;
+  }
+  return latest === max ? 0 : -1;
+}
+
+function booleanOrUnknown(comparison, predicate) {
+  return comparison === undefined ? "unknown" : String(predicate(comparison));
 }
 
 function parseArgs(argv) {

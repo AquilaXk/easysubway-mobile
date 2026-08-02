@@ -41,6 +41,7 @@ test("Google Play API access checker는 임시 edit을 만들고 track·validate
   assert.match(report, /^tracks\.ids=internal,production$/m);
   assert.match(report, /^tracks\.max_version_code=6$/m);
   assert.match(report, /^latest_version_code_covers_track_max=true$/m);
+  assert.match(report, /^latest_version_code_exceeds_track_max=true$/m);
   assert.match(report, /^edit_validate\.ready=true$/m);
   assert.match(report, /^edit_delete\.ready=true$/m);
   assert.match(report, /^secret_values_printed=false$/m);
@@ -143,8 +144,64 @@ test("로컬 versionCode가 track 최고 versionCode보다 낮으면 실패한�
   const report = await readFile(fixture.reportPath, "utf8");
   assert.match(report, /^tracks\.max_version_code=9$/m);
   assert.match(report, /^latest_version_code_covers_track_max=false$/m);
+  assert.match(report, /^latest_version_code_exceeds_track_max=false$/m);
+  assert.match(report, /^failure=google play latest versionCode is lower than track max versionCode$/m);
   assert.match(report, /^edit_delete\.ready=true$/m);
   assert.equal(requests.at(-1), `DELETE ${editUrl}`);
+});
+
+test("로컬 versionCode가 track 최고 versionCode와 같으면 통과하되 업로드 불가를 근거로 남긴다", async () => {
+  const fixture = await createFixture(credentialLine);
+
+  await runGooglePlayApiAccess({
+    ...fixture,
+    apiBaseUrl,
+    fetchImpl: mockGooglePlayFetch([], {
+      tracks: { tracks: [{ track: "production", releases: [{ versionCodes: ["7"] }] }] },
+    }),
+  });
+
+  const output = await readFile(fixture.githubOutput, "utf8");
+  const report = await readFile(fixture.reportPath, "utf8");
+  assert.match(output, /^google_play_api_access_ready=true$/m);
+  assert.match(report, /^latest_version_code_covers_track_max=true$/m);
+  assert.match(report, /^latest_version_code_exceeds_track_max=false$/m);
+});
+
+test("versionCode를 판정할 수 없으면 unknown으로 남기고 readiness는 유지한다", async () => {
+  const fixture = await createFixture(credentialLine, { latestVersionCode: "not-a-number" });
+
+  await runGooglePlayApiAccess({
+    ...fixture,
+    apiBaseUrl,
+    fetchImpl: mockGooglePlayFetch([]),
+  });
+
+  const output = await readFile(fixture.githubOutput, "utf8");
+  const report = await readFile(fixture.reportPath, "utf8");
+  assert.match(output, /^google_play_api_access_ready=true$/m);
+  assert.match(report, /^latest_version_code_covers_track_max=unknown$/m);
+  assert.match(report, /^latest_version_code_exceeds_track_max=unknown$/m);
+});
+
+test("edit 응답에 id가 없으면 service account 오류가 아니라 edit 응답 오류로 보고한다", async () => {
+  const fixture = await createFixture(credentialLine);
+  const requests = [];
+
+  await assert.rejects(
+    runGooglePlayApiAccess({
+      ...fixture,
+      apiBaseUrl,
+      fetchImpl: mockGooglePlayFetch(requests, { editInsertBody: {} }),
+    }),
+    /google play edit insert returned no edit id/,
+  );
+
+  const report = await readFile(fixture.reportPath, "utf8");
+  assert.doesNotMatch(report, /missing service account field/);
+  assert.match(report, /^failure=google play edit insert returned no edit id$/m);
+  assert.match(report, /^edit_delete\.ready=false$/m);
+  assert.deepEqual(requests, [`POST ${baseUrl}/token`, `POST ${applicationUrl}/edits`]);
 });
 
 test("edit 생성 전에 실패하면 delete를 시도하지 않는다", async () => {
@@ -198,7 +255,7 @@ for (const [name, credential] of [
   });
 }
 
-async function createFixture(credential) {
+async function createFixture(credential, { latestVersionCode = "7" } = {}) {
   const dir = await mkdtemp(path.join(tmpdir(), "easysubway-google-play-api-"));
   const envFile = path.join(dir, "store.env");
   const githubOutput = path.join(dir, "github-output.txt");
@@ -208,7 +265,7 @@ async function createFixture(credential) {
     [
       credential,
       "EASYSUBWAY_GOOGLE_PLAY_PACKAGE_NAME=com.easysubway.app",
-      "EASYSUBWAY_GOOGLE_PLAY_LATEST_VERSION_CODE=7",
+      `EASYSUBWAY_GOOGLE_PLAY_LATEST_VERSION_CODE=${latestVersionCode}`,
       "",
     ].join("\n"),
   );
@@ -235,7 +292,7 @@ function mockGooglePlayFetch(requests, config = {}) {
       return jsonResponse(failure.body, failure.status);
     }
     if (key === `POST ${applicationUrl}/edits`) {
-      return jsonResponse({ id: "edit-1", expiryTimeSeconds: "0" });
+      return jsonResponse(config.editInsertBody ?? { id: "edit-1", expiryTimeSeconds: "0" });
     }
     if (key === `GET ${editUrl}/tracks`) {
       return jsonResponse(config.tracks ?? defaultTracks);
