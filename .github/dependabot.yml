@@ -1,0 +1,134 @@
+# 이 레포가 실제로 소유한 생태계만 등록한다.
+# 2026-08-02 실측(main 226a220, tracked blob 591개):
+#   - package.json / package-lock.json 0건. tools/mobile/** · tools/ci/** 의 .mjs 는 런타임
+#     의존성 없이 표준 라이브러리와 `node --test` 만 쓴다. → npm 항목 없음
+#     (AquilaXk/easysubway#2727 의 "mobile: pub + npm 도구" 전제를 이 실측으로 정정한다)
+#   - Dockerfile / docker-compose.yml / *.tf 0건. → docker · terraform 항목 없음
+#   - Podfile / Podfile.lock / *.podspec / Package.swift 0건. iOS 의존성은 전부 Flutter
+#     플러그인(pub)에서 나오므로 별도 생태계가 없다.
+#   - build.gradle.kts / gradle.lockfile 은 apps/mobile/android/** 에 있으나 아래 (3) 사유로
+#     gradle 항목을 넣지 않는다.
+# 이 레포가 소유하지 않는 경로(backend/**, infra/**, tools/qa/**, tools/datapack/**)는 0건이다.
+version: 2
+updates:
+  # (1) pub — apps/mobile/pubspec.yaml + pubspec.lock 이 대상이다.
+  # 버전이 붙은 직접 의존은 27건이다(dependencies 22 + dev_dependencies 5,
+  # `sdk: flutter` 참조인 flutter · flutter_test · integration_test 제외).
+  # 이 레포는 사용자에게 배포되는 앱을 소유하므로 Dart/Flutter 패키지 보안 패치가
+  # 가장 직접적인 노출면이다. dependabot 은 pub 갱신 시 pubspec.lock 도 함께 갱신하므로
+  # osv-scan(--lockfile=apps/mobile/pubspec.lock)과 Mobile CI 가 같은 PR 안에서 검증한다.
+  - package-ecosystem: "pub"
+    directory: "/apps/mobile"
+    schedule:
+      # hub 기준선(weekly / tuesday / 06:23 / Asia/Seoul)을 승계한다.
+      # 이 레포 PR 1건은 required context 3개(Mobile CI ~4분, Android CI ~6분,
+      # osv-scan ~0.5분)를 돌려 약 10.5 runner-분을 쓴다(2026-08-01~02 run 4건 실측).
+      # daily 로 두면 그룹 PR 이 매일 재작성돼 이 비용이 7배가 되므로 주 1회로 둔다.
+      # 화요일 오전이라 그 주 안에 사람이 대응할 수 있다.
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:23"
+      timezone: "Asia/Seoul"
+    # 그룹 PR 1건 + major 개별 PR 최대 2건을 상정한 상한이다(최대 ~31.5 runner-분/주).
+    # hub 기준선과 같은 값이다.
+    open-pull-requests-limit: 3
+    commit-message:
+      # 이 레포의 PR 제목 규약은 `[Type] 한국어 요약` 이다.
+      # 2026-08-02 실측상 .github/workflows/** 에 PR 제목 lint job 이 없고(`pr-title` 0건)
+      # main ruleset required context 도 Mobile CI / Android CI / osv-scan 3개뿐이라 지금은
+      # 강제되지 않지만, hub 와 같은 lint 가 나중에 도입돼도 자동 생성 PR 이 즉시 막히지
+      # 않도록 선제적으로 맞춰 둔다(hub PR #2654 의 구조적 병합 불가 재발 방지).
+      # dependabot 은 prefix 가 문자/숫자/닫는 괄호/닫는 대괄호로 끝나면 `: ` 를 덧붙인다.
+      # 이 값은 콜론이 붙든(`[CI] 의존성 업데이트: bump ...`) 안 붙든
+      # (`[CI] 의존성 업데이트 bump ...`) 결과가 `[CI] ` 로 시작해
+      # `^\[(Feat|Fix|Test|Chore|Docs|Build|CI|Style|Refactor|Backend|Mobile)\] .+` 를 항상
+      # 만족한다. `[CI]` 처럼 대괄호로 끝나는 prefix 는 `[CI]: bump ...` 가 되어 어긋나므로
+      # 쓰지 않는다.
+      prefix: "[CI] 의존성 업데이트"
+    groups:
+      # Flutter 패키지는 직접 의존만 27건이라 개별 PR 로 두면 주간 PR 이 쉽게 늘고,
+      # PR 1건마다 Android CI(~6분)가 붙어 비용이 선형으로 커진다. minor/patch 는 한 PR 로
+      # 묶어 주간 PR 을 1건으로 낮춘다. major 는 플랫폼 채널·API 파괴 변경을 동반하는
+      # 경우가 많아 묶지 않고 개별 PR 로 남겨 검토를 강제한다.
+      # major 를 ignore 로 숨기지는 않는다 — 보안 패치가 major 에만 실리는 경우를 놓친다.
+      pub-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # (2) github-actions — 워크플로 5개(automerge-queue / ci / osv-scheduled /
+  # release-artifacts / store-distribution-evidence)의 action 핀이 대상이다.
+  # 이 레포는 action 을 full commit SHA 로 핀한다. dependabot 은 SHA 핀 갱신을 지원한다.
+  # 2026-08-02 실측상 핀 5종 중 4종은 릴리스 태그를 직접 가리켜 semver 판정이 성립한다.
+  #   actions/checkout      de0fac2e -> v6.0.2
+  #   actions/setup-java    be666c2f -> v5.2.0
+  #   actions/setup-node    48b55a01 -> v6.4.0
+  #   subosito/flutter-action 1a449444 -> v2.23.0 (v2)
+  # 예외: google/osv-scanner-action 3a7550f4 는 태그가 없는 main 커밋(2026-05-19)이다.
+  # SHA 를 버전으로 해석할 수 없으면 dependabot 이 기본 브랜치 HEAD 로 올리는 커밋 단위
+  # PR 을 만드는 알려진 동작이 있어, 이 핀만 update-types 분류에 들어가지 않고 그룹 밖
+  # 개별 PR 로 올 수 있다. 아래 상한이 그 몫을 포함한다. 이 PR 은 워크플로 파일을 손대지
+  # 않으므로 핀 자체는 그대로 두고, 첫 검사 로그에서 실제 동작을 확인한다.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "06:23"
+      timezone: "Asia/Seoul"
+    # 그룹 PR 1건 + major/커밋단위 개별 PR 최대 2건을 상정한 상한이다. hub 기준선과 같다.
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "[CI] 의존성 업데이트"
+    groups:
+      # minor/patch 는 한 PR 로 묶고, major 는 runner·Node 런타임 변경을 동반하므로
+      # 개별 PR 로 남겨 검토를 강제한다.
+      github-actions-minor-patch:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+
+  # (3) gradle (apps/mobile/android) — 넣지 않는다.
+  # backend 의 eGovFrame 버전 핀 사유(AquilaXk/easysubway#1823)와는 무관한, 이 레포
+  # Flutter Android 툴체인 기준의 독립 판정이다. 근거는 다음 네 가지다.
+  #
+  # (a) app/gradle.lockfile 정합이 구조적으로 깨진다.
+  #     android/build.gradle.kts 가 :app 에 dependencyLocking { lockAllConfigurations() } 을
+  #     걸고 app/gradle.lockfile(309줄)이 tracked 다. Gradle 의존성 잠금은 잠금 상태에 없는
+  #     버전이 해석되면 빌드를 실패시키므로, 빌드 파일의 버전만 바뀌고 lockfile 이 그대로면
+  #     Android CI 의 `flutter build apk --debug` / `flutter build appbundle --release` 가
+  #     반드시 실패한다. Android CI 는 main ruleset required context 라 그런 PR 은
+  #     구조적으로 병합 불가다(= hub PR #2654 와 같은 유형의 실패를 자초하는 셈이다).
+  #     dependabot-core 의 gradle lockfile 재생성 경로는 `gradle_lockfile_updater` 내부
+  #     experiment 플래그 뒤에 있어 이 파일로 켤 수 없다.
+  #
+  # (b) 켜지더라도 이 프로젝트에서는 Gradle 을 돌릴 수 없다.
+  #     android/settings.gradle.kts 는 local.properties 의 flutter.sdk 를 읽어
+  #     includeBuild("$flutterSdkPath/packages/flutter_tools/gradle") 를 하고, 값이 없으면
+  #     require(...) 로 즉시 실패한다. local.properties 는 android/.gitignore 에 있어
+  #     레포에 없다. 즉 Flutter SDK 가 없는 환경에서는 settings 평가 자체가 불가능하다.
+  #
+  # (c) 버전 소유권이 Flutter SDK 에 있다.
+  #     app/build.gradle.kts 의 compileSdk / minSdk / targetSdk / ndkVersion / versionCode /
+  #     versionName 이 전부 flutter.* 에서 오고, AGP·Kotlin 플러그인 버전은 CI 가 고정한
+  #     Flutter 3.44.0 템플릿과 짝을 이룬다. 이들을 dependabot 이 개별로 올리는 것은
+  #     의존성 갱신이 아니라 Flutter 템플릿 마이그레이션이며, 다른 절차로 다뤄야 한다.
+  #
+  # (d) dependabot 이 손대면 안 되는 보안 핀을 건드린다.
+  #     app/build.gradle.kts 의 resolutionStrategy.force(...) 호출 19건(좌표 20개)은
+  #     AGP UTP transitive 취약점 대응으로 고정한 값이다(AquilaXk/easysubway#2459).
+  #     dependabot-core 의 gradle 선언 정규식은 여는 괄호 뒤 따옴표로 시작하는
+  #     `group:artifact:version` 문자열을 잡으므로 force(...) 인자도 후보가 된다.
+  #     고의로 고정한 값이 자동 갱신 대상이 되는 것은 의도와 정반대다.
+  #
+  # 제외해도 탐지 공백은 생기지 않는다: osv-scanner 가
+  # --lockfile=apps/mobile/android/app/gradle.lockfile 을 fail-on-vuln 으로 스캔하며,
+  # PR 마다(ci.yml 의 required context) 그리고 주간(osv-scheduled.yml) 두 경로로 돈다.
+  # 즉 Android 의존성 취약점은 계속 탐지되고, 빠지는 것은 자동 갱신 PR 경로뿐이다.
+  # (a)~(c) 가 해소되면(예: lockfile 재생성 지원 또는 잠금 해제) 별도 이슈로 재판정한다.
