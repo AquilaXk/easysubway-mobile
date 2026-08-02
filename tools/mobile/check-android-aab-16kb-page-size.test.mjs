@@ -70,7 +70,7 @@ printf '%s\\n' '{"nativeLibraries":{"alignment":"PAGE_ALIGNMENT_16K"}}' > "$outp
   assert.match(await readFile(path.join(evidence, "bundle-config.txt"), "utf8"), /"alignment":"PAGE_ALIGNMENT_16K"/);
 });
 
-test("reports each failing native library and its LOAD alignment", async () => {
+test("checks only 64-bit native libraries for 16KB ELF LOAD alignment", async () => {
   const fixture = await mkdtemp(path.join(tmpdir(), "android-16kb-aab-gate-"));
   const aab = path.join(fixture, "app.aab");
   const androidProject = path.join(fixture, "android");
@@ -89,7 +89,10 @@ mkdir -p "$(dirname "$output")"
 printf '%s\\n' '{"nativeLibraries":{"alignment":"PAGE_ALIGNMENT_16K"}}' > "$output"
 `,
   );
-  await writeFile(path.join(bin, "zipinfo"), "#!/usr/bin/env bash\nprintf '%s\\n' 'base/lib/arm64-v8a/libfixture.so'\n");
+  await writeFile(
+    path.join(bin, "zipinfo"),
+    "#!/usr/bin/env bash\nprintf '%s\\n' 'base/lib/armeabi-v7a/lib32.so' 'base/lib/arm64-v8a/libarm64.so' 'base/lib/x86_64/libx86_64.so'\n",
+  );
   await writeFile(path.join(bin, "unzip"), "#!/usr/bin/env bash\nprintf fixture\n");
   await writeFile(path.join(bin, "node"), "#!/usr/bin/env bash\nprintf '%s\\n' '4096'\nexit 1\n");
   await Promise.all([chmod(gradlew, 0o755), chmod(path.join(bin, "zipinfo"), 0o755), chmod(path.join(bin, "unzip"), 0o755), chmod(path.join(bin, "node"), 0o755)]);
@@ -98,8 +101,13 @@ printf '%s\\n' '{"nativeLibraries":{"alignment":"PAGE_ALIGNMENT_16K"}}' > "$outp
     execFileAsync(gate, ["--aab", aab, "--android-project", androidProject, "--artifact-dir", evidence], {
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
     }),
-    (error) => error.code === 1 && /16KB ELF LOAD alignment failed: base\/lib\/arm64-v8a\/libfixture\.so\n4096/.test(error.stderr),
+    (error) =>
+      error.code === 1 &&
+      /16KB ELF LOAD alignment failed: base\/lib\/arm64-v8a\/libarm64\.so\n4096/.test(error.stderr) &&
+      /16KB ELF LOAD alignment failed: base\/lib\/x86_64\/libx86_64\.so\n4096/.test(error.stderr) &&
+      !error.stderr.includes("armeabi-v7a"),
   );
+  assert.equal(await readFile(path.join(evidence, "native-libraries.txt"), "utf8"), "base/lib/arm64-v8a/libarm64.so\nbase/lib/x86_64/libx86_64.so\n");
 });
 
 test("pins AGP-loaded bundletool and orders config inspection before hashing", async () => {

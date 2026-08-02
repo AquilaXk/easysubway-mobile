@@ -67,7 +67,7 @@ if ! grep -Eq '"alignment"[[:space:]]*:[[:space:]]*"PAGE_ALIGNMENT_16K"' "$EVIDE
   echo "bundletool config is missing native-library alignment PAGE_ALIGNMENT_16K" >&2
   exit 1
 fi
-zipinfo -1 "$AAB" | grep -E '(^|/)lib/[^/]+/[^/]+\.so$' > "$ARTIFACT_DIR/native-libraries.txt" || true
+zipinfo -1 "$AAB" | grep -E '(^|/)lib/(arm64-v8a|x86_64)/[^/]+\.so$' > "$ARTIFACT_DIR/native-libraries.txt" || true
 
 if [[ ! -s "$ARTIFACT_DIR/native-libraries.txt" ]]; then
   echo "No native libraries found in AAB." >&2
