@@ -64,6 +64,12 @@ android {
         versionName = flutter.versionName
     }
 
+    packaging {
+        jniLibs {
+            useLegacyPackaging = false
+        }
+    }
+
     signingConfigs {
         create("release") {
             releaseSigningValue("EASYSUBWAY_ANDROID_KEYSTORE_PATH")?.let {

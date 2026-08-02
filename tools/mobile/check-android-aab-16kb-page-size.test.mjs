@@ -32,6 +32,7 @@ test("pins AGP-loaded bundletool and orders config inspection before hashing", a
   const gradle = await readFile(gradleBuild, "utf8");
   assert.match(gradle, /BundleToolVersion\.getCurrentVersion\(\)\.toString\(\) == "1\.18\.3"/);
   assert.match(gradle, /DumpCommand\.builder\(\)[\s\S]*?setDumpTarget\(DumpCommand\.DumpTarget\.CONFIG\)[\s\S]*?\.execute\(\)/);
+  assert.match(gradle, /packaging\s*\{\s*jniLibs\s*\{\s*useLegacyPackaging\s*=\s*false\s*}\s*}/);
 
   for (const workflow of [".github/workflows/ci.yml", ".github/workflows/release-artifacts.yml"]) {
     const text = await readFile(path.join(repositoryRoot, workflow), "utf8");
