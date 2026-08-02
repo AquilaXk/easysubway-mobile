@@ -2,6 +2,9 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 
 /// Crashlytics 전송 게이트웨이. 테스트·미초기화 환경은 no-op.
+///
+/// 이 인터페이스로 들어오는 값은 이미 정화된 payload여야 한다. 정화는
+/// `mobile_crash_reporting.dart`가 단일 choke point로 수행한다.
 abstract class CrashlyticsGateway {
   bool get isCollectionEnabled;
 
@@ -15,6 +18,9 @@ abstract class CrashlyticsGateway {
     bool fatal = false,
     String? reason,
   });
+
+  /// custom key 전송. allowlist 검증은 `setCrashCustomKey`가 선행한다.
+  Future<void> setCustomKey(String key, String value);
 }
 
 class NoopCrashlyticsGateway implements CrashlyticsGateway {
@@ -36,6 +42,9 @@ class NoopCrashlyticsGateway implements CrashlyticsGateway {
     bool fatal = false,
     String? reason,
   }) async {}
+
+  @override
+  Future<void> setCustomKey(String key, String value) async {}
 }
 
 class FirebaseCrashlyticsGateway implements CrashlyticsGateway {
@@ -70,6 +79,11 @@ class FirebaseCrashlyticsGateway implements CrashlyticsGateway {
       fatal: fatal,
       reason: reason,
     );
+  }
+
+  @override
+  Future<void> setCustomKey(String key, String value) {
+    return _crashlytics.setCustomKey(key, value);
   }
 }
 
