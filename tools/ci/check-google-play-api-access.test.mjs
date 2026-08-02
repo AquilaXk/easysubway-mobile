@@ -42,6 +42,7 @@ test("Google Play API access checker는 임시 edit을 만들고 track·validate
   assert.match(report, /^tracks\.max_version_code=6$/m);
   assert.match(report, /^latest_version_code_covers_track_max=true$/m);
   assert.match(report, /^latest_version_code_exceeds_track_max=true$/m);
+  assert.match(report, /^readiness_scope=credential_and_api_access$/m);
   assert.match(report, /^edit_validate\.ready=true$/m);
   assert.match(report, /^edit_delete\.ready=true$/m);
   assert.match(report, /^secret_values_printed=false$/m);
@@ -166,28 +167,30 @@ test("edit delete 실패는 readiness를 무너뜨리고 sanitized 원인을 남
   assert.match(report, /^edit_delete\.ready=false$/m);
 });
 
-test("로컬 versionCode가 track 최고 versionCode보다 낮으면 실패한다", async () => {
+// 테스트 track이 production보다 앞선 versionCode를 갖는 것은 Play의 정상 운영
+// 상태다. 자격증명·API 접근이 멀쩡한데 이 상태만으로 preflight가 실패하면 안 된다.
+test("로컬 versionCode가 track 최고 versionCode보다 낮아도 readiness는 유지하고 근거만 남긴다", async () => {
   const fixture = await createFixture(credentialLine);
   const requests = [];
 
-  await assert.rejects(
-    runGooglePlayApiAccess({
-      ...fixture,
-      apiBaseUrl,
-      fetchImpl: mockGooglePlayFetch(requests, {
-        tracks: {
-          tracks: [{ track: "production", releases: [{ versionCodes: ["9"] }] }],
-        },
-      }),
+  await runGooglePlayApiAccess({
+    ...fixture,
+    apiBaseUrl,
+    fetchImpl: mockGooglePlayFetch(requests, {
+      tracks: {
+        tracks: [{ track: "production", releases: [{ versionCodes: ["9"] }] }],
+      },
     }),
-    /google play latest versionCode is lower than track max versionCode/,
-  );
+  });
 
+  const output = await readFile(fixture.githubOutput, "utf8");
   const report = await readFile(fixture.reportPath, "utf8");
+  assert.match(output, /^google_play_api_access_ready=true$/m);
   assert.match(report, /^tracks\.max_version_code=9$/m);
   assert.match(report, /^latest_version_code_covers_track_max=false$/m);
   assert.match(report, /^latest_version_code_exceeds_track_max=false$/m);
-  assert.match(report, /^failure=google play latest versionCode is lower than track max versionCode$/m);
+  assert.match(report, /^readiness_scope=credential_and_api_access$/m);
+  assert.doesNotMatch(report, /^failure=/m);
   assert.match(report, /^edit_delete\.ready=true$/m);
   assert.equal(requests.at(-1), `DELETE ${editUrl}`);
 });

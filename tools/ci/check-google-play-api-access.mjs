@@ -94,20 +94,18 @@ export async function runGooglePlayApiAccess({
     report.push(`tracks.count=${trackList.length}`);
     report.push(`tracks.ids=${trackIds.join(",") || "none"}`);
     report.push(`tracks.max_version_code=${maxTrackVersionCode ?? "none"}`);
+    // versionCode 비교는 정보성 증거이지 readiness 게이트가 아니다. Play의 업로드
+    // 하드 규칙은 "이미 쓴 versionCode 재사용 금지"라는 유일성이고, 전 track을 관통하는
+    // 전역 순서가 아니다. 테스트 track이 production보다 앞선 versionCode를 갖는 것은
+    // 정상 운영 상태(shadowing)이므로, 그 상태만으로 자격증명 preflight를 실패시키면
+    // false negative가 된다. 판단 근거는 사람이 아래 두 줄을 보고 내린다.
     const versionCodeComparison = compareVersionCode(latestVersionCode, maxTrackVersionCode);
-    const latestVersionCodeCoversTrackMax = booleanOrUnknown(versionCodeComparison, (value) => value >= 0);
-    report.push(`latest_version_code_covers_track_max=${latestVersionCodeCoversTrackMax}`);
-    // Play는 새 업로드에 track 최고값보다 "큰" versionCode만 허용한다. no-upload
-    // preflight이므로 동률을 실패로 보지는 않고, 업로드 가능 여부는 별도 근거로 남긴다.
+    report.push(
+      `latest_version_code_covers_track_max=${booleanOrUnknown(versionCodeComparison, (value) => value >= 0)}`,
+    );
     report.push(
       `latest_version_code_exceeds_track_max=${booleanOrUnknown(versionCodeComparison, (value) => value > 0)}`,
     );
-    if (latestVersionCodeCoversTrackMax === "false") {
-      // 증거를 더 모으기 위해 validate까지 진행하되 readiness는 이미 실패다.
-      ready = false;
-      failureMessage = "google play latest versionCode is lower than track max versionCode";
-      report.push(`failure=${failureMessage}`);
-    }
 
     await requestJson(
       `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits/${encodePath(editId)}:validate`,
@@ -143,6 +141,9 @@ export async function runGooglePlayApiAccess({
   }
 
   report.push(`edit_delete.ready=${editDeleted}`);
+  // readiness가 무엇을 보증하는지 명시한다. versionCode 라인은 근거일 뿐이며
+  // 업로드 적격 판정은 이 preflight의 범위가 아니다.
+  report.push("readiness_scope=credential_and_api_access");
   report.push("secret_values_printed=false");
   report.push("");
   await appendFile(githubOutput, `google_play_api_access_ready=${ready}\n`);

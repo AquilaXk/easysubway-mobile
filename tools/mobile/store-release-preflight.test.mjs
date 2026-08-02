@@ -61,6 +61,10 @@ test("store preflight validates signing and no-upload Play edit lifecycle from t
   // mutation·upload·publish 경로는 없어야 한다.
   assert.doesNotMatch(access, /:commit|method: "PATCH"|method: "PUT"|uploadMedia|\/bundles|\/apks|\/deobfuscationfiles/);
   assert.doesNotMatch(access, /\/reviews/);
+  // versionCode 비교는 정보성 증거이지 readiness 게이트가 아니다. 테스트 track이
+  // production보다 앞선 상태는 Play의 정상 운영 상태이므로 실패로 판정하지 않는다.
+  assert.match(access, /readiness_scope=credential_and_api_access/);
+  assert.doesNotMatch(access, /latest versionCode is lower than track max/);
   assert.match(access, /maskSecrets\(value\)/);
   assert.match(access, /console\.error\("google play api access check failed; see sanitized report"\)/);
   assert.doesNotMatch(access, /console\.error\(error\.message\)/);
