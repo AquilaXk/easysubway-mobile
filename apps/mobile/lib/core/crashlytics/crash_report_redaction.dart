@@ -132,8 +132,22 @@ _crashCustomKeyValidators = <String, bool Function(String)>{
   'crash_error_code': crashErrorCodeAllowlist.contains,
   'crash_subsystem': (value) =>
       CrashSubsystem.values.any((subsystem) => subsystem.wireValue == value),
-  'device_class': RegExp(r'^[a-z][a-z0-9\-]{0,31}$').hasMatch,
+  // device class는 유한 열거다. 넓은 slug 정규식은 소문자 토큰형 자격증명을
+  // 통과시키므로(finding #2) os_class처럼 닫힌 집합으로 못 박는다.
+  'device_class': crashDeviceClassAllowlist.contains,
   'os_class': RegExp(r'^(android|ios)-\d{1,3}$').hasMatch,
+};
+
+/// 전송이 허용된 device class 값(닫힌 집합). form factor 열거만 담는다.
+const Set<String> crashDeviceClassAllowlist = <String>{
+  'phone',
+  'tablet',
+  'foldable',
+  'desktop',
+  'tv',
+  'wear',
+  'automotive',
+  'unknown',
 };
 
 /// 전송이 허용된 custom key 이름(닫힌 집합).
@@ -293,9 +307,15 @@ String sanitizeStackTraceText(String text) {
       break;
     }
     final redacted = redactSensitiveText(trimmed);
-    final safe = _isAllowedStackLine(redacted.trim())
-        ? redacted
-        : redactedStackFrameToken;
+    final leading = redacted.substring(
+      0,
+      redacted.length - redacted.trimLeft().length,
+    );
+    final safeBody = _sanitizeStackLine(redacted.trimLeft());
+    // 라인이 통째로 폐기되면 들여쓰기도 남기지 않는다.
+    final safe = safeBody == redactedStackFrameToken
+        ? safeBody
+        : '$leading$safeBody';
     sanitized.add(_truncate(safe, maxSanitizedStackLineLength));
   }
   return sanitized.join('\n');
@@ -455,25 +475,64 @@ String _normalizeFilesystemPath(String rawPath) {
   return '$_redactedPathToken/$basename';
 }
 
-bool _isAllowedStackLine(String line) {
+/// stack 라인 하나를 정화한다. 통과 문법을 **끝까지** 검증하고, 접두만 맞고
+/// 뒤에 임의 문자열이 붙은 라인(예: `#0 abs deadbeef Bearer …`,
+/// `os: … Authorization: Bearer …`)은 검증된 토큰만 남기거나 폐기한다.
+///
+/// 접두 `startsWith`만 보던 이전 구현은 허용 라인 뒤에 붙은 자격증명을 그대로
+/// 전송하는 구멍이었다(finding #1). 여기서는 어느 경로도 검증 안 된 접미사를
+/// 남기지 않는다.
+String _sanitizeStackLine(String line) {
+  if (line.isEmpty) {
+    return line;
+  }
   // stack frame은 컴파일된 심볼과 URI로만 이뤄진다. 비-ASCII가 섞였다면
   // 사용자 입력(역 검색어·제보 설명 등)이 흘러든 것으로 보고 통째로 버린다.
   if (!_asciiOnlyPattern.hasMatch(line)) {
-    return false;
+    return redactedStackFrameToken;
   }
   if (_allowedStackLineLiterals.contains(line)) {
-    return true;
+    return line;
   }
   if (_separatorLinePattern.hasMatch(line)) {
-    return true;
+    return line;
   }
-  if (_aotFramePattern.hasMatch(line) || _jitFramePattern.hasMatch(line)) {
-    return true;
+
+  // AOT obfuscated frame: 주소 헤더(abs·virt)는 심볼리케이션에 필요하므로 보존하고,
+  // 인식되지 않은 심볼 꼬리는 잘라낸다. 헤더 자체가 매칭될 때만 통과한다.
+  final aotHeader = _aotFrameHeaderPattern.matchAsPrefix(line);
+  if (aotHeader != null) {
+    final tail = line.substring(aotHeader.end);
+    if (tail.isEmpty || _aotFrameSymbolPattern.hasMatch(tail)) {
+      return line;
+    }
+    return line.substring(0, aotHeader.end);
   }
-  if (_friendlyFramePattern.hasMatch(line)) {
-    return true;
+
+  // JIT/friendly frame: 문법을 끝까지 검증하고, 어느 토큰이라도 비밀 형태면 버린다.
+  // frame에는 고엔트로피 hex 주소가 없어 secret-token 판정이 오탐하지 않는다.
+  if ((_jitFramePattern.hasMatch(line) ||
+          _friendlyFramePattern.hasMatch(line)) &&
+      !_lineHasSecretToken(line)) {
+    return line;
   }
-  return _allowedStackLinePrefixes.any(line.startsWith);
+
+  // 심볼리케이션에 필요한 VM 헤더(build_id·loading_unit)만 검증된 토큰으로 보존한다.
+  // 나머지 헤더(os·pid·dso_base 등)는 Crashlytics가 전송하지 않으므로 폐기한다.
+  final buildId = _buildIdPrefixPattern.matchAsPrefix(line);
+  if (buildId != null) {
+    return line.substring(0, buildId.end);
+  }
+  final loadingUnit = _loadingUnitPrefixPattern.matchAsPrefix(line);
+  if (loadingUnit != null) {
+    return line.substring(0, loadingUnit.end);
+  }
+
+  return redactedStackFrameToken;
+}
+
+bool _lineHasSecretToken(String line) {
+  return line.split(_tokenSeparatorPattern).any(looksLikeSecretToken);
 }
 
 int _firstIndexOfAny(String value, List<String> needles) {
@@ -540,20 +599,41 @@ final RegExp _hasDigit = RegExp(r'[0-9]');
 
 final RegExp _hasLetter = RegExp(r'[A-Za-z]');
 
-// AOT obfuscated frame: `#00 abs 00000072... virt 000000... _kDart...+0x...`
-final RegExp _aotFramePattern = RegExp(r'^#\d+\s+abs\s+[0-9a-fA-F]+');
+final RegExp _tokenSeparatorPattern = RegExp(r'[\s,]+');
 
-// JIT frame: 멤버명 뒤 괄호 안 위치가 allowlist된 URI 접두로 시작할 때만 남긴다.
-// `#2 request (<임의 문자열>)` 같은 조작 frame은 여기서 걸러진다.
+// AOT obfuscated frame 헤더: `#00 abs <hex> [virt <hex>]`. `$`로 끝을 못 박지
+// 않는다(꼬리는 심볼로 별도 검증). matchAsPrefix로 헤더 길이를 잰다.
+final RegExp _aotFrameHeaderPattern = RegExp(
+  r'^#\d+\s+abs\s+[0-9a-fA-F]{1,20}(\s+virt\s+[0-9a-fA-F]{1,20})?',
+);
+
+// AOT frame 심볼 꼬리: ` _kDart…+0x<hex>` 형태만 허용(끝 앵커). 그 밖의 꼬리는
+// 헤더만 남기고 잘라낸다.
+final RegExp _aotFrameSymbolPattern = RegExp(
+  r'^\s+[A-Za-z0-9_$.]+\+0x[0-9a-fA-F]+$',
+);
+
+// JIT frame: 멤버 뒤 괄호 안 위치가 allowlist된 URI 접두로 시작하고 `)`로 끝나야
+// 한다(끝 앵커). `#2 request (…) Bearer …` 같은 접미 주입은 `)$`에서 걸린다.
 final RegExp _jitFramePattern = RegExp(
   r'^#\d+\s+[^()]{0,160}'
   r'\((package:|dart:|file://|<redacted-path>|<redacted-host>|https?://)'
   r'[^()\s]*\)$',
 );
 
+// friendly frame(괄호 없는 `package:… line:col member` 형태): 멤버는 dot 연결된
+// Dart 식별자와 `<anonymous closure>` 류 bracket 토큰뿐이다. **bracket 밖 공백을
+// 허용하지 않아** `main Bearer …`·`main IMG_…jpg` 같은 접미 주입이 끝 앵커에서
+// 걸린다. secret-token 판정과 이중으로 막는다.
 final RegExp _friendlyFramePattern = RegExp(
-  r'^(package:|dart:|<redacted-path>)\S*\s+\d+(:\d+)?\s+\S',
+  r'^(package:|dart:|<redacted-path>)\S+\s+\d+(:\d+)?\s+'
+  r'(?:[A-Za-z0-9_$.]|<[a-z ]+>){1,120}$',
 );
+
+// 심볼리케이션 필수 VM 헤더 추출기. 검증된 토큰까지만 남기고 접미는 버린다.
+final RegExp _buildIdPrefixPattern = RegExp(r"^build_id: '[0-9a-fA-F]{1,64}'");
+
+final RegExp _loadingUnitPrefixPattern = RegExp(r'^loading_unit: \d{1,9}');
 
 const List<String> _sourcePathAnchors = <String>[
   '/lib/',
@@ -561,22 +641,6 @@ const List<String> _sourcePathAnchors = <String>[
   '/packages/',
   '/bin/',
   '/tool/',
-];
-
-// AOT obfuscated trace 헤더. firebase_crashlytics가 build_id·loading_unit을
-// 여기서 읽어 심볼리케이션에 쓰므로 반드시 보존한다.
-const List<String> _allowedStackLinePrefixes = <String>[
-  'pid:',
-  'os:',
-  'build_id:',
-  'loading_unit:',
-  'isolate_dso_base:',
-  'vm_dso_base:',
-  'isolate_instructions:',
-  'vm_instructions:',
-  'dart_version:',
-  'flutter_version:',
-  'embedder:',
 ];
 
 const Set<String> _allowedStackLineLiterals = <String>{

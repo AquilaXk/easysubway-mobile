@@ -259,7 +259,7 @@ void main() {
       );
     });
 
-    test('AOT obfuscated 헤더와 frame은 보존한다', () {
+    test('심볼리케이션 필수 헤더(build_id·loading_unit)와 frame은 보존한다', () {
       const trace =
           '*** *** ***\n'
           "build_id: 'a1b2c3d4e5f60718293a4b5c6d7e8f90'\n"
@@ -267,7 +267,60 @@ void main() {
           'loading_unit: 1\n'
           '    #00 abs 000000724d3a3f9b virt 00000000002f4f9b '
           '_kDartIsolateSnapshotInstructions+0x1e2f9b';
-      expect(sanitizeStackTraceText(trace), trace);
+      expect(sanitizeStackTraceText(trace).split('\n'), <String>[
+        '*** *** ***',
+        "build_id: 'a1b2c3d4e5f60718293a4b5c6d7e8f90'",
+        // dso_base는 Crashlytics 전송 대상이 아니라 폐기한다(비필수 헤더).
+        '<redacted-frame>',
+        'loading_unit: 1',
+        '    #00 abs 000000724d3a3f9b virt 00000000002f4f9b '
+            '_kDartIsolateSnapshotInstructions+0x1e2f9b',
+      ]);
+    });
+
+    test('허용 라인 shape 뒤에 붙은 자격증명은 통과하지 못한다(finding #1)', () {
+      const bearer =
+          'Bearer eyJhbGciOiJIUzI1NiJ9.SYNTHETICpayload9f3a.SYNTHETICsig8b21';
+      final shapes = <String, String>{
+        'aot':
+            '    #00 abs 000000724d3a3f9b virt 00000000002f4f9b '
+            '_kDartIsolateSnapshotInstructions+0x1e2f9b',
+        'jit':
+            '#0      upload (package:easysubway_mobile/facility_report.dart:12:3)',
+        'friendly': 'package:easysubway_mobile/main.dart 20:5 main',
+        'os_header': 'os: android arch: arm64 comp: no sim: no',
+        'build_id': "build_id: 'a1b2c3d4e5f60718293a4b5c6d7e8f90'",
+        'loading_unit': 'loading_unit: 1',
+      };
+      shapes.forEach((name, shape) {
+        final out = sanitizeStackTraceText('$shape $bearer');
+        expect(out, isNot(contains('Bearer')), reason: name);
+        expect(out, isNot(contains('eyJhbGci')), reason: name);
+        expect(out, isNot(contains('SYNTHETIC')), reason: name);
+      });
+    });
+
+    test('AOT 헤더는 보존하되 인식 못 한 심볼 꼬리는 잘라낸다', () {
+      // 주소(abs·virt)는 심볼리케이션에 필요하므로 남기고, 뒤에 붙은 임의
+      // 문자열은 버린다.
+      expect(
+        sanitizeStackTraceText(
+          '#00 abs 000000724d3a3f9b virt 00000000002f4f9b '
+          'Authorization: Bearer SYNTHETICtoken12345',
+        ),
+        '#00 abs 000000724d3a3f9b virt 00000000002f4f9b',
+      );
+    });
+
+    test('append 없는 정상 frame·필수 헤더는 그대로 보존한다', () {
+      for (final line in <String>[
+        '#0      main (package:easysubway_mobile/main.dart:20:5)',
+        'package:easysubway_mobile/main.dart 20:5 main',
+        "build_id: 'a1b2c3d4e5f60718293a4b5c6d7e8f90'",
+        'loading_unit: 2',
+      ]) {
+        expect(sanitizeStackTraceText(line), line, reason: line);
+      }
     });
 
     test('라인 수·라인 길이 상한을 적용한다', () {
@@ -280,9 +333,11 @@ void main() {
       expect(lines, hasLength(maxSanitizedStackLines + 1));
       expect(lines.last, truncatedStackFramesToken);
 
+      // 길이는 긴 package 경로에서 만든다(멤버를 길게 하면 hex/secret 판정에
+      // 걸려 정상 truncation 경로를 검증하지 못한다).
       final longLine = sanitizeStackTraceText(
-        '#0      ${'a' * 150} '
-        '(package:easysubway_mobile/${'b' * 100}/main.dart:1:1)',
+        '#0      main '
+        '(package:easysubway_mobile/${'sub_dir/' * 40}main.dart:1:1)',
       );
       expect(longLine.length, maxSanitizedStackLineLength);
       expect(longLine, endsWith('~trunc'));
@@ -373,6 +428,23 @@ void main() {
         sanitizeCrashCustomKeyValue('device_class', <String>['x']),
         isNull,
       );
+    });
+
+    test('device_class는 닫힌 집합만 통과하고 토큰형 자격증명은 거부한다(finding #2)', () {
+      // 유한 열거만 허용.
+      for (final value in crashDeviceClassAllowlist) {
+        expect(sanitizeCrashCustomKeyValue('device_class', value), value);
+      }
+      // 이전 slug 정규식(^[a-z][a-z0-9-]{0,31}$)이었다면 통과했을 소문자 토큰들.
+      expect(
+        sanitizeCrashCustomKeyValue('device_class', 'akiaiosfodnn7example'),
+        isNull,
+      );
+      expect(
+        sanitizeCrashCustomKeyValue('device_class', 'ya29synthetictoken00'),
+        isNull,
+      );
+      expect(sanitizeCrashCustomKeyValue('device_class', 'pixel8pro'), isNull);
     });
   });
 }

@@ -92,8 +92,10 @@ List<_SyntheticSecret> _syntheticSecrets() {
       .toList();
 }
 
-/// 합성 비밀값을 stack trace의 여러 위치(파일 경로·frame 위치·비-frame 라인)에
-/// 심는다. 실제 유출 경로를 모사한다.
+/// 합성 비밀값을 stack trace의 여러 위치에 심는다. 실제 유출 경로를 모사한다.
+///
+/// 파일 경로·frame 괄호·독립 라인뿐 아니라, **허용 라인 shape 뒤에 append**하는
+/// 케이스(finding #1: 접두만 맞고 뒤에 자격증명이 붙는 라인)도 포함한다.
 StackTrace _syntheticStack(String secret) {
   return StackTrace.fromString(
     '#0      uploadPhoto '
@@ -102,6 +104,12 @@ StackTrace _syntheticStack(String secret) {
     '#1      main (package:easysubway_mobile/main.dart:20:5)\n'
     '#2      request ($secret)\n'
     '$secret\n'
+    // 허용 shape 뒤 append.
+    '#00 abs 000000724d3a3f9b virt 00000000002f4f9b '
+    '_kDartIsolateSnapshotInstructions+0x1e2f9b $secret\n'
+    'package:easysubway_mobile/main.dart 20:5 main $secret\n'
+    'os: android arch: arm64 comp: no sim: no $secret\n'
+    "build_id: 'a1b2c3d4e5f60718293a4b5c6d7e8f90' $secret\n"
     '<asynchronous suspension>',
   );
 }
@@ -116,6 +124,16 @@ final RegExp _sanitizedFramePattern = RegExp(
   r'^#\d+\s+[^()]{0,200}'
   r'\((package:|dart:|file://<redacted-path>|<redacted-path>|https?://)'
   r'[^()\s]*\)$',
+);
+
+// 정화된 AOT frame(주소 헤더 + 선택 심볼)과 심볼리케이션 필수 VM 헤더.
+final RegExp _sanitizedAotFramePattern = RegExp(
+  r'^#\d+\s+abs\s+[0-9a-fA-F]{1,20}(\s+virt\s+[0-9a-fA-F]{1,20})?'
+  r'(\s+[A-Za-z0-9_$.]+\+0x[0-9a-fA-F]+)?$',
+);
+
+final RegExp _sanitizedVmHeaderPattern = RegExp(
+  r"^(build_id: '[0-9a-fA-F]{1,64}'|loading_unit: \d{1,9}|\*\*\*( \*\*\*)+)$",
 );
 
 final RegExp _sanitizedReasonPattern = RegExp(
@@ -135,7 +153,9 @@ void expectPayloadIsAllowlisted(String payloadText, {required String reason}) {
         line == '<asynchronous suspension>' ||
         _sanitizedMessagePattern.hasMatch(line) ||
         _sanitizedReasonPattern.hasMatch(line) ||
-        _sanitizedFramePattern.hasMatch(line);
+        _sanitizedFramePattern.hasMatch(line) ||
+        _sanitizedAotFramePattern.hasMatch(line) ||
+        _sanitizedVmHeaderPattern.hasMatch(line);
     expect(allowed, isTrue, reason: 'allowlist 밖 payload 라인($reason): $line');
   }
 }
