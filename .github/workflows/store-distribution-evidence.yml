@@ -5,6 +5,18 @@ on:
 
 permissions: {}
 
+# Android Publisher는 "Each user may have only a single edit open at a time"이고
+# "If you create a new edit, any existing edit you may have open is invalidated"이다
+# (https://developers.google.com/android-publisher/edits). 같은 service account를 쓰는
+# 실행이 겹치면 preflight의 edits.insert가 상대의 열린 edit을 무효화할 수 있으므로,
+# Play 자격증명을 소비하는 실행은 이 group으로 직렬화한다. 앞으로 추가되는 Play
+# 게시 워크플로도 같은 group에 합류해야 한다.
+# cancel-in-progress를 false로 두는 이유: 진행 중 실행을 취소하면 edit 삭제 단계가
+# 건너뛰어져 열린 edit이 그대로 남는다.
+concurrency:
+  group: store-release-google-play-edit
+  cancel-in-progress: false
+
 jobs:
   preflight:
     name: Store Credential Preflight

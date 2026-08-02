@@ -96,6 +96,48 @@ test("edit validate 실패에도 finally에서 edit을 삭제하고 sanitized �
   assert.equal(requests.at(-1), `DELETE ${editUrl}`);
 });
 
+test("tracks 필드가 배열이 아니면 fail-closed하고 edit을 삭제한다", async () => {
+  const fixture = await createFixture(credentialLine);
+  const requests = [];
+
+  await assert.rejects(
+    runGooglePlayApiAccess({
+      ...fixture,
+      apiBaseUrl,
+      fetchImpl: mockGooglePlayFetch(requests, {
+        tracks: { tracks: { production: { versionCodes: ["9"] } } },
+      }),
+    }),
+    /google play tracks list returned a non-array tracks field/,
+  );
+
+  const output = await readFile(fixture.githubOutput, "utf8");
+  const report = await readFile(fixture.reportPath, "utf8");
+  assert.match(output, /^google_play_api_access_ready=false$/m);
+  assert.doesNotMatch(report, /^tracks_list\.ready=true$/m);
+  assert.doesNotMatch(report, /^tracks\.count=0$/m);
+  assert.match(report, /^failure=google play tracks list returned a non-array tracks field$/m);
+  assert.match(report, /^edit_delete\.ready=true$/m);
+  assert.equal(requests.at(-1), `DELETE ${editUrl}`);
+});
+
+test("tracks 필드가 아예 없으면 빈 track 목록으로 계속 진행한다", async () => {
+  const fixture = await createFixture(credentialLine);
+
+  await runGooglePlayApiAccess({
+    ...fixture,
+    apiBaseUrl,
+    fetchImpl: mockGooglePlayFetch([], { tracks: {} }),
+  });
+
+  const report = await readFile(fixture.reportPath, "utf8");
+  assert.match(report, /^tracks_list\.ready=true$/m);
+  assert.match(report, /^tracks\.count=0$/m);
+  assert.match(report, /^tracks\.ids=none$/m);
+  assert.match(report, /^tracks\.max_version_code=none$/m);
+  assert.match(report, /^latest_version_code_covers_track_max=unknown$/m);
+});
+
 test("edit delete 실패는 readiness를 무너뜨리고 sanitized 원인을 남긴다", async () => {
   const fixture = await createFixture(credentialLine);
   const requests = [];

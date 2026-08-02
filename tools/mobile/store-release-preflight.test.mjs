@@ -48,6 +48,10 @@ test("store preflight validates signing and no-upload Play edit lifecycle from t
   );
   assert.doesNotMatch(workflow, /upload-play|edits\/.*:commit|bundle upload|play publish/i);
   assert.match(workflow, /name: Validate no-upload Google Play edit lifecycle/);
+  // 같은 service account의 열린 edit은 `edits.insert`가 무효화하므로(Android Publisher
+  // 공식 문서) Play 자격증명을 쓰는 실행은 직렬화하고, 진행 중 실행은 취소하지 않는다.
+  // 취소하면 `finally` delete가 건너뛰어져 열린 edit이 남는다.
+  assert.match(workflow, /^concurrency:\n  group: store-release-google-play-edit\n  cancel-in-progress: false$/m);
 
   // no-upload edit 라이프사이클: 임시 edit 1개 생성 → track 조회 → validate → finally delete.
   assert.match(access, /\/edits`,\s*\{\s*\n\s*method: "POST",\s*\n\s*token,\s*\n\s*body: \{\},/);

@@ -79,7 +79,12 @@ export async function runGooglePlayApiAccess({
       { method: "GET", token },
       fetchImpl,
     );
-    const trackList = Array.isArray(tracks.tracks) ? tracks.tracks : [];
+    // 형태가 어긋난 응답을 빈 목록으로 삼키면 `tracks_list.ready=true`라는 허위 증거가
+    // 남는다. `tracks`가 있는데 배열이 아니면 fail-closed한다(없는 것은 정상 = track 0개).
+    if (tracks.tracks !== undefined && !Array.isArray(tracks.tracks)) {
+      throw new Error("google play tracks list returned a non-array tracks field");
+    }
+    const trackList = tracks.tracks ?? [];
     const trackIds = trackList
       .map((track) => track.trackId ?? track.track)
       .filter((track) => typeof track === "string" && track.length > 0)
