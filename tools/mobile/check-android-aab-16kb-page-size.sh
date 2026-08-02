@@ -4,18 +4,18 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  tools/mobile/check-android-aab-16kb-page-size.sh --aab <app.aab> --bundle-config <config.txt> --artifact-dir <dir>
+  tools/mobile/check-android-aab-16kb-page-size.sh --aab <app.aab> --android-project <dir> --artifact-dir <dir>
 
 Options:
   --aab <path>           Required Android App Bundle.
-  --bundle-config <path> Required non-empty bundletool config dump.
+  --android-project <dir> Required Android project containing executable gradlew.
   --artifact-dir <dir>  Required output directory for local-only evidence.
   -h, --help            Show this help.
 USAGE
 }
 
 AAB=""
-BUNDLE_CONFIG=""
+ANDROID_PROJECT=""
 ARTIFACT_DIR=""
 MIN_ALIGN=16384
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
@@ -23,14 +23,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --aab) AAB="${2:-}"; shift 2 ;;
-    --bundle-config) BUNDLE_CONFIG="${2:-}"; shift 2 ;;
+    --android-project) ANDROID_PROJECT="${2:-}"; shift 2 ;;
     --artifact-dir) ARTIFACT_DIR="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
-if [[ -z "$AAB" || -z "$BUNDLE_CONFIG" || -z "$ARTIFACT_DIR" ]]; then
+if [[ -z "$AAB" || -z "$ANDROID_PROJECT" || -z "$ARTIFACT_DIR" ]]; then
   usage >&2
   exit 2
 fi
@@ -38,15 +38,22 @@ if [[ ! -s "$AAB" ]]; then
   echo "AAB not found or empty: $AAB" >&2
   exit 2
 fi
-if [[ ! -s "$BUNDLE_CONFIG" ]]; then
-  echo "bundletool config not found or empty: $BUNDLE_CONFIG" >&2
+if [[ ! -d "$ANDROID_PROJECT" || ! -x "$ANDROID_PROJECT/gradlew" ]]; then
+  echo "Android project or executable gradlew not found: $ANDROID_PROJECT" >&2
   exit 2
 fi
 
 mkdir -p "$ARTIFACT_DIR"
+AAB="$(cd "$(dirname "$AAB")" && pwd -P)/$(basename "$AAB")"
+ANDROID_PROJECT="$(cd "$ANDROID_PROJECT" && pwd -P)"
+ARTIFACT_DIR="$(cd "$ARTIFACT_DIR" && pwd -P)"
 EVIDENCE_BUNDLE_CONFIG="$ARTIFACT_DIR/bundle-config.txt"
-if [[ "$BUNDLE_CONFIG" != "$EVIDENCE_BUNDLE_CONFIG" ]]; then
-  cp "$BUNDLE_CONFIG" "$EVIDENCE_BUNDLE_CONFIG"
+"$ANDROID_PROJECT/gradlew" -p "$ANDROID_PROJECT" :app:dumpAndroidBundleConfig \
+  -Pandroid16kbAab="$AAB" \
+  -Pandroid16kbBundleConfig="$EVIDENCE_BUNDLE_CONFIG"
+if [[ ! -s "$EVIDENCE_BUNDLE_CONFIG" ]]; then
+  echo "bundletool config not generated or empty: $EVIDENCE_BUNDLE_CONFIG" >&2
+  exit 2
 fi
 if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$EVIDENCE_BUNDLE_CONFIG"; then
   {

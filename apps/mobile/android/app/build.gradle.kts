@@ -98,7 +98,7 @@ flutter {
     source = "../.."
 }
 
-tasks.register("dumpReleaseBundleConfig") {
+tasks.register("dumpAndroidBundleConfig") {
     doLast {
         val aabPath = providers.gradleProperty("android16kbAab")
             .orNull
