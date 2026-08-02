@@ -102,7 +102,9 @@ jobs:
             -deststorepass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
             -destkeypass:env EASYSUBWAY_EPHEMERAL_KEYSTORE_PASSWORD \
             -noprompt
-      - name: Validate read-only Google Play access
+      # 임시 edit 1개를 만들어 track 조회·validate 후 반드시 삭제한다.
+      # AAB upload, edit commit, track mutation, publish는 수행하지 않는다.
+      - name: Validate no-upload Google Play edit lifecycle
         id: play
         shell: bash
         env:

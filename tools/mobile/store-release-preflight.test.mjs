@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-test("store preflight validates signing and read-only Play access from trusted main", async () => {
+test("store preflight validates signing and no-upload Play edit lifecycle from trusted main", async () => {
   const workflow = await readFile(".github/workflows/store-distribution-evidence.yml", "utf8");
   const access = await readFile("tools/ci/check-google-play-api-access.mjs", "utf8");
   const auth = await readFile("tools/ci/lib/google-play-auth.mjs", "utf8");
@@ -47,10 +47,16 @@ test("store preflight validates signing and read-only Play access from trusted m
     /play_status=0[\s\S]*\|\| play_status=\$\?[\s\S]*cat .*google-play-api-access\.txt[\s\S]*exit "\$\{play_status\}"/,
   );
   assert.doesNotMatch(workflow, /upload-play|edits\/.*:commit|bundle upload|play publish/i);
+  assert.match(workflow, /name: Validate no-upload Google Play edit lifecycle/);
 
-  assert.match(access, /\/reviews\?maxResults=1/);
-  assert.match(access, /method: "GET"/);
-  assert.doesNotMatch(access, /\/edits|\/tracks|:validate|method: "POST"|method: "DELETE"/);
+  // no-upload edit 라이프사이클: 임시 edit 1개 생성 → track 조회 → validate → finally delete.
+  assert.match(access, /\/edits`,\s*\{\s*\n\s*method: "POST",\s*\n\s*token,\s*\n\s*body: \{\},/);
+  assert.match(access, /\/edits\/\$\{encodePath\(editId\)\}\/tracks`,\s*\n\s*\{ method: "GET", token \}/);
+  assert.match(access, /\/edits\/\$\{encodePath\(editId\)\}:validate`,\s*\n\s*\{ method: "POST", token \}/);
+  assert.match(access, /\} finally \{[\s\S]*method: "DELETE"/);
+  // mutation·upload·publish 경로는 없어야 한다.
+  assert.doesNotMatch(access, /:commit|method: "PATCH"|method: "PUT"|uploadMedia|\/bundles|\/apks|\/deobfuscationfiles/);
+  assert.doesNotMatch(access, /\/reviews/);
   assert.match(access, /maskSecrets\(value\)/);
   assert.match(access, /console\.error\("google play api access check failed; see sanitized report"\)/);
   assert.doesNotMatch(access, /console\.error\(error\.message\)/);

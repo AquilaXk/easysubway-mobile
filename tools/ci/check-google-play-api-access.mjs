@@ -10,6 +10,7 @@ import {
   parseDotenv,
   readServiceAccount,
   requestJson,
+  requireJsonString,
 } from "./lib/google-play-auth.mjs";
 
 async function main() {
@@ -22,6 +23,9 @@ async function main() {
   });
 }
 
+// no-upload preflight: 실제 릴리스가 사용하는 edit 경로 권한만 증명한다.
+// 임시 edit 1개 생성 → track 목록 조회 → edit validate → `finally` delete.
+// AAB upload, edit commit, track mutation, publish 경로는 의도적으로 없다.
 export async function runGooglePlayApiAccess({
   envFile,
   githubOutput,
@@ -34,6 +38,9 @@ export async function runGooglePlayApiAccess({
   const packageName = env.EASYSUBWAY_GOOGLE_PLAY_PACKAGE_NAME?.trim() || "unknown";
   const latestVersionCode = env.EASYSUBWAY_GOOGLE_PLAY_LATEST_VERSION_CODE?.trim() || "unknown";
   const serviceAccountSource = detectServiceAccountSource(env);
+  let token;
+  let editId;
+  let editDeleted = false;
   let ready = true;
   let failureMessage;
   let reportSecrets = [];
@@ -55,24 +62,73 @@ export async function runGooglePlayApiAccess({
       serviceAccount.project_id,
       serviceAccount.private_key_id,
     ].filter((value) => typeof value === "string" && value.length > 0);
-    const token = await fetchAccessToken(serviceAccount, fetchImpl);
-    const response = await requestJson(
-      `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/reviews?maxResults=1`,
+    token = await fetchAccessToken(serviceAccount, fetchImpl);
+
+    const edit = await requestJson(`${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits`, {
+      method: "POST",
+      token,
+      body: {},
+    }, fetchImpl);
+    editId = requireJsonString(edit, "id");
+    report.push("edit_insert.ready=true");
+
+    const tracks = await requestJson(
+      `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits/${encodePath(editId)}/tracks`,
       { method: "GET", token },
       fetchImpl,
     );
-    if (response.reviews !== undefined && !Array.isArray(response.reviews)) {
-      throw new Error("invalid google play reviews response");
+    const trackList = Array.isArray(tracks.tracks) ? tracks.tracks : [];
+    const trackIds = trackList
+      .map((track) => track.trackId ?? track.track)
+      .filter((track) => typeof track === "string" && track.length > 0)
+      .toSorted();
+    const maxTrackVersionCode = maxVersionCode(trackList);
+    report.push("tracks_list.ready=true");
+    report.push(`tracks.count=${trackList.length}`);
+    report.push(`tracks.ids=${trackIds.join(",") || "none"}`);
+    report.push(`tracks.max_version_code=${maxTrackVersionCode ?? "none"}`);
+    const latestVersionCodeCoversTrackMax = versionCodeCoversTrackMax(latestVersionCode, maxTrackVersionCode);
+    report.push(`latest_version_code_covers_track_max=${latestVersionCodeCoversTrackMax}`);
+    if (latestVersionCodeCoversTrackMax === "false") {
+      // 증거를 더 모으기 위해 validate까지 진행하되 readiness는 이미 실패다.
+      ready = false;
+      failureMessage = "google play latest versionCode is lower than track max versionCode";
     }
-    report.push("reviews_list.ready=true");
-    report.push(`reviews.count=${response.reviews?.length ?? 0}`);
+
+    await requestJson(
+      `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits/${encodePath(editId)}:validate`,
+      { method: "POST", token },
+      fetchImpl,
+    );
+    report.push("edit_validate.ready=true");
   } catch (error) {
     ready = false;
     const currentFailure = error instanceof Error ? error.message : "google play api access failed";
     failureMessage = redactReportValue(currentFailure, reportSecrets);
     report.push(`failure=${failureMessage}`);
+  } finally {
+    // 성공·실패와 무관하게 임시 edit을 남기지 않는다.
+    if (editId && token) {
+      try {
+        await requestJson(
+          `${normalizedApiBaseUrl}/applications/${encodePath(packageName)}/edits/${encodePath(editId)}`,
+          { method: "DELETE", token },
+          fetchImpl,
+        );
+        editDeleted = true;
+      } catch (error) {
+        ready = false;
+        const deleteFailure = redactReportValue(
+          error instanceof Error ? error.message : "google play edit delete failed",
+          reportSecrets,
+        );
+        failureMessage ??= deleteFailure;
+        report.push(`edit_delete.failure=${deleteFailure}`);
+      }
+    }
   }
 
+  report.push(`edit_delete.ready=${editDeleted}`);
   report.push("secret_values_printed=false");
   report.push("");
   await appendFile(githubOutput, `google_play_api_access_ready=${ready}\n`);
@@ -88,6 +144,33 @@ function redactReportValue(value, secrets) {
     maskSecrets(value),
   );
   return masked.replace(/\s+/g, " ").slice(0, 220);
+}
+
+function maxVersionCode(tracks) {
+  const versions = tracks.flatMap((track) =>
+    (track.releases ?? []).flatMap((release) => release.versionCodes ?? []),
+  );
+  let max;
+  for (const version of versions) {
+    if (!/^(0|[1-9]\d*)$/.test(String(version))) {
+      continue;
+    }
+    const parsed = BigInt(version);
+    if (max === undefined || parsed > max) {
+      max = parsed;
+    }
+  }
+  return max?.toString();
+}
+
+function versionCodeCoversTrackMax(latestVersionCode, maxTrackVersionCode) {
+  if (latestVersionCode === "unknown" || maxTrackVersionCode === undefined) {
+    return "unknown";
+  }
+  if (!/^(0|[1-9]\d*)$/.test(latestVersionCode)) {
+    return "unknown";
+  }
+  return BigInt(latestVersionCode) >= BigInt(maxTrackVersionCode) ? "true" : "false";
 }
 
 function parseArgs(argv) {
