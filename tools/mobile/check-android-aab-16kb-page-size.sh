@@ -4,33 +4,33 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  tools/mobile/check-android-aab-16kb-page-size.sh --aab <app.aab> --artifact-dir <dir> [options]
+  tools/mobile/check-android-aab-16kb-page-size.sh --aab <app.aab> --bundle-config <config.txt> --artifact-dir <dir>
 
 Options:
   --aab <path>           Required Android App Bundle.
+  --bundle-config <path> Required non-empty bundletool config dump.
   --artifact-dir <dir>  Required output directory for local-only evidence.
-  --bundletool <path>   bundletool executable. Defaults to PATH lookup.
   -h, --help            Show this help.
 USAGE
 }
 
 AAB=""
+BUNDLE_CONFIG=""
 ARTIFACT_DIR=""
-BUNDLETOOL=""
 MIN_ALIGN=16384
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --aab) AAB="${2:-}"; shift 2 ;;
+    --bundle-config) BUNDLE_CONFIG="${2:-}"; shift 2 ;;
     --artifact-dir) ARTIFACT_DIR="${2:-}"; shift 2 ;;
-    --bundletool) BUNDLETOOL="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
-if [[ -z "$AAB" || -z "$ARTIFACT_DIR" ]]; then
+if [[ -z "$AAB" || -z "$BUNDLE_CONFIG" || -z "$ARTIFACT_DIR" ]]; then
   usage >&2
   exit 2
 fi
@@ -38,56 +38,13 @@ if [[ ! -s "$AAB" ]]; then
   echo "AAB not found or empty: $AAB" >&2
   exit 2
 fi
-
-BUNDLETOOL="${BUNDLETOOL:-$(command -v bundletool || true)}"
-if [[ -n "$BUNDLETOOL" && "$BUNDLETOOL" == *.jar && -f "$BUNDLETOOL" ]]; then
-  GRADLE_CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1"
-  CLASS_PATH="$(unzip -p "$BUNDLETOOL" META-INF/MANIFEST.MF | awk '
-    { sub(/\r$/, "") }
-    /^Class-Path: / { value = substr($0, 13); reading = 1; next }
-    reading && /^ / { value = value substr($0, 2); next }
-    reading { print value; printed = 1; exit }
-    END { if (reading && !printed) print value }
-  ')"
-  if [[ -z "$CLASS_PATH" ]]; then
-    echo "bundletool JAR Class-Path is missing: $BUNDLETOOL" >&2
-    exit 2
-  fi
-  BUNDLETOOL_CLASS_PATH="$BUNDLETOOL"
-  for dependency in $CLASS_PATH; do
-    if [[ "$dependency" == */* ]]; then
-      echo "bundletool JAR Class-Path entry is not a filename: $dependency" >&2
-      exit 2
-    fi
-    resolved=""
-    matches=0
-    while IFS= read -r candidate; do
-      matches=$((matches + 1))
-      if [[ "$matches" -eq 1 ]]; then
-        resolved="$candidate"
-      fi
-    done < <(find "$GRADLE_CACHE" -type f -name "$dependency" -print 2>/dev/null)
-    if [[ "$matches" -eq 0 ]]; then
-      echo "bundletool JAR Class-Path dependency not found: $dependency" >&2
-      exit 2
-    fi
-    if [[ "$matches" -gt 1 ]]; then
-      echo "bundletool JAR Class-Path dependency is ambiguous: $dependency" >&2
-      exit 2
-    fi
-    BUNDLETOOL_CLASS_PATH+=":$resolved"
-  done
-  BUNDLETOOL_COMMAND=(java -cp "$BUNDLETOOL_CLASS_PATH" com.android.tools.build.bundletool.BundleToolMain)
-elif [[ -n "$BUNDLETOOL" && -x "$BUNDLETOOL" ]]; then
-  BUNDLETOOL_COMMAND=("$BUNDLETOOL")
-else
-  echo "bundletool executable not found. Pass --bundletool." >&2
+if [[ ! -s "$BUNDLE_CONFIG" ]]; then
+  echo "bundletool config not found or empty: $BUNDLE_CONFIG" >&2
   exit 2
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-"${BUNDLETOOL_COMMAND[@]}" dump config --bundle="$AAB" > "$ARTIFACT_DIR/bundle-config.txt"
-if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$ARTIFACT_DIR/bundle-config.txt"; then
+if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$BUNDLE_CONFIG"; then
   {
     echo "android_16kb_aab_page_size_check"
     echo "aab=$AAB"

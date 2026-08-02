@@ -1,4 +1,8 @@
+import com.android.tools.build.bundletool.commands.DumpCommand
+import com.android.tools.build.bundletool.model.version.BundleToolVersion
 import org.gradle.api.GradleException
+import java.io.PrintStream
+import java.nio.file.Paths
 
 plugins {
     id("com.android.application")
@@ -86,6 +90,30 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+tasks.register("dumpReleaseBundleConfig") {
+    doLast {
+        val aabPath = providers.gradleProperty("android16kbAab")
+            .orNull
+            ?: throw GradleException("android16kbAab Gradle property is required.")
+        val outputPath = providers.gradleProperty("android16kbBundleConfig")
+            .orNull
+            ?: throw GradleException("android16kbBundleConfig Gradle property is required.")
+        check(BundleToolVersion.getCurrentVersion().toString() == "1.18.3") {
+            "Expected bundletool 1.18.3 loaded by AGP 9.0.1."
+        }
+        val outputFile = file(outputPath)
+        outputFile.parentFile.mkdirs()
+        PrintStream(outputFile).use { output ->
+            DumpCommand.builder()
+                .setBundlePath(Paths.get(aabPath))
+                .setOutputStream(output)
+                .setDumpTarget(DumpCommand.DumpTarget.CONFIG)
+                .build()
+                .execute()
+        }
+    }
 }
 
 // AGP UTP 내부 구성(_internal-unified-test-platform-*) transitive 보안 패치 강제(#2459).
