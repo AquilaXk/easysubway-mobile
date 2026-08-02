@@ -44,7 +44,11 @@ if [[ ! -s "$BUNDLE_CONFIG" ]]; then
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$BUNDLE_CONFIG"; then
+EVIDENCE_BUNDLE_CONFIG="$ARTIFACT_DIR/bundle-config.txt"
+if [[ "$BUNDLE_CONFIG" != "$EVIDENCE_BUNDLE_CONFIG" ]]; then
+  cp "$BUNDLE_CONFIG" "$EVIDENCE_BUNDLE_CONFIG"
+fi
+if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$EVIDENCE_BUNDLE_CONFIG"; then
   {
     echo "android_16kb_aab_page_size_check"
     echo "aab=$AAB"

@@ -26,6 +26,7 @@ test("rejects a generated bundle config without 16KB alignment", async () => {
     (error) => error.code === 1,
   );
   assert.match(await readFile(path.join(evidence, "summary.txt"), "utf8"), /missing_PAGE_ALIGNMENT_16K_native_library_alignment/);
+  assert.equal(await readFile(path.join(evidence, "bundle-config.txt"), "utf8"), '{"compression": {}}\n');
 });
 
 test("pins AGP-loaded bundletool and orders config inspection before hashing", async () => {
