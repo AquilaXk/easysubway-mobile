@@ -39,24 +39,8 @@ jobs:
           set -euo pipefail
 
           repo="${GITHUB_REPOSITORY}"
-          pr="$(gh pr list --repo "${repo}" --base main --state open --label automerge \
-            --limit 1000 --json number,createdAt \
-            --jq 'sort_by(.createdAt)[0].number // empty')"
-          [[ -n "${pr}" ]] || exit 0
-
-          info="$(gh pr view "${pr}" --repo "${repo}" \
-            --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
-          jq -e '
-            .state == "OPEN" and
-            .isDraft == false and
-            .baseRefName == "main" and
-            any(.labels[]; .name == "automerge")
-          ' <<<"${info}" >/dev/null
-
-          head="$(jq -r '.headRefOid' <<<"${info}")"
-          head_ref="$(jq -r '.headRefName' <<<"${info}")"
-          head_repo="$(jq -r '.headRepository.nameWithOwner // ""' <<<"${info}")"
-          merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
+          owner="${repo%%/*}"
+          name="${repo#*/}"
 
           rules="$(gh api "repos/${repo}/rules/branches/main")"
           required="$(jq -c '
@@ -68,101 +52,235 @@ jobs:
           ' <<<"${rules}")"
           jq -e 'length > 0' <<<"${required}" >/dev/null
 
-          reviews="$(gh api --paginate --slurp \
-            "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
-          # review-state-filter-begin
-          jq -e --arg head "${head}" '
-            [flatten[] |
-              select(.commit_id == $head) |
-              select(
-                .author_association == "OWNER" or
-                .author_association == "MEMBER" or
-                .author_association == "COLLABORATOR"
-              )] as $trusted |
-            ($trusted |
-            sort_by(.submitted_at, .id) |
-            reduce .[] as $review ({};
-              if $review.state == "COMMENTED" then
-                .[$review.user.login] //= "COMMENTED"
-              else
-                .[$review.user.login] = $review.state
-              end
-            )) as $states |
-            ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
-            any($trusted[];
-              .state == "APPROVED" or
-              (.state == "COMMENTED" and
-                (.body // "" | startswith("**Actionable comments posted: ")) and
-                (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"))))
-          ' <<<"${reviews}" >/dev/null
-          # review-state-filter-end
+          candidates="$(gh pr list --repo "${repo}" --base main --state open --label automerge \
+            --limit 1000 --json number,createdAt \
+            --jq '[sort_by(.createdAt)[].number]')"
 
-          owner="${repo%%/*}"
-          name="${repo#*/}"
-          # shellcheck disable=SC2016
-          threads="$(gh api graphql -f owner="${owner}" -f name="${name}" -F number="${pr}" -f query='
-            query($owner: String!, $name: String!, $number: Int!) {
-              repository(owner: $owner, name: $name) {
-                pullRequest(number: $number) {
-                  reviewThreads(first: 100) {
-                    nodes { isResolved }
-                    pageInfo { hasNextPage }
+          # 큐는 strict FIFO가 아니라 best-effort FIFO다. 오래된 순으로 후보를 훑되 병합할 수
+          # 없는 후보는 사유를 남기고 건너뛴다. head 하나만 처리하면 그 한 건이 막혔을 때 뒤의
+          # PR이 전부 굶고, 굶주림을 막으려 타이머·derail을 넣으면 다시 오작동 표면이 생긴다.
+          # 건너뛰기는 병합을 하지 않는 방향이라 게이트를 약화시키지 않으며, 각 후보는 리뷰·
+          # 미해결 thread·required context 검증을 그대로 통과해야 한다. 실제 동작(병합 예약
+          # 또는 base 갱신)은 한 실행에 최대 한 건이므로 병합 직렬화는 그대로 유지된다.
+          # queue-loop-begin
+          # 한 실행에서 평가할 후보 수는 job timeout(5분) 때문에 제한해야 한다. 후보마다
+          # API를 5회쯤 호출하므로 무제한으로 훑으면 큐가 길어질수록 job이 timeout으로
+          # 죽는다. 다만 창을 큐 앞쪽에 고정하면 창 밖의 후보는 매 실행 제외되어, 없애려던
+          # head 차단이 1건에서 window건 규모로 옮겨갈 뿐이다. 그래서 창 시작점을 실행마다
+          # 새로 고른다.
+          #
+          # 시작점은 실행 컨텍스트 값이 아니라 균등 난수로 뽑는다. 실행 컨텍스트 기반
+          # 결정적 회전은 "실행 간격"에 취약하기 때문이다. 이 job은 automerge가 아닌 라벨
+          # 이벤트에서 if 조건에 걸려 건너뛰고 concurrency가 대기 실행을 버리기도 하므로,
+          # 실제 coordinator 실행 사이의 run number 간격 d는 1이 아니다. 시작점을 run
+          # number의 함수로 두면 유효 보폭에 d가 곱해지고, gcd(유효 보폭, total) > window인
+          # 조합에서 시작점이 고정된다(실측: total=40, window=20, d ∈ {2,4,8,40}이면 앞쪽
+          # 20건만 영원히 평가되고 뒤쪽 20건은 병합 준비가 끝나도 대기). 난수 시작점은 어떤
+          # 값도 읽지 않으므로 이 취약점이 원리적으로 없다.
+          #
+          # 보장: 후보 하나가 한 실행에서 창에 들 확률은 window/total 이상이며 실행 간격·
+          # 건너뛴 실행·concurrency 폐기와 무관하게 일정하다. 따라서 N회 연속 제외될 확률은
+          # (1 - window/total)^N로 지수 감소하고, 큐 크기가 그대로면 기대 total/window회
+          # 안에 평가된다(10분 스케줄·total=100 기준 기대 50분). 굶주림이 남는 실행 시퀀스가
+          # 아예 존재하지 않는다는 점이 결정적 회전과의 차이다.
+          #
+          # 대안과 실패 모드:
+          #  - 지속 커서: 결정적 상한을 주지만 저장소가 필요하다. repository variable은
+          #    GITHUB_TOKEN으로 못 쓰고 PAT이 필요하며(이 계열 워크플로는 PAT-free가 방향),
+          #    Actions cache는 LRU 축출·미사용 만료가 있어 보장이 다시 소프트해지고,
+          #    artifact는 보존 기간과 조회 비용이 붙는다. 이 워크플로는 상태(derail 타이머)를
+          #    들여 결함을 늘린 이력이 있어 상태 추가는 마지막 수단으로 둔다.
+          #  - GITHUB_RUN_ID: 간격이 크고 불규칙해 실무상 앨리어싱은 어렵지만, 간격이 total의
+          #    배수로 유지되는 시퀀스에서는 여전히 고정된다. "실행 간격과 무관"이 아니다.
+          #  - stride를 total과 서로소로 고르기: 유효 보폭에 d가 곱해지므로 d 쪽에서 여전히
+          #    고정을 만들 수 있다. 위 실측의 d=40이 그 경우다.
+          #  - 창을 버리고 시간 예산만 두기: 시작점이 여전히 큐 앞쪽에 고정되므로 예산이
+          #    닿지 않는 뒤쪽 후보의 굶주림이 그대로 남는다.
+          #
+          # RANDOM은 0..32767이고 total은 --limit 1000으로 상한이 잡히므로 modulo 편향이
+          # 남지만, 모든 시작점의 확률이 0보다 크게 유지되므로 위 보장에는 영향이 없다.
+          # 후보가 창 안에 다 들어오면(total <= window) 시작점을 0으로 고정해, 회전이
+          # 필요 없는 평상시에는 오래된 순 그대로 훑는다. 회전이 걸린 실행에서도 선택된
+          # 후보를 원래 순서(오래된 순)로 되돌려 평가하므로, 한 실행 안에서 "평가한 후보
+          # 중 가장 오래된 병합 가능 후보가 이긴다"는 성질은 유지된다.
+          # candidate-offset-begin
+          window=20
+          total="$(jq 'length' <<<"${candidates}")"
+          offset=0
+          if [[ "${total}" -gt "${window}" ]]; then
+            offset="$(( RANDOM % total ))"
+          fi
+          # candidate-offset-end
+          while IFS= read -r pr; do
+            info="$(gh pr view "${pr}" --repo "${repo}" \
+              --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
+            if ! jq -e '
+              .state == "OPEN" and
+              .isDraft == false and
+              .baseRefName == "main" and
+              any(.labels[]; .name == "automerge")
+            ' <<<"${info}" >/dev/null; then
+              echo "PR #${pr}: no longer an open labeled pull request against main; skipping."
+              continue
+            fi
+
+            head="$(jq -r '.headRefOid' <<<"${info}")"
+            head_ref="$(jq -r '.headRefName' <<<"${info}")"
+            head_repo="$(jq -r '.headRepository.nameWithOwner // ""' <<<"${info}")"
+            merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
+
+            reviews="$(gh api --paginate --slurp \
+              "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
+            # review-state-filter-begin
+            if ! jq -e --arg head "${head}" '
+              [flatten[] |
+                select(
+                  .author_association == "OWNER" or
+                  .author_association == "MEMBER" or
+                  .author_association == "COLLABORATOR"
+                )] as $trusted |
+              ($trusted | map(select(.commit_id == $head))) as $current |
+              ($trusted |
+              sort_by(.submitted_at, .id) |
+              reduce .[] as $review ({};
+                if $review.state == "COMMENTED" then
+                  .[$review.user.login] //= "COMMENTED"
+                elif $review.state == "DISMISSED" then
+                  del(.[$review.user.login])
+                else
+                  .[$review.user.login] = $review.state
+                end
+              )) as $states |
+              ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
+              any($current[];
+                .state == "APPROVED" or
+                (.state == "COMMENTED" and
+                  (.body // "" | startswith("**Actionable comments posted: ")) and
+                  (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"))))
+            ' <<<"${reviews}" >/dev/null; then
+              echo "PR #${pr}: no trusted review on the current head, or an active change request is open; skipping."
+              continue
+            fi
+            # review-state-filter-end
+
+            # shellcheck disable=SC2016
+            threads="$(gh api graphql -f owner="${owner}" -f name="${name}" -F number="${pr}" -f query='
+              query($owner: String!, $name: String!, $number: Int!) {
+                repository(owner: $owner, name: $name) {
+                  pullRequest(number: $number) {
+                    reviewThreads(first: 100) {
+                      nodes { isResolved }
+                      pageInfo { hasNextPage }
+                    }
                   }
                 }
               }
-            }
-          ')"
-          jq -e '
-            .data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage == false and
-            all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved)
-          ' <<<"${threads}" >/dev/null
+            ')"
+            if ! jq -e '
+              .data.repository.pullRequest.reviewThreads.pageInfo.hasNextPage == false and
+              all(.data.repository.pullRequest.reviewThreads.nodes[]; .isResolved)
+            ' <<<"${threads}" >/dev/null; then
+              echo "PR #${pr}: unresolved review threads remain; skipping."
+              continue
+            fi
 
-          checks="$(gh api --paginate --slurp \
-            -H 'Accept: application/vnd.github+json' \
-            "repos/${repo}/commits/${head}/check-runs?per_page=100")"
-          statuses="$(gh api -H 'Accept: application/vnd.github+json' \
-            "repos/${repo}/commits/${head}/status?per_page=100")"
-          while IFS= read -r required_check; do
-            # required-context-filter-begin
-            jq -e --argjson required_check "${required_check}" --argjson statuses "${statuses}" '
-              ([.[].check_runs[] |
-                select(.name == $required_check.context) |
-                select($required_check.integration_id == null or .app.id == $required_check.integration_id)] |
-                sort_by(.started_at, .id) |
-                last |
-                .conclusion == "success") or
-              ($required_check.integration_id == null and
-                ([$statuses.statuses[] | select(.context == $required_check.context)] |
-                  sort_by((.updated_at // .created_at // ""), .id) |
+            checks="$(gh api --paginate --slurp \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/${repo}/commits/${head}/check-runs?per_page=100")"
+            statuses="$(gh api --paginate --slurp \
+              -H 'Accept: application/vnd.github+json' \
+              "repos/${repo}/commits/${head}/statuses?per_page=100")"
+            contexts_ok=true
+            while IFS= read -r required_check; do
+              # required-context-filter-begin
+              if ! jq -e --argjson required_check "${required_check}" --argjson statuses "${statuses}" '
+                ($statuses | flatten) as $status_records |
+                ([.[].check_runs[] |
+                  select(.name == $required_check.context) |
+                  select($required_check.integration_id == null or .app.id == $required_check.integration_id)] |
+                  sort_by(.started_at, .id) |
                   last |
-                  .state == "success"))
-            ' <<<"${checks}" >/dev/null
-            # required-context-filter-end
-          done < <(jq -c '.[]' <<<"${required}")
+                  .conclusion == "success") or
+                ($required_check.integration_id == null and
+                  ([$status_records[] | select(.context == $required_check.context)] |
+                    sort_by((.updated_at // .created_at // ""), .id) |
+                    last |
+                    .state == "success"))
+              ' <<<"${checks}" >/dev/null; then
+                contexts_ok=false
+                echo "PR #${pr}: a required context is not successful; skipping."
+                break
+              fi
+              # required-context-filter-end
+            done < <(jq -c '.[]' <<<"${required}")
+            [[ "${contexts_ok}" == true ]] || continue
 
-          if [[ "${merge_state}" == "CLEAN" ]]; then
-            gh pr merge --squash --auto "${pr}" --repo "${repo}" \
-              --match-head-commit "${head}"
-            exit 0
-          fi
+            # merge-state-dispatch-begin
+            case "${merge_state}" in
+              CLEAN | HAS_HOOKS | UNSTABLE)
+                # UNSTABLE은 "mergeable하지만 필수가 아닌 check가 green이 아님"이다.
+                # required context는 위에서 ruleset 기준으로 이미 검증했으므로, ruleset이
+                # 필수로 두지 않은 check로 병합을 막지 않는다.
+                gh pr merge --squash --auto "${pr}" --repo "${repo}" \
+                  --match-head-commit "${head}"
+                echo "PR #${pr}: merge scheduled (${merge_state})."
+                exit 0
+                ;;
+              BEHIND)
+                if [[ "${head_repo}" != "${repo}" ]]; then
+                  echo "::warning::PR #${pr} uses a fork head; refusing base-repository CI dispatch."
+                  continue
+                fi
+                gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
+                  -f expected_head_sha="${head}" >/dev/null
+                # ponytail: bounded wait only; the API applies the base merge asynchronously.
+                for _ in {1..12}; do
+                  new_head="$(gh pr view "${pr}" --repo "${repo}" --json headRefOid --jq '.headRefOid')"
+                  [[ "${new_head}" != "${head}" ]] && break
+                  sleep 5
+                done
+                if [[ "${new_head}" == "${head}" ]]; then
+                  # update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. stale
+                  # ref로 CI를 쏘지 않고 다음 트리거에서 재시도한다. bare `[[ ]]`로 두면 bash
+                  # 5에서는 아무 메시지 없이 job이 죽고 bash 3.2에서는 그냥 통과한다.
+                  echo "PR #${pr}: base update has not landed yet; retrying on the next trigger."
+                  exit 0
+                fi
+                gh workflow run ci.yml --repo "${repo}" --ref "${head_ref}"
+                echo "PR #${pr}: base updated; CI dispatched."
+                exit 0
+                ;;
+              DIRTY)
+                # 충돌은 소유 세션이 rebase 해야 풀린다. GitHub이 PR에 충돌을 직접 표시하므로
+                # 실행을 실패시키지 않고 경고만 남긴 뒤 다음 후보로 넘어간다.
+                echo "::warning::PR #${pr} conflicts with the base branch; skipping until it is rebased."
+                continue
+                ;;
+              BLOCKED | UNKNOWN)
+                # UNKNOWN은 GitHub이 mergeability를 계산 중인 상태다. BLOCKED은 이 job이
+                # 검사하지 않는 네이티브 규칙(추가 승인 수·code owner 리뷰·필수 배포 승인)이
+                # 남아 있다는 뜻일 수 있다. 어느 쪽이든 이번 실행에서 할 수 있는 일이 없다.
+                # 이 후보가 뒤를 막지 않으므로 지속 여부를 타이머로 판정할 필요가 없다.
+                echo "PR #${pr}: not mergeable yet (${merge_state}); skipping."
+                continue
+                ;;
+              *)
+                # DRAFT는 위 검증에서 이미 걸러진다. 그 밖의 값은 GitHub이 enum을 늘렸다는
+                # 뜻이라 사람이 봐야 하지만, 실행을 실패시키면 큐 전체가 멈추므로 경고만 남긴다.
+                echo "::warning::PR #${pr} has an unrecognized merge state (${merge_state}); skipping."
+                continue
+                ;;
+            esac
+            # merge-state-dispatch-end
+          # candidate-window-begin
+          done < <(jq -r --argjson window "${window}" --argjson offset "${offset}" '
+            . as $all |
+            length as $total |
+            if $total == 0 then empty
+            else [range($offset; $offset + $window) | . % $total] | unique | map($all[.])[]
+            end
+          ' <<<"${candidates}")
+          # candidate-window-end
 
-          if [[ "${merge_state}" == "BEHIND" ]]; then
-            [[ "${head_repo}" == "${repo}" ]] || {
-              echo "PR #${pr} uses a fork head; refusing base-repository CI dispatch." >&2
-              exit 1
-            }
-            gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
-              -f expected_head_sha="${head}" >/dev/null
-            # ponytail: bounded wait only; the API applies the base merge asynchronously.
-            for _ in {1..12}; do
-              new_head="$(gh pr view "${pr}" --repo "${repo}" --json headRefOid --jq '.headRefOid')"
-              [[ "${new_head}" != "${head}" ]] && break
-              sleep 5
-            done
-            [[ "${new_head}" != "${head}" ]]
-            gh workflow run ci.yml --repo "${repo}" --ref "${head_ref}"
-            exit 0
-          fi
-
-          echo "PR #${pr} is not mergeable: ${merge_state}" >&2
-          exit 1
+          echo "No pull request in the automerge queue is ready to merge."
+          # queue-loop-end
