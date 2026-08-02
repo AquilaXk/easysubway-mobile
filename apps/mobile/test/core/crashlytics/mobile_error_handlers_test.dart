@@ -123,12 +123,15 @@ StackTrace _jitMemberCredentialStack(String secret) {
   );
 }
 
-/// 저엔트로피 민감값을 **member 위치**(좌표·쉼표 리스트)와 **host 위치**(URL)에
-/// 심은 stack. 3차 finding(member 문법 재구축·host redact) 검증용.
+/// 저엔트로피 민감값을 sanitizer가 원문을 유지하던 **모든 span**에 심은 stack.
+/// member(좌표·쉼표 리스트)·host(URL)·**AOT 심볼 꼬리**·**location query**까지
+/// 한 번에 흘려 3·4차 finding을 전송 경계에서 검증한다.
 StackTrace _lowEntropyStack(String value) {
   return StackTrace.fromString(
     '#0      $value (package:easysubway_mobile/main.dart:1:1)\n'
     'https://$value.example.com/photo\n'
+    '#1      main (package:easysubway_mobile/main.dart?token=$value:1:1)\n'
+    '#00 abs 000000724d3a3f9b virt 00000000002f4f9b sym_$value+0x1e2f9b\n'
     '<asynchronous suspension>',
   );
 }

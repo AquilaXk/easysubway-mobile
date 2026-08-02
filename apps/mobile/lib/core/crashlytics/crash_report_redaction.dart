@@ -532,14 +532,12 @@ String _sanitizeStackLine(String line) {
     return line;
   }
 
-  // AOT obfuscated frame: 주소 헤더(abs·virt)는 심볼리케이션에 필요하므로 보존하고,
-  // 인식되지 않은 심볼 꼬리는 잘라낸다. 헤더 자체가 매칭될 때만 통과한다.
+  // AOT obfuscated frame: 주소 헤더(abs·virt hex)만 재구축해 남기고, 심볼 꼬리
+  // (`_kDart…+0x…`)는 **항상** 폐기한다. Flutter 심볼리케이션은 심볼명이 아니라
+  // abs/virt 주소로 이뤄지므로 꼬리는 진단에 불필요하고, 그 자리에는 신고 토큰
+  // 같은 임의 식별자가 들어올 수 있다(R4#1). 검증 후 verbatim 유지하지 않는다.
   final aotHeader = _aotFrameHeaderPattern.matchAsPrefix(line);
   if (aotHeader != null) {
-    final tail = line.substring(aotHeader.end);
-    if (tail.isEmpty || _aotFrameSymbolPattern.hasMatch(tail)) {
-      return line;
-    }
     return line.substring(0, aotHeader.end);
   }
 
@@ -647,12 +645,6 @@ final RegExp _aotFrameHeaderPattern = RegExp(
   r'^#\d+\s+abs\s+[0-9a-fA-F]{1,20}(\s+virt\s+[0-9a-fA-F]{1,20})?',
 );
 
-// AOT frame 심볼 꼬리: ` _kDart…+0x<hex>` 형태만 허용(끝 앵커). 그 밖의 꼬리는
-// 헤더만 남기고 잘라낸다.
-final RegExp _aotFrameSymbolPattern = RegExp(
-  r'^\s+[A-Za-z0-9_$.]+\+0x[0-9a-fA-F]+$',
-);
-
 // 실제 Dart VM frame member 문법(allowlist 재구축). `(new )?`로 시작할 수 있고
 // 점으로 연결된 세그먼트다. 각 세그먼트는 식별자(+선택 generic)·generic/closure
 // 토큰·소수 operator 이름뿐이다. **좌표(숫자로 시작)·쉼표·공백·콜론·URL은 정상
@@ -668,18 +660,23 @@ const String _memberSegmentPattern =
 final String _memberChainSource =
     '(?:new )?$_memberSegmentPattern(?:\\.$_memberSegmentPattern)*';
 
-// JIT frame: 멤버는 위 문법으로 좁히고, 괄호 안 위치는 allowlist된 URI 접두로
-// 시작해 `)`로 끝나야 한다(끝 앵커).
+// frame location 문법: scheme 접두 + source path 문자 + `:line:col`뿐이다. 정상
+// Dart frame location은 query·fragment(`?`·`#`)·`=`·`&`를 담지 않으므로, path에
+// 그 문자를 배제해 `package:app/main.dart?token=…` 같은 query 주입이 구조적으로
+// 탈락한다(R4#2). `<>`는 이미 치환된 `<redacted-…>` 토큰용으로만 허용한다.
+const String _frameLocationPattern =
+    r'\((package:|dart:|file://|<redacted-path>|<redacted-host>|https?://)'
+    r'[A-Za-z0-9_/.<>\-]*(?::\d+){0,2}\)';
+
+// JIT frame: 멤버는 위 문법으로 좁히고, 괄호 안 위치는 location 문법으로 제한한다.
 final RegExp _jitFramePattern = RegExp(
-  '^#\\d+\\s+$_memberChainSource\\s+'
-  r'\((package:|dart:|file://|<redacted-path>|<redacted-host>|https?://)'
-  r'[^()\s]*\)$',
+  '^#\\d+\\s+$_memberChainSource\\s+$_frameLocationPattern\$',
 );
 
-// friendly frame(괄호 없는 `package:… line:col member` 형태): 멤버는 위 VM 문법과
-// 동일하게 좁힌다.
+// friendly frame(괄호 없는 `package:… line:col member` 형태): path도 source path
+// 문자로 좁혀 query 주입을 막고, 멤버는 위 VM 문법과 동일하게 좁힌다.
 final RegExp _friendlyFramePattern = RegExp(
-  r'^(package:|dart:|<redacted-path>)\S+\s+\d+(:\d+)?\s+'
+  r'^(package:|dart:|<redacted-path>)[A-Za-z0-9_/.<>\-]+\s+\d+(:\d+)?\s+'
   '$_memberChainSource\$',
 );
 

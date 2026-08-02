@@ -289,8 +289,8 @@ void main() {
         // dso_base는 Crashlytics 전송 대상이 아니라 폐기한다(비필수 헤더).
         '<redacted-frame>',
         'loading_unit: 1',
-        '    #00 abs 000000724d3a3f9b virt 00000000002f4f9b '
-            '_kDartIsolateSnapshotInstructions+0x1e2f9b',
+        // 심볼 꼬리(`_kDart…+0x…`)는 폐기하고 주소 헤더만 남는다(4차 finding).
+        '    #00 abs 000000724d3a3f9b virt 00000000002f4f9b',
       ]);
     });
 
@@ -360,16 +360,59 @@ void main() {
       });
     });
 
-    test('AOT 헤더는 보존하되 인식 못 한 심볼 꼬리는 잘라낸다', () {
-      // 주소(abs·virt)는 심볼리케이션에 필요하므로 남기고, 뒤에 붙은 임의
-      // 문자열은 버린다.
+    test('AOT frame은 주소 헤더(abs·virt hex)만 남기고 심볼 꼬리는 항상 폐기한다(4차 finding)', () {
+      // Flutter 심볼리케이션은 심볼명이 아니라 abs/virt 주소로 이뤄진다. 심볼
+      // 꼬리는 신고 토큰 같은 임의 식별자를 담을 수 있으므로 정상 심볼이든
+      // 아니든 항상 버리고 주소 헤더만 재구축해 남긴다.
+      const header = '#00 abs 000000724d3a3f9b virt 00000000002f4f9b';
+      // 정상 심볼 꼬리도 폐기된다.
       expect(
         sanitizeStackTraceText(
-          '#00 abs 000000724d3a3f9b virt 00000000002f4f9b '
-          'Authorization: Bearer SYNTHETICtoken12345',
+          '$header _kDartIsolateSnapshotInstructions+0x1e2f9b',
         ),
-        '#00 abs 000000724d3a3f9b virt 00000000002f4f9b',
+        header,
       );
+      // 신고 토큰을 심볼 위치에 심어도 새지 않는다(R4#1 재현·차단).
+      final tokenTail = sanitizeStackTraceText(
+        '$header rrt_SYNTHETIC_4f8c9b21ae7d43f0+0x1e2f9b',
+      );
+      expect(tokenTail, header);
+      expect(tokenTail, isNot(contains('SYNTHETIC')));
+      // 꼬리가 없는 정상 헤더는 그대로.
+      expect(sanitizeStackTraceText(header), header);
+    });
+
+    test('frame location의 query·fragment에 박힌 식별자는 통과하지 못한다(4차 finding R4#2)', () {
+      final lines = <String, String>{
+        'jit_query':
+            '#0      main '
+            '(package:easysubway_mobile/main.dart?token=RPT-2026-000123-SYNTHETIC:1:1)',
+        'jit_fragment':
+            '#0      main '
+            '(package:easysubway_mobile/main.dart#RPT-2026-000123-SYNTHETIC:1:1)',
+        'friendly_query':
+            'package:easysubway_mobile/main.dart?token=RPT-2026-000123-SYNTHETIC '
+            '20:5 main',
+      };
+      lines.forEach((name, line) {
+        final out = sanitizeStackTraceText(line);
+        expect(out, isNot(contains('RPT-2026')), reason: name);
+        expect(out, isNot(contains('SYNTHETIC')), reason: name);
+        expect(out, isNot(contains('token=')), reason: name);
+      });
+    });
+
+    test('정상 package·dart·file location과 friendly frame은 그대로 보존한다(네거티브)', () {
+      for (final line in <String>[
+        '#0      main (package:easysubway_mobile/main.dart:12:3)',
+        '#1      _rootRun (dart:async/zone.dart:1354:13)',
+        '#2      main.<anonymous closure> '
+            '(package:easysubway_mobile/network_map.dart:20:5)',
+        'package:easysubway_mobile/main.dart 20:5 main',
+        'dart:async/zone.dart 1354:13 _rootRun',
+      ]) {
+        expect(sanitizeStackTraceText(line), line, reason: line);
+      }
     });
 
     test('append 없는 정상 frame·필수 헤더는 그대로 보존한다', () {
