@@ -563,8 +563,31 @@ String _sanitizeStackLine(String line) {
   return redactedStackFrameToken;
 }
 
+/// JIT/friendly frame 라인의 비밀 판정 — 세그먼트 단위(R5#1).
+///
+/// 비밀 패턴 3종은 전부 `^…$` anchored라, 공백 토큰만 보면 `(`·`)`·`:`·`/`
+/// wrapper가 붙은 채 검사돼 **유효한 frame 문법의 location path·member에 박힌
+/// 자격증명**(`package:app/AKIA….dart`)을 놓친다. 그래서 3단계로 판정한다:
+/// ① 공백 토큰 전체(붙은 base64 blob 등) → ② frame 구조 delimiter
+/// (`()`·`<>`·`:`·`/`)로 나눈 세그먼트(dotted-token `ya29.…`·JWT는 점을 유지해야
+/// 잡히므로 여기서 점은 안 나눈다) → ③ 점 하위 토큰(hex·base64·prefix 패턴은
+/// 무점이라 `AKIA….dart`처럼 확장자가 붙으면 ②로도 안 걸린다).
 bool _lineHasSecretToken(String line) {
-  return line.split(_tokenSeparatorPattern).any(looksLikeSecretToken);
+  return line.split(_tokenSeparatorPattern).any(_tokenHasSecretToken);
+}
+
+bool _tokenHasSecretToken(String token) {
+  if (looksLikeSecretToken(token)) {
+    return true;
+  }
+  return token.split(_frameDelimiterPattern).any(_segmentHasSecretToken);
+}
+
+bool _segmentHasSecretToken(String segment) {
+  if (looksLikeSecretToken(segment)) {
+    return true;
+  }
+  return segment.split('.').any(looksLikeSecretToken);
 }
 
 int _firstIndexOfAny(String value, List<String> needles) {
@@ -638,6 +661,9 @@ final RegExp _hasDigit = RegExp(r'[0-9]');
 final RegExp _hasLetter = RegExp(r'[A-Za-z]');
 
 final RegExp _tokenSeparatorPattern = RegExp(r'[\s,]+');
+
+// frame 구조 delimiter. 점(.)은 dotted-token·JWT 판정을 위해 제외한다(R5#1).
+final RegExp _frameDelimiterPattern = RegExp(r'[()<>:/]+');
 
 // AOT obfuscated frame 헤더: `#00 abs <hex> [virt <hex>]`. `$`로 끝을 못 박지
 // 않는다(꼬리는 심볼로 별도 검증). matchAsPrefix로 헤더 길이를 잰다.

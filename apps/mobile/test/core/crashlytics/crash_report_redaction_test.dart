@@ -402,6 +402,35 @@ void main() {
       });
     });
 
+    test(
+      '유효한 frame 문법의 path·member 세그먼트에 박힌 자격증명은 통과하지 못한다(5차 finding R5#1)',
+      () {
+        // 비밀 패턴 3종은 anchored라 `(`·`)`·`:`·`/` wrapper가 붙은 공백 토큰으로는
+        // 안 걸린다. frame delimiter·점 하위 토큰 단위 판정을 검증한다.
+        final lines = <String, String>{
+          // AWS 공식 문서의 예시 access key — 실키 아님.
+          'jit_location_oauth':
+              '#0      main '
+              '(package:easysubway_mobile/AKIAIOSFODNN7EXAMPLE.dart:1:1)',
+          'jit_location_hex':
+              '#0      main '
+              '(package:easysubway_mobile/4f8c9b21ae7d43f0a1b2.dart:1:1)',
+          'friendly_location':
+              'package:easysubway_mobile/AKIAIOSFODNN7EXAMPLE.dart 20:5 main',
+          'member_chain_hex':
+              '#0      deadbeefcafebabe1234.run '
+              '(package:easysubway_mobile/main.dart:1:1)',
+        };
+        lines.forEach((name, line) {
+          expect(
+            sanitizeStackTraceText(line),
+            redactedStackFrameToken,
+            reason: name,
+          );
+        });
+      },
+    );
+
     test('정상 package·dart·file location과 friendly frame은 그대로 보존한다(네거티브)', () {
       for (final line in <String>[
         '#0      main (package:easysubway_mobile/main.dart:12:3)',
