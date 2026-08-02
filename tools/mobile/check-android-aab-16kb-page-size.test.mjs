@@ -37,10 +37,37 @@ printf '%s\\n' '{"compression": {}}' > "$output"
 
   await assert.rejects(
     execFileAsync(gate, ["--aab", aab, "--android-project", androidProject, "--artifact-dir", evidence]),
-    (error) => error.code === 1,
+    (error) => error.code === 1 && /missing native-library alignment PAGE_ALIGNMENT_16K/.test(error.stderr),
   );
   assert.match(await readFile(path.join(evidence, "summary.txt"), "utf8"), /missing_PAGE_ALIGNMENT_16K_native_library_alignment/);
   assert.equal(await readFile(path.join(evidence, "bundle-config.txt"), "utf8"), '{"compression": {}}\n');
+});
+
+test("accepts minified 16KB alignment config before native library inspection", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "android-16kb-aab-gate-"));
+  const aab = path.join(fixture, "app.aab");
+  const androidProject = path.join(fixture, "android");
+  const gradlew = path.join(androidProject, "gradlew");
+  const evidence = path.join(fixture, "evidence");
+  await writeFile(aab, "fixture");
+  await mkdir(androidProject, { recursive: true });
+  await writeFile(
+    gradlew,
+    `#!/usr/bin/env bash
+set -euo pipefail
+[[ "$1" == "-p" && "$3" == ":app:dumpAndroidBundleConfig" && "$5" == -Pandroid16kbBundleConfig=* ]] || exit 2
+output="\${5#-Pandroid16kbBundleConfig=}"
+mkdir -p "$(dirname "$output")"
+printf '%s\\n' '{"nativeLibraries":{"alignment":"PAGE_ALIGNMENT_16K"}}' > "$output"
+`,
+  );
+  await chmod(gradlew, 0o755);
+
+  await assert.rejects(
+    execFileAsync(gate, ["--aab", aab, "--android-project", androidProject, "--artifact-dir", evidence]),
+    (error) => error.code === 1 && /No native libraries found/.test(error.stderr),
+  );
+  assert.match(await readFile(path.join(evidence, "bundle-config.txt"), "utf8"), /"alignment":"PAGE_ALIGNMENT_16K"/);
 });
 
 test("pins AGP-loaded bundletool and orders config inspection before hashing", async () => {

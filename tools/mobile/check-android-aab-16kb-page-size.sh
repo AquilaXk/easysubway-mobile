@@ -55,7 +55,7 @@ if [[ ! -s "$EVIDENCE_BUNDLE_CONFIG" ]]; then
   echo "bundletool config not generated or empty: $EVIDENCE_BUNDLE_CONFIG" >&2
   exit 2
 fi
-if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$EVIDENCE_BUNDLE_CONFIG"; then
+if ! grep -Eq '"alignment"[[:space:]]*:[[:space:]]*"PAGE_ALIGNMENT_16K"' "$EVIDENCE_BUNDLE_CONFIG"; then
   {
     echo "android_16kb_aab_page_size_check"
     echo "aab=$AAB"
@@ -64,6 +64,7 @@ if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$EVIDENCE_BUNDLE_CONFIG"; then
     echo "result=fail"
     echo "reason=missing_PAGE_ALIGNMENT_16K_native_library_alignment"
   } > "$ARTIFACT_DIR/summary.txt"
+  echo "bundletool config is missing native-library alignment PAGE_ALIGNMENT_16K" >&2
   exit 1
 fi
 zipinfo -1 "$AAB" | grep -E '(^|/)lib/[^/]+/[^/]+\.so$' > "$ARTIFACT_DIR/native-libraries.txt" || true
