@@ -489,6 +489,36 @@ void main() {
     test('null stack은 빈 trace로 접는다', () {
       expect(sanitizeStackTrace(null).toString(), StackTrace.empty.toString());
     });
+
+    test(
+      'toString()이 throw하는 custom StackTrace는 빈 trace로 접는다(6차 finding R6#3)',
+      () {
+        expect(
+          sanitizeStackTrace(_ThrowingStackTrace()).toString(),
+          StackTrace.empty.toString(),
+        );
+      },
+    );
+
+    test('원시 라인 길이를 정규식 매칭 전에 캡한다(6차 finding R6#2)', () {
+      // 캡을 넘는 거대 단일 라인은 캡 지점에서 잘려 shape 문법이 깨지므로
+      // fail closed(<redacted-frame>)된다. 원문 길이 그대로 redaction 정규식에
+      // 들어가 통과하면 안 된다.
+      final hugeLine =
+          '#0      main '
+          '(package:easysubway_mobile/${'a/' * 2000}main.dart:1:1)';
+      expect(sanitizeStackTraceText(hugeLine), redactedStackFrameToken);
+
+      // 라인 수 한도 밖 대량 입력도 상한대로 접힌다.
+      final manyLines = List<String>.generate(
+        10000,
+        (index) =>
+            '#$index      main (package:easysubway_mobile/main.dart:1:1)',
+      ).join('\n');
+      final lines = sanitizeStackTraceText(manyLines).split('\n');
+      expect(lines, hasLength(maxSanitizedStackLines + 1));
+      expect(lines.last, truncatedStackFramesToken);
+    });
   });
 
   group('custom key allowlist', () {
@@ -581,4 +611,10 @@ void main() {
       expect(sanitizeCrashCustomKeyValue('device_class', 'pixel8pro'), isNull);
     });
   });
+}
+
+/// `toString()`이 동기 throw하는 custom StackTrace(R6#3 재현용).
+class _ThrowingStackTrace implements StackTrace {
+  @override
+  String toString() => throw StateError('hostile toString');
 }

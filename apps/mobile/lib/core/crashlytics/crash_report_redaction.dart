@@ -46,6 +46,11 @@ const int maxSanitizedStackLines = 96;
 /// 240자는 긴 제네릭 멤버명을 살리면서, 라인 안에 끼어든 비정상 blob을 잘라낸다.
 const int maxSanitizedStackLineLength = 240;
 
+/// redaction 정규식에 넣기 전에 적용하는 원시 stack 라인 길이 캡(R6#2).
+/// 출력 상한(240)보다 넉넉해 정상 긴 frame의 truncation 경로는 유지하되,
+/// 거대 단일 라인이 원문 길이 그대로 정규식을 통과하는 것을 막는다.
+const int _maxRawStackLineLength = 1024;
+
 /// 예외 타입 토큰 상한. Dart 타입명은 이 길이를 넘지 않는다.
 const int maxCrashTypeTokenLength = 64;
 
@@ -290,15 +295,37 @@ StackTrace sanitizeStackTrace(StackTrace? stackTrace) {
   if (stackTrace == null) {
     return StackTrace.empty;
   }
-  return StackTrace.fromString(sanitizeStackTraceText(stackTrace.toString()));
+  final String raw;
+  try {
+    raw = stackTrace.toString();
+  } catch (_) {
+    // custom StackTrace의 toString()이 동기 throw하면 전역 handler가 기록
+    // Future를 받기도 전에 죽는다(R6#3). 원문 확보 실패는 빈 trace로 fail
+    // closed — 예외 원문은 어차피 전송하지 않는다.
+    return StackTrace.empty;
+  }
+  return StackTrace.fromString(sanitizeStackTraceText(raw));
 }
 
 /// stack trace 원문 텍스트 정규화(라인 단위).
+///
+/// 전체 입력을 라인 배열로 materialize하지 않고 라인 한도까지만 앞에서부터
+/// 순회하며, 각 원시 라인은 redaction 정규식에 넣기 전에 길이를 캡한다(R6#2).
+/// 캡을 넘겨 잘린 라인은 shape 문법에서 탈락해 fail closed된다.
 String sanitizeStackTraceText(String text) {
-  final lines = text.split('\n');
   final sanitized = <String>[];
-  for (final line in lines) {
-    final trimmed = line.trimRight();
+  var index = 0;
+  while (index < text.length) {
+    var newline = text.indexOf('\n', index);
+    if (newline < 0) {
+      newline = text.length;
+    }
+    final cappedEnd = newline - index > _maxRawStackLineLength
+        ? index + _maxRawStackLineLength
+        : newline;
+    final rawLine = text.substring(index, cappedEnd);
+    index = newline + 1;
+    final trimmed = rawLine.trimRight();
     if (trimmed.trim().isEmpty) {
       continue;
     }

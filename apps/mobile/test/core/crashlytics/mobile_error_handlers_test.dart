@@ -584,4 +584,49 @@ void main() {
       expectPayloadIsAllowlisted(gateway.payloadText, reason: label);
     }
   });
+
+  test('toString()이 동기 throw하는 custom StackTrace로도 전역 handler가 살아남는다'
+      '(6차 finding R6#3)', () async {
+    final gateway = _RecordingCrashlytics();
+    replaceCrashlyticsGatewayForTest(gateway);
+    installMobileErrorHandlers();
+
+    final originalPresent = FlutterError.presentError;
+    FlutterError.presentError = (_) {};
+    addTearDown(() {
+      FlutterError.presentError = originalPresent;
+    });
+
+    // sanitize가 stack.toString()을 동기 호출하므로, throw가 새면 handler가
+    // Future를 받기도 전에 죽는다. 4경로 전부 동기 예외 없이 기록돼야 한다.
+    FlutterError.onError!(
+      FlutterErrorDetails(
+        exception: StateError('boom'),
+        stack: _ThrowingStackTrace(),
+      ),
+    );
+    PlatformDispatcher.instance.onError!(
+      StateError('boom'),
+      _ThrowingStackTrace(),
+    );
+    await recordFatalError(
+      StateError('boom'),
+      _ThrowingStackTrace(),
+      subsystem: CrashSubsystem.appReport,
+    );
+    await recordNonFatalError(StateError('boom'), _ThrowingStackTrace());
+    await pumpEventQueue();
+
+    expect(gateway.flutterFatals, hasLength(1));
+    expect(gateway.errors, hasLength(3));
+    expect(gateway.fatalFlags, <bool>[true, true, true, false]);
+    expect(gateway.payloadText, isNot(contains('hostile')));
+    expectPayloadIsAllowlisted(gateway.payloadText, reason: 'R6#3');
+  });
+}
+
+/// `toString()`이 동기 throw하는 custom StackTrace(R6#3 재현용).
+class _ThrowingStackTrace implements StackTrace {
+  @override
+  String toString() => throw StateError('hostile toString');
 }
