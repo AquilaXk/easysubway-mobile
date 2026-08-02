@@ -469,13 +469,15 @@ String _redactUriMatch(Match match) {
 }
 
 String _sanitizeAuthority(String authority) {
-  final atIndex = authority.lastIndexOf('@');
-  final host = atIndex < 0 ? authority : authority.substring(atIndex + 1);
-  final prefix = atIndex < 0 ? '' : '$_redactedUserInfoToken@';
-  if (host.isEmpty || !_hostPattern.hasMatch(host)) {
-    return '$prefix$_redactedHostToken';
-  }
-  return '$prefix$host';
+  // host는 항상 제거한다. crash 심볼리케이션은 stack frame 주소·build_id로
+  // 이뤄지고 URL host는 진단에 필요하지 않다. 반대로 host에는 신고 식별자가
+  // subdomain으로 박히거나(예: RPT-…-…​.example.com) signed URL·오브젝트
+  // 스토리지 host(이 PR denylist 대상)가 남을 수 있어, 문자 형태만 검증하고
+  // verbatim 통과시키면 저엔트로피 식별자가 새어 나간다. userinfo 존재 여부만
+  // 표식으로 남긴다.
+  final hasUserInfo = authority.contains('@');
+  final prefix = hasUserInfo ? '$_redactedUserInfoToken@' : '';
+  return '$prefix$_redactedHostToken';
 }
 
 String _normalizePathWithLocation(String value) {
@@ -607,8 +609,6 @@ final RegExp _windowsPathPattern = RegExp(
 
 final RegExp _locationSuffixPattern = RegExp(r'(:\d+)+$');
 
-final RegExp _hostPattern = RegExp(r'^[A-Za-z0-9._\-\[\]:]{1,64}$');
-
 final RegExp _typeTokenPattern = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$');
 
 final RegExp _asciiOnlyPattern = RegExp(r'^[\x20-\x7E]*$');
@@ -653,21 +653,34 @@ final RegExp _aotFrameSymbolPattern = RegExp(
   r'^\s+[A-Za-z0-9_$.]+\+0x[0-9a-fA-F]+$',
 );
 
-// JIT frame: 멤버 뒤 괄호 안 위치가 allowlist된 URI 접두로 시작하고 `)`로 끝나야
-// 한다(끝 앵커). `#2 request (…) Bearer …` 같은 접미 주입은 `)$`에서 걸린다.
+// 실제 Dart VM frame member 문법(allowlist 재구축). `(new )?`로 시작할 수 있고
+// 점으로 연결된 세그먼트다. 각 세그먼트는 식별자(+선택 generic)·generic/closure
+// 토큰·소수 operator 이름뿐이다. **좌표(숫자로 시작)·쉼표·공백·콜론·URL은 정상
+// member에 없으므로** member 위치에 넣어도 이 문법에서 구조적으로 탈락한다.
+// 검증만 하고 원본을 forward하지 않고, 이 문법에 맞는 라인만 통과시킨다.
+const String _memberSegmentPattern =
+    r'(?:'
+    r'[A-Za-z_$][A-Za-z0-9_$]*(?:<[A-Za-z0-9_$,<> ]{0,80}>)?'
+    r'|<[A-Za-z0-9_$,<> ]{0,80}>'
+    r'|==|\[\]=?|unary-'
+    r')';
+
+final String _memberChainSource =
+    '(?:new )?$_memberSegmentPattern(?:\\.$_memberSegmentPattern)*';
+
+// JIT frame: 멤버는 위 문법으로 좁히고, 괄호 안 위치는 allowlist된 URI 접두로
+// 시작해 `)`로 끝나야 한다(끝 앵커).
 final RegExp _jitFramePattern = RegExp(
-  r'^#\d+\s+[^()]{0,160}'
+  '^#\\d+\\s+$_memberChainSource\\s+'
   r'\((package:|dart:|file://|<redacted-path>|<redacted-host>|https?://)'
   r'[^()\s]*\)$',
 );
 
-// friendly frame(괄호 없는 `package:… line:col member` 형태): 멤버는 dot 연결된
-// Dart 식별자와 `<anonymous closure>` 류 bracket 토큰뿐이다. **bracket 밖 공백을
-// 허용하지 않아** `main Bearer …`·`main IMG_…jpg` 같은 접미 주입이 끝 앵커에서
-// 걸린다. secret-token 판정과 이중으로 막는다.
+// friendly frame(괄호 없는 `package:… line:col member` 형태): 멤버는 위 VM 문법과
+// 동일하게 좁힌다.
 final RegExp _friendlyFramePattern = RegExp(
   r'^(package:|dart:|<redacted-path>)\S+\s+\d+(:\d+)?\s+'
-  r'(?:[A-Za-z0-9_$.]|<[a-z ]+>){1,120}$',
+  '$_memberChainSource\$',
 );
 
 // 심볼리케이션 필수 VM 헤더 추출기. 검증된 토큰까지만 남기고 접미는 버린다.

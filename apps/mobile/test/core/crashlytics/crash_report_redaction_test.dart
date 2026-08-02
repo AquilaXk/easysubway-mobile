@@ -153,31 +153,47 @@ void main() {
   });
 
   group('URL redaction', () {
-    test('signed URL의 path와 query를 제거한다', () {
+    test('signed URL의 host·path·query를 모두 제거한다', () {
       const url =
           'https://storage.example.com/easysubway-reports/RPT-SYNTHETIC.jpg'
           '?X-Amz-Signature=synthetic0123456789abcdef&X-Amz-Expires=900';
       expect(
         redactSensitiveText(url),
-        'https://storage.example.com/<redacted-path>?<redacted-query>',
+        'https://<redacted-host>/<redacted-path>?<redacted-query>',
       );
     });
 
-    test('userinfo를 제거하고 host만 남긴다', () {
+    test('userinfo와 host를 모두 제거한다', () {
       expect(
         redactSensitiveText('https://admin:s3cret@api.example.com/v1/reports'),
-        'https://<redacted-userinfo>@api.example.com/<redacted-path>',
+        'https://<redacted-userinfo>@<redacted-host>/<redacted-path>',
+      );
+    });
+
+    test('host에 박힌 신고 식별자는 host 통째 redact로 제거된다(3차 finding)', () {
+      // host 문자 형태만 검증하던 이전 구현은 subdomain에 박힌 식별자를 흘렸다.
+      expect(
+        redactSensitiveText(
+          'https://RPT-2026-000123-SYNTHETIC.example.com/photo',
+        ),
+        'https://<redacted-host>/<redacted-path>',
+      );
+      expect(
+        redactSensitiveText(
+          'https://RPT-2026-000123-SYNTHETIC.example.com/photo',
+        ),
+        isNot(contains('SYNTHETIC')),
       );
     });
 
     test('host만 있는 URL과 비-http scheme도 동일 규칙을 받는다', () {
       expect(
         redactSensitiveText('https://api.example.com'),
-        'https://api.example.com',
+        'https://<redacted-host>',
       );
       expect(
         redactSensitiveText('gs://easysubway-bucket/2026/08/photo.jpg?sig=abc'),
-        'gs://easysubway-bucket/<redacted-path>?<redacted-query>',
+        'gs://<redacted-host>/<redacted-path>?<redacted-query>',
       );
     });
 
@@ -319,6 +335,29 @@ void main() {
         expect(out, isNot(contains('eyJ')), reason: line);
         expect(out, isNot(contains('SYNTHETIC')), reason: line);
       }
+    });
+
+    test('JIT member 위치의 저엔트로피 민감값(좌표·쉼표 리스트·URL)은 통과하지 못한다(3차 finding)', () {
+      // 정밀 좌표·쉼표 리스트·URL은 정상 Dart member 문법이 아니므로 member를
+      // 재구축하는 순간 구조적으로 탈락한다(detector에 기대지 않는다).
+      final lines = <String, String>{
+        'coordinate':
+            '#0      37.5665123,126.9779456 '
+            '(package:easysubway_mobile/main.dart:1:1)',
+        'comma_list':
+            '#0      37.5665123,building5,gangnam '
+            '(package:easysubway_mobile/main.dart:1:1)',
+        'url_in_member':
+            '#0      https://storage.example.com/RPT-SYNTHETIC.jpg '
+            '(package:easysubway_mobile/main.dart:1:1)',
+      };
+      lines.forEach((name, line) {
+        final out = sanitizeStackTraceText(line);
+        expect(out, isNot(contains('37.5665123')), reason: name);
+        expect(out, isNot(contains('126.9779456')), reason: name);
+        expect(out, isNot(contains('SYNTHETIC')), reason: name);
+        expect(out, isNot(contains('storage.example.com')), reason: name);
+      });
     });
 
     test('AOT 헤더는 보존하되 인식 못 한 심볼 꼬리는 잘라낸다', () {

@@ -123,6 +123,16 @@ StackTrace _jitMemberCredentialStack(String secret) {
   );
 }
 
+/// 저엔트로피 민감값을 **member 위치**(좌표·쉼표 리스트)와 **host 위치**(URL)에
+/// 심은 stack. 3차 finding(member 문법 재구축·host redact) 검증용.
+StackTrace _lowEntropyStack(String value) {
+  return StackTrace.fromString(
+    '#0      $value (package:easysubway_mobile/main.dart:1:1)\n'
+    'https://$value.example.com/photo\n'
+    '<asynchronous suspension>',
+  );
+}
+
 final RegExp _sanitizedMessagePattern = RegExp(
   r'^easysubway-crash code=[A-Z_]+ subsystem=[a-z\-]+ '
   r'type=[A-Za-z_$][A-Za-z0-9_$]* fatal=(true|false)'
@@ -492,6 +502,62 @@ void main() {
       );
       expect(gateway.payloadText, isNot(contains('ya29')), reason: label);
       expect(gateway.payloadText, isNot(contains('eyJ')), reason: label);
+      expectPayloadIsAllowlisted(gateway.payloadText, reason: label);
+    }
+  });
+
+  test('저엔트로피 민감값(좌표·쉼표 리스트)을 member·host에 심어 4경로로 보내도 '
+      'payload match 0 (3차 finding)', () async {
+    final samples = <String, String>{
+      // 실좌표 아님 — 합성 더미.
+      'coordinate': '37.5665123,126.9779456',
+      'comma_list': '37.5665123,building5,gangnam',
+      'identifier': 'RPT-2026-000123-SYNTHETIC',
+    };
+
+    final originalPresent = FlutterError.presentError;
+    FlutterError.presentError = (_) {};
+    addTearDown(() {
+      FlutterError.presentError = originalPresent;
+    });
+
+    for (final entry in samples.entries) {
+      final gateway = _RecordingCrashlytics();
+      replaceCrashlyticsGatewayForTest(gateway);
+      installMobileErrorHandlers();
+      final value = entry.value;
+      final label = entry.key;
+
+      FlutterError.onError!(
+        FlutterErrorDetails(
+          exception: StateError('boom'),
+          stack: _lowEntropyStack(value),
+        ),
+      );
+      PlatformDispatcher.instance.onError!(
+        StateError('boom'),
+        _lowEntropyStack(value),
+      );
+      await recordFatalError(
+        StateError('boom'),
+        _lowEntropyStack(value),
+        subsystem: CrashSubsystem.appReport,
+      );
+      await recordNonFatalError(StateError('boom'), _lowEntropyStack(value));
+      await pumpEventQueue();
+
+      expect(gateway.payloadText.trim(), isNotEmpty, reason: label);
+      expect(
+        gateway.payloadText,
+        isNot(contains(value)),
+        reason: '저엔트로피 민감값이 member/host에서 샜습니다: $label',
+      );
+      expect(gateway.payloadText, isNot(contains('SYNTHETIC')), reason: label);
+      expect(
+        gateway.payloadText,
+        isNot(contains('example.com')),
+        reason: label,
+      );
       expectPayloadIsAllowlisted(gateway.payloadText, reason: label);
     }
   });
