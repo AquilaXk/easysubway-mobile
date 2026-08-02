@@ -41,7 +41,32 @@ fi
 
 BUNDLETOOL="${BUNDLETOOL:-$(command -v bundletool || true)}"
 if [[ -n "$BUNDLETOOL" && "$BUNDLETOOL" == *.jar && -f "$BUNDLETOOL" ]]; then
-  BUNDLETOOL_COMMAND=(java -jar "$BUNDLETOOL")
+  GRADLE_CACHE="${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1"
+  CLASS_PATH="$(unzip -p "$BUNDLETOOL" META-INF/MANIFEST.MF | awk '
+    { sub(/\r$/, "") }
+    /^Class-Path: / { value = substr($0, 13); reading = 1; next }
+    reading && /^ / { value = value substr($0, 2); next }
+    reading { print value; printed = 1; exit }
+    END { if (reading && !printed) print value }
+  ')"
+  if [[ -z "$CLASS_PATH" ]]; then
+    echo "bundletool JAR Class-Path is missing: $BUNDLETOOL" >&2
+    exit 2
+  fi
+  BUNDLETOOL_CLASS_PATH="$BUNDLETOOL"
+  for dependency in $CLASS_PATH; do
+    if [[ "$dependency" == */* ]]; then
+      echo "bundletool JAR Class-Path entry is not a filename: $dependency" >&2
+      exit 2
+    fi
+    resolved="$(find "$GRADLE_CACHE" -type f -name "$dependency" -print -quit 2>/dev/null)"
+    if [[ -z "$resolved" ]]; then
+      echo "bundletool JAR Class-Path dependency not found: $dependency" >&2
+      exit 2
+    fi
+    BUNDLETOOL_CLASS_PATH+=":$resolved"
+  done
+  BUNDLETOOL_COMMAND=(java -cp "$BUNDLETOOL_CLASS_PATH" com.android.tools.build.bundletool.BundleToolMain)
 elif [[ -n "$BUNDLETOOL" && -x "$BUNDLETOOL" ]]; then
   BUNDLETOOL_COMMAND=("$BUNDLETOOL")
 else

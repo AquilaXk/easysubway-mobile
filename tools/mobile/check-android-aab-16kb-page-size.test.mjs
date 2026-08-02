@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmod, mkdtemp, readFile, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,14 +15,26 @@ const gate = path.join(here, "check-android-aab-16kb-page-size.sh");
 test("rejects an AAB whose bundle config lacks 16KB alignment", async () => {
   const fixture = await mkdtemp(path.join(tmpdir(), "android-16kb-aab-gate-"));
   const aab = path.join(fixture, "app.aab");
-  const bundletool = path.join(fixture, "bundletool.jar");
+  const gradleCache = path.join(fixture, "gradle", "caches", "modules-2", "files-2.1");
+  const bundletool = path.join(fixture, "bundletool-1.18.3.jar");
+  const manifestRoot = path.join(fixture, "manifest");
   const java = path.join(fixture, "java");
   const evidence = path.join(fixture, "evidence");
   await writeFile(aab, "fixture");
-  await writeFile(bundletool, "fixture");
+  await mkdir(path.join(manifestRoot, "META-INF"), { recursive: true });
+  await writeFile(
+    path.join(manifestRoot, "META-INF", "MANIFEST.MF"),
+    "Manifest-Version: 1.0\r\nClass-Path: dependency-one.jar \r\n dependency-two.jar\r\n\r\n",
+  );
+  await execFileAsync("zip", ["-q", "-r", bundletool, "META-INF"], { cwd: manifestRoot });
+  for (const dependency of ["dependency-one.jar", "dependency-two.jar"]) {
+    const dependencyPath = path.join(gradleCache, "fixture", dependency);
+    await mkdir(path.dirname(dependencyPath), { recursive: true });
+    await writeFile(dependencyPath, "fixture");
+  }
   await writeFile(
     java,
-    '#!/usr/bin/env bash\n[[ "$1" == -jar && "$3" == dump && "$4" == config ]] || exit 2\nprintf "%s\\n" "{\\"compression\\": {}}"\n',
+    '#!/usr/bin/env bash\n[[ "$1" == -cp && "$3" == com.android.tools.build.bundletool.BundleToolMain && "$4" == dump && "$5" == config && "$2" == *dependency-one.jar* && "$2" == *dependency-two.jar* ]] || exit 2\nprintf "%s\\n" "{\\"compression\\": {}}"\n',
   );
   await chmod(java, 0o755);
 
@@ -30,7 +42,7 @@ test("rejects an AAB whose bundle config lacks 16KB alignment", async () => {
     execFileAsync(
       gate,
       ["--aab", aab, "--artifact-dir", evidence, "--bundletool", bundletool],
-      { env: { ...process.env, PATH: `${fixture}:${process.env.PATH}` } },
+      { env: { ...process.env, GRADLE_USER_HOME: path.join(fixture, "gradle"), PATH: `${fixture}:${process.env.PATH}` } },
     ),
     (error) => error.code === 1,
   );
@@ -47,6 +59,6 @@ test("runs the 16KB AAB gate before accepting the artifact hash", async () => {
     assert.ok(gateInvocation > build, `${workflow} runs the 16KB gate after the AAB build`);
     assert.ok(gateInvocation < hash, `${workflow} runs the 16KB gate before accepting the AAB hash`);
     assert.ok(text.indexOf("command -v bundletool") > build, `${workflow} prefers an installed bundletool executable`);
-    assert.ok(text.indexOf('java -jar "$candidate" version') > build, `${workflow} probes a runnable bundletool JAR`);
+    assert.ok(text.indexOf("bundletool/1.18.3") > build, `${workflow} selects only AGP 9.0.1's bundletool 1.18.3 artifact`);
   }
 });

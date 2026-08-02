@@ -59,15 +59,10 @@ jobs:
           flutter build appbundle --release "${defines[@]}"
           bundletool="$(command -v bundletool || true)"
           if [[ -z "$bundletool" ]]; then
-            while IFS= read -r candidate; do
-              if java -jar "$candidate" version >/dev/null 2>&1; then
-                bundletool="$candidate"
-                break
-              fi
-            done < <(find "$HOME/.gradle/caches/modules-2/files-2.1/com.android.tools.build/bundletool" -type f -name '*.jar' -print 2>/dev/null)
+            bundletool="$(find "${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/com.android.tools.build/bundletool/1.18.3" -type f -name bundletool-1.18.3.jar -print -quit 2>/dev/null)"
           fi
           if [[ -z "$bundletool" ]]; then
-            echo "Runnable installed or Gradle-downloaded bundletool not found after AAB build." >&2
+            echo "Installed or AGP 9.0.1 bundletool 1.18.3 not found after AAB build." >&2
             exit 1
           fi
           ../../tools/mobile/check-android-aab-16kb-page-size.sh \
