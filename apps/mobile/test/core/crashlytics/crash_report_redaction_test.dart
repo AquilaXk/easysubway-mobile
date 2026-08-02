@@ -105,7 +105,7 @@ void main() {
 
     test('message 길이 상한을 넘지 않는다', () {
       final report = sanitizeCrashReport(
-        StateError('x' * 100000),
+        StateError(List.filled(100000, 'x').join()),
         StackTrace.empty,
         fatal: true,
         subsystem: CrashSubsystem.unknown,
@@ -300,6 +300,27 @@ void main() {
       });
     });
 
+    test('JIT frame member의 점 연결 자격증명(ya29·JWT)은 통과하지 못한다(finding #2)', () {
+      // 실제 provider 형식과 어긋나게 만든 합성 더미. member 위치에 점 연결
+      // 토큰을 심어 `_lineHasSecretToken`이 공백·쉼표로만 쪼개던 우회를 막는지 본다.
+      const oauth = 'ya29.SYNTHETIC0oauth0access0token0not0real0000';
+      const jwt =
+          'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTWU5USEVUSUMifQ.SYNTHETICsig9f3a8b21';
+      final lines = <String>[
+        '#0      $oauth (package:easysubway_mobile/main.dart:1:1)',
+        '#1      Authorization: Bearer $oauth '
+            '(package:easysubway_mobile/main.dart:1:1)',
+        '#2      $jwt (package:easysubway_mobile/main.dart:1:1)',
+        '#3      Bearer $jwt (package:easysubway_mobile/main.dart:1:1)',
+      ];
+      for (final line in lines) {
+        final out = sanitizeStackTraceText(line);
+        expect(out, isNot(contains('ya29')), reason: line);
+        expect(out, isNot(contains('eyJ')), reason: line);
+        expect(out, isNot(contains('SYNTHETIC')), reason: line);
+      }
+    });
+
     test('AOT 헤더는 보존하되 인식 못 한 심볼 꼬리는 잘라낸다', () {
       // 주소(abs·virt)는 심볼리케이션에 필요하므로 남기고, 뒤에 붙은 임의
       // 문자열은 버린다.
@@ -337,7 +358,8 @@ void main() {
       // 걸려 정상 truncation 경로를 검증하지 못한다).
       final longLine = sanitizeStackTraceText(
         '#0      main '
-        '(package:easysubway_mobile/${'sub_dir/' * 40}main.dart:1:1)',
+        '(package:easysubway_mobile/${List.filled(40, 'sub_dir/').join()}'
+        'main.dart:1:1)',
       );
       expect(longLine.length, maxSanitizedStackLineLength);
       expect(longLine, endsWith('~trunc'));
@@ -346,7 +368,8 @@ void main() {
     test('멤버명이 비정상적으로 긴 frame은 shape allowlist에서 탈락한다', () {
       expect(
         sanitizeStackTraceText(
-          '#0      ${'a' * 500} (package:easysubway_mobile/main.dart:1:1)',
+          '#0      ${List.filled(500, 'a').join()} '
+          '(package:easysubway_mobile/main.dart:1:1)',
         ),
         redactedStackFrameToken,
       );
@@ -412,7 +435,7 @@ void main() {
       expect(
         sanitizeCrashCustomKeyValue(
           'device_class',
-          'a' * (maxCrashCustomKeyValueLength + 1),
+          List.filled(maxCrashCustomKeyValueLength + 1, 'a').join(),
         ),
         isNull,
       );

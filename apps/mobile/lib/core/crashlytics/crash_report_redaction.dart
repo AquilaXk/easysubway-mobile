@@ -358,15 +358,47 @@ String describeCrashCustomKeyName(String key) {
   return crashCustomKeyAllowlist.contains(key) ? key : '<rejected-key>';
 }
 
-/// 고엔트로피 blob(hex·base64 계열) 추정. allowlist 통과 토큰에 한 겹 더 건다.
+/// 고엔트로피 blob(hex·base64 계열·점 연결 자격증명) 추정.
+///
+/// 공백 없는 단일 토큰이라도 `ya29.…` OAuth·3-세그먼트 JWT처럼 **점으로 연결된**
+/// 자격증명은 base64 판정을 우회하므로(점이 base64 charset 밖) 별도로 잡는다.
 bool looksLikeSecretToken(String value) {
   if (_hexBlobPattern.hasMatch(value)) {
     return true;
   }
-  if (!_base64BlobPattern.hasMatch(value)) {
+  if (_base64BlobPattern.hasMatch(value) &&
+      _hasDigit.hasMatch(value) &&
+      _hasLetter.hasMatch(value)) {
+    return true;
+  }
+  if (_oauthTokenPattern.hasMatch(value)) {
+    return true;
+  }
+  return _looksLikeJwt(value);
+}
+
+/// 3-세그먼트 JWT(`header.payload.signature`) 추정.
+///
+/// 세그먼트 각각이 충분히 길고 base64url이며, 최소 2개가 숫자를 포함해야 한다.
+/// 점 3단 소스 식별자(`Foo.bar.baz`)는 세그먼트가 짧거나 숫자가 없어 걸리지 않는다.
+bool _looksLikeJwt(String value) {
+  if (value.length < 30) {
     return false;
   }
-  return _hasDigit.hasMatch(value) && _hasLetter.hasMatch(value);
+  final segments = value.split('.');
+  if (segments.length < 3) {
+    return false;
+  }
+  var segmentsWithDigit = 0;
+  for (final segment in segments) {
+    if (segment.length < 6 || !_base64UrlSegmentPattern.hasMatch(segment)) {
+      return false;
+    }
+    if (_hasDigit.hasMatch(segment)) {
+      segmentsWithDigit++;
+    }
+  }
+  return segmentsWithDigit >= 2;
 }
 
 int? _httpStatusOf(Object? error) {
@@ -594,6 +626,14 @@ final RegExp _sourceFileNamePattern = RegExp(
 final RegExp _hexBlobPattern = RegExp(r'^[0-9a-fA-F]{16,}$');
 
 final RegExp _base64BlobPattern = RegExp(r'^[A-Za-z0-9_\-+/=]{24,}$');
+
+// 알려진 자격증명 접두(OAuth·API key·PAT). 점·하이픈·언더스코어 body를 허용해
+// `ya29.…`처럼 점 연결된 토큰도 단일 토큰으로 잡는다.
+final RegExp _oauthTokenPattern = RegExp(
+  r'^(ya29|1//|AIza|AKIA|ASIA|ghp_|gho_|xox[baprs]|sk_|sk-)[A-Za-z0-9_.\-]{8,}$',
+);
+
+final RegExp _base64UrlSegmentPattern = RegExp(r'^[A-Za-z0-9_\-]+$');
 
 final RegExp _hasDigit = RegExp(r'[0-9]');
 

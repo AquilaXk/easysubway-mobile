@@ -114,6 +114,15 @@ StackTrace _syntheticStack(String secret) {
   );
 }
 
+/// 점 연결 자격증명(ya29·JWT)을 **JIT frame member 위치**에 심은 stack.
+/// finding #2 우회 경로를 20종 injection과 별개로 명시 검증한다.
+StackTrace _jitMemberCredentialStack(String secret) {
+  return StackTrace.fromString(
+    '#0      Bearer $secret (package:easysubway_mobile/main.dart:1:1)\n'
+    '<asynchronous suspension>',
+  );
+}
+
 final RegExp _sanitizedMessagePattern = RegExp(
   r'^easysubway-crash code=[A-Z_]+ subsystem=[a-z\-]+ '
   r'type=[A-Za-z_$][A-Za-z0-9_$]* fatal=(true|false)'
@@ -429,6 +438,60 @@ void main() {
         isNot(contains(secret)),
         reason: 'payload에 합성 비밀값이 남았습니다: $label',
       );
+      expectPayloadIsAllowlisted(gateway.payloadText, reason: label);
+    }
+  });
+
+  test('점 연결 자격증명(ya29·JWT)을 JIT frame member에 심어 4경로로 보내도 '
+      'payload match 0 (finding #2)', () async {
+    final samples = <String, String>{
+      'ya29': 'ya29.SYNTHETIC0oauth0access0token0not0real0000',
+      'jwt':
+          'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJTWU5USEVUSUMifQ.SYNTHETICsig9f3a8b21',
+    };
+
+    final originalPresent = FlutterError.presentError;
+    FlutterError.presentError = (_) {};
+    addTearDown(() {
+      FlutterError.presentError = originalPresent;
+    });
+
+    for (final entry in samples.entries) {
+      final gateway = _RecordingCrashlytics();
+      replaceCrashlyticsGatewayForTest(gateway);
+      installMobileErrorHandlers();
+      final secret = entry.value;
+      final label = entry.key;
+
+      FlutterError.onError!(
+        FlutterErrorDetails(
+          exception: StateError('boom'),
+          stack: _jitMemberCredentialStack(secret),
+        ),
+      );
+      PlatformDispatcher.instance.onError!(
+        StateError('boom'),
+        _jitMemberCredentialStack(secret),
+      );
+      await recordFatalError(
+        StateError('boom'),
+        _jitMemberCredentialStack(secret),
+        subsystem: CrashSubsystem.appReport,
+      );
+      await recordNonFatalError(
+        StateError('boom'),
+        _jitMemberCredentialStack(secret),
+      );
+      await pumpEventQueue();
+
+      expect(gateway.payloadText.trim(), isNotEmpty, reason: label);
+      expect(
+        gateway.payloadText,
+        isNot(contains(secret)),
+        reason: 'JIT member에서 점 연결 자격증명이 샜습니다: $label',
+      );
+      expect(gateway.payloadText, isNot(contains('ya29')), reason: label);
+      expect(gateway.payloadText, isNot(contains('eyJ')), reason: label);
       expectPayloadIsAllowlisted(gateway.payloadText, reason: label);
     }
   });
