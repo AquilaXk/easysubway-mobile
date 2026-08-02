@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'core/crashlytics/crash_report_redaction.dart';
 import 'core/crashlytics/mobile_crash_reporting.dart';
 import 'core/logging/app_logger.dart';
 
@@ -46,11 +47,15 @@ void installMobileErrorHandlers() {
       return;
     }
 
-    appLog.e(
-      details.context?.toDescription() ?? 'Flutter framework error',
-      error: details.exception,
-      stackTrace: details.stack,
+    // 로그 채널도 denylist 대상이라 원문 예외·stack을 그대로 넘기지 않는다.
+    // debug 원문은 아래 `FlutterError.presentError`가 그대로 콘솔에 남긴다.
+    final logReport = sanitizeCrashReport(
+      details.exception,
+      details.stack,
+      fatal: true,
+      subsystem: CrashSubsystem.flutterFramework,
     );
+    appLog.e(logReport.message, stackTrace: logReport.stackTrace);
     // 미초기화·테스트 환경에서도 예외를 던지지 않는다.
     // Crashlytics Future 실패가 PlatformDispatcher.onError로 재진입하지 않게 흡수한다.
     unawaited(_recordCrashlyticsSafely(recordFatalFlutterError(details)));
@@ -71,10 +76,20 @@ void installMobileErrorHandlers() {
       return true;
     }
 
-    appLog.e('Unhandled platform/async error', error: error, stackTrace: stack);
+    final logReport = sanitizeCrashReport(
+      error,
+      stack,
+      fatal: true,
+      subsystem: CrashSubsystem.platformDispatcher,
+    );
+    appLog.e(logReport.message, stackTrace: logReport.stackTrace);
     unawaited(
       _recordCrashlyticsSafely(
-        recordFatalError(error, stack, reason: 'PlatformDispatcher.onError'),
+        recordFatalError(
+          error,
+          stack,
+          subsystem: CrashSubsystem.platformDispatcher,
+        ),
       ),
     );
     return true;
@@ -86,10 +101,16 @@ Future<void> _recordCrashlyticsSafely(Future<void> recording) async {
     await recording;
   } catch (error, stackTrace) {
     // 기록 경로 자체 실패는 전역 핸들러 루프를 만들지 않는다.
+    final report = sanitizeCrashReport(
+      error,
+      stackTrace,
+      fatal: false,
+      subsystem: CrashSubsystem.crashReporting,
+    );
     appLog.w(
-      'Crashlytics record failed; swallowed to avoid handler re-entry',
-      error: error,
-      stackTrace: stackTrace,
+      'Crashlytics record failed; swallowed to avoid handler re-entry '
+      '${report.message}',
+      stackTrace: report.stackTrace,
     );
   }
 }
