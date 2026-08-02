@@ -1,31 +1,16 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:easysubway_mobile/core/crashlytics/crash_report_redaction.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// `contracts/mobile/crashlytics-secret-injection.json`의 `redaction` 절을
-/// 정본으로 읽는다. 저장소 루트 기준 경로이며 `flutter test`는 `apps/mobile`
-/// 에서 실행한다.
-Map<String, Object?> _redactionContract() {
-  final file = File('../../contracts/mobile/crashlytics-secret-injection.json');
-  expect(
-    file.existsSync(),
-    isTrue,
-    reason: 'redaction 계약 파일을 찾지 못했습니다: ${file.path}',
-  );
-  final decoded = jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
-  return decoded['redaction']! as Map<String, Object?>;
-}
+import 'crashlytics_contract_fixture.dart';
 
 void main() {
   group('계약 결속', () {
     late Map<String, Object?> contract;
 
     setUp(() {
-      contract = _redactionContract();
+      contract = crashlyticsRedactionContract();
     });
 
     test('error code·subsystem·custom key allowlist가 계약과 일치한다', () {

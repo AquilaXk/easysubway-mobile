@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:easysubway_mobile/core/crashlytics/crash_report_redaction.dart';
 import 'package:easysubway_mobile/core/crashlytics/crashlytics_gateway.dart';
 import 'package:easysubway_mobile/core/crashlytics/mobile_crash_reporting.dart';
@@ -8,6 +5,8 @@ import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'crashlytics_contract_fixture.dart';
 
 /// firebase_crashlytics 5.2.6이 실제로 전송하는 필드만 모아 payload로 본다.
 ///
@@ -79,15 +78,8 @@ class _SyntheticSecret {
   final String value;
 }
 
-Map<String, Object?> _crashlyticsContract() {
-  final file = File('../../contracts/mobile/crashlytics-secret-injection.json');
-  expect(file.existsSync(), isTrue, reason: '계약 파일 없음: ${file.path}');
-  return jsonDecode(file.readAsStringSync()) as Map<String, Object?>;
-}
-
 List<_SyntheticSecret> _syntheticSecrets() {
-  final redaction =
-      _crashlyticsContract()['redaction']! as Map<String, Object?>;
+  final redaction = crashlyticsRedactionContract();
   return (redaction['syntheticSecrets']! as List)
       .cast<Map<String, Object?>>()
       .map(
@@ -184,7 +176,7 @@ void main() {
     expect(debugGateway.collectionEnabled, isFalse);
 
     // 계약(runtime.debugCollectionEnabled=false)과 동작을 묶어 둔다.
-    final runtime = _crashlyticsContract()['runtime']! as Map<String, Object?>;
+    final runtime = crashlyticsContract()['runtime']! as Map<String, Object?>;
     expect(runtime['debugCollectionEnabled'], isFalse);
     expect(runtime['releaseCollectionEnabled'], isTrue);
     expect(debugGateway.collectionEnabled, runtime['debugCollectionEnabled']);

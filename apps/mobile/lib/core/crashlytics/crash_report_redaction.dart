@@ -464,7 +464,7 @@ bool _isAllowedStackLine(String line) {
   if (_allowedStackLineLiterals.contains(line)) {
     return true;
   }
-  if (line.startsWith('=====') || line.startsWith('*** ***')) {
+  if (_separatorLinePattern.hasMatch(line)) {
     return true;
   }
   if (_aotFramePattern.hasMatch(line) || _jitFramePattern.hasMatch(line)) {
@@ -492,6 +492,9 @@ String _truncate(String value, int limit) {
     return value;
   }
   const marker = '~trunc';
+  if (limit <= marker.length) {
+    return value.substring(0, limit);
+  }
   return '${value.substring(0, limit - marker.length)}$marker';
 }
 
@@ -518,6 +521,12 @@ final RegExp _hostPattern = RegExp(r'^[A-Za-z0-9._\-\[\]:]{1,64}$');
 final RegExp _typeTokenPattern = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$');
 
 final RegExp _asciiOnlyPattern = RegExp(r'^[\x20-\x7E]*$');
+
+// `===== asynchronous gap ====…`(package:stack_trace)와 AOT 헤더 `*** *** ***`.
+// 접두만 보면 뒤 문자열이 검증 없이 통과하므로 라인 전체 형태를 못 박는다.
+final RegExp _separatorLinePattern = RegExp(
+  r'^(=+( asynchronous gap =+)?|\*\*\*( \*\*\*)+)$',
+);
 
 final RegExp _sourceFileNamePattern = RegExp(
   r'^[A-Za-z0-9_.\-]{1,64}\.(dart|kt|java|swift|m|mm|c|cc|cpp|h|hpp|js)$',
