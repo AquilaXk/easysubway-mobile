@@ -57,5 +57,14 @@ jobs:
           )
           ../../tools/mobile/validate-release-dart-defines.sh "${defines[@]}"
           flutter build appbundle --release "${defines[@]}"
+          bundletool_jar="$(find "$HOME/.gradle/caches/modules-2/files-2.1/com.android.tools.build/bundletool" -type f -name '*.jar' -print -quit)"
+          if [[ -z "$bundletool_jar" ]]; then
+            echo "Gradle-downloaded bundletool JAR not found after AAB build." >&2
+            exit 1
+          fi
+          ../../tools/mobile/check-android-aab-16kb-page-size.sh \
+            --aab build/app/outputs/bundle/release/app-release.aab \
+            --artifact-dir "$RUNNER_TEMP/android-16kb-aab-evidence" \
+            --bundletool "$bundletool_jar"
           node ../../tools/release/hash-android-bundle-payload.mjs \
             --aab build/app/outputs/bundle/release/app-release.aab

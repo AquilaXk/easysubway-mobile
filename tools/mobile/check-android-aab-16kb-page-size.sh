@@ -40,13 +40,17 @@ if [[ ! -s "$AAB" ]]; then
 fi
 
 BUNDLETOOL="${BUNDLETOOL:-$(command -v bundletool || true)}"
-if [[ -z "$BUNDLETOOL" || ! -x "$BUNDLETOOL" ]]; then
+if [[ -n "$BUNDLETOOL" && "$BUNDLETOOL" == *.jar && -f "$BUNDLETOOL" ]]; then
+  BUNDLETOOL_COMMAND=(java -jar "$BUNDLETOOL")
+elif [[ -n "$BUNDLETOOL" && -x "$BUNDLETOOL" ]]; then
+  BUNDLETOOL_COMMAND=("$BUNDLETOOL")
+else
   echo "bundletool executable not found. Pass --bundletool." >&2
   exit 2
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-"$BUNDLETOOL" dump config --bundle="$AAB" > "$ARTIFACT_DIR/bundle-config.txt"
+"${BUNDLETOOL_COMMAND[@]}" dump config --bundle="$AAB" > "$ARTIFACT_DIR/bundle-config.txt"
 if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$ARTIFACT_DIR/bundle-config.txt"; then
   {
     echo "android_16kb_aab_page_size_check"
