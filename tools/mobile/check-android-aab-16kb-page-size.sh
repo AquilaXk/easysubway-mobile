@@ -4,33 +4,33 @@ set -euo pipefail
 usage() {
   cat <<'USAGE'
 Usage:
-  tools/mobile/check-android-aab-16kb-page-size.sh --aab <app.aab> --artifact-dir <dir> [options]
+  tools/mobile/check-android-aab-16kb-page-size.sh --aab <app.aab> --android-project <dir> --artifact-dir <dir>
 
 Options:
   --aab <path>           Required Android App Bundle.
+  --android-project <dir> Required Android project containing executable gradlew.
   --artifact-dir <dir>  Required output directory for local-only evidence.
-  --bundletool <path>   bundletool executable. Defaults to PATH lookup.
   -h, --help            Show this help.
 USAGE
 }
 
 AAB=""
+ANDROID_PROJECT=""
 ARTIFACT_DIR=""
-BUNDLETOOL=""
 MIN_ALIGN=16384
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --aab) AAB="${2:-}"; shift 2 ;;
+    --android-project) ANDROID_PROJECT="${2:-}"; shift 2 ;;
     --artifact-dir) ARTIFACT_DIR="${2:-}"; shift 2 ;;
-    --bundletool) BUNDLETOOL="${2:-}"; shift 2 ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
 done
 
-if [[ -z "$AAB" || -z "$ARTIFACT_DIR" ]]; then
+if [[ -z "$AAB" || -z "$ANDROID_PROJECT" || -z "$ARTIFACT_DIR" ]]; then
   usage >&2
   exit 2
 fi
@@ -38,16 +38,24 @@ if [[ ! -s "$AAB" ]]; then
   echo "AAB not found or empty: $AAB" >&2
   exit 2
 fi
-
-BUNDLETOOL="${BUNDLETOOL:-$(command -v bundletool || true)}"
-if [[ -z "$BUNDLETOOL" || ! -x "$BUNDLETOOL" ]]; then
-  echo "bundletool executable not found. Pass --bundletool." >&2
+if [[ ! -d "$ANDROID_PROJECT" || ! -x "$ANDROID_PROJECT/gradlew" ]]; then
+  echo "Android project or executable gradlew not found: $ANDROID_PROJECT" >&2
   exit 2
 fi
 
 mkdir -p "$ARTIFACT_DIR"
-"$BUNDLETOOL" dump config --bundle="$AAB" > "$ARTIFACT_DIR/bundle-config.txt"
-if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$ARTIFACT_DIR/bundle-config.txt"; then
+AAB="$(cd "$(dirname "$AAB")" && pwd -P)/$(basename "$AAB")"
+ANDROID_PROJECT="$(cd "$ANDROID_PROJECT" && pwd -P)"
+ARTIFACT_DIR="$(cd "$ARTIFACT_DIR" && pwd -P)"
+EVIDENCE_BUNDLE_CONFIG="$ARTIFACT_DIR/bundle-config.txt"
+"$ANDROID_PROJECT/gradlew" -p "$ANDROID_PROJECT" :app:dumpAndroidBundleConfig \
+  -Pandroid16kbAab="$AAB" \
+  -Pandroid16kbBundleConfig="$EVIDENCE_BUNDLE_CONFIG"
+if [[ ! -s "$EVIDENCE_BUNDLE_CONFIG" ]]; then
+  echo "bundletool config not generated or empty: $EVIDENCE_BUNDLE_CONFIG" >&2
+  exit 2
+fi
+if ! grep -Eq '"alignment"[[:space:]]*:[[:space:]]*"PAGE_ALIGNMENT_16K"' "$EVIDENCE_BUNDLE_CONFIG"; then
   {
     echo "android_16kb_aab_page_size_check"
     echo "aab=$AAB"
@@ -56,9 +64,10 @@ if ! grep -q '"alignment": "PAGE_ALIGNMENT_16K"' "$ARTIFACT_DIR/bundle-config.tx
     echo "result=fail"
     echo "reason=missing_PAGE_ALIGNMENT_16K_native_library_alignment"
   } > "$ARTIFACT_DIR/summary.txt"
+  echo "bundletool config is missing native-library alignment PAGE_ALIGNMENT_16K" >&2
   exit 1
 fi
-zipinfo -1 "$AAB" | grep -E '(^|/)lib/[^/]+/[^/]+\.so$' > "$ARTIFACT_DIR/native-libraries.txt" || true
+zipinfo -1 "$AAB" | grep -E '(^|/)lib/(arm64-v8a|x86_64)/[^/]+\.so$' > "$ARTIFACT_DIR/native-libraries.txt" || true
 
 if [[ ! -s "$ARTIFACT_DIR/native-libraries.txt" ]]; then
   echo "No native libraries found in AAB." >&2
@@ -85,6 +94,9 @@ while IFS= read -r library; do
   fi
   aligns="$(cat "$align_out")"
   printf '%s\t%s\t%s\n' "$library" "$aligns" "$lib_status" >> "$summary"
+  if [[ "$lib_status" == "fail" ]]; then
+    printf '16KB ELF LOAD alignment failed: %s\n%s\n' "$library" "$aligns" >&2
+  fi
 done < "$ARTIFACT_DIR/native-libraries.txt"
 
 {

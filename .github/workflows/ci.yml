@@ -38,6 +38,7 @@ jobs:
             tools/ci/filter-mobile-lcov.test.mjs \
             tools/ci/lib/google-play-auth.test.mjs \
             tools/mobile/automerge-queue.test.mjs \
+            tools/mobile/check-android-aab-16kb-page-size.test.mjs \
             tools/mobile/datapack-contract.test.mjs \
             tools/mobile/store-release-preflight.test.mjs \
             tools/mobile/status-voice-inventory.test.mjs \
@@ -125,6 +126,10 @@ jobs:
           )
           ../../tools/mobile/validate-release-dart-defines.sh "${defines[@]}"
           flutter build appbundle --release "${defines[@]}"
+          ../../tools/mobile/check-android-aab-16kb-page-size.sh \
+            --aab build/app/outputs/bundle/release/app-release.aab \
+            --android-project android \
+            --artifact-dir "$RUNNER_TEMP/android-16kb-aab-evidence"
           node ../../tools/release/hash-android-bundle-payload.mjs \
             --aab build/app/outputs/bundle/release/app-release.aab
 

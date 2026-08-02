@@ -57,5 +57,9 @@ jobs:
           )
           ../../tools/mobile/validate-release-dart-defines.sh "${defines[@]}"
           flutter build appbundle --release "${defines[@]}"
+          ../../tools/mobile/check-android-aab-16kb-page-size.sh \
+            --aab build/app/outputs/bundle/release/app-release.aab \
+            --android-project android \
+            --artifact-dir "$RUNNER_TEMP/android-16kb-aab-evidence"
           node ../../tools/release/hash-android-bundle-payload.mjs \
             --aab build/app/outputs/bundle/release/app-release.aab
