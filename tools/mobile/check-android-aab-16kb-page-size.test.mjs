@@ -12,7 +12,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(here, "../..");
 const gate = path.join(here, "check-android-aab-16kb-page-size.sh");
 
-test("rejects an AAB whose bundle config lacks 16KB alignment", async () => {
+test("fails closed for missing 16KB alignment and ambiguous thin-JAR dependencies", async () => {
   const fixture = await mkdtemp(path.join(tmpdir(), "android-16kb-aab-gate-"));
   const aab = path.join(fixture, "app.aab");
   const gradleCache = path.join(fixture, "gradle", "caches", "modules-2", "files-2.1");
@@ -47,18 +47,30 @@ test("rejects an AAB whose bundle config lacks 16KB alignment", async () => {
     (error) => error.code === 1,
   );
   assert.match(await readFile(path.join(evidence, "summary.txt"), "utf8"), /missing_PAGE_ALIGNMENT_16K_native_library_alignment/);
+
+  const duplicateDependency = path.join(gradleCache, "duplicate", "dependency-one.jar");
+  await mkdir(path.dirname(duplicateDependency), { recursive: true });
+  await writeFile(duplicateDependency, "fixture");
+  await assert.rejects(
+    execFileAsync(
+      gate,
+      ["--aab", aab, "--artifact-dir", evidence, "--bundletool", bundletool],
+      { env: { ...process.env, GRADLE_USER_HOME: path.join(fixture, "gradle"), PATH: `${fixture}:${process.env.PATH}` } },
+    ),
+    (error) => error.code === 2 && /dependency is ambiguous: dependency-one\.jar/.test(error.stderr),
+  );
 });
 
 test("runs the 16KB AAB gate before accepting the artifact hash", async () => {
   for (const workflow of [".github/workflows/ci.yml", ".github/workflows/release-artifacts.yml"]) {
     const text = await readFile(path.join(repositoryRoot, workflow), "utf8");
     const build = text.indexOf("flutter build appbundle --release");
-    const gateInvocation = text.indexOf("check-android-aab-16kb-page-size.sh");
-    const hash = text.indexOf("hash-android-bundle-payload.mjs");
+    const gateInvocation = text.indexOf("check-android-aab-16kb-page-size.sh", build);
+    const hash = text.indexOf("hash-android-bundle-payload.mjs", build);
     assert.ok(build >= 0, `${workflow} builds a release AAB`);
     assert.ok(gateInvocation > build, `${workflow} runs the 16KB gate after the AAB build`);
     assert.ok(gateInvocation < hash, `${workflow} runs the 16KB gate before accepting the AAB hash`);
-    assert.ok(text.indexOf("command -v bundletool") > build, `${workflow} prefers an installed bundletool executable`);
+    assert.equal(text.indexOf("command -v bundletool", build), -1, `${workflow} does not allow a PATH bundletool`);
     assert.ok(text.indexOf("bundletool/1.18.3") > build, `${workflow} selects only AGP 9.0.1's bundletool 1.18.3 artifact`);
   }
 });

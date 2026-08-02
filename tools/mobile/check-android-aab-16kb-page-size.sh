@@ -59,9 +59,20 @@ if [[ -n "$BUNDLETOOL" && "$BUNDLETOOL" == *.jar && -f "$BUNDLETOOL" ]]; then
       echo "bundletool JAR Class-Path entry is not a filename: $dependency" >&2
       exit 2
     fi
-    resolved="$(find "$GRADLE_CACHE" -type f -name "$dependency" -print -quit 2>/dev/null)"
-    if [[ -z "$resolved" ]]; then
+    resolved=""
+    matches=0
+    while IFS= read -r candidate; do
+      matches=$((matches + 1))
+      if [[ "$matches" -eq 1 ]]; then
+        resolved="$candidate"
+      fi
+    done < <(find "$GRADLE_CACHE" -type f -name "$dependency" -print 2>/dev/null)
+    if [[ "$matches" -eq 0 ]]; then
       echo "bundletool JAR Class-Path dependency not found: $dependency" >&2
+      exit 2
+    fi
+    if [[ "$matches" -gt 1 ]]; then
+      echo "bundletool JAR Class-Path dependency is ambiguous: $dependency" >&2
       exit 2
     fi
     BUNDLETOOL_CLASS_PATH+=":$resolved"

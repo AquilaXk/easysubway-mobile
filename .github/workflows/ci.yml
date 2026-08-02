@@ -126,12 +126,9 @@ jobs:
           )
           ../../tools/mobile/validate-release-dart-defines.sh "${defines[@]}"
           flutter build appbundle --release "${defines[@]}"
-          bundletool="$(command -v bundletool || true)"
+          bundletool="$(find "${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/com.android.tools.build/bundletool/1.18.3" -type f -name bundletool-1.18.3.jar -print -quit 2>/dev/null)"
           if [[ -z "$bundletool" ]]; then
-            bundletool="$(find "${GRADLE_USER_HOME:-$HOME/.gradle}/caches/modules-2/files-2.1/com.android.tools.build/bundletool/1.18.3" -type f -name bundletool-1.18.3.jar -print -quit 2>/dev/null)"
-          fi
-          if [[ -z "$bundletool" ]]; then
-            echo "Installed or AGP 9.0.1 bundletool 1.18.3 not found after AAB build." >&2
+            echo "AGP 9.0.1 bundletool 1.18.3 not found after AAB build." >&2
             exit 1
           fi
           ../../tools/mobile/check-android-aab-16kb-page-size.sh \
