@@ -94,6 +94,9 @@ while IFS= read -r library; do
   fi
   aligns="$(cat "$align_out")"
   printf '%s\t%s\t%s\n' "$library" "$aligns" "$lib_status" >> "$summary"
+  if [[ "$lib_status" == "fail" ]]; then
+    printf '16KB ELF LOAD alignment failed: %s\n%s\n' "$library" "$aligns" >&2
+  fi
 done < "$ARTIFACT_DIR/native-libraries.txt"
 
 {

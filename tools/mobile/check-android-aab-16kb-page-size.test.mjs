@@ -70,6 +70,38 @@ printf '%s\\n' '{"nativeLibraries":{"alignment":"PAGE_ALIGNMENT_16K"}}' > "$outp
   assert.match(await readFile(path.join(evidence, "bundle-config.txt"), "utf8"), /"alignment":"PAGE_ALIGNMENT_16K"/);
 });
 
+test("reports each failing native library and its LOAD alignment", async () => {
+  const fixture = await mkdtemp(path.join(tmpdir(), "android-16kb-aab-gate-"));
+  const aab = path.join(fixture, "app.aab");
+  const androidProject = path.join(fixture, "android");
+  const gradlew = path.join(androidProject, "gradlew");
+  const bin = path.join(fixture, "bin");
+  const evidence = path.join(fixture, "evidence");
+  await writeFile(aab, "fixture");
+  await mkdir(androidProject, { recursive: true });
+  await mkdir(bin);
+  await writeFile(
+    gradlew,
+    `#!/usr/bin/env bash
+set -euo pipefail
+output="\${5#-Pandroid16kbBundleConfig=}"
+mkdir -p "$(dirname "$output")"
+printf '%s\\n' '{"nativeLibraries":{"alignment":"PAGE_ALIGNMENT_16K"}}' > "$output"
+`,
+  );
+  await writeFile(path.join(bin, "zipinfo"), "#!/usr/bin/env bash\nprintf '%s\\n' 'base/lib/arm64-v8a/libfixture.so'\n");
+  await writeFile(path.join(bin, "unzip"), "#!/usr/bin/env bash\nprintf fixture\n");
+  await writeFile(path.join(bin, "node"), "#!/usr/bin/env bash\nprintf '%s\\n' '4096'\nexit 1\n");
+  await Promise.all([chmod(gradlew, 0o755), chmod(path.join(bin, "zipinfo"), 0o755), chmod(path.join(bin, "unzip"), 0o755), chmod(path.join(bin, "node"), 0o755)]);
+
+  await assert.rejects(
+    execFileAsync(gate, ["--aab", aab, "--android-project", androidProject, "--artifact-dir", evidence], {
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    }),
+    (error) => error.code === 1 && /16KB ELF LOAD alignment failed: base\/lib\/arm64-v8a\/libfixture\.so\n4096/.test(error.stderr),
+  );
+});
+
 test("pins AGP-loaded bundletool and orders config inspection before hashing", async () => {
   const gradle = await readFile(gradleBuild, "utf8");
   assert.match(gradle, /BundleToolVersion\.getCurrentVersion\(\)\.toString\(\) == "1\.18\.3"/);
