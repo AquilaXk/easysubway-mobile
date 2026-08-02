@@ -101,10 +101,16 @@ Future<void> _recordCrashlyticsSafely(Future<void> recording) async {
     await recording;
   } catch (error, stackTrace) {
     // 기록 경로 자체 실패는 전역 핸들러 루프를 만들지 않는다.
+    final report = sanitizeCrashReport(
+      error,
+      stackTrace,
+      fatal: false,
+      subsystem: CrashSubsystem.crashReporting,
+    );
     appLog.w(
-      'Crashlytics record failed; swallowed to avoid handler re-entry',
-      error: error,
-      stackTrace: stackTrace,
+      'Crashlytics record failed; swallowed to avoid handler re-entry '
+      '${report.message}',
+      stackTrace: report.stackTrace,
     );
   }
 }

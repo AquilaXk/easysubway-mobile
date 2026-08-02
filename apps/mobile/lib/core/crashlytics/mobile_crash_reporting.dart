@@ -28,10 +28,17 @@ Future<bool> initializeMobileCrashReporting({
     return true;
   } catch (error, stackTrace) {
     crashlyticsGateway = const NoopCrashlyticsGateway();
+    // 초기화 실패 원문에도 키 파일 경로·구성값이 섞일 수 있어 정화해 남긴다.
+    final report = sanitizeCrashReport(
+      error,
+      stackTrace,
+      fatal: false,
+      subsystem: CrashSubsystem.crashReporting,
+    );
     appLog.w(
-      'Crashlytics unavailable; continuing without crash reporting.',
-      error: error,
-      stackTrace: stackTrace,
+      'Crashlytics unavailable; continuing without crash reporting. '
+      '${report.message}',
+      stackTrace: report.stackTrace,
     );
     return false;
   }
