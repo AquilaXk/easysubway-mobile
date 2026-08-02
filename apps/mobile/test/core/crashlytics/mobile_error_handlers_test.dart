@@ -497,6 +497,15 @@ void main() {
       );
       await pumpEventQueue();
 
+      // 4경로가 모두 기록됐는지 고정(1경로만 돌아도 빈 payload 단언은 통과하므로).
+      expect(gateway.flutterFatals, hasLength(1), reason: label);
+      expect(gateway.errors, hasLength(3), reason: label);
+      expect(gateway.fatalFlags, <bool>[
+        true,
+        true,
+        true,
+        false,
+      ], reason: label);
       expect(gateway.payloadText.trim(), isNotEmpty, reason: label);
       expect(
         gateway.payloadText,
@@ -549,6 +558,15 @@ void main() {
       await recordNonFatalError(StateError('boom'), _lowEntropyStack(value));
       await pumpEventQueue();
 
+      // 4경로가 모두 기록됐는지 고정(1경로만 돌아도 빈 payload 단언은 통과하므로).
+      expect(gateway.flutterFatals, hasLength(1), reason: label);
+      expect(gateway.errors, hasLength(3), reason: label);
+      expect(gateway.fatalFlags, <bool>[
+        true,
+        true,
+        true,
+        false,
+      ], reason: label);
       expect(gateway.payloadText.trim(), isNotEmpty, reason: label);
       expect(
         gateway.payloadText,
