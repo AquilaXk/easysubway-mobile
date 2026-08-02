@@ -126,21 +126,23 @@ jobs:
           )
           ../../tools/mobile/validate-release-dart-defines.sh "${defines[@]}"
           flutter build appbundle --release "${defines[@]}"
-          bundletool_jar=""
-          while IFS= read -r candidate; do
-            if java -jar "$candidate" version >/dev/null 2>&1; then
-              bundletool_jar="$candidate"
-              break
-            fi
-          done < <(find "$HOME/.gradle/caches/modules-2/files-2.1/com.android.tools.build/bundletool" -type f -name '*.jar' -print 2>/dev/null)
-          if [[ -z "$bundletool_jar" ]]; then
-            echo "Runnable Gradle-downloaded bundletool JAR not found after AAB build." >&2
+          bundletool="$(command -v bundletool || true)"
+          if [[ -z "$bundletool" ]]; then
+            while IFS= read -r candidate; do
+              if java -jar "$candidate" version >/dev/null 2>&1; then
+                bundletool="$candidate"
+                break
+              fi
+            done < <(find "$HOME/.gradle/caches/modules-2/files-2.1/com.android.tools.build/bundletool" -type f -name '*.jar' -print 2>/dev/null)
+          fi
+          if [[ -z "$bundletool" ]]; then
+            echo "Runnable installed or Gradle-downloaded bundletool not found after AAB build." >&2
             exit 1
           fi
           ../../tools/mobile/check-android-aab-16kb-page-size.sh \
             --aab build/app/outputs/bundle/release/app-release.aab \
             --artifact-dir "$RUNNER_TEMP/android-16kb-aab-evidence" \
-            --bundletool "$bundletool_jar"
+            --bundletool "$bundletool"
           node ../../tools/release/hash-android-bundle-payload.mjs \
             --aab build/app/outputs/bundle/release/app-release.aab
 

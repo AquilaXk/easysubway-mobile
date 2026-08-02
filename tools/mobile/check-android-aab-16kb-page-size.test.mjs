@@ -46,6 +46,7 @@ test("runs the 16KB AAB gate before accepting the artifact hash", async () => {
     assert.ok(build >= 0, `${workflow} builds a release AAB`);
     assert.ok(gateInvocation > build, `${workflow} runs the 16KB gate after the AAB build`);
     assert.ok(gateInvocation < hash, `${workflow} runs the 16KB gate before accepting the AAB hash`);
+    assert.ok(text.indexOf("command -v bundletool") > build, `${workflow} prefers an installed bundletool executable`);
     assert.ok(text.indexOf('java -jar "$candidate" version') > build, `${workflow} probes a runnable bundletool JAR`);
   }
 });
