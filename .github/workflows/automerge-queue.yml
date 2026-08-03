@@ -44,15 +44,34 @@ jobs:
 
           fail_closed_pr() {
             local operation="$1" merge_state="$2" status="$3"
-            local message="자동 병합 조정 작업에 실패했습니다. operation=${operation}; merge_state=${merge_state}; status=${status}; Actions run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. automerge 라벨 제거를 시도합니다."
+            local message observed auto_merge_disabled=false label_removed=false
+            message="자동 병합 조정 작업에 실패했습니다. operation=${operation}; merge_state=${merge_state}; status=${status}; Actions run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}. automerge 라벨 제거를 시도했습니다."
+            for _ in 1 2; do
+              if ! gh pr merge "${pr}" --repo "${repo}" --disable-auto; then
+                echo "::warning::PR #${pr}: failed to disable native auto-merge."
+              fi
+              if observed="$(gh pr view "${pr}" --repo "${repo}" --json autoMergeRequest --jq '.autoMergeRequest == null')"; then
+                if [[ "${observed}" == true ]]; then auto_merge_disabled=true; break; fi
+                echo "::warning::PR #${pr}: native auto-merge remains enabled."
+              else
+                echo "::warning::PR #${pr}: failed to confirm native auto-merge state."
+              fi
+            done
+            [[ "${auto_merge_disabled}" == true ]] || echo "::error::PR #${pr}: native auto-merge cleanup did not converge."
+            for _ in 1 2; do
+              if ! gh pr edit "${pr}" --repo "${repo}" --remove-label automerge; then
+                echo "::warning::PR #${pr}: failed to remove the automerge label."
+              fi
+              if observed="$(gh pr view "${pr}" --repo "${repo}" --json labels --jq '[.labels[].name] | index("automerge") == null')"; then
+                if [[ "${observed}" == true ]]; then label_removed=true; break; fi
+                echo "::warning::PR #${pr}: automerge label remains present."
+              else
+                echo "::warning::PR #${pr}: failed to confirm automerge label state."
+              fi
+            done
+            [[ "${label_removed}" == true ]] || echo "::error::PR #${pr}: automerge label cleanup did not converge."
             if ! gh pr comment "${pr}" --repo "${repo}" --body "${message}"; then
               echo "::warning::PR #${pr}: failed to publish the automerge failure comment."
-            fi
-            if [[ "${operation}" == "merge reservation" ]] && ! gh pr merge "${pr}" --repo "${repo}" --disable-auto; then
-              echo "::warning::PR #${pr}: failed to disable native auto-merge."
-            fi
-            if ! gh pr edit "${pr}" --repo "${repo}" --remove-label automerge; then
-              echo "::error::PR #${pr}: failed to remove the automerge label."
             fi
             return "${status}"
           }

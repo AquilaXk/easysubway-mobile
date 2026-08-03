@@ -417,6 +417,12 @@ test('automerge coordinator fails closed around the native merge queue', async (
       commentStatus = 0,
       disableStatus = 0,
       labelStatus = 0,
+      disableFirstFails = false,
+      labelFirstFails = false,
+      autoMergeConverges = true,
+      labelConverges = true,
+      autoMergeQueryStatus = 0,
+      labelQueryStatus = 0,
     } = {},
   ) => {
     const log = join(mkdtempSync(join(tmpdir(), 'automerge-queue-')), 'gh.log');
@@ -427,15 +433,19 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'gh() {',
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
       '  case "$*" in',
-      `    *"--disable-auto"*) return ${disableStatus} ;;`,
+      `    *"--disable-auto"*) disable_calls=$(( disable_calls + 1 )); if [[ ${JSON.stringify(disableFirstFails)} == true && "$disable_calls" == 1 ]]; then return 41; fi; return ${disableStatus} ;;`,
+      `    *"pr comment"*) return ${commentStatus} ;;`,
+      `    *"pr edit"*) label_calls=$(( label_calls + 1 )); if [[ ${JSON.stringify(labelFirstFails)} == true && "$label_calls" == 1 ]]; then return 43; fi; return ${labelStatus} ;;`,
+      `    *"pr view"*"autoMergeRequest"*) if [[ ${autoMergeQueryStatus} != 0 ]]; then return ${autoMergeQueryStatus}; fi; if [[ ${JSON.stringify(autoMergeConverges)} == true && "$disable_calls" -ge ${disableFirstFails ? 2 : 1} ]]; then printf '%s\\n' true; else printf '%s\\n' false; fi ;;`,
+      `    *"pr view"*"labels"*) if [[ ${labelQueryStatus} != 0 ]]; then return ${labelQueryStatus}; fi; if [[ ${JSON.stringify(labelConverges)} == true && "$label_calls" -ge ${labelFirstFails ? 2 : 1} ]]; then printf '%s\\n' true; else printf '%s\\n' false; fi ;;`,
       `    *"pr merge"*) return ${mergeStatus} ;;`,
       `    *"update-branch"*) return ${updateStatus} ;;`,
-      `    *"pr comment"*) return ${commentStatus} ;;`,
-      `    *"pr edit"*) return ${labelStatus} ;;`,
       `    *"pr view"*headRefOid*) printf '%s\\n' ${JSON.stringify(newHead)} ;;`,
       '  esac',
       '}',
       'sleep() { :; }',
+      'disable_calls=0',
+      'label_calls=0',
       'pr=44',
       'repo=o/r',
       'head=old-head',
@@ -455,17 +465,22 @@ test('automerge coordinator fails closed around the native merge queue', async (
     const calls = existsSync(log) ? readFileSync(log, 'utf8') : '';
     return {
       status: result.status,
-      merged: calls.includes('gh pr merge'),
+      merged: calls.includes('gh pr merge --squash --auto'),
       updatedBranch: calls.includes('update-branch'),
       dispatchedCi: calls.includes('workflow run ci.yml'),
       skipped: calls.includes('SKIPPED'),
       commented: calls.includes('gh pr comment'),
       autoMergeDisabled: calls.includes('gh pr merge 44 --repo o/r --disable-auto'),
       labelRemoved: calls.includes('gh pr edit 44 --repo o/r --remove-label automerge'),
+      disableCalls: [...calls.matchAll(/--disable-auto/g)].length,
+      labelCalls: [...calls.matchAll(/--remove-label automerge/g)].length,
+      autoMergeQueries: [...calls.matchAll(/--json autoMergeRequest/g)].length,
+      labelQueries: [...calls.matchAll(/--json labels/g)].length,
+      output: result.stdout,
       calls,
     };
   };
-  const withoutCalls = ({ calls, ...result }) => result;
+  const withoutCalls = ({ calls, disableCalls, labelCalls, autoMergeQueries, labelQueries, output, ...result }) => result;
 
   // 병합 가능 상태. UNSTABLE은 "필수가 아닌 check가 green이 아님"일 뿐이고 required
   // context는 위에서 ruleset 기준으로 이미 검증했으므로 병합을 진행한다.
@@ -524,11 +539,12 @@ test('automerge coordinator fails closed around the native merge queue', async (
 
   for (const [mergeState, options, expected, status] of [
     ['CLEAN', { mergeStatus: 17 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
-    ['BEHIND', { updateStatus: 23 }, { merged: false, updatedBranch: true, autoMergeDisabled: false }, 23],
+    ['BEHIND', { updateStatus: 23 }, { merged: false, updatedBranch: true, autoMergeDisabled: true }, 23],
     ['CLEAN', { mergeStatus: 17, commentStatus: 31 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
     ['CLEAN', { mergeStatus: 17, disableStatus: 33 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
     ['CLEAN', { mergeStatus: 17, labelStatus: 37 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
     ['CLEAN', { mergeStatus: 17, commentStatus: 31, disableStatus: 33, labelStatus: 37 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
+    ['BEHIND', { updateStatus: 23, commentStatus: 31, disableStatus: 33, labelStatus: 37 }, { merged: false, updatedBranch: true, autoMergeDisabled: true }, 23],
   ]) {
     const result = runDispatch(mergeState, options);
     assert.equal(result.status, status, 'original operation status must win');
@@ -537,7 +553,47 @@ test('automerge coordinator fails closed around the native merge queue', async (
       { ...expected, dispatchedCi: false, skipped: false, commented: true, labelRemoved: true },
     );
     assert.match(result.calls, new RegExp(`operation=${mergeState === 'CLEAN' ? 'merge reservation' : 'update-branch'}; merge_state=${mergeState}; status=${status}; Actions run: https://github\\.example/o/r/actions/runs/123`));
+    const disableAt = result.calls.indexOf('gh pr merge 44 --repo o/r --disable-auto');
+    const labelAt = result.calls.indexOf('gh pr edit 44 --repo o/r --remove-label automerge');
+    const commentAt = result.calls.indexOf('gh pr comment 44 --repo o/r --body');
+    assert.ok(disableAt < labelAt && labelAt < commentAt, 'cleanup must disable auto-merge, remove the label, then comment');
+    assert.ok(result.disableCalls <= 2 && result.labelCalls <= 2, 'cleanup attempts must stay bounded at two');
   }
+
+  const convergedOnSecondAttempt = runDispatch('CLEAN', {
+    mergeStatus: 17,
+    disableFirstFails: true,
+    labelFirstFails: true,
+  });
+  assert.equal(convergedOnSecondAttempt.status, 17, 'cleanup retries must not replace the merge status');
+  assert.deepEqual(
+    { disableCalls: convergedOnSecondAttempt.disableCalls, autoMergeQueries: convergedOnSecondAttempt.autoMergeQueries, labelCalls: convergedOnSecondAttempt.labelCalls, labelQueries: convergedOnSecondAttempt.labelQueries },
+    { disableCalls: 2, autoMergeQueries: 2, labelCalls: 2, labelQueries: 2 },
+  );
+
+  const notConverged = runDispatch('BEHIND', {
+    updateStatus: 23,
+    autoMergeConverges: false,
+    labelConverges: false,
+  });
+  assert.equal(notConverged.status, 23, 'unconverged cleanup must preserve the update status');
+  assert.deepEqual(
+    { disableCalls: notConverged.disableCalls, labelCalls: notConverged.labelCalls },
+    { disableCalls: 2, labelCalls: 2 },
+  );
+  assert.match(notConverged.output, /cleanup did not converge/);
+
+  const queryFailed = runDispatch('BEHIND', {
+    updateStatus: 23,
+    autoMergeQueryStatus: 51,
+    labelQueryStatus: 53,
+  });
+  assert.equal(queryFailed.status, 23, 'cleanup query failures must preserve the update status');
+  assert.deepEqual(
+    { disableCalls: queryFailed.disableCalls, labelCalls: queryFailed.labelCalls },
+    { disableCalls: 2, labelCalls: 2 },
+  );
+  assert.match(queryFailed.output, /failed to confirm/);
 
   // 큐 루프 전체를 돌려 "막힌 후보가 뒤의 후보를 굶기지 않는다"를 직접 실측한다.
   const queueLoop = workflow.match(/# queue-loop-begin\n([\s\S]*?)\n\s+# queue-loop-end/)?.[1];
