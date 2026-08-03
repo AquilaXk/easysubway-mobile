@@ -11645,9 +11645,11 @@ void main() {
         find.byKey(const Key('routeDestinationPointButton')),
         findsOneWidget,
       );
+      // #69: 입력 패널은 행마다 박스를 두지 않고 구분선으로만 나눈다. 그래서 행
+      // 높이는 시각 박스(40)가 아니라 터치 타깃(56) 그대로다.
       expect(
         tester.getSize(find.byKey(const Key('routeOriginPointButton'))).height,
-        easySubwaySearchFieldVisualHeight,
+        EasySubwayTouchTarget.general,
       );
       expect(
         tester
@@ -15017,7 +15019,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('경로 목록'), findsOneWidget);
+      // #69: 단계 화면 상단 chrome은 패밀리룩 AppBar로 통일했다. 돌아갈 화면
+      // 이름을 적던 back 버튼 대신 현재 화면 이름이 제목으로 온다.
+      expect(find.text('경로 상세'), findsOneWidget);
+      expect(find.byKey(const Key('routeStageBackButton')), findsOneWidget);
       expect(find.text('추천 경로 1개'), findsNothing);
       expect(find.text('가장 추천'), findsNothing);
       expect(find.byIcon(Icons.edit_outlined), findsNothing);
@@ -18226,6 +18231,308 @@ void main() {
     } finally {
       semanticsHandle.dispose();
     }
+  });
+
+  group('#69 길찾기 패밀리룩 재구성', () {
+    testWidgets('결과 카드는 도착 시각·요금·경로 특성과 노선 비율 바를 함께 보여준다', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      try {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: RouteSearchScreen(
+              repository: FakeRouteSearchRepository(
+                result: _sampleRouteSearchResult(
+                  // 응답에 실린 도착 시각(로컬 표기)만 쓴다 — 새로 계산하지 않는다.
+                  arrivalTimeIso: '2026-08-03T14:05:00',
+                  officialOdFareQuote: const OfficialOdFareQuote(
+                    originStationId: 'station-sangnoksu',
+                    destinationStationId: 'station-sadang',
+                    sourceId: approvedOfficialOdFareSourceId,
+                    snapshotId: approvedOfficialOdFareSnapshotId,
+                    mappingLedgerHash: approvedOfficialOdFareMappingLedgerHash,
+                    gnrlCardFare: 1550,
+                    gnrlCashFare: 1650,
+                    yungCardFare: 800,
+                    yungCashFare: 900,
+                    childCardFare: 500,
+                    childCashFare: 500,
+                  ),
+                ),
+              ),
+              stationRepository: FakeStationSearchRepository(),
+              initialMobilityType: 'SENIOR',
+              initialDraft: RouteDraft(
+                origin: const RouteDraftStation(
+                  id: 'station-sangnoksu',
+                  nameKo: '상록수',
+                ),
+                destination: const RouteDraftStation(
+                  id: 'station-sadang',
+                  nameKo: '사당',
+                ),
+                lastModifiedAt: DateTime(2026, 8, 3),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // 1행: 소요시간(가장 큰 타이포) + 도착 시각 보조 표기.
+        expect(find.text('7분'), findsOneWidget);
+        expect(
+          find.byKey(const Key('routeResultArrivalClock')),
+          findsOneWidget,
+        );
+        expect(
+          tester
+              .widget<Text>(find.byKey(const Key('routeResultArrivalClock')))
+              .data,
+          '14:05 도착',
+        );
+        // 2행: 기존 환승·걷기 메타에 공식 자료 요금만 덧붙는다.
+        expect(find.text('환승 없이 이동 · 걷기 300m · 1,550원'), findsOneWidget);
+        // 3행: 노선 구성 비율 바.
+        expect(
+          find.byKey(const Key('routeResultLineRatioBar')),
+          findsOneWidget,
+        );
+        // 경로 특성 배지는 요청 objective를 그대로 쓴다.
+        expect(
+          find.descendant(
+            of: find.byKey(const Key('routeResultObjectiveChip')),
+            matching: find.text('최단시간'),
+          ),
+          findsOneWidget,
+        );
+        // 스크린리더도 같은 사실을 읽는다.
+        final routeItemSemantics = tester
+            .getSemantics(find.byKey(const Key('routeResultListItem')))
+            .getSemanticsData();
+        expect(routeItemSemantics.label, contains('14:05 도착'));
+        expect(routeItemSemantics.label, contains('1,550원'));
+        expect(routeItemSemantics.label, contains('최단시간'));
+      } finally {
+        semanticsHandle.dispose();
+      }
+    });
+
+    testWidgets('도착 시각·요금 데이터가 없으면 그 줄을 만들어 내지 않는다', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: FakeRouteSearchRepository(),
+            stationRepository: FakeStationSearchRepository(),
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 3),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('routeResultArrivalClock')), findsNothing);
+      expect(find.textContaining('원'), findsNothing);
+      expect(find.text('환승 없이 이동 · 걷기 300m'), findsOneWidget);
+    });
+
+    testWidgets('길찾기 단계 화면은 패밀리룩 AppBar 제목과 back으로 통일된다', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: FakeRouteSearchRepository(),
+            stationRepository: FakeStationSearchRepository(),
+            routeFeedbackRepository: FakeRouteFeedbackRepository(),
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 3),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('길찾기')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('routeSearchBackButton')), findsOneWidget);
+
+      await _openFirstRouteResultDetail(tester);
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('경로 상세')),
+        findsOneWidget,
+      );
+      expect(find.byKey(const Key('routeStageBackButton')), findsOneWidget);
+
+      await tester.ensureVisible(
+        find.byKey(const Key('routeStartGuidanceButton')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('routeStartGuidanceButton')));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('단계별 안내')),
+        findsOneWidget,
+      );
+
+      await tester.ensureVisible(
+        find.byKey(const Key('routeOpenInternalRouteButton')),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('routeOpenInternalRouteButton')));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(
+          of: find.byType(AppBar),
+          matching: find.text('역 안 이동 순서'),
+        ),
+        findsOneWidget,
+      );
+
+      // AppBar back 버튼이 단계 전환을 그대로 되돌린다.
+      await tester.tap(find.byKey(const Key('routeStageBackButton')));
+      await tester.pumpAndSettle();
+      expect(
+        find.descendant(of: find.byType(AppBar), matching: find.text('단계별 안내')),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('입력 패널은 상단바 표면색을 이어받고 스왑·경유 토글을 우측에 모은다', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: FakeRouteSearchRepository(),
+            stationRepository: FakeStationSearchRepository(),
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 3),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final panel = find.byKey(const Key('routePointPickerCard'));
+      expect(panel, findsOneWidget);
+      expect(
+        tester
+            .widget<ColoredBox>(
+              find
+                  .descendant(of: panel, matching: find.byType(ColoredBox))
+                  .first,
+            )
+            .color,
+        EasySubwayAccessibleColors.topBarSurface,
+      );
+      // 입력 패널은 화면 좌우 끝까지 이어진다.
+      expect(tester.getTopLeft(panel).dx, 0);
+      expect(
+        tester.getTopRight(panel).dx,
+        tester.getSize(find.byKey(const Key('routeSearchScreen'))).width,
+      );
+      // 스왑·경유 토글은 출발/도착 행 오른쪽 한 칸에 모인다.
+      final swapLeft = tester
+          .getTopLeft(find.byKey(const Key('routeSwapStationsButton')))
+          .dx;
+      final addWaypointLeft = tester
+          .getTopLeft(find.byKey(const Key('routeAddWaypointButton')))
+          .dx;
+      expect(swapLeft, addWaypointLeft);
+      expect(
+        swapLeft,
+        greaterThan(
+          tester
+              .getTopRight(find.byKey(const Key('routeOriginPointButton')))
+              .dx,
+        ),
+      );
+    });
+
+    testWidgets('조건 칩 행은 한 줄 가로 스크롤로 남고 선택 상태를 채움으로 말한다', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: FakeRouteSearchRepository(),
+            stationRepository: FakeStationSearchRepository(),
+            itxTransportScopeEnabled: true,
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 3),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final chips = find.byKey(const Key('routeConditionChips'));
+      expect(chips, findsOneWidget);
+      expect(
+        tester.widget<SingleChildScrollView>(chips).scrollDirection,
+        Axis.horizontal,
+      );
+      // 칩은 줄바꿈하지 않고 한 줄에 남는다(모두 같은 y).
+      final objectiveTop = tester
+          .getTopLeft(find.byKey(const Key('routeObjectiveFastestChip')))
+          .dy;
+      expect(
+        tester.getTopLeft(find.byKey(const Key('routeScopeSubwayChip'))).dy,
+        objectiveTop,
+      );
+      // 선택 칩은 액센트로 채우고, 비선택 칩은 얇은 외곽선만 남긴다.
+      Color chipFill(String key) =>
+          (tester
+                      .widget<Ink>(
+                        find.descendant(
+                          of: find.byKey(Key(key)),
+                          matching: find.byType(Ink),
+                        ),
+                      )
+                      .decoration!
+                  as BoxDecoration)
+              .color!;
+      expect(
+        chipFill('routeObjectiveFastestChip'),
+        EasySubwayAccessibleColors.primary,
+      );
+      expect(
+        chipFill('routeObjectiveFewestTransfersChip'),
+        EasySubwayAccessibleColors.surface,
+      );
+    });
   });
 
   testWidgets('경로 요약은 stepType 기반 환승과 보행 거리만 표시한다', (tester) async {
