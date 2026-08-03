@@ -4116,10 +4116,11 @@ class _RoutePointRowDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Divider(
+    return Divider(
       height: 1,
       thickness: 1,
-      indent: _routePointRoleLabelWidth,
+      // 라벨 폭이 글자 배율에 따라 늘어나므로 들여쓰기도 같은 값을 따라간다.
+      indent: _routePointRoleLabelWidth(context),
       color: EasySubwayAccessibleColors.line,
     );
   }
@@ -4152,8 +4153,24 @@ Widget _routeChromeIconButton({
   );
 }
 
-/// 입력 패널 역할 라벨(출발역·경유역·도착역) 고정 폭.
-const double _routePointRoleLabelWidth = 52;
+/// 입력 패널 역할 라벨(출발역·경유역·도착역) 기본 폭. 출발·경유·도착 행의 역명
+/// 시작점을 맞추려고 라벨 칸을 고정 폭으로 잡는다.
+const double _routePointRoleLabelBaseWidth = 52;
+
+/// 글자 배율에 비례해 늘린 역할 라벨 폭.
+///
+/// 고정 폭 + `maxLines: 1`이라 큰 글자 설정에서 "출발역"이 잘렸다. 배율만큼 칸을
+/// 함께 키워 잘림을 막고, 세 행이 같은 값을 쓰므로 역명 시작점 정렬도 유지된다.
+/// 축소는 하지 않아 기본 배율에서는 정확히 52다(search_field.dart의 시각 박스
+/// 확대와 같은 원리).
+double _routePointRoleLabelWidth(BuildContext context) {
+  final scaled = MediaQuery.textScalerOf(
+    context,
+  ).scale(_routePointRoleLabelBaseWidth);
+  return scaled > _routePointRoleLabelBaseWidth
+      ? scaled
+      : _routePointRoleLabelBaseWidth;
+}
 
 class _RoutePointRow extends StatelessWidget {
   const _RoutePointRow({
@@ -4208,7 +4225,7 @@ class _RoutePointRow extends StatelessWidget {
               child: Row(
                 children: [
                   SizedBox(
-                    width: _routePointRoleLabelWidth,
+                    width: _routePointRoleLabelWidth(context),
                     child: Text(
                       roleLabel,
                       maxLines: 1,
@@ -4434,12 +4451,14 @@ class _RouteStationPickerState extends State<_RouteStationPicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        SizedBox(
-          height: _routePointRowHeight,
+        ConstrainedBox(
+          // 고정 높이 대신 최소 높이로 둬야 큰 글자 설정에서 라벨·입력 줄이 세로로
+          // 잘리지 않는다(요약 행 _RoutePointRow와 같은 규칙).
+          constraints: const BoxConstraints(minHeight: _routePointRowHeight),
           child: Row(
             children: [
               SizedBox(
-                width: _routePointRoleLabelWidth,
+                width: _routePointRoleLabelWidth(context),
                 child: Text(
                   widget.labelText,
                   maxLines: 1,
@@ -6435,8 +6454,11 @@ class _RouteResultListButton extends StatelessWidget {
                               ? Icons.bolt
                               : Icons.swap_calls,
                         ),
+                      // 단계별 안내 화면 헤더 라벨이 쓰는
+                      // `routeGuidanceMobilityChip`과 겹치지 않게 결과 카드는
+                      // 자체 Key를 쓴다 — 두 화면이 한 스택에 함께 살 수 있다.
                       _RouteStatusChip(
-                        key: const Key('routeGuidanceMobilityChip'),
+                        key: const Key('routeResultMobilityChip'),
                         label: result.mobilityLabel == '이동 조건을 다시 선택해 주세요'
                             ? result.mobilityLabel
                             : result.comfortLabel,
@@ -6509,17 +6531,27 @@ String _routeArrivalClockLabel(RouteSearchResult result) {
   return clock.isEmpty ? '' : '$clock 도착';
 }
 
-/// ISO 시각을 "HH:mm"으로. 파싱할 수 없으면 빈 문자열.
+/// 경로 시각 문자열을 "HH:mm"으로. 읽을 수 없으면 빈 문자열.
+///
+/// 해석 규칙은 같은 파일의 공유 요약([_routeShareTime])과 한 벌이다. 오프셋(`Z`·
+/// `+09:00`)이 붙은 값만 절대 시각으로 보고 KST로 환산하고, 오프셋 없는 값은
+/// 기기 타임존으로 재해석하지 않고 적힌 벽시계 그대로 읽는다. 기기 타임존에 따라
+/// 도착 시각이 달라지면 안 되고(서비스 지역은 KST 하나다), 오프셋 없는 값을
+/// `DateTime.parse`에 넘기면 기기 로컬로 해석돼 그 위험이 생긴다.
+/// 던지는 [_routeShareTime]과 달리 표시용이라 실패 시 빈 문자열로 조용히 접는다.
 String _routeClockLabelOrEmpty(String value) {
   final trimmed = value.trim();
   if (trimmed.isEmpty) {
     return '';
   }
-  final parsed = DateTime.tryParse(trimmed);
-  if (parsed != null) {
-    final local = parsed.isUtc ? parsed.toLocal() : parsed;
-    return '${local.hour.toString().padLeft(2, '0')}:'
-        '${local.minute.toString().padLeft(2, '0')}';
+  if (RegExp(r'(?:[zZ]|[+-]\d{2}:\d{2})$').hasMatch(trimmed)) {
+    final instant = DateTime.tryParse(trimmed);
+    if (instant == null) {
+      return '';
+    }
+    final koreanTime = instant.toUtc().add(const Duration(hours: 9));
+    return '${koreanTime.hour.toString().padLeft(2, '0')}:'
+        '${koreanTime.minute.toString().padLeft(2, '0')}';
   }
   final match = RegExp(r'(?:T|^)(\d{2}):(\d{2})').firstMatch(trimmed);
   if (match == null) {

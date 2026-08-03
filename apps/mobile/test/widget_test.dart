@@ -18344,6 +18344,52 @@ void main() {
       expect(find.text('환승 없이 이동 · 걷기 300m'), findsOneWidget);
     });
 
+    // 도착 시각 해석은 공유 요약(_routeShareTime)과 한 벌이어야 한다. 서비스
+    // 지역은 KST 하나이므로 기기 타임존이 표시를 흔들면 안 된다.
+    testWidgets('오프셋 없는 도착 시각은 적힌 벽시계 그대로 읽는다', (tester) async {
+      await tester.pumpWidget(
+        _routeArrivalClockApp(arrivalTimeIso: '2026-08-03T23:50:00'),
+      );
+      await tester.pumpAndSettle();
+
+      // UTC로 오인해 +9를 더하면 '08:50'이 된다 — 변환 자체를 하지 않아야 한다.
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('routeResultArrivalClock')))
+            .data,
+        '23:50 도착',
+      );
+    });
+
+    testWidgets('오프셋이 붙은 도착 시각은 기기 타임존이 아니라 KST로 환산한다', (tester) async {
+      await tester.pumpWidget(
+        _routeArrivalClockApp(arrivalTimeIso: '2026-08-03T05:05:00Z'),
+      );
+      await tester.pumpAndSettle();
+
+      // 기기 로컬로 환산하면 실행 기기 타임존에 따라 값이 흔들린다(UTC 기기면 05:05).
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('routeResultArrivalClock')))
+            .data,
+        '14:05 도착',
+      );
+    });
+
+    testWidgets('KST 오프셋 도착 시각은 기기 타임존과 무관하게 그대로 유지된다', (tester) async {
+      await tester.pumpWidget(
+        _routeArrivalClockApp(arrivalTimeIso: '2026-08-03T14:05:00+09:00'),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<Text>(find.byKey(const Key('routeResultArrivalClock')))
+            .data,
+        '14:05 도착',
+      );
+    });
+
     testWidgets('길찾기 단계 화면은 패밀리룩 AppBar 제목과 back으로 통일된다', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
@@ -18766,7 +18812,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);
-    expect(find.byKey(const Key('routeGuidanceMobilityChip')), findsOneWidget);
+    // 결과 카드 칩은 단계별 안내 헤더 라벨과 Key가 겹치지 않게 자체 Key를 쓴다.
+    expect(find.byKey(const Key('routeResultMobilityChip')), findsOneWidget);
     expect(find.text('이동 조건을 다시 선택해 주세요'), findsOneWidget);
 
     await tester.ensureVisible(find.byKey(const Key('routeResultListItem')));
@@ -22996,6 +23043,29 @@ StationTimetable _stationTimetable(
     lineId: lineId,
     dayType: dayType,
     directions: directions,
+  );
+}
+
+/// 결과 카드 도착 시각 해석만 보려고 세운 최소 길찾기 화면(#69).
+///
+/// 응답의 `arrivalTimeIso` 하나만 바꿔 가며 표시 문자열을 확인한다.
+Widget _routeArrivalClockApp({required String arrivalTimeIso}) {
+  return MaterialApp(
+    home: RouteSearchScreen(
+      repository: FakeRouteSearchRepository(
+        result: _sampleRouteSearchResult(arrivalTimeIso: arrivalTimeIso),
+      ),
+      stationRepository: FakeStationSearchRepository(),
+      initialMobilityType: 'SENIOR',
+      initialDraft: RouteDraft(
+        origin: const RouteDraftStation(id: 'station-sangnoksu', nameKo: '상록수'),
+        destination: const RouteDraftStation(
+          id: 'station-sadang',
+          nameKo: '사당',
+        ),
+        lastModifiedAt: DateTime(2026, 8, 3),
+      ),
+    ),
   );
 }
 
