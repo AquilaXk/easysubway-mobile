@@ -52,6 +52,10 @@ test('automerge coordinator fails closed around the native merge queue', async (
     '[sort_by(.createdAt)[].number]',
     'gh pr merge --squash --auto',
     '--match-head-commit "${head}"',
+    'fail_closed_pr()',
+    'gh pr comment "${pr}"',
+    'gh pr edit "${pr}" --repo "${repo}" --remove-label automerge',
+    'Actions run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}',
     '--limit 1000',
     '/update-branch',
     'headRepository',
@@ -397,10 +401,22 @@ test('automerge coordinator fails closed around the native merge queue', async (
     /# merge-state-dispatch-begin\n([\s\S]*?)\n\s+# merge-state-dispatch-end/,
   )?.[1];
   assert.ok(dispatchBlock, 'merge state dispatch must stay testable');
+  const failureHandler = workflow.match(/          fail_closed_pr\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(failureHandler, 'failed merge/update operations must fail closed');
   // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다. 분기는 큐 루프
   // 안에 있으므로 `continue`가 유효하도록 1회 루프로 감싸고, 루프를 빠져나오면
   // SKIPPED를 남겨 "이 후보를 건너뛰었다"를 관측한다.
-  const runDispatch = (mergeState, { headRepo = 'o/r', newHead = 'updated-head' } = {}) => {
+  const runDispatch = (
+    mergeState,
+    {
+      headRepo = 'o/r',
+      newHead = 'updated-head',
+      mergeStatus = 0,
+      updateStatus = 0,
+      commentStatus = 0,
+      labelStatus = 0,
+    } = {},
+  ) => {
     const log = join(mkdtempSync(join(tmpdir(), 'automerge-queue-')), 'gh.log');
     const script = [
       'set -euo pipefail',
@@ -409,6 +425,10 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'gh() {',
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
       '  case "$*" in',
+      `    *"pr merge"*) return ${mergeStatus} ;;`,
+      `    *"update-branch"*) return ${updateStatus} ;;`,
+      `    *"pr comment"*) return ${commentStatus} ;;`,
+      `    *"pr edit"*) return ${labelStatus} ;;`,
       `    *"pr view"*headRefOid*) printf '%s\\n' ${JSON.stringify(newHead)} ;;`,
       '  esac',
       '}',
@@ -418,7 +438,11 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'head=old-head',
       `head_repo=${JSON.stringify(headRepo)}`,
       'head_ref=feature',
+      'GITHUB_RUN_ID=123',
+      'GITHUB_SERVER_URL=https://github.example',
+      'GITHUB_REPOSITORY=o/r',
       `merge_state=${JSON.stringify(mergeState)}`,
+      ['fail_closed_pr() {', failureHandler.replace(/^ {10}/gm, ''), '}'].join('\n'),
       'for _ in 1; do',
       dispatchBlock.replace(/^ {12}/gm, ''),
       'done',
@@ -432,54 +456,80 @@ test('automerge coordinator fails closed around the native merge queue', async (
       updatedBranch: calls.includes('update-branch'),
       dispatchedCi: calls.includes('workflow run ci.yml'),
       skipped: calls.includes('SKIPPED'),
+      commented: calls.includes('gh pr comment'),
+      labelRemoved: calls.includes('gh pr edit 44 --repo o/r --remove-label automerge'),
+      calls,
     };
   };
+  const withoutCalls = ({ calls, ...result }) => result;
 
   // 병합 가능 상태. UNSTABLE은 "필수가 아닌 check가 green이 아님"일 뿐이고 required
   // context는 위에서 ruleset 기준으로 이미 검증했으므로 병합을 진행한다.
   for (const mergeState of ['CLEAN', 'HAS_HOOKS', 'UNSTABLE']) {
     assert.deepEqual(
-      runDispatch(mergeState),
-      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false, skipped: false },
+      withoutCalls(runDispatch(mergeState)),
+      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false, skipped: false, commented: false, labelRemoved: false },
       `${mergeState} must proceed to merge`,
     );
   }
   // base 갱신이 필요한 상태는 update-branch 경로로 간다.
-  assert.deepEqual(runDispatch('BEHIND'), {
+  assert.deepEqual(withoutCalls(runDispatch('BEHIND')), {
     status: 0,
     merged: false,
     updatedBranch: true,
     dispatchedCi: true,
     skipped: false,
+    commented: false,
+    labelRemoved: false,
   });
   // update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. stale ref로 CI를
   // 쏘지도 말고 실패하지도 말고 다음 트리거에서 재시도한다. 판정을 bash 버전에 맡기지
   // 않으려면 명시적 분기여야 한다 — bare `[[ ]]`는 bash 5에서 조용히 job을 죽이고
   // bash 3.2에서는 그냥 통과한다.
-  assert.deepEqual(runDispatch('BEHIND', { newHead: 'old-head' }), {
+  assert.deepEqual(withoutCalls(runDispatch('BEHIND', { newHead: 'old-head' })), {
     status: 0,
     merged: false,
     updatedBranch: true,
     dispatchedCi: false,
     skipped: false,
+    commented: false,
+    labelRemoved: false,
   });
   // 병합할 수 없는 상태는 전부 "이 후보만 건너뛴다"로 수렴한다. 실행을 실패시키지도,
   // 라벨을 건드리지도 않는다. 뒤의 후보는 계속 평가된다.
   for (const mergeState of ['DIRTY', 'BLOCKED', 'UNKNOWN', 'SOME_NEW_STATE']) {
     assert.deepEqual(
-      runDispatch(mergeState),
-      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, skipped: true },
+      withoutCalls(runDispatch(mergeState)),
+      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, skipped: true, commented: false, labelRemoved: false },
       `${mergeState} must skip to the next candidate`,
     );
   }
   // fork head에 base 저장소 CI를 dispatch하지 않는다. 거부하되 큐는 계속 진행한다.
-  assert.deepEqual(runDispatch('BEHIND', { headRepo: 'fork/r' }), {
+  assert.deepEqual(withoutCalls(runDispatch('BEHIND', { headRepo: 'fork/r' })), {
     status: 0,
     merged: false,
     updatedBranch: false,
     dispatchedCi: false,
     skipped: true,
+    commented: false,
+    labelRemoved: false,
   });
+
+  for (const [mergeState, options, expected, status] of [
+    ['CLEAN', { mergeStatus: 17 }, { merged: true, updatedBranch: false }, 17],
+    ['BEHIND', { updateStatus: 23 }, { merged: false, updatedBranch: true }, 23],
+    ['CLEAN', { mergeStatus: 17, commentStatus: 31 }, { merged: true, updatedBranch: false }, 17],
+    ['CLEAN', { mergeStatus: 17, labelStatus: 37 }, { merged: true, updatedBranch: false }, 17],
+    ['CLEAN', { mergeStatus: 17, commentStatus: 31, labelStatus: 37 }, { merged: true, updatedBranch: false }, 17],
+  ]) {
+    const result = runDispatch(mergeState, options);
+    assert.equal(result.status, status, 'original operation status must win');
+    assert.deepEqual(
+      { merged: result.merged, updatedBranch: result.updatedBranch, dispatchedCi: result.dispatchedCi, skipped: result.skipped, commented: result.commented, labelRemoved: result.labelRemoved },
+      { ...expected, dispatchedCi: false, skipped: false, commented: true, labelRemoved: true },
+    );
+    assert.match(result.calls, new RegExp(`operation=${mergeState === 'CLEAN' ? 'merge reservation' : 'update-branch'}; merge_state=${mergeState}; status=${status}; Actions run: https://github\\.example/o/r/actions/runs/123`));
+  }
 
   // 큐 루프 전체를 돌려 "막힌 후보가 뒤의 후보를 굶기지 않는다"를 직접 실측한다.
   const queueLoop = workflow.match(/# queue-loop-begin\n([\s\S]*?)\n\s+# queue-loop-end/)?.[1];
