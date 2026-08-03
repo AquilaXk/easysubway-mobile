@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 
 import 'accessible_design.dart';
 import 'ad_slot.dart';
+import 'app/easy_subway_family_app_bar.dart';
 import 'auth_headers.dart';
 import 'core/error/error_feedback.dart';
 import 'core/error/server_error_mapper.dart';
@@ -55,15 +56,27 @@ const _favoriteRouteSaveFailureNextAction =
 // 최소환승 대표가 대안보다 느릴 수 있어(백엔드 대안 선정에 소요시간 비교가 없다)
 // 화면의 숫자와 어긋난다.
 const _stepFreeAlternativeTitle = '계단 없는 다른 경로';
-const _routeSearchPagePadding = EdgeInsets.only(
-  left: EasySubwaySpacing.xl,
-  top: EasySubwaySpacing.lg,
-  right: EasySubwaySpacing.xl,
-  bottom: EasySubwaySpacing.xxl,
+
+/// 길찾기 화면 좌우 여백. 입력 패널·조건 칩은 화면 끝까지 이어지고 안쪽에서
+/// 같은 값을 다시 줘, 상단바 표면과 본문이 한 덩어리로 읽히게 한다(#69).
+const _routeSearchGutter = EasySubwaySpacing.lg;
+const _routeSearchContentPadding = EdgeInsets.symmetric(
+  horizontal: _routeSearchGutter,
 );
 const _routeSearchSmallRadius = easySubwaySearchFieldRadius;
 const _routeSearchPillRadius = easySubwaySearchFieldRadius;
 const _routeResultSectionPadding = EdgeInsets.fromLTRB(1, 0, 1, 11);
+
+/// 출발·도착 행 한 줄 높이. 터치 타깃(56)을 그대로 시각 높이로 쓴다.
+const _routePointRowHeight = EasySubwayTouchTarget.general;
+
+/// 노선 구성 비율 바(결과 카드 3행) 규격.
+const _routeRatioBarHeight = 8.0;
+const _routeRatioBarRadius = BorderRadius.all(Radius.circular(4));
+const _routeRatioBadgeSize = 20.0;
+
+/// 비율 바 구간 사이 간격. 환승 지점을 얇은 빈칸으로 표시한다.
+const _routeRatioSegmentGap = 2.0;
 
 String _mobilityLabelFor(String mobilityType) {
   final preset = mobilityPresetFromRepresentativeMobilityType(mobilityType);
@@ -3404,7 +3417,9 @@ class _RouteSearchScreenState extends State<RouteSearchScreen>
                 onRefresh: _refreshCurrentRouteAndAlarm,
                 child: ListView(
                   physics: const AlwaysScrollableScrollPhysics(),
-                  padding: _routeSearchPagePadding,
+                  // 입력 패널·조건 칩이 화면 끝까지 이어지도록 페이지 여백은
+                  // 각 조각이 직접 갖는다(#69).
+                  padding: EdgeInsets.zero,
                   children: [
                     _RoutePointPickerCard(
                       key: const Key('routePointPickerCard'),
@@ -3439,13 +3454,15 @@ class _RouteSearchScreenState extends State<RouteSearchScreen>
                       onRemoveWaypoint: _removeWaypointSlot,
                       onSwap: _swapStations,
                     ),
-                    const SizedBox(height: 18),
                     if (_validationMessage.isNotEmpty) ...[
-                      _RouteSearchMessage(
-                        message: _validationMessage,
-                        liveRegion: true,
+                      const SizedBox(height: EasySubwaySpacing.lg),
+                      Padding(
+                        padding: _routeSearchContentPadding,
+                        child: _RouteSearchMessage(
+                          message: _validationMessage,
+                          liveRegion: true,
+                        ),
                       ),
-                      const SizedBox(height: 16),
                     ],
                     // 현재 보행 프리셋은 언제나 조용한 칩 한 개로만 노출한다.
                     // 바꾸면 그 자리에서 바로 재검색한다(별도 폼·버튼 없음).
@@ -3461,24 +3478,32 @@ class _RouteSearchScreenState extends State<RouteSearchScreen>
                       onChangeObjective: _changeObjective,
                       onChangeTransportScope: _changeTransportScope,
                     ),
-                    _RouteSearchBody(
-                      state: _controller.state,
-                      onSearchSubwayOnly:
-                          _selectedTransportScope ==
-                              RouteTransportScope.subwayAndItxCheongchun
-                          ? () => _changeTransportScope(
-                              RouteTransportScope.subway,
-                            )
-                          : null,
-                      routeFeedbackRepository: widget.routeFeedbackRepository,
-                      favoriteRouteRepository: widget.favoriteRouteRepository,
-                      adRepository: widget.adRepository,
-                      onShellBackToHome: widget.onShellBackToHome == null
-                          ? null
-                          : _endRoute,
-                      getOffAlarmController: widget.getOffAlarmController,
-                      stationRepository: widget.stationRepository,
-                      routeShareInvoker: widget.routeShareInvoker,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        _routeSearchGutter,
+                        0,
+                        _routeSearchGutter,
+                        EasySubwaySpacing.xxl,
+                      ),
+                      child: _RouteSearchBody(
+                        state: _controller.state,
+                        onSearchSubwayOnly:
+                            _selectedTransportScope ==
+                                RouteTransportScope.subwayAndItxCheongchun
+                            ? () => _changeTransportScope(
+                                RouteTransportScope.subway,
+                              )
+                            : null,
+                        routeFeedbackRepository: widget.routeFeedbackRepository,
+                        favoriteRouteRepository: widget.favoriteRouteRepository,
+                        adRepository: widget.adRepository,
+                        onShellBackToHome: widget.onShellBackToHome == null
+                            ? null
+                            : _endRoute,
+                        getOffAlarmController: widget.getOffAlarmController,
+                        stationRepository: widget.stationRepository,
+                        routeShareInvoker: widget.routeShareInvoker,
+                      ),
                     ),
                   ],
                 ),
@@ -3992,7 +4017,8 @@ class _RoutePointPickerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 지도 draft와 같은 문법: [역할 | 호선마크·역명] + 출발 옆 경유 추가/제거 + 우측 스왑.
+    // #69: 상단바 표면색을 그대로 이어받는 플랫 입력 패널. 행마다 박스를 두지 않고
+    // 얇은 구분선으로만 나누고, 스왑·경유 토글은 우측 한 칸에 모은다.
     final originChild =
         originPicker ??
         _RoutePointRow(
@@ -4040,47 +4066,61 @@ class _RoutePointPickerCard extends StatelessWidget {
       icon: Icons.swap_vert,
       onPressed: onSwap,
     );
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            children: [
-              // 출발 행만 왼쪽에 경유 추가/제거 — 필드 폭은 경유·도착과 맞춘다.
-              Row(
-                children: [
-                  waypointToggle,
-                  const SizedBox(width: EasySubwaySpacing.sm),
-                  Expanded(child: originChild),
-                ],
-              ),
-              if (waypointChild != null) ...[
-                const SizedBox(height: EasySubwaySpacing.sm),
-                Row(
-                  children: [
-                    const SizedBox(
-                      width:
-                          EasySubwayTouchTarget.general + EasySubwaySpacing.sm,
-                    ),
-                    Expanded(child: waypointChild),
-                  ],
+    return ColoredBox(
+      color: EasySubwayAccessibleColors.topBarSurface,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(
+              left: _routeSearchGutter,
+              right: EasySubwaySpacing.sm,
+              top: EasySubwaySpacing.sm,
+              bottom: EasySubwaySpacing.sm,
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      originChild,
+                      const _RoutePointRowDivider(),
+                      if (waypointChild != null) ...[
+                        waypointChild,
+                        const _RoutePointRowDivider(),
+                      ],
+                      destinationChild,
+                    ],
+                  ),
+                ),
+                const SizedBox(width: EasySubwaySpacing.xs),
+                Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [swapButton, waypointToggle],
                 ),
               ],
-              const SizedBox(height: EasySubwaySpacing.sm),
-              Row(
-                children: [
-                  const SizedBox(
-                    width: EasySubwayTouchTarget.general + EasySubwaySpacing.sm,
-                  ),
-                  Expanded(child: destinationChild),
-                ],
-              ),
-            ],
+            ),
           ),
-        ),
-        const SizedBox(width: EasySubwaySpacing.sm),
-        swapButton,
-      ],
+          const EasySubwayHeaderDivider(),
+        ],
+      ),
+    );
+  }
+}
+
+/// 입력 패널 행 사이 얇은 구분선. 역할 라벨 폭만큼 들여 써 행이 이어져 보이게 한다.
+class _RoutePointRowDivider extends StatelessWidget {
+  const _RoutePointRowDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Divider(
+      height: 1,
+      thickness: 1,
+      indent: _routePointRoleLabelWidth,
+      color: EasySubwayAccessibleColors.line,
     );
   }
 }
@@ -4096,29 +4136,24 @@ Widget _routeChromeIconButton({
     label: semanticsLabel,
     onTap: onPressed,
     child: ExcludeSemantics(
+      // 무박스 원칙: 상단바 표면 위에 얹히는 아이콘만 남기고 테두리·채움을 뺀다.
       child: IconButton(
         key: key,
         onPressed: onPressed,
-        icon: Icon(icon, size: 22),
+        icon: Icon(icon, size: 24),
         color: EasySubwayAccessibleColors.text,
         style: IconButton.styleFrom(
-          minimumSize: const Size(
-            EasySubwayTouchTarget.general,
-            EasySubwayTouchTarget.general,
-          ),
-          backgroundColor: EasySubwayAccessibleColors.searchFieldSurface,
-          side: const BorderSide(
-            color: easySubwaySearchFieldBorderColor,
-            width: easySubwaySearchFieldBorderWidth,
-          ),
-          shape: RoundedRectangleBorder(
-            borderRadius: easySubwaySearchFieldRadius,
-          ),
+          minimumSize: const Size.square(EasySubwayTouchTarget.iconOnly),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: EdgeInsets.zero,
         ),
       ),
     ),
   );
 }
+
+/// 입력 패널 역할 라벨(출발역·경유역·도착역) 고정 폭.
+const double _routePointRoleLabelWidth = 52;
 
 class _RoutePointRow extends StatelessWidget {
   const _RoutePointRow({
@@ -4163,72 +4198,46 @@ class _RoutePointRow extends StatelessWidget {
           color: Colors.transparent,
           child: InkWell(
             onTap: onTap,
-            borderRadius: easySubwaySearchFieldRadius,
-            child: Ink(
-              height: easySubwaySearchFieldVisualHeight,
-              decoration: BoxDecoration(
-                color: EasySubwayAccessibleColors.searchFieldSurface,
-                borderRadius: easySubwaySearchFieldRadius,
-                border: Border.all(
-                  color: easySubwaySearchFieldBorderColor,
-                  width: easySubwaySearchFieldBorderWidth,
-                ),
+            // 무장식 원칙: 상단바 표면 위에 잉크가 번지지 않게 리플을 끈다.
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(
+                minHeight: _routePointRowHeight,
               ),
               child: Row(
                 children: [
                   SizedBox(
-                    width: 72,
-                    child: Center(
-                      child: Text(
-                        roleLabel,
-                        maxLines: 1,
-                        softWrap: false,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          // 역할 색은 배지 등 비텍스트에만. 라벨은 AA 통과 본문색.
-                          color: EasySubwayAccessibleColors.text,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
+                    width: _routePointRoleLabelWidth,
+                    child: Text(
+                      roleLabel,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: const TextStyle(
+                        // 역할 색은 배지 등 비텍스트에만. 라벨은 AA 통과 보조색.
+                        color: EasySubwayAccessibleColors.secondaryText,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
                       ),
                     ),
                   ),
-                  Container(
-                    width: easySubwaySearchFieldBorderWidth,
-                    height: double.infinity,
-                    color: easySubwaySearchFieldBorderColor,
-                  ),
+                  if (lineForBadge != null) ...[
+                    StationLineBadge(line: lineForBadge, size: 24),
+                    const SizedBox(width: EasySubwaySpacing.sm),
+                  ],
                   Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
-                      child: Align(
-                        alignment: Alignment.centerLeft,
-                        child: Row(
-                          children: [
-                            if (lineForBadge != null) ...[
-                              StationLineBadge(line: lineForBadge, size: 26),
-                              const SizedBox(width: 8),
-                            ],
-                            Expanded(
-                              child: Text(
-                                stationName,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  color: filledStation == null
-                                      ? EasySubwayAccessibleColors.mutedText
-                                      : EasySubwayAccessibleColors.text,
-                                  fontSize: filledStation == null ? 15 : 17,
-                                  fontWeight: filledStation == null
-                                      ? FontWeight.w600
-                                      : FontWeight.w700,
-                                  height: 1.2,
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
+                    child: Text(
+                      stationName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: filledStation == null
+                            ? EasySubwayAccessibleColors.mutedText
+                            : EasySubwayAccessibleColors.text,
+                        fontSize: filledStation == null ? 16 : 18,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
                       ),
                     ),
                   ),
@@ -4285,45 +4294,51 @@ class _RouteSearchEmptyRedirect extends StatelessWidget {
   }
 }
 
-/// 설정·도움말과 같은 AppBar 골격: 뒤로가기 + 제목 + 하단 구분선(#2436).
+/// 길찾기 목록 화면 chrome. 설정·역 상세와 같은 패밀리룩 AppBar를 그대로 쓴다.
 PreferredSizeWidget _routeSearchAppBar({required VoidCallback onBack}) {
-  return AppBar(
+  return EasySubwayFamilyAppBar(
     key: const Key('routeSearchAppBar'),
-    toolbarHeight: easySubwayTopBarContentHeight,
-    backgroundColor: EasySubwayAccessibleColors.topBarSurface,
-    foregroundColor: EasySubwayAccessibleColors.text,
-    surfaceTintColor: Colors.transparent,
-    elevation: 0,
-    automaticallyImplyLeading: false,
-    leading: IconButton(
-      key: const Key('routeSearchBackButton'),
-      tooltip: '뒤로',
-      onPressed: onBack,
-      style: IconButton.styleFrom(
-        minimumSize: const Size.square(EasySubwayTouchTarget.general),
-        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-        padding: EdgeInsets.zero,
-      ),
-      icon: const Icon(
-        Icons.arrow_back,
-        size: 26,
-        color: EasySubwayAccessibleColors.contentPrimary,
-      ),
-    ),
-    title: const Text(
-      '길찾기',
-      style: TextStyle(
+    title: const _RouteChromeTitle('길찾기'),
+    backButtonKey: const Key('routeSearchBackButton'),
+    dividerKey: const Key('routeSearchHeaderDivider'),
+    onBack: onBack,
+  );
+}
+
+/// 길찾기 단계 화면(상세·안내·역 안 이동·피드백) chrome. 목록과 같은 골격을 쓴다.
+PreferredSizeWidget _routeStageAppBar({
+  required String title,
+  required VoidCallback onBack,
+}) {
+  return EasySubwayFamilyAppBar(
+    key: const Key('routeStageAppBar'),
+    title: _RouteChromeTitle(title),
+    backButtonKey: const Key('routeStageBackButton'),
+    dividerKey: const Key('routeStageHeaderDivider'),
+    onBack: onBack,
+  );
+}
+
+/// 패밀리룩 AppBar 제목 타이포. 화면마다 같은 크기·굵기를 공유한다.
+class _RouteChromeTitle extends StatelessWidget {
+  const _RouteChromeTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
         color: EasySubwayAccessibleColors.text,
         fontWeight: FontWeight.w700,
         fontSize: 20,
         height: 1.2,
       ),
-    ),
-    flexibleSpace: const Align(
-      alignment: Alignment.bottomCenter,
-      child: EasySubwayHeaderDivider(key: Key('routeSearchHeaderDivider')),
-    ),
-  );
+    );
+  }
 }
 
 class _RouteSectionHeader extends StatelessWidget {
@@ -4415,45 +4430,28 @@ class _RouteStationPickerState extends State<_RouteStationPicker> {
   @override
   Widget build(BuildContext context) {
     final selectedStation = widget.selectedStation;
-    // 요약 행(_RoutePointRow)과 같은 검색필드 크롬 위에서 인라인 검색한다.
+    // 요약 행(_RoutePointRow)과 같은 역할 라벨 폭 위에서 인라인 검색한다.
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Container(
-          height: easySubwaySearchFieldVisualHeight,
-          decoration: BoxDecoration(
-            color: EasySubwayAccessibleColors.searchFieldSurface,
-            borderRadius: easySubwaySearchFieldRadius,
-            border: Border.all(
-              color: easySubwaySearchFieldBorderColor,
-              width: easySubwaySearchFieldBorderWidth,
-            ),
-          ),
-          clipBehavior: Clip.antiAlias,
+        SizedBox(
+          height: _routePointRowHeight,
           child: Row(
             children: [
               SizedBox(
-                width: 72,
-                child: Center(
-                  child: Text(
-                    widget.labelText,
-                    maxLines: 1,
-                    softWrap: false,
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      // 역할 색은 배지 등 비텍스트에만. 라벨은 AA 통과 본문색.
-                      color: EasySubwayAccessibleColors.text,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      height: 1.2,
-                    ),
+                width: _routePointRoleLabelWidth,
+                child: Text(
+                  widget.labelText,
+                  maxLines: 1,
+                  softWrap: false,
+                  style: const TextStyle(
+                    // 역할 색은 배지 등 비텍스트에만. 라벨은 AA 통과 보조색.
+                    color: EasySubwayAccessibleColors.secondaryText,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w700,
+                    height: 1.2,
                   ),
                 ),
-              ),
-              Container(
-                width: easySubwaySearchFieldBorderWidth,
-                height: double.infinity,
-                color: easySubwaySearchFieldBorderColor,
               ),
               Expanded(
                 child: Semantics(
@@ -4470,9 +4468,7 @@ class _RouteStationPickerState extends State<_RouteStationPicker> {
                     style: easySubwaySearchFieldInputStyle,
                     decoration: InputDecoration(
                       isDense: true,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 10,
-                      ),
+                      contentPadding: EdgeInsets.zero,
                       hintText: '역 이름을 입력해 주세요',
                       hintStyle: easySubwaySearchFieldHintStyle,
                       filled: true,
@@ -5075,19 +5071,19 @@ class _RouteSearchResultCardState extends State<_RouteSearchResultCard> {
     );
   }
 
-  void _pushStage(Widget child) {
+  void _pushStage({required String title, required Widget child}) {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
-        builder: (_) => _RouteStageScaffold(child: child),
+        builder: (_) => _RouteStageScaffold(title: title, child: child),
       ),
     );
   }
 
   void _openDetail(RouteSearchResult result) {
     _pushStage(
-      _RouteDetailWorkflowView(
+      title: '경로 상세',
+      child: _RouteDetailWorkflowView(
         result: result,
-        onBack: () => Navigator.of(context).pop(),
         onStartGuidance: !_canUseRouteActions
             ? null
             : () => _openGuidance(result),
@@ -5106,9 +5102,9 @@ class _RouteSearchResultCardState extends State<_RouteSearchResultCard> {
 
   void _openGuidance(RouteSearchResult result) {
     _pushStage(
-      _RouteGuidanceWorkflowView(
+      title: '단계별 안내',
+      child: _RouteGuidanceWorkflowView(
         result: result,
-        onBack: () => Navigator.of(context).pop(),
         onOpenInternalRoute: () => _openInternal(result),
         onOpenBlocked: !_canOpenFeedback ? null : () => _openFeedback(result),
         onOpenFeedback: !_canOpenFeedback ? null : () => _openFeedback(result),
@@ -5118,38 +5114,48 @@ class _RouteSearchResultCardState extends State<_RouteSearchResultCard> {
 
   void _openInternal(RouteSearchResult result) {
     _pushStage(
-      _RouteInternalWorkflowView(
-        result: result,
-        onBack: () => Navigator.of(context).pop(),
-      ),
+      title: '역 안 이동 순서',
+      child: _RouteInternalWorkflowView(result: result),
     );
   }
 
   void _openFeedback(RouteSearchResult result) {
     _pushStage(
-      _RouteFeedbackWorkflowView(
+      title: '경로 피드백',
+      child: _RouteFeedbackWorkflowView(
         result: result,
         repository: widget.routeFeedbackRepository,
-        onBack: () => Navigator.of(context).pop(),
       ),
     );
   }
 }
 
 /// push된 길찾기 단계(상세·안내·역 안 이동·피드백) 화면 껍데기.
-/// 시스템 back과 각 뷰의 상단 back 버튼이 이 라우트를 pop한다.
+///
+/// #69: 목록 화면과 같은 패밀리룩 AppBar를 공유해 단계마다 상단 chrome이 달라
+/// 보이지 않게 한다. 시스템 back과 AppBar back이 같은 라우트를 pop한다.
 class _RouteStageScaffold extends StatelessWidget {
-  const _RouteStageScaffold({required this.child});
+  const _RouteStageScaffold({required this.title, required this.child});
 
+  final String title;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: EasySubwayAccessibleColors.scaffoldSurface,
+      backgroundColor: EasySubwayAccessibleColors.surface,
+      appBar: _routeStageAppBar(
+        title: title,
+        onBack: () => Navigator.of(context).maybePop(),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 32),
+          padding: const EdgeInsets.fromLTRB(
+            _routeSearchGutter,
+            EasySubwaySpacing.lg,
+            _routeSearchGutter,
+            EasySubwaySpacing.xxl,
+          ),
           child: child,
         ),
       ),
@@ -5498,7 +5504,9 @@ class _RouteResultsListView extends StatelessWidget {
         // (#1704)을 그 자리에 인라인으로 편다. 사용자가 티저 카드가 아니라 실제
         // 여정을 바로 보게 한다. 상세(안내 시작·피드백·저장)는 카드 탭으로 계속 연다.
         if (result.movementSteps.isNotEmpty) ...[
-          const SizedBox(height: 16),
+          // 카드와 타임라인 사이는 박스가 아니라 얇은 구분선 한 줄로만 나눈다(#69).
+          const Divider(height: 1, color: EasySubwayAccessibleColors.line),
+          const SizedBox(height: EasySubwaySpacing.xl),
           _RouteStepSection(steps: result.movementSteps),
           if (result.arrivalGuidanceStep case final arrivalStep?) ...[
             const SizedBox(height: 8),
@@ -5531,7 +5539,6 @@ class _RouteResultsListView extends StatelessWidget {
 class _RouteDetailWorkflowView extends StatelessWidget {
   const _RouteDetailWorkflowView({
     required this.result,
-    required this.onBack,
     required this.onStartGuidance,
     required this.onOpenFeedback,
     required this.favoriteSaveButton,
@@ -5540,7 +5547,6 @@ class _RouteDetailWorkflowView extends StatelessWidget {
   });
 
   final RouteSearchResult result;
-  final VoidCallback onBack;
   final VoidCallback? onStartGuidance;
   final VoidCallback? onOpenFeedback;
   final Widget? favoriteSaveButton;
@@ -5552,8 +5558,6 @@ class _RouteDetailWorkflowView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _RouteWorkflowBackButton(label: '경로 목록', onPressed: onBack),
-        const SizedBox(height: 8),
         _RouteDarkSummaryCard(
           title: _routeWorkflowSummaryTitle(result),
           subtitle: _routeWorkflowSummarySubtitle(result),
@@ -5933,14 +5937,12 @@ class _OfficialOdFareSection extends StatelessWidget {
 class _RouteGuidanceWorkflowView extends StatelessWidget {
   const _RouteGuidanceWorkflowView({
     required this.result,
-    required this.onBack,
     required this.onOpenInternalRoute,
     required this.onOpenBlocked,
     required this.onOpenFeedback,
   });
 
   final RouteSearchResult result;
-  final VoidCallback onBack;
   final VoidCallback onOpenInternalRoute;
   final VoidCallback? onOpenBlocked;
   final VoidCallback? onOpenFeedback;
@@ -5955,10 +5957,7 @@ class _RouteGuidanceWorkflowView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _RouteWorkflowBackButton(label: '경로 상세', onPressed: onBack),
-        const SizedBox(height: 8),
-        _RouteSectionHeader(title: '단계별 안내'),
-        const SizedBox(height: 8),
+        // 화면 이름은 AppBar 제목이 맡는다(#69) — 본문에서 다시 반복하지 않는다.
         DecoratedBox(
           decoration: const BoxDecoration(
             color: EasySubwayAccessibleColors.surface,
@@ -6210,21 +6209,15 @@ class _RouteGuidanceWorkflowView extends StatelessWidget {
 }
 
 class _RouteInternalWorkflowView extends StatelessWidget {
-  const _RouteInternalWorkflowView({
-    required this.result,
-    required this.onBack,
-  });
+  const _RouteInternalWorkflowView({required this.result});
 
   final RouteSearchResult result;
-  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _RouteWorkflowBackButton(label: '단계별 안내', onPressed: onBack),
-        const SizedBox(height: 8),
         _RouteDarkSummaryCard(
           title:
               '${result.originStationName} → ${result.lineName.isEmpty ? '승강장' : result.lineName}',
@@ -6236,9 +6229,7 @@ class _RouteInternalWorkflowView extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 14),
-        _RouteSectionHeader(title: '역 안 이동 순서'),
-        const SizedBox(height: 8),
+        const SizedBox(height: EasySubwaySpacing.lg),
         _RouteStepSection(steps: result.movementSteps),
       ],
     );
@@ -6297,12 +6288,10 @@ class _RouteFeedbackWorkflowView extends StatelessWidget {
   const _RouteFeedbackWorkflowView({
     required this.result,
     required this.repository,
-    required this.onBack,
   });
 
   final RouteSearchResult result;
   final RouteFeedbackRepository? repository;
-  final VoidCallback onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -6310,8 +6299,6 @@ class _RouteFeedbackWorkflowView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _RouteWorkflowBackButton(label: '경로 상세', onPressed: onBack),
-        const SizedBox(height: 8),
         Text(
           '방금 안내가\n실제 이동에 도움이 됐나요?',
           style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -6343,11 +6330,17 @@ class _RouteResultListButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final totalMinutes = _routeTotalMinutes(result);
+    final arrivalClockLabel = _routeArrivalClockLabel(result);
+    final objectiveLabel = _isRecommendedRoute(result)
+        ? result.objective.label
+        : '';
     return Semantics(
       button: true,
       label: [
         result.summaryTitle,
-        _routeMetaLabel(result),
+        if (arrivalClockLabel.isNotEmpty) arrivalClockLabel,
+        _routeResultMetaLabel(result),
+        if (objectiveLabel.isNotEmpty) objectiveLabel,
         result.comfortLabel,
         result.stairAccessLabel,
         ...result.badgeLabels,
@@ -6359,78 +6352,109 @@ class _RouteResultListButton extends StatelessWidget {
           child: InkWell(
             key: const Key('routeResultListItem'),
             onTap: onPressed,
-            borderRadius: easySubwaySearchFieldRadius,
-            child: Ink(
-              decoration: BoxDecoration(
-                color: EasySubwayAccessibleColors.surface,
-                borderRadius: easySubwaySearchFieldRadius,
-                border: Border.all(
-                  color: easySubwaySearchFieldBorderColor,
-                  width: easySubwaySearchFieldBorderWidth,
-                ),
+            // 무장식 원칙: 박스·테두리 없이 여백과 구분선으로만 카드를 나눈다.
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: EasySubwaySpacing.md,
               ),
-              child: Padding(
-                padding: const EdgeInsets.all(EasySubwaySpacing.lg),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            totalMinutes > 0 ? '$totalMinutes분' : '시간 확인',
-                            style: Theme.of(context).textTheme.headlineSmall
-                                ?.copyWith(
-                                  color: EasySubwayAccessibleColors.text,
-                                  fontWeight: FontWeight.w700,
-                                  fontSize: 28,
-                                  height: 1.15,
-                                ),
-                          ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // 1행: 소요시간을 화면에서 가장 큰 타이포로 + 우측 도착 시각.
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.baseline,
+                    textBaseline: TextBaseline.alphabetic,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          totalMinutes > 0 ? '$totalMinutes분' : '시간 확인',
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: EasySubwayAccessibleColors.text,
+                                fontWeight: FontWeight.w700,
+                                fontSize: 28,
+                                height: 1.15,
+                              ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: EasySubwaySpacing.xs),
-                    Text(
-                      _routeMetaLabel(result),
-                      style: const TextStyle(
-                        color: EasySubwayAccessibleColors.secondaryText,
-                        fontWeight: FontWeight.w600,
-                        height: 1.3,
                       ),
-                    ),
-                    const SizedBox(height: EasySubwaySpacing.md),
-                    _RouteLinePath(steps: result.movementSteps),
-                    const SizedBox(height: EasySubwaySpacing.md),
-                    // #1933 E: 총 소요시간 아래 메타 줄(환승·걷기)과 상단 이동조건
-                    // 칩이 이미 같은 신호를 전하므로, 카드에서 환승·걷기 칩을
-                    // 걷어내 "요약 한 번 → 타임라인"의 위계를 만든다. 타임라인·
-                    // 상단 칩에 없는 신호(이동 조건 경고·계단·정직한 안내 배지)만 남긴다.
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 6,
-                      children: [
-                        _RouteStatusChip(
-                          key: const Key('routeGuidanceMobilityChip'),
-                          label: result.mobilityLabel == '이동 조건을 다시 선택해 주세요'
-                              ? result.mobilityLabel
-                              : result.comfortLabel,
-                          icon: Icons.accessible_forward,
-                        ),
-                        _RouteStatusChip(
-                          label: result.stairAccessLabel,
-                          icon: _routeStairAccessIcon(result),
-                        ),
-                        for (final label in result.badgeLabels)
-                          _RouteStatusChip(
-                            key: Key('routeResultBadge-$label'),
-                            label: label,
-                            icon: _routeBadgeIcon(label),
+                      if (arrivalClockLabel.isNotEmpty) ...[
+                        const SizedBox(width: EasySubwaySpacing.sm),
+                        Text(
+                          arrivalClockLabel,
+                          key: const Key('routeResultArrivalClock'),
+                          style: const TextStyle(
+                            color: EasySubwayAccessibleColors.secondaryText,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            height: 1.2,
                           ),
+                        ),
                       ],
+                      // 테두리를 걷어낸 만큼 상세로 들어가는 어포던스는 셰브런이
+                      // 맡는다(앱의 다른 행 컴포넌트와 같은 문법).
+                      const Icon(
+                        Icons.chevron_right,
+                        size: 24,
+                        color: EasySubwayAccessibleColors.disclosure,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: EasySubwaySpacing.xs),
+                  // 2행: 환승·걷기(있으면 공식 요금까지) 보조 정보 한 줄.
+                  Text(
+                    _routeResultMetaLabel(result),
+                    style: const TextStyle(
+                      color: EasySubwayAccessibleColors.secondaryText,
+                      fontWeight: FontWeight.w600,
+                      height: 1.3,
                     ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(height: EasySubwaySpacing.md),
+                  // 3행: 노선 구성 비율 바.
+                  _RouteLinePath(
+                    key: const Key('routeResultLineRatioBar'),
+                    steps: result.movementSteps,
+                  ),
+                  const SizedBox(height: EasySubwaySpacing.md),
+                  // #1933 E: 총 소요시간 아래 메타 줄(환승·걷기)과 상단 이동조건
+                  // 칩이 이미 같은 신호를 전하므로, 카드에서 환승·걷기 칩을
+                  // 걷어내 "요약 한 번 → 타임라인"의 위계를 만든다. 타임라인·
+                  // 상단 칩에 없는 신호(이동 조건 경고·계단·정직한 안내 배지)만 남긴다.
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      // 경로 특성(최단시간·최소환승)은 요청 objective 그대로만 쓴다.
+                      if (objectiveLabel.isNotEmpty)
+                        _RouteStatusChip(
+                          key: const Key('routeResultObjectiveChip'),
+                          label: objectiveLabel,
+                          icon: result.objective == RouteObjective.fastest
+                              ? Icons.bolt
+                              : Icons.swap_calls,
+                        ),
+                      _RouteStatusChip(
+                        key: const Key('routeGuidanceMobilityChip'),
+                        label: result.mobilityLabel == '이동 조건을 다시 선택해 주세요'
+                            ? result.mobilityLabel
+                            : result.comfortLabel,
+                        icon: Icons.accessible_forward,
+                      ),
+                      _RouteStatusChip(
+                        label: result.stairAccessLabel,
+                        icon: _routeStairAccessIcon(result),
+                      ),
+                      for (final label in result.badgeLabels)
+                        _RouteStatusChip(
+                          key: Key('routeResultBadge-$label'),
+                          label: label,
+                          icon: _routeBadgeIcon(label),
+                        ),
+                    ],
+                  ),
+                ],
               ),
             ),
           ),
@@ -6438,6 +6462,70 @@ class _RouteResultListButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// 결과 카드 2행. 기존 환승·걷기 메타에 공식 자료로 확정된 요금이 있을 때만
+/// 요금을 덧붙인다. 요금을 임의로 계산하지 않으므로 없으면 줄이 그대로다.
+String _routeResultMetaLabel(RouteSearchResult result) {
+  final fareLabel = _routeOfficialFareLabel(result);
+  final metaLabel = _routeMetaLabel(result);
+  return fareLabel.isEmpty ? metaLabel : '$metaLabel · $fareLabel';
+}
+
+/// 공식 자료로 확정된 성인 카드 요금. 없으면 빈 문자열(표시하지 않는다).
+String _routeOfficialFareLabel(RouteSearchResult result) {
+  final officialFare = result.officialFare;
+  if (officialFare != null && officialFare.adultFareWon > 0) {
+    return '${_routeWonLabel(officialFare.adultFareWon)}원';
+  }
+  final quote = result.officialOdFareQuote;
+  if (quote != null && quote.gnrlCardFare > 0) {
+    return '${_routeWonLabel(quote.gnrlCardFare)}원';
+  }
+  return '';
+}
+
+/// 천 단위 구분 기호를 넣은 금액 표기(1400 → 1,400).
+String _routeWonLabel(int won) {
+  final digits = won.toString();
+  final buffer = StringBuffer();
+  for (var index = 0; index < digits.length; index += 1) {
+    final remaining = digits.length - index;
+    if (index > 0 && remaining % 3 == 0) {
+      buffer.write(',');
+    }
+    buffer.write(digits[index]);
+  }
+  return buffer.toString();
+}
+
+/// 경로 도착 시각("14:05 도착"). 응답에 실린 도착 시각이 있을 때만 만들고,
+/// 없거나 읽을 수 없으면 빈 문자열이다(시각을 새로 계산하지 않는다).
+String _routeArrivalClockLabel(RouteSearchResult result) {
+  final iso = result.arrivalTimeIso.trim().isNotEmpty
+      ? result.arrivalTimeIso.trim()
+      : _lastRouteShareArrival(result.movementSteps);
+  final clock = _routeClockLabelOrEmpty(iso);
+  return clock.isEmpty ? '' : '$clock 도착';
+}
+
+/// ISO 시각을 "HH:mm"으로. 파싱할 수 없으면 빈 문자열.
+String _routeClockLabelOrEmpty(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return '';
+  }
+  final parsed = DateTime.tryParse(trimmed);
+  if (parsed != null) {
+    final local = parsed.isUtc ? parsed.toLocal() : parsed;
+    return '${local.hour.toString().padLeft(2, '0')}:'
+        '${local.minute.toString().padLeft(2, '0')}';
+  }
+  final match = RegExp(r'(?:T|^)(\d{2}):(\d{2})').firstMatch(trimmed);
+  if (match == null) {
+    return '';
+  }
+  return '${match.group(1)}:${match.group(2)}';
 }
 
 IconData _routeBadgeIcon(String label) {
@@ -6500,28 +6588,6 @@ class _RouteDarkSummaryCard extends StatelessWidget {
             ],
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _RouteWorkflowBackButton extends StatelessWidget {
-  const _RouteWorkflowBackButton({
-    required this.label,
-    required this.onPressed,
-  });
-
-  final String label;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.centerLeft,
-      child: TextButton.icon(
-        onPressed: onPressed,
-        icon: const Icon(Icons.arrow_back),
-        label: Text(label),
       ),
     );
   }
@@ -6702,17 +6768,15 @@ class _RouteStatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // 환승·걷기·이동조건 등 비상태 정보는 민트 틴트 대신 중립 아이콘+텍스트로.
+    // #69: 조건 칩과 같은 얇은 외곽선 문법을 쓴다(채움 없음).
     return Container(
-      constraints: const BoxConstraints(minHeight: 36),
+      constraints: const BoxConstraints(minHeight: 32),
       decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.searchFieldSurface,
+        color: EasySubwayAccessibleColors.surface,
         borderRadius: _routeSearchPillRadius,
-        border: Border.all(
-          color: easySubwaySearchFieldBorderColor,
-          width: easySubwaySearchFieldBorderWidth,
-        ),
+        border: Border.all(color: EasySubwayAccessibleColors.line),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       alignment: Alignment.center,
       child: Wrap(
         spacing: 6,
@@ -6772,14 +6836,19 @@ class _RouteConditionChips extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final displayName = mobilityPresetDisplayName(preset);
-    // 일반 폭에서는 한 행에 배치되고, 큰 글자·좁은 폭에서는 objective 행 다음으로
-    // scope 행이 자연스럽게 내려가도록 Wrap이 재배치한다.
-    return Padding(
+    // #69: 상용 대중교통 앱의 관례대로 조건 칩은 입력 패널 바로 아래 가로 스크롤
+    // 한 줄로 둔다. 좁은 폭·큰 글자에서도 줄이 늘지 않고 옆으로 밀린다.
+    return SingleChildScrollView(
       key: const Key('routeConditionChips'),
-      padding: const EdgeInsets.only(bottom: 16),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.fromLTRB(
+        _routeSearchGutter,
+        EasySubwaySpacing.md,
+        _routeSearchGutter,
+        EasySubwaySpacing.lg,
+      ),
+      child: Row(
+        spacing: EasySubwaySpacing.sm,
         children: [
           _RouteConditionChipButton(
             buttonKey: const Key('routeConditionMobilityChip'),
@@ -6859,12 +6928,14 @@ class _RouteConditionChipButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 비활성(재검색 로딩 중)일 때는 무채색 원칙 안에서 기존 muted 토큰만 재사용해
-    // 흐리게 표기하고 tap·semantics 모두 막는다(새 색·새 디자인 없음).
+    // #69: 선택 = 액센트 채움 + 흰 글자, 비선택 = 얇은 외곽선. 비활성(재검색 로딩
+    // 중)은 무채색 원칙 안에서 기존 muted 토큰만 재사용해 흐리게 표기하고
+    // tap·semantics 모두 막는다(새 색 없음).
+    final selected = active && enabled;
     final foreground = !enabled
         ? EasySubwayAccessibleColors.iconMuted
-        : active
-        ? EasySubwayAccessibleColors.primary
+        : selected
+        ? EasySubwayAccessibleColors.interactionOnPrimary
         : EasySubwayAccessibleColors.secondaryText;
     final tapHandler = enabled ? onTap : null;
     return Semantics(
@@ -6880,54 +6951,51 @@ class _RouteConditionChipButton extends StatelessWidget {
             key: buttonKey,
             onTap: tapHandler,
             borderRadius: _routeSearchPillRadius,
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
             child: Ink(
               decoration: BoxDecoration(
-                color: active && enabled
-                    ? EasySubwayAccessibleColors.surface
-                    : EasySubwayAccessibleColors.searchFieldSurface,
+                color: selected
+                    ? EasySubwayAccessibleColors.primary
+                    : EasySubwayAccessibleColors.surface,
                 borderRadius: _routeSearchPillRadius,
                 border: Border.all(
-                  color: !enabled
-                      ? EasySubwayAccessibleColors.line
-                      : active
+                  color: selected
                       ? EasySubwayAccessibleColors.primary
                       : EasySubwayAccessibleColors.line,
-                  width: active && enabled
-                      ? easySubwaySearchFieldBorderWidth
-                      : 1,
+                  width: 1,
                 ),
               ),
               child: Container(
                 constraints: const BoxConstraints(
-                  minHeight: EasySubwayTouchTarget.general,
+                  minHeight: EasySubwayTouchTarget.iconOnly,
                 ),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: EasySubwaySpacing.md,
+                ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(icon, size: 18, color: foreground),
-                    const SizedBox(width: EasySubwaySpacing.sm),
-                    // 좁은 화면·큰 글자에서도 넘치지 않게 라벨이 줄바꿈되도록 둔다.
-                    Flexible(
-                      child: Text(
-                        label,
-                        style: TextStyle(
-                          color: foreground,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w700,
-                          height: 1.2,
-                        ),
+                    const SizedBox(width: EasySubwaySpacing.xs + 2),
+                    // 가로 스크롤 줄이라 폭이 무한대다 — 라벨은 줄바꿈하지 않고
+                    // 한 줄로 두고, 넘치면 줄 전체가 옆으로 밀린다.
+                    Text(
+                      label,
+                      maxLines: 1,
+                      softWrap: false,
+                      style: TextStyle(
+                        color: foreground,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1.2,
                       ),
                     ),
+                    // 선택 상태를 채움색 하나로만 말하지 않는다 — 색각 이상·고대비
+                    // 사용자를 위해 체크 표시를 함께 남긴다.
                     if (active) ...[
-                      const SizedBox(width: 6),
-                      Icon(
-                        Icons.check,
-                        size: 16,
-                        color: enabled
-                            ? EasySubwayAccessibleColors.primary
-                            : EasySubwayAccessibleColors.iconMuted,
-                      ),
+                      const SizedBox(width: EasySubwaySpacing.xs + 2),
+                      Icon(Icons.check, size: 16, color: foreground),
                     ],
                   ],
                 ),
@@ -6940,69 +7008,168 @@ class _RouteConditionChipButton extends StatelessWidget {
   }
 }
 
-/// 미니 진행 바(#1915 톤 라이트닝): 굵은 검정 primary 바 대신 중립 레일 위에
-/// 탑승(ride) 구간만 노선색을 얹는다. 도보/환승 구간은 중립 회색으로 남겨
+/// 노선 구성 비율 바(#69). 구간 소요시간 비율만큼 노선색을 이어 붙이고, 구간
+/// 시작점에 노선 배지를 얹는다. 도보·역 안 이동 구간은 중립 회색으로 남겨
 /// 세로 타임라인(_RouteStepTile)의 노선색 규칙과 신호를 맞춘다.
 class _RouteLinePath extends StatelessWidget {
-  const _RouteLinePath({this.steps = const []});
+  const _RouteLinePath({this.steps = const [], super.key});
 
   final List<RouteSearchStep> steps;
 
   @override
   Widget build(BuildContext context) {
-    final rideSteps = steps.where((step) => !step.isWalkingStep).toList();
-    final segmentColors = rideSteps.isEmpty
-        ? const <Color>[EasySubwayAccessibleColors.line]
-        : [
-            for (final step in rideSteps)
-              stationLineColor(_routeLineColor(step.lineName)),
-          ];
-    // 끝점은 출발/도착 핀 색, 중간 구간은 노선색으로 지도 draft와 신호를 맞춘다.
-    return Row(
+    final segments = _routeRatioSegments(steps);
+    if (segments.isEmpty) {
+      return const ClipRRect(
+        borderRadius: _routeRatioBarRadius,
+        child: SizedBox(
+          height: _routeRatioBarHeight,
+          child: ColoredBox(
+            color: EasySubwayAccessibleColors.line,
+            child: SizedBox.expand(),
+          ),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const _RouteLineNode(color: EasySubwayFanMenuColors.departure),
-        for (var index = 0; index < segmentColors.length; index += 1) ...[
-          Expanded(child: Container(height: 5, color: segmentColors[index])),
-          if (index < segmentColors.length - 1)
-            _RouteLineNode(
-              color: EasySubwayAccessibleColors.iconMuted,
-              small: true,
+        // 구간 시작점 노선 배지. 다음 배지가 곧 환승 지점이다.
+        SizedBox(
+          height: _routeRatioBadgeSize,
+          child: Row(
+            children: [
+              for (final (index, segment) in segments.indexed) ...[
+                if (index > 0) const SizedBox(width: _routeRatioSegmentGap),
+                Expanded(
+                  flex: segment.weight,
+                  child: ClipRect(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: segment.badgeText.isEmpty
+                          ? const SizedBox.shrink()
+                          : _RouteRatioLineBadge(
+                              label: segment.badgeText,
+                              color: segment.color,
+                            ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: EasySubwaySpacing.xs),
+        ClipRRect(
+          borderRadius: _routeRatioBarRadius,
+          child: SizedBox(
+            height: _routeRatioBarHeight,
+            child: Row(
+              children: [
+                for (final (index, segment) in segments.indexed) ...[
+                  if (index > 0) const SizedBox(width: _routeRatioSegmentGap),
+                  Expanded(
+                    flex: segment.weight,
+                    child: ColoredBox(
+                      color: segment.color,
+                      child: const SizedBox.expand(),
+                    ),
+                  ),
+                ],
+              ],
             ),
-        ],
-        const _RouteLineNode(color: EasySubwayFanMenuColors.arrival),
+          ),
+        ),
       ],
     );
   }
 }
 
-class _RouteLineNode extends StatelessWidget {
-  const _RouteLineNode({
-    this.color = EasySubwayAccessibleColors.iconMuted,
-    this.small = false,
+/// 비율 바 한 구간. [weight]는 소요시간 비율, [badgeText]는 승차 구간에만 있다.
+class _RouteRatioSegment {
+  const _RouteRatioSegment({
+    required this.weight,
+    required this.color,
+    required this.badgeText,
   });
 
+  final int weight;
   final Color color;
-  final bool small;
+  final String badgeText;
+}
+
+/// 이동 스텝을 비율 바 구간으로 접는다. 같은 노선이 연달아 오면 한 구간으로
+/// 합쳐 환승 없는 구간이 두 칸으로 쪼개져 보이지 않게 한다.
+List<_RouteRatioSegment> _routeRatioSegments(List<RouteSearchStep> steps) {
+  final segments = <_RouteRatioSegment>[];
+  var previousKey = '';
+  for (final step in steps) {
+    if (step.stepType == 'waypoint') {
+      continue;
+    }
+    final isWalking = step.isWalkingStep;
+    final lineName = step.lineName.trim();
+    final key = isWalking ? 'walk' : 'line:${step.lineId}|$lineName';
+    // 시간이 0·미확인인 구간도 바에서 사라지지 않게 최소 1의 비중을 준다.
+    final weight = step.estimatedMinutes > 0 ? step.estimatedMinutes : 1;
+    if (segments.isNotEmpty && key == previousKey) {
+      final merged = segments.removeLast();
+      segments.add(
+        _RouteRatioSegment(
+          weight: merged.weight + weight,
+          color: merged.color,
+          badgeText: merged.badgeText,
+        ),
+      );
+      continue;
+    }
+    previousKey = key;
+    segments.add(
+      _RouteRatioSegment(
+        weight: weight,
+        color: isWalking
+            ? EasySubwayAccessibleColors.line
+            : stationLineColor(_routeLineColor(lineName)),
+        badgeText: isWalking ? '' : _routeRatioBadgeLabel(step),
+      ),
+    );
+  }
+  return segments;
+}
+
+/// 비율 바 배지 라벨. 노선번호가 없으면 배지를 그리지 않는다(순번은 쓰지 않는다).
+String _routeRatioBadgeLabel(RouteSearchStep step) {
+  final lineName = step.lineName.trim();
+  if (lineName.isEmpty) {
+    return '';
+  }
+  return stationLineBadgeText(lineName).trim();
+}
+
+/// 비율 바 위 노선 배지. 세로 타임라인 배지와 같은 노선색·글자색 규칙을 쓴다.
+class _RouteRatioLineBadge extends StatelessWidget {
+  const _RouteRatioLineBadge({required this.label, required this.color});
+
+  final String label;
+  final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final size = small ? 8.0 : 14.0;
     return Container(
-      padding: const EdgeInsets.all(2),
-      decoration: const BoxDecoration(
-        color: EasySubwayAccessibleColors.surfaceDefault,
-        shape: BoxShape.circle,
-      ),
-      child: Container(
-        width: size,
-        height: size,
-        decoration: BoxDecoration(
-          color: color,
-          shape: BoxShape.circle,
-          border: Border.all(
-            color: EasySubwayAccessibleColors.surfaceDefault,
-            width: small ? 2 : 3,
-          ),
+      width: _routeRatioBadgeSize,
+      height: _routeRatioBadgeSize,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Text(
+        label,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        overflow: TextOverflow.clip,
+        style: TextStyle(
+          color: stationLineTextColor(color),
+          fontSize: label.length > 2 ? 9 : 11,
+          fontWeight: FontWeight.w700,
+          height: 1,
         ),
       ),
     );
@@ -7202,12 +7369,15 @@ class _RouteStepSection extends StatelessWidget {
   }
 }
 
-/// 세로 타임라인 좌측 레일 폭(시각 칸 + 노선색 배지가 정렬되는 고정폭).
-const double _routeTimelineRailWidth = 64;
+/// 세로 타임라인 좌측 레일 폭(노선색 노드·연결선이 정렬되는 고정폭).
+///
+/// #69: 시각 라벨을 노드 오른쪽 본문으로 옮겨 레일에는 노드와 연결선만 남는다.
+/// 그래서 노드 사이가 끊기지 않고 노선색 세로 라인이 이어진다.
+const double _routeTimelineRailWidth = 48;
 
 /// 노선색 배지 지름 · 연결선 두께 · 최소 터치 타깃(#1704 접근성 48).
 const double _routeTimelineBadgeSize = 40;
-const double _routeTimelineConnectorWidth = 4;
+const double _routeTimelineConnectorWidth = 5;
 const double _routeTimelineMinTouchTarget = 48;
 
 /// #1975: 경유 노드는 승차 배지가 아니므로 시각 반경 ≤8(직경 16)으로 축소한다.
@@ -7243,19 +7413,6 @@ class _RouteStepTile extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (clockLabel.isNotEmpty) ...[
-            Text(
-              clockLabel,
-              key: Key('routeStepTime-${step.sequence}'),
-              textAlign: TextAlign.center,
-              style: textTheme.bodySmall?.copyWith(
-                color: EasySubwayAccessibleColors.mutedText,
-                fontWeight: FontWeight.w700,
-                height: 1.2,
-              ),
-            ),
-            const SizedBox(height: 4),
-          ],
           _RouteTimelineBadge(
             badgeKey: Key('routeStepNumber-${step.sequence}'),
             label: badgeText,
@@ -7277,11 +7434,12 @@ class _RouteStepTile extends StatelessWidget {
     );
 
     final content = Padding(
-      padding: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.only(top: 12, bottom: 16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // 역명(굵게) + ">" 어포던스: 참고 앱 타임라인의 역명 행.
+          // 역명(굵게) + 시각 + ">" 어포던스. 시각은 레일에서 노드 오른쪽 보조
+          // 표기로 옮겨, 좌측 노선색 라인이 노드 사이에서 끊기지 않게 한다(#69).
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -7295,6 +7453,19 @@ class _RouteStepTile extends StatelessWidget {
                   ),
                 ),
               ),
+              if (clockLabel.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: Text(
+                    clockLabel,
+                    key: Key('routeStepTime-${step.sequence}'),
+                    style: textTheme.bodySmall?.copyWith(
+                      color: EasySubwayAccessibleColors.mutedText,
+                      fontWeight: FontWeight.w700,
+                      height: 1.3,
+                    ),
+                  ),
+                ),
               const Padding(
                 padding: EdgeInsets.only(left: 6, top: 2),
                 child: Icon(
