@@ -48,6 +48,9 @@ jobs:
             if ! gh pr comment "${pr}" --repo "${repo}" --body "${message}"; then
               echo "::warning::PR #${pr}: failed to publish the automerge failure comment."
             fi
+            if [[ "${operation}" == "merge reservation" ]] && ! gh pr merge "${pr}" --repo "${repo}" --disable-auto; then
+              echo "::warning::PR #${pr}: failed to disable native auto-merge."
+            fi
             if ! gh pr edit "${pr}" --repo "${repo}" --remove-label automerge; then
               echo "::error::PR #${pr}: failed to remove the automerge label."
             fi

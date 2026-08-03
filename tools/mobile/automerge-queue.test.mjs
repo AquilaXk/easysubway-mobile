@@ -52,6 +52,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     '[sort_by(.createdAt)[].number]',
     'gh pr merge --squash --auto',
     '--match-head-commit "${head}"',
+    'gh pr merge "${pr}" --repo "${repo}" --disable-auto',
     'fail_closed_pr()',
     'gh pr comment "${pr}"',
     'gh pr edit "${pr}" --repo "${repo}" --remove-label automerge',
@@ -414,6 +415,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       mergeStatus = 0,
       updateStatus = 0,
       commentStatus = 0,
+      disableStatus = 0,
       labelStatus = 0,
     } = {},
   ) => {
@@ -425,6 +427,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'gh() {',
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
       '  case "$*" in',
+      `    *"--disable-auto"*) return ${disableStatus} ;;`,
       `    *"pr merge"*) return ${mergeStatus} ;;`,
       `    *"update-branch"*) return ${updateStatus} ;;`,
       `    *"pr comment"*) return ${commentStatus} ;;`,
@@ -457,6 +460,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       dispatchedCi: calls.includes('workflow run ci.yml'),
       skipped: calls.includes('SKIPPED'),
       commented: calls.includes('gh pr comment'),
+      autoMergeDisabled: calls.includes('gh pr merge 44 --repo o/r --disable-auto'),
       labelRemoved: calls.includes('gh pr edit 44 --repo o/r --remove-label automerge'),
       calls,
     };
@@ -468,7 +472,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   for (const mergeState of ['CLEAN', 'HAS_HOOKS', 'UNSTABLE']) {
     assert.deepEqual(
       withoutCalls(runDispatch(mergeState)),
-      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false, skipped: false, commented: false, labelRemoved: false },
+      { status: 0, merged: true, updatedBranch: false, dispatchedCi: false, skipped: false, commented: false, autoMergeDisabled: false, labelRemoved: false },
       `${mergeState} must proceed to merge`,
     );
   }
@@ -480,6 +484,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     dispatchedCi: true,
     skipped: false,
     commented: false,
+    autoMergeDisabled: false,
     labelRemoved: false,
   });
   // update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. stale ref로 CI를
@@ -493,6 +498,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     dispatchedCi: false,
     skipped: false,
     commented: false,
+    autoMergeDisabled: false,
     labelRemoved: false,
   });
   // 병합할 수 없는 상태는 전부 "이 후보만 건너뛴다"로 수렴한다. 실행을 실패시키지도,
@@ -500,7 +506,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   for (const mergeState of ['DIRTY', 'BLOCKED', 'UNKNOWN', 'SOME_NEW_STATE']) {
     assert.deepEqual(
       withoutCalls(runDispatch(mergeState)),
-      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, skipped: true, commented: false, labelRemoved: false },
+      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, skipped: true, commented: false, autoMergeDisabled: false, labelRemoved: false },
       `${mergeState} must skip to the next candidate`,
     );
   }
@@ -512,20 +518,22 @@ test('automerge coordinator fails closed around the native merge queue', async (
     dispatchedCi: false,
     skipped: true,
     commented: false,
+    autoMergeDisabled: false,
     labelRemoved: false,
   });
 
   for (const [mergeState, options, expected, status] of [
-    ['CLEAN', { mergeStatus: 17 }, { merged: true, updatedBranch: false }, 17],
-    ['BEHIND', { updateStatus: 23 }, { merged: false, updatedBranch: true }, 23],
-    ['CLEAN', { mergeStatus: 17, commentStatus: 31 }, { merged: true, updatedBranch: false }, 17],
-    ['CLEAN', { mergeStatus: 17, labelStatus: 37 }, { merged: true, updatedBranch: false }, 17],
-    ['CLEAN', { mergeStatus: 17, commentStatus: 31, labelStatus: 37 }, { merged: true, updatedBranch: false }, 17],
+    ['CLEAN', { mergeStatus: 17 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
+    ['BEHIND', { updateStatus: 23 }, { merged: false, updatedBranch: true, autoMergeDisabled: false }, 23],
+    ['CLEAN', { mergeStatus: 17, commentStatus: 31 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
+    ['CLEAN', { mergeStatus: 17, disableStatus: 33 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
+    ['CLEAN', { mergeStatus: 17, labelStatus: 37 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
+    ['CLEAN', { mergeStatus: 17, commentStatus: 31, disableStatus: 33, labelStatus: 37 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
   ]) {
     const result = runDispatch(mergeState, options);
     assert.equal(result.status, status, 'original operation status must win');
     assert.deepEqual(
-      { merged: result.merged, updatedBranch: result.updatedBranch, dispatchedCi: result.dispatchedCi, skipped: result.skipped, commented: result.commented, labelRemoved: result.labelRemoved },
+      { merged: result.merged, updatedBranch: result.updatedBranch, dispatchedCi: result.dispatchedCi, skipped: result.skipped, commented: result.commented, autoMergeDisabled: result.autoMergeDisabled, labelRemoved: result.labelRemoved },
       { ...expected, dispatchedCi: false, skipped: false, commented: true, labelRemoved: true },
     );
     assert.match(result.calls, new RegExp(`operation=${mergeState === 'CLEAN' ? 'merge reservation' : 'update-branch'}; merge_state=${mergeState}; status=${status}; Actions run: https://github\\.example/o/r/actions/runs/123`));
