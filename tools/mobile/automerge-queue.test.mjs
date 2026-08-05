@@ -10,11 +10,8 @@ const workflowUrl = new URL(
   '../../.github/workflows/automerge-queue.yml',
   import.meta.url,
 );
-const ciWorkflowUrl = new URL('../../.github/workflows/ci.yml', import.meta.url);
-
 test('automerge coordinator fails closed around the native merge queue', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
-  const ciWorkflow = await readFile(ciWorkflowUrl, 'utf8');
 
   for (const contract of [
     'pull_request_target:',
@@ -22,7 +19,6 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'workflow_dispatch:',
     'schedule:',
     'permissions: {}',
-    'actions: write',
     'checks: read',
     'statuses: read',
     'contents: write',
@@ -58,17 +54,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'gh pr edit "${pr}" --repo "${repo}" --remove-label automerge',
     'Actions run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}',
     '--limit 1000',
-    '/update-branch',
-    'headRepository',
-    '[[ "${head_repo}" != "${repo}" ]]',
-    'gh workflow run ci.yml',
   ]) {
     assert.ok(workflow.includes(contract), `missing contract: ${contract}`);
   }
 
   assert.doesNotMatch(workflow, /--admin|gh pr merge.+--merge|gh pr merge.+--rebase/);
+  assert.doesNotMatch(workflow, /actions: write/);
+  assert.doesNotMatch(workflow, /update-branch|gh workflow run ci\.yml/);
   assert.doesNotMatch(workflow, /LABELED_PR/);
-  assert.ok(ciWorkflow.includes('  workflow_dispatch:'));
 
   // run은 YAML block scalar라 본문 줄이 블록 들여쓰기 아래로 내려가면 워크플로 전체가
   // 파싱되지 않는다. 이 테스트는 파일을 텍스트로 읽어 셸을 뽑으므로 그 파손을 그냥
@@ -403,17 +396,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
   )?.[1];
   assert.ok(dispatchBlock, 'merge state dispatch must stay testable');
   const failureHandler = workflow.match(/          fail_closed_pr\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
-  assert.ok(failureHandler, 'failed merge/update operations must fail closed');
+  assert.ok(failureHandler, 'failed merge operations must fail closed');
   // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다. 분기는 큐 루프
   // 안에 있으므로 `continue`가 유효하도록 1회 루프로 감싸고, 루프를 빠져나오면
   // SKIPPED를 남겨 "이 후보를 건너뛰었다"를 관측한다.
   const runDispatch = (
     mergeState,
     {
-      headRepo = 'o/r',
-      newHead = 'updated-head',
       mergeStatus = 0,
-      updateStatus = 0,
       commentStatus = 0,
       disableStatus = 0,
       labelStatus = 0,
@@ -439,18 +429,13 @@ test('automerge coordinator fails closed around the native merge queue', async (
       `    *"pr view"*"autoMergeRequest"*) if [[ ${autoMergeQueryStatus} != 0 ]]; then return ${autoMergeQueryStatus}; fi; if [[ ${JSON.stringify(autoMergeConverges)} == true && "$disable_calls" -ge ${disableFirstFails ? 2 : 1} ]]; then printf '%s\\n' true; else printf '%s\\n' false; fi ;;`,
       `    *"pr view"*"labels"*) if [[ ${labelQueryStatus} != 0 ]]; then return ${labelQueryStatus}; fi; if [[ ${JSON.stringify(labelConverges)} == true && "$label_calls" -ge ${labelFirstFails ? 2 : 1} ]]; then printf '%s\\n' true; else printf '%s\\n' false; fi ;;`,
       `    *"pr merge"*) return ${mergeStatus} ;;`,
-      `    *"update-branch"*) return ${updateStatus} ;;`,
-      `    *"pr view"*headRefOid*) printf '%s\\n' ${JSON.stringify(newHead)} ;;`,
       '  esac',
       '}',
-      'sleep() { :; }',
       'disable_calls=0',
       'label_calls=0',
       'pr=44',
       'repo=o/r',
       'head=old-head',
-      `head_repo=${JSON.stringify(headRepo)}`,
-      'head_ref=feature',
       'GITHUB_RUN_ID=123',
       'GITHUB_SERVER_URL=https://github.example',
       'GITHUB_REPOSITORY=o/r',
@@ -491,42 +476,9 @@ test('automerge coordinator fails closed around the native merge queue', async (
       `${mergeState} must proceed to merge`,
     );
   }
-  // base 갱신이 필요한 상태는 update-branch 경로로 간다.
-  assert.deepEqual(withoutCalls(runDispatch('BEHIND')), {
-    status: 0,
-    merged: false,
-    updatedBranch: true,
-    dispatchedCi: true,
-    skipped: false,
-    commented: false,
-    autoMergeDisabled: false,
-    labelRemoved: false,
-  });
-  // update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. stale ref로 CI를
-  // 쏘지도 말고 실패하지도 말고 다음 트리거에서 재시도한다. 판정을 bash 버전에 맡기지
-  // 않으려면 명시적 분기여야 한다 — bare `[[ ]]`는 bash 5에서 조용히 job을 죽이고
-  // bash 3.2에서는 그냥 통과한다.
-  assert.deepEqual(withoutCalls(runDispatch('BEHIND', { newHead: 'old-head' })), {
-    status: 0,
-    merged: false,
-    updatedBranch: true,
-    dispatchedCi: false,
-    skipped: false,
-    commented: false,
-    autoMergeDisabled: false,
-    labelRemoved: false,
-  });
-  // 병합할 수 없는 상태는 전부 "이 후보만 건너뛴다"로 수렴한다. 실행을 실패시키지도,
-  // 라벨을 건드리지도 않는다. 뒤의 후보는 계속 평가된다.
-  for (const mergeState of ['DIRTY', 'BLOCKED', 'UNKNOWN', 'SOME_NEW_STATE']) {
-    assert.deepEqual(
-      withoutCalls(runDispatch(mergeState)),
-      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, skipped: true, commented: false, autoMergeDisabled: false, labelRemoved: false },
-      `${mergeState} must skip to the next candidate`,
-    );
-  }
-  // fork head에 base 저장소 CI를 dispatch하지 않는다. 거부하되 큐는 계속 진행한다.
-  assert.deepEqual(withoutCalls(runDispatch('BEHIND', { headRepo: 'fork/r' })), {
+  // base 갱신은 PR 소유 worktree가 담당한다. coordinator는 경고 후 다음 후보를 평가한다.
+  const behind = runDispatch('BEHIND');
+  assert.deepEqual(withoutCalls(behind), {
     status: 0,
     merged: false,
     updatedBranch: false,
@@ -536,15 +488,22 @@ test('automerge coordinator fails closed around the native merge queue', async (
     autoMergeDisabled: false,
     labelRemoved: false,
   });
-
+  assert.match(behind.output, /owning SSD worktree must rebase and push/);
+  // 병합할 수 없는 상태는 전부 "이 후보만 건너뛴다"로 수렴한다. 실행을 실패시키지도,
+  // 라벨을 건드리지도 않는다. 뒤의 후보는 계속 평가된다.
+  for (const mergeState of ['DIRTY', 'BLOCKED', 'UNKNOWN', 'SOME_NEW_STATE']) {
+    assert.deepEqual(
+      withoutCalls(runDispatch(mergeState)),
+      { status: 0, merged: false, updatedBranch: false, dispatchedCi: false, skipped: true, commented: false, autoMergeDisabled: false, labelRemoved: false },
+      `${mergeState} must skip to the next candidate`,
+    );
+  }
   for (const [mergeState, options, expected, status] of [
     ['CLEAN', { mergeStatus: 17 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
-    ['BEHIND', { updateStatus: 23 }, { merged: false, updatedBranch: true, autoMergeDisabled: true }, 23],
     ['CLEAN', { mergeStatus: 17, commentStatus: 31 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
     ['CLEAN', { mergeStatus: 17, disableStatus: 33 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
     ['CLEAN', { mergeStatus: 17, labelStatus: 37 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
     ['CLEAN', { mergeStatus: 17, commentStatus: 31, disableStatus: 33, labelStatus: 37 }, { merged: true, updatedBranch: false, autoMergeDisabled: true }, 17],
-    ['BEHIND', { updateStatus: 23, commentStatus: 31, disableStatus: 33, labelStatus: 37 }, { merged: false, updatedBranch: true, autoMergeDisabled: true }, 23],
   ]) {
     const result = runDispatch(mergeState, options);
     assert.equal(result.status, status, 'original operation status must win');
@@ -552,7 +511,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       { merged: result.merged, updatedBranch: result.updatedBranch, dispatchedCi: result.dispatchedCi, skipped: result.skipped, commented: result.commented, autoMergeDisabled: result.autoMergeDisabled, labelRemoved: result.labelRemoved },
       { ...expected, dispatchedCi: false, skipped: false, commented: true, labelRemoved: true },
     );
-    assert.match(result.calls, new RegExp(`operation=${mergeState === 'CLEAN' ? 'merge reservation' : 'update-branch'}; merge_state=${mergeState}; status=${status}; Actions run: https://github\\.example/o/r/actions/runs/123`));
+    assert.match(result.calls, new RegExp(`operation=merge reservation; merge_state=${mergeState}; status=${status}; Actions run: https://github\\.example/o/r/actions/runs/123`));
     const disableAt = result.calls.indexOf('gh pr merge 44 --repo o/r --disable-auto');
     const labelAt = result.calls.indexOf('gh pr edit 44 --repo o/r --remove-label automerge');
     const commentAt = result.calls.indexOf('gh pr comment 44 --repo o/r --body');
@@ -571,24 +530,24 @@ test('automerge coordinator fails closed around the native merge queue', async (
     { disableCalls: 2, autoMergeQueries: 2, labelCalls: 2, labelQueries: 2 },
   );
 
-  const notConverged = runDispatch('BEHIND', {
-    updateStatus: 23,
+  const notConverged = runDispatch('CLEAN', {
+    mergeStatus: 17,
     autoMergeConverges: false,
     labelConverges: false,
   });
-  assert.equal(notConverged.status, 23, 'unconverged cleanup must preserve the update status');
+  assert.equal(notConverged.status, 17, 'unconverged cleanup must preserve the merge status');
   assert.deepEqual(
     { disableCalls: notConverged.disableCalls, labelCalls: notConverged.labelCalls },
     { disableCalls: 2, labelCalls: 2 },
   );
   assert.match(notConverged.output, /cleanup did not converge/);
 
-  const queryFailed = runDispatch('BEHIND', {
-    updateStatus: 23,
+  const queryFailed = runDispatch('CLEAN', {
+    mergeStatus: 17,
     autoMergeQueryStatus: 51,
     labelQueryStatus: 53,
   });
-  assert.equal(queryFailed.status, 23, 'cleanup query failures must preserve the update status');
+  assert.equal(queryFailed.status, 17, 'cleanup query failures must preserve the merge status');
   assert.deepEqual(
     { disableCalls: queryFailed.disableCalls, labelCalls: queryFailed.labelCalls },
     { disableCalls: 2, labelCalls: 2 },

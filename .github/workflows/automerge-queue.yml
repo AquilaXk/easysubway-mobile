@@ -24,7 +24,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
-      actions: write
       checks: read
       contents: write
       pull-requests: write
@@ -94,8 +93,8 @@ jobs:
           # 없는 후보는 사유를 남기고 건너뛴다. head 하나만 처리하면 그 한 건이 막혔을 때 뒤의
           # PR이 전부 굶고, 굶주림을 막으려 타이머·derail을 넣으면 다시 오작동 표면이 생긴다.
           # 건너뛰기는 병합을 하지 않는 방향이라 게이트를 약화시키지 않으며, 각 후보는 리뷰·
-          # 미해결 thread·required context 검증을 그대로 통과해야 한다. 실제 동작(병합 예약
-          # 또는 base 갱신)은 한 실행에 최대 한 건이므로 병합 직렬화는 그대로 유지된다.
+          # 미해결 thread·required context 검증을 그대로 통과해야 한다. 실제 동작(병합 예약)은
+          # 한 실행에 최대 한 건이므로 병합 직렬화는 그대로 유지된다.
           # queue-loop-begin
           # 한 실행에서 평가할 후보 수는 job timeout(5분) 때문에 제한해야 한다. 후보마다
           # API를 5회쯤 호출하므로 무제한으로 훑으면 큐가 길어질수록 job이 timeout으로
@@ -147,7 +146,7 @@ jobs:
           # candidate-offset-end
           while IFS= read -r pr; do
             info="$(gh pr view "${pr}" --repo "${repo}" \
-              --json baseRefName,headRefName,headRefOid,headRepository,isDraft,labels,mergeStateStatus,state)"
+              --json baseRefName,headRefOid,isDraft,labels,mergeStateStatus,state)"
             if ! jq -e '
               .state == "OPEN" and
               .isDraft == false and
@@ -159,8 +158,6 @@ jobs:
             fi
 
             head="$(jq -r '.headRefOid' <<<"${info}")"
-            head_ref="$(jq -r '.headRefName' <<<"${info}")"
-            head_repo="$(jq -r '.headRepository.nameWithOwner // ""' <<<"${info}")"
             merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
 
             reviews="$(gh api --paginate --slurp \
@@ -266,33 +263,8 @@ jobs:
                 exit 0
                 ;;
               BEHIND)
-                if [[ "${head_repo}" != "${repo}" ]]; then
-                  echo "::warning::PR #${pr} uses a fork head; refusing base-repository CI dispatch."
-                  continue
-                fi
-                if gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
-                  -f expected_head_sha="${head}" >/dev/null; then
-                  :
-                else
-                  status=$?
-                  fail_closed_pr "update-branch" "${merge_state}" "${status}"
-                fi
-                # ponytail: bounded wait only; the API applies the base merge asynchronously.
-                for _ in {1..12}; do
-                  new_head="$(gh pr view "${pr}" --repo "${repo}" --json headRefOid --jq '.headRefOid')"
-                  [[ "${new_head}" != "${head}" ]] && break
-                  sleep 5
-                done
-                if [[ "${new_head}" == "${head}" ]]; then
-                  # update-branch는 비동기라 bounded wait 안에 head가 안 바뀔 수 있다. stale
-                  # ref로 CI를 쏘지 않고 다음 트리거에서 재시도한다. bare `[[ ]]`로 두면 bash
-                  # 5에서는 아무 메시지 없이 job이 죽고 bash 3.2에서는 그냥 통과한다.
-                  echo "PR #${pr}: base update has not landed yet; retrying on the next trigger."
-                  exit 0
-                fi
-                gh workflow run ci.yml --repo "${repo}" --ref "${head_ref}"
-                echo "PR #${pr}: base updated; CI dispatched."
-                exit 0
+                echo "::warning::PR #${pr} is behind main; its owning SSD worktree must rebase and push."
+                continue
                 ;;
               DIRTY)
                 # 충돌은 소유 세션이 rebase 해야 풀린다. GitHub이 PR에 충돌을 직접 표시하므로
