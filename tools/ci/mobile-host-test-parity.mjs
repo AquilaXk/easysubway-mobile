@@ -75,9 +75,9 @@ function requireNonBlankString(value, label) {
   return value;
 }
 
-function requirePositiveInteger(value, label) {
-  if (!Number.isInteger(value) || value <= 0) {
-    fail(`${label} must be a positive integer`);
+function requireNonNegativeInteger(value, label) {
+  if (!Number.isInteger(value) || value < 0) {
+    fail(`${label} must be a non-negative integer`);
   }
   return value;
 }
@@ -520,7 +520,7 @@ export function verifyExecutionParity({ inventory, events }) {
     if (!event.suite) {
       fail("suite event has an invalid suite ID");
     }
-    requirePositiveInteger(event.suite.id, "suite event ID");
+    requireNonNegativeInteger(event.suite.id, "suite event ID");
     if (suitesById.has(event.suite.id)) {
       fail(`duplicate suite ID: ${event.suite.id}`);
     }
@@ -550,8 +550,8 @@ export function verifyExecutionParity({ inventory, events }) {
     if (!event.test) {
       fail("testStart event has invalid IDs");
     }
-    requirePositiveInteger(event.test.id, "testStart test ID");
-    requirePositiveInteger(event.test.suiteID, "testStart suite ID");
+    requireNonNegativeInteger(event.test.id, "testStart test ID");
+    requireNonNegativeInteger(event.test.suiteID, "testStart suite ID");
     if (testsById.has(event.test.id)) {
       fail(`duplicate test ID: ${event.test.id}`);
     }
@@ -563,7 +563,7 @@ export function verifyExecutionParity({ inventory, events }) {
   }
 
   for (const event of events.filter((entry) => entry.type === "testDone")) {
-    requirePositiveInteger(event.testID, "testDone test ID");
+    requireNonNegativeInteger(event.testID, "testDone test ID");
     const testState = testsById.get(event.testID);
     if (!testState) {
       fail(`testDone references unknown test ID: ${event.testID}`);

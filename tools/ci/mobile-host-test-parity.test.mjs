@@ -61,11 +61,11 @@ function completeReport({
   return [
     { type: "start", time: 0, protocolVersion: "0.1.1", runnerVersion: "1.0.0", pid: 1 },
     { type: "allSuites", time: 1, count: 1 },
-    { type: "suite", time: 2, suite: { id: 1, platform: "vm", path: suitePath } },
+    { type: "suite", time: 2, suite: { id: 0, platform: "vm", path: suitePath } },
     {
       type: "testStart",
       time: 3,
-      test: { id: 10, name: "example", suiteID: 1, groupIDs: [] },
+      test: { id: 10, name: "example", suiteID: 0, groupIDs: [] },
     },
     { type: "testDone", time: 4, testID: 10, result, hidden, skipped },
     ...extraEvents,
@@ -275,7 +275,7 @@ test("a partially skipped required suite fails without an explicit file disposit
     {
       type: "testStart",
       time: 4,
-      test: { id: 11, name: "temporarily skipped", suiteID: 1, groupIDs: [] },
+      test: { id: 11, name: "temporarily skipped", suiteID: 0, groupIDs: [] },
     },
     { type: "testDone", time: 4, testID: 11, result: "success", hidden: false, skipped: true },
   );
@@ -413,12 +413,12 @@ test("reporter IDs and invalid timestamps fail closed without assuming async adj
     1,
   );
 
-  const zeroTestId = completeReport();
-  zeroTestId[3].test.id = 0;
-  zeroTestId[4].testID = 0;
+  const negativeTestId = completeReport();
+  negativeTestId[3].test.id = -1;
+  negativeTestId[4].testID = -1;
   assert.throws(
-    () => verifyExecutionParity({ inventory, events: zeroTestId }),
-    /positive integer/i,
+    () => verifyExecutionParity({ inventory, events: negativeTestId }),
+    /non-negative integer/i,
   );
 
   const backwardTime = completeReport();
