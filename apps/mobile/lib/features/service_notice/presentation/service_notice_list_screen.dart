@@ -42,7 +42,7 @@ class ServiceNoticeListScreen extends StatelessWidget {
           final notices = controller.notices;
           final staleLabel = controller.staleLabel(now());
           final state = controller.result?.state;
-          if (controller.loading) {
+          if (controller.loading && controller.result == null) {
             return const Center(
               key: Key('serviceNoticeLoadingState'),
               child: CircularProgressIndicator(),

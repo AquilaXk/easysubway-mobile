@@ -134,6 +134,7 @@ class ApiNoticeRepository implements NoticeRepository {
   final NoticeApiClient apiClient;
   final NoticeCacheStore cacheStore;
   final DateTime Function() now;
+  String? _validatedEtag;
 
   @override
   Future<ActiveNoticesResult> activeNotices() async {
@@ -149,10 +150,16 @@ class ApiNoticeRepository implements NoticeRepository {
     }
     try {
       final response = await apiClient.getActiveNotices(
-        ifNoneMatch: cached?.etag,
+        ifNoneMatch: _validatedEtag,
       );
 
       if (response.isNotModified && cached != null) {
+        if (_validatedEtag == null || _validatedEtag != cached.etag) {
+          return ActiveNoticesResult.stale(
+            _activeAt(cached.notices, now()),
+            asOf: cached.fetchedAt,
+          );
+        }
         final fetchedAt = now();
         final notices = _activeAt(cached.notices, fetchedAt);
         if (cached.notices.isNotEmpty && notices.isEmpty) {
@@ -169,7 +176,11 @@ class ApiNoticeRepository implements NoticeRepository {
       }
 
       if (response.isOk && response.jsonBody is Map<String, Object?>) {
-        final data = (response.jsonBody as Map<String, Object?>)['data'];
+        final body = response.jsonBody as Map<String, Object?>;
+        if (body['success'] != true) {
+          return const ActiveNoticesResult.invalidData();
+        }
+        final data = body['data'];
         final fetchedAt = now();
         final sourceNotices = _strictlyParsed(data);
         if (sourceNotices == null) {
@@ -179,13 +190,16 @@ class ApiNoticeRepository implements NoticeRepository {
         if (sourceNotices.isNotEmpty && notices.isEmpty) {
           return const ActiveNoticesResult.invalidData();
         }
-        await _saveCache(
+        final saved = await _saveCache(
           NoticeCacheEntry(
             etag: response.etag,
             notices: sourceNotices,
             fetchedAt: fetchedAt,
           ),
         );
+        if (saved) {
+          _validatedEtag = response.etag;
+        }
         return ActiveNoticesResult.fresh(notices, asOf: fetchedAt);
       }
 
@@ -205,15 +219,17 @@ class ApiNoticeRepository implements NoticeRepository {
     return const ActiveNoticesResult.unavailable();
   }
 
-  Future<void> _saveCache(NoticeCacheEntry entry) async {
+  Future<bool> _saveCache(NoticeCacheEntry entry) async {
     try {
       await cacheStore.save(entry);
+      return true;
     } catch (error, stackTrace) {
       reportMobileError(
         error,
         stackTrace,
         context: '운행 공지 캐시를 저장하는 중 예외가 발생했습니다.',
       );
+      return false;
     }
   }
 
@@ -242,7 +258,8 @@ class ApiNoticeRepository implements NoticeRepository {
         return null;
       }
       final notice = ServiceNotice.fromJson(entry);
-      if (notice == null) {
+      if (notice == null ||
+          (entry['expiresAt'] != null && notice.expiresAt == null)) {
         return null;
       }
       notices.add(notice);

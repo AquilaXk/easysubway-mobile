@@ -47,6 +47,16 @@ class _DeferredRepository implements NoticeRepository {
   }
 }
 
+class _QueuedRepository implements NoticeRepository {
+  _QueuedRepository(this._results);
+
+  final List<Future<ActiveNoticesResult>> _results;
+  int calls = 0;
+
+  @override
+  Future<ActiveNoticesResult> activeNotices() => _results[calls++];
+}
+
 Future<NoticeController> _seed(ActiveNoticesResult result) async {
   final controller = NoticeController(repository: _FakeRepository(result));
   await controller.refresh();
@@ -183,6 +193,26 @@ void main() {
     expect(find.text('지금은 공지사항이 없어요'), findsNothing);
 
     completer.complete(const ActiveNoticesResult.unavailable());
+    await refresh;
+  });
+
+  testWidgets('기존 결과가 있으면 refresh loading에도 공지 목록을 유지한다', (tester) async {
+    final completer = Completer<ActiveNoticesResult>();
+    final repository = _QueuedRepository([
+      Future.value(ActiveNoticesResult.fresh([_notice('n1')])),
+      completer.future,
+    ]);
+    final controller = NoticeController(repository: repository);
+    await controller.refresh();
+
+    await tester.pumpWidget(_host(controller));
+    final refresh = controller.refresh();
+    await tester.pump();
+
+    expect(find.text('제목 n1'), findsOneWidget);
+    expect(find.byKey(const Key('serviceNoticeLoadingState')), findsNothing);
+
+    completer.complete(ActiveNoticesResult.fresh([_notice('n1')]));
     await refresh;
   });
 
