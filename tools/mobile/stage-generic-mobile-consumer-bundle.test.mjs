@@ -123,6 +123,7 @@ test("failed pointer writes and renames preserve an existing current pointer", a
     const artifact = await buildArtifact(artifactDirectory);
     await assert.rejects(stageGenericMobileConsumerBundle({ ...artifact, fixtureRoot: root, stageRoot, fs }), /injected (rename|write) failure/);
     assert.deepEqual(await readFile(path.join(stageRoot, "current.json")), previous);
+    await assert.rejects(lstat(path.join(stageRoot, "versions", artifact.lock.artifact.archiveSha256)), { code: "ENOENT" });
   }
 }));
 
@@ -145,7 +146,8 @@ test("CI fetches and stages only the exact Hub artifact before residual snapshot
   assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${metadataEndpoint}`));
   assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${archiveEndpoint}`));
   assert.match(workflow, /if \[\[ -z "\$\{GH_TOKEN:-\}" \]\]; then/);
-  assert.match(workflow, /if \[\[ -e "\$BUNDLE_INPUT_ROOT" \]\]; then/);
+  assert.match(workflow, /umask 077/);
+  assert.match(workflow, /if \[\[ -e "\$BUNDLE_INPUT_ROOT" \|\| -L "\$BUNDLE_INPUT_ROOT" \]\]; then/);
   assert.match(workflow, /node tools\/mobile\/stage-generic-mobile-consumer-bundle\.mjs \\\n\s+--lock contracts\/mobile\/generic-mobile-consumer-bundle\.lock\.json \\\n\s+--metadata "\$BUNDLE_INPUT_ROOT\/metadata\.json" \\\n\s+--archive "\$BUNDLE_INPUT_ROOT\/artifact\.zip" \\\n\s+--fixture-root "\$GITHUB_WORKSPACE" \\\n\s+--stage-root "\$BUNDLE_STAGE_ROOT"/);
   assert.match(workflow, /tools\/mobile\/stage-generic-mobile-consumer-bundle\.test\.mjs/);
   assert.equal(snapshots, [

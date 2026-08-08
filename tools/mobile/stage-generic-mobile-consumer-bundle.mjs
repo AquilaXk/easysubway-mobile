@@ -230,7 +230,13 @@ export async function stageGenericMobileConsumerBundle({ lock, metadata, archive
     await fs.rename(candidate, version);
     const pointer = Buffer.from(`${canonicalJson({ archiveSha256: expected.artifact.archiveSha256, versionDirectory: `versions/${expected.artifact.archiveSha256}` })}\n`, "utf8");
     const pointerTemp = path.join(root, `.current-${randomUUID()}.json`);
-    try { await fs.writeFile(pointerTemp, pointer, { flag: "wx", mode: 0o600 }); await fs.rename(pointerTemp, path.join(root, "current.json")); } finally { await fs.rm(pointerTemp, { force: true }).catch(() => {}); }
+    try {
+      try { await fs.writeFile(pointerTemp, pointer, { flag: "wx", mode: 0o600 }); await fs.rename(pointerTemp, path.join(root, "current.json")); }
+      finally { await fs.rm(pointerTemp, { force: true }).catch(() => {}); }
+    } catch (error) {
+      await fs.rm(version, { recursive: true, force: true });
+      throw error;
+    }
     return { archiveSha256: expected.artifact.archiveSha256, versionDirectory: version };
   } finally { await fs.rm(candidate, { recursive: true, force: true }).catch(() => {}); }
 }

@@ -34,11 +34,12 @@ jobs:
           GH_TOKEN: ${{ secrets.HUB_ACTIONS_ARTIFACT_READ_TOKEN }}
           BUNDLE_INPUT_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-input-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
+          umask 077
           if [[ -z "${GH_TOKEN:-}" ]]; then
             echo "HUB_ACTIONS_ARTIFACT_READ_TOKEN is required" >&2
             exit 1
           fi
-          if [[ -e "$BUNDLE_INPUT_ROOT" ]]; then
+          if [[ -e "$BUNDLE_INPUT_ROOT" || -L "$BUNDLE_INPUT_ROOT" ]]; then
             echo "generic mobile consumer bundle input path already exists" >&2
             exit 1
           fi
