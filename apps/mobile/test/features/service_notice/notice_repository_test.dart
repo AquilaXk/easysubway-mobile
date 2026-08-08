@@ -93,6 +93,7 @@ void main() {
     final result = await repo(client, cache).activeNotices();
 
     expect(result.notices, hasLength(1));
+    expect(result.state, NoticeResultState.freshData);
     expect(result.stale, isFalse);
     expect(result.asOf, now);
     expect(cache.entry!.etag, '"e1"');
@@ -114,6 +115,7 @@ void main() {
 
     expect(client.lastIfNoneMatch, '"e1"');
     expect(result.notices.single.id, 'n1');
+    expect(result.state, NoticeResultState.freshData);
     expect(result.stale, isFalse);
   });
 
@@ -130,16 +132,82 @@ void main() {
     final result = await repo(client, cache).activeNotices();
 
     expect(result.notices, hasLength(1));
+    expect(result.state, NoticeResultState.staleData);
     expect(result.stale, isTrue);
     expect(result.asOf, fetchedAt);
   });
 
-  test('오프라인이고 캐시도 없으면 빈 목록(비-stale)', () async {
+  test('오프라인이고 캐시도 없으면 unavailable이다', () async {
     final client = _FakeApiClient(okResponse(const []), throwError: true);
     final result = await repo(client, _InMemoryCache()).activeNotices();
 
     expect(result.notices, isEmpty);
     expect(result.stale, isFalse);
+    expect(result.state, NoticeResultState.unavailable);
+  });
+
+  test('검증된 명시적 빈 200 응답만 fresh empty이다', () async {
+    final result = await repo(
+      _FakeApiClient(okResponse(const [])),
+      _InMemoryCache(),
+    ).activeNotices();
+
+    expect(result.state, NoticeResultState.freshEmpty);
+    expect(result.notices, isEmpty);
+  });
+
+  test('잘못된 행이 하나라도 있는 200 응답은 invalid data이다', () async {
+    final malformed = noticeJson('bad', 'UNKNOWN');
+    final result = await repo(
+      _FakeApiClient(okResponse([noticeJson('good', 'INFO'), malformed])),
+      _InMemoryCache(),
+    ).activeNotices();
+
+    expect(result.state, NoticeResultState.invalidData);
+    expect(result.notices, isEmpty);
+  });
+
+  test('비어 있지 않은 200 source가 모두 비활성이면 invalid이고 캐시를 갱신하지 않는다', () async {
+    final cached = NoticeCacheEntry(
+      etag: 'old',
+      notices: [notice('old')],
+      fetchedAt: now.subtract(const Duration(hours: 1)),
+    );
+    final cache = _InMemoryCache()..entry = cached;
+    final result = await repo(
+      _FakeApiClient(
+        okResponse([
+          noticeJson('expired', 'INFO', expiresAt: '2026-07-06T12:00:00'),
+        ], etag: 'new'),
+      ),
+      cache,
+    ).activeNotices();
+
+    expect(result.state, NoticeResultState.invalidData);
+    expect(cache.entry, same(cached));
+  });
+
+  test('비어 있지 않은 304 source가 모두 비활성이면 invalid이고 캐시를 갱신하지 않는다', () async {
+    final cached = NoticeCacheEntry(
+      etag: 'old',
+      notices: [notice('expired', expiresAt: '2026-07-06T12:00:00')],
+      fetchedAt: now.subtract(const Duration(hours: 1)),
+    );
+    final cache = _InMemoryCache()..entry = cached;
+    final result = await repo(
+      _FakeApiClient(ApiResponse(statusCode: 304, jsonBody: null, etag: 'old')),
+      cache,
+    ).activeNotices();
+
+    expect(result.state, NoticeResultState.invalidData);
+    expect(cache.entry, same(cached));
+  });
+
+  test('호환 생성자는 asOf 없는 stale을 거부한다', () {
+    expect(
+      () => ActiveNoticesResult(notices: const [], stale: true),
+      throwsA(isA<AssertionError>()),
+    );
   });
 
   test('캐시 읽기 실패는 보고하고 조건 없는 네트워크 응답을 사용한다', () async {
