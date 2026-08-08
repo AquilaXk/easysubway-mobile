@@ -45,6 +45,7 @@ jobs:
             exit 1
           fi
           mkdir "$BUNDLE_INPUT_ROOT"
+          gh api --method GET --header "Accept: application/vnd.github+json" /repos/AquilaXk/easysubway/actions/runs/31280042807 > "$BUNDLE_INPUT_ROOT/run-metadata.json"
           gh api --method GET --header "Accept: application/vnd.github+json" /repos/AquilaXk/easysubway/actions/artifacts/9028141921 > "$BUNDLE_INPUT_ROOT/metadata.json"
           gh api --method GET --header "Accept: application/vnd.github+json" /repos/AquilaXk/easysubway/actions/artifacts/9028141921/zip > "$BUNDLE_INPUT_ROOT/artifact.zip"
       - name: Stage exact generic mobile consumer bundle
@@ -55,6 +56,7 @@ jobs:
           node tools/mobile/stage-generic-mobile-consumer-bundle.mjs \
             --lock contracts/mobile/generic-mobile-consumer-bundle.lock.json \
             --metadata "$BUNDLE_INPUT_ROOT/metadata.json" \
+            --run-metadata "$BUNDLE_INPUT_ROOT/run-metadata.json" \
             --archive "$BUNDLE_INPUT_ROOT/artifact.zip" \
             --fixture-root "$GITHUB_WORKSPACE" \
             --stage-root "$BUNDLE_STAGE_ROOT"

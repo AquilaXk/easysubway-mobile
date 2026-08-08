@@ -18,7 +18,10 @@ async function exactLock() { return JSON.parse(await readFile(lockPath, "utf8"))
 function canonical(value) { return Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : value && typeof value === "object" ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}` : JSON.stringify(value); }
 async function temporary() { return mkdtemp(path.join(os.tmpdir(), "mobile-generic-consumer-")); }
 function artifactMetadata(lock) {
-  return { id: lock.artifact.id, name: lock.artifact.name, size_in_bytes: lock.artifact.sizeBytes, digest: `sha256:${lock.artifact.archiveSha256}`, archive_download_url: lock.artifact.archiveUrl, expired: false, created_at: lock.artifact.createdAt, expires_at: lock.artifact.expiresAt, workflow_run: { id: lock.publication.runId, head_branch: "main", head_sha: lock.publication.headSha, repository_id: lock.publication.repositoryId, head_repository_id: lock.publication.repositoryId, workflow_id: lock.publication.workflowId, run_attempt: lock.publication.runAttempt } };
+  return { id: lock.artifact.id, name: lock.artifact.name, size_in_bytes: lock.artifact.sizeBytes, digest: `sha256:${lock.artifact.archiveSha256}`, archive_download_url: lock.artifact.archiveUrl, expired: false, created_at: lock.artifact.createdAt, expires_at: lock.artifact.expiresAt, workflow_run: { id: lock.publication.runId, head_branch: "main", head_sha: lock.publication.headSha, repository_id: lock.publication.repositoryId, head_repository_id: lock.publication.repositoryId } };
+}
+function runMetadata(lock) {
+  return { id: lock.publication.runId, workflow_id: lock.publication.workflowId, run_attempt: lock.publication.runAttempt, path: `${lock.publication.workflowPath}@refs/heads/main`, event: "workflow_dispatch", status: "completed", conclusion: "success", head_branch: "main", head_sha: lock.publication.headSha, repository: { id: lock.publication.repositoryId, full_name: lock.producer.repository } };
 }
 async function buildArtifact(directory, options = {}) {
   const lock = clone(await exactLock());
@@ -42,7 +45,7 @@ async function buildArtifact(directory, options = {}) {
   if (options.extraEntry) await writeFile(path.join(directory, options.extraEntry), "unexpected");
   await run("zip", ["-q", ...(options.symlinkBundle ? ["-y"] : []), archivePath, lock.files.bundle.path, lock.files.receipt.path, ...(options.extraEntry ? [options.extraEntry] : [])], { cwd: directory });
   const archive = await readFile(archivePath); lock.artifact.archiveSha256 = sha256(archive); lock.artifact.sizeBytes = archive.length;
-  return { archivePath, lock, metadata: artifactMetadata(lock) };
+  return { archivePath, lock, metadata: artifactMetadata(lock), runMetadata: runMetadata(lock) };
 }
 async function withTemporary(callback) { const directory = await temporary(); try { return await callback(directory); } finally { await rm(directory, { recursive: true, force: true }); } }
 
@@ -57,7 +60,7 @@ test("exact Hub #2747 lock validates and pins the published identities", async (
   ]);
 });
 
-test("lock and metadata reject mutable, unknown, and mismatched identities", async () => {
+test("lock and artifact/run metadata reject mutable, unknown, and mismatched identities", async () => {
   const lock = await exactLock();
   for (const mutate of [
     (value) => { value.artifact.archiveUrl = "https://example.invalid/latest"; },
@@ -68,6 +71,9 @@ test("lock and metadata reject mutable, unknown, and mismatched identities", asy
   ]) { const invalid = clone(lock); mutate(invalid); assert.throws(() => validateGenericMobileConsumerBundleLock(invalid)); }
   const metadata = artifactMetadata(lock);
   for (const mutate of [(value) => { value.id += 1; }, (value) => { value.expired = true; }, (value) => { value.digest = "sha256:0".repeat(64); }, (value) => { value.workflow_run.head_branch = "release"; }, (value) => { value.workflow_run.head_sha = "0".repeat(40); }, (value) => { value.workflow_run.head_repository_id += 1; }, (value) => { delete value.workflow_run.repository_id; }]) { const invalid = clone(metadata); mutate(invalid); assert.throws(() => validateArtifactMetadata(invalid, lock)); }
+  assert.equal(Object.hasOwn(metadata.workflow_run, "workflow_id"), false);
+  assert.equal(Object.hasOwn(metadata.workflow_run, "run_attempt"), false);
+  for (const mutate of [(value) => { value.id += 1; }, (value) => { value.workflow_id += 1; }, (value) => { value.run_attempt += 1; }, (value) => { value.path = ".github/workflows/other.yml@main"; }, (value) => { value.event = "push"; }, (value) => { value.status = "in_progress"; }, (value) => { value.conclusion = "failure"; }, (value) => { value.head_branch = "release"; }, (value) => { value.head_sha = "0".repeat(40); }, (value) => { value.repository.id += 1; }, (value) => { value.repository.full_name = "AquilaXk/other"; }, (value) => { delete value.workflow_id; }, (value) => { value.repository = []; }]) { const invalid = clone(runMetadata(lock)); mutate(invalid); await assert.rejects(stageGenericMobileConsumerBundle({ lock, metadata, runMetadata: invalid, archivePath: "/invalid/archive.zip", fixtureRoot: root, stageRoot: "/invalid/stage" }), /workflow run metadata/); }
 });
 
 test("duplicate JSON keys fail before semantic validation", () => {
@@ -88,6 +94,16 @@ test("archive digest and ZIP entry list fail before current mutation", async () 
   await assert.rejects(lstat(path.join(stageRoot, "current.json")), { code: "ENOENT" });
   const wrongDigest = clone(artifact); wrongDigest.lock.artifact.archiveSha256 = "0".repeat(64); wrongDigest.metadata.digest = `sha256:${wrongDigest.lock.artifact.archiveSha256}`;
   await assert.rejects(stageGenericMobileConsumerBundle({ ...wrongDigest, fixtureRoot: root, stageRoot }), /archive digest/);
+}));
+
+test("run metadata mismatch fails before ZIP listing, extraction, and current mutation", async () => withTemporary(async (directory) => {
+  const artifact = await buildArtifact(directory); const stageRoot = path.join(directory, "stage"); const previous = Buffer.from('{"archiveSha256":"old","versionDirectory":"versions/old"}\n');
+  await (await import("node:fs/promises")).mkdir(stageRoot); await writeFile(path.join(stageRoot, "current.json"), previous);
+  const invalid = clone(artifact); invalid.runMetadata.workflow_id += 1;
+  let unzipCalls = 0;
+  await assert.rejects(stageGenericMobileConsumerBundle({ ...invalid, fixtureRoot: root, stageRoot, execFileImpl: async () => { unzipCalls += 1; throw new Error("unzip must not run"); } }), /workflow run metadata/);
+  assert.equal(unzipCalls, 0);
+  assert.deepEqual(await readFile(path.join(stageRoot, "current.json")), previous);
 }));
 
 test("symlinked extracted files fail even when the ZIP entry list is exact", async () => withTemporary(async (directory) => {
@@ -137,18 +153,25 @@ test("CI fetches and stages only the exact Hub artifact before residual snapshot
   const snapshots = await readFile(path.join(root, "contracts/mobile/consumer-snapshots.sha256"), "utf8");
   const metadataEndpoint = "/repos/AquilaXk/easysubway/actions/artifacts/9028141921";
   const archiveEndpoint = `${metadataEndpoint}/zip`;
+  const runMetadataEndpoint = "/repos/AquilaXk/easysubway/actions/runs/31280042807";
+  const runMetadataFetchIndex = workflow.indexOf(runMetadataEndpoint);
+  const artifactMetadataFetchIndex = workflow.indexOf(metadataEndpoint);
+  const archiveFetchIndex = workflow.indexOf(archiveEndpoint);
   const fetchIndex = workflow.indexOf("Fetch exact generic mobile consumer bundle");
   const stageIndex = workflow.indexOf("Stage exact generic mobile consumer bundle");
   const checksumIndex = workflow.indexOf("Verify residual consumer snapshots");
 
   assert.ok(fetchIndex >= 0 && stageIndex > fetchIndex && checksumIndex > stageIndex, "fetch, stage, and residual checksum steps must be ordered");
+  assert.ok(runMetadataFetchIndex >= 0 && artifactMetadataFetchIndex > runMetadataFetchIndex && archiveFetchIndex > artifactMetadataFetchIndex, "run metadata must be fetched once before artifact metadata and ZIP");
   assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.HUB_ACTIONS_ARTIFACT_READ_TOKEN \}\}/);
   assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${metadataEndpoint}`));
   assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${archiveEndpoint}`));
+  assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${runMetadataEndpoint}`));
+  assert.equal(workflow.match(new RegExp(runMetadataEndpoint.replaceAll("/", "\\/"), "g"))?.length, 1);
   assert.match(workflow, /if \[\[ -z "\$\{GH_TOKEN:-\}" \]\]; then/);
   assert.match(workflow, /umask 077/);
   assert.match(workflow, /if \[\[ -e "\$BUNDLE_INPUT_ROOT" \|\| -L "\$BUNDLE_INPUT_ROOT" \]\]; then/);
-  assert.match(workflow, /node tools\/mobile\/stage-generic-mobile-consumer-bundle\.mjs \\\n\s+--lock contracts\/mobile\/generic-mobile-consumer-bundle\.lock\.json \\\n\s+--metadata "\$BUNDLE_INPUT_ROOT\/metadata\.json" \\\n\s+--archive "\$BUNDLE_INPUT_ROOT\/artifact\.zip" \\\n\s+--fixture-root "\$GITHUB_WORKSPACE" \\\n\s+--stage-root "\$BUNDLE_STAGE_ROOT"/);
+  assert.match(workflow, /node tools\/mobile\/stage-generic-mobile-consumer-bundle\.mjs \\\n\s+--lock contracts\/mobile\/generic-mobile-consumer-bundle\.lock\.json \\\n\s+--metadata "\$BUNDLE_INPUT_ROOT\/metadata\.json" \\\n\s+--run-metadata "\$BUNDLE_INPUT_ROOT\/run-metadata\.json" \\\n\s+--archive "\$BUNDLE_INPUT_ROOT\/artifact\.zip" \\\n\s+--fixture-root "\$GITHUB_WORKSPACE" \\\n\s+--stage-root "\$BUNDLE_STAGE_ROOT"/);
   assert.match(workflow, /tools\/mobile\/stage-generic-mobile-consumer-bundle\.test\.mjs/);
   assert.equal(snapshots, [
     "1ea9a8511b290acb8092f87d7d087e16636013b5cd950157d4782b4437da17fe  apps/mobile/test/fixtures/contracts/api/report-status.ok.json",

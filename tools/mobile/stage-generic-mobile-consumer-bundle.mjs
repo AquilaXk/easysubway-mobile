@@ -137,6 +137,12 @@ export function validateArtifactMetadata(metadata, lock) {
   return metadata;
 }
 
+export function validateWorkflowRunMetadata(runMetadata, lock) {
+  const expected = validateGenericMobileConsumerBundleLock(lock);
+  if (!runMetadata || Array.isArray(runMetadata) || typeof runMetadata !== "object" || !runMetadata.repository || Array.isArray(runMetadata.repository) || typeof runMetadata.repository !== "object" || runMetadata.id !== expected.publication.runId || runMetadata.workflow_id !== expected.publication.workflowId || runMetadata.run_attempt !== expected.publication.runAttempt || runMetadata.path !== `${expected.publication.workflowPath}@refs/heads/main` || runMetadata.event !== "workflow_dispatch" || runMetadata.status !== "completed" || runMetadata.conclusion !== "success" || runMetadata.head_branch !== "main" || runMetadata.head_sha !== expected.publication.headSha || runMetadata.repository.id !== expected.publication.repositoryId || runMetadata.repository.full_name !== expected.producer.repository) throw new Error("workflow run metadata does not match the immutable lock");
+  return runMetadata;
+}
+
 async function regularFile(target, label) {
   const stat = await lstat(target);
   if (!stat.isFile() || stat.isSymbolicLink()) throw new Error(`${label} must be a regular non-symlink file`);
@@ -204,9 +210,10 @@ async function fixtureParity(lock, fixtureRoot, decoded) {
   }
 }
 
-export async function stageGenericMobileConsumerBundle({ lock, metadata, archivePath, fixtureRoot, stageRoot, fs = { lstat, mkdir, rename, rm, writeFile }, execFileImpl = execFile } = {}) {
+export async function stageGenericMobileConsumerBundle({ lock, metadata, runMetadata, archivePath, fixtureRoot, stageRoot, fs = { lstat, mkdir, rename, rm, writeFile }, execFileImpl = execFile } = {}) {
   const expected = validateGenericMobileConsumerBundleLock(lock);
   validateArtifactMetadata(metadata, expected);
+  validateWorkflowRunMetadata(runMetadata, expected);
   if (!path.isAbsolute(archivePath) || !path.isAbsolute(fixtureRoot) || !path.isAbsolute(stageRoot)) throw new Error("archive, fixture root, and stage root must be absolute paths");
   const archive = await regularFile(archivePath, "archive");
   if (archive.length !== expected.artifact.sizeBytes || sha256(archive) !== expected.artifact.archiveSha256) throw new Error("archive digest does not match the immutable lock");
@@ -243,15 +250,15 @@ export async function stageGenericMobileConsumerBundle({ lock, metadata, archive
 
 function parseArguments(args) {
   const values = new Map();
-  if (args.length !== 10) throw new Error("usage: --lock <file> --metadata <file> --archive <file> --fixture-root <directory> --stage-root <directory>");
-  for (let index = 0; index < args.length; index += 2) { const key = args[index]; const value = args[index + 1]; if (!["--lock", "--metadata", "--archive", "--fixture-root", "--stage-root"].includes(key) || !value || values.has(key)) throw new Error("options must be complete, unique, and known"); values.set(key, value); }
+  if (args.length !== 12) throw new Error("usage: --lock <file> --metadata <file> --run-metadata <file> --archive <file> --fixture-root <directory> --stage-root <directory>");
+  for (let index = 0; index < args.length; index += 2) { const key = args[index]; const value = args[index + 1]; if (!["--lock", "--metadata", "--run-metadata", "--archive", "--fixture-root", "--stage-root"].includes(key) || !value || values.has(key)) throw new Error("options must be complete, unique, and known"); values.set(key, value); }
   return Object.fromEntries([...values.entries()].map(([key, value]) => [key.slice(2).replaceAll("-", "_"), path.resolve(value)]));
 }
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  const [lockBytes, metadataBytes] = await Promise.all([regularFile(args.lock, "lock"), regularFile(args.metadata, "metadata")]);
-  await stageGenericMobileConsumerBundle({ lock: parseJsonWithoutDuplicateKeys(lockBytes, "lock"), metadata: parseJsonWithoutDuplicateKeys(metadataBytes, "metadata"), archivePath: args.archive, fixtureRoot: args.fixture_root, stageRoot: args.stage_root });
+  const [lockBytes, metadataBytes, runMetadataBytes] = await Promise.all([regularFile(args.lock, "lock"), regularFile(args.metadata, "metadata"), regularFile(args.run_metadata, "run metadata")]);
+  await stageGenericMobileConsumerBundle({ lock: parseJsonWithoutDuplicateKeys(lockBytes, "lock"), metadata: parseJsonWithoutDuplicateKeys(metadataBytes, "metadata"), runMetadata: parseJsonWithoutDuplicateKeys(runMetadataBytes, "workflow run metadata"), archivePath: args.archive, fixtureRoot: args.fixture_root, stageRoot: args.stage_root });
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) main().catch((error) => { process.stderr.write(`${error.message}\n`); process.exitCode = 1; });
