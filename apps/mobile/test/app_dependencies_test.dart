@@ -331,7 +331,7 @@ void main() {
     expect(dependencies.noticeRepository, isA<NoticeRepository>());
   });
 
-  test('운행 공지 의존성은 resolve 시점에 API 주소를 읽지 않고, 주소가 없으면 빈 결과로 동작한다', () async {
+  test('운행 공지 의존성은 resolve 시점에 API 주소를 읽지 않고, 주소가 없으면 unavailable이다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     var apiBaseReads = 0;
@@ -357,6 +357,7 @@ void main() {
 
     expect(result.notices, isEmpty);
     expect(result.stale, isFalse);
+    expect(result.state, NoticeResultState.unavailable);
   });
 
   test('기차 검색은 첫 호출까지 API 주소를 읽지 않고 주소가 없으면 unavailable이다', () async {
