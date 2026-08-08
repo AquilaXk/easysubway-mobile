@@ -24,6 +24,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Set up Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
@@ -90,10 +91,32 @@ jobs:
       - name: Analyze
         working-directory: apps/mobile
         run: flutter analyze
+      - name: Discover host tests
+        env:
+          TEST_PARITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          TEST_PARITY_HEAD_SHA: ${{ github.sha }}
+        run: |
+          node tools/ci/mobile-host-test-parity.mjs discover \
+            --repository . \
+            --policy tools/ci/mobile-host-test-policy.json \
+            --output "${RUNNER_TEMP}/mobile-host-test-inventory.json" \
+            --base "${TEST_PARITY_BASE_SHA}" \
+            --head "${TEST_PARITY_HEAD_SHA}" \
+            --event "${GITHUB_EVENT_NAME}"
       - name: Test
         working-directory: apps/mobile
-        run: |
+        run: >-
           flutter test --coverage
+          --file-reporter "json:${RUNNER_TEMP}/mobile-host-test-events.json"
+      - name: Verify host test execution parity
+        run: |
+          node tools/ci/mobile-host-test-parity.mjs verify \
+            --inventory "${RUNNER_TEMP}/mobile-host-test-inventory.json" \
+            --report "${RUNNER_TEMP}/mobile-host-test-events.json" \
+            --summary "${RUNNER_TEMP}/mobile-host-test-parity.json"
+      - name: Filter mobile coverage
+        working-directory: apps/mobile
+        run: |
           node ../../tools/ci/filter-mobile-lcov.mjs \
             --input coverage/lcov.info \
             --output coverage/lcov.info

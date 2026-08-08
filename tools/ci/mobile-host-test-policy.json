@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "trackedTestSuffix": "_test.dart",
+  "roots": [
+    {
+      "path": "apps/mobile/integration_test",
+      "classification": "NATIVE_INTEGRATION_OWNED_BY_MOBILE_72",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/72"
+    },
+    {
+      "path": "apps/mobile/test_driver",
+      "classification": "NATIVE_INTEGRATION_OWNED_BY_MOBILE_72",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/72"
+    },
+    {
+      "path": "apps/mobile/test",
+      "classification": "REQUIRED_HOST_TEST",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/35"
+    }
+  ],
+  "overrides": [
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_golden_test.dart",
+      "classification": "GOLDEN_OWNED_BY_MOBILE_23",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/23",
+      "reason": "Golden comparison is intentionally macOS-rasterizer-owned and all-skipped on Ubuntu.",
+      "reviewTrigger": "Mobile #23 terminal golden execution lane"
+    }
+  ],
+  "deletionDispositions": []
+}
