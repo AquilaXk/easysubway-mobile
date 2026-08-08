@@ -385,7 +385,7 @@ class _UnavailableNoticeRepository implements NoticeRepository {
 
   @override
   Future<ActiveNoticesResult> activeNotices() async {
-    return const ActiveNoticesResult(notices: [], stale: false);
+    return const ActiveNoticesResult.unavailable();
   }
 }
 

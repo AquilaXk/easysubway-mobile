@@ -64,9 +64,8 @@ class NoticeController extends ChangeNotifier {
       final result = await repository.activeNotices();
       _result = result;
     } catch (error, stackTrace) {
-      // 조회 실패는 조용히 이전 상태를 유지한다(repository가 이미 stale 강등을
-      // 담당하므로 여기까지 오는 예외는 표시할 사용자 메시지가 없다).
       appLog.w('운행 공지 조회 실패', error: error, stackTrace: stackTrace);
+      _result = const ActiveNoticesResult.unavailable();
     } finally {
       _loading = false;
       _inFlight = null;

@@ -39,6 +39,19 @@ class _ThrowingRepository implements NoticeRepository {
   }
 }
 
+class _SuccessThenThrowingRepository implements NoticeRepository {
+  int calls = 0;
+
+  @override
+  Future<ActiveNoticesResult> activeNotices() async {
+    calls++;
+    if (calls == 1) {
+      return ActiveNoticesResult.fresh([notice('n1')]);
+    }
+    throw StateError('boom');
+  }
+}
+
 class _DeferredRepository implements NoticeRepository {
   _DeferredRepository(this._future);
   final Future<ActiveNoticesResult> _future;
@@ -111,13 +124,28 @@ void main() {
     expect(controller.topDisruption, isNull);
   });
 
-  test('저장소가 예외를 던져도 이전 상태를 유지하고 삼킨다', () async {
+  test('저장소가 예외를 던지면 unavailable로 바꾸고 삼킨다', () async {
     final controller = NoticeController(repository: _ThrowingRepository());
 
     await controller.refresh();
 
     expect(controller.notices, isEmpty);
+    expect(controller.result?.state, NoticeResultState.unavailable);
     expect(controller.loading, isFalse);
+  });
+
+  test('이전 성공 뒤 저장소 예외는 이전 공지를 유지하지 않는다', () async {
+    final repository = _SuccessThenThrowingRepository();
+    final controller = NoticeController(repository: repository);
+
+    await controller.refresh();
+    expect(controller.notices.single.id, 'n1');
+
+    await controller.refresh();
+
+    expect(repository.calls, 2);
+    expect(controller.result?.state, NoticeResultState.unavailable);
+    expect(controller.notices, isEmpty);
   });
 
   test('진행 중 refresh가 있으면 중복 호출은 합류(single-flight)', () async {
