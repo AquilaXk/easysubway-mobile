@@ -40,6 +40,95 @@ jobs:
           repo="${GITHUB_REPOSITORY}"
           owner="${repo%%/*}"
           name="${repo#*/}"
+          data_page_limit=3
+          page_size=100
+          overflow_probe_page=$((data_page_limit + 1))
+
+          # API pagination is deliberately capped. An incomplete commit/comment set must
+          # never turn into an authorization decision.
+          bounded_issue_comments() {
+            local page response collected='[]'
+            for ((page = 1; page <= data_page_limit; page++)); do
+              response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${page}")"
+              jq -e 'type == "array" and all(.[]; (.id | type) == "number" and (.body | type) == "string" and (.user | type) == "object")' <<<"${response}" >/dev/null
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
+                printf '%s\n' "${collected}"
+                return 0
+              fi
+            done
+            response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${overflow_probe_page}")"
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            printf '%s\n' "${collected}"
+          }
+
+          bounded_pr_commits() {
+            local page response collected='[]'
+            for ((page = 1; page <= data_page_limit; page++)); do
+              response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${page}")"
+              jq -e 'type == "array" and all(.[]; (.sha | type) == "string" and (.sha | test("^[0-9a-f]{40}$")))' <<<"${response}" >/dev/null
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
+                printf '%s\n' "${collected}"
+                return 0
+              fi
+            done
+            response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${overflow_probe_page}")"
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            printf '%s\n' "${collected}"
+          }
+
+          bounded_pr_reviews() {
+            local page response collected='[]'
+            for ((page = 1; page <= data_page_limit; page++)); do
+              response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${page}")"
+              jq -e 'type == "array" and all(.[];
+                (.id | type) == "number" and
+                (.state | type) == "string" and
+                (.commit_id | type) == "string" and
+                (.submitted_at | type) == "string" and
+                (.author_association | type) == "string" and
+                (.body | type) == "string" and
+                (.user | type) == "object"
+              )' <<<"${response}" >/dev/null
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
+                printf '%s\n' "${collected}"
+                return 0
+              fi
+            done
+            response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${overflow_probe_page}")"
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            printf '%s\n' "${collected}"
+          }
+
+          # exact-head-marker-producer-begin
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request_target" ]]; then
+            pr="$(jq -er '.pull_request.number | if type == "number" and . > 0 and floor == . then . else error("invalid PR") end' "${GITHUB_EVENT_PATH}")"
+            event_head="$(jq -er '.pull_request.head.sha | if type == "string" and test("^[0-9a-f]{40}$") then . else error("invalid head") end' "${GITHUB_EVENT_PATH}")"
+            marker="<!-- Automerge frozen discovery authorization: ${event_head} -->"
+            marker_pattern='^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$'
+            comments="$(bounded_issue_comments)"
+            marker_ids="$(jq -cer --arg marker_pattern "${marker_pattern}" '
+              [.[] | select(
+                (.body | test($marker_pattern)) and
+                .user.login == "github-actions[bot]" and
+                .user.id == 41898282 and
+                .user.type == "Bot"
+              ) | .id]
+            ' <<<"${comments}")"
+            marker_count="$(jq 'length' <<<"${marker_ids}")"
+            if [[ "${marker_count}" -eq 0 ]]; then
+              gh api --method POST "repos/${repo}/issues/${pr}/comments" -f body="${marker}" >/dev/null
+            elif [[ "${marker_count}" -eq 1 ]]; then
+              marker_id="$(jq -er '.[0]' <<<"${marker_ids}")"
+              gh api --method PATCH "repos/${repo}/issues/comments/${marker_id}" -f body="${marker}" >/dev/null
+            else
+              echo "::error::PR #${pr}: multiple canonical exact-head markers; refusing mutation."
+              exit 1
+            fi
+          fi
+          # exact-head-marker-producer-end
 
           fail_closed_pr() {
             local operation="$1" merge_state="$2" status="$3"
@@ -160,23 +249,47 @@ jobs:
             head="$(jq -r '.headRefOid' <<<"${info}")"
             merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
 
-            reviews="$(gh api --paginate --slurp \
-              "repos/${repo}/pulls/${pr}/reviews?per_page=100")"
-            # review-state-filter-begin
-            if ! jq -e --arg head "${head}" '
+            reviews="$(bounded_pr_reviews)"
+            commits="$(bounded_pr_commits)"
+            comments="$(bounded_issue_comments)"
+            # frozen-discovery-review-filter-begin
+            if ! jq -e --arg head "${head}" --argjson commits "${commits}" --argjson comments "${comments}" '
               def is_coderabbit:
                 .author_association == "NONE" and
                 .user.login == "coderabbitai[bot]" and
                 .user.id == 136622811 and
                 .user.type == "Bot";
+              def is_trusted_human:
+                .author_association == "OWNER" or
+                .author_association == "MEMBER" or
+                .author_association == "COLLABORATOR";
+              def is_codex_fallback:
+                is_trusted_human and
+                (.body // "" | startswith("**Actionable comments posted: ")) and
+                (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"));
+              def is_frozen_discovery:
+                .state == "COMMENTED" and (is_coderabbit or is_codex_fallback);
+              def exact_actions_marker:
+                .body == "<!-- Automerge frozen discovery authorization: \($head) -->" and
+                .user.login == "github-actions[bot]" and
+                .user.id == 41898282 and
+                .user.type == "Bot";
+              def canonical_actions_marker:
+                (.body | test("^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$")) and
+                .user.login == "github-actions[bot]" and
+                .user.id == 41898282 and
+                .user.type == "Bot";
               [flatten[] |
                 select(
-                  .author_association == "OWNER" or
-                  .author_association == "MEMBER" or
-                  .author_association == "COLLABORATOR" or
+                  is_trusted_human or
                   is_coderabbit
                 )] as $trusted |
-              ($trusted | map(select(.commit_id == $head))) as $current |
+              ($commits | type == "array" and length > 0 and
+                all(.[]; (.sha | type) == "string") and
+                any(.[]; .sha == $head)) as $has_current_head |
+              ([$comments[]? | select(canonical_actions_marker)]) as $canonical_markers |
+              ($canonical_markers | length == 1 and .[0].body == "<!-- Automerge frozen discovery authorization: \($head) -->") as $has_exact_marker |
+              ($commits | map(.sha)) as $commit_set |
               ($trusted |
               sort_by(.submitted_at, .id) |
               reduce .[] as $review ({};
@@ -189,12 +302,10 @@ jobs:
                 end
               )) as $states |
               ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
-              any($current[];
-                .state == "APPROVED" or
-                (.state == "COMMENTED" and
-                  (is_coderabbit or
-                    ((.body // "" | startswith("**Actionable comments posted: ")) and
-                    (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:"))))))
+              $has_current_head and
+              (any($trusted[]; .state == "APPROVED" and .commit_id == $head) or
+                ($has_exact_marker and any($trusted[];
+                  is_frozen_discovery and (.commit_id as $review_head | $commit_set | index($review_head) != null))))
             ' <<<"${reviews}" >/dev/null; then
               echo "PR #${pr}: no trusted review on the current head, or an active change request is open; skipping."
               continue
