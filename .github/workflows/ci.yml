@@ -56,7 +56,7 @@ jobs:
           node tools/mobile/stage-generic-mobile-consumer-bundle.mjs \
             --lock contracts/mobile/generic-mobile-consumer-bundle.lock.json \
             --metadata "$BUNDLE_INPUT_ROOT/metadata.json" \
-            --run-metadata "$BUNDLE_INPUT_ROOT/run-metadata.json" \
+            --workflow-run "$BUNDLE_INPUT_ROOT/run-metadata.json" \
             --archive "$BUNDLE_INPUT_ROOT/artifact.zip" \
             --fixture-root "$GITHUB_WORKSPACE" \
             --stage-root "$BUNDLE_STAGE_ROOT"

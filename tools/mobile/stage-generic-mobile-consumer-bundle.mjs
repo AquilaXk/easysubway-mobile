@@ -250,14 +250,14 @@ export async function stageGenericMobileConsumerBundle({ lock, metadata, runMeta
 
 function parseArguments(args) {
   const values = new Map();
-  if (args.length !== 12) throw new Error("usage: --lock <file> --metadata <file> --run-metadata <file> --archive <file> --fixture-root <directory> --stage-root <directory>");
-  for (let index = 0; index < args.length; index += 2) { const key = args[index]; const value = args[index + 1]; if (!["--lock", "--metadata", "--run-metadata", "--archive", "--fixture-root", "--stage-root"].includes(key) || !value || values.has(key)) throw new Error("options must be complete, unique, and known"); values.set(key, value); }
+  if (args.length !== 12) throw new Error("usage: --lock <file> --metadata <file> --workflow-run <file> --archive <file> --fixture-root <directory> --stage-root <directory>");
+  for (let index = 0; index < args.length; index += 2) { const key = args[index]; const value = args[index + 1]; if (!["--lock", "--metadata", "--workflow-run", "--archive", "--fixture-root", "--stage-root"].includes(key) || !value || values.has(key)) throw new Error("options must be complete, unique, and known"); values.set(key, value); }
   return Object.fromEntries([...values.entries()].map(([key, value]) => [key.slice(2).replaceAll("-", "_"), path.resolve(value)]));
 }
 
 async function main() {
   const args = parseArguments(process.argv.slice(2));
-  const [lockBytes, metadataBytes, runMetadataBytes] = await Promise.all([regularFile(args.lock, "lock"), regularFile(args.metadata, "metadata"), regularFile(args.run_metadata, "run metadata")]);
+  const [lockBytes, metadataBytes, runMetadataBytes] = await Promise.all([regularFile(args.lock, "lock"), regularFile(args.metadata, "metadata"), regularFile(args.workflow_run, "workflow run metadata")]);
   await stageGenericMobileConsumerBundle({ lock: parseJsonWithoutDuplicateKeys(lockBytes, "lock"), metadata: parseJsonWithoutDuplicateKeys(metadataBytes, "metadata"), runMetadata: parseJsonWithoutDuplicateKeys(runMetadataBytes, "workflow run metadata"), archivePath: args.archive, fixtureRoot: args.fixture_root, stageRoot: args.stage_root });
 }
 
