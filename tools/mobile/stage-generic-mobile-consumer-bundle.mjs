@@ -11,6 +11,8 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const GIT_SHA = /^[0-9a-f]{40}$/;
 const REPOSITORY = /^[A-Za-z0-9][A-Za-z0-9_.-]*\/[A-Za-z0-9][A-Za-z0-9_.-]*$/;
 const ISO_TIME = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
+const RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
+const RETENTION_SKEW_MS = 5 * 60 * 1000;
 
 export const BUNDLE_KIND = "generic-mobile-consumer-bundle";
 export const RECEIPT_KIND = "generic-mobile-consumer-publication-receipt";
@@ -109,7 +111,9 @@ export function validateGenericMobileConsumerBundleLock(lock) {
   requirePositive(lock.artifact.id, "lock.artifact.id"); if (typeof lock.artifact.name !== "string" || !lock.artifact.name) throw new Error("lock.artifact.name is required"); requireSha(lock.artifact.archiveSha256, "lock.artifact.archiveSha256"); requirePositive(lock.artifact.sizeBytes, "lock.artifact.sizeBytes");
   const base = `https://api.github.com/repos/${lock.producer.repository}/actions/artifacts/${lock.artifact.id}`;
   if (lock.artifact.metadataUrl !== base || lock.artifact.archiveUrl !== `${base}/zip`) throw new Error("lock artifact URLs are not immutable GitHub API URLs");
-  requireTime(lock.artifact.createdAt, "lock.artifact.createdAt"); requireTime(lock.artifact.expiresAt, "lock.artifact.expiresAt"); if (lock.artifact.retentionDays !== 90 || Date.parse(lock.artifact.expiresAt) <= Date.parse(lock.artifact.createdAt)) throw new Error("lock artifact retention is invalid");
+  requireTime(lock.artifact.createdAt, "lock.artifact.createdAt"); requireTime(lock.artifact.expiresAt, "lock.artifact.expiresAt");
+  const retentionMs = Date.parse(lock.artifact.expiresAt) - Date.parse(lock.artifact.createdAt);
+  if (lock.artifact.retentionDays !== 90 || retentionMs < RETENTION_MS - RETENTION_SKEW_MS || retentionMs > RETENTION_MS) throw new Error("lock artifact retention is invalid");
   exactKeys(lock.files, ["bundle", "receipt"], "lock.files");
   for (const name of ["bundle", "receipt"]) { exactKeys(lock.files[name], ["path", "rawSha256", "sizeBytes"], `lock.files.${name}`); requirePath(lock.files[name].path, `lock.files.${name}.path`); requireSha(lock.files[name].rawSha256, `lock.files.${name}.rawSha256`); requirePositive(lock.files[name].sizeBytes, `lock.files.${name}.sizeBytes`); }
   if (lock.files.bundle.path === lock.files.receipt.path) throw new Error("lock files must be distinct");
@@ -128,8 +132,8 @@ export function validateGenericMobileConsumerBundleLock(lock) {
 export function validateArtifactMetadata(metadata, lock) {
   if (!metadata || Array.isArray(metadata) || typeof metadata !== "object") throw new Error("artifact metadata must be an object");
   const expected = validateGenericMobileConsumerBundleLock(lock);
-  if (metadata.id !== expected.artifact.id || metadata.name !== expected.artifact.name || metadata.size_in_bytes !== expected.artifact.sizeBytes || metadata.archive_download_url !== expected.artifact.archiveUrl || metadata.expired !== false || metadata.created_at !== expected.artifact.createdAt || metadata.expires_at !== expected.artifact.expiresAt) throw new Error("artifact metadata does not match the immutable lock");
-  if (!metadata.workflow_run || Array.isArray(metadata.workflow_run) || typeof metadata.workflow_run !== "object" || metadata.workflow_run.id !== expected.publication.runId || metadata.workflow_run.head_sha !== expected.publication.headSha || metadata.workflow_run.repository_id !== expected.publication.repositoryId) throw new Error("artifact workflow identity does not match the immutable lock");
+  if (metadata.id !== expected.artifact.id || metadata.name !== expected.artifact.name || metadata.size_in_bytes !== expected.artifact.sizeBytes || metadata.digest !== `sha256:${expected.artifact.archiveSha256}` || metadata.archive_download_url !== expected.artifact.archiveUrl || metadata.expired !== false || metadata.created_at !== expected.artifact.createdAt || metadata.expires_at !== expected.artifact.expiresAt) throw new Error("artifact metadata does not match the immutable lock");
+  if (!metadata.workflow_run || Array.isArray(metadata.workflow_run) || typeof metadata.workflow_run !== "object" || metadata.workflow_run.id !== expected.publication.runId || metadata.workflow_run.head_branch !== "main" || metadata.workflow_run.head_sha !== expected.publication.headSha || metadata.workflow_run.repository_id !== expected.publication.repositoryId || metadata.workflow_run.head_repository_id !== expected.publication.repositoryId) throw new Error("artifact workflow identity does not match the immutable lock");
   return metadata;
 }
 

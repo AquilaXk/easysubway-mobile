@@ -18,7 +18,7 @@ async function exactLock() { return JSON.parse(await readFile(lockPath, "utf8"))
 function canonical(value) { return Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : value && typeof value === "object" ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}` : JSON.stringify(value); }
 async function temporary() { return mkdtemp(path.join(os.tmpdir(), "mobile-generic-consumer-")); }
 function artifactMetadata(lock) {
-  return { id: lock.artifact.id, name: lock.artifact.name, size_in_bytes: lock.artifact.sizeBytes, archive_download_url: lock.artifact.archiveUrl, expired: false, created_at: lock.artifact.createdAt, expires_at: lock.artifact.expiresAt, workflow_run: { id: lock.publication.runId, head_sha: lock.publication.headSha, repository_id: lock.publication.repositoryId, workflow_id: lock.publication.workflowId, run_attempt: lock.publication.runAttempt } };
+  return { id: lock.artifact.id, name: lock.artifact.name, size_in_bytes: lock.artifact.sizeBytes, digest: `sha256:${lock.artifact.archiveSha256}`, archive_download_url: lock.artifact.archiveUrl, expired: false, created_at: lock.artifact.createdAt, expires_at: lock.artifact.expiresAt, workflow_run: { id: lock.publication.runId, head_branch: "main", head_sha: lock.publication.headSha, repository_id: lock.publication.repositoryId, head_repository_id: lock.publication.repositoryId, workflow_id: lock.publication.workflowId, run_attempt: lock.publication.runAttempt } };
 }
 async function buildArtifact(directory, options = {}) {
   const lock = clone(await exactLock());
@@ -50,8 +50,11 @@ test("exact Hub #2747 lock validates and pins the published identities", async (
   const lock = validateGenericMobileConsumerBundleLock(await exactLock());
   assert.deepEqual([lock.publication.repositoryId, lock.publication.workflowId, lock.publication.runId, lock.publication.runAttempt, lock.publication.headSha], [1266821737, 330153489, 31280042807, 1, "135922eaafad9367d001e1d100518cd7395fa962"]);
   assert.deepEqual([lock.artifact.id, lock.artifact.archiveSha256, lock.artifact.createdAt, lock.artifact.expiresAt, lock.artifact.retentionDays], [9028141921, "ce37e33ac2ef76ce4f909685415bf1653c4397c5fbeaf503d8f60af672c38a8e", "2026-08-08T21:44:51Z", "2026-11-06T21:44:38Z", 90]);
-  assert.deepEqual([lock.files.bundle.rawSha256, lock.files.bundle.sizeBytes, lock.files.receipt.rawSha256, lock.files.receipt.sizeBytes, lock.resourceInventorySha256, lock.payloadSha256], ["7f666d016119591e5c958e7d55c936fffb5e753898e69ec28e4f0cb50b5555ff", 4415, "d0776145278f212aaf0c06038873e640b68f300fa9429b6dc88491e391a501bc", 1365, "b5b40b2585af7ac6255426018e30f785e28df80f1fcbac56d9d7089b332cdef9", "d355c6c40814faad293c200ddd72a2cc019005bef2e5e608970ae8e4837a1b3c"]);
-  assert.deepEqual(lock.resources.map((resource) => resource.fixturePath), ["apps/mobile/test/fixtures/contracts/error-codes.json", "apps/mobile/test/fixtures/contracts/product/mobility-profile-policy.json"]);
+  assert.deepEqual([lock.artifact.name, lock.artifact.metadataUrl, lock.artifact.archiveUrl, lock.files.bundle.rawSha256, lock.files.bundle.sizeBytes, lock.files.receipt.rawSha256, lock.files.receipt.sizeBytes, lock.resourceInventorySha256, lock.payloadSha256], ["easysubway-generic-mobile-consumer-bundle-1.0.0-604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3", "https://api.github.com/repos/AquilaXk/easysubway/actions/artifacts/9028141921", "https://api.github.com/repos/AquilaXk/easysubway/actions/artifacts/9028141921/zip", "7f666d016119591e5c958e7d55c936fffb5e753898e69ec28e4f0cb50b5555ff", 4415, "d0776145278f212aaf0c06038873e640b68f300fa9429b6dc88491e391a501bc", 1365, "b5b40b2585af7ac6255426018e30f785e28df80f1fcbac56d9d7089b332cdef9", "d355c6c40814faad293c200ddd72a2cc019005bef2e5e608970ae8e4837a1b3c"]);
+  assert.deepEqual(lock.resources, [
+    { resourceId: "errors/error-codes.json", mediaType: "application/json", schemaVersion: null, ownerRepository: "AquilaXk/easysubway", ownerIssue: 2747, sourcePath: "contracts/error-codes.json", rawSha256: "7527a60514a7000ae8df0c958516a856dfdc288b6e085e4efbde9e3ce61d4bf9", sizeBytes: 1723, fixturePath: "apps/mobile/test/fixtures/contracts/error-codes.json" },
+    { resourceId: "product/mobility-profile-policy.json", mediaType: "application/json", schemaVersion: 1, ownerRepository: "AquilaXk/easysubway", ownerIssue: 2747, sourcePath: "release/product-gates/mobility-profile-policy.json", rawSha256: "5a63a03ff9ec9b61e0366d947251ee9294ebd48777b28b1ad6e2bdbe2d3fcc50", sizeBytes: 635, fixturePath: "apps/mobile/test/fixtures/contracts/product/mobility-profile-policy.json" },
+  ]);
 });
 
 test("lock and metadata reject mutable, unknown, and mismatched identities", async () => {
@@ -60,9 +63,11 @@ test("lock and metadata reject mutable, unknown, and mismatched identities", asy
     (value) => { value.artifact.archiveUrl = "https://example.invalid/latest"; },
     (value) => { value.resources.push(clone(value.resources[0])); },
     (value) => { value.publication.untrusted = true; },
+    (value) => { value.artifact.expiresAt = "2026-11-06T21:30:00Z"; },
+    (value) => { value.artifact.expiresAt = "2026-11-07T21:44:51Z"; },
   ]) { const invalid = clone(lock); mutate(invalid); assert.throws(() => validateGenericMobileConsumerBundleLock(invalid)); }
   const metadata = artifactMetadata(lock);
-  for (const mutate of [(value) => { value.id += 1; }, (value) => { value.expired = true; }, (value) => { value.workflow_run.head_sha = "0".repeat(40); }, (value) => { delete value.workflow_run.repository_id; }]) { const invalid = clone(metadata); mutate(invalid); assert.throws(() => validateArtifactMetadata(invalid, lock)); }
+  for (const mutate of [(value) => { value.id += 1; }, (value) => { value.expired = true; }, (value) => { value.digest = "sha256:0".repeat(64); }, (value) => { value.workflow_run.head_branch = "release"; }, (value) => { value.workflow_run.head_sha = "0".repeat(40); }, (value) => { value.workflow_run.head_repository_id += 1; }, (value) => { delete value.workflow_run.repository_id; }]) { const invalid = clone(metadata); mutate(invalid); assert.throws(() => validateArtifactMetadata(invalid, lock)); }
 });
 
 test("duplicate JSON keys fail before semantic validation", () => {
@@ -81,7 +86,7 @@ test("archive digest and ZIP entry list fail before current mutation", async () 
   const artifact = await buildArtifact(directory, { extraEntry: "unexpected.json" }); const stageRoot = path.join(directory, "stage");
   await assert.rejects(stageGenericMobileConsumerBundle({ ...artifact, fixtureRoot: root, stageRoot }), /ZIP entries/);
   await assert.rejects(lstat(path.join(stageRoot, "current.json")), { code: "ENOENT" });
-  const wrongDigest = clone(artifact); wrongDigest.lock.artifact.archiveSha256 = "0".repeat(64);
+  const wrongDigest = clone(artifact); wrongDigest.lock.artifact.archiveSha256 = "0".repeat(64); wrongDigest.metadata.digest = `sha256:${wrongDigest.lock.artifact.archiveSha256}`;
   await assert.rejects(stageGenericMobileConsumerBundle({ ...wrongDigest, fixtureRoot: root, stageRoot }), /archive digest/);
 }));
 
