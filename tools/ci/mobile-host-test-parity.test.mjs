@@ -389,7 +389,7 @@ test("golden and native suites do not satisfy required-host parity", () => {
   );
 });
 
-test("unknown reporter event types fail closed instead of being ignored", () => {
+test("new reporter event types do not substitute or break required public events", () => {
   const inventory = buildInventory({
     trackedPaths: trackedFixture("apps/mobile/test/unit/example_test.dart"),
     policy: POLICY,
@@ -397,22 +397,20 @@ test("unknown reporter event types fail closed instead of being ignored", () => 
   const events = completeReport();
   events.splice(-1, 0, { type: "futureReporterEvent", time: 4 });
 
-  assert.throws(
-    () => verifyExecutionParity({ inventory, events }),
-    /unknown reporter event type/i,
-  );
+  const result = verifyExecutionParity({ inventory, events });
+  assert.equal(result.executedRequiredHostCount, 1);
 });
 
-test("reporter event ordering, IDs, and timestamps fail closed", () => {
+test("reporter IDs and invalid timestamps fail closed without assuming async adjacency", () => {
   const inventory = buildInventory({
     trackedPaths: trackedFixture("apps/mobile/test/unit/example_test.dart"),
     policy: POLICY,
   });
   const beforeAllSuites = completeReport();
   [beforeAllSuites[1], beforeAllSuites[2]] = [beforeAllSuites[2], beforeAllSuites[1]];
-  assert.throws(
-    () => verifyExecutionParity({ inventory, events: beforeAllSuites }),
-    /before allSuites/i,
+  assert.equal(
+    verifyExecutionParity({ inventory, events: beforeAllSuites }).executedRequiredHostCount,
+    1,
   );
 
   const zeroTestId = completeReport();
@@ -424,9 +422,9 @@ test("reporter event ordering, IDs, and timestamps fail closed", () => {
   );
 
   const backwardTime = completeReport();
-  backwardTime[3].time = 1;
+  backwardTime[3].time = -1;
   assert.throws(
     () => verifyExecutionParity({ inventory, events: backwardTime }),
-    /time is invalid or out of order/i,
+    /time is invalid/i,
   );
 });

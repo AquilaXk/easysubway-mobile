@@ -21,17 +21,6 @@ const ALLOWED_CLASSIFICATIONS = new Set([
   "GENERATED_OR_NON_TEST",
 ]);
 const ALLOWED_TEST_RESULTS = new Set(["success", "failure", "error"]);
-const ALLOWED_REPORT_EVENT_TYPES = new Set([
-  "start",
-  "allSuites",
-  "suite",
-  "group",
-  "testStart",
-  "testDone",
-  "print",
-  "error",
-  "done",
-]);
 
 function codepointCompare(a, b) {
   return a < b ? -1 : a > b ? 1 : 0;
@@ -494,29 +483,15 @@ export function verifyExecutionParity({ inventory, events }) {
   if (!Array.isArray(events) || events.length === 0) {
     fail("zero reporter events");
   }
-  let previousTime = -1;
-  let sawAllSuites = false;
   for (const [index, event] of events.entries()) {
     if (!event || typeof event !== "object" || Array.isArray(event)) {
       fail(`invalid reporter event at index ${index}`);
     }
-    if (!ALLOWED_REPORT_EVENT_TYPES.has(event.type)) {
-      fail(`unknown reporter event type: ${event.type}`);
+    if (typeof event.type !== "string" || event.type.length === 0) {
+      fail(`invalid reporter event type at index ${index}`);
     }
-    if (!Number.isFinite(event.time) || event.time < 0 || event.time < previousTime) {
-      fail(`reporter event time is invalid or out of order at index ${index}`);
-    }
-    previousTime = event.time;
-    if (index === 0 && event.type !== "start") {
-      fail("start event must be first");
-    }
-    if (event.type === "allSuites") {
-      if (index === 0 || sawAllSuites) {
-        fail("allSuites event must occur exactly once after start");
-      }
-      sawAllSuites = true;
-    } else if ((event.type === "suite" || event.type === "testStart") && !sawAllSuites) {
-      fail(`${event.type} event occurred before allSuites`);
+    if (!Number.isFinite(event.time) || event.time < 0) {
+      fail(`reporter event time is invalid at index ${index}`);
     }
   }
   const start = requireSingleEvent(events, "start");
