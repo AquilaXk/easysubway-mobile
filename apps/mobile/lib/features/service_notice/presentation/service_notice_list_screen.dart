@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../app/app_components.dart';
+import '../data/notice_repository.dart';
 import '../domain/service_notice.dart';
 import 'notice_controller.dart';
 
@@ -39,6 +41,17 @@ class ServiceNoticeListScreen extends StatelessWidget {
         builder: (context, _) {
           final notices = controller.notices;
           final staleLabel = controller.staleLabel(now());
+          final state = controller.result?.state;
+          if (controller.loading) {
+            return const Center(
+              key: Key('serviceNoticeLoadingState'),
+              child: CircularProgressIndicator(),
+            );
+          }
+          if (state == NoticeResultState.unavailable ||
+              state == NoticeResultState.invalidData) {
+            return _UnavailableNotices(onRetry: controller.refresh);
+          }
           if (notices.isEmpty) {
             return RefreshIndicator(
               onRefresh: controller.refresh,
@@ -71,6 +84,27 @@ class ServiceNoticeListScreen extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _UnavailableNotices extends StatelessWidget {
+  const _UnavailableNotices({required this.onRetry});
+
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      key: const Key('serviceNoticeUnavailableState'),
+      padding: const EdgeInsets.all(20),
+      child: HomeStateCard(
+        icon: Icons.error_outline,
+        title: '공지사항을 불러오지 못했어요',
+        subtitle: '잠시 후 다시 시도해 주세요.',
+        actionLabel: '다시 시도',
+        onAction: onRetry,
       ),
     );
   }

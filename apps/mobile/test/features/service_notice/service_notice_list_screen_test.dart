@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
@@ -29,6 +31,19 @@ class _FakeRepository implements NoticeRepository {
   Future<ActiveNoticesResult> activeNotices() async {
     calls++;
     return result;
+  }
+}
+
+class _DeferredRepository implements NoticeRepository {
+  _DeferredRepository(this.completer);
+
+  final Completer<ActiveNoticesResult> completer;
+  int calls = 0;
+
+  @override
+  Future<ActiveNoticesResult> activeNotices() {
+    calls++;
+    return completer.future;
   }
 }
 
@@ -119,6 +134,56 @@ void main() {
       find.byKey(const Key('serviceNoticeEmptyFill')),
     );
     expect(fill.hasScrollBody, isFalse);
+  });
+
+  testWidgets('unavailable은 빈 상태 대신 다시 시도 카드로 노출한다', (tester) async {
+    final repository = _FakeRepository(const ActiveNoticesResult.unavailable());
+    final controller = NoticeController(repository: repository);
+    await controller.refresh();
+
+    await tester.pumpWidget(_host(controller));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('serviceNoticeUnavailableState')),
+      findsOneWidget,
+    );
+    expect(find.text('공지사항을 불러오지 못했어요'), findsOneWidget);
+    expect(find.text('지금은 공지사항이 없어요'), findsNothing);
+    expect(find.text('다시 시도'), findsOneWidget);
+    expect(
+      tester.getSemantics(find.text('다시 시도')),
+      matchesSemantics(
+        isButton: true,
+        hasTapAction: true,
+        hasFocusAction: true,
+        isFocusable: true,
+        hasEnabledState: true,
+        isEnabled: true,
+      ),
+    );
+
+    await tester.tap(find.text('다시 시도'));
+    await tester.pumpAndSettle();
+
+    expect(repository.calls, 2);
+  });
+
+  testWidgets('첫 요청 loading 중에는 빈 상태 문구를 보이지 않는다', (tester) async {
+    final completer = Completer<ActiveNoticesResult>();
+    final controller = NoticeController(
+      repository: _DeferredRepository(completer),
+    );
+
+    await tester.pumpWidget(_host(controller));
+    final refresh = controller.refresh();
+    await tester.pump();
+
+    expect(find.byKey(const Key('serviceNoticeLoadingState')), findsOneWidget);
+    expect(find.text('지금은 공지사항이 없어요'), findsNothing);
+
+    completer.complete(const ActiveNoticesResult.unavailable());
+    await refresh;
   });
 
   testWidgets('오프라인(stale)이면 "N시간 전 기준" 라벨을 노출한다', (tester) async {
