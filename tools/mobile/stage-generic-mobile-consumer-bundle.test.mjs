@@ -21,7 +21,7 @@ function artifactMetadata(lock) {
   return { id: lock.artifact.id, name: lock.artifact.name, size_in_bytes: lock.artifact.sizeBytes, digest: `sha256:${lock.artifact.archiveSha256}`, archive_download_url: lock.artifact.archiveUrl, expired: false, created_at: lock.artifact.createdAt, expires_at: lock.artifact.expiresAt, workflow_run: { id: lock.publication.runId, head_branch: "main", head_sha: lock.publication.headSha, repository_id: lock.publication.repositoryId, head_repository_id: lock.publication.repositoryId } };
 }
 function runMetadata(lock) {
-  return { id: lock.publication.runId, workflow_id: lock.publication.workflowId, run_attempt: lock.publication.runAttempt, path: `${lock.publication.workflowPath}@refs/heads/main`, event: "workflow_dispatch", status: "completed", conclusion: "success", head_branch: "main", head_sha: lock.publication.headSha, repository: { id: lock.publication.repositoryId, full_name: lock.producer.repository } };
+  return { id: lock.publication.runId, workflow_id: lock.publication.workflowId, run_attempt: lock.publication.runAttempt, path: lock.publication.workflowPath, event: "workflow_dispatch", status: "completed", conclusion: "success", head_branch: "main", head_sha: lock.publication.headSha, repository: { id: lock.publication.repositoryId, full_name: lock.producer.repository } };
 }
 async function buildArtifact(directory, options = {}) {
   const lock = clone(await exactLock());
