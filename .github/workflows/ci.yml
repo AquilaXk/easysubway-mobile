@@ -29,7 +29,34 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24"
-      - name: Verify consumer snapshots
+      - name: Fetch exact generic mobile consumer bundle
+        env:
+          GH_TOKEN: ${{ secrets.HUB_ACTIONS_ARTIFACT_READ_TOKEN }}
+          BUNDLE_INPUT_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-input-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          if [[ -z "${GH_TOKEN:-}" ]]; then
+            echo "HUB_ACTIONS_ARTIFACT_READ_TOKEN is required" >&2
+            exit 1
+          fi
+          if [[ -e "$BUNDLE_INPUT_ROOT" ]]; then
+            echo "generic mobile consumer bundle input path already exists" >&2
+            exit 1
+          fi
+          mkdir "$BUNDLE_INPUT_ROOT"
+          gh api --method GET --header "Accept: application/vnd.github+json" /repos/AquilaXk/easysubway/actions/artifacts/9028141921 > "$BUNDLE_INPUT_ROOT/metadata.json"
+          gh api --method GET --header "Accept: application/vnd.github+json" /repos/AquilaXk/easysubway/actions/artifacts/9028141921/zip > "$BUNDLE_INPUT_ROOT/artifact.zip"
+      - name: Stage exact generic mobile consumer bundle
+        env:
+          BUNDLE_INPUT_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-input-${{ github.run_id }}-${{ github.run_attempt }}
+          BUNDLE_STAGE_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-stage-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          node tools/mobile/stage-generic-mobile-consumer-bundle.mjs \
+            --lock contracts/mobile/generic-mobile-consumer-bundle.lock.json \
+            --metadata "$BUNDLE_INPUT_ROOT/metadata.json" \
+            --archive "$BUNDLE_INPUT_ROOT/artifact.zip" \
+            --fixture-root "$GITHUB_WORKSPACE" \
+            --stage-root "$BUNDLE_STAGE_ROOT"
+      - name: Verify residual consumer snapshots
         run: sha256sum --check contracts/mobile/consumer-snapshots.sha256
       - name: Run owned Node checks
         run: |
@@ -40,6 +67,7 @@ jobs:
             tools/mobile/automerge-queue.test.mjs \
             tools/mobile/check-android-aab-16kb-page-size.test.mjs \
             tools/mobile/datapack-contract.test.mjs \
+            tools/mobile/stage-generic-mobile-consumer-bundle.test.mjs \
             tools/mobile/store-release-preflight.test.mjs \
             tools/mobile/status-voice-inventory.test.mjs \
             tools/release/hash-android-bundle-payload.test.mjs

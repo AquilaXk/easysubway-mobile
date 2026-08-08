@@ -130,3 +130,29 @@ test("stager has no network primitive", async () => {
   const source = await readFile(new URL("./stage-generic-mobile-consumer-bundle.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(source, /\b(fetch|https?\.request|net\.connect|child_process\.exec\()\b/);
 });
+
+test("CI fetches and stages only the exact Hub artifact before residual snapshots", async () => {
+  const workflow = await readFile(path.join(root, ".github/workflows/ci.yml"), "utf8");
+  const snapshots = await readFile(path.join(root, "contracts/mobile/consumer-snapshots.sha256"), "utf8");
+  const metadataEndpoint = "/repos/AquilaXk/easysubway/actions/artifacts/9028141921";
+  const archiveEndpoint = `${metadataEndpoint}/zip`;
+  const fetchIndex = workflow.indexOf("Fetch exact generic mobile consumer bundle");
+  const stageIndex = workflow.indexOf("Stage exact generic mobile consumer bundle");
+  const checksumIndex = workflow.indexOf("Verify residual consumer snapshots");
+
+  assert.ok(fetchIndex >= 0 && stageIndex > fetchIndex && checksumIndex > stageIndex, "fetch, stage, and residual checksum steps must be ordered");
+  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.HUB_ACTIONS_ARTIFACT_READ_TOKEN \}\}/);
+  assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${metadataEndpoint}`));
+  assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${archiveEndpoint}`));
+  assert.match(workflow, /if \[\[ -z "\$\{GH_TOKEN:-\}" \]\]; then/);
+  assert.match(workflow, /if \[\[ -e "\$BUNDLE_INPUT_ROOT" \]\]; then/);
+  assert.match(workflow, /node tools\/mobile\/stage-generic-mobile-consumer-bundle\.mjs \\\n\s+--lock contracts\/mobile\/generic-mobile-consumer-bundle\.lock\.json \\\n\s+--metadata "\$BUNDLE_INPUT_ROOT\/metadata\.json" \\\n\s+--archive "\$BUNDLE_INPUT_ROOT\/artifact\.zip" \\\n\s+--fixture-root "\$GITHUB_WORKSPACE" \\\n\s+--stage-root "\$BUNDLE_STAGE_ROOT"/);
+  assert.match(workflow, /tools\/mobile\/stage-generic-mobile-consumer-bundle\.test\.mjs/);
+  assert.equal(snapshots, [
+    "1ea9a8511b290acb8092f87d7d087e16636013b5cd950157d4782b4437da17fe  apps/mobile/test/fixtures/contracts/api/report-status.ok.json",
+    "351ed8d5021c825751eaadaf97a3a76621480ea8f5e8ae522e028a416fcc655d  apps/mobile/test/fixtures/contracts/api/report-upload-intent.created.json",
+    "b2eef2284186a12e18ac06de1d339c0feca2194c5d556db8628e84287536d7e0  apps/mobile/test/fixtures/contracts/datapack/canonical-number-contract.json",
+    "c3f6f3e8d13806dc6a3f10ce5e900b5477f8f866c04225f9eca85d278597bb31  apps/mobile/test/fixtures/contracts/backend/messages.properties",
+    "",
+  ].join("\n"));
+});
