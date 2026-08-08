@@ -138,6 +138,44 @@ test('automerge coordinator fails closed around the native merge queue', async (
     0,
   );
 
+  const codeRabbitReview = (id, state, submittedAt, overrides = {}) =>
+    review(id, state, submittedAt, '', {
+      author_association: 'NONE',
+      user: { login: 'coderabbitai[bot]', id: 136622811, type: 'Bot' },
+      ...overrides,
+    });
+  // CodeRabbit의 REST identity 전체가 일치하는 current-head COMMENTED만 예외다.
+  assert.equal(
+    runReviewFilter([codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z')]),
+    0,
+  );
+  for (const overrides of [
+    { user: { login: 'coderabbitai[bot]', id: 136622811, type: 'User' } },
+    { user: { login: 'other[bot]', id: 136622811, type: 'Bot' } },
+    { user: { login: 'coderabbitai[bot]', id: 1, type: 'Bot' } },
+    { user: null },
+  ]) {
+    assert.notEqual(
+      runReviewFilter([codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', overrides)]),
+      0,
+    );
+  }
+  assert.notEqual(
+    runReviewFilter([
+      codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', {
+        commit_id: 'previous-head',
+      }),
+    ]),
+    0,
+  );
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'APPROVED', '2026-08-01T00:00:00Z'),
+      codeRabbitReview(2, 'CHANGES_REQUESTED', '2026-08-01T00:01:00Z'),
+    ]),
+    0,
+  );
+
   // 이전 head에 남은 CHANGES_REQUESTED는 head가 바뀌어도 게이트에서 사라지지 않는다.
   assert.notEqual(
     runReviewFilter([
