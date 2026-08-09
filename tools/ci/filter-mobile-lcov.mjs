@@ -215,7 +215,8 @@ function parseArgs(argv) {
 }
 function missing(error) { return error && /ENOENT/.test(error.message); }
 function trustedRootFor(absolute, io) {
-  for (const candidate of [path.resolve(process.cwd()), path.resolve(tmpdir())]) {
+  const runnerTemp = process.env.RUNNER_TEMP && path.isAbsolute(process.env.RUNNER_TEMP) ? path.resolve(process.env.RUNNER_TEMP) : null;
+  for (const candidate of [path.resolve(process.cwd()), path.resolve(tmpdir()), runnerTemp].filter(Boolean)) {
     if (absolute === candidate || absolute.startsWith(candidate + path.sep)) {
       const stat = io.lstat(candidate);
       if (stat.isSymbolicLink() || !stat.isDirectory()) fail("trusted root is not a real directory");

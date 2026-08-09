@@ -237,6 +237,17 @@ test("CLI는 canonical policy로 exact output/result bytes를 쓴다", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("CLI와 Mobile CI는 검증된 RUNNER_TEMP 출력 계약을 사용한다", () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), "mobile-lcov-runner-temp-"));
+  const input = path.join(dir, "raw.info"); const policyFile = path.join(dir, "policy.json");
+  const output = path.join(dir, "mobile-coverage-normalized.lcov"); const result = path.join(dir, "mobile-coverage-filter-result.json");
+  writeFileSync(input, record("lib/accessible_design.dart")); writeFileSync(policyFile, `${JSON.stringify(policy, null, 2)}\n`);
+  assert.equal(spawnSync("node", ["tools/ci/filter-mobile-lcov.mjs", "normalize", "--input", input, "--output", output, "--policy", policyFile, "--result", result], { env: { ...process.env, RUNNER_TEMP: dir } }).status, 0);
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  for (const token of ["filter-mobile-lcov.mjs normalize", "--input apps/mobile/coverage/lcov.info", "--output \"${RUNNER_TEMP}/mobile-coverage-normalized.lcov\"", "--policy tools/ci/mobile-coverage-policy.json", "--result \"${RUNNER_TEMP}/mobile-coverage-filter-result.json\""]) assert.match(workflow, new RegExp(token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("symlink source와 no-retained 레코드를 거부한다", () => {
   const fixtureRoot = mkdtempSync(path.join(os.tmpdir(), "mobile-lcov-root-"));
   writeExclusionTargets(fixtureRoot);
