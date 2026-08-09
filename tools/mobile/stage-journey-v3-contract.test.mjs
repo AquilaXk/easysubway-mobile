@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
@@ -51,9 +51,10 @@ function fails(fixture_, output, message) {
 
 test('stages only the exact lock-bound bundle and receipt', () => {
   const root = mkdtempSync(join(tmpdir(), 'journey-stage-'));
+  let output;
   try {
     const { lock, lockPath, inputPath } = fixture(root);
-    const output = join(repository, 'build', `journey-stage-test-${process.pid}-${Date.now()}`);
+    output = join(repository, 'build', `journey-stage-test-${process.pid}-${Date.now()}`);
     const fixture_ = { lock, payload: JSON.parse(readFileSync(inputPath, 'utf8')), lockPath, inputPath };
     run(fixture_, output);
     assert.equal(readFileSync(join(output, lock.resources[0].path), 'utf8'), '{"errors":[]}');
@@ -62,8 +63,7 @@ test('stages only the exact lock-bound bundle and receipt', () => {
     assert.equal(receipt.lockSha256, sha256(readFileSync(lockPath)));
     assert.deepEqual(Object.keys(receipt.resources), lock.resources.map(({ path }) => path));
     fails(fixture_, output, 'output must be absent');
-    rmSync(output, { recursive: true, force: true });
-  } finally { rmSync(root, { recursive: true, force: true }); }
+  } finally { if (output) rmSync(output, { recursive: true, force: true }); rmSync(root, { recursive: true, force: true }); }
 });
 
 test('fails closed for identity, semantic, duplicate, unsafe, or non-canonical payloads', () => {
@@ -91,17 +91,17 @@ test('rejects symlink inputs and output outside a safe absent directory below bu
 
 test('production CLI rejects a self-consistent alternate lock and never replaces incomplete output', () => {
   const root = mkdtempSync(join(tmpdir(), 'journey-stage-'));
+  let output; let sibling;
   try {
     const fixture_ = fixture(root); persist(fixture_);
-    const output = join(repository, 'build', `journey-stage-test-${process.pid}-${Date.now()}`);
+    output = join(repository, 'build', `journey-stage-test-${process.pid}-${Date.now()}`);
     assert.throws(() => execFileSync(process.execPath, [stager, '--lock', fixture_.lockPath, '--input', fixture_.inputPath, '--output', output], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }), /lock must be the tracked journey-v3-client lock/);
-    const sibling = `${output}.sibling`; writeFileSync(sibling, 'sibling-unchanged');
+    sibling = `${output}.sibling`; writeFileSync(sibling, 'sibling-unchanged');
     mkdirSync(output); writeFileSync(join(output, 'partial'), 'unchanged');
     fails(fixture_, output, 'output must be absent');
     assert.equal(readFileSync(join(output, 'partial'), 'utf8'), 'unchanged');
     assert.equal(readFileSync(sibling, 'utf8'), 'sibling-unchanged');
-    rmSync(output, { recursive: true, force: true }); rmSync(sibling);
-  } finally { rmSync(root, { recursive: true, force: true }); }
+  } finally { if (output) rmSync(output, { recursive: true, force: true }); if (sibling) rmSync(sibling, { force: true }); rmSync(root, { recursive: true, force: true }); }
 });
 
 test('creates an absent non-symlink build root and keeps the test seam private', () => {
