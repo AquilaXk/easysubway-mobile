@@ -296,6 +296,7 @@ function renderClosedErrors(ir) {
   return source.replace(toJsonAnchor, `${fromResponse}${toJsonAnchor}`);
 }
 export function renderJourneyV3ErrorsAndBarrelForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); const lock = duplicateFreeJson(regular(options.lockPath, 'lock').toString('utf8'), 'lock'); return Object.freeze({ error: renderClosedErrors(ir), contract: renderDartContract(lock) }); }
+export function renderJourneyV3DartLiteralSeamForTest({ enumToken, lock }) { return Object.freeze({ enums: renderDartEnums({ schemas: { SpecialWire: { type: 'string', enum: [enumToken] } }, errorDispositions: [{ semanticCategory: 'TEST', primaryActionKey: 'test.action' }] }), contract: renderDartContract(lock) }); }
 
 function renderFiles(options, enforceTrackedLock) {
   const ir = validate({ ...options, enforceTrackedLock });
