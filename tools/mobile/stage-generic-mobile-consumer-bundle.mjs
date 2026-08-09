@@ -241,7 +241,7 @@ export async function stageGenericMobileConsumerBundle({ lock, metadata, runMeta
       try { await fs.writeFile(pointerTemp, pointer, { flag: "wx", mode: 0o600 }); await fs.rename(pointerTemp, path.join(root, "current.json")); }
       finally { await fs.rm(pointerTemp, { force: true }).catch(() => {}); }
     } catch (error) {
-      await fs.rm(version, { recursive: true, force: true });
+      await fs.rm(version, { recursive: true, force: true }).catch(() => {});
       throw error;
     }
     return { archiveSha256: expected.artifact.archiveSha256, versionDirectory: version };

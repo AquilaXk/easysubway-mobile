@@ -6,10 +6,11 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { promisify } from "node:util";
+import { fileURLToPath } from "node:url";
 import { parseJsonWithoutDuplicateKeys, stageGenericMobileConsumerBundle, validateArtifactMetadata, validateGenericMobileConsumerBundleLock } from "./stage-generic-mobile-consumer-bundle.mjs";
 
 const run = promisify(execFile);
-const root = path.resolve(new URL("../..", import.meta.url).pathname);
+const root = path.resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const lockPath = path.join(root, "contracts/mobile/generic-mobile-consumer-bundle.lock.json");
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const clone = (value) => structuredClone(value);
@@ -134,12 +135,15 @@ test("failed pointer writes and renames preserve an existing current pointer", a
   for (const [index, fs] of [
     { lstat, mkdir: promises.mkdir, rm, rename: async (from, to) => { if (path.basename(to) === "current.json") throw new Error("injected rename failure"); return rename(from, to); }, writeFile },
     { lstat, mkdir: promises.mkdir, rm, rename, writeFile: async (target, bytes, options) => { if (path.basename(target).startsWith(".current-")) throw new Error("injected write failure"); return writeFile(target, bytes, options); } },
+    { lstat, mkdir: promises.mkdir, rm: async (target, options) => { if (target.includes(`${path.sep}versions${path.sep}`)) throw new Error("injected cleanup failure"); return rm(target, options); }, rename: async (from, to) => { if (path.basename(to) === "current.json") throw new Error("injected rename failure"); return rename(from, to); }, writeFile },
   ].entries()) {
     const artifactDirectory = path.join(directory, `artifact-${index}`); const stageRoot = path.join(directory, `stage-${index}`); await promises.mkdir(artifactDirectory); await promises.mkdir(stageRoot, { recursive: true }); await writeFile(path.join(stageRoot, "current.json"), previous);
     const artifact = await buildArtifact(artifactDirectory);
     await assert.rejects(stageGenericMobileConsumerBundle({ ...artifact, fixtureRoot: root, stageRoot, fs }), /injected (rename|write) failure/);
     assert.deepEqual(await readFile(path.join(stageRoot, "current.json")), previous);
-    await assert.rejects(lstat(path.join(stageRoot, "versions", artifact.lock.artifact.archiveSha256)), { code: "ENOENT" });
+    const stagedVersion = path.join(stageRoot, "versions", artifact.lock.artifact.archiveSha256);
+    if (index === 2) assert.equal((await lstat(stagedVersion)).isDirectory(), true);
+    else await assert.rejects(lstat(stagedVersion), { code: "ENOENT" });
   }
 }));
 
@@ -171,6 +175,8 @@ test("CI fetches and stages only the exact Hub artifact before residual snapshot
   assert.match(workflow, /if \[\[ -z "\$\{GH_TOKEN:-\}" \]\]; then/);
   assert.match(workflow, /umask 077/);
   assert.match(workflow, /if \[\[ -e "\$BUNDLE_INPUT_ROOT" \|\| -L "\$BUNDLE_INPUT_ROOT" \]\]; then/);
+  assert.match(workflow, /if \[\[ -e "\$BUNDLE_STAGE_ROOT" \|\| -L "\$BUNDLE_STAGE_ROOT" \]\]; then/);
+  assert.match(workflow, /mkdir "\$BUNDLE_STAGE_ROOT"\n\s+mkdir "\$BUNDLE_STAGE_ROOT\/versions"/);
   assert.match(workflow, /node tools\/mobile\/stage-generic-mobile-consumer-bundle\.mjs \\\n\s+--lock contracts\/mobile\/generic-mobile-consumer-bundle\.lock\.json \\\n\s+--metadata "\$BUNDLE_INPUT_ROOT\/metadata\.json" \\\n\s+--workflow-run "\$BUNDLE_INPUT_ROOT\/run-metadata\.json" \\\n\s+--archive "\$BUNDLE_INPUT_ROOT\/artifact\.zip" \\\n\s+--fixture-root "\$GITHUB_WORKSPACE" \\\n\s+--stage-root "\$BUNDLE_STAGE_ROOT"/);
   assert.match(workflow, /tools\/mobile\/stage-generic-mobile-consumer-bundle\.test\.mjs/);
   assert.equal(snapshots, [

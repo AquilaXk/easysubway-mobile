@@ -53,6 +53,13 @@ jobs:
           BUNDLE_INPUT_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-input-${{ github.run_id }}-${{ github.run_attempt }}
           BUNDLE_STAGE_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-stage-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
+          umask 077
+          if [[ -e "$BUNDLE_STAGE_ROOT" || -L "$BUNDLE_STAGE_ROOT" ]]; then
+            echo "generic mobile consumer bundle stage path already exists" >&2
+            exit 1
+          fi
+          mkdir "$BUNDLE_STAGE_ROOT"
+          mkdir "$BUNDLE_STAGE_ROOT/versions"
           node tools/mobile/stage-generic-mobile-consumer-bundle.mjs \
             --lock contracts/mobile/generic-mobile-consumer-bundle.lock.json \
             --metadata "$BUNDLE_INPUT_ROOT/metadata.json" \
