@@ -15,6 +15,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
 
   for (const contract of [
     'pull_request_target:',
+    'types: [labeled]',
     'workflow_run:',
     'workflow_dispatch:',
     'schedule:',
@@ -28,8 +29,21 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'integration_id',
     '/commits/${head}/statuses?per_page=100',
     '($statuses | flatten) as $status_records',
-    '($trusted | map(select(.commit_id == $head))) as $current',
-    'any($current[];',
+    'any(.[]; .sha == $head)',
+    '# frozen-discovery-review-filter-begin',
+    '# exact-head-marker-producer-begin',
+    'data_page_limit=3',
+    'overflow_probe_page=$((data_page_limit + 1))',
+    'marker_pattern=',
+    'test($marker_pattern)',
+    'canonical_actions_marker',
+    '/collaborators/${sender}/permission',
+    'admin" or . == "maintain" or . == "write"',
+    'if ! reviews="$(bounded_pr_reviews)"; then',
+    'bounded_pr_reviews()',
+    'github-actions[bot]',
+    '41898282',
+    '$has_exact_marker',
     'author_association == "OWNER"',
     '. == "APPROVED"',
     'reduce .[] as $review',
@@ -63,6 +77,92 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.doesNotMatch(workflow, /update-branch|gh workflow run ci\.yml/);
   assert.doesNotMatch(workflow, /LABELED_PR/);
 
+  const markerProducer = workflow.match(
+    /# exact-head-marker-producer-begin\n([\s\S]*?)\n\s+# exact-head-marker-producer-end/,
+  )?.[1];
+  assert.ok(markerProducer, 'exact-head marker producer must stay testable');
+  assert.match(markerProducer, /marker_pattern='\^<!-- Automerge frozen discovery authorization: \[0-9a-f\]\{40\} -->\$'/);
+  assert.match(markerProducer, /marker_count.*-eq 0[\s\S]*?--method POST/);
+  assert.match(markerProducer, /marker_count.*-eq 1[\s\S]*?--method PATCH/);
+  assert.doesNotMatch(markerProducer, /\.body == \$marker/);
+  // relabel 후 head가 바뀌어도 old canonical marker 하나는 PATCH 대상이고 POST가 아니다.
+  const canonicalMarkerIds = markerProducer.match(
+    /marker_ids="\$\(jq -cer --arg marker_pattern "\$\{marker_pattern\}" '\n([\s\S]*?)\n\s+' <<<"\$\{comments\}"\)"/,
+  )?.[1];
+  assert.ok(canonicalMarkerIds, 'canonical marker selector must stay testable');
+  const oldMarker = '<!-- Automerge frozen discovery authorization: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb -->';
+  const canonicalTuple = (id, body) => ({
+    id,
+    body,
+    user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+  });
+  const markerIds = (comments) =>
+    spawnSync('jq', ['-c', '--arg', 'marker_pattern', '^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$', canonicalMarkerIds], {
+      input: JSON.stringify(comments),
+      encoding: 'utf8',
+    }).stdout.trim();
+  assert.equal(markerIds([canonicalTuple(7, oldMarker)]), '[7]', 'relabel must PATCH the one old marker');
+  assert.equal(markerIds([canonicalTuple(7, oldMarker), canonicalTuple(8, oldMarker)]), '[7,8]', 'multiple old/current canonical markers must mutate zero');
+  assert.match(markerProducer, /sender=.*\.sender\.login/);
+  assert.match(markerProducer, /permission=.*collaborators\/\$\{sender\}\/permission/);
+  const commentReader = workflow.match(/          bounded_issue_comments\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(commentReader, 'bounded comment reader must stay executable');
+  const runProducer = (comments) => {
+    const dir = mkdtempSync(join(tmpdir(), 'automerge-producer-'));
+    const event = join(dir, 'event.json');
+    const log = join(dir, 'gh.log');
+    writeFileSync(event, JSON.stringify({
+      pull_request: { number: 91, head: { sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } },
+      sender: { login: 'writer' },
+    }));
+    const script = [
+      'set -euo pipefail',
+      `GH_LOG=${JSON.stringify(log)}`,
+      `EVENT_COMMENTS=${JSON.stringify(JSON.stringify(comments))}`,
+      ': > "$GH_LOG"',
+      'gh() {',
+      '  printf "%s\\n" "gh $*" >> "$GH_LOG"',
+      '  case "$*" in',
+      '    *collaborators/*/permission*) printf "%s\\n" \'{"permission":"write"}\' ;;',
+      '    *issues/*/comments?*) printf "%s\\n" "$EVENT_COMMENTS" ;;',
+      '  esac',
+      '}',
+      'repo=o/r',
+      'data_page_limit=3',
+      'page_size=100',
+      'overflow_probe_page=$((data_page_limit + 1))',
+      `GITHUB_EVENT_PATH=${JSON.stringify(event)}`,
+      'GITHUB_EVENT_NAME=pull_request_target',
+      ['bounded_issue_comments() {', commentReader.replace(/^ {12}/gm, ''), '}'].join('\n'),
+      markerProducer.replace(/^ {10}/gm, ''),
+    ].join('\n');
+    const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    return { status: result.status, calls: readFileSync(log, 'utf8') };
+  };
+  const duplicateProducer = runProducer([canonicalTuple(7, oldMarker), canonicalTuple(8, oldMarker)]);
+  assert.equal(duplicateProducer.status, 1, 'multiple canonical markers must fail the producer');
+  assert.doesNotMatch(duplicateProducer.calls, /--method (POST|PATCH)/, 'multiple canonical markers must not mutate');
+  const commitReader = workflow.match(/          bounded_pr_commits\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(commitReader, 'bounded commit reader must stay executable');
+  const runCommitReader = (pages) => {
+    const dir = mkdtempSync(join(tmpdir(), 'automerge-commits-'));
+    pages.forEach((page, index) => writeFileSync(join(dir, `${index + 1}.json`), JSON.stringify(page)));
+    const script = [
+      'set -euo pipefail',
+      `FIX=${JSON.stringify(dir)}`,
+      'gh() { case "$*" in *page=1) cat "$FIX/1.json" ;; *page=2) cat "$FIX/2.json" ;; *page=3) cat "$FIX/3.json" ;; *page=4) cat "$FIX/4.json" ;; esac; }',
+      'repo=o/r', 'pr=91', 'data_page_limit=3', 'page_size=100', 'overflow_probe_page=4',
+      ['bounded_pr_commits() {', commitReader.replace(/^ {12}/gm, ''), '}'].join('\n'),
+      'bounded_pr_commits >/dev/null',
+    ].join('\n');
+    return spawnSync('bash', ['-c', script], { encoding: 'utf8' }).status;
+  };
+  const validCommit = { sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' };
+  const fullPage = Array.from({ length: 100 }, () => validCommit);
+  assert.equal(runCommitReader([fullPage, fullPage, fullPage, []]), 0, '300 commits plus an empty overflow probe must pass');
+  assert.notEqual(runCommitReader([fullPage, fullPage, fullPage, [validCommit]]), 0, 'nonempty overflow probe must fail closed');
+  assert.notEqual(runCommitReader([[{ sha: 'bad' }]]), 0, 'malformed commit sha must fail closed');
+
   // run은 YAML block scalar라 본문 줄이 블록 들여쓰기 아래로 내려가면 워크플로 전체가
   // 파싱되지 않는다. 이 테스트는 파일을 텍스트로 읽어 셸을 뽑으므로 그 파손을 그냥
   // 지나치고, CI에는 actionlint가 없다. 들여쓰기 불변식을 여기서 직접 고정한다.
@@ -84,24 +184,35 @@ test('automerge coordinator fails closed around the native merge queue', async (
   }
 
   const reviewProgram = workflow.match(
-    /# review-state-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
+    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commits "\$\{commits\}" --argjson comments "\$\{comments\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
   )?.[1];
   assert.ok(reviewProgram, 'review state jq program must stay testable');
 
   const fallbackBody =
     '**Actionable comments posted: 0**\n<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->';
+  const head = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const review = (id, state, submittedAt, body = '', overrides = {}) => ({
     id,
     state,
     submitted_at: submittedAt,
-    commit_id: 'head',
+    commit_id: head,
     author_association: 'OWNER',
     body,
     user: { login: 'reviewer' },
     ...overrides,
   });
-  const runReviewFilter = (reviews) =>
-    spawnSync('jq', ['-e', '--arg', 'head', 'head', reviewProgram], {
+  const marker = `<!-- Automerge frozen discovery authorization: ${head} -->`;
+  const actionMarker = (body = marker, overrides = {}) => ({
+    body,
+    user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+    ...overrides,
+  });
+  const runReviewFilter = (
+    reviews,
+    commits = [{ sha: head }, { sha: 'previous-head' }],
+    comments = [actionMarker()],
+  ) =>
+    spawnSync('jq', ['-e', '--arg', 'head', head, '--argjson', 'commits', JSON.stringify(commits), '--argjson', 'comments', JSON.stringify(comments), reviewProgram], {
       input: JSON.stringify([reviews]),
     }).status;
 
@@ -138,6 +249,39 @@ test('automerge coordinator fails closed around the native merge queue', async (
     0,
   );
 
+  // native APPROVED는 exact current head만으로 인정되며 marker가 필요 없다.
+  assert.equal(
+    runReviewFilter([review(1, 'APPROVED', '2026-08-01T00:00:00Z')], [{ sha: head }], []),
+    0,
+  );
+  // frozen discovery는 commit set의 prior review와 exact current-head Actions marker를 함께 요구한다.
+  assert.equal(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, { commit_id: 'previous-head' }),
+    ]),
+    0,
+  );
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, { commit_id: 'previous-head' }),
+    ], [{ sha: head }]),
+    0,
+  );
+  for (const comments of [
+    [],
+    [actionMarker(marker.replace(head, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'))],
+    [actionMarker(marker, { user: { login: 'github-actions[bot]', id: 1, type: 'Bot' } })],
+    [actionMarker(), actionMarker()],
+    [actionMarker(marker.replace(head, 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb')), actionMarker()],
+  ]) {
+    assert.notEqual(
+      runReviewFilter([
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, { commit_id: 'previous-head' }),
+      ], [{ sha: head }, { sha: 'previous-head' }], comments),
+      0,
+    );
+  }
+
   const codeRabbitReview = (id, state, submittedAt, overrides = {}) =>
     review(id, state, submittedAt, '', {
       author_association: 'NONE',
@@ -160,7 +304,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       0,
     );
   }
-  assert.notEqual(
+  assert.equal(
     runReviewFilter([
       codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', {
         commit_id: 'previous-head',
@@ -212,7 +356,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ]),
     0,
   );
-  // 긍정 리뷰는 여전히 current head를 요구한다.
+  // native APPROVED는 current head를 요구하고, canonical frozen fallback만 commit set+marker로 재사용한다.
   assert.notEqual(
     runReviewFilter([
       review(1, 'APPROVED', '2026-08-01T00:00:00Z', '', {
@@ -221,7 +365,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ]),
     0,
   );
-  assert.notEqual(
+  assert.equal(
     runReviewFilter([
       review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, {
         commit_id: 'previous-head',
@@ -629,8 +773,10 @@ test('automerge coordinator fails closed around the native merge queue', async (
       );
       writeFileSync(
         join(dir, `reviews-${pr.number}.json`),
-        JSON.stringify(pr.reviewed === false ? [[]] : trustedReview(head)),
+        JSON.stringify(pr.reviewed === false ? [] : trustedReview(head)[0]),
       );
+      writeFileSync(join(dir, `commits-${pr.number}.json`), JSON.stringify([{ sha: head }]));
+      writeFileSync(join(dir, `comments-${pr.number}.json`), JSON.stringify([]));
       writeFileSync(
         join(dir, `threads-${pr.number}.json`),
         JSON.stringify({
@@ -676,6 +822,8 @@ test('automerge coordinator fails closed around the native merge queue', async (
       `    "pr list"*) printf '%s\\n' ${JSON.stringify(JSON.stringify(prs.map((p) => p.number)))} ;;`,
       '    "pr view "*) set -- $all; cat "$FIX/pr-$3.json" ;;',
       '    *pulls/*/reviews*) n="${all#*pulls/}"; n="${n%%/reviews*}"; cat "$FIX/reviews-$n.json" ;;',
+      '    *pulls/*/commits*) n="${all#*pulls/}"; n="${n%%/commits*}"; cat "$FIX/commits-$n.json" ;;',
+      '    *issues/*/comments*) n="${all#*issues/}"; n="${n%%/comments*}"; cat "$FIX/comments-$n.json" ;;',
       '    *graphql*) n="${all#*number=}"; n="${n%% *}"; cat "$FIX/threads-$n.json" ;;',
       '    *check-runs*) h="${all#*commits/}"; h="${h%%/check-runs*}"; cat "$FIX/checks-$h.json" ;;',
       '    *statuses*) h="${all#*commits/}"; h="${h%%/statuses*}"; cat "$FIX/statuses-$h.json" ;;',
@@ -686,6 +834,9 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'owner=o',
       'name=r',
       `required='[{"context":"Required CI","integration_id":null}]'`,
+      'bounded_pr_reviews() { gh api "repos/${repo}/pulls/${pr}/reviews?per_page=100&page=1"; }',
+      'bounded_pr_commits() { gh api "repos/${repo}/pulls/${pr}/commits?per_page=100&page=1"; }',
+      'bounded_issue_comments() { gh api "repos/${repo}/issues/${pr}/comments?per_page=100&page=1"; }',
       'candidates="$(gh pr list)"',
       queueLoop.replace(/^ {10}/gm, ''),
     ].join('\n');
