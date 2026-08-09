@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "mobile-coverage-baseline-v1",
+  "repository": "AquilaXk/easysubway-mobile",
+  "reviewState": {
+    "phase": "UNREVIEWED_DISCOVERY",
+    "reviewed": false
+  },
+  "provenance": {
+    "runUrl": null,
+    "baseSha": null,
+    "headSha": null,
+    "testedMergeSha": null,
+    "mergeBaseSha": null,
+    "rawLcovSha256": null,
+    "normalizedLcovSha256": null,
+    "sourceInventorySha256": null,
+    "resultSha256": null
+  },
+  "producer": {
+    "policySha256": null,
+    "filterSha256": null,
+    "ratchetSha256": null,
+    "flutterVersion": null,
+    "lcovTagSubset": null
+  },
+  "floors": {
+    "repositoryLineBasisPoints": null,
+    "changedLineBasisPoints": null,
+    "criticalBoundaryLineBasisPoints": null
+  },
+  "paths": [],
+  "criticalBoundaries": []
+}

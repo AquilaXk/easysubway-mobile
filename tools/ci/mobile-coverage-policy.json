@@ -1,0 +1,197 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "mobile-coverage-policy-v1",
+  "repository": "AquilaXk/easysubway-mobile",
+  "transition": {
+    "phase": "DISCOVERY_REMOTE_RED",
+    "baselineReviewed": false
+  },
+  "sourceScope": {
+    "root": "apps/mobile/lib",
+    "include": "apps/mobile/lib/**/*.dart",
+    "kind": "PRODUCTION_DART"
+  },
+  "exclusions": [
+    {
+      "id": "DRIFT_CATALOG_DATABASE_GENERATED",
+      "path": "apps/mobile/lib/core/database/catalog/catalog_database.g.dart",
+      "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
+      "reason": "Tracked Drift generated output; handwritten schema and adapters remain covered.",
+      "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/48",
+      "ownerIssueTitle": "[Build][Mobile][P1] LCOV·diff coverage ratchet — filter-mobile-lcov 확장과 CI 배선",
+      "removalTrigger": "Review immediately when the generated header, Drift generation relationship, source path, coverage producer, or handwritten/generated boundary changes."
+    },
+    {
+      "id": "DRIFT_USER_DATABASE_GENERATED",
+      "path": "apps/mobile/lib/core/database/user/user_database.g.dart",
+      "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
+      "reason": "Tracked Drift generated output; handwritten schema and adapters remain covered.",
+      "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/48",
+      "ownerIssueTitle": "[Build][Mobile][P1] LCOV·diff coverage ratchet — filter-mobile-lcov 확장과 CI 배선",
+      "removalTrigger": "Review immediately when the generated header, Drift generation relationship, source path, coverage producer, or handwritten/generated boundary changes."
+    }
+  ],
+  "criticalBoundaryRules": {
+    "JOURNEY_ROUTE_INGRESS": [
+      "route_v2_ingress.dart",
+      "route_search.dart",
+      "internal_route.dart",
+      "features/routes/application/accessibility_cost_calculator.dart",
+      "features/routes/application/network_graph.dart",
+      "features/routes/application/route_engine.dart",
+      "features/routes/data/local_route_repository.dart",
+      "features/routes/domain/",
+      "features/internal_route/"
+    ],
+    "JOURNEY_REPOSITORY_DI_STATE_IDENTITY": [
+      "app/app_bootstrap.dart",
+      "app/app_dependencies.dart",
+      "app/app_endpoints.dart",
+      "route_v2_ingress.dart",
+      "route_search.dart",
+      "features/route_draft/",
+      "features/mobility_profile/",
+      "features/routes/data/local_route_repository.dart",
+      "features/routes/domain/",
+      "features/internal_route/",
+      "internal_route.dart"
+    ],
+    "DATAPACK_CATALOG_LIFECYCLE": [
+      "app/app_endpoints.dart",
+      "core/datapack/",
+      "core/database/catalog/",
+      "features/stations/data/drift_station_repository.dart",
+      "features/stations/data/station_search_index.dart",
+      "features/stations/data/station_api_repository.dart",
+      "features/stations/domain/station_repositories.dart",
+      "features/network_map/data/drift_network_map_viewport_repository.dart",
+      "features/network_map/domain/",
+      "features/network_map/infrastructure/"
+    ],
+    "ACCESSIBILITY_ERROR_TRUTHFULNESS": [
+      "accessible_design.dart",
+      "adaptive_layout.dart",
+      "design_tokens.dart",
+      "app/accessibility_theme.dart",
+      "app/app_components.dart",
+      "app/easy_subway_app.dart",
+      "app/easy_subway_family_app_bar.dart",
+      "core/error/",
+      "core/network/api_error.dart",
+      "features/account/presentation/",
+      "features/attribution/presentation/",
+      "features/favorites/presentation/",
+      "features/home/presentation/",
+      "features/home_widget/next_train_widget_configuration_screen.dart",
+      "features/network_map/presentation/",
+      "features/notifications/presentation/",
+      "features/service_notice/presentation/",
+      "features/settings/presentation/",
+      "features/stations/presentation/",
+      "features/support/presentation/",
+      "features/train_search/presentation/",
+      "facility_report.dart",
+      "facility_status.dart",
+      "network_map.dart",
+      "onboarding.dart",
+      "route_search.dart",
+      "search_field.dart",
+      "station_search.dart"
+    ],
+    "ALARM_WIDGET_REPORT_IO": [
+      "features/get_off_alarm/",
+      "features/home_widget/",
+      "features/stations/data/current_location_provider.dart",
+      "core/database/user/",
+      "features/favorites/data/drift_favorite_repositories.dart",
+      "features/preferences/data/drift_notification_settings_repository.dart",
+      "features/search_history/data/drift_search_history_repository.dart",
+      "features/service_notice/data/drift_notice_cache_store.dart",
+      "facility_report.dart",
+      "facility_status.dart",
+      "notification_settings.dart",
+      "secure_key_value_storage.dart",
+      "mobile_error_reporter.dart"
+    ],
+    "CRASHLYTICS_PRIVACY": [
+      "core/crashlytics/",
+      "core/logging/app_logger.dart",
+      "app/app_bootstrap.dart",
+      "mobile_error_reporter.dart",
+      "facility_report.dart",
+      "features/account/presentation/user_data_deletion_screen.dart",
+      "user_data_deletion.dart"
+    ],
+    "CONTRACT_ARTIFACT_IDENTITY": [
+      "app/app_endpoints.dart",
+      "core/datapack/canonical_json.dart",
+      "core/datapack/data_pack_client.dart",
+      "core/datapack/data_pack_file_integrity.dart",
+      "core/datapack/data_pack_index.dart",
+      "core/datapack/data_pack_manifest.dart",
+      "core/datapack/data_pack_update_policy.dart",
+      "core/datapack/data_pack_updater.dart",
+      "core/datapack/emergency_override_repository.dart",
+      "core/database/catalog/",
+      "core/error/error_code_catalog.dart",
+      "core/error/server_error_mapper.dart",
+      "core/network/api_client.dart",
+      "route_v2_ingress.dart"
+    ]
+  },
+  "lcov": {
+    "closedTags": [
+      "TN",
+      "SF",
+      "FN",
+      "FNDA",
+      "FNF",
+      "FNH",
+      "BRDA",
+      "BRF",
+      "BRH",
+      "DA",
+      "LF",
+      "LH",
+      "end_of_record"
+    ],
+    "pathRoot": "apps/mobile",
+    "lineCoverage": true,
+    "functionCoverage": "DISABLED_UNPROVEN",
+    "branchCoverage": "DISABLED_UNPROVEN",
+    "canonicalOrder": "OFFICIAL_TAG_GROUP_THEN_IDENTITY"
+  },
+  "comparison": {
+    "shaFormat": "lowercase-40-hex",
+    "pullRequestRange": "mergeBase..head",
+    "pushRange": "base..head",
+    "manualRange": null,
+    "coreQuotepath": false,
+    "diffRenameLimit": 10000,
+    "diffAlgorithm": "myers",
+    "findRenames": "90%",
+    "findCopies": "90%",
+    "findCopiesHarder": true,
+    "nameStatusNullTerminated": true,
+    "numstatNullTerminated": true
+  },
+  "thresholds": {
+    "repositoryLineBasisPoints": null,
+    "changedLineBasisPoints": null,
+    "criticalBoundaryLineBasisPoints": null
+  },
+  "artifacts": {
+    "directory": "${RUNNER_TEMP}/mobile-coverage-ratchet",
+    "name": "mobile-coverage-ratchet-${headSha}",
+    "files": [
+      "mobile-coverage-raw.lcov",
+      "mobile-coverage-normalized.lcov",
+      "mobile-coverage-source-inventory.json",
+      "mobile-coverage-result.json",
+      "mobile-coverage-summary.md"
+    ],
+    "uploadAction": "actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808",
+    "retentionDays": 5,
+    "ifNoFilesFound": "error"
+  }
+}
