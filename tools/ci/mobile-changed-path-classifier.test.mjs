@@ -126,6 +126,31 @@ test("Git capture binds every production Git invocation to the closed max buffer
   assert.equal((source.match(/execFileSync\("git"/gu) ?? []).length, 1);
 });
 
+test("trusted changed-path workflow has the closed event, execution, and artifact contract", () => {
+  const workflow = readFileSync(new URL("../../.github/workflows/mobile-changed-path-classifier.yml", import.meta.url), "utf8");
+  assert.match(workflow, /^name: Changed Path Classification$/mu);
+  assert.match(workflow, /pull_request_target:\n\s+branches: \[main\]\n\s+types: \[opened, synchronize, reopened\]/u);
+  assert.match(workflow, /push:\n\s+branches: \[main\]/u);
+  assert.match(workflow, /workflow_dispatch:\n\s+inputs:\n\s+base_sha:[^]*required: true[^]*type: string[^]*head_sha:[^]*required: true[^]*type: string/u);
+  assert.match(workflow, /^permissions:\n\s+contents: read$/mu);
+  assert.equal((workflow.match(/actions\/checkout@/gu) ?? []).length, 1);
+  assert.match(workflow, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1[^]*fetch-depth: 0[^]*persist-credentials: false/u);
+  assert.match(workflow, /ref: \$\{\{ github\.event_name == 'pull_request_target' && github\.event\.pull_request\.base\.sha \|\| github\.event_name == 'push' && github\.event\.before \|\| github\.sha \}\}/u);
+  assert.match(workflow, /node tools\/ci\/mobile-changed-path-classifier\.mjs run \\\n\s+--event pull_request \\\n\s+--base-sha "\$PR_BASE_SHA" \\\n\s+--head-sha "\$PR_HEAD_SHA"/u);
+  assert.match(workflow, /--pull-request-number "\$PR_NUMBER"/u);
+  assert.match(workflow, /--event push[^]*--pull-request-number none/u);
+  assert.match(workflow, /--event workflow_dispatch[^]*--pull-request-number none/u);
+  assert.match(workflow, /mobile-changed-path-classification\.json[^]*mobile-changed-path-classification-summary\.md[^]*mobile-changed-path-classification\.sha256[^]*if-no-files-found: error/u);
+  assert.match(workflow, /cat "\$RUNNER_TEMP\/mobile-changed-path-classification\/mobile-changed-path-classification-summary\.md" >> "\$GITHUB_STEP_SUMMARY"/u);
+  assert.doesNotMatch(workflow, /^\s*pull_request:/mu);
+  assert.match(workflow, /classify-changes:\n\s+if: \$\{\{ github\.event_name != 'workflow_dispatch' \|\| github\.ref == 'refs\/heads\/main' \}\}/u);
+  assert.match(workflow, /ref: \$\{\{ github\.event_name == 'pull_request_target' && github\.event\.pull_request\.base\.sha \|\| github\.event_name == 'push' && github\.event\.before \|\| github\.sha \}\}/u);
+  assert.doesNotMatch(workflow, /ref: [^\n]*inputs\.base_sha/u);
+  assert.match(workflow, /DISPATCH_GITHUB_SHA: \$\{\{ github\.sha \}\}/u);
+  assert.match(workflow, /workflow_dispatch\)\n\s+if \[\[ "\$DISPATCH_HEAD_SHA" != "\$DISPATCH_GITHUB_SHA" \]\]; then\n\s+echo "dispatch head must equal trusted GitHub SHA" >&2\n\s+exit 1\n\s+fi\n\s+node tools\/ci\/mobile-changed-path-classifier\.mjs run/u);
+  assert.equal(createHash("sha256").update(workflow).digest("hex"), "713fadb1814888c0a11dbc453550d26b026fae2498738359a9afefae637c0ca2");
+});
+
 test("canonical result and artifact require exactly three regular files and exact detached digest", () => {
   const result = classifiedResult();
   assert.equal(result.outcome, "CLASSIFIED");
