@@ -16,6 +16,7 @@ import { fileURLToPath } from "node:url";
 
 const SHA = /^[0-9a-f]{40}$/u;
 const MODE = /^[0-7]{6}$/u;
+export const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
 const REQUIREMENT_KEYS = [
   "requiresFullHostTests", "requiresCoverage", "requiresAndroidBuild",
   "requiresIOSCompile", "requiresNativeIntegration", "requiresGolden",
@@ -352,7 +353,7 @@ export function validateArtifact(directory, headSha) {
   return { classificationSha256: digest, artifactName: `mobile-changed-path-classification-${headSha}`, result: value };
 }
 
-function git(repository, args, input) { return execFileSync("git", ["-C", repository, "-c", "core.quotepath=false", "-c", "diff.renameLimit=10000", "-c", "diff.algorithm=myers", ...args], { encoding: "buffer", input, stdio: ["ignore", "pipe", "pipe"] }); }
+function git(repository, args, input) { return execFileSync("git", ["-C", repository, "-c", "core.quotepath=false", "-c", "diff.renameLimit=10000", "-c", "diff.algorithm=myers", ...args], { encoding: "buffer", input, stdio: ["ignore", "pipe", "pipe"], maxBuffer: GIT_MAX_BUFFER_BYTES }); }
 function gitText(repository, args) { return decodeUtf8(git(repository, args), "Git text").trim(); }
 function isAncestor(repository, base, head) { try { git(repository, ["merge-base", "--is-ancestor", base, head]); return true; } catch { return false; } }
 function validateWorkspace(value, label) { if (typeof value !== "string" || !path.isAbsolute(value)) fail(`${label} must be an absolute path`); const info = lstatSync(value); if (!info.isDirectory() || info.isSymbolicLink()) fail(`${label} must be a regular directory`); return realpathSync(value); }

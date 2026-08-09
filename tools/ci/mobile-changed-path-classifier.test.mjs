@@ -8,6 +8,7 @@ import test from "node:test";
 
 import {
   FULL_REQUIREMENTS,
+  GIT_MAX_BUFFER_BYTES,
   buildResult,
   buildImmutableDartGraph,
   classifyEntries,
@@ -110,9 +111,19 @@ test("policy fixes generic feature identifiers and README-only docs uncertainty"
 });
 
 test("CLI rejects duplicate and unknown arguments with usage exit semantics", () => {
-  assert.throws(() => parseCliArguments(["run", "--event", "push", "--event", "push"]), (error) => error.exitCode === 2);
-  assert.throws(() => parseCliArguments(["run", "--unknown", "x"]), (error) => error.exitCode === 2);
+  const duplicate = ["run", "--event", "push", "--event", "push", "--base-sha", sha("a"), "--head-sha", sha("b"), "--event-ref", "refs/heads/main"];
+  const unknown = ["run", "--unknown", "x", "--event", "push", "--base-sha", sha("a"), "--head-sha", sha("b"), "--event-ref", "refs/heads/main"];
+  assert.equal(duplicate.length, 11); assert.equal(unknown.length, 11);
+  for (const args of [duplicate, unknown]) assert.throws(() => parseCliArguments(args), (error) => error.exitCode === 2 && /unknown, duplicate, or missing CLI argument/u.test(error.message));
+  assert.throws(() => parseCliArguments(["run", "--event", "push"]), (error) => error.exitCode === 2 && /expected exact run arguments/u.test(error.message));
   assert.deepEqual(parseCliArguments(["run", "--event", "push", "--base-sha", sha("a"), "--head-sha", sha("b"), "--event-ref", "refs/heads/main", "--pull-request-number", "none"]).event, "push");
+});
+
+test("Git capture binds every production Git invocation to the closed max buffer", () => {
+  assert.equal(GIT_MAX_BUFFER_BYTES, 64 * 1024 * 1024);
+  const source = readFileSync(new URL("./mobile-changed-path-classifier.mjs", import.meta.url), "utf8");
+  assert.match(source, /function git\([^]*maxBuffer: GIT_MAX_BUFFER_BYTES[^]*\}/u);
+  assert.equal((source.match(/execFileSync\("git"/gu) ?? []).length, 1);
 });
 
 test("canonical result and artifact require exactly three regular files and exact detached digest", () => {
