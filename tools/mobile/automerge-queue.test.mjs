@@ -37,6 +37,9 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'marker_pattern=',
     'test($marker_pattern)',
     'canonical_actions_marker',
+    '/collaborators/${sender}/permission',
+    'admin" or . == "maintain" or . == "write"',
+    'if ! reviews="$(bounded_pr_reviews)"; then',
     'bounded_pr_reviews()',
     'github-actions[bot]',
     '41898282',
@@ -100,6 +103,65 @@ test('automerge coordinator fails closed around the native merge queue', async (
     }).stdout.trim();
   assert.equal(markerIds([canonicalTuple(7, oldMarker)]), '[7]', 'relabel must PATCH the one old marker');
   assert.equal(markerIds([canonicalTuple(7, oldMarker), canonicalTuple(8, oldMarker)]), '[7,8]', 'multiple old/current canonical markers must mutate zero');
+  assert.match(markerProducer, /sender=.*\.sender\.login/);
+  assert.match(markerProducer, /permission=.*collaborators\/\$\{sender\}\/permission/);
+  const commentReader = workflow.match(/          bounded_issue_comments\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(commentReader, 'bounded comment reader must stay executable');
+  const runProducer = (comments) => {
+    const dir = mkdtempSync(join(tmpdir(), 'automerge-producer-'));
+    const event = join(dir, 'event.json');
+    const log = join(dir, 'gh.log');
+    writeFileSync(event, JSON.stringify({
+      pull_request: { number: 91, head: { sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' } },
+      sender: { login: 'writer' },
+    }));
+    const script = [
+      'set -euo pipefail',
+      `GH_LOG=${JSON.stringify(log)}`,
+      `EVENT_COMMENTS=${JSON.stringify(JSON.stringify(comments))}`,
+      ': > "$GH_LOG"',
+      'gh() {',
+      '  printf "%s\\n" "gh $*" >> "$GH_LOG"',
+      '  case "$*" in',
+      '    *collaborators/*/permission*) printf "%s\\n" \'{"permission":"write"}\' ;;',
+      '    *issues/*/comments?*) printf "%s\\n" "$EVENT_COMMENTS" ;;',
+      '  esac',
+      '}',
+      'repo=o/r',
+      'data_page_limit=3',
+      'page_size=100',
+      'overflow_probe_page=$((data_page_limit + 1))',
+      `GITHUB_EVENT_PATH=${JSON.stringify(event)}`,
+      'GITHUB_EVENT_NAME=pull_request_target',
+      ['bounded_issue_comments() {', commentReader.replace(/^ {12}/gm, ''), '}'].join('\n'),
+      markerProducer.replace(/^ {10}/gm, ''),
+    ].join('\n');
+    const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+    return { status: result.status, calls: readFileSync(log, 'utf8') };
+  };
+  const duplicateProducer = runProducer([canonicalTuple(7, oldMarker), canonicalTuple(8, oldMarker)]);
+  assert.equal(duplicateProducer.status, 1, 'multiple canonical markers must fail the producer');
+  assert.doesNotMatch(duplicateProducer.calls, /--method (POST|PATCH)/, 'multiple canonical markers must not mutate');
+  const commitReader = workflow.match(/          bounded_pr_commits\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(commitReader, 'bounded commit reader must stay executable');
+  const runCommitReader = (pages) => {
+    const dir = mkdtempSync(join(tmpdir(), 'automerge-commits-'));
+    pages.forEach((page, index) => writeFileSync(join(dir, `${index + 1}.json`), JSON.stringify(page)));
+    const script = [
+      'set -euo pipefail',
+      `FIX=${JSON.stringify(dir)}`,
+      'gh() { case "$*" in *page=1) cat "$FIX/1.json" ;; *page=2) cat "$FIX/2.json" ;; *page=3) cat "$FIX/3.json" ;; *page=4) cat "$FIX/4.json" ;; esac; }',
+      'repo=o/r', 'pr=91', 'data_page_limit=3', 'page_size=100', 'overflow_probe_page=4',
+      ['bounded_pr_commits() {', commitReader.replace(/^ {12}/gm, ''), '}'].join('\n'),
+      'bounded_pr_commits >/dev/null',
+    ].join('\n');
+    return spawnSync('bash', ['-c', script], { encoding: 'utf8' }).status;
+  };
+  const validCommit = { sha: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' };
+  const fullPage = Array.from({ length: 100 }, () => validCommit);
+  assert.equal(runCommitReader([fullPage, fullPage, fullPage, []]), 0, '300 commits plus an empty overflow probe must pass');
+  assert.notEqual(runCommitReader([fullPage, fullPage, fullPage, [validCommit]]), 0, 'nonempty overflow probe must fail closed');
+  assert.notEqual(runCommitReader([[{ sha: 'bad' }]]), 0, 'malformed commit sha must fail closed');
 
   // run은 YAML block scalar라 본문 줄이 블록 들여쓰기 아래로 내려가면 워크플로 전체가
   // 파싱되지 않는다. 이 테스트는 파일을 텍스트로 읽어 셸을 뽑으므로 그 파손을 그냥

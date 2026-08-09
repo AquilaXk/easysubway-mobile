@@ -50,7 +50,7 @@ jobs:
             local page response collected='[]'
             for ((page = 1; page <= data_page_limit; page++)); do
               response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${page}")"
-              jq -e 'type == "array" and all(.[]; (.id | type) == "number" and (.body | type) == "string" and (.user | type) == "object")' <<<"${response}" >/dev/null
+              jq -e 'type == "array" and all(.[]; (.id | type) == "number" and ((.body == null) or (.body | type) == "string") and ((.user == null) or (.user | type) == "object"))' <<<"${response}" >/dev/null
               collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
@@ -85,11 +85,11 @@ jobs:
               jq -e 'type == "array" and all(.[];
                 (.id | type) == "number" and
                 (.state | type) == "string" and
-                (.commit_id | type) == "string" and
+                ((.commit_id == null) or (.commit_id | type) == "string") and
                 (.submitted_at | type) == "string" and
                 (.author_association | type) == "string" and
-                (.body | type) == "string" and
-                (.user | type) == "object"
+                ((.body == null) or (.body | type) == "string") and
+                ((.user == null) or (.user | type) == "object")
               )' <<<"${response}" >/dev/null
               collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
@@ -106,6 +106,8 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request_target" ]]; then
             pr="$(jq -er '.pull_request.number | if type == "number" and . > 0 and floor == . then . else error("invalid PR") end' "${GITHUB_EVENT_PATH}")"
             event_head="$(jq -er '.pull_request.head.sha | if type == "string" and test("^[0-9a-f]{40}$") then . else error("invalid head") end' "${GITHUB_EVENT_PATH}")"
+            sender="$(jq -er '.sender.login | if type == "string" and test("^[A-Za-z0-9-]+$") then . else error("invalid sender") end' "${GITHUB_EVENT_PATH}")"
+            permission="$(gh api "repos/${repo}/collaborators/${sender}/permission" | jq -er '.permission | if type == "string" and (. == "admin" or . == "maintain" or . == "write") then . else error("insufficient permission") end')"
             marker="<!-- Automerge frozen discovery authorization: ${event_head} -->"
             marker_pattern='^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$'
             comments="$(bounded_issue_comments)"
@@ -249,9 +251,18 @@ jobs:
             head="$(jq -r '.headRefOid' <<<"${info}")"
             merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
 
-            reviews="$(bounded_pr_reviews)"
-            commits="$(bounded_pr_commits)"
-            comments="$(bounded_issue_comments)"
+            if ! reviews="$(bounded_pr_reviews)"; then
+              echo "PR #${pr}: reviews read failed; skipping."
+              continue
+            fi
+            if ! commits="$(bounded_pr_commits)"; then
+              echo "PR #${pr}: commits read failed; skipping."
+              continue
+            fi
+            if ! comments="$(bounded_issue_comments)"; then
+              echo "PR #${pr}: comments read failed; skipping."
+              continue
+            fi
             # frozen-discovery-review-filter-begin
             if ! jq -e --arg head "${head}" --argjson commits "${commits}" --argjson comments "${comments}" '
               def is_coderabbit:
