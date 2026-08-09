@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "component": "mobile",
+  "bundleVersion": "1.0.0",
+  "producer": {
+    "repository": "AquilaXk/easysubway",
+    "gitSha": "604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3"
+  },
+  "publication": {
+    "repositoryId": 1266821737,
+    "workflowId": 330153489,
+    "workflowPath": ".github/workflows/generic-mobile-consumer-bundle-publish.yml",
+    "runId": 31280042807,
+    "runAttempt": 1,
+    "headSha": "135922eaafad9367d001e1d100518cd7395fa962"
+  },
+  "artifact": {
+    "id": 9028141921,
+    "name": "easysubway-generic-mobile-consumer-bundle-1.0.0-604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3",
+    "archiveSha256": "ce37e33ac2ef76ce4f909685415bf1653c4397c5fbeaf503d8f60af672c38a8e",
+    "sizeBytes": 2849,
+    "metadataUrl": "https://api.github.com/repos/AquilaXk/easysubway/actions/artifacts/9028141921",
+    "archiveUrl": "https://api.github.com/repos/AquilaXk/easysubway/actions/artifacts/9028141921/zip",
+    "createdAt": "2026-08-08T21:44:51Z",
+    "expiresAt": "2026-11-06T21:44:38Z",
+    "retentionDays": 90
+  },
+  "files": {
+    "bundle": {
+      "path": "generic-mobile-consumer-bundle-v1.json",
+      "rawSha256": "7f666d016119591e5c958e7d55c936fffb5e753898e69ec28e4f0cb50b5555ff",
+      "sizeBytes": 4415
+    },
+    "receipt": {
+      "path": "generic-mobile-consumer-publication-receipt-v1.json",
+      "rawSha256": "d0776145278f212aaf0c06038873e640b68f300fa9429b6dc88491e391a501bc",
+      "sizeBytes": 1365
+    }
+  },
+  "resourceInventorySha256": "b5b40b2585af7ac6255426018e30f785e28df80f1fcbac56d9d7089b332cdef9",
+  "payloadSha256": "d355c6c40814faad293c200ddd72a2cc019005bef2e5e608970ae8e4837a1b3c",
+  "resources": [
+    {
+      "resourceId": "errors/error-codes.json",
+      "mediaType": "application/json",
+      "schemaVersion": null,
+      "ownerRepository": "AquilaXk/easysubway",
+      "ownerIssue": 2747,
+      "sourcePath": "contracts/error-codes.json",
+      "rawSha256": "7527a60514a7000ae8df0c958516a856dfdc288b6e085e4efbde9e3ce61d4bf9",
+      "sizeBytes": 1723,
+      "fixturePath": "apps/mobile/test/fixtures/contracts/error-codes.json"
+    },
+    {
+      "resourceId": "product/mobility-profile-policy.json",
+      "mediaType": "application/json",
+      "schemaVersion": 1,
+      "ownerRepository": "AquilaXk/easysubway",
+      "ownerIssue": 2747,
+      "sourcePath": "release/product-gates/mobility-profile-policy.json",
+      "rawSha256": "5a63a03ff9ec9b61e0366d947251ee9294ebd48777b28b1ad6e2bdbe2d3fcc50",
+      "sizeBytes": 635,
+      "fixturePath": "apps/mobile/test/fixtures/contracts/product/mobility-profile-policy.json"
+    }
+  ]
+}
