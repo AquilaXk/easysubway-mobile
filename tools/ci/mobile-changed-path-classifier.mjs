@@ -32,6 +32,18 @@ const PROFILE_KEYS = ["FULL", "FEATURE", "FEATURE_PRIVACY", "FEATURE_CONTRACT", 
 const RESULT_KEYS = ["schemaVersion", "artifactKind", "repository", "event", "comparison", "classifier", "changes", "owners", "affectedFeatures", "affectedBoundaries", "requirements", "isProvenDocsOnly", "uncertainty", "summary", "outcome"];
 const ARTIFACT_FILES = ["mobile-changed-path-classification.json", "mobile-changed-path-classification-summary.md", "mobile-changed-path-classification.sha256"];
 const OUTPUT_KEYS = ["artifact-name", "classification-sha256", "head-sha", "outcome", "requires-full-host-tests", "requires-coverage", "requires-android-build", "requires-ios-compile", "requires-native-integration", "requires-golden", "requires-contract-staging", "requires-map-catalog-artifact-gate", "requires-architecture-gates", "requires-privacy-store-gate", "is-proven-docs-only"];
+const REQUIREMENT_OUTPUT_KEYS = Object.freeze({
+  requiresFullHostTests: "requires-full-host-tests",
+  requiresCoverage: "requires-coverage",
+  requiresAndroidBuild: "requires-android-build",
+  requiresIOSCompile: "requires-ios-compile",
+  requiresNativeIntegration: "requires-native-integration",
+  requiresGolden: "requires-golden",
+  requiresContractStaging: "requires-contract-staging",
+  requiresMapCatalogArtifactGate: "requires-map-catalog-artifact-gate",
+  requiresArchitectureGates: "requires-architecture-gates",
+  requiresPrivacyStoreGate: "requires-privacy-store-gate",
+});
 const STATUS_MAP = { A: "ADDED", M: "MODIFIED", D: "DELETED", R: "RENAMED", C: "COPIED", T: "TYPE_CHANGED", U: "UNMERGED_OR_UNKNOWN" };
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
 const POLICY_SHA256 = "482fb5f29d5aeeadcced9599ad037b5fba002b189b04fce8e69744f8d0b5c256";
@@ -531,9 +543,14 @@ function writeArtifact(directory, result) {
   mkdirSync(directory, { recursive: true }); const json = Buffer.from(JSON.stringify(result)); const digest = sha256(json);
   writeFileSync(path.join(directory, ARTIFACT_FILES[0]), json); writeFileSync(path.join(directory, ARTIFACT_FILES[1]), summaryMarkdown(result)); writeFileSync(path.join(directory, ARTIFACT_FILES[2]), `${digest}  ${ARTIFACT_FILES[0]}\n`); return digest;
 }
-function appendOutputs(result, digest) {
-  const destination = process.env.GITHUB_OUTPUT; if (!destination) return;
-  const values = { "artifact-name": `mobile-changed-path-classification-${result.comparison.headSha}`, "classification-sha256": digest, "head-sha": result.comparison.headSha, outcome: result.outcome, ...Object.fromEntries(REQUIREMENT_KEYS.map((key) => [key.replace(/[A-Z]/gu, (letter) => `-${letter.toLowerCase()}`), String(result.requirements[key])])), "is-proven-docs-only": String(result.isProvenDocsOnly) };
+function appendOutputs(result, digest, environment) {
+  const destination = environment.GITHUB_OUTPUT; if (!destination) return;
+  const requirementValues = Object.fromEntries(REQUIREMENT_KEYS.map((key) => {
+    const value = result.requirements[key]; if (typeof value !== "boolean") fail(`invalid requirement output ${key}`);
+    return [REQUIREMENT_OUTPUT_KEYS[key], String(value)];
+  }));
+  const values = { "artifact-name": `mobile-changed-path-classification-${result.comparison.headSha}`, "classification-sha256": digest, "head-sha": result.comparison.headSha, outcome: result.outcome, ...requirementValues, "is-proven-docs-only": String(result.isProvenDocsOnly) };
+  if (JSON.stringify(Object.keys(values)) !== JSON.stringify(OUTPUT_KEYS)) fail("output keys must be exact and ordered");
   writeFileSync(destination, OUTPUT_KEYS.map((key) => `${key}=${values[key]}\n`).join(""), { flag: "a" });
 }
 export function runClassifier(options, environment = process.env) {
@@ -549,9 +566,9 @@ export function runClassifier(options, environment = process.env) {
   let policy;
   try { policy = validatePolicy(JSON.parse(decodeUtf8(workspacePolicy, "workspace policy"))); } catch (error) { if (error instanceof ClassifierError) throw error; fail("invalid workspace policy"); }
   const stable = ["diff", "--no-ext-diff", "--no-textconv", "--ignore-submodules=none"]; const raw = git(repository, [...stable, "--raw", "-z", "--abbrev=40", "--find-renames=90%", "--find-copies=90%", "--find-copies-harder", mergeBase, options.headSha, "--"]); const numstat = git(repository, [...stable, "--numstat", "-z", "--find-renames=90%", "--find-copies=90%", "--find-copies-harder", mergeBase, options.headSha, "--"]);
-  const baseGraph = immutableDartTree(repository, mergeBase); const headGraph = immutableDartTree(repository, options.headSha); const graphUncertainty = [...baseGraph.uncertainty, ...headGraph.uncertainty]; const changes = joinDiffStreams(parseRawDiff(raw), parseNumstat(numstat)); const fanoutPaths = sortedUnique([...reverseConsumerFanout(baseGraph, changes.map((entry) => entry.oldPath).filter(Boolean)), ...reverseConsumerFanout(headGraph, changes.map((entry) => entry.newPath).filter(Boolean))]); const classification = classifyEntries(changes, policy, { graphUncertainty, fanoutPaths }); let workflow;
+  const mergeBaseGraph = immutableDartTree(repository, mergeBase); const targetBaseGraph = mergeBase === options.baseSha ? mergeBaseGraph : immutableDartTree(repository, options.baseSha); const headGraph = immutableDartTree(repository, options.headSha); const graphUncertainty = [...mergeBaseGraph.uncertainty, ...targetBaseGraph.uncertainty, ...headGraph.uncertainty]; const changes = joinDiffStreams(parseRawDiff(raw), parseNumstat(numstat)); const changedGraphPaths = sortedUnique(changes.flatMap((entry) => [entry.oldPath, entry.newPath].filter(Boolean))); const fanoutPaths = sortedUnique([...reverseConsumerFanout(mergeBaseGraph, changedGraphPaths), ...reverseConsumerFanout(targetBaseGraph, changedGraphPaths), ...reverseConsumerFanout(headGraph, changedGraphPaths)]); const classification = classifyEntries(changes, policy, { graphUncertainty, fanoutPaths }); let workflow;
   try { workflow = gitBlob(repository, options.headSha, ".github/workflows/mobile-changed-path-classifier.yml"); } catch { fail("required head workflow blob is unavailable"); }
-  const result = buildResult({ event: { name: options.event, ref: options.eventRef, pullRequestNumber: options.pullRequestNumber }, comparison: { baseSha: options.baseSha, headSha: options.headSha, mergeBaseSha: mergeBase }, classifier: { sourceSha256: sha256(source), policySha256: sha256(policyBytes), workflowSha256: sha256(workflow) }, classification }); const output = path.join(temp, "mobile-changed-path-classification"); const digest = writeArtifact(output, result); validateArtifact(output, options.headSha); appendOutputs(result, digest); return { result, output, digest };
+  const result = buildResult({ event: { name: options.event, ref: options.eventRef, pullRequestNumber: options.pullRequestNumber }, comparison: { baseSha: options.baseSha, headSha: options.headSha, mergeBaseSha: mergeBase }, classifier: { sourceSha256: sha256(source), policySha256: sha256(policyBytes), workflowSha256: sha256(workflow) }, classification }); const output = path.join(temp, "mobile-changed-path-classification"); const digest = writeArtifact(output, result); validateArtifact(output, options.headSha); appendOutputs(result, digest, environment); return { result, output, digest };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
