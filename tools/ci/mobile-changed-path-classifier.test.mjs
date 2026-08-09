@@ -126,6 +126,40 @@ test("Git capture binds every production Git invocation to the closed max buffer
   assert.equal((source.match(/execFileSync\("git"/gu) ?? []).length, 1);
 });
 
+test("trusted changed-path workflow has the closed event, execution, and artifact contract", () => {
+  const workflow = readFileSync(new URL("../../.github/workflows/mobile-changed-path-classifier.yml", import.meta.url), "utf8");
+  const manual = readFileSync(new URL("../../.github/workflows/mobile-changed-path-classifier-manual.yml", import.meta.url), "utf8");
+  assert.match(workflow, /^name: Changed Path Classification$/mu);
+  assert.match(workflow, /pull_request_target:\n\s+branches: \[main\]\n\s+types: \[opened, synchronize, reopened, edited\]/u);
+  assert.match(workflow, /push:\n\s+branches: \[main\]/u);
+  assert.doesNotMatch(workflow, /^\s*workflow_dispatch:/mu);
+  assert.match(workflow, /^permissions:\n\s+contents: read$/mu);
+  assert.equal((workflow.match(/actions\/checkout@/gu) ?? []).length, 1);
+  assert.match(workflow, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1[^]*fetch-depth: 0[^]*persist-credentials: false/u);
+  assert.match(workflow, /ref: \$\{\{ github\.event_name == 'pull_request_target' && github\.event\.pull_request\.base\.sha \|\| github\.event\.before \}\}/u);
+  assert.match(workflow, /node tools\/ci\/mobile-changed-path-classifier\.mjs run \\\n\s+--event pull_request \\\n\s+--base-sha "\$PR_BASE_SHA" \\\n\s+--head-sha "\$PR_HEAD_SHA"/u);
+  assert.match(workflow, /--pull-request-number "\$PR_NUMBER"/u);
+  assert.match(workflow, /--event push[^]*--pull-request-number none/u);
+  assert.match(workflow, /mobile-changed-path-classification\.json[^]*mobile-changed-path-classification-summary\.md[^]*mobile-changed-path-classification\.sha256[^]*if-no-files-found: error/u);
+  assert.match(workflow, /cat "\$RUNNER_TEMP\/mobile-changed-path-classification\/mobile-changed-path-classification-summary\.md" >> "\$GITHUB_STEP_SUMMARY"/u);
+  assert.doesNotMatch(workflow, /^\s*pull_request:/mu);
+  assert.match(workflow, /classify-changes:\n\s+if: \$\{\{ github\.event\.action != 'edited' \|\| github\.event\.changes\.base != null \}\}/u);
+  assert.match(manual, /^name: Changed Path Classification Manual$/mu);
+  assert.match(manual, /on:\n\s+workflow_dispatch:\n\s+inputs:\n\s+base_sha:[^]*required: true[^]*type: string[^]*head_sha:[^]*required: true[^]*type: string/u);
+  assert.doesNotMatch(manual, /^\s*(pull_request_target|push):/mu);
+  assert.match(manual, /^permissions:\n\s+contents: read$/mu);
+  assert.match(manual, /classify-changes-manual:\n\s+name: Changed Path Classification Manual/u);
+  assert.doesNotMatch(manual, /classify-changes-manual:\n\s+if:/u);
+  assert.equal((manual.match(/actions\/checkout@/gu) ?? []).length, 1);
+  assert.match(manual, /actions\/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1[^]*ref: \$\{\{ github\.sha \}\}[^]*fetch-depth: 0[^]*persist-credentials: false/u);
+  assert.match(manual, /actions\/setup-node@820762786026740c76f36085b0efc47a31fe5020/u);
+  assert.match(manual, /if \[\[ "\$GITHUB_REF" != "refs\/heads\/main" \]\]; then[^]*exit 1[^]*if \[\[ "\$MANUAL_HEAD_SHA" != "\$GITHUB_SHA" \]\]; then[^]*exit 1/u);
+  assert.match(manual, /node tools\/ci\/mobile-changed-path-classifier\.mjs run \\\n\s+--event workflow_dispatch \\\n\s+--base-sha "\$MANUAL_BASE_SHA" \\\n\s+--head-sha "\$MANUAL_HEAD_SHA"[^]*--pull-request-number none/u);
+  assert.match(manual, /mobile-changed-path-classification\.json[^]*mobile-changed-path-classification-summary\.md[^]*mobile-changed-path-classification\.sha256[^]*if-no-files-found: error/u);
+  assert.equal(createHash("sha256").update(workflow).digest("hex"), "2fe15c0da3291ecbecff0efb13528c164d20956d73a3f84284e7b2e600a017c5");
+  assert.equal(createHash("sha256").update(manual).digest("hex"), "c8162ef79b38fba60d6455e85c5abfeb3e5b073e4d1dab3dc1c922d3c0eb834c");
+});
+
 test("canonical result and artifact require exactly three regular files and exact detached digest", () => {
   const result = classifiedResult();
   assert.equal(result.outcome, "CLASSIFIED");
