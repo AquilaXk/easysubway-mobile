@@ -75,6 +75,7 @@ jobs:
             tools/ci/check-google-play-api-access.test.mjs \
             tools/ci/filter-mobile-lcov.test.mjs \
             tools/ci/lib/google-play-auth.test.mjs \
+            tools/ci/mobile-changed-path-classifier.test.mjs \
             tools/mobile/automerge-queue.test.mjs \
             tools/mobile/check-android-aab-16kb-page-size.test.mjs \
             tools/mobile/datapack-contract.test.mjs \
