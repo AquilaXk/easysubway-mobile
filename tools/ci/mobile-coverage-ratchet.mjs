@@ -27,7 +27,7 @@ const safeDartPath = (value, name = "Dart path") => {
   return value;
 };
 const json = (bytes, name) => canonical(bytes, name);
-const bp = (covered, executable) => executable === 0 ? 0 : Math.floor((covered * 10000) / executable);
+const bp = (covered, executable) => executable === 0 ? null : Math.floor((covered * 10000) / executable);
 
 export function parseNameStatusZ(bytes) {
   const parts = utf8(Buffer.from(bytes), "name-status stream").split("\0");
@@ -132,7 +132,7 @@ function assertSafeAncestorDirectories(directory, allowMissingLeaf = false) {
 function safeDirectory(directory, { empty = false } = {}) { assertSafeAncestorDirectories(directory); const stat = lstatSync(path.resolve(directory)); if (stat.isSymbolicLink() || !stat.isDirectory()) fail("artifact directory is unsafe"); if (empty && readdirSync(directory).length) fail("artifact directory is not empty"); }
 function safeArtifactFile(directory, name) { const target = path.join(directory, name); const stat = lstatSync(target); if (stat.isSymbolicLink() || !stat.isFile()) fail("artifact endpoint is unsafe"); return readFileSync(target); }
 
-export function commitArtifactPair(directory, files) {
+export function commitArtifactPair(directory, files, { rename = renameSync } = {}) {
   if (files.length !== ARTIFACT_FILES.length || files.some(({ name }, index) => name !== ARTIFACT_FILES[index])) fail("invalid artifact file set");
   const destination = path.resolve(directory); assertSafeAncestorDirectories(destination, true);
   try { lstatSync(destination); safeDirectory(destination, { empty: true }); } catch (error) { if (error.code !== "ENOENT") throw error; mkdirSync(destination); safeDirectory(destination, { empty: true }); }
@@ -141,9 +141,15 @@ export function commitArtifactPair(directory, files) {
     safeDirectory(staged, { empty: true });
     for (const file of files) { if (!Buffer.isBuffer(file.bytes)) fail("artifact bytes must be bytes"); writeFileSync(path.join(staged, file.name), file.bytes, { flag: "wx" }); }
     if (JSON.stringify(readdirSync(staged).sort(compare)) !== JSON.stringify([...ARTIFACT_FILES].sort(compare))) fail("staged artifact set changed");
-    renameSync(destination, backup); renameSync(staged, destination); safeDirectory(destination); for (const name of ARTIFACT_FILES) safeArtifactFile(destination, name); rmSync(backup, { recursive: true });
+    rename(destination, backup); rename(staged, destination); safeDirectory(destination); for (const name of ARTIFACT_FILES) safeArtifactFile(destination, name); rmSync(backup, { recursive: true });
   } catch (error) {
-    try { if (!lstatSync(destination).isSymbolicLink() && lstatSync(backup).isDirectory()) { rmSync(destination, { recursive: true, force: true }); renameSync(backup, destination); } } catch { /* preserve the original error; caller must fail closed */ }
+    try {
+      const backupStat = lstatSync(backup);
+      if (!backupStat.isSymbolicLink() && backupStat.isDirectory()) {
+        try { const destinationStat = lstatSync(destination); if (destinationStat.isSymbolicLink()) fail("artifact destination is unsafe"); rmSync(destination, { recursive: true, force: true }); } catch (restoreError) { if (restoreError.code !== "ENOENT") throw restoreError; }
+        rename(backup, destination);
+      }
+    } catch { /* preserve the original error; caller must fail closed */ }
     rmSync(staged, { recursive: true, force: true }); throw error;
   }
 }
@@ -169,7 +175,7 @@ export function parseBaselineBytes(bytes) {
 export function classifyDartLines(bytes) {
   const source = utf8(bytes, "Dart source"); if (source.includes("\0")) fail("Dart NUL is forbidden"); const output = []; let state = "CODE"; let depth = 0; let quote = ""; let raw = false; let seenCode = false;
   const finish = () => { output.push(seenCode ? "CODE" : "COMMENT_ONLY"); seenCode = false; };
-  for (let index = 0; index < source.length; index += 1) { const char = source[index]; const next = source[index + 1] ?? ""; const triple = source.slice(index, index + 3); if (char === "\n") { if (state === "LINE") state = "CODE"; else if (state === "SINGLE" || state === "DOUBLE") fail("unterminated normal string"); finish(); continue; } if (state === "LINE") continue; if (state === "BLOCK") { if (char === "/" && next === "*") { depth += 1; index += 1; } else if (char === "*" && next === "/") { depth -= 1; index += 1; if (!depth) state = "CODE"; } continue; } if (state === "TRIPLE") { seenCode = true; if (triple === quote.repeat(3)) { index += 2; state = "CODE"; } continue; } if (state === "SINGLE" || state === "DOUBLE") { seenCode = true; if (!raw && char === "\\") { index += 1; continue; } if (char === quote) state = "CODE"; continue; } if (/\s/u.test(char)) continue; if (char === "/" && next === "/") { state = "LINE"; index += 1; continue; } if (char === "/" && next === "*") { state = "BLOCK"; depth = 1; index += 1; continue; } raw = char === "r" && (next === "'" || next === '"'); if (raw) index += 1; const opener = raw ? source[index] : char; if (opener === "'" || opener === '"') { quote = opener; if (source.slice(index, index + 3) === opener.repeat(3)) { state = "TRIPLE"; index += 2; } else state = opener === "'" ? "SINGLE" : "DOUBLE"; seenCode = true; continue; } seenCode = true; }
+  for (let index = 0; index < source.length; index += 1) { const char = source[index]; const next = source[index + 1] ?? ""; const triple = source.slice(index, index + 3); if (char === "\n") { if (state === "LINE") state = "CODE"; else if (state === "SINGLE" || state === "DOUBLE") fail("unterminated normal string"); finish(); continue; } if (state === "LINE") continue; if (state === "BLOCK") { if (char === "/" && next === "*") { depth += 1; index += 1; } else if (char === "*" && next === "/") { depth -= 1; index += 1; if (!depth) state = "CODE"; } continue; } if (state === "TRIPLE") { seenCode = true; if (!raw && char === "\\") { index += 1; continue; } if (triple === quote.repeat(3)) { index += 2; state = "CODE"; } continue; } if (state === "SINGLE" || state === "DOUBLE") { seenCode = true; if (!raw && char === "\\") { index += 1; continue; } if (char === quote) state = "CODE"; continue; } if (/\s/u.test(char)) continue; if (char === "/" && next === "/") { state = "LINE"; index += 1; continue; } if (char === "/" && next === "*") { state = "BLOCK"; depth = 1; index += 1; continue; } raw = char === "r" && (next === "'" || next === '"'); if (raw) index += 1; const opener = raw ? source[index] : char; if (opener === "'" || opener === '"') { quote = opener; if (source.slice(index, index + 3) === opener.repeat(3)) { state = "TRIPLE"; index += 2; } else state = opener === "'" ? "SINGLE" : "DOUBLE"; seenCode = true; continue; } seenCode = true; }
   if (state === "BLOCK" || state === "TRIPLE") fail("unterminated Dart lexical construct"); if (source.length && !source.endsWith("\n")) finish(); return output;
 }
 function parseNormalizedLcov(bytes) { const text = utf8(bytes, "normalized LCOV"); const records = new Map(); let source = null; let lines = new Map(); for (const line of text.split("\n")) { if (!line) continue; if (line.startsWith("SF:")) { if (source) fail("nested LCOV source"); source = safeDartPath(`apps/mobile/${line.slice(3)}`, "normalized LCOV source"); lines = new Map(); continue; } if (line.startsWith("DA:")) { const match = /^DA:(\d+),(\d+)(?:,[^,]+)?$/u.exec(line); if (!source || !match || Number(match[1]) < 1 || lines.has(Number(match[1]))) fail("invalid normalized DA"); lines.set(Number(match[1]), Number(match[2])); continue; } if (line === "end_of_record") { if (!source || records.has(source)) fail("invalid normalized record"); records.set(source, lines); source = null; continue; } } if (source) fail("incomplete normalized LCOV"); return records; }

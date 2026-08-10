@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { analyze, changedExecutableLines, classifyDartLines, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, treeSources, validateDiffTuples, validateEventIdentity, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
+import { analyze, changedExecutableLines, classifyDartLines, commitArtifactPair, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, treeSources, validateDiffTuples, validateEventIdentity, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
 
 const policyFile = new URL("./mobile-coverage-policy.json", import.meta.url);
 const baselineFile = new URL("./mobile-coverage-baseline.json", import.meta.url);
@@ -38,6 +38,14 @@ test("Dart lexical scanner는 nested block comment와 raw/triple 문자열을 fa
   assert.deepEqual(classifyDartLines(Buffer.from("/* outer /* nested */ done */\nfinal raw = r'// literal';\nfinal text = '''/* literal */\nnext''';\n")), ["COMMENT_ONLY", "CODE", "CODE", "CODE"]);
   assert.throws(() => classifyDartLines(Buffer.from("final text = '''unterminated")), /unterminated/i);
   assert.throws(() => classifyDartLines(Buffer.from("final text = 'unterminated\n")), /unterminated/i);
+});
+
+test("Dart lexical scanner는 non-raw triple의 escaped delimiter와 raw delimiter를 구분한다", () => {
+  assert.deepEqual(classifyDartLines(Buffer.from(`final single = '''escaped \\''' delimiter''' ;
+final double = """escaped \\""" delimiter""" ;
+`)), ["CODE", "CODE"]);
+  assert.throws(() => classifyDartLines(Buffer.from(`final raw = r'''escaped \\''' delimiter''' ;`)), /unterminated/i);
+  assert.throws(() => classifyDartLines(Buffer.from(`final text = """escaped \\""" delimiter`)), /unterminated/i);
 });
 
 const sha = (value) => createHash("sha256").update(value).digest("hex");
@@ -127,6 +135,33 @@ test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부�
   assert.throws(() => changedExecutableLines(`${head}..${head}`, "a".repeat(40), "b".repeat(40), new Map([[rawPath, new Map([[1, 1]])]]), seam), /deterministic line mapping/i);
   const deleted = validateDiffTuples(parseNameStatusZ(Buffer.from("D\0apps/mobile/lib/gone.dart\0")), parseNumstatZ(Buffer.from("0\t1\tapps/mobile/lib/gone.dart\0")));
   assert.equal(deleted[0].status, "DELETED");
+});
+
+test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", () => {
+  const rawPath = "apps/mobile/lib/comment.dart"; const source = Buffer.from("// comment\n");
+  const emptyDiff = {
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1 @@\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`M\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`1\t0\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return source;
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  };
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, new Map(), emptyDiff), { state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null });
+});
+
+test("F2 artifact pair는 두 번째 rename 실패 후 원래 destination과 clean staging을 복구한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-")); const destination = path.join(dir, "artifacts"); mkdirSync(destination);
+  const names = ["mobile-coverage-raw.lcov", "mobile-coverage-normalized.lcov", "mobile-coverage-source-inventory.json", "mobile-coverage-result.json", "mobile-coverage-summary.md"];
+  const files = names.map((name) => ({ name, bytes: Buffer.from(name) })); let renameCalls = 0;
+  try {
+    assert.throws(() => commitArtifactPair(destination, files, { rename: (from, to) => { renameCalls += 1; if (renameCalls === 2) throw new Error("injected second rename failure"); renameSync(from, to); } }), /injected second rename failure/);
+    assert.equal(renameCalls, 3);
+    assert.deepEqual(readdirSync(destination), []);
+    assert.deepEqual(readdirSync(dir).filter((name) => name.startsWith(".mobile-coverage-ratchet-stage-") || name.startsWith(".mobile-coverage-ratchet-backup-")), []);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
 test("F3/F6 tree seam은 tested-merge regular blob inventory만 허용한다", () => {
