@@ -418,4 +418,8 @@ test("CLI ordering and Phase A2 trusted workflow wiring fail closed", async () =
     const actualStep = workflow.slice(start, end === -1 ? undefined : end);
     assert.equal(actualStep.includes("continue-on-error"), false);
   }
+  const setupNode = workflow.indexOf("      - name: Set up Node");
+  const stageStart = workflow.indexOf(stage);
+  const firstRepositoryCommand = workflow.indexOf("      - name: Fetch exact generic mobile consumer bundle");
+  assert.equal(setupNode >= 0 && setupNode < stageStart && stageStart < firstRepositoryCommand, true);
 });
