@@ -137,6 +137,13 @@ test("F4 injected EventEmitter request는 total deadline, oversize와 stream err
   await assert.rejects(requestOwnerIssue({ requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("error", new Error("stream failure")); }) }));
 });
 
+test("provider diagnostic은 non-200의 숫자 allowlist header만 보존하고 body를 누출하지 않는다", async () => {
+  const fakeResponse = (statusCode, headers, body = "secret-token=never-log") => (_options, onResponse) => { const call = new EventEmitter(); call.end = () => { const response = new EventEmitter(); response.statusCode = statusCode; response.headers = headers; onResponse(response); response.emit("data", Buffer.from(body)); response.emit("end"); }; call.destroy = () => {}; return call; };
+  await assert.rejects(requestOwnerIssue({ requestImpl: fakeResponse(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "12345", authorization: "Bearer secret" }) }), /statusCode=403 x-ratelimit-remaining=0 x-ratelimit-reset=12345/);
+  await assert.rejects(requestOwnerIssue({ requestImpl: fakeResponse(404, {}) }), /statusCode=404/);
+  for (const headers of [{ "x-ratelimit-remaining": ["0"], "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "NaN", "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "999999999999999999999" }]) await assert.rejects(requestOwnerIssue({ requestImpl: fakeResponse(403, headers) }), /statusCode=403(?!.*secret-token|.*authorization)/);
+});
+
 test("Dart lexical scanner는 comment-only만 제외하고 문자열 속 주석 표시는 코드로 남긴다", () => {
   assert.deepEqual(classifyDartLines(Buffer.from("// comment\n/* outer\n * inner */\nfinal value = '// code';\n")), ["COMMENT_ONLY", "COMMENT_ONLY", "COMMENT_ONLY", "CODE"]);
   assert.throws(() => classifyDartLines(Buffer.from("/* unclosed")), /unterminated/i);
