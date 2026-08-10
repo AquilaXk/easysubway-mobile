@@ -1,0 +1,258 @@
+import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import test from "node:test";
+
+import { buildImmutableDartSourceGraph, reverseConsumerFanout } from "./lib/mobile-dart-source-graph.mjs";
+import {
+  analyze,
+  classifyRootImportGraph,
+  loadImmutableDartTree,
+  parseBaselineBytes,
+  parsePolicyBytes,
+  requestOwnerIssue,
+  runCli,
+  strictExternalJson,
+  validateComparison,
+  validateOwnerIssueResponse,
+  verifyArtifactDirectory,
+} from "./mobile-root-import-ratchet.mjs";
+
+const POLICY_BYTES = readFileSync("tools/ci/mobile-root-import-policy.json");
+const BASELINE_BYTES = readFileSync("tools/ci/mobile-root-import-baseline.json");
+const POLICY = parsePolicyBytes(POLICY_BYTES);
+const BASELINE = parseBaselineBytes(BASELINE_BYTES, POLICY);
+const OPEN = (number) => {
+  const owner = POLICY.owners.find((candidate) => candidate.number === number);
+  return { number, title: owner.title, url: owner.url, state: "OPEN" };
+};
+const RESPONSE = (owner, extra = {}) => ({ statusCode: 200, redirected: false, body: Buffer.from(JSON.stringify({ number: owner.number, title: owner.title, html_url: owner.url, state: "open", ...extra })) });
+
+test("shared graph parser handles directive-only Dart grammar and fails closed", () => {
+  const files = {
+    "apps/mobile/lib/features/home/library.dart": `
+      @Deprecated('metadata')
+      library sample.library;
+      import '../../accessible_design.dart' deferred as tokens show Accessible;
+      import 'default.dart' if (dart.library.io) 'io.dart' if (dart.library.html) 'web.dart';
+      import 'package:easysubway_mobile/design_tokens.dart';
+      import 'dart:async';
+      import 'package:foreign/foreign.dart';
+      export 'barrel.dart' hide Hidden;
+      part 'part.dart';
+      part 'named.dart';
+      String quoted(String value) => '"\${value.replaceAll('"', '""')}"';
+    `,
+    "apps/mobile/lib/features/home/default.dart": "class Default {}",
+    "apps/mobile/lib/features/home/io.dart": "class Io {}",
+    "apps/mobile/lib/features/home/web.dart": "class Web {}",
+    "apps/mobile/lib/features/home/barrel.dart": "class Barrel {}",
+    "apps/mobile/lib/features/home/part.dart": "part of 'library.dart';",
+    "apps/mobile/lib/features/home/named.dart": "part of sample.library;",
+    "apps/mobile/lib/accessible_design.dart": "class Accessible {}",
+    "apps/mobile/lib/design_tokens.dart": "class Tokens {}",
+  };
+  const graph = buildImmutableDartSourceGraph({ files });
+  assert.deepEqual(graph.uncertainty, []);
+  assert.deepEqual(graph.edges.filter((edge) => edge.source.endsWith("library.dart")).map((edge) => [edge.kind, edge.uri, edge.uriKind, edge.conditional]).sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`)), [
+    ["EXPORT", "barrel.dart", "RELATIVE", false],
+    ["IMPORT", "../../accessible_design.dart", "RELATIVE", false],
+    ["IMPORT", "dart:async", "DART_EXTERNAL", false],
+    ["IMPORT", "default.dart", "RELATIVE", false],
+    ["IMPORT", "io.dart", "RELATIVE", true],
+    ["IMPORT", "package:easysubway_mobile/design_tokens.dart", "OWN_PACKAGE", false],
+    ["IMPORT", "package:foreign/foreign.dart", "OTHER_PACKAGE_EXTERNAL", false],
+    ["IMPORT", "web.dart", "RELATIVE", true],
+    ["PART", "named.dart", "RELATIVE", false],
+    ["PART", "part.dart", "RELATIVE", false],
+  ].sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`)));
+  assert.ok(graph.edges.some((edge) => edge.source.endsWith("named.dart") && edge.kind === "PART_OF" && edge.uriKind === "NAMED_PART"));
+  assert.ok(graph.edges.some((edge) => edge.source.endsWith("part.dart") && edge.kind === "PART_OF" && edge.target?.endsWith("library.dart")));
+  assert.ok(reverseConsumerFanout(graph, ["apps/mobile/lib/features/home/barrel.dart"]).includes("apps/mobile/lib/features/home/library.dart"));
+
+  for (const source of [
+    "import '${name}.dart';",
+    "import 'missing.dart';",
+    "import 'package:easysubway_mobile/features/../design_tokens.dart';",
+    "/* unterminated",
+    "import 'default.dart' import 'io.dart';",
+  ]) {
+    const malformed = buildImmutableDartSourceGraph({ files: { ...files, "apps/mobile/lib/features/home/malformed.dart": source } });
+    assert.ok(malformed.uncertainty.some((entry) => entry.path.endsWith("malformed.dart")), source);
+  }
+});
+
+test("tracked policy, baseline, and current immutable graph match the reviewed ceiling", () => {
+  assert.throws(() => parsePolicyBytes(Buffer.from(POLICY_BYTES.toString().replace("NO_INCREASE", "NO_INCREASED"))), /reviewed pin/);
+  assert.throws(() => parseBaselineBytes(Buffer.from(BASELINE_BYTES.toString().replace("\"ownerIssue\":18", "\"ownerIssue\":19")), POLICY), /reviewed pin/);
+  const commit = requireGitText(["rev-parse", "HEAD"]);
+  const files = loadImmutableDartTree(commit);
+  const graph = buildImmutableDartSourceGraph({ files });
+  const production = graph.sources.filter((source) => source.path.startsWith("apps/mobile/lib/"));
+  const featureSources = production.filter((source) => source.path.startsWith("apps/mobile/lib/features/"));
+  const directRoots = production.filter((source) => /^apps\/mobile\/lib\/[^/]+\.dart$/u.test(source.path));
+  const directFeatureRootEdges = graph.edges.filter((edge) => edge.source.startsWith("apps/mobile/lib/features/") && /^apps\/mobile\/lib\/[^/]+\.dart$/u.test(edge.target ?? ""));
+  const baseDecision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, ownerStatus: POLICY.owners.map((owner) => OPEN(owner.number)) });
+  const decision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, baseWrapperFindings: baseDecision.wrapperFindings, ownerStatus: POLICY.owners.map((owner) => OPEN(owner.number)) });
+  assert.deepEqual({ production: production.length, features: featureSources.length, roots: directRoots.length, directFeatureRootEdges: directFeatureRootEdges.length, neutralEdges: directFeatureRootEdges.length - decision.forbiddenEdges.length, forbidden: decision.forbiddenEdges.length }, { production: 187, features: 119, roots: 23, directFeatureRootEdges: 128, neutralEdges: 81, forbidden: 47 });
+  assert.deepEqual(decision.forbiddenEdges.map(({ conditional, ...edge }) => (assert.equal(conditional, false), edge)), BASELINE.edges);
+  assert.deepEqual(decision.reasons, []);
+  assert.equal(decision.outcome, "PASS");
+  assert.deepEqual(Object.fromEntries([18, 19, 20, 22].map((number) => [number, decision.currentEdges.filter((edge) => edge.ownerIssue === number).length])), { 18: 14, 19: 3, 20: 6, 22: 24 });
+});
+
+function requireGitText(args) {
+  return new TextDecoder().decode(execFileSync("git", args, { encoding: "buffer" })).trim();
+}
+
+test("no-increase decision distinguishes neutral, new, wrapper, removal, and reintroduction", () => {
+  const neutralFiles = {
+    "apps/mobile/lib/accessible_design.dart": "class Accessible {}",
+    "apps/mobile/lib/features/home/home.dart": "import '../../accessible_design.dart';",
+  };
+  const neutralGraph = buildImmutableDartSourceGraph({ files: neutralFiles });
+  assert.equal(classifyRootImportGraph({ graph: neutralGraph, files: neutralFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [] }).outcome, "PASS");
+
+  const newFiles = {
+    "apps/mobile/lib/network_map.dart": "class NetworkMap {}",
+    "apps/mobile/lib/features/home/home.dart": "import '../../network_map.dart';",
+  };
+  const newGraph = buildImmutableDartSourceGraph({ files: newFiles });
+  const created = classifyRootImportGraph({ graph: newGraph, files: newFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [OPEN(19)] });
+  assert.deepEqual(created.reasons, ["NEW_FORBIDDEN_EDGE"]);
+
+  const reviewedNetwork = BASELINE.edges.find((edge) => edge.target.endsWith("network_map.dart"));
+  const fallback = path.posix.join(path.posix.dirname(reviewedNetwork.source), "fallback.dart");
+  const conditionalFiles = {
+    "apps/mobile/lib/network_map.dart": "class NetworkMap {}",
+    [fallback]: "class Fallback {}",
+    [reviewedNetwork.source]: `import 'fallback.dart' if (dart.library.io) '${reviewedNetwork.uri}';`,
+  };
+  const conditional = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: conditionalFiles }), files: conditionalFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [reviewedNetwork], ownerStatus: [OPEN(19)] });
+  assert.equal(conditional.currentEdges[0].conditional, true);
+  assert.deepEqual(conditional.newEdges, conditional.currentEdges);
+
+  const wrapperFiles = {
+    ...neutralFiles,
+    "apps/mobile/lib/network_map.dart": "class NetworkMap {}",
+    "apps/mobile/lib/accessible_design.dart": "import 'network_map.dart'; class Accessible {}",
+  };
+  const wrapped = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: wrapperFiles }), files: wrapperFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [] });
+  assert.ok(wrapped.reasons.includes("FORBIDDEN_WRAPPER_OR_BARREL"));
+  assert.deepEqual(wrapped.wrapperFindings.map((finding) => finding.path), [
+    ["apps/mobile/lib/accessible_design.dart", "apps/mobile/lib/network_map.dart"],
+    ["apps/mobile/lib/features/home/home.dart", "apps/mobile/lib/accessible_design.dart", "apps/mobile/lib/network_map.dart"],
+  ]);
+
+  const removed = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: neutralFiles }), files: neutralFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [] });
+  assert.equal(removed.outcome, "PASS");
+  assert.equal(removed.removedEdges.length, 47);
+
+  const reviewed = BASELINE.edges[0];
+  const reintroducedFiles = { [reviewed.source]: `import '${reviewed.uri}';`, [reviewed.target]: "class Target {}" };
+  const reintroduced = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: reintroducedFiles }), files: reintroducedFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [OPEN(reviewed.ownerIssue)] });
+  assert.deepEqual(reintroduced.reasons, ["NEW_FORBIDDEN_EDGE"]);
+});
+
+test("owner issue evidence is strict and bounded retry never leaks credentials", async () => {
+  const owner = POLICY.owners[0];
+  assert.deepEqual(validateOwnerIssueResponse(RESPONSE(owner, { labels: [] }), owner), OPEN(owner.number));
+  assert.throws(() => validateOwnerIssueResponse({ statusCode: 200, body: Buffer.from(`{"number":18,"number":18,"title":${JSON.stringify(owner.title)},"html_url":${JSON.stringify(owner.url)},"state":"open"}`) }, owner), /duplicate key/);
+  assert.equal(validateOwnerIssueResponse(RESPONSE(owner, { state: "closed" }), owner).state, "CLOSED");
+  const reviewed = BASELINE.edges.find((edge) => edge.ownerIssue === owner.number);
+  const files = { [reviewed.source]: `import '${reviewed.uri}';`, [reviewed.target]: "class Target {}" };
+  const closedDecision = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files }), files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [reviewed], ownerStatus: [{ ...OPEN(owner.number), state: "CLOSED" }] });
+  assert.deepEqual(closedDecision.reasons, ["OWNER_ISSUE_NOT_OPEN"]);
+  assert.throws(() => strictExternalJson(Buffer.from("\ufeff{}"), "proof"), /forbidden bytes/);
+  await assert.rejects(requestOwnerIssue(owner, { token: "" }), /OWNER_ISSUE_TOKEN/);
+
+  const requests = [];
+  const delays = [];
+  const requestImpl = fakeRequests([
+    { statusCode: 500, headers: {}, body: "ignored-secret" },
+    { statusCode: 200, headers: {}, body: JSON.stringify({ number: owner.number, title: owner.title, html_url: owner.url, state: "open" }) },
+  ], requests);
+  const response = await requestOwnerIssue(owner, { token: "owner-token", requestImpl, sleeper: async (delay) => delays.push(delay) });
+  assert.deepEqual(delays, [1000]);
+  assert.equal(requests.length, 2);
+  assert.equal(requests[0].headers.Authorization, "Bearer owner-token");
+  assert.equal(validateOwnerIssueResponse(response, owner).number, owner.number);
+
+  await assert.rejects(requestOwnerIssue(owner, { token: "secret", requestImpl: fakeRequests([{ statusCode: 200, headers: {}, body: "oversize" }]), maxBytes: 2 }), (error) => !error.message.includes("secret") && /maximum bytes/.test(error.message));
+  await assert.rejects(requestOwnerIssue(owner, { token: "secret", requestImpl: fakeRequests([{ neverRespond: true }]), timeoutMs: 5 }), /timed out/);
+});
+
+function fakeRequests(responses, seen = []) {
+  return (options, callback) => {
+    seen.push(options);
+    const requestEmitter = new EventEmitter();
+    requestEmitter.destroy = (error) => queueMicrotask(() => requestEmitter.emit("error", error));
+    requestEmitter.end = () => queueMicrotask(() => {
+      const item = responses.shift();
+      if (!item || item.neverRespond) return;
+      const response = new EventEmitter();
+      response.statusCode = item.statusCode;
+      response.headers = item.headers ?? {};
+      callback(response);
+      if (item.body) response.emit("data", Buffer.from(item.body));
+      response.emit("end");
+    });
+    return requestEmitter;
+  };
+}
+
+test("event identity closes PR, push, and manual relationships", () => {
+  const base = "a".repeat(40);
+  const head = "b".repeat(40);
+  const tested = "c".repeat(40);
+  const gitApi = {
+    bytes: () => Buffer.alloc(0),
+    text: (args) => args[0] === "rev-parse" ? tested : base,
+  };
+  assert.deepEqual(validateComparison({ event: "pull_request", eventRef: "refs/pull/49/merge", pullRequestNumber: "49", baseSha: base, headSha: head, testedMergeSha: tested }, { gitApi }), { event: "pull_request", eventMode: "PULL_REQUEST", eventRef: "refs/pull/49/merge", pullRequestNumber: 49, baseSha: base, pullRequestHeadSha: head, headSha: head, testedMergeSha: tested, mergeBaseSha: base, range: `${base}..${tested}` });
+  assert.equal(validateComparison({ event: "push", eventRef: "refs/heads/main", pullRequestNumber: "none", baseSha: base, headSha: tested, testedMergeSha: tested }, { gitApi }).range, `${base}..${tested}`);
+  const manualGit = { bytes: () => Buffer.alloc(0), text: (args) => args[0] === "rev-parse" ? tested : tested };
+  assert.equal(validateComparison({ event: "workflow_dispatch", eventRef: "refs/heads/main", pullRequestNumber: "none", baseSha: tested, headSha: tested, testedMergeSha: tested }, { gitApi: manualGit }).range, null);
+  assert.throws(() => validateComparison({ event: "pull_request", eventRef: "refs/pull/49/merge", pullRequestNumber: "49", baseSha: base, headSha: head, testedMergeSha: tested }, { gitApi: { bytes: () => Buffer.alloc(0), text: (args) => args[0] === "rev-parse" ? head : base } }), /EVENT_IDENTITY_MISMATCH/);
+});
+
+test("analyze writes exact evidence and verdict recomputes coordinated mutations", async (t) => {
+  const root = mkdtempSync(path.join(tmpdir(), "mobile-root-import-49-"));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const head = requireGitText(["rev-parse", "HEAD"]);
+  const options = { event: "workflow_dispatch", eventRef: "refs/heads/main", pullRequestNumber: "none", baseSha: head, headSha: head, testedMergeSha: head };
+  const result = await analyze(options, { environment: { RUNNER_TEMP: root, OWNER_ISSUE_TOKEN: "test-token" }, requestOwnerIssueFn: async (owner) => RESPONSE(owner) });
+  assert.equal(result.outcome, "PASS");
+  const directory = path.join(root, "mobile-root-import-ratchet");
+  assert.equal(verifyArtifactDirectory(directory).outcome, "PASS");
+  const resultPath = path.join(directory, "mobile-root-import-result.json");
+  const inventoryPath = path.join(directory, "mobile-root-import-inventory.json");
+  const changed = JSON.parse(readFileSync(resultPath));
+  changed.outcome = "FAIL";
+  changed.reasons = ["NEW_FORBIDDEN_EDGE"];
+  const changedBytes = Buffer.from(`${JSON.stringify(changed)}\n`);
+  writeFileSync(resultPath, changedBytes);
+  writeFileSync(path.join(directory, "mobile-root-import-summary.md"), "forged\n");
+  writeFileSync(path.join(directory, "mobile-root-import.sha256"), `${sha(readFileSync(inventoryPath))}  mobile-root-import-inventory.json\n${sha(changedBytes)}  mobile-root-import-result.json\n`);
+  assert.throws(() => verifyArtifactDirectory(directory), /ARTIFACT_MISMATCH/);
+});
+
+function sha(bytes) {
+  return createHash("sha256").update(bytes).digest("hex");
+}
+
+test("CLI ordering and Phase A1 workflow registration fail closed", async () => {
+  let analyzed = 0;
+  await assert.rejects(runCli(["analyze", "--event", "push"], { analyzeFn: async () => { analyzed += 1; }, environment: {} }), (error) => error.exitCode === 2);
+  assert.equal(analyzed, 0);
+  let verified = 0;
+  await assert.rejects(runCli(["verdict", "--analysis-outcome", "failure", "--upload-outcome", "success"], { verifyFn: () => { verified += 1; }, environment: { RUNNER_TEMP: "/tmp" } }), /analysis or upload failed/);
+  assert.equal(verified, 0);
+  const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
+  assert.equal(workflow.match(/tools\/ci\/mobile-root-import-ratchet\.test\.mjs/gu)?.length, 1);
+  assert.doesNotMatch(workflow, /Analyze mobile root import ratchet|Upload mobile root import ratchet evidence|Enforce mobile root import ratchet verdict/u);
+});
