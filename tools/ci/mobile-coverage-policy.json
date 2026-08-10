@@ -3,8 +3,8 @@
   "artifactKind": "mobile-coverage-policy-v1",
   "repository": "AquilaXk/easysubway-mobile",
   "transition": {
-    "phase": "DISCOVERY_REMOTE_RED",
-    "baselineReviewed": false
+    "phase": "REVIEWED_BASELINE_ENFORCED",
+    "baselineReviewed": true
   },
   "sourceScope": {
     "root": "apps/mobile/lib",
@@ -176,9 +176,17 @@
     "numstatNullTerminated": true
   },
   "thresholds": {
-    "repositoryLineBasisPoints": null,
-    "changedLineBasisPoints": null,
-    "criticalBoundaryLineBasisPoints": null
+    "repositoryLineBasisPoints": 8712,
+    "changedLineBasisPoints": 10000,
+    "criticalBoundaryLineBasisPoints": {
+      "JOURNEY_ROUTE_INGRESS": 9328,
+      "JOURNEY_REPOSITORY_DI_STATE_IDENTITY": 9260,
+      "DATAPACK_CATALOG_LIFECYCLE": 8005,
+      "ACCESSIBILITY_ERROR_TRUTHFULNESS": 8904,
+      "ALARM_WIDGET_REPORT_IO": 8161,
+      "CRASHLYTICS_PRIVACY": 8596,
+      "CONTRACT_ARTIFACT_IDENTITY": 7119
+    }
   },
   "artifacts": {
     "directory": "${RUNNER_TEMP}/mobile-coverage-ratchet",

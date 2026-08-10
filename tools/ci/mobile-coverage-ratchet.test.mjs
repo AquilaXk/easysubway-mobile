@@ -1,32 +1,140 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { analyze, changedExecutableLines, classifyDartLines, commitArtifactPair, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, treeSources, validateDiffTuples, validateEventIdentity, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
+import { analyze, changedExecutableLines, classifyDartLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
 
 const policyFile = new URL("./mobile-coverage-policy.json", import.meta.url);
 const baselineFile = new URL("./mobile-coverage-baseline.json", import.meta.url);
 const repositoryRoot = path.resolve(".");
 const temporaryRoot = realpathSync(os.tmpdir());
 
-test("Phase 1 canonical policy와 baseline skeleton을 닫힌 계약으로 허용한다", () => {
+test("Phase 2 canonical policy와 reviewed line-oriented baseline을 닫힌 계약으로 허용한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const baseline = parseBaselineBytes(readFileSync(baselineFile));
-  assert.equal(policy.transition.phase, "DISCOVERY_REMOTE_RED");
-  assert.equal(baseline.reviewState.phase, "UNREVIEWED_DISCOVERY");
-  assert.deepEqual(baseline.paths, []);
-  assert.deepEqual(baseline.criticalBoundaries, []);
+  assert.deepEqual(policy.transition, { phase: "REVIEWED_BASELINE_ENFORCED", baselineReviewed: true });
+  assert.deepEqual(baseline.reviewState, { phase: "REVIEWED", reviewed: true });
+  assert.deepEqual(policy.thresholds, {
+    repositoryLineBasisPoints: 8712,
+    changedLineBasisPoints: 10000,
+    criticalBoundaryLineBasisPoints: {
+      JOURNEY_ROUTE_INGRESS: 9328,
+      JOURNEY_REPOSITORY_DI_STATE_IDENTITY: 9260,
+      DATAPACK_CATALOG_LIFECYCLE: 8005,
+      ACCESSIBILITY_ERROR_TRUTHFULNESS: 8904,
+      ALARM_WIDGET_REPORT_IO: 8161,
+      CRASHLYTICS_PRIVACY: 8596,
+      CONTRACT_ARTIFACT_IDENTITY: 7119,
+    },
+  });
+  assert.equal(baseline.paths.length, 187);
+  assert.deepEqual(baseline.criticalBoundaries.map(({ id }) => id), Object.keys(policy.thresholds.criticalBoundaryLineBasisPoints));
+  assert.deepEqual(baseline.paths.reduce((summary, source) => ({
+    sources: summary.sources + 1,
+    included: summary.included + Number(!source.path.endsWith(".g.dart")),
+    excluded: summary.excluded + Number(source.path.endsWith(".g.dart")),
+    lcovPresent: summary.lcovPresent + Number(source.lcovPresent),
+  }), { sources: 0, included: 0, excluded: 0, lcovPresent: 0 }), { sources: 187, included: 185, excluded: 2, lcovPresent: 183 });
+  const ordinaryMissing = baseline.paths.filter((source) => source.absenceDisposition?.kind === "EXISTING_UNINSTRUMENTED_BASELINE");
+  assert.deepEqual(ordinaryMissing.map(({ path: sourcePath }) => sourcePath), [
+    "apps/mobile/lib/features/network_map/domain/route_map_major_stations.dart",
+    "apps/mobile/lib/features/stations/presentation/station_detail_header.dart",
+  ]);
+  assert.equal(baseline.paths.filter((source) => !source.lcovPresent && source.absenceDisposition === null).length, 2);
 });
 
-test("비정규 policy/baseline과 Phase 1 측정값을 거부한다", () => {
+test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거부한다", () => {
   const policy = JSON.parse(readFileSync(policyFile, "utf8"));
   assert.throws(() => parsePolicyBytes(Buffer.from(JSON.stringify(policy))));
   const baseline = JSON.parse(readFileSync(baselineFile, "utf8"));
-  baseline.floors.repositoryLineBasisPoints = 0;
+  baseline.reviewState = { phase: "UNREVIEWED_DISCOVERY", reviewed: false };
   assert.throws(() => parseBaselineBytes(Buffer.from(`${JSON.stringify(baseline, null, 2)}\n`)));
+  policy.thresholds.changedLineBasisPoints = null;
+  assert.throws(() => parsePolicyBytes(Buffer.from(`${JSON.stringify(policy, null, 2)}\n`)));
+});
+
+test("Phase 2 baseline serializer, owner API, Flutter producer는 closed contract를 강제한다", () => {
+  const baselineBytes = readFileSync(baselineFile);
+  const baseline = parseBaselineBytes(baselineBytes);
+  assert.equal(serializeBaseline(baseline), baselineBytes.toString("utf8"));
+  assert.throws(() => parseBaselineBytes(Buffer.from(baselineBytes.toString("utf8").replace('    {"path"', '     {"path"'))), /reviewed Phase 2 pin/i);
+  const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
+  assert.equal(validateOwnerIssueResponse(owner).number, 102);
+  for (const response of [{ ...owner, statusCode: 404 }, { ...owner, redirected: true }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"closed"}') }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open","pull_request":{}}') }]) assert.throws(() => validateOwnerIssueResponse(response));
+  assert.equal(flutterVersionFromMachine(Buffer.from('{"frameworkVersion":"3.44.0"}')), "3.44.0");
+  for (const output of [Buffer.from("not json"), Buffer.from('{"frameworkVersion":"3.45.0"}'), Buffer.from('{"other":"3.44.0"}')]) assert.throws(() => flutterVersionFromMachine(output));
+});
+
+test("F1/F3/F5 Phase 2 decision, external JSON, pure rename inheritance를 fail-closed로 닫는다", () => {
+  const floorBoundaries = [
+    { id: "JOURNEY_ROUTE_INGRESS", lineBasisPoints: 9327 },
+    { id: "JOURNEY_REPOSITORY_DI_STATE_IDENTITY", lineBasisPoints: 9260 },
+    { id: "DATAPACK_CATALOG_LIFECYCLE", lineBasisPoints: 8005 },
+    { id: "ACCESSIBILITY_ERROR_TRUTHFULNESS", lineBasisPoints: 8904 },
+    { id: "ALARM_WIDGET_REPORT_IO", lineBasisPoints: 8161 },
+    { id: "CRASHLYTICS_PRIVACY", lineBasisPoints: 8596 },
+    { id: "CONTRACT_ARTIFACT_IDENTITY", lineBasisPoints: 7119 },
+  ];
+  assert.deepEqual(derivePhase2Decision({ coverage: { lineBasisPoints: 8711 }, changedLines: { entries: [{ hits: 0 }], lineBasisPoints: 9999 }, criticalBoundaries: floorBoundaries }), { reasons: ["UNCOVERED_CHANGED_EXECUTABLE_LINE", "REPOSITORY_LINE_FLOOR_NOT_MET", "CHANGED_LINE_FLOOR_NOT_MET", "CRITICAL_BOUNDARY_LINE_FLOOR_NOT_MET"], outcome: "FAIL" });
+  assert.deepEqual(derivePhase2Decision({ coverage: { lineBasisPoints: 8712 }, changedLines: { entries: [], lineBasisPoints: null }, criticalBoundaries: floorBoundaries.map((entry) => ({ ...entry, lineBasisPoints: { JOURNEY_ROUTE_INGRESS: 9328, JOURNEY_REPOSITORY_DI_STATE_IDENTITY: 9260, DATAPACK_CATALOG_LIFECYCLE: 8005, ACCESSIBILITY_ERROR_TRUTHFULNESS: 8904, ALARM_WIDGET_REPORT_IO: 8161, CRASHLYTICS_PRIVACY: 8596, CONTRACT_ARTIFACT_IDENTITY: 7119 }[entry.id] })) }), { reasons: [], outcome: "PASS" });
+  for (const text of ['{"frameworkVersion":"3.44.0","frameworkVersion":"3.44.0"}', '{"outer":{"x":1,"x":2}}', '\ufeff{"frameworkVersion":"3.44.0"}', '{"frameworkVersion":"3.44.0"}\0', '{"frameworkVersion":"3.44.0"} trailing']) assert.throws(() => strictExternalJson(Buffer.from(text), "external"));
+  const disposition = { kind: "EXISTING_UNINSTRUMENTED_BASELINE" };
+  const pureRename = { status: "RENAMED", oldPath: "apps/mobile/lib/old.dart", newPath: "apps/mobile/lib/new.dart", added: 0 };
+  const reviewedMissing = { sourceSha256: "a".repeat(64), absenceDisposition: disposition };
+  assert.equal(inheritPureRenameDisposition(pureRename, reviewedMissing, "a".repeat(64), "a".repeat(64)), disposition);
+  for (const [change, baselineSha, oldSha, newSha] of [
+    [{ ...pureRename, added: 1 }, "a".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [{ ...pureRename, oldPath: "apps/mobile/lib/alias.dart", newPath: "apps/mobile/lib/alias.dart" }, "a".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [{ ...pureRename, status: "COPIED" }, "a".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [pureRename, "b".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [pureRename, "a".repeat(64), "b".repeat(64), "a".repeat(64)],
+  ]) assert.throws(() => inheritPureRenameDisposition(change, { ...reviewedMissing, sourceSha256: baselineSha }, oldSha, newSha), /exact pure rename/i);
+  const renamed = validateDiffTuples(
+    parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0")),
+    parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0")),
+  );
+  assert.deepEqual(renamed, [{ ...pureRename, deleted: 0 }]);
+  assert.throws(() => validateDiffTuples(
+    parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0")),
+    parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/old.dart\0apps/mobile/lib/other.dart\0")),
+  ), /tuple path mismatch/i);
+  assert.throws(() => validateDiffTuples(
+    parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
+    parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
+  ), /aliases one path/i);
+});
+
+test("F4 CLI는 invalid argument/outcome 전에 owner request를 만들지 않고 bounded injected request를 닫는다", async () => {
+  let requests = 0;
+  const owner = async () => { requests += 1; return { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102,"state":"open"}') }; };
+  await assert.rejects(runCli(["analyze", "--event", "workflow_dispatch"], { requestOwnerIssueFn: owner }));
+  await assert.rejects(runCli(["verdict", "--analysis-outcome", "failure", "--upload-outcome", "success"], { requestOwnerIssueFn: owner }));
+  assert.equal(requests, 0);
+  for (const response of ["error", "slow", "oversize", "stream-error"]) await assert.rejects(requestOwnerIssue({ requestImpl: () => { throw new Error(response); }, timeoutMs: 1, maxBytes: 1 }));
+});
+
+test("F1 verdict는 Phase 2 FAIL artifact의 coordinated PASS/reasons/summary rewrite를 거부한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
+  try {
+    const artifact = path.join(dir, "artifact"); analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: artifact });
+    const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const resultFile = path.join(artifact, "mobile-coverage-result.json");
+    const inventory = JSON.parse(readFileSync(inventoryFile, "utf8")); const result = JSON.parse(readFileSync(resultFile, "utf8"));
+    inventory.producer.flutterVersion = "3.44.0"; result.phase = "REVIEWED_BASELINE_ENFORCED"; result.producer.flutterVersion = "3.44.0"; result.reasons = []; result.outcome = "PASS"; result.producer.sourceInventorySha256 = sha(Buffer.from(`${JSON.stringify(inventory, null, 2)}\n`));
+    writeFileSync(inventoryFile, `${JSON.stringify(inventory, null, 2)}\n`); writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`); writeFileSync(path.join(artifact, "mobile-coverage-summary.md"), `# Mobile coverage ratchet\n\nEvent: ${result.identity.event}\nBase SHA: ${result.identity.baseSha}\nHead SHA: ${result.identity.headSha}\nMerge base SHA: ${result.identity.mergeBaseSha}\nTested merge SHA: ${result.identity.testedMergeSha}\nOutcome: PASS\n`);
+    assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot, phase2: true, ownerIssue: owner, flutterRunner: () => Buffer.from('{"frameworkVersion":"3.44.0"}') }), /cross-schema/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("F4 injected EventEmitter request는 total deadline, oversize와 stream error를 각각 reject한다", async () => {
+  const fakeRequest = (schedule) => (_options, onResponse) => { const call = new EventEmitter(); call.end = () => schedule(onResponse, call); call.destroy = () => {}; return call; };
+  await assert.rejects(requestOwnerIssue({ requestImpl: fakeRequest(() => {}), timeoutMs: 5 }));
+  await assert.rejects(requestOwnerIssue({ requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("data", Buffer.alloc(2)); }), maxBytes: 1 }));
+  await assert.rejects(requestOwnerIssue({ requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("error", new Error("stream failure")); }) }));
 });
 
 test("Dart lexical scanner는 comment-only만 제외하고 문자열 속 주석 표시는 코드로 남긴다", () => {
