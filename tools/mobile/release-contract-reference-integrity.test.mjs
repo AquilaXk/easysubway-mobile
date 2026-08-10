@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const issueUrlPattern = /https:\/\/github\.com\/AquilaXk\/(?:easysubway|easysubway-mobile)\/issues\/\d+/g;
+const issueUrlPattern = /https:\/\/github\.com\/AquilaXk\/(?:easysubway|easysubway-mobile)\/issues\/\d+(?=["\s),.])/g;
 const bareIssuePattern = /#\d+\b/g;
 
 const expectedReferences = {
@@ -30,6 +30,16 @@ const expectedReferences = {
     'https://github.com/AquilaXk/easysubway/issues/2435',
   ],
 };
+
+test('issue URL extraction rejects a Korean particle appended to its numeric id', () => {
+  const url = 'https://github.com/AquilaXk/easysubway-mobile/issues/9';
+
+  assert.equal(`${url}은`.match(issueUrlPattern), null);
+  assert.deepEqual(
+    [`${url}"`, `${url} `, `${url},`, `${url}.`, `${url})`].map((value) => value.match(issueUrlPattern)),
+    [[url], [url], [url], [url], [url]],
+  );
+});
 
 test('release contract issue references use canonical GitHub URLs', async () => {
   const actualReferences = [];
