@@ -2,8 +2,9 @@
 //
 // route_map_positions에서 앱으로 올라온 필드를 native canvas 렌더러(#1641
 // Stage 2)가 바로 소비할 구조로 파생한다. 렌더링은 이 모듈에 없다 — 순수
-// 파생만 한다. label_polygon 파싱은 network_map.dart의 기존 _parseLabelPolygon
-// 을 재사용하므로(호출부에서 List<Offset>로 전달) 여기서 다시 파싱하지 않는다.
+// 파생만 한다. label_polygon 파싱은 route_map_label_polygon.dart의
+// parseRouteMapLabelPolygon을 재사용하므로(호출부에서 List<Offset>로 전달) 여기서
+// 다시 파싱하지 않는다.
 //
 // #1636 structured-route-map-contract의 layer/LOD 규칙을 따른다:
 // - line_geometry: 노선 track polyline (gap에서 끊는다)
@@ -92,7 +93,7 @@ class StructuredRouteMap {
 }
 
 /// 빌더 입력: route_map_positions 한 행에 대응하는 값(역 노드·라벨·환승용).
-/// [labelPolygon]은 호출부에서 기존 _parseLabelPolygon으로 미리 파싱해 전달한다.
+/// [labelPolygon]은 호출부에서 `parseRouteMapLabelPolygon`으로 미리 파싱해 전달한다.
 /// line geometry는 이 입력이 아니라 [RouteMapLineTrackInput]에서 온다(#1638).
 class StructuredRouteMapStationInput {
   const StructuredRouteMapStationInput({

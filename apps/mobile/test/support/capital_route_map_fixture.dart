@@ -1,7 +1,7 @@
-import 'dart:convert' show jsonDecode;
 import 'dart:io';
 import 'dart:ui' show Offset;
 
+import 'package:easysubway_mobile/features/network_map/domain/route_map_label_polygon.dart';
 import 'package:easysubway_mobile/features/network_map/domain/structured_route_map.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/structured_route_map_painter.dart'
     show routeMapLineBadgeLabel, routeMapStationLabel;
@@ -83,7 +83,9 @@ CapitalRouteMapFixture loadCapitalRouteMapFixture({
               (row['y'] as num).toDouble(),
             ),
             labelPolygon:
-                _parseLabelPolygon(row['label_polygon'] as String? ?? '') ??
+                parseRouteMapLabelPolygon(
+                  row['label_polygon'] as String? ?? '',
+                ) ??
                 const [],
           ),
         );
@@ -127,40 +129,5 @@ CapitalRouteMapFixture loadCapitalRouteMapFixture({
     }
   } finally {
     dir.deleteSync(recursive: true);
-  }
-}
-
-/// network_map.dart의 프로덕션 `_parseLabelPolygon`과 동일한 파싱 규칙(#2068
-/// 5차) — 픽스처가 프로덕션과 같은 오너 라벨 폴리곤을 얻도록 미러링한다. 그
-/// 함수는 private이라 여기서 재사용할 수 없어 로직만 복제한다.
-List<Offset>? _parseLabelPolygon(String value) {
-  if (value.trim().isEmpty) {
-    return null;
-  }
-  try {
-    final decoded = jsonDecode(value);
-    if (decoded is! List || decoded.length < 3) {
-      return null;
-    }
-    final points = <Offset>[];
-    for (final rawPoint in decoded) {
-      if (rawPoint is! Map) {
-        return null;
-      }
-      final x = rawPoint['x'];
-      final y = rawPoint['y'];
-      if (x is! num || y is! num) {
-        return null;
-      }
-      final dx = x.toDouble();
-      final dy = y.toDouble();
-      if (!dx.isFinite || !dy.isFinite || dx < 0 || dy < 0) {
-        return null;
-      }
-      points.add(Offset(dx, dy));
-    }
-    return points;
-  } on FormatException {
-    return null;
   }
 }

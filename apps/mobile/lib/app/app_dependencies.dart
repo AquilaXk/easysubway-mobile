@@ -31,7 +31,7 @@ import '../features/train_search/data/train_search_repository.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/train_search/domain/train_search_scope_policy.dart';
 import '../internal_route.dart';
-import '../network_map.dart';
+import '../features/network_map/domain/network_map_models.dart';
 import '../notification_settings.dart';
 import '../route_search.dart';
 import '../route_v2_ingress.dart';

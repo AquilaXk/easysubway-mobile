@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
+import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/network_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 
