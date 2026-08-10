@@ -323,7 +323,7 @@ function sha(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-test("CLI ordering and Phase A1 workflow registration fail closed", async () => {
+test("CLI ordering and Phase A2 trusted workflow wiring fail closed", async () => {
   let analyzed = 0;
   await assert.rejects(runCli(["analyze", "--event", "push"], { analyzeFn: async () => { analyzed += 1; }, environment: {} }), (error) => error.exitCode === 2);
   assert.equal(analyzed, 0);
@@ -332,5 +332,90 @@ test("CLI ordering and Phase A1 workflow registration fail closed", async () => 
   assert.equal(verified, 0);
   const workflow = readFileSync(".github/workflows/ci.yml", "utf8");
   assert.equal(workflow.match(/tools\/ci\/mobile-root-import-ratchet\.test\.mjs/gu)?.length, 1);
-  assert.doesNotMatch(workflow, /Analyze mobile root import ratchet|Upload mobile root import ratchet evidence|Enforce mobile root import ratchet verdict/u);
+  const stage = [
+    "      - name: Stage trusted mobile root import ratchet",
+    "        if: always()",
+    "        env:",
+    "          ROOT_IMPORT_TRUSTED_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}",
+    "          ROOT_IMPORT_TRUSTED_ROOT: ${{ runner.temp }}/mobile-root-import-ratchet-trusted-${{ github.run_id }}-${{ github.run_attempt }}",
+    "        run: |",
+    "          umask 077",
+    "          if [[ ! \"$ROOT_IMPORT_TRUSTED_BASE_SHA\" =~ ^[0-9a-f]{40}$ ]]; then",
+    "            echo \"trusted root import base SHA is invalid\" >&2",
+    "            exit 1",
+    "          fi",
+    "          if [[ -e \"$ROOT_IMPORT_TRUSTED_ROOT\" || -L \"$ROOT_IMPORT_TRUSTED_ROOT\" ]]; then",
+    "            echo \"trusted root import stage path already exists\" >&2",
+    "            exit 1",
+    "          fi",
+    "          git cat-file -e \"${ROOT_IMPORT_TRUSTED_BASE_SHA}^{commit}\"",
+    "          mkdir \"$ROOT_IMPORT_TRUSTED_ROOT\"",
+    "          mkdir \"$ROOT_IMPORT_TRUSTED_ROOT/tools\"",
+    "          mkdir \"$ROOT_IMPORT_TRUSTED_ROOT/tools/ci\"",
+    "          mkdir \"$ROOT_IMPORT_TRUSTED_ROOT/tools/ci/lib\"",
+    "          for source in \\",
+    "            tools/ci/mobile-root-import-ratchet.mjs \\",
+    "            tools/ci/lib/mobile-dart-source-graph.mjs \\",
+    "            tools/ci/mobile-root-import-policy.json \\",
+    "            tools/ci/mobile-root-import-baseline.json",
+    "          do",
+    "            IFS=$'\\t' read -r metadata resolved_path <<< \"$(git ls-tree \"$ROOT_IMPORT_TRUSTED_BASE_SHA\" -- \"$source\")\"",
+    "            if [[ ! \"$metadata\" =~ ^100644\\ blob\\ [0-9a-f]{40}$ || \"$resolved_path\" != \"$source\" ]]; then",
+    "              echo \"trusted root import blob identity is invalid\" >&2",
+    "              exit 1",
+    "            fi",
+    "            git show \"${ROOT_IMPORT_TRUSTED_BASE_SHA}:${source}\" > \"${ROOT_IMPORT_TRUSTED_ROOT}/${source}\"",
+    "          done",
+  ].join("\n");
+  const analyzeBlock = [
+    "      - name: Analyze mobile root import ratchet",
+    "        id: root_import_ratchet_analyze",
+    "        if: always()",
+    "        env:",
+    "          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    "          ROOT_IMPORT_TRUSTED_RUNNER: ${{ runner.temp }}/mobile-root-import-ratchet-trusted-${{ github.run_id }}-${{ github.run_attempt }}/tools/ci/mobile-root-import-ratchet.mjs",
+    "          ROOT_IMPORT_EVENT: ${{ github.event_name }}",
+    "          ROOT_IMPORT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}",
+    "          ROOT_IMPORT_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+    "          ROOT_IMPORT_TESTED_MERGE_SHA: ${{ github.sha }}",
+    "          ROOT_IMPORT_EVENT_REF: ${{ github.ref }}",
+    "          ROOT_IMPORT_PR_NUMBER: ${{ github.event.pull_request.number || 'none' }}",
+    "        run: |",
+    "          node \"$ROOT_IMPORT_TRUSTED_RUNNER\" analyze \\",
+    "            --event \"$ROOT_IMPORT_EVENT\" \\",
+    "            --base-sha \"$ROOT_IMPORT_BASE_SHA\" \\",
+    "            --head-sha \"$ROOT_IMPORT_HEAD_SHA\" \\",
+    "            --tested-merge-sha \"$ROOT_IMPORT_TESTED_MERGE_SHA\" \\",
+    "            --event-ref \"$ROOT_IMPORT_EVENT_REF\" \\",
+    "            --pull-request-number \"$ROOT_IMPORT_PR_NUMBER\"",
+  ].join("\n");
+  const upload = [
+    "      - name: Upload mobile root import ratchet evidence",
+    "        id: root_import_ratchet_upload",
+    "        if: always()",
+    "        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808",
+    "        with:",
+    "          name: mobile-root-import-ratchet-${{ github.event.pull_request.head.sha || github.sha }}",
+    "          path: ${{ runner.temp }}/mobile-root-import-ratchet",
+    "          retention-days: 5",
+    "          if-no-files-found: error",
+  ].join("\n");
+  const verdict = [
+    "      - name: Enforce mobile root import ratchet verdict",
+    "        if: always()",
+    "        env:",
+    "          ROOT_IMPORT_TRUSTED_RUNNER: ${{ runner.temp }}/mobile-root-import-ratchet-trusted-${{ github.run_id }}-${{ github.run_attempt }}/tools/ci/mobile-root-import-ratchet.mjs",
+    "        run: |",
+    "          node \"$ROOT_IMPORT_TRUSTED_RUNNER\" verdict \\",
+    "            --analysis-outcome \"${{ steps.root_import_ratchet_analyze.outcome }}\" \\",
+    "            --upload-outcome \"${{ steps.root_import_ratchet_upload.outcome }}\"",
+    "          cat \"$RUNNER_TEMP/mobile-root-import-ratchet/mobile-root-import-summary.md\" >> \"$GITHUB_STEP_SUMMARY\"",
+  ].join("\n");
+  for (const block of [stage, analyzeBlock, upload, verdict]) {
+    assert.equal(workflow.includes(block), true, block);
+    const start = workflow.indexOf(block);
+    const end = workflow.indexOf("\n      - name:", start + block.length);
+    const actualStep = workflow.slice(start, end === -1 ? undefined : end);
+    assert.equal(actualStep.includes("continue-on-error"), false);
+  }
 });
