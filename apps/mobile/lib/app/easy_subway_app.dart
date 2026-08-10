@@ -23,7 +23,7 @@ import '../features/train_search/domain/train_search_models.dart';
 import '../internal_route.dart';
 import '../legacy_credential_cleanup.dart';
 import '../mobile_error_reporter.dart';
-import '../network_map.dart';
+import '../features/network_map/domain/network_map_repositories.dart';
 import '../notification_settings.dart';
 import '../onboarding.dart';
 import '../route_search.dart';
