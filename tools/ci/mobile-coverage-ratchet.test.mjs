@@ -110,11 +110,11 @@ test("F1/F3/F5 Phase 2 decision, external JSON, pure rename inheritance를 fail-
 
 test("F4 CLI는 invalid argument/outcome 전에 owner request를 만들지 않고 bounded injected request를 닫는다", async () => {
   let requests = 0;
-  const owner = async () => { requests += 1; return { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102,"state":"open"}') }; };
+  const owner = async () => { requests += 1; return { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') }; };
   await assert.rejects(runCli(["analyze", "--event", "workflow_dispatch"], { requestOwnerIssueFn: owner }));
   await assert.rejects(runCli(["verdict", "--analysis-outcome", "failure", "--upload-outcome", "success"], { requestOwnerIssueFn: owner }));
   assert.equal(requests, 0);
-  for (const response of ["error", "slow", "oversize", "stream-error"]) await assert.rejects(requestOwnerIssue({ requestImpl: () => { throw new Error(response); }, timeoutMs: 1, maxBytes: 1 }));
+  for (const response of ["error", "slow", "oversize", "stream-error"]) await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: () => { throw new Error(response); }, timeoutMs: 1, maxBytes: 1 }));
 });
 
 test("F1 verdict는 Phase 2 FAIL artifact의 coordinated PASS/reasons/summary rewrite를 거부한다", () => {
@@ -132,16 +132,76 @@ test("F1 verdict는 Phase 2 FAIL artifact의 coordinated PASS/reasons/summary re
 
 test("F4 injected EventEmitter request는 total deadline, oversize와 stream error를 각각 reject한다", async () => {
   const fakeRequest = (schedule) => (_options, onResponse) => { const call = new EventEmitter(); call.end = () => schedule(onResponse, call); call.destroy = () => {}; return call; };
-  await assert.rejects(requestOwnerIssue({ requestImpl: fakeRequest(() => {}), timeoutMs: 5 }));
-  await assert.rejects(requestOwnerIssue({ requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("data", Buffer.alloc(2)); }), maxBytes: 1 }));
-  await assert.rejects(requestOwnerIssue({ requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("error", new Error("stream failure")); }) }));
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeRequest(() => {}), timeoutMs: 5 }));
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("data", Buffer.alloc(2)); }), maxBytes: 1 }));
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("error", new Error("stream failure")); }) }));
 });
 
 test("provider diagnostic은 non-200의 숫자 allowlist header만 보존하고 body를 누출하지 않는다", async () => {
   const fakeResponse = (statusCode, headers, body = "secret-token=never-log") => (_options, onResponse) => { const call = new EventEmitter(); call.end = () => { const response = new EventEmitter(); response.statusCode = statusCode; response.headers = headers; onResponse(response); response.emit("data", Buffer.from(body)); response.emit("end"); }; call.destroy = () => {}; return call; };
-  await assert.rejects(requestOwnerIssue({ requestImpl: fakeResponse(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "12345", authorization: "Bearer secret" }) }), /statusCode=403 x-ratelimit-remaining=0 x-ratelimit-reset=12345/);
-  await assert.rejects(requestOwnerIssue({ requestImpl: fakeResponse(404, {}) }), /statusCode=404/);
-  for (const headers of [{ "x-ratelimit-remaining": ["0"], "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "NaN", "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "999999999999999999999" }]) await assert.rejects(requestOwnerIssue({ requestImpl: fakeResponse(403, headers) }), /statusCode=403(?!.*secret-token|.*authorization)/);
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeResponse(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "12345", authorization: "Bearer secret" }) }), /statusCode=403 x-ratelimit-remaining=0 x-ratelimit-reset=12345/);
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeResponse(404, {}) }), /statusCode=404/);
+  for (const headers of [{ "x-ratelimit-remaining": ["0"], "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "NaN", "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "999999999999999999999" }]) await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeResponse(403, headers) }), /statusCode=403(?!.*secret-token|.*authorization)/);
+});
+
+test("owner issue retry는 최대 두 번과 제한된 provider backoff만 허용한다", async () => {
+  const calls = [];
+  const delays = [];
+  const requestSequence = (responses) => (options, onResponse) => {
+    calls.push(options);
+    const call = new EventEmitter();
+    call.destroy = () => {};
+    call.end = () => {
+      const next = responses.shift();
+      const response = new EventEmitter();
+      response.statusCode = next.statusCode;
+      response.headers = next.headers ?? {};
+      onResponse(response);
+      response.emit("data", Buffer.from(next.body ?? "secret-token=never-log"));
+      response.emit("end");
+    };
+    return call;
+  };
+  const owner = JSON.stringify({ number: 102, html_url: "https://github.com/AquilaXk/easysubway-mobile/issues/102", state: "open" });
+  const success = { statusCode: 200, body: owner };
+  const invoke = async (responses, { clock = () => 1000 } = {}) => requestOwnerIssue({ token: "test-token", requestImpl: requestSequence(responses), sleeper: async (delay) => delays.push(delay), clock });
+
+  await invoke([{ statusCode: 503 }, success]);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(delays, [1000]);
+  assert.equal(calls[0].headers.Authorization, "Bearer test-token");
+  delays.length = 0; calls.length = 0;
+
+  await assert.rejects(invoke([{ statusCode: 503 }, { statusCode: 503 }]), /statusCode=503/);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(delays, [1000]);
+  delays.length = 0; calls.length = 0;
+
+  await invoke([{ statusCode: 429, headers: { "retry-after": "12" } }, success]);
+  assert.deepEqual(delays, [12000]);
+  delays.length = 0; calls.length = 0;
+  await invoke([{ statusCode: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1030" } }, success]);
+  assert.deepEqual(delays, [30000]);
+  delays.length = 0; calls.length = 0;
+  await invoke([{ statusCode: 403 }, success]);
+  assert.deepEqual(delays, [60000]);
+  delays.length = 0; calls.length = 0;
+
+  for (const response of [
+    { statusCode: 429, headers: { "retry-after": "61" } },
+    { statusCode: 403, headers: { "retry-after": "bad" } },
+    { statusCode: 429, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1061" } },
+    { statusCode: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "bad" } },
+    { statusCode: 404 },
+  ]) {
+    await assert.rejects(invoke([response, success]), /statusCode=/);
+    assert.deepEqual(delays, []);
+    assert.equal(calls.length, 1);
+    delays.length = 0; calls.length = 0;
+  }
+  await assert.rejects(requestOwnerIssue({ requestImpl: () => { throw new Error("must not request"); } }), /OWNER_ISSUE_TOKEN is required/);
+  assert.equal(calls.length, 0);
+  await assert.rejects(invoke([{ statusCode: 404, body: "test-token secret-token=never-log" }]), (error) => !error.message.includes("test-token") && !error.message.includes("secret-token"));
 });
 
 test("Dart lexical scanner는 comment-only만 제외하고 문자열 속 주석 표시는 코드로 남긴다", () => {
@@ -213,12 +273,13 @@ test("CLI는 malformed/missing/duplicate argument와 intentional discovery verdi
   assert.equal(spawnSync("node", ["tools/ci/mobile-coverage-ratchet.mjs", "verdict", "--analysis-outcome", "success", "--upload-outcome", "success"]).status, 1);
 });
 
-test("Phase 1 workflow는 ratchet 분석·artifact·intentional verdict를 고정 배선한다", () => {
+test("Phase 2 enforced workflow는 ratchet 분석·artifact·verdict를 고정 배선한다", () => {
   const workflow = readFileSync(path.join(repositoryRoot, ".github/workflows/ci.yml"), "utf8");
   const analyze = [
     "      - name: Analyze mobile coverage ratchet",
     "        id: coverage_ratchet_analyze",
     "        env:",
+    "          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
     "          RATCHET_EVENT: ${{ github.event_name }}",
     "          RATCHET_EVENT_PATH: ${{ github.event_path }}",
     "          RATCHET_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}",
@@ -255,6 +316,8 @@ test("Phase 1 workflow는 ratchet 분석·artifact·intentional verdict를 고�
   const verdict = [
     "      - name: Enforce mobile coverage ratchet verdict",
     "        if: always()",
+    "        env:",
+    "          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
     "        run: |",
     "          node tools/ci/mobile-coverage-ratchet.mjs verdict \\",
     "            --analysis-outcome \"${{ steps.coverage_ratchet_analyze.outcome }}\" \\",
@@ -263,7 +326,8 @@ test("Phase 1 workflow는 ratchet 분석·artifact·intentional verdict를 고�
   assert.equal(workflow.includes("tools/ci/mobile-coverage-ratchet.test.mjs"), true);
   for (const block of [analyze, upload, verdict]) {
     assert.equal(workflow.includes(block), true, block);
-    assert.equal(block.includes("continue-on-error"), false);
+    const start = workflow.indexOf(block); const end = workflow.indexOf("\n      - name:", start + block.length); const actualStep = workflow.slice(start, end === -1 ? undefined : end);
+    assert.equal(actualStep.includes("continue-on-error"), false);
   }
 });
 
