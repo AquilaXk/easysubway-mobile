@@ -48,6 +48,7 @@ test("shared graph parser handles directive-only Dart grammar and fails closed",
       String quoted(String value) => '"\${value.replaceAll('"', '""')}"';
     `,
     "apps/mobile/lib/features/home/default.dart": "class Default {}",
+    "apps/mobile/lib/features/home/generic.dart": "@GraphAnnotation<Map<String, List<int>>>.named() import '../../network_map.dart'; class Generic {}",
     "apps/mobile/lib/features/home/io.dart": "class Io {}",
     "apps/mobile/lib/features/home/web.dart": "class Web {}",
     "apps/mobile/lib/features/home/barrel.dart": "class Barrel {}",
@@ -55,6 +56,7 @@ test("shared graph parser handles directive-only Dart grammar and fails closed",
     "apps/mobile/lib/features/home/named.dart": "part of sample.library;",
     "apps/mobile/lib/accessible_design.dart": "class Accessible {}",
     "apps/mobile/lib/design_tokens.dart": "class Tokens {}",
+    "apps/mobile/lib/network_map.dart": "class NetworkMap {}",
   };
   const graph = buildImmutableDartSourceGraph({ files });
   assert.deepEqual(graph.uncertainty, []);
@@ -72,6 +74,7 @@ test("shared graph parser handles directive-only Dart grammar and fails closed",
   ].sort((left, right) => `${left[0]}:${left[1]}`.localeCompare(`${right[0]}:${right[1]}`)));
   assert.ok(graph.edges.some((edge) => edge.source.endsWith("named.dart") && edge.kind === "PART_OF" && edge.uriKind === "NAMED_PART"));
   assert.ok(graph.edges.some((edge) => edge.source.endsWith("part.dart") && edge.kind === "PART_OF" && edge.target?.endsWith("library.dart")));
+  assert.ok(graph.edges.some((edge) => edge.source.endsWith("generic.dart") && edge.target?.endsWith("network_map.dart")));
   assert.ok(reverseConsumerFanout(graph, ["apps/mobile/lib/features/home/barrel.dart"]).includes("apps/mobile/lib/features/home/library.dart"));
 
   for (const source of [
@@ -80,6 +83,7 @@ test("shared graph parser handles directive-only Dart grammar and fails closed",
     "import 'package:easysubway_mobile/features/../design_tokens.dart';",
     "/* unterminated",
     "import 'default.dart' import 'io.dart';",
+    "@Foo<int() import '../../network_map.dart';",
   ]) {
     const malformed = buildImmutableDartSourceGraph({ files: { ...files, "apps/mobile/lib/features/home/malformed.dart": source } });
     assert.ok(malformed.uncertainty.some((entry) => entry.path.endsWith("malformed.dart")), source);
@@ -89,7 +93,8 @@ test("shared graph parser handles directive-only Dart grammar and fails closed",
 test("tracked policy, baseline, and current immutable graph match the reviewed ceiling", () => {
   assert.throws(() => parsePolicyBytes(Buffer.from(POLICY_BYTES.toString().replace("NO_INCREASE", "NO_INCREASED"))), /reviewed pin/);
   assert.throws(() => parseBaselineBytes(Buffer.from(BASELINE_BYTES.toString().replace("\"ownerIssue\":18", "\"ownerIssue\":19")), POLICY), /reviewed pin/);
-  const commit = requireGitText(["rev-parse", "HEAD"]);
+  const commit = BASELINE.reviewedHeadSha;
+  assert.notEqual(requireGitText(["rev-parse", "HEAD"]), commit);
   const files = loadImmutableDartTree(commit);
   const graph = buildImmutableDartSourceGraph({ files });
   const production = graph.sources.filter((source) => source.path.startsWith("apps/mobile/lib/"));
@@ -103,6 +108,43 @@ test("tracked policy, baseline, and current immutable graph match the reviewed c
   assert.deepEqual(decision.reasons, []);
   assert.equal(decision.outcome, "PASS");
   assert.deepEqual(Object.fromEntries([18, 19, 20, 22].map((number) => [number, decision.currentEdges.filter((edge) => edge.ownerIssue === number).length])), { 18: 14, 19: 3, 20: 6, 22: 24 });
+});
+
+test("immutable pubspec package identity binds self-package imports", async () => {
+  const module = await import("./mobile-root-import-ratchet.mjs");
+  assert.equal(typeof module.loadImmutableMobileTree, "function");
+  const commit = "a".repeat(40);
+  const pubspecObject = "b".repeat(40);
+  const featureObject = "c".repeat(40);
+  const rootObject = "d".repeat(40);
+  const objects = new Map([
+    [pubspecObject, "name: easysubway_mobile\nversion: 1.0.0\n"],
+    [featureObject, "import 'package:easysubway_mobile/network_map.dart';"],
+    [rootObject, "class NetworkMap {}"],
+  ]);
+  const gitApi = {
+    bytes: (args) => {
+      if (args[0] === "ls-tree") return Buffer.from([
+        `100644 blob ${featureObject}\tapps/mobile/lib/features/home/home.dart`,
+        `100644 blob ${rootObject}\tapps/mobile/lib/network_map.dart`,
+        `100644 blob ${pubspecObject}\tapps/mobile/pubspec.yaml`,
+        "",
+      ].join("\0"));
+      return Buffer.from(objects.get(args[2]) ?? "");
+    },
+    text: () => "",
+  };
+  const tree = module.loadImmutableMobileTree(commit, { gitApi });
+  assert.equal(tree.packageName, "easysubway_mobile");
+  const graph = buildImmutableDartSourceGraph({ files: tree.files, packageName: tree.packageName });
+  assert.ok(graph.edges.some((edge) => edge.uriKind === "OWN_PACKAGE" && edge.target === "apps/mobile/lib/network_map.dart"));
+  objects.set(pubspecObject, "name: renamed_mobile\n");
+  const renamed = module.loadImmutableMobileTree(commit, { gitApi });
+  assert.throws(() => buildImmutableDartSourceGraph({ files: renamed.files, packageName: renamed.packageName }), /package identity mismatch/);
+  objects.set(pubspecObject, "name: first_mobile\nname: second_mobile\n");
+  assert.throws(() => module.loadImmutableMobileTree(commit, { gitApi }), /missing or duplicated/);
+  objects.set(pubspecObject, "name: Renamed-Mobile\n");
+  assert.throws(() => module.loadImmutableMobileTree(commit, { gitApi }), /package name is invalid/);
 });
 
 function requireGitText(args) {
@@ -156,6 +198,42 @@ test("no-increase decision distinguishes neutral, new, wrapper, removal, and rei
   const reintroducedFiles = { [reviewed.source]: `import '${reviewed.uri}';`, [reviewed.target]: "class Target {}" };
   const reintroduced = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: reintroducedFiles }), files: reintroducedFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [OPEN(reviewed.ownerIssue)] });
   assert.deepEqual(reintroduced.reasons, ["NEW_FORBIDDEN_EDGE"]);
+});
+
+test("wrapper discovery emits one bounded canonical witness per origin and target", () => {
+  const files = {
+    "apps/mobile/lib/network_map.dart": "class NetworkMap {}",
+    "apps/mobile/lib/features/home/origin.dart": "import 'left.dart'; import 'right.dart';",
+    "apps/mobile/lib/features/home/left.dart": "import 'join.dart';",
+    "apps/mobile/lib/features/home/right.dart": "import 'join.dart';",
+    "apps/mobile/lib/features/home/join.dart": "import '../../network_map.dart';",
+  };
+  const decision = classifyRootImportGraph({
+    graph: buildImmutableDartSourceGraph({ files }),
+    files,
+    policy: POLICY,
+    baseline: BASELINE,
+    baseForbiddenEdges: [],
+    ownerStatus: [OPEN(19)],
+  });
+  const originFindings = decision.wrapperFindings.filter((finding) => finding.source.endsWith("origin.dart") && finding.target.endsWith("network_map.dart"));
+  assert.deepEqual(originFindings.map((finding) => finding.path), [[
+    "apps/mobile/lib/features/home/origin.dart",
+    "apps/mobile/lib/features/home/left.dart",
+    "apps/mobile/lib/features/home/join.dart",
+    "apps/mobile/lib/network_map.dart",
+  ]]);
+  const rightOnly = { ...files, "apps/mobile/lib/features/home/origin.dart": "import 'right.dart';" };
+  const afterRemoval = classifyRootImportGraph({
+    graph: buildImmutableDartSourceGraph({ files: rightOnly }),
+    files: rightOnly,
+    policy: POLICY,
+    baseline: BASELINE,
+    baseForbiddenEdges: [],
+    baseWrapperFindings: decision.wrapperFindings,
+    ownerStatus: [OPEN(19)],
+  });
+  assert.equal(afterRemoval.newWrapperFindings.filter((finding) => finding.source.endsWith("origin.dart") && finding.target.endsWith("network_map.dart")).length, 0);
 });
 
 test("owner issue evidence is strict and bounded retry never leaks credentials", async () => {

@@ -88,6 +88,7 @@ const stableUnique = (values, name) => {
 const debtKey = (edge) => CURRENT_DEBT_EDGE_KEYS.map((key) => key === "conditional" ? String(edge.conditional ?? false) : (edge[key] ?? "")).join("\0");
 const graphEdgeKey = (edge) => EDGE_KEYS.map((key) => String(edge[key] ?? "")).join("\0");
 const wrapperKey = (finding) => `${finding.source}\0${finding.path.join("\0")}\0${finding.target}\0${finding.targetClassification}`;
+const wrapperIdentityKey = (finding) => `${finding.source}\0${finding.target}\0${finding.targetClassification}`;
 
 export function strictExternalJson(bytes, name) {
   const text = utf8(Buffer.from(bytes), name);
@@ -232,22 +233,37 @@ function findWrapperFindings(graph, importerByPath, rootByPath, policy) {
   const origins = [...importerByPath.entries()].filter(([, importer]) => importer === "FEATURE_PRODUCTION" || importer === "SHARED_NEUTRAL").map(([file]) => file).sort(compare);
   for (const origin of origins) {
     const originClass = importerByPath.get(origin);
-    const visit = (current, chain, seen) => {
+    const queue = [origin];
+    const parents = new Map([[origin, null]]);
+    const depths = new Map([[origin, 0]]);
+    const byTarget = new Map();
+    const pathTo = (target) => {
+      const result = [];
+      for (let current = target; current !== null; current = parents.get(current)) result.push(current);
+      return result.reverse();
+    };
+    for (let index = 0; index < queue.length; index += 1) {
+      const current = queue[index];
       for (const target of graph.graph.get(current) ?? []) {
-        if (seen.has(target)) continue;
-        const nextChain = [...chain, target];
+        const nextDepth = depths.get(current) + 1;
+        let allowed = null;
         if (rootPath(target)) {
           const targetClass = rootByPath.get(target)?.classification ?? "FORBIDDEN_OR_UNKNOWN";
-          const allowed = originClass === "FEATURE_PRODUCTION" ? policy.forbiddenMatrix.featureAllowedTargets : policy.forbiddenMatrix.neutralAllowedTargets;
-          const hiddenFeatureChain = originClass === "FEATURE_PRODUCTION" && nextChain.length > 2 && !allowed.includes(targetClass);
+          allowed = originClass === "FEATURE_PRODUCTION" ? policy.forbiddenMatrix.featureAllowedTargets : policy.forbiddenMatrix.neutralAllowedTargets;
+          const hiddenFeatureChain = originClass === "FEATURE_PRODUCTION" && nextDepth > 1 && !allowed.includes(targetClass);
           const neutralViolation = originClass === "SHARED_NEUTRAL" && !allowed.includes(targetClass);
-          if (hiddenFeatureChain || neutralViolation) findings.push({ source: origin, path: nextChain, target, targetClassification: targetClass });
+          if ((hiddenFeatureChain || neutralViolation) && !byTarget.has(target)) {
+            byTarget.set(target, { source: origin, path: [...pathTo(current), target], target, targetClassification: targetClass });
+          }
           if (!allowed.includes(targetClass)) continue;
         }
-        visit(target, nextChain, new Set([...seen, target]));
+        if (parents.has(target)) continue;
+        parents.set(target, current);
+        depths.set(target, nextDepth);
+        queue.push(target);
       }
-    };
-    visit(origin, [origin], new Set([origin]));
+    }
+    findings.push(...byTarget.values());
   }
   return findings.sort((left, right) => compare(wrapperKey(left), wrapperKey(right)));
 }
@@ -308,8 +324,8 @@ export function classifyRootImportGraph({ graph, files = {}, policy, baseline, b
   }
   forbiddenEdges.sort((left, right) => compare(debtKey(left), debtKey(right)));
   const wrapperFindings = findWrapperFindings(graph, importerByPath, rootByPath, policy);
-  const baseWrapperKeys = new Set(baseWrapperFindings.map(wrapperKey));
-  const newWrapperFindings = wrapperFindings.filter((finding) => !baseWrapperKeys.has(wrapperKey(finding)));
+  const baseWrapperKeys = new Set(baseWrapperFindings.map(wrapperIdentityKey));
+  const newWrapperFindings = wrapperFindings.filter((finding) => !baseWrapperKeys.has(wrapperIdentityKey(finding)));
   const projectedBaseline = baseline.edges.map((edge) => ({ source: edge.source, target: edge.target, kind: edge.kind, uri: edge.uri, uriKind: edge.uriKind, conditional: false, targetClassification: edge.targetClassification, ownerIssue: edge.ownerIssue, removalTrigger: edge.removalTrigger }));
   const baselineKeys = new Set(projectedBaseline.map(debtKey));
   const baseKeys = new Set(baseForbiddenEdges.map(debtKey));
@@ -402,23 +418,43 @@ export function validateComparison(options, { repositoryRoot = process.cwd(), gi
   return comparison;
 }
 
-export function loadImmutableDartTree(commit, { repositoryRoot = process.cwd(), gitApi = defaultGit(repositoryRoot) } = {}) {
+function pubspecPackageName(bytes) {
+  const lines = utf8(bytes, "immutable mobile pubspec").split(/\r?\n/u);
+  const declarations = lines.filter((line) => /^name\s*:/u.test(line));
+  if (declarations.length !== 1) fail("immutable mobile pubspec package name is missing or duplicated");
+  const match = /^name: ([a-z][a-z0-9_]*)$/u.exec(declarations[0]);
+  if (!match) fail("immutable mobile pubspec package name is invalid");
+  return match[1];
+}
+
+export function loadImmutableMobileTree(commit, { repositoryRoot = process.cwd(), gitApi = defaultGit(repositoryRoot) } = {}) {
   if (!SHA.test(commit)) fail("immutable tree commit is invalid");
-  const raw = gitApi.bytes(["ls-tree", "-r", "-z", "--full-tree", commit, "--", "apps/mobile/lib", "apps/mobile/test", "apps/mobile/integration_test", "apps/mobile/test_driver"]);
+  const raw = gitApi.bytes(["ls-tree", "-r", "-z", "--full-tree", commit, "--", "apps/mobile/lib", "apps/mobile/test", "apps/mobile/integration_test", "apps/mobile/test_driver", "apps/mobile/pubspec.yaml"]);
   const entries = utf8(raw, "git ls-tree", { allowNul: true }).split("\0");
   if (entries.pop() !== "") fail("git ls-tree stream is malformed");
   const files = {};
+  let packageName = null;
   for (const record of entries) {
     const match = /^(\d{6}) ([a-z]+) ([0-9a-f]{40})\t(.+)$/u.exec(record);
     if (!match) fail("git ls-tree record is malformed");
     const [, mode, type, object, file] = match;
+    if (file === "apps/mobile/pubspec.yaml") {
+      if (packageName !== null || mode !== "100644" || type !== "blob") fail("immutable mobile pubspec must be one regular blob");
+      packageName = pubspecPackageName(gitApi.bytes(["cat-file", "blob", object]));
+      continue;
+    }
     if (!file.endsWith(".dart")) continue;
     validateDartPath(file, "immutable tree path");
     if (!/^100(?:644|755)$/u.test(mode) || type !== "blob") fail("immutable Dart source must be a regular blob");
     if (Object.hasOwn(files, file)) fail("duplicate immutable Dart tree path");
     files[file] = utf8(gitApi.bytes(["cat-file", "blob", object]), `Dart blob ${file}`, { allowNul: true });
   }
-  return files;
+  if (packageName === null) fail("immutable mobile pubspec is missing");
+  return { files, packageName };
+}
+
+export function loadImmutableDartTree(commit, options = {}) {
+  return loadImmutableMobileTree(commit, options).files;
 }
 
 function sourceTreeDigest(graph) {
@@ -536,10 +572,12 @@ export function verifyArtifactDirectory(directory, { repositoryRoot = process.cw
   const contract = readProductionContract();
   const comparison = validateComparison({ event: result.comparison.event, eventRef: result.comparison.eventRef, pullRequestNumber: result.comparison.pullRequestNumber === null ? "none" : String(result.comparison.pullRequestNumber), baseSha: result.comparison.baseSha, headSha: result.comparison.headSha, testedMergeSha: result.comparison.testedMergeSha }, { repositoryRoot, gitApi });
   if (JSON.stringify(comparison) !== JSON.stringify(result.comparison)) fail("ARTIFACT_MISMATCH: comparison changed");
-  const files = loadImmutableDartTree(comparison.testedMergeSha, { repositoryRoot, gitApi });
-  const baseFiles = loadImmutableDartTree(comparison.baseSha, { repositoryRoot, gitApi });
-  const graph = buildImmutableDartSourceGraph({ files });
-  const baseGraph = buildImmutableDartSourceGraph({ files: baseFiles });
+  const tree = loadImmutableMobileTree(comparison.testedMergeSha, { repositoryRoot, gitApi });
+  const baseTree = loadImmutableMobileTree(comparison.baseSha, { repositoryRoot, gitApi });
+  const files = tree.files;
+  const baseFiles = baseTree.files;
+  const graph = buildImmutableDartSourceGraph({ files, packageName: tree.packageName });
+  const baseGraph = buildImmutableDartSourceGraph({ files: baseFiles, packageName: baseTree.packageName });
   const preliminary = classifyRootImportGraph({ graph, files, policy: contract.policy, baseline: contract.baseline, baseForbiddenEdges: [], ownerStatus: [] });
   validateOwnerStatusValues(result.ownerStatus, preliminary.neededOwners, contract.policy);
   const expected = buildEvidence({ comparison, graph, files, baseGraph, baseFiles, ...contract, ownerStatus: result.ownerStatus });
@@ -629,10 +667,12 @@ export async function analyze(options, { repositoryRoot = process.cwd(), gitApi 
   if (!path.isAbsolute(environment.RUNNER_TEMP ?? "") || typeof environment.OWNER_ISSUE_TOKEN !== "string" || !environment.OWNER_ISSUE_TOKEN) fail("RUNNER_TEMP and OWNER_ISSUE_TOKEN are required");
   const comparison = validateComparison(options, { repositoryRoot, gitApi });
   const contract = readProductionContract();
-  const files = loadImmutableDartTree(comparison.testedMergeSha, { repositoryRoot, gitApi });
-  const baseFiles = loadImmutableDartTree(comparison.baseSha, { repositoryRoot, gitApi });
-  const graph = buildImmutableDartSourceGraph({ files });
-  const baseGraph = buildImmutableDartSourceGraph({ files: baseFiles });
+  const tree = loadImmutableMobileTree(comparison.testedMergeSha, { repositoryRoot, gitApi });
+  const baseTree = loadImmutableMobileTree(comparison.baseSha, { repositoryRoot, gitApi });
+  const files = tree.files;
+  const baseFiles = baseTree.files;
+  const graph = buildImmutableDartSourceGraph({ files, packageName: tree.packageName });
+  const baseGraph = buildImmutableDartSourceGraph({ files: baseFiles, packageName: baseTree.packageName });
   const base = classifyRootImportGraph({ graph: baseGraph, files: baseFiles, policy: contract.policy, baseline: contract.baseline, baseForbiddenEdges: contract.baseline.edges, ownerStatus: contract.policy.owners.map((owner) => ({ number: owner.number, title: owner.title, url: owner.url, state: "OPEN" })) });
   const preliminary = classifyRootImportGraph({ graph, files, policy: contract.policy, baseline: contract.baseline, baseForbiddenEdges: base.forbiddenEdges, baseWrapperFindings: base.wrapperFindings, ownerStatus: [] });
   const ownerStatus = [];

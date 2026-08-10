@@ -237,13 +237,40 @@ function parsePartBody(body) {
     : { uncertain: true, directives: [] };
 }
 
+function tokenAfterMetadataTypeArguments(source, state) {
+  const stack = [">"];
+  let hasIdentifier = false;
+  while (stack.length > 0) {
+    const token = nextToken(source, state);
+    if (token === null || state.malformed || token.type === "string" || [";", "@"].includes(token.value)) return null;
+    if (token.type === "identifier") hasIdentifier = true;
+    if (token.value === "<") stack.push(">");
+    else if (token.value === "(") stack.push(")");
+    else if (token.value === "[") stack.push("]");
+    else if (token.value === "{") stack.push("}");
+    else if ([">", ")", "]", "}"].includes(token.value)) {
+      if (stack.at(-1) !== token.value) return null;
+      stack.pop();
+    }
+  }
+  return hasIdentifier ? nextToken(source, state) : null;
+}
+
 function skipMetadata(source, state) {
   const name = nextToken(source, state);
   if (name?.type !== "identifier") return false;
   let token = nextToken(source, state);
-  while (token?.value === ".") {
-    if (nextToken(source, state)?.type !== "identifier") return false;
-    token = nextToken(source, state);
+  let typeArguments = false;
+  while (token?.value === "." || token?.value === "<") {
+    if (token.value === ".") {
+      if (nextToken(source, state)?.type !== "identifier") return false;
+      token = nextToken(source, state);
+      continue;
+    }
+    if (typeArguments) return false;
+    typeArguments = true;
+    token = tokenAfterMetadataTypeArguments(source, state);
+    if (token === null) return false;
   }
   if (token?.value !== "(") {
     state.pending = token;
