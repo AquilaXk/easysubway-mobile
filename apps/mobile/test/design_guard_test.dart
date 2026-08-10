@@ -271,9 +271,11 @@ void main() {
       exclude: {'accessible_design.dart', 'design_tokens.dart'},
     );
     expectRatchet(actual, {
-      // 의도 잔존: 기준 화면(노선도 홈·좌측 메뉴) — 룩 불변 원칙.
-      // 방면 제목 2건이 w900으로 이동해 8→5로 하향. — 오너 결정 2026-07-16, #2200
-      'lib/network_map.dart': 5,
+      // 의도 잔존: 노선도 홈 화면 타이틀 2건 — 룩 불변 원칙.
+      // 좌측 메뉴 타이틀은 feature owner로 이동해 5→2로 하향. — #122
+      'lib/network_map.dart': 2,
+      // 의도 잔존: 좌측 메뉴 타이틀 1건 — #122 owner 이전.
+      'lib/features/network_map/presentation/network_map_menu_panel.dart': 1,
       // 주변역 패널 현재역 캡슐 역명 + 원형 노선 배지 번호 — 색/캡슐 위 시인성.
       // — 오너 결정 2026-07-16, #2200
       'lib/features/network_map/presentation/nearby_station_line_bar.dart': 2,
@@ -363,6 +365,9 @@ void main() {
           overlayFiles.add(path);
         }
       });
+      overlayFiles.add(
+        'lib/features/network_map/presentation/network_map_menu_panel.dart',
+      );
       expect(overlayFiles, isNotEmpty, reason: 'showGeneralDialog 사용 파일이 없다');
 
       final materialPattern = RegExp(r'\bMaterial\(');
