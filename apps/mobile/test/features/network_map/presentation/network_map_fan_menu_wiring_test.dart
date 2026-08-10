@@ -1,22 +1,12 @@
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_policy.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 // NOTE: 노선도 캔버스는 network_map.dart의 private 위젯이라 직접 pump가 어렵다.
-// 이 테스트는 StationFanMenu가 노선도에 마운트됨을 보장하기보다, onAction의
-// set/clear 분기 규칙을 순수 함수로 뽑아 검증한다(아래 헬퍼를 network_map.dart에
-// @visibleForTesting으로 노출).
+// 이 테스트는 StationFanMenu가 노선도에 마운트됨을 보장하기보다, production이
+// 직접 소비하는 station_fan_menu_policy의 placement/anchor/set-clear 규칙을 검증한다.
 
-import 'package:easysubway_mobile/network_map.dart'
-    show
-        fanMenuAnchorNodeHeight,
-        fanMenuSelectedSlots,
-        fanMenuDisabledSlots,
-        fanMenuShouldClear,
-        fanMenuTailAnchorPoint,
-        fanMenuWidthForViewport,
-        fanMenuPlacement,
-        fanMenuTransferAnchor;
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart'
     show kFanMenuDesignSize, kFanMenuTailTip;
 import 'package:easysubway_mobile/features/network_map/domain/route_map_design_space.dart'
@@ -499,11 +489,11 @@ void main() {
   });
 
   group('재탭 clear 분기 (network_map.dart _NetworkMapCanvas onAction 실배선)', () {
-    // network_map.dart의 실제 onAction 클로저(3507행 부근)는
+    // network_map.dart의 실제 onAction 클로저는
     //   fanMenuShouldClear(slot, selectedSlots) ? clear : set
     // 로 분기한다. _NetworkMapCanvas는 private이라 직접 pump할 수 없으므로,
-    // 배선 로직을 사본으로 재현하는 대신 network_map.dart가 실제로 노출하는
-    // @visibleForTesting 순수 함수 fanMenuShouldClear를 그대로 호출해
+    // 배선 로직을 사본으로 재현하는 대신 production owner가 노출하는
+    // 순수 함수 fanMenuShouldClear를 그대로 호출해
     // 콜백 배선 회귀를 잡는다(로직 사본 없음).
     Future<void> pumpWithWiring(
       WidgetTester tester, {
