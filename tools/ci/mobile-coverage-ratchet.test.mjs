@@ -394,6 +394,32 @@ test("changed executable set은 present SF의 exact DA hit·miss만 사용한다
   });
 });
 
+test("F1 changed executable set은 producer coverage-ignore 지시를 fail-closed한다", () => {
+  const rawPath = "apps/mobile/lib/ignored.dart";
+  const changed = (source) => ({
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1,${source.toString("utf8").trimEnd().split("\n").length} @@\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`${source.toString("utf8").trimEnd().split("\n").length}\t0\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return source;
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  });
+  const coverage = new Map([[rawPath, new Map()]]);
+  for (const source of [
+    Buffer.from("final hidden = 1; // coverage:ignore-line reason_1\n"),
+    Buffer.from("// coverage:ignore-start\nfinal hidden = 1;\n// coverage:ignore-end\n"),
+    Buffer.from("// coverage:ignore-file generated_reason\nfinal hidden = 1;\n"),
+  ]) {
+    assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, coverage, changed(source)), /coverage-ignore directive/i);
+  }
+  const nearMiss = Buffer.from("// coverage:ignored-line\n");
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, coverage, changed(nearMiss)), {
+    state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null,
+  });
+});
+
 test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", () => {
   const rawPath = "apps/mobile/lib/comment.dart"; const source = Buffer.from("// comment\n");
   const emptyDiff = {
