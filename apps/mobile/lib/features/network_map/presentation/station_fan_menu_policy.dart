@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'dart:ui' show Color, Offset, Rect, Size;
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
+import 'package:flutter/material.dart' show Colors;
 
 import '../../route_draft/domain/route_draft.dart';
 import '../domain/route_map_design_space.dart';
@@ -108,7 +109,7 @@ Offset fanMenuTransferAnchor({
   final markers = routeMapTransferMarkers(
     memberCenters: memberPositions,
     // 캡슐 기하(중심)는 색과 무관하나 함수 계약상 길이가 멤버 수와 같아야 한다.
-    colors: List<Color>.filled(memberPositions.length, const Color(0xFF000000)),
+    colors: List<Color>.filled(memberPositions.length, Colors.transparent),
     designSpread: offsetsMaxPairwiseDistance(memberPositions) * designScale,
     dotRadius: kRouteMapTransferDotRadiusPx,
     dotGap: kRouteMapTransferDotGapPx,
@@ -181,7 +182,7 @@ double fanMenuAnchorNodeHeight({
   final markers = routeMapTransferMarkers(
     memberCenters: memberPositions,
     // 캡슐 모드 판정은 색과 무관하나 함수 계약상 길이가 멤버 수와 같아야 한다.
-    colors: List<Color>.filled(memberPositions.length, const Color(0xFF000000)),
+    colors: List<Color>.filled(memberPositions.length, Colors.transparent),
     designSpread: offsetsMaxPairwiseDistance(memberPositions) * designScale,
     dotRadius: kRouteMapTransferDotRadiusPx,
     dotGap: kRouteMapTransferDotGapPx,
