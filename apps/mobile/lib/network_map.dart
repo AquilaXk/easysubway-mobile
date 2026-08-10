@@ -26,6 +26,7 @@ import 'features/network_map/presentation/nearby_direction_columns.dart';
 import 'features/network_map/presentation/nearby_direction_title.dart';
 import 'features/network_map/presentation/nearby_station_line_bar.dart';
 import 'features/network_map/presentation/network_map_camera_policy.dart';
+import 'features/network_map/presentation/network_map_chrome_controls.dart';
 import 'features/network_map/presentation/network_map_menu_panel.dart';
 import 'features/network_map/presentation/region_menu.dart';
 import 'features/network_map/presentation/station_fan_menu.dart';
@@ -2032,51 +2033,15 @@ class _NetworkMapChrome extends StatelessWidget {
             left: 24,
             right: 24,
             bottom: nearbyPanelVisible ? 318 : 132,
-            child: _NetworkMapLookupToast(message: nearbyLookupMessage!),
+            child: NetworkMapLookupToast(message: nearbyLookupMessage!),
           ),
         if (!inSearchMode && !nearbyPanelExpanded)
           Positioned(
             right: 16,
             bottom: nearbyPanelVisible ? 280 : 26,
-            child: _NetworkMapCurrentLocationButton(
-              onTap: onCurrentLocationTap,
-            ),
+            child: NetworkMapCurrentLocationButton(onTap: onCurrentLocationTap),
           ),
       ],
-    );
-  }
-}
-
-class _NetworkMapLookupToast extends StatelessWidget {
-  const _NetworkMapLookupToast({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Align(
-      alignment: Alignment.center,
-      child: Material(
-        key: const Key('networkMapNearbyLookupMessage'),
-        color: const Color(0xE62F3437),
-        elevation: 0,
-        borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-          child: Text(
-            message,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: EasySubwayAccessibleColors.interactionOnPrimary,
-              fontSize: 15,
-              fontWeight: FontWeight.w800,
-              height: 1.2,
-            ),
-          ),
-        ),
-      ),
     );
   }
 }
@@ -2806,47 +2771,6 @@ class _NetworkMapSearchSessionState extends State<_NetworkMapSearchSession> {
                 ],
               );
             },
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _NetworkMapCurrentLocationButton extends StatelessWidget {
-  const _NetworkMapCurrentLocationButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: '현재 위치에서 가장 가까운 역 찾기',
-      onTap: onTap,
-      child: ExcludeSemantics(
-        child: Material(
-          key: const Key('nearbyStationButton'),
-          color: EasySubwayAccessibleColors.surfaceDefault,
-          elevation: 0,
-          shape: const CircleBorder(
-            side: BorderSide(
-              color: EasySubwayAccessibleColors.borderSubtle,
-              width: 1,
-            ),
-          ),
-          child: InkWell(
-            customBorder: const CircleBorder(),
-            onTap: onTap,
-            child: const SizedBox(
-              width: 56,
-              height: 56,
-              child: Icon(
-                Icons.my_location,
-                size: 27,
-                color: EasySubwayAccessibleColors.contentSecondary,
-              ),
-            ),
           ),
         ),
       ),

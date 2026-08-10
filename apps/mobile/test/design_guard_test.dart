@@ -200,7 +200,9 @@ void main() {
             '0xFF8D8D8D',
             '0xCCFFFFFF',
           },
-      'lib/network_map.dart': {'0x99000000', '0xE62F3437', '0xFF000000'},
+      'lib/network_map.dart': {'0x99000000', '0xFF000000'},
+      'lib/features/network_map/presentation/network_map_chrome_controls.dart':
+          {'0xE62F3437'},
       'lib/features/network_map/presentation/region_menu.dart': {'0x99000000'},
       'lib/app/accessibility_theme.dart': {'Colors.white'},
     };
@@ -271,9 +273,13 @@ void main() {
       exclude: {'accessible_design.dart', 'design_tokens.dart'},
     );
     expectRatchet(actual, {
-      // 의도 잔존: 노선도 홈 화면 타이틀 2건 — 룩 불변 원칙.
-      // 좌측 메뉴 타이틀은 feature owner로 이동해 5→2로 하향. — #122
-      'lib/network_map.dart': 2,
+      // 의도 잔존: 노선도 홈 화면 타이틀 1건 — 룩 불변 원칙.
+      // 좌측 메뉴와 lookup toast는 feature owner로 이동해 5→1로 하향.
+      // — #122, #124
+      'lib/network_map.dart': 1,
+      // 의도 잔존: nearby lookup toast 1건 — #124 owner 이전.
+      'lib/features/network_map/presentation/network_map_chrome_controls.dart':
+          1,
       // 의도 잔존: 좌측 메뉴 타이틀 1건 — #122 owner 이전.
       'lib/features/network_map/presentation/network_map_menu_panel.dart': 1,
       // 주변역 패널 현재역 캡슐 역명 + 원형 노선 배지 번호 — 색/캡슐 위 시인성.
@@ -302,7 +308,11 @@ void main() {
   });
 
   test('노선도 그림자/elevation 재유입 금지 가드 (#1933)', () {
-    final filesToCheck = ['lib/network_map.dart', 'lib/route_search.dart'];
+    final filesToCheck = [
+      'lib/network_map.dart',
+      'lib/route_search.dart',
+      'lib/features/network_map/presentation/network_map_chrome_controls.dart',
+    ];
     final violations = <String, List<String>>{};
 
     for (final filePath in filesToCheck) {
