@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rename
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { analyze, changedExecutableLines, classifyDartLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
+import { analyze, changedExecutableLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
 
 const policyFile = new URL("./mobile-coverage-policy.json", import.meta.url);
 const baselineFile = new URL("./mobile-coverage-baseline.json", import.meta.url);
@@ -204,25 +204,6 @@ test("owner issue retry는 최대 두 번과 제한된 provider backoff만 허�
   await assert.rejects(invoke([{ statusCode: 404, body: "test-token secret-token=never-log" }]), (error) => !error.message.includes("test-token") && !error.message.includes("secret-token"));
 });
 
-test("Dart lexical scanner는 comment-only만 제외하고 문자열 속 주석 표시는 코드로 남긴다", () => {
-  assert.deepEqual(classifyDartLines(Buffer.from("// comment\n/* outer\n * inner */\nfinal value = '// code';\n")), ["COMMENT_ONLY", "COMMENT_ONLY", "COMMENT_ONLY", "CODE"]);
-  assert.throws(() => classifyDartLines(Buffer.from("/* unclosed")), /unterminated/i);
-});
-
-test("Dart lexical scanner는 nested block comment와 raw/triple 문자열을 fail-closed로 구분한다", () => {
-  assert.deepEqual(classifyDartLines(Buffer.from("/* outer /* nested */ done */\nfinal raw = r'// literal';\nfinal text = '''/* literal */\nnext''';\n")), ["COMMENT_ONLY", "CODE", "CODE", "CODE"]);
-  assert.throws(() => classifyDartLines(Buffer.from("final text = '''unterminated")), /unterminated/i);
-  assert.throws(() => classifyDartLines(Buffer.from("final text = 'unterminated\n")), /unterminated/i);
-});
-
-test("Dart lexical scanner는 non-raw triple의 escaped delimiter와 raw delimiter를 구분한다", () => {
-  assert.deepEqual(classifyDartLines(Buffer.from(`final single = '''escaped \\''' delimiter''' ;
-final double = """escaped \\""" delimiter""" ;
-`)), ["CODE", "CODE"]);
-  assert.throws(() => classifyDartLines(Buffer.from(`final raw = r'''escaped \\''' delimiter''' ;`)), /unterminated/i);
-  assert.throws(() => classifyDartLines(Buffer.from(`final text = """escaped \\""" delimiter`)), /unterminated/i);
-});
-
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 function discoveryInput(dir, event = "workflow_dispatch") {
@@ -387,6 +368,58 @@ test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부�
   assert.equal(deleted[0].status, "DELETED");
 });
 
+test("changed executable set은 present SF의 exact DA hit·miss만 사용한다", () => {
+  const rawPath = "apps/mobile/lib/domain.dart";
+  const source = Buffer.from("import 'dart:ui';\n\nabstract interface class Port {\n  int get value;\n  int run() => 1;\n  int covered() => 2;\n}\n");
+  const diff = {
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1,7 @@\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`7\t0\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return source;
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  };
+  const coverage = new Map([[rawPath, new Map([[5, 0], [6, 2]])]]);
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, coverage, diff), {
+    state: "APPLICABLE",
+    entries: [
+      { path: rawPath, line: 5, hits: 0, status: "ADDED" },
+      { path: rawPath, line: 6, hits: 2, status: "ADDED" },
+    ],
+    executableLines: 2,
+    coveredLines: 1,
+    lineBasisPoints: 5000,
+  });
+});
+
+test("F1 changed executable set은 producer coverage-ignore 지시를 fail-closed한다", () => {
+  const rawPath = "apps/mobile/lib/ignored.dart";
+  const changed = (source) => ({
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1,${source.toString("utf8").trimEnd().split("\n").length} @@\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`${source.toString("utf8").trimEnd().split("\n").length}\t0\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return source;
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  });
+  const coverage = new Map([[rawPath, new Map()]]);
+  for (const source of [
+    Buffer.from("final hidden = 1; // coverage:ignore-line reason_1\n"),
+    Buffer.from("// coverage:ignore-start\nfinal hidden = 1;\n// coverage:ignore-end\n"),
+    Buffer.from("// coverage:ignore-file generated_reason\nfinal hidden = 1;\n"),
+  ]) {
+    assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, coverage, changed(source)), /coverage-ignore directive/i);
+  }
+  const nearMiss = Buffer.from("// coverage:ignored-line\n");
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, coverage, changed(nearMiss)), {
+    state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null,
+  });
+});
+
 test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", () => {
   const rawPath = "apps/mobile/lib/comment.dart"; const source = Buffer.from("// comment\n");
   const emptyDiff = {
@@ -399,7 +432,8 @@ test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", 
       throw new Error(`unexpected git bytes ${args.join(" ")}`);
     },
   };
-  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, new Map(), emptyDiff), { state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null });
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, new Map([[rawPath, new Map()]]), emptyDiff), { state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null });
+  assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, new Map(), emptyDiff), /changed source is missing LCOV/i);
 });
 
 test("F2 artifact pair는 두 번째 rename 실패 후 원래 destination과 clean staging을 복구한다", () => {
