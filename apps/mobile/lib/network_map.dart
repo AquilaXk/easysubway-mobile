@@ -4320,14 +4320,8 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
                       .clamped(viewportMargin: 220)
                 : initialCamera;
           }
-          var camera =
-              _camera ??
-              networkMapCameraForBounds(
-                initialCameraBounds,
-                constraints,
-                sourceBounds: fullBounds,
-                minScale: minScale,
-              );
+          // 같은 build에서 새 layoutKey의 카메라를 항상 초기화한다.
+          var camera = _camera!;
           final selectedStation =
               _stationByIdentity(widget.data.stations, _selectedStation) ??
               _stationById(widget.data.stations, widget.selectedStationId);

@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
+import 'package:flutter/widgets.dart' show BoxConstraints;
 import 'package:flutter_test/flutter_test.dart';
 
 // #1764 E: 소규모 지역(역 수 임계 이하)은 초기 bounds 기준선을 지역 전체로,
@@ -61,4 +62,39 @@ void main() {
       });
     },
   );
+
+  group('networkMapCameraForBounds viewport/fit 정책', () {
+    test('zero·unbounded viewport는 source 중심의 최소 배율 카메라를 반환한다', () {
+      const sourceBounds = Rect.fromLTWH(20, 40, 600, 300);
+
+      final camera = networkMapCameraForBounds(
+        sourceBounds,
+        const BoxConstraints(),
+        sourceBounds: sourceBounds,
+        minScale: 0.2,
+        revision: 7,
+        initialScaleOverride: 0.3,
+      );
+
+      expect(camera.viewportSize, Size.zero);
+      expect(camera.center, sourceBounds.center);
+      expect(camera.scale, 0.2);
+      expect(camera.minScale, 0.2);
+      expect(camera.revision, 7);
+      expect(camera.initialScale, 0.3);
+    });
+
+    test('기본값은 짧은 축 contain이 아니라 긴 축 cover-fit을 사용한다', () {
+      const bounds = Rect.fromLTWH(0, 0, 100, 50);
+
+      final camera = networkMapCameraForBounds(
+        bounds,
+        const BoxConstraints.tightFor(width: 300, height: 100),
+        sourceBounds: bounds,
+      );
+
+      expect(camera.scale, 3);
+      expect(camera.initialScale, 3);
+    });
+  });
 }
