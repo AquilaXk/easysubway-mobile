@@ -125,11 +125,12 @@ jobs:
             --report "${RUNNER_TEMP}/mobile-host-test-events.json" \
             --summary "${RUNNER_TEMP}/mobile-host-test-parity.json"
       - name: Filter mobile coverage
-        working-directory: apps/mobile
         run: |
-          node ../../tools/ci/filter-mobile-lcov.mjs \
-            --input coverage/lcov.info \
-            --output coverage/lcov.info
+          node tools/ci/filter-mobile-lcov.mjs normalize \
+            --input apps/mobile/coverage/lcov.info \
+            --output "${RUNNER_TEMP}/mobile-coverage-normalized.lcov" \
+            --policy tools/ci/mobile-coverage-policy.json \
+            --result "${RUNNER_TEMP}/mobile-coverage-filter-result.json"
 
   android:
     name: Android CI
