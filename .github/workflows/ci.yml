@@ -78,6 +78,7 @@ jobs:
             tools/ci/mobile-coverage-ratchet.test.mjs \
             tools/ci/lib/google-play-auth.test.mjs \
             tools/ci/mobile-changed-path-classifier.test.mjs \
+            tools/ci/mobile-root-import-ratchet.test.mjs \
             tools/ci/public-sensitivity-owner-receipt-caller.test.mjs \
             tools/mobile/automerge-queue.test.mjs \
             tools/mobile/check-android-aab-16kb-page-size.test.mjs \

@@ -14,6 +14,11 @@ import {
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import {
+  buildImmutableDartGraph as buildSharedImmutableDartGraph,
+  reverseConsumerFanout as sharedReverseConsumerFanout,
+} from "./lib/mobile-dart-source-graph.mjs";
+
 const SHA = /^[0-9a-f]{40}$/u;
 const MODE = /^[0-7]{6}$/u;
 export const GIT_MAX_BUFFER_BYTES = 64 * 1024 * 1024;
@@ -62,6 +67,8 @@ class ClassifierError extends Error {
   constructor(message, exitCode = 1) { super(message); this.exitCode = exitCode; }
 }
 function fail(message, exitCode = 1) { throw new ClassifierError(`mobile-changed-path-classifier: ${message}`, exitCode); }
+export function buildImmutableDartGraph(options) { try { return buildSharedImmutableDartGraph(options); } catch (error) { fail(error.message); } }
+export function reverseConsumerFanout(graph, changedPaths) { try { return sharedReverseConsumerFanout(graph, changedPaths); } catch (error) { fail(error.message); } }
 function decodeUtf8(value, label) { try { return UTF8.decode(value); } catch { fail(`invalid UTF-8 ${label}`); } }
 function cmp(a, b) { return a < b ? -1 : a > b ? 1 : 0; }
 function sha256(value) { return createHash("sha256").update(value).digest("hex"); }
@@ -371,174 +378,6 @@ function immutableDartTree(repository, revision) {
   }
   return buildImmutableDartGraph({ files });
 }
-function dartTokens(source) {
-  if (typeof source !== "string") return { tokens: [], malformed: true };
-  const tokens = []; let index = 0; let malformed = false;
-  const identifierStart = (value) => /[A-Za-z_$]/u.test(value);
-  const identifierPart = (value) => /[A-Za-z0-9_$]/u.test(value);
-  const pushString = (raw, quote, start) => {
-    const triple = source.slice(index, index + 3) === quote.repeat(3); const delimiter = triple ? quote.repeat(3) : quote;
-    index += delimiter.length; let value = ""; let literal = true; let closed = false;
-    while (index < source.length) {
-      if (source.startsWith(delimiter, index)) { index += delimiter.length; closed = true; break; }
-      const character = source[index++];
-      if (!raw && character === "\\") {
-        literal = false;
-        if (index >= source.length) break;
-        value += character + source[index++];
-      } else {
-        if (!raw && character === "$") literal = false;
-        value += character;
-      }
-    }
-    if (!closed) malformed = true;
-    tokens.push({ type: "string", value, literal: literal && value.length > 0, start });
-  };
-  while (index < source.length) {
-    const character = source[index];
-    if (/\s/u.test(character)) { index += 1; continue; }
-    if (source.startsWith("//", index)) { const newline = source.indexOf("\n", index + 2); index = newline === -1 ? source.length : newline + 1; continue; }
-    if (source.startsWith("/*", index)) {
-      index += 2; let depth = 1;
-      while (index < source.length && depth > 0) {
-        if (source.startsWith("/*", index)) { depth += 1; index += 2; }
-        else if (source.startsWith("*/", index)) { depth -= 1; index += 2; }
-        else index += 1;
-      }
-      if (depth !== 0) malformed = true;
-      continue;
-    }
-    const raw = (character === "r" || character === "R") && (source[index + 1] === "'" || source[index + 1] === '"');
-    if (raw || character === "'" || character === '"') {
-      const start = index; const quote = raw ? source[index + 1] : character; if (raw) index += 1;
-      pushString(raw, quote, start); continue;
-    }
-    if (identifierStart(character)) {
-      const start = index; index += 1; while (index < source.length && identifierPart(source[index])) index += 1;
-      tokens.push({ type: "identifier", value: source.slice(start, index), start }); continue;
-    }
-    tokens.push({ type: "symbol", value: character, start: index }); index += 1;
-  }
-  return { tokens, malformed };
-}
-
-function directiveEnd(tokens, start) {
-  for (let index = start; index < tokens.length; index += 1) if (tokens[index].value === ";") return index;
-  return -1;
-}
-
-function parseUriDirective(body) {
-  if (body.length === 0 || body[0].type !== "string" || !body[0].literal) return { uncertain: true, directives: [] };
-  const directives = [{ kind: "edge", uri: body[0].value }]; let index = 1;
-  while (index < body.length) {
-    const token = body[index];
-    if (token.type !== "identifier") return { uncertain: true, directives };
-    if (token.value === "if") {
-      if (body[index + 1]?.value !== "(") return { uncertain: true, directives };
-      let depth = 1; index += 2;
-      let hasConditionToken = false;
-      while (index < body.length && depth > 0) {
-        if (body[index].value === "(") depth += 1;
-        else if (body[index].value === ")") depth -= 1;
-        else if (depth > 0) hasConditionToken = true;
-        index += 1;
-      }
-      if (depth !== 0 || !hasConditionToken || body[index]?.type !== "string" || !body[index].literal) return { uncertain: true, directives };
-      directives.push({ kind: "edge", uri: body[index].value }); index += 1; continue;
-    }
-    if (token.value === "deferred") { index += 1; continue; }
-    if (token.value === "as") { if (body[index + 1]?.type !== "identifier") return { uncertain: true, directives }; index += 2; continue; }
-    if (token.value === "show" || token.value === "hide") {
-      index += 1; let expectIdentifier = true;
-      while (index < body.length && (body[index].type === "identifier" || body[index].value === ",")) {
-        if (expectIdentifier !== (body[index].type === "identifier")) return { uncertain: true, directives };
-        expectIdentifier = !expectIdentifier; index += 1;
-      }
-      if (expectIdentifier) return { uncertain: true, directives };
-      continue;
-    }
-    return { uncertain: true, directives };
-  }
-  return { uncertain: false, directives };
-}
-
-function parsePartDirective(body) {
-  if (body.length === 0) return { uncertain: true, directives: [] };
-  if (body[0].type === "identifier" && body[0].value === "of") {
-    const remainder = body.slice(1);
-    if (remainder.length === 1 && remainder[0].type === "string" && remainder[0].literal) return { uncertain: false, directives: [{ kind: "edge", uri: remainder[0].value }] };
-    const validName = remainder.length > 0 && remainder[0].type === "identifier" && remainder.every((token, index) => index % 2 === 0 ? token.type === "identifier" : token.value === ".");
-    return validName ? { uncertain: false, directives: [{ kind: "named-part" }] } : { uncertain: true, directives: [] };
-  }
-  return body.length === 1 && body[0].type === "string" && body[0].literal ? { uncertain: false, directives: [{ kind: "part", uri: body[0].value }] } : { uncertain: true, directives: [] };
-}
-
-function parseDartDirectives(source) {
-  const { tokens, malformed } = dartTokens(source); const directives = []; let uncertain = malformed; let braceDepth = 0;
-  for (let index = 0; index < tokens.length; index += 1) {
-    const token = tokens[index];
-    if (token.value === "{") { braceDepth += 1; continue; }
-    if (token.value === "}") { braceDepth = Math.max(0, braceDepth - 1); continue; }
-    if (braceDepth !== 0 || token.type !== "identifier" || !["import", "export", "part"].includes(token.value)) continue;
-    const end = directiveEnd(tokens, index + 1);
-    if (end === -1) { uncertain = true; break; }
-    const parsed = token.value === "part" ? parsePartDirective(tokens.slice(index + 1, end)) : parseUriDirective(tokens.slice(index + 1, end));
-    directives.push(...parsed.directives); uncertain ||= parsed.uncertain; index = end;
-  }
-  return { directives, uncertain };
-}
-
-function resolveDartUri(uri, from, files, packageName) {
-  if (typeof uri !== "string" || uri.length === 0 || /[\\\u0000-\u001f\u007f?#]/u.test(uri)) return { uncertain: true };
-  if (uri.startsWith("dart:")) return { external: true };
-  let target;
-  if (uri.startsWith("package:")) {
-    const prefix = `package:${packageName}/`;
-    if (uri === `package:${packageName}` || uri.startsWith(`package:${packageName}?`) || uri.startsWith(`package:${packageName}#`)) return { uncertain: true };
-    if (!uri.startsWith(prefix)) return { external: true };
-    const suffix = uri.slice(prefix.length); if (suffix.length === 0) return { uncertain: true };
-    target = `apps/mobile/lib/${suffix}`;
-  } else {
-    if (uri.startsWith("/") || uri.includes(":")) return { uncertain: true };
-    target = path.posix.normalize(path.posix.join(path.posix.dirname(from), uri));
-  }
-  if (!target.startsWith("apps/mobile/") || !Object.hasOwn(files, target)) return { uncertain: true };
-  return { target };
-}
-
-export function buildImmutableDartGraph({ files, packageName = "easysubway_mobile" }) {
-  if (packageName !== "easysubway_mobile") fail("mobile package identity mismatch");
-  const normalizedFiles = {};
-  for (const [file, source] of Object.entries(files)) {
-    const normalized = normalizePath(file);
-    if (Object.hasOwn(normalizedFiles, normalized)) fail("duplicate normalized immutable Dart graph key");
-    normalizedFiles[normalized] = source;
-  }
-  const graph = new Map(); const uncertainPaths = new Set(); const namedParts = new Set(); const backlinks = new Map();
-  for (const [file, source] of Object.entries(normalizedFiles)) {
-    graph.set(file, new Set()); const parsed = parseDartDirectives(source); if (parsed.uncertain) uncertainPaths.add(file);
-    for (const directive of parsed.directives) {
-      if (directive.kind === "named-part") { namedParts.add(file); continue; }
-      const resolved = resolveDartUri(directive.uri, file, normalizedFiles, packageName);
-      if (resolved.uncertain) { uncertainPaths.add(file); continue; }
-      if (resolved.external) continue;
-      graph.get(file).add(resolved.target);
-      if (directive.kind === "part") backlinks.set(resolved.target, new Set([...(backlinks.get(resolved.target) ?? []), file]));
-    }
-  }
-  for (const partFile of namedParts) {
-    const libraries = backlinks.get(partFile) ?? new Set();
-    if (libraries.size !== 1) uncertainPaths.add(partFile); else graph.get(partFile).add([...libraries][0]);
-  }
-  const stableGraph = new Map([...graph.entries()].map(([file, targets]) => [file, sortedUnique(targets)])); const reverse = new Map();
-  for (const [from, targets] of stableGraph) for (const target of targets) reverse.set(target, sortedUnique([...(reverse.get(target) ?? []), from]));
-  return { graph: stableGraph, reverse, uncertainty: sortedUnique(uncertainPaths).map((path) => ({ path, code: "GRAPH_UNCERTAINTY" })) };
-}
-export function reverseConsumerFanout(graph, changedPaths) {
-  const queue = changedPaths.map((value) => normalizePath(value, "changed graph path")); const seen = new Set(queue); const consumers = new Set();
-  while (queue.length > 0) for (const consumer of graph.reverse.get(queue.shift()) ?? []) if (!seen.has(consumer)) { seen.add(consumer); consumers.add(consumer); queue.push(consumer); }
-  return sortedUnique(consumers);
-}
 function writeArtifact(directory, result) {
   validateResult(result);
   mkdirSync(directory, { recursive: true }); const json = Buffer.from(JSON.stringify(result)); const digest = sha256(json);
@@ -560,9 +399,10 @@ export function runClassifier(options, environment = process.env) {
   for (const revision of [options.baseSha, options.headSha]) git(repository, ["cat-file", "-e", `${revision}^{commit}`]);
   let mergeBase = options.baseSha;
   if (options.event === "pull_request") { mergeBase = gitText(repository, ["merge-base", options.baseSha, options.headSha]); assertSha(mergeBase, "merge base"); if (!isAncestor(repository, mergeBase, options.baseSha) || !isAncestor(repository, mergeBase, options.headSha)) fail("merge base must be ancestor of both"); } else if (!isAncestor(repository, options.baseSha, options.headSha)) fail("base must be ancestor of head");
-  const source = gitBlob(repository, options.baseSha, "tools/ci/mobile-changed-path-classifier.mjs"); const policyBytes = gitBlob(repository, options.baseSha, "tools/ci/mobile-changed-path-policy.json");
-  const executingSource = readFileSync(fileURLToPath(import.meta.url)); const workspacePolicy = readFileSync(path.join(repository, "tools/ci/mobile-changed-path-policy.json"));
+  const source = gitBlob(repository, options.baseSha, "tools/ci/mobile-changed-path-classifier.mjs"); const helper = gitBlob(repository, options.baseSha, "tools/ci/lib/mobile-dart-source-graph.mjs"); const policyBytes = gitBlob(repository, options.baseSha, "tools/ci/mobile-changed-path-policy.json");
+  const executingSource = readFileSync(fileURLToPath(import.meta.url)); const executingHelper = readFileSync(new URL("./lib/mobile-dart-source-graph.mjs", import.meta.url)); const workspacePolicy = readFileSync(path.join(repository, "tools/ci/mobile-changed-path-policy.json"));
   if (sha256(executingSource) !== sha256(source) || !executingSource.equals(source)) fail("executing module bytes do not equal trusted base blob");
+  if (sha256(executingHelper) !== sha256(helper) || !executingHelper.equals(helper)) fail("executing graph helper bytes do not equal trusted base blob");
   if (sha256(workspacePolicy) !== sha256(policyBytes) || !workspacePolicy.equals(policyBytes)) fail("workspace policy bytes do not equal trusted base blob");
   let policy;
   try { policy = validatePolicy(JSON.parse(decodeUtf8(workspacePolicy, "workspace policy"))); } catch (error) { if (error instanceof ClassifierError) throw error; fail("invalid workspace policy"); }

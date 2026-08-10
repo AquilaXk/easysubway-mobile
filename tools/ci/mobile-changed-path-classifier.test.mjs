@@ -124,6 +124,8 @@ test("Git capture binds every production Git invocation to the closed max buffer
   const source = readFileSync(new URL("./mobile-changed-path-classifier.mjs", import.meta.url), "utf8");
   assert.match(source, /function git\([^]*maxBuffer: GIT_MAX_BUFFER_BYTES[^]*\}/u);
   assert.equal((source.match(/execFileSync\("git"/gu) ?? []).length, 1);
+  assert.match(source, /gitBlob\(repository, options\.baseSha, "tools\/ci\/lib\/mobile-dart-source-graph\.mjs"\)/u);
+  assert.match(source, /executing graph helper bytes do not equal trusted base blob/u);
 });
 
 test("trusted changed-path workflow has the closed event, execution, and artifact contract", () => {
@@ -338,6 +340,7 @@ test("runner fails closed when workspace policy bytes differ from its trusted ba
   const policyBytes = readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url));
   runGit("init"); runGit("config", "user.email", "classifier@example.invalid"); runGit("config", "user.name", "Classifier Test");
   write("tools/ci/mobile-changed-path-classifier.mjs", sourceBytes);
+  write("tools/ci/lib/mobile-dart-source-graph.mjs", readFileSync(new URL("./lib/mobile-dart-source-graph.mjs", import.meta.url)));
   write("tools/ci/mobile-changed-path-policy.json", policyBytes);
   write("apps/mobile/pubspec.yaml", "name: easysubway_mobile\n");
   runGit("add", "."); runGit("commit", "-m", "base");
@@ -357,6 +360,7 @@ test("runner requires the exact head workflow blob", () => {
   const write = (relative, value) => { const target = path.join(repository, relative); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, value); };
   runGit("init"); runGit("config", "user.email", "classifier@example.invalid"); runGit("config", "user.name", "Classifier Test");
   write("tools/ci/mobile-changed-path-classifier.mjs", readFileSync(new URL("./mobile-changed-path-classifier.mjs", import.meta.url)));
+  write("tools/ci/lib/mobile-dart-source-graph.mjs", readFileSync(new URL("./lib/mobile-dart-source-graph.mjs", import.meta.url)));
   write("tools/ci/mobile-changed-path-policy.json", readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url)));
   write("apps/mobile/pubspec.yaml", "name: easysubway_mobile\n");
   runGit("add", "."); runGit("commit", "-m", "base");
@@ -376,6 +380,7 @@ test("pull request fanout includes target-base consumers and emits closed requir
   const write = (relative, value) => { const target = path.join(repository, relative); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, value); };
   runGit("init"); runGit("config", "user.email", "classifier@example.invalid"); runGit("config", "user.name", "Classifier Test");
   write("tools/ci/mobile-changed-path-classifier.mjs", readFileSync(new URL("./mobile-changed-path-classifier.mjs", import.meta.url)));
+  write("tools/ci/lib/mobile-dart-source-graph.mjs", readFileSync(new URL("./lib/mobile-dart-source-graph.mjs", import.meta.url)));
   write("tools/ci/mobile-changed-path-policy.json", readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url)));
   write("apps/mobile/pubspec.yaml", "name: easysubway_mobile\n");
   write("apps/mobile/lib/shared.dart", "const shared = 1;\n");
