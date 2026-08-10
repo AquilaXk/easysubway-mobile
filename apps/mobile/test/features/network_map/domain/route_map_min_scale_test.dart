@@ -1,6 +1,6 @@
 import 'package:easysubway_mobile/features/network_map/domain/route_map_min_scale.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
-import 'package:easysubway_mobile/network_map.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // 노선도 축소 하한 표(#2600).

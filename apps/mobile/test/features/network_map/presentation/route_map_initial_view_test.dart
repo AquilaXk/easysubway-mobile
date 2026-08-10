@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // #1764 E: 소규모 지역(역 수 임계 이하)은 초기 bounds 기준선을 지역 전체로,

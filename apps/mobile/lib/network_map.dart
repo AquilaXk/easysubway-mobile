@@ -25,6 +25,7 @@ import 'features/network_map/presentation/nearby_data_source_toggle.dart';
 import 'features/network_map/presentation/nearby_direction_columns.dart';
 import 'features/network_map/presentation/nearby_direction_title.dart';
 import 'features/network_map/presentation/nearby_station_line_bar.dart';
+import 'features/network_map/presentation/network_map_camera_policy.dart';
 import 'features/network_map/presentation/region_menu.dart';
 import 'features/network_map/presentation/route_map_transfer_marker.dart';
 import 'features/network_map/presentation/station_fan_menu.dart';
@@ -4070,41 +4071,6 @@ class _NetworkMapCanvas extends StatefulWidget {
   State<_NetworkMapCanvas> createState() => _NetworkMapCanvasState();
 }
 
-/// 축소 하한을 명시하지 않는 테스트 헬퍼 기본값(#2600 이전 동작). 프로덕션
-/// 하한은 [_minimumMapScaleForRegion]이 오너 지정 표에서 조회한다.
-const _fallbackMinMapScale = 0.08;
-const _maxMapScale = 4.8;
-
-/// 역 focus 시 카메라 bounds를 지역 초기 화면(축소 하한, #1789) bounds의 이 비율로
-/// 좁혀 항상 그만큼 확대되게 한다. 절대 픽셀 하한(구 860px) 대신 초기 화면 대비
-/// 비율을 쓰는 이유: 수도권처럼 지도 폭이 작은 지역에서는 절대 하한이 초기 화면
-/// 폭보다 커져 focus가 pan만 되고 확대가 사라졌다(#2062). 두 축을 같은 비율로
-/// 줄이므로 contain-fit scale은 정확히 1/비율(≈2.38) 배 확대되어 지역 크기와
-/// 무관하게 일정한 확대율을 보장한다 — 단, `_maxMapScale`(4.8) 상한 이하 범위
-/// 한정. 초기 scale이 이미 4.8/0.42 ≈ 2.02를 넘는 초소형 지역(고배율 초기 화면)은
-/// focus scale이 4.8에서 saturate돼 실제 확대율이 2.38배보다 작아지고, 초기
-/// scale이 이미 4.8이면(초기 화면 자체가 상한에서 시작) focus도 4.8로 saturate돼
-/// 확대율이 1.0(순수 pan)까지 줄어들 수 있다. 이 경우도 focus scale이 초기 scale
-/// 아래로 내려가진 않는다(둘 다 같은 상한을 공유하므로) — pan-only로 완전히
-/// 퇴행하진 않되, 극단적으로 작은 지역에서는 확대가 체감되지 않을 수 있다.
-const _stationFocusInitialBoundsFraction = 0.42;
-
-/// 저장된 viewport가 없을 때 초기 카메라가 보장할 역명의 최소 화면 글자 크기
-/// (logical px, #2068 트랙 QA 후속). 오너 결정: "글자가 읽힐 정도로 중앙을 확대".
-///
-/// 값의 근거는 리포 내 기존 캘리브레이션 상수 [kRouteMapDesignLabelFontPx]
-/// (13.0)를 그대로 재사용한 것이다 — design space는 "일반 탐색 줌(라벨이 design
-/// 크기 그대로 보이는 scale ≈ k*)"에서 역명이 갖는 크기로 이 값을 정했고
-/// (route_map_design_space.dart), 그 반대편 상한이
-/// [kRouteMapMaxLabelScreenPx](26.0)다. 즉 13px은 이 노선도가 이미 "읽히는
-/// 역명 크기"로 캘리브레이션해 둔 값이라 새 기준을 창작하지 않는다(모바일 최소
-/// 가독 관례 12px보다 약간 보수적이기도 하다).
-const double _initialCameraReadableLabelScreenPx = kRouteMapDesignLabelFontPx;
-const _routeMapGestureRendererCommitInterval = Duration(milliseconds: 1100);
-const _routeMapGestureMaxTranslationDriftFraction = 1.35;
-const _routeMapGestureMaxScaleRatio = 3.4;
-const _routeMapGestureRendererOverscanFactor = 3.25;
-
 /// #1643 성능 QA: 노선도 프레임의 build/raster/total 시간을 logcat에 기록한다.
 /// run-route-map-android-evidence.sh가 'routeMapFrame' 라인을 grep해 jank·P90를
 /// 산출한다(Flutter는 dumpsys gfxinfo로 프레임이 안 잡혀 FrameTiming으로 계측).
@@ -4302,11 +4268,14 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
           // 축소 하한(#2600)은 초기 화면 배율로 캡해 첫 화면을 절대 확대하지
           // 않게 한다 — sidecar 미로드 프레임처럼 초기 배율이 하한보다 낮은
           // 상태가 있고, 거기서 밀어올리면 #1764 E·#2062 계약이 깨진다.
-          final minScale = _minimumMapScaleForRegion(
+          final minScale = networkMapMinimumScaleForRegion(
             widget.data.selectedRegion,
-            initialFitScale: _containFitScale(initialCameraBounds, constraints),
+            initialFitScale: networkMapContainFitScale(
+              initialCameraBounds,
+              constraints,
+            ),
           );
-          final initialCamera = _cameraForBounds(
+          final initialCamera = networkMapCameraForBounds(
             widget.initialViewport ?? initialCameraBounds,
             constraints,
             sourceBounds: fullBounds,
@@ -4353,7 +4322,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
           }
           var camera =
               _camera ??
-              _cameraForBounds(
+              networkMapCameraForBounds(
                 initialCameraBounds,
                 constraints,
                 sourceBounds: fullBounds,
@@ -4393,7 +4362,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
                         revision: camera.revision + 1,
                       )
                       .clamped(viewportMargin: 220)
-                : _cameraForBounds(
+                : networkMapCameraForBounds(
                     _stationFocusBoundsFor(
                       focusedStation,
                       geometry,
@@ -4836,7 +4805,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
           committed: committedCamera,
           candidate: requestedCamera,
           elapsedSinceLastCommit: _lastRendererCameraRequestAt == null
-              ? _routeMapGestureRendererCommitInterval
+              ? kNetworkMapRendererCommitInterval
               : now.difference(_lastRendererCameraRequestAt!),
         );
     if (!shouldCommit) {
@@ -5169,247 +5138,6 @@ class _OriginalRouteMapUnavailable extends StatelessWidget {
 /// 어긋난다(#2068).
 String _displayRegionName(String region) => routeMapDisplayRegionName(region);
 
-MapCameraState _cameraForBounds(
-  Rect bounds,
-  BoxConstraints constraints, {
-  required Rect sourceBounds,
-  bool contain = false,
-  double minScale = _fallbackMinMapScale,
-  int revision = 0,
-  // LOD 기준이 될 지역 baseline scale. null이면 이 카메라가 baseline이 되어
-  // 자신의 fit scale을 쓴다(초기 카메라). focus/파생 카메라는 지역 초기
-  // 카메라의 initialScale을 넘겨 baseline을 상속한다(#1764 A).
-  double? initialScaleOverride,
-}) {
-  final viewportWidth = constraints.hasBoundedWidth
-      ? constraints.maxWidth
-      : 0.0;
-  final viewportHeight = constraints.hasBoundedHeight
-      ? constraints.maxHeight
-      : 0.0;
-  if (viewportWidth <= 0 || viewportHeight <= 0) {
-    return MapCameraState(
-      sourceBounds: sourceBounds,
-      viewportSize: Size.zero,
-      center: sourceBounds.center,
-      scale: minScale,
-      minScale: minScale,
-      maxScale: _maxMapScale,
-      revision: revision,
-      initialScale: initialScaleOverride ?? minScale,
-    );
-  }
-  final widthScale = viewportWidth / bounds.width;
-  final heightScale = viewportHeight / bounds.height;
-  final computedScale = contain
-      ? math.min(widthScale, heightScale)
-      : math.max(widthScale, heightScale);
-  final fitScale = computedScale.clamp(minScale, _maxMapScale).toDouble();
-  return MapCameraState(
-    sourceBounds: sourceBounds,
-    viewportSize: Size(viewportWidth, viewportHeight),
-    center: bounds.center,
-    scale: fitScale,
-    minScale: minScale,
-    maxScale: _maxMapScale,
-    revision: revision,
-    initialScale: initialScaleOverride ?? fitScale,
-  ).clamped(viewportMargin: 220);
-}
-
-/// 지역 초기 화면 카메라(contain-fit)를 만든다(테스트용). 이 카메라는
-/// scale == initialScale 이라 지역 전체가 화면에 담긴 상태로 시작한다(#1789
-/// 정적 스케일 렌더 — 초기 화면 = 축소 하한).
-@visibleForTesting
-MapCameraState networkMapInitialCameraForRegion({
-  required Rect regionBounds,
-  required Rect fullBounds,
-  required Size viewport,
-  // 프로덕션은 [_minimumMapScaleForRegion]이 조회한 축소 하한을 넘긴다(#2600).
-  // 미지정 시 폴백 하한이라 하한 도입 전 회귀 테스트는 그대로 성립한다.
-  double? minScale,
-}) {
-  return _cameraForBounds(
-    regionBounds,
-    BoxConstraints.tightFor(width: viewport.width, height: viewport.height),
-    sourceBounds: fullBounds,
-    contain: true,
-    minScale: minScale ?? _fallbackMinMapScale,
-  );
-}
-
-/// 역 focus 카메라(contain-fit)를 만든다(테스트용). 프로덕션 focus 분기와 같은
-/// bounds 규칙([_stationFocusBounds])·같은 [_cameraForBounds] contain-fit을 써서
-/// focus가 지역 초기 화면보다 확대되는지 회귀 테스트가 가드하게 한다(#2062).
-@visibleForTesting
-MapCameraState networkMapStationFocusCameraForRegion({
-  required Rect initialBounds,
-  required Offset stationCenter,
-  required Rect fullBounds,
-  required Size viewport,
-  double? initialScaleOverride,
-  // 프로덕션 focus 분기와 같은 축소 하한을 넘긴다(#2600). 미지정 시 폴백 하한이라
-  // 하한 도입 전 회귀 테스트는 그대로 성립한다.
-  double? minScale,
-}) {
-  return _cameraForBounds(
-    _stationFocusBounds(
-      initialBounds: initialBounds,
-      center: stationCenter,
-      sourceWidth: fullBounds.width,
-      sourceHeight: fullBounds.height,
-    ),
-    BoxConstraints.tightFor(width: viewport.width, height: viewport.height),
-    sourceBounds: fullBounds,
-    contain: true,
-    minScale: minScale ?? _fallbackMinMapScale,
-    initialScaleOverride: initialScaleOverride,
-  );
-}
-
-/// 프로덕션 축소 하한(테스트용). 프로덕션 build 분기와 같은 조회를 쓴다(#2600).
-/// [region]은 저장형('광주권')·표시형('광주') 모두 받는다. [initialFitScale]을
-/// 주면 프로덕션 build와 같은 "첫 화면을 확대하지 않는다" 캡까지 재현한다.
-@visibleForTesting
-double networkMapMinimumScaleForRegion(
-  String region, {
-  double? initialFitScale,
-}) {
-  return _minimumMapScaleForRegion(region, initialFitScale: initialFitScale);
-}
-
-@visibleForTesting
-MapCameraState networkMapCameraWithMonotonicRevision({
-  required MapCameraState current,
-  required MapCameraState next,
-}) {
-  if (next.revision > current.revision) {
-    return next;
-  }
-  return next.copyWith(revision: current.revision + 1);
-}
-
-@visibleForTesting
-bool networkMapShouldCommitRendererCamera({
-  required MapCameraState committed,
-  required MapCameraState candidate,
-  required Duration elapsedSinceLastCommit,
-}) {
-  if (elapsedSinceLastCommit >= _routeMapGestureRendererCommitInterval) {
-    return true;
-  }
-  final scaleRatio = candidate.scale / committed.scale;
-  if (scaleRatio >= _routeMapGestureMaxScaleRatio ||
-      scaleRatio <= 1 / _routeMapGestureMaxScaleRatio) {
-    return true;
-  }
-  final viewportCenter = candidate.viewportSize.center(Offset.zero);
-  final committedCandidateCenter = committed.sourceToViewportPoint(
-    candidate.center,
-  );
-  final drift = committedCandidateCenter - viewportCenter;
-  return drift.dx.abs() >=
-          candidate.viewportSize.width *
-              _routeMapGestureMaxTranslationDriftFraction ||
-      drift.dy.abs() >=
-          candidate.viewportSize.height *
-              _routeMapGestureMaxTranslationDriftFraction;
-}
-
-@visibleForTesting
-MapCameraState networkMapOverscannedRendererCamera(MapCameraState camera) {
-  final overscanScale = math.max(
-    camera.minScale,
-    camera.scale / _routeMapGestureRendererOverscanFactor,
-  );
-  return camera.copyWith(scale: overscanScale).clamped(viewportMargin: 220);
-}
-
-@visibleForTesting
-bool networkMapRendererCameraCoversVisual({
-  required MapCameraState rendererCamera,
-  required MapCameraState visualCamera,
-}) {
-  const tolerance = 0.001;
-  final rendererRect = rendererCamera.visibleSourceRect;
-  final visualRect = visualCamera.visibleSourceRect;
-  return rendererRect.left <= visualRect.left + tolerance &&
-      rendererRect.top <= visualRect.top + tolerance &&
-      rendererRect.right >= visualRect.right - tolerance &&
-      rendererRect.bottom >= visualRect.bottom - tolerance;
-}
-
-@visibleForTesting
-MapCameraState? networkMapRendererCommitBasisCamera({
-  required MapCameraState? presentedCamera,
-  required MapCameraState? requestedCamera,
-  required MapCameraState visualCamera,
-}) {
-  if (requestedCamera != null &&
-      networkMapRendererCameraCoversVisual(
-        rendererCamera: requestedCamera,
-        visualCamera: visualCamera,
-      )) {
-    return requestedCamera;
-  }
-  return presentedCamera ?? requestedCamera;
-}
-
-@visibleForTesting
-MapCameraState networkMapRendererCameraForSkippedCommit({
-  required MapCameraState? requestedCamera,
-  required MapCameraState candidateCamera,
-  required MapCameraState visualCamera,
-}) {
-  if (requestedCamera != null &&
-      networkMapRendererCameraCoversVisual(
-        rendererCamera: requestedCamera,
-        visualCamera: visualCamera,
-      )) {
-    return requestedCamera;
-  }
-  return candidateCamera;
-}
-
-@visibleForTesting
-bool networkMapShouldAcceptPresentedRendererRevision({
-  required int revision,
-  required MapCameraState? presentedCamera,
-  required MapCameraState? requestedCamera,
-}) {
-  final presentedRevision = presentedCamera?.revision;
-  if (presentedRevision != null && revision < presentedRevision) {
-    return false;
-  }
-  final requestedRevision = requestedCamera?.revision;
-  if (requestedRevision != null && revision < requestedRevision) {
-    return false;
-  }
-  return true;
-}
-
-@visibleForTesting
-MapCameraState networkMapRendererTransformVisualCamera({
-  required MapCameraState rendererCamera,
-  required MapCameraState visualCamera,
-}) {
-  return networkMapRendererCameraCoversVisual(
-        rendererCamera: rendererCamera,
-        visualCamera: visualCamera,
-      )
-      ? visualCamera
-      : rendererCamera;
-}
-
-@visibleForTesting
-Matrix4 networkMapRendererFrameTransform({
-  required MapCameraState rendererCamera,
-  required MapCameraState visualCamera,
-}) {
-  return visualCamera.sourceToViewport
-    ..multiply(rendererCamera.viewportToSource);
-}
-
 Rect _sourceRectToViewport(Rect sourceRect, MapCameraState camera) {
   final topLeft = camera.sourceToViewportPoint(sourceRect.topLeft);
   final bottomRight = camera.sourceToViewportPoint(sourceRect.bottomRight);
@@ -5420,58 +5148,6 @@ Rect _sourceRectToViewport(Rect sourceRect, MapCameraState camera) {
     math.max(topLeft.dy, bottomRight.dy),
   );
 }
-
-/// 이 권역의 축소 하한(#2600). 값의 정본은
-/// [kRouteMapMinScaleByRegion](오너 지정·실기기 실측 표)이며, 저장형 권역명
-/// 정규화와 상한 캡([_maxMapScale]·[initialFitScale])은 [routeMapMinimumScale]이
-/// 맡는다.
-double _minimumMapScaleForRegion(String region, {double? initialFitScale}) {
-  return routeMapMinimumScale(
-    region: region,
-    maxScale: _maxMapScale,
-    initialFitScale: initialFitScale,
-  );
-}
-
-/// [bounds]를 [constraints] 뷰포트에 contain-fit 시킬 때의 배율. 뷰포트나 bounds가
-/// 비어 있으면 null(캡하지 않는다).
-double? _containFitScale(Rect bounds, BoxConstraints constraints) {
-  final viewportWidth = constraints.hasBoundedWidth
-      ? constraints.maxWidth
-      : 0.0;
-  final viewportHeight = constraints.hasBoundedHeight
-      ? constraints.maxHeight
-      : 0.0;
-  if (viewportWidth <= 0 ||
-      viewportHeight <= 0 ||
-      bounds.width <= 0 ||
-      bounds.height <= 0) {
-    return null;
-  }
-  final fitScale = math.min(
-    viewportWidth / bounds.width,
-    viewportHeight / bounds.height,
-  );
-  return fitScale.isFinite && fitScale > 0 ? fitScale : null;
-}
-
-/// 이 역 수(route_map_positions 행) 이하 지역은 초기 bounds **기준선**을 지역
-/// 전체로 잡는다(소규모 tight-fit, #1764 E). 광주·대전급(수십 역)은 소규모,
-/// 부산·대구·수도권급(백 역 이상)은 대형. 임계 40은 소규모(~20)와 대형(100+)
-/// 사이 넓은 간극에 둔다.
-const int _smallRegionStationCountThreshold = 40;
-
-/// 초기 bounds 기준선을 지역 전체로 잡는(소규모 tight-fit) 지역인지(#1764 E).
-/// 이 역 수 이하면 38% 도심 확대 대신 지역 전체가 기준선이 된다(광주·대전=true).
-///
-/// **주의(#2068 트랙 QA 후속): 이 판정이 곧 "초기 화면 = 전체 조망"은 아니다.**
-/// 최종 초기 카메라는 [networkMapInitialCameraBounds]가 이 기준선의 contain-fit과
-/// 오너 라벨 가독 배율 중 **큰 쪽**으로 정한다. 그래서 소규모 지역이라도 그
-/// 배율에서 라벨이 기준(13px)에 못 미치면 더 확대돼 전체가 담기지 않는다
-/// (실측: 대전은 이미 13.3px이라 전체 조망 유지, 광주는 10.8px이라 1.20배 확대).
-@visibleForTesting
-bool networkMapUsesWholeRegionInitialView(int stationCount) =>
-    stationCount <= _smallRegionStationCountThreshold;
 
 /// 초기 카메라 bounds의 **기준선**(하한 배율)을 만든다. 최종 초기 카메라는
 /// [networkMapInitialCameraBounds]가 여기에 가독 배율을 얹어 정한다.
@@ -5497,169 +5173,22 @@ Rect _readableBoundsFor(_MapGeometry geometry, {required int stationCount}) {
   return Rect.fromLTWH(left, top, width, height);
 }
 
-/// 오너 라벨이 "읽히는" 초기 카메라 배율(#2068 트랙 QA 후속). 없으면 null —
-/// 호출부는 기존 contain-fit 동작을 그대로 쓴다(sidecar 미로드·미매핑 fail-safe).
-///
-/// basemap 모드에서 화면에 실제로 그려지는 역명은 오너 라벨이다. 라벨은
-/// design px(`entry.fontSizePx × designScale`)로 그려지고 캔버스는
-/// `camera.scale / designScale`로 스케일되므로(structured_route_map_painter)
-/// designScale이 약분되어 **화면 글자 크기 = entry.fontSizePx × camera.scale**
-/// 이다. 따라서 중앙값 라벨이 [_initialCameraReadableLabelScreenPx]에 닿는
-/// scale은 `기준 px / 중앙값 fontSizePx`가 된다.
-///
-/// 모집단은 [stationNames]에 실제로 있는 역과 매칭되는 엔트리로 한정한다.
-/// sidecar에는 그 권역 데이터에 없는 라벨이 섞여 있다 — 광주 sidecar는 미개통
-/// 2호선 라벨(글자 14)이 42건이라 전 엔트리 중앙값이 14가 되는데, 운영 중인
-/// 1호선 라벨은 60이라 그대로 쓰면 실제 역 라벨 기준으로 5배 넘게 과확대된다.
-/// 매칭이 하나도 없으면 전 엔트리로 폴백한다 — 그 경우 렌더 경로도 전 엔트리
-/// 중앙값(폴백 라벨 크기, route_map_label_layout의 중앙값 규칙)으로 그린다.
-@visibleForTesting
-double? networkMapReadableInitialMapScale({
-  required Map<String, List<RouteMapOwnerLabelEntry>> ownerLabelsByStationName,
-  required Set<String> stationNames,
-}) {
-  final matched = <double>[
-    for (final entry in ownerLabelsByStationName.entries)
-      if (stationNames.contains(entry.key))
-        for (final label in entry.value)
-          if (label.fontSizePx > 0) label.fontSizePx,
-  ];
-  final sizes =
-      (matched.isNotEmpty
-            ? matched
-            : <double>[
-                for (final entries in ownerLabelsByStationName.values)
-                  for (final label in entries)
-                    if (label.fontSizePx > 0) label.fontSizePx,
-              ])
-        ..sort();
-  if (sizes.isEmpty) {
-    return null;
-  }
-  return _initialCameraReadableLabelScreenPx / sizes[sizes.length ~/ 2];
-}
-
-/// 저장된 viewport가 없을 때의 초기 카메라 bounds(#2068 트랙 QA 후속).
-///
-/// - 중심: 노선도 콘텐츠 bounding box 중앙 = [fullBounds].center. geometry는
-///   역·노선·라벨 extents에 대칭 54px 여백을 더한 것이라 그 중앙이 곧 콘텐츠
-///   중앙이다(viewBox 캔버스 중앙·헤더·여백이 아니다).
-/// - 배율: 기존 contain-fit([regionInitialBounds] 기준)과 [readableScale] 중 큰
-///   값. 하한이 기존 contain-fit이므로 지금보다 축소되는 권역은 없고, 이미
-///   가독 배율 이상인 소형 권역(대전)은 동작이 그대로다. 상한은
-///   [_maxMapScale] — readableScale만 캡하고 contain-fit은 캡하지 않는다
-///   (초소형 권역에서 오히려 축소되는 것을 막기 위해. 최종 scale은
-///   [_cameraForBounds]가 다시 상한으로 클램프한다).
-///
-/// viewport나 bounds가 비어 있으면 기존 [regionInitialBounds]를 그대로 돌려준다.
-@visibleForTesting
-Rect networkMapInitialCameraBounds({
-  required Rect fullBounds,
-  required Rect regionInitialBounds,
-  required Size viewport,
-  required double? readableScale,
-}) {
-  if (viewport.width <= 0 ||
-      viewport.height <= 0 ||
-      regionInitialBounds.width <= 0 ||
-      regionInitialBounds.height <= 0) {
-    return regionInitialBounds;
-  }
-  final containFitScale = math.min(
-    viewport.width / regionInitialBounds.width,
-    viewport.height / regionInitialBounds.height,
-  );
-  if (!containFitScale.isFinite || containFitScale <= 0) {
-    return regionInitialBounds;
-  }
-  final targetScale = math.max(
-    containFitScale,
-    math.min(readableScale ?? 0.0, _maxMapScale),
-  );
-  return Rect.fromCenter(
-    center: fullBounds.center,
-    width: viewport.width / targetScale,
-    height: viewport.height / targetScale,
-  );
-}
-
-@visibleForTesting
-Rect networkMapInitialOriginalAssetBounds({
-  required double sourceWidth,
-  required double sourceHeight,
-}) {
-  final width = sourceWidth * 0.58;
-  final height = sourceHeight * 0.58;
-  return _sourceCenteredBounds(
-    center: Offset(sourceWidth / 2, sourceHeight / 2),
-    width: width,
-    height: height,
-    sourceWidth: sourceWidth,
-    sourceHeight: sourceHeight,
-  );
-}
-
 /// [initialBounds]는 이 지역이 실제로 쓰는 초기 카메라 bounds다(#2068 트랙 QA
 /// 후속으로 [networkMapInitialCameraBounds]가 확대해 준 값). geometry의 원
 /// initialBounds를 쓰면 초기 화면이 확대된 만큼 focus가 오히려 축소돼 #2062
 /// ("focus는 초기 화면보다 확대") 불변식이 깨진다 — 두 카메라가 같은 bounds를
-/// 공유해야 focus 배율이 항상 초기 배율의 1/[_stationFocusInitialBoundsFraction]
-/// 배(≈2.38, 상한 이하 범위)로 유지된다.
+/// 공유해야 focus 배율이 항상 동일한 feature policy로 계산된다.
 Rect _stationFocusBoundsFor(
   NetworkMapStation station,
   _MapGeometry geometry, {
   required Rect initialBounds,
 }) {
-  return _stationFocusBounds(
+  return networkMapStationFocusBounds(
     initialBounds: initialBounds,
     center: Offset(geometry.x(station), geometry.y(station)),
     sourceWidth: geometry.width,
     sourceHeight: geometry.height,
   );
-}
-
-/// 역 focus 카메라의 source bounds를 계산한다. 지역 초기 화면 bounds를
-/// [_stationFocusInitialBoundsFraction]만큼 두 축 동일 비율로 좁혀 focus가 항상
-/// 초기 화면보다 확대되도록 한다(#2062). 좁힌 bounds가 지도 크기를 넘지 않도록만
-/// clamp하며(focus는 항상 초기 화면보다 작으므로 실제로는 걸리지 않음), edge 역은
-/// _sourceCenteredBounds가 지도 안으로 이동시킨다.
-Rect _stationFocusBounds({
-  required Rect initialBounds,
-  required Offset center,
-  required double sourceWidth,
-  required double sourceHeight,
-}) {
-  final width = math.min(
-    sourceWidth,
-    initialBounds.width * _stationFocusInitialBoundsFraction,
-  );
-  final height = math.min(
-    sourceHeight,
-    initialBounds.height * _stationFocusInitialBoundsFraction,
-  );
-  return _sourceCenteredBounds(
-    center: center,
-    width: width,
-    height: height,
-    sourceWidth: sourceWidth,
-    sourceHeight: sourceHeight,
-  );
-}
-
-Rect _sourceCenteredBounds({
-  required Offset center,
-  required double width,
-  required double height,
-  required double sourceWidth,
-  required double sourceHeight,
-}) {
-  final clampedWidth = width.clamp(1.0, sourceWidth).toDouble();
-  final clampedHeight = height.clamp(1.0, sourceHeight).toDouble();
-  final maxLeft = math.max(0.0, sourceWidth - clampedWidth);
-  final maxTop = math.max(0.0, sourceHeight - clampedHeight);
-  final left = (center.dx - clampedWidth / 2).clamp(0.0, maxLeft).toDouble();
-  final top = (center.dy - clampedHeight / 2).clamp(0.0, maxTop).toDouble();
-  return Rect.fromLTWH(left, top, clampedWidth, clampedHeight);
 }
 
 class _MapGeometry {

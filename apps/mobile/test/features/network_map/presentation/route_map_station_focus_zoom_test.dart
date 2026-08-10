@@ -1,6 +1,6 @@
 import 'dart:ui';
 
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // GPS/인플레이스 검색으로 역을 focus하면 카메라가 그 역으로 pan만 하고 확대는
