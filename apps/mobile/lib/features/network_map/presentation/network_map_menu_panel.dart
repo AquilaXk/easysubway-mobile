@@ -31,6 +31,7 @@ class NetworkMapMenuPanel extends StatelessWidget {
       alignment: Alignment.centerLeft,
       child: Material(
         key: const Key('networkMapMenuPanel'),
+        elevation: 0,
         color: EasySubwayAccessibleColors.surfaceDefault,
         child: SizedBox(
           width: 256,

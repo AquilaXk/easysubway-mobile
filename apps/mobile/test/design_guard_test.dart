@@ -365,6 +365,9 @@ void main() {
           overlayFiles.add(path);
         }
       });
+      overlayFiles.add(
+        'lib/features/network_map/presentation/network_map_menu_panel.dart',
+      );
       expect(overlayFiles, isNotEmpty, reason: 'showGeneralDialog 사용 파일이 없다');
 
       final materialPattern = RegExp(r'\bMaterial\(');
