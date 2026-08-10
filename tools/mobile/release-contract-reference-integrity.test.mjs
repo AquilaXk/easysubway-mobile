@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
-const issueUrlPattern = /https:\/\/github\.com\/AquilaXk\/(?:easysubway|easysubway-mobile)\/issues\/\d+(?=["\s),.])/g;
+const issueUrlPattern = /https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/issues\/\d+(?=["\s),.])/g;
 const bareIssuePattern = /#\d+\b/g;
 
 const expectedReferences = {
@@ -38,6 +38,18 @@ test('issue URL extraction rejects a Korean particle appended to its numeric id'
   assert.deepEqual(
     [`${url}"`, `${url} `, `${url},`, `${url}.`, `${url})`].map((value) => value.match(issueUrlPattern)),
     [[url], [url], [url], [url], [url]],
+  );
+});
+
+test('issue URL extraction collects an unexpected GitHub repository URL for exact projection rejection', () => {
+  const unexpectedUrl = 'https://github.com/different-owner/different-repo/issues/123';
+  const actualUrls = `"${unexpectedUrl}"`.match(issueUrlPattern) ?? [];
+
+  assert.deepEqual(actualUrls, [unexpectedUrl]);
+  assert.notDeepEqual(
+    actualUrls,
+    expectedReferences['apps/mobile/release/android-rc-store-evidence.json'],
+    'an unexpected repository URL must enter the actual projection and fail the exact expected URL comparison',
   );
 });
 
