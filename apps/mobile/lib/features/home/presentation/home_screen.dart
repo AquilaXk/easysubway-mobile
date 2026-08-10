@@ -10,7 +10,7 @@ import '../../../favorite_facility.dart';
 import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../network_map.dart';
-import '../../network_map/domain/network_map_repositories.dart';
+import '../../network_map/domain/network_map_models.dart';
 import '../../../notification_settings.dart';
 import '../../../onboarding.dart';
 import '../../../route_search.dart';

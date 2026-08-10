@@ -21,7 +21,6 @@ import 'package:easysubway_mobile/features/network_map/presentation/route_map_ba
 import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
-import 'package:easysubway_mobile/features/network_map/domain/network_map_repositories.dart';
 import 'package:easysubway_mobile/network_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';

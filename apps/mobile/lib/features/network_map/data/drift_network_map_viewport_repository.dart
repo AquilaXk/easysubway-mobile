@@ -4,7 +4,7 @@ import 'package:drift/drift.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../../core/database/user/user_database.dart' as user_db;
-import '../domain/network_map_repositories.dart';
+import '../domain/network_map_models.dart';
 
 const _networkMapViewportKeyPrefix = 'network_map_viewport';
 const _networkMapSelectedRegionKey = 'network_map_selected_region';
