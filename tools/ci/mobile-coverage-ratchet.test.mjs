@@ -1,32 +1,207 @@
 import assert from "node:assert/strict";
 import { execFileSync, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
+import { EventEmitter } from "node:events";
 import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { analyze, changedExecutableLines, classifyDartLines, commitArtifactPair, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, treeSources, validateDiffTuples, validateEventIdentity, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
+import { analyze, changedExecutableLines, classifyDartLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
 
 const policyFile = new URL("./mobile-coverage-policy.json", import.meta.url);
 const baselineFile = new URL("./mobile-coverage-baseline.json", import.meta.url);
 const repositoryRoot = path.resolve(".");
 const temporaryRoot = realpathSync(os.tmpdir());
 
-test("Phase 1 canonical policy와 baseline skeleton을 닫힌 계약으로 허용한다", () => {
+test("Phase 2 canonical policy와 reviewed line-oriented baseline을 닫힌 계약으로 허용한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const baseline = parseBaselineBytes(readFileSync(baselineFile));
-  assert.equal(policy.transition.phase, "DISCOVERY_REMOTE_RED");
-  assert.equal(baseline.reviewState.phase, "UNREVIEWED_DISCOVERY");
-  assert.deepEqual(baseline.paths, []);
-  assert.deepEqual(baseline.criticalBoundaries, []);
+  assert.deepEqual(policy.transition, { phase: "REVIEWED_BASELINE_ENFORCED", baselineReviewed: true });
+  assert.deepEqual(baseline.reviewState, { phase: "REVIEWED", reviewed: true });
+  assert.deepEqual(policy.thresholds, {
+    repositoryLineBasisPoints: 8712,
+    changedLineBasisPoints: 10000,
+    criticalBoundaryLineBasisPoints: {
+      JOURNEY_ROUTE_INGRESS: 9328,
+      JOURNEY_REPOSITORY_DI_STATE_IDENTITY: 9260,
+      DATAPACK_CATALOG_LIFECYCLE: 8005,
+      ACCESSIBILITY_ERROR_TRUTHFULNESS: 8904,
+      ALARM_WIDGET_REPORT_IO: 8161,
+      CRASHLYTICS_PRIVACY: 8596,
+      CONTRACT_ARTIFACT_IDENTITY: 7119,
+    },
+  });
+  assert.equal(baseline.paths.length, 187);
+  assert.deepEqual(baseline.criticalBoundaries.map(({ id }) => id), Object.keys(policy.thresholds.criticalBoundaryLineBasisPoints));
+  assert.deepEqual(baseline.paths.reduce((summary, source) => ({
+    sources: summary.sources + 1,
+    included: summary.included + Number(!source.path.endsWith(".g.dart")),
+    excluded: summary.excluded + Number(source.path.endsWith(".g.dart")),
+    lcovPresent: summary.lcovPresent + Number(source.lcovPresent),
+  }), { sources: 0, included: 0, excluded: 0, lcovPresent: 0 }), { sources: 187, included: 185, excluded: 2, lcovPresent: 183 });
+  const ordinaryMissing = baseline.paths.filter((source) => source.absenceDisposition?.kind === "EXISTING_UNINSTRUMENTED_BASELINE");
+  assert.deepEqual(ordinaryMissing.map(({ path: sourcePath }) => sourcePath), [
+    "apps/mobile/lib/features/network_map/domain/route_map_major_stations.dart",
+    "apps/mobile/lib/features/stations/presentation/station_detail_header.dart",
+  ]);
+  assert.equal(baseline.paths.filter((source) => !source.lcovPresent && source.absenceDisposition === null).length, 2);
 });
 
-test("비정규 policy/baseline과 Phase 1 측정값을 거부한다", () => {
+test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거부한다", () => {
   const policy = JSON.parse(readFileSync(policyFile, "utf8"));
   assert.throws(() => parsePolicyBytes(Buffer.from(JSON.stringify(policy))));
   const baseline = JSON.parse(readFileSync(baselineFile, "utf8"));
-  baseline.floors.repositoryLineBasisPoints = 0;
+  baseline.reviewState = { phase: "UNREVIEWED_DISCOVERY", reviewed: false };
   assert.throws(() => parseBaselineBytes(Buffer.from(`${JSON.stringify(baseline, null, 2)}\n`)));
+  policy.thresholds.changedLineBasisPoints = null;
+  assert.throws(() => parsePolicyBytes(Buffer.from(`${JSON.stringify(policy, null, 2)}\n`)));
+});
+
+test("Phase 2 baseline serializer, owner API, Flutter producer는 closed contract를 강제한다", () => {
+  const baselineBytes = readFileSync(baselineFile);
+  const baseline = parseBaselineBytes(baselineBytes);
+  assert.equal(serializeBaseline(baseline), baselineBytes.toString("utf8"));
+  assert.throws(() => parseBaselineBytes(Buffer.from(baselineBytes.toString("utf8").replace('    {"path"', '     {"path"'))), /reviewed Phase 2 pin/i);
+  const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
+  assert.equal(validateOwnerIssueResponse(owner).number, 102);
+  for (const response of [{ ...owner, statusCode: 404 }, { ...owner, redirected: true }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"closed"}') }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open","pull_request":{}}') }]) assert.throws(() => validateOwnerIssueResponse(response));
+  assert.equal(flutterVersionFromMachine(Buffer.from('{"frameworkVersion":"3.44.0"}')), "3.44.0");
+  for (const output of [Buffer.from("not json"), Buffer.from('{"frameworkVersion":"3.45.0"}'), Buffer.from('{"other":"3.44.0"}')]) assert.throws(() => flutterVersionFromMachine(output));
+});
+
+test("F1/F3/F5 Phase 2 decision, external JSON, pure rename inheritance를 fail-closed로 닫는다", () => {
+  const floorBoundaries = [
+    { id: "JOURNEY_ROUTE_INGRESS", lineBasisPoints: 9327 },
+    { id: "JOURNEY_REPOSITORY_DI_STATE_IDENTITY", lineBasisPoints: 9260 },
+    { id: "DATAPACK_CATALOG_LIFECYCLE", lineBasisPoints: 8005 },
+    { id: "ACCESSIBILITY_ERROR_TRUTHFULNESS", lineBasisPoints: 8904 },
+    { id: "ALARM_WIDGET_REPORT_IO", lineBasisPoints: 8161 },
+    { id: "CRASHLYTICS_PRIVACY", lineBasisPoints: 8596 },
+    { id: "CONTRACT_ARTIFACT_IDENTITY", lineBasisPoints: 7119 },
+  ];
+  assert.deepEqual(derivePhase2Decision({ coverage: { lineBasisPoints: 8711 }, changedLines: { entries: [{ hits: 0 }], lineBasisPoints: 9999 }, criticalBoundaries: floorBoundaries }), { reasons: ["UNCOVERED_CHANGED_EXECUTABLE_LINE", "REPOSITORY_LINE_FLOOR_NOT_MET", "CHANGED_LINE_FLOOR_NOT_MET", "CRITICAL_BOUNDARY_LINE_FLOOR_NOT_MET"], outcome: "FAIL" });
+  assert.deepEqual(derivePhase2Decision({ coverage: { lineBasisPoints: 8712 }, changedLines: { entries: [], lineBasisPoints: null }, criticalBoundaries: floorBoundaries.map((entry) => ({ ...entry, lineBasisPoints: { JOURNEY_ROUTE_INGRESS: 9328, JOURNEY_REPOSITORY_DI_STATE_IDENTITY: 9260, DATAPACK_CATALOG_LIFECYCLE: 8005, ACCESSIBILITY_ERROR_TRUTHFULNESS: 8904, ALARM_WIDGET_REPORT_IO: 8161, CRASHLYTICS_PRIVACY: 8596, CONTRACT_ARTIFACT_IDENTITY: 7119 }[entry.id] })) }), { reasons: [], outcome: "PASS" });
+  for (const text of ['{"frameworkVersion":"3.44.0","frameworkVersion":"3.44.0"}', '{"outer":{"x":1,"x":2}}', '\ufeff{"frameworkVersion":"3.44.0"}', '{"frameworkVersion":"3.44.0"}\0', '{"frameworkVersion":"3.44.0"} trailing']) assert.throws(() => strictExternalJson(Buffer.from(text), "external"));
+  const disposition = { kind: "EXISTING_UNINSTRUMENTED_BASELINE" };
+  const pureRename = { status: "RENAMED", oldPath: "apps/mobile/lib/old.dart", newPath: "apps/mobile/lib/new.dart", added: 0 };
+  const reviewedMissing = { sourceSha256: "a".repeat(64), absenceDisposition: disposition };
+  assert.equal(inheritPureRenameDisposition(pureRename, reviewedMissing, "a".repeat(64), "a".repeat(64)), disposition);
+  for (const [change, baselineSha, oldSha, newSha] of [
+    [{ ...pureRename, added: 1 }, "a".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [{ ...pureRename, oldPath: "apps/mobile/lib/alias.dart", newPath: "apps/mobile/lib/alias.dart" }, "a".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [{ ...pureRename, status: "COPIED" }, "a".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [pureRename, "b".repeat(64), "a".repeat(64), "a".repeat(64)],
+    [pureRename, "a".repeat(64), "b".repeat(64), "a".repeat(64)],
+  ]) assert.throws(() => inheritPureRenameDisposition(change, { ...reviewedMissing, sourceSha256: baselineSha }, oldSha, newSha), /exact pure rename/i);
+  const renamed = validateDiffTuples(
+    parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0")),
+    parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0")),
+  );
+  assert.deepEqual(renamed, [{ ...pureRename, deleted: 0 }]);
+  assert.throws(() => validateDiffTuples(
+    parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0")),
+    parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/old.dart\0apps/mobile/lib/other.dart\0")),
+  ), /tuple path mismatch/i);
+  assert.throws(() => validateDiffTuples(
+    parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
+    parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
+  ), /aliases one path/i);
+});
+
+test("F4 CLI는 invalid argument/outcome 전에 owner request를 만들지 않고 bounded injected request를 닫는다", async () => {
+  let requests = 0;
+  const owner = async () => { requests += 1; return { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') }; };
+  await assert.rejects(runCli(["analyze", "--event", "workflow_dispatch"], { requestOwnerIssueFn: owner }));
+  await assert.rejects(runCli(["verdict", "--analysis-outcome", "failure", "--upload-outcome", "success"], { requestOwnerIssueFn: owner }));
+  assert.equal(requests, 0);
+  for (const response of ["error", "slow", "oversize", "stream-error"]) await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: () => { throw new Error(response); }, timeoutMs: 1, maxBytes: 1 }));
+});
+
+test("F1 verdict는 Phase 2 FAIL artifact의 coordinated PASS/reasons/summary rewrite를 거부한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
+  try {
+    const artifact = path.join(dir, "artifact"); analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: artifact });
+    const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const resultFile = path.join(artifact, "mobile-coverage-result.json");
+    const inventory = JSON.parse(readFileSync(inventoryFile, "utf8")); const result = JSON.parse(readFileSync(resultFile, "utf8"));
+    inventory.producer.flutterVersion = "3.44.0"; result.phase = "REVIEWED_BASELINE_ENFORCED"; result.producer.flutterVersion = "3.44.0"; result.reasons = []; result.outcome = "PASS"; result.producer.sourceInventorySha256 = sha(Buffer.from(`${JSON.stringify(inventory, null, 2)}\n`));
+    writeFileSync(inventoryFile, `${JSON.stringify(inventory, null, 2)}\n`); writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`); writeFileSync(path.join(artifact, "mobile-coverage-summary.md"), `# Mobile coverage ratchet\n\nEvent: ${result.identity.event}\nBase SHA: ${result.identity.baseSha}\nHead SHA: ${result.identity.headSha}\nMerge base SHA: ${result.identity.mergeBaseSha}\nTested merge SHA: ${result.identity.testedMergeSha}\nOutcome: PASS\n`);
+    assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot, phase2: true, ownerIssue: owner, flutterRunner: () => Buffer.from('{"frameworkVersion":"3.44.0"}') }), /cross-schema/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("F4 injected EventEmitter request는 total deadline, oversize와 stream error를 각각 reject한다", async () => {
+  const fakeRequest = (schedule) => (_options, onResponse) => { const call = new EventEmitter(); call.end = () => schedule(onResponse, call); call.destroy = () => {}; return call; };
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeRequest(() => {}), timeoutMs: 5 }));
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("data", Buffer.alloc(2)); }), maxBytes: 1 }));
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeRequest((onResponse) => { const response = new EventEmitter(); response.statusCode = 200; onResponse(response); response.emit("error", new Error("stream failure")); }) }));
+});
+
+test("provider diagnostic은 non-200의 숫자 allowlist header만 보존하고 body를 누출하지 않는다", async () => {
+  const fakeResponse = (statusCode, headers, body = "secret-token=never-log") => (_options, onResponse) => { const call = new EventEmitter(); call.end = () => { const response = new EventEmitter(); response.statusCode = statusCode; response.headers = headers; onResponse(response); response.emit("data", Buffer.from(body)); response.emit("end"); }; call.destroy = () => {}; return call; };
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeResponse(403, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "12345", authorization: "Bearer secret" }) }), /statusCode=403 x-ratelimit-remaining=0 x-ratelimit-reset=12345/);
+  await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeResponse(404, {}) }), /statusCode=404/);
+  for (const headers of [{ "x-ratelimit-remaining": ["0"], "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "NaN", "x-ratelimit-reset": "12345" }, { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "999999999999999999999" }]) await assert.rejects(requestOwnerIssue({ token: "test", requestImpl: fakeResponse(403, headers) }), /statusCode=403(?!.*secret-token|.*authorization)/);
+});
+
+test("owner issue retry는 최대 두 번과 제한된 provider backoff만 허용한다", async () => {
+  const calls = [];
+  const delays = [];
+  const requestSequence = (responses) => (options, onResponse) => {
+    calls.push(options);
+    const call = new EventEmitter();
+    call.destroy = () => {};
+    call.end = () => {
+      const next = responses.shift();
+      const response = new EventEmitter();
+      response.statusCode = next.statusCode;
+      response.headers = next.headers ?? {};
+      onResponse(response);
+      response.emit("data", Buffer.from(next.body ?? "secret-token=never-log"));
+      response.emit("end");
+    };
+    return call;
+  };
+  const owner = JSON.stringify({ number: 102, html_url: "https://github.com/AquilaXk/easysubway-mobile/issues/102", state: "open" });
+  const success = { statusCode: 200, body: owner };
+  const invoke = async (responses, { clock = () => 1000 } = {}) => requestOwnerIssue({ token: "test-token", requestImpl: requestSequence(responses), sleeper: async (delay) => delays.push(delay), clock });
+
+  await invoke([{ statusCode: 503 }, success]);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(delays, [1000]);
+  assert.equal(calls[0].headers.Authorization, "Bearer test-token");
+  delays.length = 0; calls.length = 0;
+
+  await assert.rejects(invoke([{ statusCode: 503 }, { statusCode: 503 }]), /statusCode=503/);
+  assert.equal(calls.length, 2);
+  assert.deepEqual(delays, [1000]);
+  delays.length = 0; calls.length = 0;
+
+  await invoke([{ statusCode: 429, headers: { "retry-after": "12" } }, success]);
+  assert.deepEqual(delays, [12000]);
+  delays.length = 0; calls.length = 0;
+  await invoke([{ statusCode: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1030" } }, success]);
+  assert.deepEqual(delays, [30000]);
+  delays.length = 0; calls.length = 0;
+  await invoke([{ statusCode: 403 }, success]);
+  assert.deepEqual(delays, [60000]);
+  delays.length = 0; calls.length = 0;
+
+  for (const response of [
+    { statusCode: 429, headers: { "retry-after": "61" } },
+    { statusCode: 403, headers: { "retry-after": "bad" } },
+    { statusCode: 429, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "1061" } },
+    { statusCode: 403, headers: { "x-ratelimit-remaining": "0", "x-ratelimit-reset": "bad" } },
+    { statusCode: 404 },
+  ]) {
+    await assert.rejects(invoke([response, success]), /statusCode=/);
+    assert.deepEqual(delays, []);
+    assert.equal(calls.length, 1);
+    delays.length = 0; calls.length = 0;
+  }
+  await assert.rejects(requestOwnerIssue({ requestImpl: () => { throw new Error("must not request"); } }), /OWNER_ISSUE_TOKEN is required/);
+  assert.equal(calls.length, 0);
+  await assert.rejects(invoke([{ statusCode: 404, body: "test-token secret-token=never-log" }]), (error) => !error.message.includes("test-token") && !error.message.includes("secret-token"));
 });
 
 test("Dart lexical scanner는 comment-only만 제외하고 문자열 속 주석 표시는 코드로 남긴다", () => {
@@ -51,11 +226,12 @@ final double = """escaped \\""" delimiter""" ;
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 function discoveryInput(dir, event = "workflow_dispatch") {
-  const raw = Buffer.from("SF:lib/accessible_design.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n");
+  const normalized = Buffer.from("SF:lib/accessible_design.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n");
+  const raw = Buffer.from(`${normalized}SF:lib/core/database/catalog/catalog_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\nSF:lib/core/database/user/user_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n`);
   const rawFile = path.join(dir, "raw.lcov"); const normalizedFile = path.join(dir, "normalized.lcov"); const filterFile = path.join(dir, "filter.json"); const eventFile = path.join(dir, "event.json");
-  writeFileSync(rawFile, raw); writeFileSync(normalizedFile, raw);
+  writeFileSync(rawFile, raw); writeFileSync(normalizedFile, normalized);
   writeFileSync(eventFile, JSON.stringify(event === "pull_request" ? { pull_request: { base: { sha: head }, head: { sha: head } } } : { ref: "refs/heads/main", after: head }));
-  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(raw), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions: [{ path: "apps/mobile/lib/core/database/catalog/catalog_database.g.dart", reason: "DRIFT_CATALOG_DATABASE_GENERATED", executableLines: 0, coveredLines: 0 }, { path: "apps/mobile/lib/core/database/user/user_database.g.dart", reason: "DRIFT_USER_DATABASE_GENERATED", executableLines: 0, coveredLines: 0 }], outcome: "success" })}\n`);
+  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(normalized), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions: [{ path: "apps/mobile/lib/core/database/catalog/catalog_database.g.dart", reason: "DRIFT_CATALOG_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }, { path: "apps/mobile/lib/core/database/user/user_database.g.dart", reason: "DRIFT_USER_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }], outcome: "success" })}\n`);
   return { event, eventPath: eventFile, baseSha: head, headSha: head, testedMergeSha: head, eventRef: event === "pull_request" ? "refs/pull/48/merge" : "refs/heads/main", pullRequestNumber: event === "pull_request" ? "48" : "none", rawLcov: rawFile, normalizedLcov: normalizedFile, filterResult: filterFile, policy: "tools/ci/mobile-coverage-policy.json", baseline: "tools/ci/mobile-coverage-baseline.json" };
 }
 
@@ -67,6 +243,7 @@ test("Phase 1 analyzer는 manual artifact를 exact DISCOVERY_REMOTE_RED로 결�
     assert.deepEqual(manual.reasons, ["BASELINE_UNREVIEWED"]);
     assert.equal(manual.changedLines.state, "NOT_APPLICABLE_MANUAL_FULL");
     assert.deepEqual(Object.keys(manual), ["schemaVersion", "artifactKind", "repository", "phase", "identity", "producer", "coverage", "changedLines", "criticalBoundaries", "exclusions", "artifacts", "reasons", "outcome"]);
+    assert.deepEqual(Object.keys(manual.producer), ["policySha256", "baselineSha256", "filterSha256", "ratchetSha256", "rawLcovSha256", "normalizedLcovSha256", "sourceInventorySha256", "lcovTagSubset"]);
     assert.equal(readFileSync(path.join(dir, "manual", "mobile-coverage-result.json"), "utf8"), `${JSON.stringify(manual, null, 2)}\n`);
     assert.equal(verifyArtifactDirectory(path.join(dir, "manual")).outcome, "DISCOVERY_REMOTE_RED");
     assert.deepEqual(manual.exclusions.map(({ id }) => id), ["DRIFT_CATALOG_DATABASE_GENERATED", "DRIFT_USER_DATABASE_GENERATED"]);
@@ -96,6 +273,64 @@ test("CLI는 malformed/missing/duplicate argument와 intentional discovery verdi
   assert.equal(spawnSync("node", ["tools/ci/mobile-coverage-ratchet.mjs", "verdict", "--analysis-outcome", "success", "--upload-outcome", "success"]).status, 1);
 });
 
+test("Phase 2 enforced workflow는 ratchet 분석·artifact·verdict를 고정 배선한다", () => {
+  const workflow = readFileSync(path.join(repositoryRoot, ".github/workflows/ci.yml"), "utf8");
+  const analyze = [
+    "      - name: Analyze mobile coverage ratchet",
+    "        id: coverage_ratchet_analyze",
+    "        env:",
+    "          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    "          RATCHET_EVENT: ${{ github.event_name }}",
+    "          RATCHET_EVENT_PATH: ${{ github.event_path }}",
+    "          RATCHET_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}",
+    "          RATCHET_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+    "          RATCHET_TESTED_MERGE_SHA: ${{ github.sha }}",
+    "          RATCHET_EVENT_REF: ${{ github.ref }}",
+    "          RATCHET_PR_NUMBER: ${{ github.event.pull_request.number || 'none' }}",
+    "        run: |",
+    "          node tools/ci/mobile-coverage-ratchet.mjs analyze \\",
+    "            --event \"${RATCHET_EVENT}\" \\",
+    "            --event-path \"${RATCHET_EVENT_PATH}\" \\",
+    "            --base-sha \"${RATCHET_BASE_SHA}\" \\",
+    "            --head-sha \"${RATCHET_HEAD_SHA}\" \\",
+    "            --tested-merge-sha \"${RATCHET_TESTED_MERGE_SHA}\" \\",
+    "            --event-ref \"${RATCHET_EVENT_REF}\" \\",
+    "            --pull-request-number \"${RATCHET_PR_NUMBER}\" \\",
+    "            --raw-lcov apps/mobile/coverage/lcov.info \\",
+    "            --normalized-lcov \"${RUNNER_TEMP}/mobile-coverage-normalized.lcov\" \\",
+    "            --filter-result \"${RUNNER_TEMP}/mobile-coverage-filter-result.json\" \\",
+    "            --policy tools/ci/mobile-coverage-policy.json \\",
+    "            --baseline tools/ci/mobile-coverage-baseline.json",
+  ].join("\n");
+  const upload = [
+    "      - name: Upload mobile coverage ratchet evidence",
+    "        id: coverage_ratchet_upload",
+    "        if: always()",
+    "        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808",
+    "        with:",
+    "          name: mobile-coverage-ratchet-${{ github.event.pull_request.head.sha || github.sha }}",
+    "          path: ${{ runner.temp }}/mobile-coverage-ratchet",
+    "          retention-days: 5",
+    "          if-no-files-found: error",
+  ].join("\n");
+  const verdict = [
+    "      - name: Enforce mobile coverage ratchet verdict",
+    "        if: always()",
+    "        env:",
+    "          OWNER_ISSUE_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    "        run: |",
+    "          node tools/ci/mobile-coverage-ratchet.mjs verdict \\",
+    "            --analysis-outcome \"${{ steps.coverage_ratchet_analyze.outcome }}\" \\",
+    "            --upload-outcome \"${{ steps.coverage_ratchet_upload.outcome }}\"",
+  ].join("\n");
+  assert.equal(workflow.includes("tools/ci/mobile-coverage-ratchet.test.mjs"), true);
+  for (const block of [analyze, upload, verdict]) {
+    assert.equal(workflow.includes(block), true, block);
+    const start = workflow.indexOf(block); const end = workflow.indexOf("\n      - name:", start + block.length); const actualStep = workflow.slice(start, end === -1 ? undefined : end);
+    assert.equal(actualStep.includes("continue-on-error"), false);
+  }
+});
+
 test("F2 injected seam은 event payload/ref/unique ancestor contract를 fail-closed로 판정한다", () => {
   const options = { event: "pull_request", pullRequestNumber: "48", eventRef: "refs/pull/48/merge", baseSha: "a".repeat(40), headSha: "b".repeat(40), testedMergeSha: "c".repeat(40) };
   const event = { pull_request: { base: { sha: options.baseSha }, head: { sha: options.headSha } } };
@@ -112,6 +347,21 @@ test("F2 injected seam은 event payload/ref/unique ancestor contract를 fail-clo
   assert.throws(() => validateEventIdentity({ ...options, eventRef: "refs/heads/main" }, event, git));
   assert.throws(() => validateEventIdentity({ ...options, event: "push", eventRef: "refs/heads/main", pullRequestNumber: "none", baseSha: "0".repeat(40) }, { ref: "refs/heads/main", before: "0".repeat(40), after: options.headSha }, git));
   assert.throws(() => validateEventIdentity({ ...options, event: "workflow_dispatch", pullRequestNumber: "none", eventRef: "refs/heads/main", baseSha: options.headSha, testedMergeSha: options.headSha }, { ref: "refs/heads/other" }, git));
+});
+
+test("F2는 PR base·head에서 tested merge로의 조상 관계를 각각 독립적으로 닫는다", () => {
+  const options = { event: "pull_request", pullRequestNumber: "48", eventRef: "refs/pull/48/merge", baseSha: "a".repeat(40), headSha: "b".repeat(40), testedMergeSha: "c".repeat(40) };
+  const event = { pull_request: { base: { sha: options.baseSha }, head: { sha: options.headSha } } };
+  const gitWithRejectedAncestor = (rejectedBase, rejectedTarget) => (args) => {
+    if (args[0] === "rev-parse") return options.testedMergeSha;
+    if (args.includes("--all")) return "d".repeat(40);
+    if (args.includes("--is-ancestor") && args.at(-2) === rejectedBase && args.at(-1) === rejectedTarget) throw new Error("injected non-ancestor");
+    return "";
+  };
+  assert.throws(() => validateEventIdentity(options, event, gitWithRejectedAncestor(options.baseSha, options.testedMergeSha)), /tested merge/i);
+  assert.throws(() => validateEventIdentity(options, event, gitWithRejectedAncestor(options.headSha, options.testedMergeSha)), /tested merge/i);
+  assert.throws(() => validateEventIdentity(options, event, (args) => args[0] === "rev-parse" ? "e".repeat(40) : gitWithRejectedAncestor("", "")(args)), /does not equal HEAD/i);
+  assert.throws(() => validateEventIdentity({ ...options, event: "push", eventRef: "refs/heads/main", pullRequestNumber: "none" }, { ref: "refs/heads/main", before: options.baseSha, after: options.headSha }, (args) => args[0] === "rev-parse" ? options.testedMergeSha : ""), /push/i);
 });
 
 test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부와 raw/tested blob mismatch를 닫는다", () => {
@@ -176,5 +426,77 @@ test("F5 verdict 재검증은 analyze 후 artifact mutation을 RED로 만든다"
     analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: path.join(dir, "out") });
     writeFileSync(path.join(dir, "out", "mobile-coverage-summary.md"), "tampered\n");
     assert.throws(() => verifyArtifactDirectory(path.join(dir, "out"), { repositoryRoot }), /cross-schema/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("F5 verdict는 nested inventory/result projection mutation을 모두 거부한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  const mutate = (artifact, file, change) => {
+    const target = path.join(artifact, file);
+    const value = JSON.parse(readFileSync(target, "utf8"));
+    change(value);
+    writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`);
+  };
+  const cases = [
+    ["mobile-coverage-source-inventory.json", (inventory) => { inventory.sources[0].sourceSha256 = "0".repeat(64); }],
+    ["mobile-coverage-source-inventory.json", (inventory) => { inventory.sources[0].owners = []; }],
+    ["mobile-coverage-source-inventory.json", (inventory) => { inventory.summary.sources += 1; }],
+    ["mobile-coverage-result.json", (result) => { result.coverage.lcovMissingSources = []; }],
+    ["mobile-coverage-result.json", (result) => { result.changedLines.executableLines += 1; }],
+    ["mobile-coverage-result.json", (result) => { result.criticalBoundaries[0].lcovMissingSources = []; }],
+    ["mobile-coverage-result.json", (result) => { result.exclusions.pop(); }],
+    ["mobile-coverage-result.json", (result) => { result.artifacts.files = []; }],
+  ];
+  try {
+    for (const [index, [file, change]] of cases.entries()) {
+      const artifact = path.join(dir, `out-${index}`);
+      analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: artifact });
+      mutate(artifact, file, change);
+      assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /artifact|cross-schema|producer/i, file);
+    }
+    const artifact = path.join(dir, "out-producer");
+    analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: artifact });
+    const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const inventory = JSON.parse(readFileSync(inventoryFile, "utf8"));
+    inventory.producer.policySha256 = "0".repeat(64); writeFileSync(inventoryFile, `${JSON.stringify(inventory, null, 2)}\n`);
+    const resultFile = path.join(artifact, "mobile-coverage-result.json"); const result = JSON.parse(readFileSync(resultFile, "utf8"));
+    result.producer.sourceInventorySha256 = sha(readFileSync(inventoryFile)); writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`);
+    assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /producer/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("F7/F8/F9 verdict는 coordinated identity·normalized·tag-subset artifact rewrite를 거부한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  const refreshInventoryDigest = (artifact) => {
+    const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const resultFile = path.join(artifact, "mobile-coverage-result.json");
+    const result = JSON.parse(readFileSync(resultFile, "utf8")); result.producer.sourceInventorySha256 = sha(readFileSync(inventoryFile)); writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`);
+  };
+  try {
+    for (const [index, file, key, value] of [["inventory-schema", "mobile-coverage-source-inventory.json", "schemaVersion", 2], ["inventory-kind", "mobile-coverage-source-inventory.json", "artifactKind", "other"], ["inventory-repository", "mobile-coverage-source-inventory.json", "repository", "other/repository"], ["result-schema", "mobile-coverage-result.json", "schemaVersion", 2], ["result-kind", "mobile-coverage-result.json", "artifactKind", "other"], ["result-repository", "mobile-coverage-result.json", "repository", "other/repository"]]) {
+      const artifact = path.join(dir, `top-level-${index}`); const inputDirectory = path.join(dir, `top-level-input-${index}`); mkdirSync(inputDirectory); analyze(discoveryInput(inputDirectory), { repositoryRoot, reportDirectory: artifact });
+      const target = path.join(artifact, file); const valueJson = JSON.parse(readFileSync(target, "utf8")); valueJson[key] = value; writeFileSync(target, `${JSON.stringify(valueJson, null, 2)}\n`); if (file.includes("source-inventory")) refreshInventoryDigest(artifact);
+      assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /top-level/i, index);
+    }
+    const parent = execFileSync("git", ["rev-parse", "HEAD^"], { encoding: "utf8" }).trim();
+    const identityArtifact = path.join(dir, "identity"); analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: identityArtifact });
+    for (const file of ["mobile-coverage-source-inventory.json", "mobile-coverage-result.json"]) {
+      const target = path.join(identityArtifact, file); const value = JSON.parse(readFileSync(target, "utf8"));
+      value.identity = { ...value.identity, baseSha: parent, headSha: parent, mergeBaseSha: parent, testedMergeSha: parent, range: null }; writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`);
+    }
+    refreshInventoryDigest(identityArtifact);
+    const identityResult = JSON.parse(readFileSync(path.join(identityArtifact, "mobile-coverage-result.json"), "utf8")); writeFileSync(path.join(identityArtifact, "mobile-coverage-summary.md"), `# Mobile coverage ratchet\n\nEvent: ${identityResult.identity.event}\nBase SHA: ${parent}\nHead SHA: ${parent}\nMerge base SHA: ${parent}\nTested merge SHA: ${parent}\nOutcome: DISCOVERY_REMOTE_RED\n`);
+    assert.throws(() => verifyArtifactDirectory(identityArtifact, { repositoryRoot }), /identity|HEAD|artifact/i);
+
+    const normalizedArtifact = path.join(dir, "normalized"); const normalizedInputDirectory = path.join(dir, "normalized-input"); mkdirSync(normalizedInputDirectory); const normalizedInput = discoveryInput(normalizedInputDirectory);
+    const normalized = readFileSync(normalizedInput.normalizedLcov, "utf8").replace("DA:1,0", "DA:1,1"); writeFileSync(normalizedInput.normalizedLcov, normalized);
+    const filter = JSON.parse(readFileSync(normalizedInput.filterResult, "utf8")); filter.outputSha256 = sha(normalized); filter.lines.covered = 1; writeFileSync(normalizedInput.filterResult, `${JSON.stringify(filter)}\n`);
+    analyze(normalizedInput, { repositoryRoot, reportDirectory: normalizedArtifact });
+    assert.throws(() => verifyArtifactDirectory(normalizedArtifact, { repositoryRoot }), /normalized|artifact/i);
+
+    for (const [index, subset] of [["empty", []], ["reordered", ["LH", "SF"]], ["duplicate", ["SF", "SF"]]]) {
+      const artifact = path.join(dir, `tags-${index}`); const inputDirectory = path.join(dir, `tags-input-${index}`); mkdirSync(inputDirectory); analyze(discoveryInput(inputDirectory), { repositoryRoot, reportDirectory: artifact });
+      const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const inventory = JSON.parse(readFileSync(inventoryFile, "utf8")); inventory.producer.lcovTagSubset = subset; writeFileSync(inventoryFile, `${JSON.stringify(inventory, null, 2)}\n`);
+      const resultFile = path.join(artifact, "mobile-coverage-result.json"); const result = JSON.parse(readFileSync(resultFile, "utf8")); result.producer.lcovTagSubset = subset; writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`); refreshInventoryDigest(artifact);
+      assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /tag|producer|artifact/i, index);
+    }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
