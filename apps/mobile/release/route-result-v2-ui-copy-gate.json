@@ -17,7 +17,7 @@
       "route-result-v2-screenreader-label-audit",
       "route-result-v2-large-touch-target-and-contrast-regression"
     ],
-    "notClosingReasonKo": "#1230은 Route result V2 badge와 accessibility copy 구현/검증 증거가 아직 동결되지 않아 Android v1 GO 판정 전에 open 유지한다."
+    "notClosingReasonKo": "https://github.com/AquilaXk/easysubway/issues/1230은 Route result V2 badge와 accessibility copy 구현/검증 증거가 아직 동결되지 않아 Android v1 GO 판정 전에 open 유지한다."
   },
   "requiredEvidence": {
     "badgeScreenshotRequired": true,

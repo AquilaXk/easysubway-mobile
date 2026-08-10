@@ -21,10 +21,10 @@
       "riders-with-large-baggage"
     ]
   },
-  "routeSafetyContract": "#571",
+  "routeSafetyContract": "https://github.com/AquilaXk/easysubway-mobile/issues/7",
   "routeSafetyStatusEnum": ["FOUND", "BLOCKED", "UNKNOWN", "UNSUPPORTED", "ERROR"],
   "buildIdentityPolicy": {
-    "requiredIssueLinks": ["#1015", "#1016", "#1020"],
+    "requiredIssueLinks": ["https://github.com/AquilaXk/easysubway/issues/1015", "https://github.com/AquilaXk/easysubway-mobile/issues/8", "https://github.com/AquilaXk/easysubway/issues/1020"],
     "acceptedBuildSources": ["rc-aab", "play-generated-apk", "play-installed-build"],
     "requiredIdentityFields": [
       "gitSha",
@@ -313,7 +313,7 @@
       "play-installed-font-scale-150-200-compact-screen-screenshots",
       "upload-failure-recovery-on-rc-or-play-installed-build"
     ],
-    "notClosingReasonKo": "#1021은 local emulator/real-device smoke 일부가 PASS여도 Play-installed provenance, 실제 TalkBack reading order, Play Console pre-launch/vitals, Play-installed 성능/복구 증거가 남아 open 유지한다.",
+    "notClosingReasonKo": "https://github.com/AquilaXk/easysubway-mobile/issues/9은 local emulator/real-device smoke 일부가 PASS여도 Play-installed provenance, 실제 TalkBack reading order, Play Console pre-launch/vitals, Play-installed 성능/복구 증거가 남아 open 유지한다.",
     "redactionPolicy": {
       "secretValuesPrinted": false,
       "forbiddenInGitHubEvidence": [

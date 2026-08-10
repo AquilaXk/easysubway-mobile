@@ -27,7 +27,7 @@
       "play-pre-launch-report-or-android-vitals-export",
       "play-upload-or-play-installed-required-screenshot-set"
     ],
-    "notClosingReasonKo": "Play Console preview, pre-launch/Android vitals, Play-uploaded screenshot set 증거가 남아 있어 #1018은 open 유지한다."
+    "notClosingReasonKo": "Play Console preview, pre-launch/Android vitals, Play-uploaded screenshot set 증거가 남아 있어 https://github.com/AquilaXk/easysubway/issues/1018은 open 유지한다."
   },
   "items": [
     {

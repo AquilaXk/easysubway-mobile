@@ -139,7 +139,7 @@
     "missingPlayGeneratedArtifact": "blocked",
     "missingPreLaunchCrashZero": "blocked",
     "missingDataSafetyNetworkTraceMatch": "blocked",
-    "exceptionPath": "#1020 waiver until-date and owner required"
+    "exceptionPath": "https://github.com/AquilaXk/easysubway/issues/1020 waiver until-date and owner required"
   },
   "evidencePolicy": {
     "localOnlyEvidenceRoot": ".codex/evidence/release/android-rc-store/<rc-or-run>/",

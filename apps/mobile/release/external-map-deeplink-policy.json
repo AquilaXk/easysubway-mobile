@@ -1,6 +1,6 @@
 {
   "schema": "easysubway.external_map_deeplink_policy.v2",
-  "ownerIssue": "#1770",
+  "ownerIssue": "https://github.com/AquilaXk/easysubway/issues/1770",
   "approvedAt": "2026-07-09",
   "status": "SATISFIED",
   "scope": "station_exit_map_preview_and_ground_walk_guidance",
