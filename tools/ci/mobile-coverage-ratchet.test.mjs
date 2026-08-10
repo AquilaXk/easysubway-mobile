@@ -51,11 +51,12 @@ final double = """escaped \\""" delimiter""" ;
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 function discoveryInput(dir, event = "workflow_dispatch") {
-  const raw = Buffer.from("SF:lib/accessible_design.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n");
+  const normalized = Buffer.from("SF:lib/accessible_design.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n");
+  const raw = Buffer.from(`${normalized}SF:lib/core/database/catalog/catalog_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\nSF:lib/core/database/user/user_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n`);
   const rawFile = path.join(dir, "raw.lcov"); const normalizedFile = path.join(dir, "normalized.lcov"); const filterFile = path.join(dir, "filter.json"); const eventFile = path.join(dir, "event.json");
-  writeFileSync(rawFile, raw); writeFileSync(normalizedFile, raw);
+  writeFileSync(rawFile, raw); writeFileSync(normalizedFile, normalized);
   writeFileSync(eventFile, JSON.stringify(event === "pull_request" ? { pull_request: { base: { sha: head }, head: { sha: head } } } : { ref: "refs/heads/main", after: head }));
-  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(raw), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions: [{ path: "apps/mobile/lib/core/database/catalog/catalog_database.g.dart", reason: "DRIFT_CATALOG_DATABASE_GENERATED", executableLines: 0, coveredLines: 0 }, { path: "apps/mobile/lib/core/database/user/user_database.g.dart", reason: "DRIFT_USER_DATABASE_GENERATED", executableLines: 0, coveredLines: 0 }], outcome: "success" })}\n`);
+  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(normalized), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions: [{ path: "apps/mobile/lib/core/database/catalog/catalog_database.g.dart", reason: "DRIFT_CATALOG_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }, { path: "apps/mobile/lib/core/database/user/user_database.g.dart", reason: "DRIFT_USER_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }], outcome: "success" })}\n`);
   return { event, eventPath: eventFile, baseSha: head, headSha: head, testedMergeSha: head, eventRef: event === "pull_request" ? "refs/pull/48/merge" : "refs/heads/main", pullRequestNumber: event === "pull_request" ? "48" : "none", rawLcov: rawFile, normalizedLcov: normalizedFile, filterResult: filterFile, policy: "tools/ci/mobile-coverage-policy.json", baseline: "tools/ci/mobile-coverage-baseline.json" };
 }
 
@@ -67,6 +68,7 @@ test("Phase 1 analyzer는 manual artifact를 exact DISCOVERY_REMOTE_RED로 결�
     assert.deepEqual(manual.reasons, ["BASELINE_UNREVIEWED"]);
     assert.equal(manual.changedLines.state, "NOT_APPLICABLE_MANUAL_FULL");
     assert.deepEqual(Object.keys(manual), ["schemaVersion", "artifactKind", "repository", "phase", "identity", "producer", "coverage", "changedLines", "criticalBoundaries", "exclusions", "artifacts", "reasons", "outcome"]);
+    assert.deepEqual(Object.keys(manual.producer), ["policySha256", "baselineSha256", "filterSha256", "ratchetSha256", "rawLcovSha256", "normalizedLcovSha256", "sourceInventorySha256", "lcovTagSubset"]);
     assert.equal(readFileSync(path.join(dir, "manual", "mobile-coverage-result.json"), "utf8"), `${JSON.stringify(manual, null, 2)}\n`);
     assert.equal(verifyArtifactDirectory(path.join(dir, "manual")).outcome, "DISCOVERY_REMOTE_RED");
     assert.deepEqual(manual.exclusions.map(({ id }) => id), ["DRIFT_CATALOG_DATABASE_GENERATED", "DRIFT_USER_DATABASE_GENERATED"]);
@@ -96,6 +98,60 @@ test("CLI는 malformed/missing/duplicate argument와 intentional discovery verdi
   assert.equal(spawnSync("node", ["tools/ci/mobile-coverage-ratchet.mjs", "verdict", "--analysis-outcome", "success", "--upload-outcome", "success"]).status, 1);
 });
 
+test("Phase 1 workflow는 ratchet 분석·artifact·intentional verdict를 고정 배선한다", () => {
+  const workflow = readFileSync(path.join(repositoryRoot, ".github/workflows/ci.yml"), "utf8");
+  const analyze = [
+    "      - name: Analyze mobile coverage ratchet",
+    "        id: coverage_ratchet_analyze",
+    "        env:",
+    "          RATCHET_EVENT: ${{ github.event_name }}",
+    "          RATCHET_EVENT_PATH: ${{ github.event_path }}",
+    "          RATCHET_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}",
+    "          RATCHET_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}",
+    "          RATCHET_TESTED_MERGE_SHA: ${{ github.sha }}",
+    "          RATCHET_EVENT_REF: ${{ github.ref }}",
+    "          RATCHET_PR_NUMBER: ${{ github.event.pull_request.number || 'none' }}",
+    "        run: |",
+    "          node tools/ci/mobile-coverage-ratchet.mjs analyze \\",
+    "            --event \"${RATCHET_EVENT}\" \\",
+    "            --event-path \"${RATCHET_EVENT_PATH}\" \\",
+    "            --base-sha \"${RATCHET_BASE_SHA}\" \\",
+    "            --head-sha \"${RATCHET_HEAD_SHA}\" \\",
+    "            --tested-merge-sha \"${RATCHET_TESTED_MERGE_SHA}\" \\",
+    "            --event-ref \"${RATCHET_EVENT_REF}\" \\",
+    "            --pull-request-number \"${RATCHET_PR_NUMBER}\" \\",
+    "            --raw-lcov apps/mobile/coverage/lcov.info \\",
+    "            --normalized-lcov \"${RUNNER_TEMP}/mobile-coverage-normalized.lcov\" \\",
+    "            --filter-result \"${RUNNER_TEMP}/mobile-coverage-filter-result.json\" \\",
+    "            --policy tools/ci/mobile-coverage-policy.json \\",
+    "            --baseline tools/ci/mobile-coverage-baseline.json",
+  ].join("\n");
+  const upload = [
+    "      - name: Upload mobile coverage ratchet evidence",
+    "        id: coverage_ratchet_upload",
+    "        if: always()",
+    "        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808",
+    "        with:",
+    "          name: mobile-coverage-ratchet-${{ github.event.pull_request.head.sha || github.sha }}",
+    "          path: ${{ runner.temp }}/mobile-coverage-ratchet",
+    "          retention-days: 5",
+    "          if-no-files-found: error",
+  ].join("\n");
+  const verdict = [
+    "      - name: Enforce mobile coverage ratchet verdict",
+    "        if: always()",
+    "        run: |",
+    "          node tools/ci/mobile-coverage-ratchet.mjs verdict \\",
+    "            --analysis-outcome \"${{ steps.coverage_ratchet_analyze.outcome }}\" \\",
+    "            --upload-outcome \"${{ steps.coverage_ratchet_upload.outcome }}\"",
+  ].join("\n");
+  assert.equal(workflow.includes("tools/ci/mobile-coverage-ratchet.test.mjs"), true);
+  for (const block of [analyze, upload, verdict]) {
+    assert.equal(workflow.includes(block), true, block);
+    assert.equal(block.includes("continue-on-error"), false);
+  }
+});
+
 test("F2 injected seam은 event payload/ref/unique ancestor contract를 fail-closed로 판정한다", () => {
   const options = { event: "pull_request", pullRequestNumber: "48", eventRef: "refs/pull/48/merge", baseSha: "a".repeat(40), headSha: "b".repeat(40), testedMergeSha: "c".repeat(40) };
   const event = { pull_request: { base: { sha: options.baseSha }, head: { sha: options.headSha } } };
@@ -112,6 +168,21 @@ test("F2 injected seam은 event payload/ref/unique ancestor contract를 fail-clo
   assert.throws(() => validateEventIdentity({ ...options, eventRef: "refs/heads/main" }, event, git));
   assert.throws(() => validateEventIdentity({ ...options, event: "push", eventRef: "refs/heads/main", pullRequestNumber: "none", baseSha: "0".repeat(40) }, { ref: "refs/heads/main", before: "0".repeat(40), after: options.headSha }, git));
   assert.throws(() => validateEventIdentity({ ...options, event: "workflow_dispatch", pullRequestNumber: "none", eventRef: "refs/heads/main", baseSha: options.headSha, testedMergeSha: options.headSha }, { ref: "refs/heads/other" }, git));
+});
+
+test("F2는 PR base·head에서 tested merge로의 조상 관계를 각각 독립적으로 닫는다", () => {
+  const options = { event: "pull_request", pullRequestNumber: "48", eventRef: "refs/pull/48/merge", baseSha: "a".repeat(40), headSha: "b".repeat(40), testedMergeSha: "c".repeat(40) };
+  const event = { pull_request: { base: { sha: options.baseSha }, head: { sha: options.headSha } } };
+  const gitWithRejectedAncestor = (rejectedBase, rejectedTarget) => (args) => {
+    if (args[0] === "rev-parse") return options.testedMergeSha;
+    if (args.includes("--all")) return "d".repeat(40);
+    if (args.includes("--is-ancestor") && args.at(-2) === rejectedBase && args.at(-1) === rejectedTarget) throw new Error("injected non-ancestor");
+    return "";
+  };
+  assert.throws(() => validateEventIdentity(options, event, gitWithRejectedAncestor(options.baseSha, options.testedMergeSha)), /tested merge/i);
+  assert.throws(() => validateEventIdentity(options, event, gitWithRejectedAncestor(options.headSha, options.testedMergeSha)), /tested merge/i);
+  assert.throws(() => validateEventIdentity(options, event, (args) => args[0] === "rev-parse" ? "e".repeat(40) : gitWithRejectedAncestor("", "")(args)), /does not equal HEAD/i);
+  assert.throws(() => validateEventIdentity({ ...options, event: "push", eventRef: "refs/heads/main", pullRequestNumber: "none" }, { ref: "refs/heads/main", before: options.baseSha, after: options.headSha }, (args) => args[0] === "rev-parse" ? options.testedMergeSha : ""), /push/i);
 });
 
 test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부와 raw/tested blob mismatch를 닫는다", () => {
@@ -176,5 +247,77 @@ test("F5 verdict 재검증은 analyze 후 artifact mutation을 RED로 만든다"
     analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: path.join(dir, "out") });
     writeFileSync(path.join(dir, "out", "mobile-coverage-summary.md"), "tampered\n");
     assert.throws(() => verifyArtifactDirectory(path.join(dir, "out"), { repositoryRoot }), /cross-schema/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("F5 verdict는 nested inventory/result projection mutation을 모두 거부한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  const mutate = (artifact, file, change) => {
+    const target = path.join(artifact, file);
+    const value = JSON.parse(readFileSync(target, "utf8"));
+    change(value);
+    writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`);
+  };
+  const cases = [
+    ["mobile-coverage-source-inventory.json", (inventory) => { inventory.sources[0].sourceSha256 = "0".repeat(64); }],
+    ["mobile-coverage-source-inventory.json", (inventory) => { inventory.sources[0].owners = []; }],
+    ["mobile-coverage-source-inventory.json", (inventory) => { inventory.summary.sources += 1; }],
+    ["mobile-coverage-result.json", (result) => { result.coverage.lcovMissingSources = []; }],
+    ["mobile-coverage-result.json", (result) => { result.changedLines.executableLines += 1; }],
+    ["mobile-coverage-result.json", (result) => { result.criticalBoundaries[0].lcovMissingSources = []; }],
+    ["mobile-coverage-result.json", (result) => { result.exclusions.pop(); }],
+    ["mobile-coverage-result.json", (result) => { result.artifacts.files = []; }],
+  ];
+  try {
+    for (const [index, [file, change]] of cases.entries()) {
+      const artifact = path.join(dir, `out-${index}`);
+      analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: artifact });
+      mutate(artifact, file, change);
+      assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /artifact|cross-schema|producer/i, file);
+    }
+    const artifact = path.join(dir, "out-producer");
+    analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: artifact });
+    const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const inventory = JSON.parse(readFileSync(inventoryFile, "utf8"));
+    inventory.producer.policySha256 = "0".repeat(64); writeFileSync(inventoryFile, `${JSON.stringify(inventory, null, 2)}\n`);
+    const resultFile = path.join(artifact, "mobile-coverage-result.json"); const result = JSON.parse(readFileSync(resultFile, "utf8"));
+    result.producer.sourceInventorySha256 = sha(readFileSync(inventoryFile)); writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`);
+    assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /producer/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("F7/F8/F9 verdict는 coordinated identity·normalized·tag-subset artifact rewrite를 거부한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  const refreshInventoryDigest = (artifact) => {
+    const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const resultFile = path.join(artifact, "mobile-coverage-result.json");
+    const result = JSON.parse(readFileSync(resultFile, "utf8")); result.producer.sourceInventorySha256 = sha(readFileSync(inventoryFile)); writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`);
+  };
+  try {
+    for (const [index, file, key, value] of [["inventory-schema", "mobile-coverage-source-inventory.json", "schemaVersion", 2], ["inventory-kind", "mobile-coverage-source-inventory.json", "artifactKind", "other"], ["inventory-repository", "mobile-coverage-source-inventory.json", "repository", "other/repository"], ["result-schema", "mobile-coverage-result.json", "schemaVersion", 2], ["result-kind", "mobile-coverage-result.json", "artifactKind", "other"], ["result-repository", "mobile-coverage-result.json", "repository", "other/repository"]]) {
+      const artifact = path.join(dir, `top-level-${index}`); const inputDirectory = path.join(dir, `top-level-input-${index}`); mkdirSync(inputDirectory); analyze(discoveryInput(inputDirectory), { repositoryRoot, reportDirectory: artifact });
+      const target = path.join(artifact, file); const valueJson = JSON.parse(readFileSync(target, "utf8")); valueJson[key] = value; writeFileSync(target, `${JSON.stringify(valueJson, null, 2)}\n`); if (file.includes("source-inventory")) refreshInventoryDigest(artifact);
+      assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /top-level/i, index);
+    }
+    const parent = execFileSync("git", ["rev-parse", "HEAD^"], { encoding: "utf8" }).trim();
+    const identityArtifact = path.join(dir, "identity"); analyze(discoveryInput(dir), { repositoryRoot, reportDirectory: identityArtifact });
+    for (const file of ["mobile-coverage-source-inventory.json", "mobile-coverage-result.json"]) {
+      const target = path.join(identityArtifact, file); const value = JSON.parse(readFileSync(target, "utf8"));
+      value.identity = { ...value.identity, baseSha: parent, headSha: parent, mergeBaseSha: parent, testedMergeSha: parent, range: null }; writeFileSync(target, `${JSON.stringify(value, null, 2)}\n`);
+    }
+    refreshInventoryDigest(identityArtifact);
+    const identityResult = JSON.parse(readFileSync(path.join(identityArtifact, "mobile-coverage-result.json"), "utf8")); writeFileSync(path.join(identityArtifact, "mobile-coverage-summary.md"), `# Mobile coverage ratchet\n\nEvent: ${identityResult.identity.event}\nBase SHA: ${parent}\nHead SHA: ${parent}\nMerge base SHA: ${parent}\nTested merge SHA: ${parent}\nOutcome: DISCOVERY_REMOTE_RED\n`);
+    assert.throws(() => verifyArtifactDirectory(identityArtifact, { repositoryRoot }), /identity|HEAD|artifact/i);
+
+    const normalizedArtifact = path.join(dir, "normalized"); const normalizedInputDirectory = path.join(dir, "normalized-input"); mkdirSync(normalizedInputDirectory); const normalizedInput = discoveryInput(normalizedInputDirectory);
+    const normalized = readFileSync(normalizedInput.normalizedLcov, "utf8").replace("DA:1,0", "DA:1,1"); writeFileSync(normalizedInput.normalizedLcov, normalized);
+    const filter = JSON.parse(readFileSync(normalizedInput.filterResult, "utf8")); filter.outputSha256 = sha(normalized); filter.lines.covered = 1; writeFileSync(normalizedInput.filterResult, `${JSON.stringify(filter)}\n`);
+    analyze(normalizedInput, { repositoryRoot, reportDirectory: normalizedArtifact });
+    assert.throws(() => verifyArtifactDirectory(normalizedArtifact, { repositoryRoot }), /normalized|artifact/i);
+
+    for (const [index, subset] of [["empty", []], ["reordered", ["LH", "SF"]], ["duplicate", ["SF", "SF"]]]) {
+      const artifact = path.join(dir, `tags-${index}`); const inputDirectory = path.join(dir, `tags-input-${index}`); mkdirSync(inputDirectory); analyze(discoveryInput(inputDirectory), { repositoryRoot, reportDirectory: artifact });
+      const inventoryFile = path.join(artifact, "mobile-coverage-source-inventory.json"); const inventory = JSON.parse(readFileSync(inventoryFile, "utf8")); inventory.producer.lcovTagSubset = subset; writeFileSync(inventoryFile, `${JSON.stringify(inventory, null, 2)}\n`);
+      const resultFile = path.join(artifact, "mobile-coverage-result.json"); const result = JSON.parse(readFileSync(resultFile, "utf8")); result.producer.lcovTagSubset = subset; writeFileSync(resultFile, `${JSON.stringify(result, null, 2)}\n`); refreshInventoryDigest(artifact);
+      assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot }), /tag|producer|artifact/i, index);
+    }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

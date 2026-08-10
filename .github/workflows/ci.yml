@@ -74,6 +74,7 @@ jobs:
           node --test \
             tools/ci/check-google-play-api-access.test.mjs \
             tools/ci/filter-mobile-lcov.test.mjs \
+            tools/ci/mobile-coverage-ratchet.test.mjs \
             tools/ci/lib/google-play-auth.test.mjs \
             tools/ci/mobile-changed-path-classifier.test.mjs \
             tools/mobile/automerge-queue.test.mjs \
@@ -131,6 +132,45 @@ jobs:
             --output "${RUNNER_TEMP}/mobile-coverage-normalized.lcov" \
             --policy tools/ci/mobile-coverage-policy.json \
             --result "${RUNNER_TEMP}/mobile-coverage-filter-result.json"
+      - name: Analyze mobile coverage ratchet
+        id: coverage_ratchet_analyze
+        env:
+          RATCHET_EVENT: ${{ github.event_name }}
+          RATCHET_EVENT_PATH: ${{ github.event_path }}
+          RATCHET_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          RATCHET_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RATCHET_TESTED_MERGE_SHA: ${{ github.sha }}
+          RATCHET_EVENT_REF: ${{ github.ref }}
+          RATCHET_PR_NUMBER: ${{ github.event.pull_request.number || 'none' }}
+        run: |
+          node tools/ci/mobile-coverage-ratchet.mjs analyze \
+            --event "${RATCHET_EVENT}" \
+            --event-path "${RATCHET_EVENT_PATH}" \
+            --base-sha "${RATCHET_BASE_SHA}" \
+            --head-sha "${RATCHET_HEAD_SHA}" \
+            --tested-merge-sha "${RATCHET_TESTED_MERGE_SHA}" \
+            --event-ref "${RATCHET_EVENT_REF}" \
+            --pull-request-number "${RATCHET_PR_NUMBER}" \
+            --raw-lcov apps/mobile/coverage/lcov.info \
+            --normalized-lcov "${RUNNER_TEMP}/mobile-coverage-normalized.lcov" \
+            --filter-result "${RUNNER_TEMP}/mobile-coverage-filter-result.json" \
+            --policy tools/ci/mobile-coverage-policy.json \
+            --baseline tools/ci/mobile-coverage-baseline.json
+      - name: Upload mobile coverage ratchet evidence
+        id: coverage_ratchet_upload
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-coverage-ratchet-${{ github.event.pull_request.head.sha || github.sha }}
+          path: ${{ runner.temp }}/mobile-coverage-ratchet
+          retention-days: 5
+          if-no-files-found: error
+      - name: Enforce mobile coverage ratchet verdict
+        if: always()
+        run: |
+          node tools/ci/mobile-coverage-ratchet.mjs verdict \
+            --analysis-outcome "${{ steps.coverage_ratchet_analyze.outcome }}" \
+            --upload-outcome "${{ steps.coverage_ratchet_upload.outcome }}"
 
   android:
     name: Android CI
