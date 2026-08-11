@@ -22,6 +22,7 @@ import '../../get_off_alarm/get_off_alarm_controller.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_preset_picker.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
+import '../../network_map/application/network_map_region_bridge.dart';
 import '../../network_map/presentation/region_menu.dart';
 import '../../notifications/presentation/new_notification_bar.dart';
 import '../../notifications/presentation/notification_inbox_screen.dart';
