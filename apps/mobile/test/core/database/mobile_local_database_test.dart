@@ -45,21 +45,17 @@ void main() {
     expect(closeCalled.isCompleted, isTrue);
   });
 
-  test('route repository close가 실패해도 bootstrap은 나머지 DB를 닫는다', () async {
+  test('bootstrap close는 catalog와 user DB를 닫는다', () async {
     final catalogDatabase = _CloseTrackingCatalogDatabase();
     final userDatabase = _CloseTrackingUserDatabase();
     addTearDown(() async {
       if (catalogDatabase.closeCount == 0) await catalogDatabase.close();
       if (userDatabase.closeCount == 0) await userDatabase.close();
     });
-    final localRouteRepository = _AlwaysCloseFailingLocalRouteRepository(
-      catalogDatabase,
-    );
     final bootstrap = AppBootstrap(
       dependencies: AppDependencies.resolve(
         catalogDatabase: catalogDatabase,
         userDatabase: userDatabase,
-        localRouteRepository: localRouteRepository,
         enablePushNotifications: false,
       ),
       catalogDatabase: catalogDatabase,
@@ -68,19 +64,9 @@ void main() {
       resumeDataPackUpdate: () async {},
       acceptMeteredDataPackUpdate: () async {},
       bundledDataPackFreshness: null,
-      localRouteRepository: localRouteRepository,
     );
 
-    await expectLater(
-      bootstrap.close(),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          'route repository close failed',
-        ),
-      ),
-    );
+    await bootstrap.close();
 
     expect(catalogDatabase.closeCount, 1);
     expect(userDatabase.closeCount, 1);
@@ -308,6 +294,8 @@ void main() {
     );
     final database = await opener.open();
     addTearDown(database.close);
+
+    expect(opener.openedArtifactIdentity, isNotEmpty);
 
     final metadata = await database.customSelect('''
           SELECT value
@@ -1281,9 +1269,7 @@ void main() {
     finishUpdate.complete();
     await bootstrap.dataPackUpdate;
 
-    final sessionRouteDatabase =
-        bootstrap.localRouteRepository!.catalogDatabase;
-    final activePack = await sessionRouteDatabase.customSelect('''
+    final activePack = await bootstrap.catalogDatabase.customSelect('''
       SELECT value FROM catalog_metadata WHERE key = 'activePack'
       ''').getSingle();
     expect(activePack.read<String>('value'), 'capital');
@@ -1875,17 +1861,6 @@ final class _CloseTrackingUserDatabase extends UserDatabase {
   Future<void> close() async {
     closeCount += 1;
     await super.close();
-  }
-}
-
-final class _AlwaysCloseFailingLocalRouteRepository
-    extends LocalRouteRepository {
-  _AlwaysCloseFailingLocalRouteRepository(CatalogDatabase catalogDatabase)
-    : super(catalogDatabase: catalogDatabase);
-
-  @override
-  Future<void> close() async {
-    throw StateError('route repository close failed');
   }
 }
 

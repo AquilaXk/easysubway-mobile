@@ -10,6 +10,8 @@ import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';
+import 'package:easysubway_mobile/features/journey/data/journey_api_repository.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
@@ -17,6 +19,7 @@ import 'package:easysubway_mobile/features/stations/data/drift_station_repositor
 import 'package:easysubway_mobile/features/train_search/domain/train_search_models.dart';
 import 'package:easysubway_mobile/main.dart' as app;
 import 'package:easysubway_mobile/route_search.dart';
+import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -113,7 +116,7 @@ void main() {
     );
   });
 
-  test('로컬 데이터베이스가 있으면 API 주소 없이 경로와 알림 의존성이 동작한다', () async {
+  test('로컬 데이터베이스가 있어도 release route fallback은 만들지 않는다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -137,16 +140,7 @@ void main() {
       isA<UnavailableFacilityReportRepository>(),
     );
 
-    final routeResult = await dependencies.routeRepository.searchRoute(
-      const RouteSearchRequest(
-        originStationId: 'station-sangnoksu',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'WHEELCHAIR',
-      ),
-    );
-
-    expect(routeResult.status, 'FOUND');
-    expect(routeResult.isLocalResult, isTrue);
+    expect(dependencies.routeRepository, isNull);
 
     final internalNodes = await dependencies.internalRouteRepository
         .listRouteNodes('station-sangnoksu');
@@ -197,50 +191,60 @@ void main() {
         );
       },
       enablePushNotifications: false,
-      enableRouteV2OnlineFirst: true,
     );
 
     expect(apiBaseReads, 0);
     expect(dependencies.routeRepository, same(injectedRouteRepository));
   });
 
-  test('Route V2 flag는 로컬 catalog가 없으면 즉시 실패한다', () {
-    expect(
-      () => AppDependencies.resolve(
-        reportRepository: const UnavailableFacilityReportRepository(),
-        apiBaseUri: () => Uri.parse('https://api.example.com'),
-        enablePushNotifications: false,
-        enableRouteV2OnlineFirst: true,
-      ),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          'Route V2 online-first requires a local catalog database.',
-        ),
-      ),
+  test('API 주소가 있으면 Journey V3 repository만 release route로 만든다', () {
+    final dependencies = AppDependencies.resolve(
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () => Uri.parse('https://api.example.com'),
+      enablePushNotifications: false,
     );
+
+    expect(dependencies.routeRepository, isNull);
+    expect(dependencies.journeyRepository, isA<JourneyApiRepository>());
   });
 
-  test('Route V2 flag는 API 주소가 없으면 local로 강등하지 않고 즉시 실패한다', () async {
+  test('API 주소가 없으면 local로 강등하지 않고 Journey failure로 닫는다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     addTearDown(catalogDatabase.close);
 
-    expect(
-      () => AppDependencies.resolve(
-        catalogDatabase: catalogDatabase,
-        reportRepository: const UnavailableFacilityReportRepository(),
-        apiBaseUri: () => null,
-        enablePushNotifications: false,
-        enableRouteV2OnlineFirst: true,
-      ),
-      throwsA(
-        isA<StateError>().having(
-          (error) => error.message,
-          'message',
-          'Release API base URL must be configured.',
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () => null,
+      enablePushNotifications: false,
+    );
+
+    expect(dependencies.routeRepository, isNull);
+    await expectLater(
+      dependencies.journeyRepository.issueSession(
+        JourneySessionRequest(
+          integrityToken: 'integrity-token',
+          clientNonce: 'AAAAAAAAAAAAAAAAAAAAAA',
         ),
       ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    await expectLater(
+      dependencies.journeyRepository.searchJourneys(
+        JourneySearchRequest(
+          requestId: '01J00000000000000000000000',
+          originStationId: 'station-origin',
+          destinationStationId: 'station-destination',
+          departure: const JourneyDepartureNow(),
+          timePolicy: TimePolicy.timetableRequired,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 3,
+          alternativeCount: 3,
+        ),
+        sessionToken: 'unused',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
     );
   });
 

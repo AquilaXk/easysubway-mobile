@@ -103,6 +103,7 @@ EasySubwayApp buildEasySubwayTestApp({
     dataPackUpdate: dataPackUpdate,
     bundledDataPackFreshness: bundledDataPackFreshness,
     initialOnboardingState: initialOnboardingState,
+    legacyRouteSearchFixtureEnabled: routeRepository != null,
     navigatorKey: navigatorKey,
     key: key,
   );

@@ -15,7 +15,6 @@ void main() {
     final app = buildEasySubwayTestApp(
       repository: _UnusedStationSearchRepository(),
       reportRepository: _UnusedFacilityReportRepository(),
-      routeRepository: _UnusedRouteSearchRepository(),
     );
 
     expect(app.favoriteRepository, isNull);
@@ -23,6 +22,7 @@ void main() {
     expect(app.favoriteRouteRepository, isNull);
     expect(app.notificationRepository, isNull);
     expect(app.notificationPermissionProvider, isNull);
+    expect(app.legacyRouteSearchFixtureEnabled, isFalse);
   });
 
   test('푸시 알림을 명시적으로 켜도 인증 없는 원격 저장소는 만들지 않는다', () {
