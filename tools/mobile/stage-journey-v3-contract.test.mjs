@@ -1,15 +1,16 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, lstatSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import test from 'node:test';
 import { stageJourneyV3ContractForTest } from './stage-journey-v3-contract.mjs';
 
 const repository = join(import.meta.dirname, '..', '..');
 const stager = join(repository, 'tools/mobile/stage-journey-v3-contract.mjs');
 const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+function tokenFiles(root, token) { const found = []; const walk = (directory) => { for (const entry of readdirSync(directory).sort()) { const file = join(directory, entry); const stat = lstatSync(file); if (stat.isSymbolicLink()) continue; if (stat.isDirectory()) walk(file); else if (stat.isFile() && readFileSync(file).includes(token)) found.push(relative(root, file).split('\\').join('/')); } }; walk(join(root, 'tools')); return found.sort(); }
 
 function fixture(root) {
   mkdirSync(root, { recursive: true });
@@ -113,7 +114,7 @@ test('creates an absent non-symlink build root and keeps the test seam private',
     assert.equal(readFileSync(join(testBuildRoot, 'stage', fixture_.lock.resources[2].path), 'utf8'), 'openapi: 3.1.0\n');
     const symlinkBuildRoot = join(root, 'symlink-build'); symlinkSync(root, symlinkBuildRoot);
     fails({ ...fixture_, buildRoot: symlinkBuildRoot }, join(symlinkBuildRoot, 'stage'), 'build root must be an existing non-symlink directory');
-    const references = execFileSync('rg', ['-l', 'stageJourneyV3ContractForTest', 'tools'], { cwd: repository, encoding: 'utf8' }).trim().split('\n').sort();
+    const references = tokenFiles(repository, 'stageJourneyV3ContractForTest');
     assert.deepEqual(references, ['tools/mobile/stage-journey-v3-contract.mjs', 'tools/mobile/stage-journey-v3-contract.test.mjs']);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

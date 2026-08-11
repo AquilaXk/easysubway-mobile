@@ -12,6 +12,10 @@ const resourcePaths = ['contracts/api/journey-v3-error-catalog.json', 'contracts
 const generatedDartPaths = ['journey_v3_contract.dart', 'journey_v3_enums.dart', 'journey_v3_error.dart', 'journey_v3_models.dart', 'journey_v3_validation.dart'];
 const generationReceiptName = 'journey_v3_generation_receipt.json';
 const formatterIdentity = Object.freeze({ command: 'dart format', sdkVersion: '3.12.0' });
+const generatorIdentity = Object.freeze({ id: 'easysubway-mobile-journey-v3-client', version: '2.0.0' });
+const mobileRepository = 'AquilaXk/easysubway-mobile';
+const nodeRuntime = Object.freeze({ command: 'node', majorVersion: 24 });
+const logicalCommand = Object.freeze({ program: 'node', script: 'tools/mobile/generate-journey-v3-client.mjs', arguments: ['--contract-root', '<staged-contract-root>', '--lock', 'contracts/mobile/journey-v3-client.lock.json', '--output-root', '<absent-output-root>', '--receipt', '<output-root>/journey_v3_generation_receipt.json', '--mobile-source-sha', '<generation-source-commit>'] });
 const supportedFeatures = ['array', 'boolean', 'closed-object', 'enum', 'integer-bounds', 'json-post', 'local-ref', 'nullable', 'openapi-3.0.3', 'request-response-security', 'strict-yaml-subset', 'string-constraints', 'tagged-one-of'];
 const expectedOperations = new Map([
   ['/api/v3/journeys/session', { id: 'issueJourneySession', responses: ['200', '400', '403', '503'], request: 'JourneySessionRequest', success: 'JourneySessionResponse' }],
@@ -23,6 +27,32 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const expectedSchemasProjectionSha256 = 'e15f5fc6d5495510c77cdc10e2b406bed6b24550058b09452f665f3c2cc8bbfa';
+
+function canonicalJson(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
+  if (isObject(value)) return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalJson(value[key])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+
+function configSha256() {
+  return sha256(Buffer.from(canonicalJson({ schemaProjectionSha256: expectedSchemasProjectionSha256, resourcePaths, generatedDartPaths, generationReceiptName, supportedFeatures, formatterIdentity }), 'utf8'));
+}
+
+function defaultGit(args) { return spawnSync('git', args, { cwd: repositoryRoot, encoding: null, timeout: 10_000 }); }
+function validateMobileSourceSha(sourceSha, gitApi = defaultGit, currentGeneratorBytes = regular(generatorSourcePath, 'generator source'), currentLockBytes = regular(trackedLock, 'tracked lock')) {
+  if (typeof sourceSha !== 'string' || !/^[a-f0-9]{40}$/.test(sourceSha)) fail('mobile source SHA must be lowercase 40-hex');
+  const ancestor = gitApi(['merge-base', '--is-ancestor', sourceSha, 'HEAD']);
+  if (ancestor.error || ancestor.status !== 0) fail('mobile source SHA must be an ancestor of HEAD');
+  const latest = gitApi(['log', '-1', '--format=%H', 'HEAD', '--', 'tools/mobile/generate-journey-v3-client.mjs', 'contracts/mobile/journey-v3-client.lock.json']);
+  if (latest.error || latest.status !== 0 || Buffer.from(latest.stdout ?? '').toString('utf8').trim() !== sourceSha) fail('mobile source SHA must be the latest generator and lock source revision');
+  for (const [path, expected] of [['tools/mobile/generate-journey-v3-client.mjs', currentGeneratorBytes], ['contracts/mobile/journey-v3-client.lock.json', currentLockBytes]]) {
+    const result = gitApi(['show', `${sourceSha}:${path}`]);
+    if (result.error || result.status !== 0 || !Buffer.from(result.stdout ?? '').equals(expected)) fail(`mobile source SHA ${path} blob differs from current snapshot`);
+  }
+  return sourceSha;
+}
+function validateNodeRuntime(nodeMajorVersion = Number(process.versions.node.split('.')[0])) { if (Number(nodeMajorVersion) !== nodeRuntime.majorVersion) fail(`Node ${nodeRuntime.majorVersion} is required`); }
 
 function duplicateFreeJson(text, label) {
   let index = 0;
@@ -104,12 +134,17 @@ function validateStage(lock, lockBytes, root, snapshot) {
 }
 
 function assertAllowed(value, keys, label) { if (!isObject(value) || Object.keys(value).some((key) => !keys.includes(key))) fail(`${label} has unsupported schema construct`); }
-function validateSchemas(schemas) {
+function validateSchemas(schemas, enforceSchemasProjection) {
   if (!isObject(schemas) || Object.keys(schemas).length === 0) fail('components.schemas must be nonempty'); const state = new Map();
   const visit = (name) => { if (!(name in schemas)) fail(`unresolved schema reference ${name}`); if (state.get(name) === 'visiting') fail(`cyclic schema reference ${name}`); if (state.get(name) === 'done') return; state.set(name, 'visiting'); schema(schemas[name], name); state.set(name, 'done'); };
   const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime']);
   const schema = (value, label) => { if (!isObject(value)) fail(`${label} must be a schema object`); if ('$ref' in value) { assertAllowed(value, ['$ref'], label); visit(ref(value.$ref, label)); return; } if ('oneOf' in value) { assertAllowed(value, ['oneOf'], label); if (!Array.isArray(value.oneOf) || ![2, 4].includes(value.oneOf.length)) fail(`${label} must be tagged oneOf`); const tags = new Set(); const tagName = label === 'JourneyDeparture' ? 'mode' : label === 'JourneyLeg' ? 'type' : null; if (!tagName) fail(`${label} is not a supported tagged oneOf`); for (const part of value.oneOf) { if (!isObject(part) || Object.keys(part).length !== 1) fail(`${label} oneOf is unsupported`); const target = ref(part.$ref, label); visit(target); const tag = schemas[target]?.properties?.[tagName]?.enum; if (!Array.isArray(tag) || tag.length !== 1 || tags.has(tag[0])) fail(`${label} oneOf is not tagged by ${tagName}`); tags.add(tag[0]); } return; } if (value.type === 'object') { assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not'], label); if (value.additionalProperties !== false || !Array.isArray(value.required) || !isObject(value.properties) || new Set(value.required).size !== value.required.length || Object.keys(value.properties).length !== value.required.length || value.required.some((key) => !(key in value.properties))) fail(`${label} must have an exact closed required property set`); for (const [key, child] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) fail(`${label} has unsupported property`); schema(child, `${label}.${key}`); } if ('not' in value && (!isObject(value.not) || !Array.isArray(value.not.required) || !isObject(value.not.properties))) fail(`${label} has unsupported not constraint`); return; } if (value.type === 'string') { assertAllowed(value, ['type', 'minLength', 'maxLength', 'pattern', 'format', 'enum', 'nullable'], label); for (const key of ['minLength', 'maxLength']) if (key in value && (!Number.isInteger(value[key]) || value[key] < 0)) fail(`${label} has invalid ${key}`); if ('minLength' in value && 'maxLength' in value && value.minLength > value.maxLength) fail(`${label} has unordered lengths`); if ('pattern' in value) { if (typeof value.pattern !== 'string' || value.pattern.length === 0) fail(`${label} has invalid pattern`); try { new RegExp(value.pattern); } catch { fail(`${label} has invalid pattern`); } } if ('format' in value && !['date', 'date-time'].includes(value.format)) fail(`${label} has unsupported string format`); if ('enum' in value && (!Array.isArray(value.enum) || value.enum.length === 0 || value.enum.some((item) => typeof item !== 'string') || new Set(value.enum).size !== value.enum.length)) fail(`${label} has invalid string enum`); if ('nullable' in value && (value.nullable !== true || !nullableFields.has(label))) fail(`${label} has unsupported nullable string`); return; } if (value.type === 'integer') { assertAllowed(value, ['type', 'minimum', 'maximum'], label); for (const key of ['minimum', 'maximum']) if (key in value && !Number.isInteger(value[key])) fail(`${label} has invalid ${key}`); if ('minimum' in value && 'maximum' in value && value.minimum > value.maximum) fail(`${label} has unordered integer bounds`); return; } if (value.type === 'boolean') { assertAllowed(value, ['type'], label); return; } if (value.type === 'array') { assertAllowed(value, ['type', 'minItems', 'maxItems', 'uniqueItems', 'items'], label); for (const key of ['minItems', 'maxItems']) if (key in value && (!Number.isInteger(value[key]) || value[key] < 0)) fail(`${label} has invalid ${key}`); if ('minItems' in value && 'maxItems' in value && value.minItems > value.maxItems) fail(`${label} has unordered array bounds`); if ('uniqueItems' in value && typeof value.uniqueItems !== 'boolean') fail(`${label} has invalid uniqueItems`); if (!('items' in value)) fail(`${label} array items are required`); schema(value.items, `${label}.items`); return; } fail(`${label} has unsupported schema type`); };
-  for (const name of Object.keys(schemas)) visit(name); return schemas;
+  for (const name of Object.keys(schemas)) visit(name);
+  if (enforceSchemasProjection) {
+    const projectionSha256 = sha256(Buffer.from(canonicalJson(schemas), 'utf8'));
+    if (projectionSha256 !== expectedSchemasProjectionSha256) fail(`components.schemas projection SHA-256 does not match ${projectionSha256}`);
+  }
+  return schemas;
 }
 
 function responseSchema(response, label) { if (!isObject(response) || !isObject(response.content) || Object.keys(response.content).length !== 1 || !isObject(response.content['application/json']) || !isObject(response.content['application/json'].schema)) fail(`${label} must have only JSON response content`); return ref(response.content['application/json'].schema.$ref, label); }
@@ -133,9 +168,9 @@ function validateErrors(catalog, disposition) {
   exactKeys(disposition, ['schemaVersion', 'artifactKind', 'sourceCatalog', 'entries'], 'error disposition'); exactKeys(disposition.sourceCatalog, ['path', 'schemaVersion', 'sha256'], 'error disposition sourceCatalog'); if (disposition.schemaVersion !== 'JOURNEY_ERROR_DISPOSITION_V1' || disposition.artifactKind !== 'journey-v3-error-disposition' || disposition.sourceCatalog.path !== 'journey-v3-error-catalog.json' || disposition.sourceCatalog.schemaVersion !== 'JOURNEY_ERROR_CATALOG_V1' || !Array.isArray(disposition.entries) || disposition.entries.length !== 17) fail('error disposition is unsupported'); const seen = new Set(); const bindings = []; for (const entry of disposition.entries) { const keys = ['operation', 'httpStatus', 'machineCode', 'semanticCategory', 'exposure', 'userVisible', 'publicMessageKey', 'canonicalKoreanCopy', 'mobileResourceKey', 'mobilePresentation', 'retryDisposition', 'primaryActionKey', 'secondaryActionKey', 'safeDiagnosticKey', 'sensitiveDetailPolicy']; exactKeys(entry, keys, 'error disposition entry'); const key = `${entry.operation}\0${entry.httpStatus}\0${entry.machineCode}`; if (!tuples.has(key) || seen.has(key) || entry.exposure !== 'MOBILE_USER_VISIBLE' || entry.userVisible !== true || entry.mobilePresentation !== 'FAILURE_SCREEN' || entry.retryDisposition !== 'FORBIDDEN' || entry.secondaryActionKey !== null || entry.sensitiveDetailPolicy !== 'NEVER_PUBLIC' || typeof entry.semanticCategory !== 'string' || typeof entry.publicMessageKey !== 'string' || typeof entry.canonicalKoreanCopy !== 'string' || typeof entry.mobileResourceKey !== 'string' || typeof entry.safeDiagnosticKey !== 'string' || !(entry.primaryActionKey === null || typeof entry.primaryActionKey === 'string')) fail('error disposition does not have the fixed mobile policy'); seen.add(key); bindings.push(Object.freeze({ ...entry, code: entry.machineCode })); } if (seen.size !== tuples.size) fail('error catalog and disposition are not one-to-one'); return Object.freeze(bindings); }
 function expectedOperationsHas(operation) { return [...expectedOperations.values()].some(({ id }) => id === operation); }
 
-function validate({ contractRoot, lockPath, enforceTrackedLock, snapshot }) {
+function validate({ contractRoot, lockPath, enforceTrackedLock, enforceSchemasProjection, snapshot }) {
   if (enforceTrackedLock && resolve(lockPath) !== trackedLock) fail('lock must be the tracked journey-v3-client lock'); const lockBytes = snapshot?.lockBytes ?? regular(lockPath, 'lock'); const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock); validateStage(lock, lockBytes, contractRoot, snapshot);
-  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const yaml = (snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(document.components.schemas); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; if (!Array.isArray(errorCodes) || errorCodes.length !== 17 || new Set(errorCodes).size !== 17 || errorCodes.some((code) => !errors.some((entry) => entry.code === code))) fail('JourneyErrorCode must exactly bind the 17-entry catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors });
+  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const yaml = (snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(document.components.schemas, enforceSchemasProjection); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; if (!Array.isArray(errorCodes) || errorCodes.length !== 17 || new Set(errorCodes).size !== 17 || errorCodes.some((code) => !errors.some((entry) => entry.code === code))) fail('JourneyErrorCode must exactly bind the 17-entry catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors });
 }
 
 const dartCase = (token) => token.split(/[^A-Za-z0-9]+/).filter(Boolean).map((part, index) => { const normalized = part === part.toUpperCase() ? part.toLowerCase() : `${part[0].toLowerCase()}${part.slice(1)}`; return index === 0 ? normalized : `${normalized[0].toUpperCase()}${normalized.slice(1)}`; }).join('');
@@ -325,7 +360,7 @@ export function renderJourneyV3ErrorsAndBarrelForTest(options) { const ir = vali
 export function renderJourneyV3DartLiteralSeamForTest({ enumToken, lock }) { return Object.freeze({ enums: renderDartEnums({ schemas: { SpecialWire: { type: 'string', enum: [enumToken] } }, errorDispositions: [{ semanticCategory: 'TEST', primaryActionKey: 'test.action' }] }), contract: renderDartContract(lock) }); }
 
 function renderFiles(options, enforceTrackedLock, snapshot) {
-  const ir = validate({ ...options, enforceTrackedLock, snapshot });
+  const ir = validate({ ...options, enforceTrackedLock, enforceSchemasProjection: enforceTrackedLock || options.enforceSchemasProjection === true, snapshot });
   const lockBytes = snapshot?.lockBytes ?? regular(options.lockPath, 'lock');
   const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock');
   const generatedHeader = (source) => {
@@ -365,14 +400,20 @@ function formatRenderedDart(rendered, dartExecutable = 'dart') {
 
 function buildGeneration(options, enforceTrackedLock) {
   const snapshot = snapshotGenerationInput(options, enforceTrackedLock);
+  const sourceSha = enforceTrackedLock ? validateMobileSourceSha(options.mobileSourceSha, options.gitApi, snapshot.generatorBytes, snapshot.lockBytes) : options.mobileSourceSha;
+  if (enforceTrackedLock) validateNodeRuntime(options.nodeMajorVersion);
   const lock = duplicateFreeJson(snapshot.lockBytes.toString('utf8'), 'lock');
   const rendered = renderFiles(options, enforceTrackedLock, snapshot);
   const formatted = formatRenderedDart(rendered, options.dartExecutable);
   const files = generatedDartPaths.map((path) => Object.freeze({ path, sha256: sha256(formatted[path]) }));
   const treeSha256 = sha256(Buffer.from(files.map(({ path, sha256: digest }) => `${path}\0${digest}\n`).join(''), 'utf8'));
   const receipt = Object.freeze({
-    schemaVersion: 1,
-    generator: Object.freeze({ id: 'easysubway-mobile-journey-v3-client', version: '1.0.0', sourceSha256: sha256(snapshot.generatorBytes), formatter: formatterIdentity }),
+    schemaVersion: 2,
+    generator: Object.freeze({ ...generatorIdentity, sourceSha256: sha256(snapshot.generatorBytes), formatter: formatterIdentity }),
+    mobileRepository: Object.freeze({ repository: mobileRepository, generationSourceCommitSha: sourceSha }),
+    runtime: Object.freeze({ node: nodeRuntime }),
+    command: logicalCommand,
+    configSha256: configSha256(),
     lockSha256: sha256(snapshot.lockBytes),
     producer: lock.producer,
     artifact: lock.artifact,
@@ -400,6 +441,27 @@ export function buildJourneyV3GenerationForDrift(options) {
   assertSnapshotUnchanged(options, generation.snapshot);
   return Object.freeze({ files: generation.files, receipt: generation.receipt });
 }
+
+export function selectJourneyV3GenerationReceiptForDrift(receiptBytes) {
+  const receipt = duplicateFreeJson(Buffer.from(receiptBytes).toString('utf8'), 'generation receipt');
+  exactKeys(receipt, ['schemaVersion', 'generator', 'mobileRepository', 'runtime', 'command', 'configSha256', 'lockSha256', 'producer', 'artifact', 'payload', 'publicationReceiptSha256', 'resources', 'supportedFeatures', 'files', 'treeSha256'], 'generation receipt');
+  exactKeys(receipt.generator, ['id', 'version', 'sourceSha256', 'formatter'], 'generation receipt.generator');
+  exactKeys(receipt.mobileRepository, ['repository', 'generationSourceCommitSha'], 'generation receipt.mobileRepository');
+  exactKeys(receipt.runtime, ['node'], 'generation receipt.runtime'); exactKeys(receipt.runtime.node, ['command', 'majorVersion'], 'generation receipt.runtime.node');
+  exactKeys(receipt.command, ['program', 'script', 'arguments'], 'generation receipt.command');
+  if (receipt.schemaVersion !== 2 || receipt.generator.id !== generatorIdentity.id || receipt.generator.version !== generatorIdentity.version || !/^[a-f0-9]{64}$/.test(receipt.generator.sourceSha256) || JSON.stringify(receipt.generator.formatter) !== JSON.stringify(formatterIdentity) || receipt.mobileRepository.repository !== mobileRepository || !/^[a-f0-9]{40}$/.test(receipt.mobileRepository.generationSourceCommitSha) || JSON.stringify(receipt.runtime.node) !== JSON.stringify(nodeRuntime) || JSON.stringify(receipt.command) !== JSON.stringify(logicalCommand) || receipt.configSha256 !== configSha256()) fail('generation receipt has unsupported v2 generator identity');
+  return Object.freeze(receipt);
+}
+
+export function journeyV3ReceiptV2ContractForTest() {
+  return Object.freeze({ generator: Object.freeze({ ...generatorIdentity, formatter: formatterIdentity }), mobileRepository, runtime: Object.freeze({ node: nodeRuntime }), command: logicalCommand, configSha256: configSha256() });
+}
+
+export function validateJourneyV3MobileSourceForTest({ sourceSha, gitApi, generatorBytes, lockBytes }) {
+  return validateMobileSourceSha(sourceSha, gitApi, generatorBytes, lockBytes);
+}
+
+export function validateJourneyV3NodeRuntimeForTest(nodeMajorVersion) { return validateNodeRuntime(nodeMajorVersion); }
 
 function assertOutputParent(outputRoot) {
   const parent = dirname(outputRoot);
@@ -446,6 +508,6 @@ export function generateJourneyV3ClientForTest(options) {
   return publishGeneration(options, buildGeneration(options, false));
 }
 
-function parseArguments(argv) { if (argv.length !== 8 || argv[0] !== '--contract-root' || argv[2] !== '--lock' || argv[4] !== '--output-root' || argv[6] !== '--receipt') fail('usage is --contract-root <root> --lock <lock> --output-root <absent> --receipt <output>/journey_v3_generation_receipt.json'); return { contractRoot: argv[1], lockPath: argv[3], outputRoot: argv[5], receiptPath: argv[7] }; }
-export function validateJourneyV3ClientInputForTest(options) { return validate({ ...options, enforceTrackedLock: false }); }
+function parseArguments(argv) { if (argv.length !== 10 || argv[0] !== '--contract-root' || argv[2] !== '--lock' || argv[4] !== '--output-root' || argv[6] !== '--receipt' || argv[8] !== '--mobile-source-sha') fail('usage is --contract-root <root> --lock <lock> --output-root <absent> --receipt <output>/journey_v3_generation_receipt.json --mobile-source-sha <lowercase-40hex>'); return { contractRoot: argv[1], lockPath: argv[3], outputRoot: argv[5], receiptPath: argv[7], mobileSourceSha: argv[9] }; }
+export function validateJourneyV3ClientInputForTest(options) { return validate({ ...options, enforceTrackedLock: false, enforceSchemasProjection: options.enforceSchemasProjection === true }); }
 if (process.argv[1] === generatorSourcePath) try { const options = parseArguments(process.argv.slice(2)); publishGeneration(options, buildGeneration(options, true)); } catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }

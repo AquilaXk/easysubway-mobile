@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 
-import { generateJourneyV3ClientForTest } from './generate-journey-v3-client.mjs';
+import { generateJourneyV3ClientForTest, journeyV3ReceiptV2ContractForTest, selectJourneyV3GenerationReceiptForDrift, validateJourneyV3MobileSourceForTest, validateJourneyV3NodeRuntimeForTest } from './generate-journey-v3-client.mjs';
 import { verifyJourneyV3ClientDriftForTest } from './verify-journey-v3-client-drift.mjs';
 
 const repository = join(import.meta.dirname, '..', '..');
@@ -48,6 +48,30 @@ function copyTree(source, destination) {
   cpSync(source, destination, { recursive: true });
   return destination;
 }
+
+test('validates the v2 receipt identity and source commit proof seams fail closed', () => {
+  const contract = journeyV3ReceiptV2ContractForTest();
+  const sourceSha = 'a'.repeat(40); const generatorBytes = Buffer.from('generator'); const lockBytes = Buffer.from('lock');
+  const git = (args) => {
+    if (args[0] === 'merge-base') return { status: 0 };
+    if (args[0] === 'log') return { status: 0, stdout: Buffer.from(`${sourceSha}\n`) };
+    if (args[1].endsWith('generate-journey-v3-client.mjs')) return { status: 0, stdout: generatorBytes };
+    if (args[1].endsWith('journey-v3-client.lock.json')) return { status: 0, stdout: lockBytes };
+    return { status: 1 };
+  };
+  assert.equal(validateJourneyV3MobileSourceForTest({ sourceSha, gitApi: git, generatorBytes, lockBytes }), sourceSha);
+  for (const invalid of ['', 'A'.repeat(40), 'a'.repeat(39)]) assert.throws(() => validateJourneyV3MobileSourceForTest({ sourceSha: invalid, gitApi: git, generatorBytes, lockBytes }), /lowercase 40-hex/);
+  assert.throws(() => validateJourneyV3MobileSourceForTest({ sourceSha, gitApi: () => ({ status: 1 }), generatorBytes, lockBytes }), /ancestor of HEAD/);
+  assert.throws(() => validateJourneyV3MobileSourceForTest({ sourceSha, gitApi: (args) => args[0] === 'merge-base' ? { status: 0 } : args[0] === 'log' ? { status: 0, stdout: Buffer.from(`${'b'.repeat(40)}\n`) } : { status: 0, stdout: generatorBytes }, generatorBytes, lockBytes }), /latest generator and lock source revision/);
+  assert.throws(() => validateJourneyV3MobileSourceForTest({ sourceSha, gitApi: (args) => args[0] === 'merge-base' ? { status: 0 } : args[0] === 'log' ? { status: 0, stdout: Buffer.from(`${sourceSha}\n`) } : { status: 0, stdout: Buffer.from('wrong') }, generatorBytes, lockBytes }), /generate-journey-v3-client\.mjs blob differs/);
+  assert.throws(() => validateJourneyV3MobileSourceForTest({ sourceSha, gitApi: (args) => args[0] === 'merge-base' ? { status: 0 } : args[0] === 'log' ? { status: 0, stdout: Buffer.from(`${sourceSha}\n`) } : args[1].endsWith('generate-journey-v3-client.mjs') ? { status: 0, stdout: generatorBytes } : { status: 0, stdout: Buffer.from('wrong') }, generatorBytes, lockBytes }), /lock.*blob differs/);
+  assert.throws(() => validateJourneyV3NodeRuntimeForTest(23), /Node 24 is required/);
+  assert.equal(validateJourneyV3NodeRuntimeForTest(24), undefined);
+  const receipt = { schemaVersion: 2, generator: { ...contract.generator, sourceSha256: 'b'.repeat(64) }, mobileRepository: { repository: contract.mobileRepository, generationSourceCommitSha: sourceSha }, runtime: contract.runtime, command: contract.command, configSha256: contract.configSha256, lockSha256: 'c'.repeat(64), producer: {}, artifact: {}, payload: {}, publicationReceiptSha256: 'd'.repeat(64), resources: [], supportedFeatures: [], files: [], treeSha256: 'e'.repeat(64) };
+  assert.deepEqual(contract.command.arguments, ['--contract-root', '<staged-contract-root>', '--lock', 'contracts/mobile/journey-v3-client.lock.json', '--output-root', '<absent-output-root>', '--receipt', '<output-root>/journey_v3_generation_receipt.json', '--mobile-source-sha', '<generation-source-commit>']);
+  assert.deepEqual(selectJourneyV3GenerationReceiptForDrift(Buffer.from(JSON.stringify(receipt))), receipt);
+  for (const mutate of [(value) => { value.command = { ...value.command, script: 'other.mjs' }; }, (value) => { value.runtime = { node: { ...value.runtime.node, majorVersion: 23 } }; }, (value) => { value.configSha256 = 'f'.repeat(64); }]) { const tampered = structuredClone(receipt); mutate(tampered); assert.throws(() => selectJourneyV3GenerationReceiptForDrift(Buffer.from(JSON.stringify(tampered))), /unsupported v2 generator identity/); }
+});
 
 test('generates and verifies one deterministic exact receipt-last Journey V3 tree', () => {
   const root = mkdtempSync(join(tmpdir(), 'journey-v3-drift-'));

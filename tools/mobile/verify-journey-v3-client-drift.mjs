@@ -2,7 +2,7 @@ import { constants, closeSync, fstatSync, lstatSync, openSync, readFileSync, rea
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { buildJourneyV3GenerationForDrift } from './generate-journey-v3-client.mjs';
+import { buildJourneyV3GenerationForDrift, selectJourneyV3GenerationReceiptForDrift } from './generate-journey-v3-client.mjs';
 
 const fail = (message) => { throw new Error(`verify-journey-v3-client-drift: ${message}`); };
 
@@ -29,9 +29,10 @@ function assertGeneratedRoot(path) {
   return root;
 }
 
-export function verifyJourneyV3ClientDriftForTest({ contractRoot, lockPath, generatedRoot }) {
-  const expected = buildJourneyV3GenerationForDrift({ contractRoot, lockPath });
+export function verifyJourneyV3ClientDriftForTest({ contractRoot, lockPath, generatedRoot, gitApi, nodeMajorVersion }) {
   const root = assertGeneratedRoot(generatedRoot);
+  const selectedReceipt = selectJourneyV3GenerationReceiptForDrift(regular(join(root, 'journey_v3_generation_receipt.json'), 'generation receipt'));
+  const expected = buildJourneyV3GenerationForDrift({ contractRoot, lockPath, mobileSourceSha: selectedReceipt.mobileRepository.generationSourceCommitSha, gitApi, nodeMajorVersion });
   const expectedNames = Object.keys(expected.files).sort();
   const actualNames = readdirSync(root).sort();
   if (JSON.stringify(actualNames) !== JSON.stringify(expectedNames)) fail('generated file set differs from the exact closed set');
