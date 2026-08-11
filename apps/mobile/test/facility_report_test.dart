@@ -9,9 +9,11 @@ import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/facility_report/data/drift_facility_report_receipt_store.dart';
 import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
+import 'package:easysubway_mobile/features/facility_report/data/secure_facility_report_draft_target_store.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_receipt.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -69,6 +71,26 @@ void main() {
 
     expect(target, isNull);
     expect(storage.deletedKeys, isEmpty);
+  });
+
+  test('시설 신고 임시 대상 저장소는 exact key와 target JSON을 보존한다', () async {
+    final storage = FakeSecureKeyValueStorage();
+    final store = SecureFacilityReportDraftTargetStore(storage: storage);
+    final target = _reportTarget();
+
+    await store.saveTarget(target);
+    final restored = await store.readTarget();
+    await store.clearTarget();
+
+    const storageKey = 'easysubway.facilityReport.draftTarget';
+    expect(storage.values, isEmpty);
+    expect(storage.deletedKeys, [storageKey]);
+    expect(restored?.stationId, target.stationId);
+    expect(restored?.stationName, target.stationName);
+    expect(restored?.facilityId, target.facilityId);
+    expect(restored?.facilityName, target.facilityName);
+    expect(restored?.facilityTypeLabel, target.facilityTypeLabel);
+    expect(restored?.facilityStatusLabel, target.facilityStatusLabel);
   });
 
   test('시설 신고 사진 선택기는 복구할 사진이 없으면 첨부하지 않는다', () async {

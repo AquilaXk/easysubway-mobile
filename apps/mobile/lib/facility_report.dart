@@ -14,8 +14,8 @@ import 'features/facility_report/data/image_picker_facility_report_photo_picker.
 import 'features/facility_report/domain/facility_report_location.dart';
 import 'features/facility_report/domain/facility_report_photo.dart';
 import 'features/facility_report/domain/facility_report_receipt.dart';
+import 'features/facility_report/domain/facility_report_target.dart';
 import 'mobile_error_reporter.dart';
-import 'secure_key_value_storage.dart';
 
 const _facilityReportTimeout = Duration(seconds: 8);
 const _facilityReportErrorMessage = '제보를 보내지 못했어요.';
@@ -35,8 +35,6 @@ const _facilityReportUploadDisclosureTitle = '사진·위치 확인';
 const _facilityReportUploadDisclosurePurpose = '사진과 제보 위치는 시설 제보 확인에만 사용됩니다.';
 const _facilityReportUploadDisclosureScope =
     '제보 내용은 접수 담당자에게 전달되며 앱 사용자에게 공개되지 않습니다.';
-const _facilityReportDraftTargetStorageKey =
-    'easysubway.facilityReport.draftTarget';
 const _facilityReportPagePadding = EdgeInsets.only(bottom: 32);
 const _facilityReportContentPadding = EdgeInsets.symmetric(horizontal: 20);
 const _facilityReportCardRadius = BorderRadius.all(
@@ -721,119 +719,6 @@ class FacilityReportResult {
       'RECOVERED' => '다시 정상',
       _ => '시설 제보',
     };
-  }
-}
-
-class FacilityReportTarget {
-  const FacilityReportTarget({
-    required this.stationId,
-    required this.stationName,
-    required this.facilityId,
-    required this.facilityName,
-    required this.facilityTypeLabel,
-    required this.facilityStatusLabel,
-  });
-
-  factory FacilityReportTarget.fromJson(Map<String, Object?> json) {
-    return FacilityReportTarget(
-      stationId: _requiredReportString(json, 'stationId'),
-      stationName: _requiredReportString(json, 'stationName'),
-      facilityId: _requiredReportString(json, 'facilityId'),
-      facilityName: _requiredReportString(json, 'facilityName'),
-      facilityTypeLabel: _requiredReportString(json, 'facilityTypeLabel'),
-      facilityStatusLabel: _requiredReportString(json, 'facilityStatusLabel'),
-    );
-  }
-
-  factory FacilityReportTarget.decode(String value) {
-    final decoded = jsonDecode(value);
-    if (decoded is! Map<String, Object?>) {
-      throw const FormatException('Invalid facility report target payload');
-    }
-    return FacilityReportTarget.fromJson(decoded);
-  }
-
-  final String stationId;
-  final String stationName;
-  final String facilityId;
-  final String facilityName;
-  final String facilityTypeLabel;
-  final String facilityStatusLabel;
-
-  Map<String, Object?> toJson() {
-    return {
-      'stationId': stationId,
-      'stationName': stationName,
-      'facilityId': facilityId,
-      'facilityName': facilityName,
-      'facilityTypeLabel': facilityTypeLabel,
-      'facilityStatusLabel': facilityStatusLabel,
-    };
-  }
-
-  String encode() => jsonEncode(toJson());
-}
-
-abstract class FacilityReportDraftTargetStore {
-  Future<FacilityReportTarget?> readTarget();
-
-  Future<void> saveTarget(FacilityReportTarget target);
-
-  Future<void> clearTarget();
-}
-
-class SecureFacilityReportDraftTargetStore
-    implements FacilityReportDraftTargetStore {
-  const SecureFacilityReportDraftTargetStore({
-    this.storage = const FlutterSecureKeyValueStorage(),
-  });
-
-  final SecureKeyValueStorage storage;
-
-  @override
-  Future<FacilityReportTarget?> readTarget() async {
-    try {
-      final value = await storage.read(
-        key: _facilityReportDraftTargetStorageKey,
-      );
-      if (value == null) {
-        return null;
-      }
-      return FacilityReportTarget.decode(value);
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '저장된 시설 제보 대상을 읽는 중 예외가 발생했습니다.',
-      );
-      await _clearTargetAfterReadFailure();
-      return null;
-    }
-  }
-
-  @override
-  Future<void> saveTarget(FacilityReportTarget target) async {
-    await storage.write(
-      key: _facilityReportDraftTargetStorageKey,
-      value: target.encode(),
-    );
-  }
-
-  @override
-  Future<void> clearTarget() async {
-    await storage.delete(key: _facilityReportDraftTargetStorageKey);
-  }
-
-  Future<void> _clearTargetAfterReadFailure() async {
-    try {
-      await clearTarget();
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '손상된 시설 제보 대상을 지우는 중 예외가 발생했습니다.',
-      );
-    }
   }
 }
 
