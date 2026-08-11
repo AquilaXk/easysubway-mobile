@@ -200,6 +200,45 @@ test("no-increase decision distinguishes neutral, new, wrapper, removal, and rei
   assert.deepEqual(reintroduced.reasons, ["NEW_FORBIDDEN_EDGE"]);
 });
 
+test("canonical generated prefix requires the generated header", () => {
+  const canonicalHeader = "// GENERATED CODE - DO NOT MODIFY BY HAND";
+  const generatedFiles = {
+    "apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart": `${canonicalHeader}\nexport 'journey_v3_models.dart';\n`,
+    "apps/mobile/lib/generated/journey_v3/journey_v3_models.dart": `${canonicalHeader}\nfinal class JourneyV3Model {}\n`,
+    "apps/mobile/lib/core/database/catalog/catalog_database.g.dart": `${canonicalHeader}\nfinal class ExistingGeneratedModel {}\n`,
+  };
+  const generated = classifyRootImportGraph({
+    graph: buildImmutableDartSourceGraph({ files: generatedFiles }),
+    files: generatedFiles,
+    policy: POLICY,
+    baseline: BASELINE,
+    baseForbiddenEdges: [],
+    ownerStatus: [],
+  });
+  assert.deepEqual(generated.uncertainty, []);
+  assert.deepEqual(generated.importers.map(({ path: importerPath, importerClass }) => [importerPath, importerClass]), [
+    ["apps/mobile/lib/core/database/catalog/catalog_database.g.dart", "GENERATED"],
+    ["apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart", "GENERATED"],
+    ["apps/mobile/lib/generated/journey_v3/journey_v3_models.dart", "GENERATED"],
+  ]);
+
+  for (const files of [
+    { "apps/mobile/lib/generated/journey_v3/handwritten.dart": "final class Handwritten {}\n" },
+    { "apps/mobile/lib/unreviewed/header_only.dart": `${canonicalHeader}\nfinal class HeaderOnly {}\n` },
+  ]) {
+    const decision = classifyRootImportGraph({
+      graph: buildImmutableDartSourceGraph({ files }),
+      files,
+      policy: POLICY,
+      baseline: BASELINE,
+      baseForbiddenEdges: [],
+      ownerStatus: [],
+    });
+    assert.deepEqual(decision.reasons, ["GRAPH_UNCERTAINTY"]);
+    assert.equal(decision.uncertainty[0].code, "IMPORTER_CLASSIFICATION_UNKNOWN");
+  }
+});
+
 test("wrapper discovery emits one bounded canonical witness per origin and target", () => {
   const files = {
     "apps/mobile/lib/network_map.dart": "class NetworkMap {}",

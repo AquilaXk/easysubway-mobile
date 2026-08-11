@@ -20,7 +20,7 @@ import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mj
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[^\u0000-\u001f\u007f]+$/u;
-const POLICY_SHA256 = "c78238fd338b9a898158708b04b77d6b36d19819d7301a3cd41f8658d213da4a";
+const POLICY_SHA256 = "73c930ae6c9a15fb079a0f8e63ae47eb54abe07c44d5a3f9b0ea7ec7a95de2a9";
 const BASELINE_SHA256 = "b4868596d3741c966e785a143f1994ccc886dbe68e9b0d6f667f0fdee5d2876b";
 const PHASE = "NO_INCREASE";
 const REPOSITORY = "AquilaXk/easysubway-mobile";
@@ -151,9 +151,9 @@ export function validatePolicy(value) {
     const approved = ["APPROVED_APP_ENTRYPOINT_OR_COMPOSITION", "APPROVED_NEUTRAL_FOUNDATION"].includes(entry.classification);
     if (approved ? entry.ownerIssue !== null || entry.removalTrigger !== null : !Number.isInteger(entry.ownerIssue) || typeof entry.removalTrigger !== "string") fail("root classification ownership is invalid");
   }
-  exactKeys(value.importerRules, ["appExactPaths", "appPrefixes", "sharedExactPaths", "sharedPrefixes", "testPrefixes", "generatedSuffixes", "generatedHeaders"], "importer rules");
+  exactKeys(value.importerRules, ["appExactPaths", "appPrefixes", "sharedExactPaths", "sharedPrefixes", "testPrefixes", "generatedPrefixes", "generatedSuffixes", "generatedHeaders"], "importer rules");
   for (const [key, values] of Object.entries(value.importerRules)) stableUnique(values, `importerRules.${key}`);
-  if (JSON.stringify(value.importerRules.appExactPaths) !== JSON.stringify(["apps/mobile/lib/legacy_credential_cleanup.dart", "apps/mobile/lib/main.dart"]) || JSON.stringify(value.importerRules.appPrefixes) !== JSON.stringify(["apps/mobile/lib/app/"]) || JSON.stringify(value.importerRules.sharedPrefixes) !== JSON.stringify(["apps/mobile/lib/core/"]) || JSON.stringify(value.importerRules.testPrefixes) !== JSON.stringify(["apps/mobile/integration_test/", "apps/mobile/test/", "apps/mobile/test_driver/"]) || JSON.stringify(value.importerRules.generatedSuffixes) !== JSON.stringify([".freezed.dart", ".g.dart"]) || JSON.stringify(value.importerRules.generatedHeaders) !== JSON.stringify(["// GENERATED CODE - DO NOT MODIFY BY HAND"])) fail("importer rules changed");
+  if (JSON.stringify(value.importerRules.appExactPaths) !== JSON.stringify(["apps/mobile/lib/legacy_credential_cleanup.dart", "apps/mobile/lib/main.dart"]) || JSON.stringify(value.importerRules.appPrefixes) !== JSON.stringify(["apps/mobile/lib/app/"]) || JSON.stringify(value.importerRules.sharedPrefixes) !== JSON.stringify(["apps/mobile/lib/core/"]) || JSON.stringify(value.importerRules.testPrefixes) !== JSON.stringify(["apps/mobile/integration_test/", "apps/mobile/test/", "apps/mobile/test_driver/"]) || JSON.stringify(value.importerRules.generatedPrefixes) !== JSON.stringify(["apps/mobile/lib/generated/"]) || JSON.stringify(value.importerRules.generatedSuffixes) !== JSON.stringify([".freezed.dart", ".g.dart"]) || JSON.stringify(value.importerRules.generatedHeaders) !== JSON.stringify(["// GENERATED CODE - DO NOT MODIFY BY HAND"])) fail("importer rules changed");
   exactKeys(value.forbiddenMatrix, ["featureAllowedTargets", "neutralAllowedTargets"], "forbidden matrix");
   if (JSON.stringify(value.forbiddenMatrix) !== JSON.stringify({ featureAllowedTargets: ["APPROVED_NEUTRAL_FOUNDATION", "GENERATED_OR_PLATFORM_OWNER"], neutralAllowedTargets: ["APPROVED_NEUTRAL_FOUNDATION", "GENERATED_OR_PLATFORM_OWNER"] })) fail("forbidden matrix changed");
   if (!Array.isArray(value.owners) || value.owners.length !== 4) fail("policy owner count changed");
@@ -204,7 +204,8 @@ export function parseBaselineBytes(bytes, policy) {
 }
 
 function generatedSource(file, source, policy) {
-  return policy.importerRules.generatedSuffixes.some((suffix) => file.endsWith(suffix)) && policy.importerRules.generatedHeaders.some((header) => source.startsWith(`${header}\n`) || source === header);
+  const reviewedLocation = policy.importerRules.generatedPrefixes.some((prefix) => file.startsWith(prefix)) || policy.importerRules.generatedSuffixes.some((suffix) => file.endsWith(suffix));
+  return reviewedLocation && policy.importerRules.generatedHeaders.some((header) => source.startsWith(`${header}\n`) || source === header);
 }
 
 function importerClass(file, source, policy) {
