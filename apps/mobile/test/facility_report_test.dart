@@ -91,6 +91,18 @@ void main() {
     expect(restored?.facilityName, target.facilityName);
     expect(restored?.facilityTypeLabel, target.facilityTypeLabel);
     expect(restored?.facilityStatusLabel, target.facilityStatusLabel);
+
+    final incompleteTargetJson = target.toJson()..remove('facilityStatusLabel');
+    expect(
+      () => FacilityReportTarget.fromJson(incompleteTargetJson),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          'Missing required report field: facilityStatusLabel',
+        ),
+      ),
+    );
   });
 
   test('시설 신고 사진 선택기는 복구할 사진이 없으면 첨부하지 않는다', () async {
