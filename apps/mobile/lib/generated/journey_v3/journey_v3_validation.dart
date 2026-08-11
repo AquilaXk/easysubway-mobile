@@ -71,8 +71,9 @@ abstract final class JourneyV3Validation {
     final second = int.parse(match.group(6)!);
     if (hour > 23 || minute > 59 || second > 59) throw const FormatException('invalid RFC3339 date-time');
     final calendar = DateTime.utc(year, month, day, hour, minute, second);
-    if (calendar.year != year || calendar.month != month || calendar.day != day || calendar.hour != hour || calendar.minute != minute || calendar.second != second)
+    if (calendar.year != year || calendar.month != month || calendar.day != day || calendar.hour != hour || calendar.minute != minute || calendar.second != second) {
       throw const FormatException('invalid RFC3339 date-time');
+    }
     if (!text.endsWith('Z')) {
       final offset = RegExp(r'([+-])(\d{2}):(\d{2})$').firstMatch(text);
       if (offset == null || int.parse(offset.group(2)!) > 23 || int.parse(offset.group(3)!) > 59) throw const FormatException('invalid RFC3339 offset');

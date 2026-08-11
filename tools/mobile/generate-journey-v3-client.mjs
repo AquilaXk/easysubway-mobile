@@ -217,7 +217,7 @@ function renderStrictValidation() {
     final hour = int.parse(match.group(4)!); final minute = int.parse(match.group(5)!); final second = int.parse(match.group(6)!);
     if (hour > 23 || minute > 59 || second > 59) throw const FormatException('invalid RFC3339 date-time');
     final calendar = DateTime.utc(year, month, day, hour, minute, second);
-    if (calendar.year != year || calendar.month != month || calendar.day != day || calendar.hour != hour || calendar.minute != minute || calendar.second != second) throw const FormatException('invalid RFC3339 date-time');
+    if (calendar.year != year || calendar.month != month || calendar.day != day || calendar.hour != hour || calendar.minute != minute || calendar.second != second) { throw const FormatException('invalid RFC3339 date-time'); }
     if (!text.endsWith('Z')) {
       final offset = RegExp(r'([+-])(\d{2}):(\d{2})$').firstMatch(text);
       if (offset == null || int.parse(offset.group(2)!) > 23 || int.parse(offset.group(3)!) > 59) throw const FormatException('invalid RFC3339 offset');
@@ -327,7 +327,7 @@ function renderStrictModels() {
   if (!source.includes(responseAnchor)) fail('source-identity renderer anchor is missing');
   source = source.replace(responseAnchor, responseReplacement).replace('sourceIdentity:JourneySourceIdentity.fromJson(sourceIdentity)', 'sourceIdentity:parsedSourceIdentity');
   const anchor = "for(final journey in journeys){if(policy.timePolicy==TimePolicy.timetableRequired&&(journey.realtimeDepartureTime!=null||journey.realtimeArrivalTime!=null||journey.timeSource!=JourneyTimeSource.timetable)) throw const FormatException('TIMETABLE_REQUIRED realtime contract'); if(policy.timePolicy==TimePolicy.realtimeRequired&&(journey.realtimeDepartureTime==null||journey.realtimeArrivalTime==null||journey.timeSource!=JourneyTimeSource.realtime)) throw const FormatException('REALTIME_REQUIRED realtime contract');}";
-  const replacement = `${anchor.slice(0, -1)} for(final leg in journey.legs){if(leg is JourneyRideLeg){if(policy.timePolicy==TimePolicy.timetableRequired&&(leg.realtimeDepartureTime!=null||leg.realtimeArrivalTime!=null)) throw const FormatException('TIMETABLE_REQUIRED ride realtime contract'); if(policy.timePolicy==TimePolicy.realtimeRequired&&(leg.realtimeDepartureTime==null||leg.realtimeArrivalTime==null)) throw const FormatException('REALTIME_REQUIRED ride realtime contract');}}}`;
+  const replacement = "for(final journey in journeys){if(policy.timePolicy==TimePolicy.timetableRequired&&(journey.realtimeDepartureTime!=null||journey.realtimeArrivalTime!=null||journey.timeSource!=JourneyTimeSource.timetable)){throw const FormatException('TIMETABLE_REQUIRED realtime contract');} if(policy.timePolicy==TimePolicy.realtimeRequired&&(journey.realtimeDepartureTime==null||journey.realtimeArrivalTime==null||journey.timeSource!=JourneyTimeSource.realtime)){throw const FormatException('REALTIME_REQUIRED realtime contract');} for(final leg in journey.legs){if(leg is JourneyRideLeg){if(policy.timePolicy==TimePolicy.timetableRequired&&(leg.realtimeDepartureTime!=null||leg.realtimeArrivalTime!=null)){throw const FormatException('TIMETABLE_REQUIRED ride realtime contract');} if(policy.timePolicy==TimePolicy.realtimeRequired&&(leg.realtimeDepartureTime==null||leg.realtimeArrivalTime==null)){throw const FormatException('REALTIME_REQUIRED ride realtime contract');}}}}";
   if (!source.includes(anchor)) fail('time-policy renderer anchor is missing');
   return source.replace(anchor, replacement);
 }

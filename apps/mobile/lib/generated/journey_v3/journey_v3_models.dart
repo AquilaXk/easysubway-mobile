@@ -494,16 +494,20 @@ class JourneySearchSuccess {
       maximum: 3,
     );
     for (final journey in journeys) {
-      if (policy.timePolicy == TimePolicy.timetableRequired && (journey.realtimeDepartureTime != null || journey.realtimeArrivalTime != null || journey.timeSource != JourneyTimeSource.timetable))
+      if (policy.timePolicy == TimePolicy.timetableRequired && (journey.realtimeDepartureTime != null || journey.realtimeArrivalTime != null || journey.timeSource != JourneyTimeSource.timetable)) {
         throw const FormatException('TIMETABLE_REQUIRED realtime contract');
-      if (policy.timePolicy == TimePolicy.realtimeRequired && (journey.realtimeDepartureTime == null || journey.realtimeArrivalTime == null || journey.timeSource != JourneyTimeSource.realtime))
+      }
+      if (policy.timePolicy == TimePolicy.realtimeRequired && (journey.realtimeDepartureTime == null || journey.realtimeArrivalTime == null || journey.timeSource != JourneyTimeSource.realtime)) {
         throw const FormatException('REALTIME_REQUIRED realtime contract');
+      }
       for (final leg in journey.legs) {
         if (leg is JourneyRideLeg) {
-          if (policy.timePolicy == TimePolicy.timetableRequired && (leg.realtimeDepartureTime != null || leg.realtimeArrivalTime != null))
+          if (policy.timePolicy == TimePolicy.timetableRequired && (leg.realtimeDepartureTime != null || leg.realtimeArrivalTime != null)) {
             throw const FormatException('TIMETABLE_REQUIRED ride realtime contract');
-          if (policy.timePolicy == TimePolicy.realtimeRequired && (leg.realtimeDepartureTime == null || leg.realtimeArrivalTime == null))
+          }
+          if (policy.timePolicy == TimePolicy.realtimeRequired && (leg.realtimeDepartureTime == null || leg.realtimeArrivalTime == null)) {
             throw const FormatException('REALTIME_REQUIRED ride realtime contract');
+          }
         }
       }
     }
