@@ -1263,6 +1263,7 @@ class FacilityReportScreen extends StatefulWidget {
     this.needsLocationPermissionRequest,
     this.openLocationSettings,
     this.photoPicker,
+    this.devicePhotoPicker,
     this.lostPhotoRestorer,
     this.draftTargetStore,
     this.initialPhotoAttachment,
@@ -1276,6 +1277,7 @@ class FacilityReportScreen extends StatefulWidget {
   needsLocationPermissionRequest;
   final FacilityReportLocationSettingsOpener? openLocationSettings;
   final FacilityReportPhotoPicker? photoPicker;
+  final ImagePickerFacilityReportPhotoPicker? devicePhotoPicker;
   final FacilityReportLostPhotoRestorer? lostPhotoRestorer;
   final FacilityReportDraftTargetStore? draftTargetStore;
   final FacilityReportPhotoAttachment? initialPhotoAttachment;
@@ -1856,7 +1858,8 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
     _selectedType = _reportTypeOptions.first;
     _controller = FacilityReportController(repository: widget.repository)
       ..addListener(_onReportStateChanged);
-    _defaultPhotoPicker = ImagePickerFacilityReportPhotoPicker();
+    _defaultPhotoPicker =
+        widget.devicePhotoPicker ?? ImagePickerFacilityReportPhotoPicker();
     _photoAttachment = widget.initialPhotoAttachment;
     if (_photoAttachment != null) {
       _photoMessage = '사진 1장 추가됨';
