@@ -10,6 +10,7 @@ import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../ads/active_ad_banner.dart';
 import '../../ads/ad_repository.dart';
+import '../../facility_report/domain/facility_report_location.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/application/route_draft_controller.dart';
 import '../application/station_detail_controller.dart';
