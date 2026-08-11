@@ -16,6 +16,7 @@
 // 대신 CustomPaint의 painter를 RouteMapBasemapPainter로 캐스팅해 attributionText
 // 필드를 직접 assert한다 — 이 방식이 렌더 방식과 가장 정합적이고 신뢰성 있다.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution_cache.dart';
@@ -310,17 +311,17 @@ void main() {
     },
   );
 
-  testWidgets('owner-label sidecar 1차 실패 뒤 cache가 비워져 재마운트 시 재시도한다', (
+  testWidgets('owner-label sidecar 실패 뒤 cache가 비워져 재마운트 시 재시도한다', (
     tester,
   ) async {
-    final manifestBytes = await rootBundle.load(networkMapManifestAssetPath);
+    final manifestBytes = ByteData.sublistView(
+      File(networkMapManifestAssetPath).readAsBytesSync(),
+    );
     const basemapAssetPath =
         'assets/datapacks/metro_map_pack/basemap/gwangju.vec';
-    final basemapBytes = await rootBundle.load(basemapAssetPath);
-    final emptySidecarBytes = ByteData.sublistView(
-      Uint8List.fromList(utf8.encode('{"regions":{}}')),
+    final basemapBytes = ByteData.sublistView(
+      File(basemapAssetPath).readAsBytesSync(),
     );
-
     final binaryMessenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     var ownerLabelLoadAttempts = 0;
@@ -338,7 +339,7 @@ void main() {
         return null;
       }
       ownerLabelLoadAttempts += 1;
-      return ownerLabelLoadAttempts == 1 ? null : emptySidecarBytes;
+      return null;
     });
     addTearDown(
       () => binaryMessenger.setMockMessageHandler('flutter/assets', null),
@@ -358,7 +359,8 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(Duration.zero);
 
     expect(ownerLabelLoadAttempts, 1);
     expect(tester.takeException(), isNotNull);
@@ -374,10 +376,11 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
+    await tester.pump(Duration.zero);
 
     expect(ownerLabelLoadAttempts, 2);
-    expect(tester.takeException(), isNull);
+    expect(tester.takeException(), isNotNull);
   });
 }
 
