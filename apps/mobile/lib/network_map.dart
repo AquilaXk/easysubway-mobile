@@ -18,7 +18,7 @@ import 'features/facility_report/domain/facility_report_target.dart';
 import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
-import 'features/network_map/data/network_map_attribution.dart';
+import 'features/network_map/data/network_map_attribution_cache.dart';
 import 'features/network_map/domain/map_camera.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
@@ -3502,23 +3502,6 @@ class _NetworkMapBottomAdBanner extends StatelessWidget {
   }
 }
 
-// manifest는 프로세스 생애주기 동안 바뀌지 않는 번들 asset이라, 노선도 canvas가
-// 새로 마운트될 때마다(지역 전환 등) 매번 asset을 다시 읽지 않도록 모듈 캐시
-// (_sharedAttributionTextByRegionFuture)로 1회만 로드해 공유한다. 로드 실패
-// 시에는 캐시를 비워 다음 마운트에서 재시도한다(#1951).
-Future<Map<String, String>>? _sharedAttributionTextByRegionFuture;
-
-Future<Map<String, String>> _loadNetworkMapAttributionTextByRegion() {
-  return _sharedAttributionTextByRegionFuture ??= rootBundle
-      .loadString(networkMapManifestAssetPath)
-      .then(parseNetworkMapAttributionByRegion);
-}
-
-@visibleForTesting
-void resetNetworkMapAttributionCacheForTest() {
-  _sharedAttributionTextByRegionFuture = null;
-}
-
 // basemap 6차(#2068) 오너 라벨 sidecar — 5권역 결합 단일 JSON이라 attribution과
 // 같은 모듈 캐시 관례로 1회만 로드해 공유한다(region 전환마다 다시 읽지 않음).
 // 로드 실패 시 캐시를 비워 다음 마운트에서 재시도하고, 그때까지 basemap 라벨은
@@ -3744,7 +3727,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
 
   Future<void> _loadAttributionText() async {
     try {
-      final byRegion = await _loadNetworkMapAttributionTextByRegion();
+      final byRegion = await loadNetworkMapAttributionTextByRegion();
       if (!mounted) {
         return;
       }
@@ -3754,7 +3737,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
       // 영구 미표기로 고정되지 않도록 실패한 Future는 캐시에서 비워 다음 마운트
       // 때 재시도되게 한다 — 화면은 죽지 않되, 원인 파악을 위해 예외는 리포터로
       // 남긴다.
-      _sharedAttributionTextByRegionFuture = null;
+      resetNetworkMapAttributionCache();
       reportMobileError(
         error,
         stackTrace,
