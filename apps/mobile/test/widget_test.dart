@@ -15994,7 +15994,7 @@ void main() {
     expect(find.text('어린이 현금', skipOffstage: false), findsNothing);
   });
 
-  testWidgets('공식 OD 요금이 없으면 unavailable 상태를 알린다', (tester) async {
+  testWidgets('release composition은 legacy OD 요금 경로를 노출하지 않는다', (tester) async {
     final catalogDatabase = CatalogDatabase.memory();
     addTearDown(catalogDatabase.close);
     await catalogDatabase.seedBaselineIfEmpty();
@@ -16007,50 +16007,8 @@ void main() {
       },
       enablePushNotifications: false,
     );
-    await tester.runAsync(
-      () => dependencies.routeRepository.searchRoute(
-        const RouteSearchRequest(
-          originStationId: 'station-sangnoksu',
-          destinationStationId: 'station-sadang',
-          mobilityType: 'STANDARD',
-        ),
-      ),
-    );
-    final semanticsHandle = tester.ensureSemantics();
-    try {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: RouteSearchScreen(
-            repository: dependencies.routeRepository,
-            stationRepository: dependencies.repository,
-            initialDraft: RouteDraft(
-              origin: const RouteDraftStation(
-                id: 'station-sangnoksu',
-                nameKo: '상록수',
-              ),
-              destination: const RouteDraftStation(
-                id: 'station-sadang',
-                nameKo: '사당',
-              ),
-              lastModifiedAt: DateTime(2026, 6, 26),
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await _openFirstRouteResultDetail(tester);
-
-      expect(find.text('공식 OD 요금 정보 없음'), findsOneWidget);
-      expect(find.text('오프라인 공식 자료에 없는 경로입니다.'), findsOneWidget);
-      expect(
-        find.text('연락운송 경계 등 승인되지 않은 경로는 요금을 임의로 계산하지 않습니다.'),
-        findsOneWidget,
-      );
-      expect(find.bySemanticsLabel(RegExp('공식 OD 요금 정보 없음')), findsOneWidget);
-      expect(apiBaseReads, 0);
-    } finally {
-      semanticsHandle.dispose();
-    }
+    expect(dependencies.routeRepository, isNull);
+    expect(apiBaseReads, 0);
   });
 
   testWidgets('경로 검색 UNKNOWN 결과는 저장과 안내 시작 행동을 숨긴다', (tester) async {

@@ -23,6 +23,8 @@ import '../features/realtime/realtime_repository.dart';
 import '../features/service_notice/data/notice_repository.dart';
 import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
+import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/domain/journey_repository.dart';
 import '../internal_route.dart';
 import '../legacy_credential_cleanup.dart';
 import '../mobile_error_reporter.dart';
@@ -60,6 +62,7 @@ class EasySubwayApp extends StatelessWidget {
     Future<void>? dataPackUpdate,
     BundledDataPackFreshness? bundledDataPackFreshness,
     OnboardingState initialOnboardingState = const OnboardingState.initial(),
+    @visibleForTesting bool legacyRouteSearchFixtureEnabled = false,
     GlobalKey<NavigatorState>? navigatorKey,
     Key? key,
   }) : this._(
@@ -77,6 +80,8 @@ class EasySubwayApp extends StatelessWidget {
          onDataPackMeteredConsent: onDataPackMeteredConsent,
          dataPackUpdate: dataPackUpdate,
          bundledDataPackFreshness: bundledDataPackFreshness,
+         legacyRouteSearchFixtureEnabled:
+             !kReleaseMode && legacyRouteSearchFixtureEnabled,
          recentRoutesFuture:
              recentRoutesFuture ??
              (defaultDemoHomeDataEnabled
@@ -99,6 +104,7 @@ class EasySubwayApp extends StatelessWidget {
     required this.onDataPackMeteredConsent,
     required this.dataPackUpdate,
     required this.bundledDataPackFreshness,
+    required this.legacyRouteSearchFixtureEnabled,
     required this.recentRoutesFuture,
     this.navigatorKey,
     super.key,
@@ -122,11 +128,13 @@ class EasySubwayApp extends StatelessWidget {
        trainSearchRepository = dependencies.trainSearchRepository,
        userDataDeletionRepository = dependencies.userDataDeletionRepository,
        getOffAlarmController = dependencies.getOffAlarmController,
-       noticeRepository = dependencies.noticeRepository;
+       noticeRepository = dependencies.noticeRepository,
+       journeyRepository = dependencies.journeyRepository,
+       journeyAttestor = dependencies.journeyAttestor;
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository routeRepository;
+  final RouteSearchRepository? routeRepository;
   final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
@@ -144,6 +152,8 @@ class EasySubwayApp extends StatelessWidget {
   final UserDataDeletionRepository? userDataDeletionRepository;
   final GetOffAlarmController? getOffAlarmController;
   final NoticeRepository? noticeRepository;
+  final JourneyRepository journeyRepository;
+  final JourneyV3IntegrityAttestor journeyAttestor;
   final OnboardingState initialOnboardingState;
   final OnboardingResultStore? onboardingStore;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
@@ -155,6 +165,8 @@ class EasySubwayApp extends StatelessWidget {
   final Future<void> Function()? onDataPackMeteredConsent;
   final Future<void>? dataPackUpdate;
   final BundledDataPackFreshness? bundledDataPackFreshness;
+  @visibleForTesting
+  final bool legacyRouteSearchFixtureEnabled;
   final Future<List<FavoriteRoute>>? recentRoutesFuture;
   final GlobalKey<NavigatorState>? navigatorKey;
 
@@ -258,6 +270,8 @@ class EasySubwayApp extends StatelessWidget {
           repository: repository,
           reportRepository: reportRepository,
           routeRepository: routeRepository,
+          journeyRepository: journeyRepository,
+          journeyAttestor: journeyAttestor,
           routeFeedbackRepository: routeFeedbackRepository,
           getOffAlarmController: getOffAlarmController,
           favoriteRepository: favoriteRepository,
@@ -284,6 +298,7 @@ class EasySubwayApp extends StatelessWidget {
           noticeRepository: noticeRepository,
           recentRoutesFuture: recentRoutesFuture,
           bundledDataPackFreshness: bundledDataPackFreshness,
+          legacyRouteSearchFixtureEnabled: legacyRouteSearchFixtureEnabled,
         ),
       ),
     );
@@ -385,6 +400,8 @@ class _EasySubwayHome extends StatefulWidget {
     required this.repository,
     required this.reportRepository,
     required this.routeRepository,
+    required this.journeyRepository,
+    required this.journeyAttestor,
     required this.routeFeedbackRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
@@ -411,11 +428,14 @@ class _EasySubwayHome extends StatefulWidget {
     required this.noticeRepository,
     required this.recentRoutesFuture,
     required this.bundledDataPackFreshness,
+    required this.legacyRouteSearchFixtureEnabled,
   });
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository routeRepository;
+  final RouteSearchRepository? routeRepository;
+  final JourneyRepository journeyRepository;
+  final JourneyV3IntegrityAttestor journeyAttestor;
   final RouteFeedbackRepository? routeFeedbackRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
@@ -442,6 +462,7 @@ class _EasySubwayHome extends StatefulWidget {
   final NoticeRepository? noticeRepository;
   final Future<List<FavoriteRoute>>? recentRoutesFuture;
   final BundledDataPackFreshness? bundledDataPackFreshness;
+  final bool legacyRouteSearchFixtureEnabled;
 
   @override
   State<_EasySubwayHome> createState() => _EasySubwayHomeState();
@@ -527,6 +548,8 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         repository: widget.repository,
         reportRepository: widget.reportRepository,
         routeRepository: widget.routeRepository,
+        journeyRepository: widget.journeyRepository,
+        journeyAttestor: widget.journeyAttestor,
         routeFeedbackRepository: widget.routeFeedbackRepository,
         getOffAlarmController: widget.getOffAlarmController,
         favoriteRepository: widget.favoriteRepository,
@@ -554,6 +577,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         bundledDataPackStaleLabel: _bundledDataPackStale
             ? BundledDataPackFreshness.staleLabelKo
             : null,
+        legacyRouteSearchFixtureEnabled: widget.legacyRouteSearchFixtureEnabled,
         onUserDataDeleted: _handleUserDataDeleted,
         onMobilityProfileChanged: _saveMobilityProfile,
         onViewPreferencesChanged: _saveViewPreferences,

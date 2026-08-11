@@ -40,6 +40,9 @@ import '../../support/presentation/inquiry_screen.dart';
 import '../../support/presentation/support_access_screen.dart';
 import '../../train_search/domain/train_search_models.dart';
 import '../../train_search/presentation/train_search_screen.dart';
+import '../../journey/application/journey_search_controller.dart';
+import '../../journey/domain/journey_repository.dart';
+import '../../journey/presentation/journey_search_screen.dart';
 
 const _mainIconControlRadius = BorderRadius.all(Radius.circular(12));
 
@@ -67,6 +70,8 @@ class HomeScreen extends StatefulWidget {
     required this.repository,
     required this.reportRepository,
     required this.routeRepository,
+    required this.journeyRepository,
+    required this.journeyAttestor,
     required this.routeFeedbackRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
@@ -94,6 +99,7 @@ class HomeScreen extends StatefulWidget {
     this.simpleViewEnabled = true,
     this.facilityReportDraftTargetStore,
     this.bundledDataPackStaleLabel,
+    this.legacyRouteSearchFixtureEnabled = false,
     String? initialMobilityType,
     super.key,
   }) : initialMobilityType =
@@ -102,7 +108,9 @@ class HomeScreen extends StatefulWidget {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository routeRepository;
+  final RouteSearchRepository? routeRepository;
+  final JourneyRepository journeyRepository;
+  final JourneyV3IntegrityAttestor journeyAttestor;
   final RouteFeedbackRepository? routeFeedbackRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
@@ -132,6 +140,7 @@ class HomeScreen extends StatefulWidget {
   final bool simpleViewEnabled;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final String? bundledDataPackStaleLabel;
+  final bool legacyRouteSearchFixtureEnabled;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -282,7 +291,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final repository = widget.repository;
     final reportRepository = widget.reportRepository;
-    final routeRepository = widget.routeRepository;
     final favoriteRepository = widget.favoriteRepository;
     final favoriteFacilityRepository = widget.favoriteFacilityRepository;
     final favoriteRouteRepository = widget.favoriteRouteRepository;
@@ -291,8 +299,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final internalRouteRepository = widget.internalRouteRepository;
     final networkMapRepository = widget.networkMapRepository;
     final realtimeRepository = widget.realtimeRepository;
-    final routeFeedbackRepository = widget.routeFeedbackRepository;
-    final getOffAlarmController = widget.getOffAlarmController;
     final notificationRepository = widget.notificationRepository;
     final notificationPermissionProvider =
         widget.notificationPermissionProvider;
@@ -301,7 +307,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final supportAccessLauncher = widget.supportAccessLauncher;
     final userDataDeletionRepository = widget.userDataDeletionRepository;
     final onUserDataDeleted = widget.onUserDataDeleted;
-    final simpleViewEnabled = widget.simpleViewEnabled;
     final facilityReportDraftTargetStore =
         widget.facilityReportDraftTargetStore;
     final initialMobilityType = _mobilityType;
@@ -679,24 +684,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     if (_selectedTabIndex == 2) {
+      if (widget.legacyRouteSearchFixtureEnabled &&
+          widget.routeRepository != null) {
+        return rootTab(
+          RouteSearchScreen(
+            repository: widget.routeRepository!,
+            stationRepository: repository,
+            searchHistoryRepository: searchHistoryRepository,
+            routeFeedbackRepository: widget.routeFeedbackRepository,
+            getOffAlarmController: widget.getOffAlarmController,
+            favoriteRouteRepository: favoriteRouteRepository,
+            adRepository: adRepository,
+            initialMobilityType: _routeTabMobilityType ?? initialMobilityType,
+            initialTransportScope: _routeTabTransportScope,
+            initialDraft: _routeDraftController.draft,
+            regionLabel: _currentRegionLabel,
+            simpleViewEnabled: widget.simpleViewEnabled,
+            onShellBackToHome: () {
+              _routeDraftController.clear();
+              openHomeTab();
+            },
+          ),
+        );
+      }
       return rootTab(
-        RouteSearchScreen(
-          repository: routeRepository,
-          stationRepository: repository,
-          searchHistoryRepository: searchHistoryRepository,
-          routeFeedbackRepository: routeFeedbackRepository,
-          getOffAlarmController: getOffAlarmController,
-          favoriteRouteRepository: favoriteRouteRepository,
-          adRepository: adRepository,
-          initialMobilityType: _routeTabMobilityType ?? initialMobilityType,
-          initialTransportScope: _routeTabTransportScope,
-          initialDraft: _routeDraftController.draft,
-          regionLabel: _currentRegionLabel,
-          simpleViewEnabled: simpleViewEnabled,
-          onShellBackToHome: () {
-            _routeDraftController.clear();
-            openHomeTab();
-          },
+        JourneySearchScreen(
+          repository: widget.journeyRepository,
+          attestor: widget.journeyAttestor,
+          draft: _routeDraftController.draft,
+          mobilityType: _mobilityType,
         ),
       );
     }

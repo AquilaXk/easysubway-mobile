@@ -9,7 +9,6 @@ import '../favorite_facility.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../features/favorites/data/drift_favorite_repositories.dart';
-import '../features/fare/official_od_fare_repository.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
 import '../features/facility_report/domain/facility_report_request.dart';
@@ -33,20 +32,18 @@ import '../features/stations/domain/station_repositories.dart';
 import '../features/train_search/data/train_search_repository.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/train_search/domain/train_search_scope_policy.dart';
+import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/data/journey_api_repository.dart';
+import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
+import '../features/journey/domain/journey_repository.dart';
+import '../generated/journey_v3/journey_v3_contract.dart';
 import '../internal_route.dart';
 import '../features/network_map/domain/network_map_models.dart';
 import '../notification_settings.dart';
 import '../route_search.dart';
-import '../route_v2_ingress.dart';
 import '../station_search.dart' show defaultOptionalStationApiBaseUri;
 import '../user_data_deletion.dart';
 import '../features/internal_route/data/local_internal_route_repository.dart';
-import '../features/routes/data/local_route_repository.dart'
-    show
-        LocalFirstRouteSearchRepository,
-        LocalRouteRepository,
-        OnlineFirstRouteSearchRepository,
-        RouteSearchOnlineFirstMetrics;
 
 class AppDependencies {
   const AppDependencies({
@@ -70,13 +67,14 @@ class AppDependencies {
     this.getOffAlarmController,
     required this.noticeRepository,
     this.adRepository,
+    required this.journeyRepositoryFactory,
+    required this.journeyAttestor,
   });
 
   factory AppDependencies.resolve({
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
     RouteSearchRepository? routeRepository,
-    LocalRouteRepository? localRouteRepository,
     RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
@@ -93,16 +91,12 @@ class AppDependencies {
     UserDataDeletionRepository? userDataDeletionRepository,
     NoticeRepository? noticeRepository,
     AdRepository? adRepository,
+    JourneyRepository? journeyRepository,
+    JourneyV3IntegrityAttestor? journeyAttestor,
     CatalogDatabase? catalogDatabase,
     UserDatabase? userDatabase,
     Directory? userDatabaseDirectory,
     Uri? Function() apiBaseUri = defaultOptionalStationApiBaseUri,
-    bool enableRouteV2OnlineFirst = const bool.fromEnvironment(
-      'EASYSUBWAY_ROUTE_V2_ONLINE_FIRST_ENABLED',
-      defaultValue: false,
-    ),
-    RouteSearchOnlineFirstMetrics? routeSearchOnlineFirstMetrics,
-    PlayIntegrityAttestor? playIntegrityAttestor,
     required bool enablePushNotifications,
   }) {
     Uri? cachedBaseUri;
@@ -157,16 +151,6 @@ class AppDependencies {
     final resolvedRealtimeRepository =
         realtimeRepository ??
         _defaultRealtimeRepository(baseUri: optionalBaseUri);
-    final resolvedLocalRouteRepository =
-        localRouteRepository ??
-        (catalogDatabase == null
-            ? null
-            : LocalRouteRepository(
-                catalogDatabase: catalogDatabase,
-                officialOdFareRepository: OfficialOdFareRepository(
-                  catalogDatabase: catalogDatabase,
-                ),
-              ));
 
     return AppDependencies(
       repository: resolvedStationRepository,
@@ -176,43 +160,17 @@ class AppDependencies {
             baseUri: optionalBaseUri,
             userDatabase: userDatabase,
           ),
-      routeRepository:
-          routeRepository ??
-          (() {
-            if (!enableRouteV2OnlineFirst) {
-              return resolvedLocalRouteRepository == null
-                  ? RouteSearchApiRepository(baseUri: requireBaseUri())
-                  : LocalFirstRouteSearchRepository(
-                      localRepository: resolvedLocalRouteRepository,
-                    );
-            }
-            if (resolvedLocalRouteRepository == null) {
-              throw StateError(
-                'Route V2 online-first requires a local catalog database.',
-              );
-            }
-            final routeV2BaseUri = requireBaseUri();
-            final local = LocalFirstRouteSearchRepository(
-              localRepository: resolvedLocalRouteRepository,
-            );
-            final sessionProvider = PlayIntegrityRouteV2SessionProvider(
-              apiClient: ApiClient(baseUri: routeV2BaseUri),
-              attestor:
-                  playIntegrityAttestor ?? MethodChannelPlayIntegrityAttestor(),
-            );
-            return TransportScopedRouteSearchRepository(
-              localRepository: local,
-              itxOnlineRepository: OnlineFirstRouteSearchRepository(
-                onlineRepository: RouteSearchV2ApiRepository(
-                  baseUri: routeV2BaseUri,
-                  bearerTokenProvider: sessionProvider.issueToken,
-                  bearerTokenInvalidator: sessionProvider.invalidateSession,
-                ),
-                localRepository: resolvedLocalRouteRepository,
-                metrics: routeSearchOnlineFirstMetrics,
-              ),
-            );
-          })(),
+      routeRepository: routeRepository,
+      journeyRepositoryFactory: () {
+        final injected = journeyRepository;
+        if (injected != null) return injected;
+        final baseUri = optionalBaseUri();
+        return baseUri == null
+            ? const _UnavailableJourneyRepository()
+            : JourneyApiRepository(ApiClient(baseUri: baseUri));
+      },
+      journeyAttestor:
+          journeyAttestor ?? JourneyMethodChannelIntegrityAttestor(),
       routeFeedbackRepository:
           routeFeedbackRepository ??
           _defaultRouteFeedbackRepository(
@@ -303,7 +261,7 @@ class AppDependencies {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository routeRepository;
+  final RouteSearchRepository? routeRepository;
   final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
@@ -321,6 +279,34 @@ class AppDependencies {
   final GetOffAlarmController? getOffAlarmController;
   final NoticeRepository? noticeRepository;
   final AdRepository? adRepository;
+  final JourneyRepository Function() journeyRepositoryFactory;
+  JourneyRepository get journeyRepository => journeyRepositoryFactory();
+  final JourneyV3IntegrityAttestor journeyAttestor;
+}
+
+class _UnavailableJourneyRepository implements JourneyRepository {
+  const _UnavailableJourneyRepository();
+
+  @override
+  Future<JourneySessionResponse> issueSession(
+    JourneySessionRequest request,
+  ) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.issueJourneySession,
+      'Journey API base URL is unavailable.',
+    );
+  }
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.searchJourneys,
+      'Journey API base URL is unavailable.',
+    );
+  }
 }
 
 class _LazyDefaultTrainSearchRepository implements TrainSearchRepository {

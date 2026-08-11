@@ -6,12 +6,14 @@ import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
+import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/routes/application/network_graph.dart'
     as graph;
 import 'package:easysubway_mobile/features/routes/data/local_route_repository.dart';
 import 'package:easysubway_mobile/features/routes/domain/route_identity.dart';
 import 'package:easysubway_mobile/features/fare/official_od_fare_quote.dart';
+import 'package:easysubway_mobile/features/fare/official_od_fare_repository.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_route_mapping.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
@@ -728,7 +730,7 @@ void main() {
   });
 
   test(
-    'catalog DB가 있으면 offline/local fallback repository는 API 주소 없이 로컬 결과를 반환한다',
+    'catalog DB가 있어도 release composition은 offline route fallback을 만들지 않는다',
     () async {
       final database = CatalogDatabase.memory();
       addTearDown(database.close);
@@ -743,18 +745,10 @@ void main() {
         enablePushNotifications: false,
       );
 
-      final routeResult = await dependencies.routeRepository.searchRoute(
-        const RouteSearchRequest(
-          originStationId: 'station-sangnoksu',
-          destinationStationId: 'station-sadang',
-          mobilityType: 'WHEELCHAIR',
-        ),
-      );
       final internalNodes = await dependencies.internalRouteRepository
           .listRouteNodes('station-sangnoksu');
 
-      expect(routeResult.status, 'FOUND');
-      expect(routeResult.isLocalResult, isTrue);
+      expect(dependencies.routeRepository, isNull);
       expect(internalNodes, isEmpty);
     },
   );
@@ -819,17 +813,12 @@ void main() {
         await request.response.close();
       });
 
-      final dependencies = AppDependencies.resolve(
-        catalogDatabase: database,
-        reportRepository: const UnavailableFacilityReportRepository(),
-        apiBaseUri: () =>
-            Uri.parse('http://${server.address.host}:${server.port}'),
-        enablePushNotifications: false,
-        enableRouteV2OnlineFirst: true,
-        playIntegrityAttestor: const _FakePlayIntegrityAttestor(),
+      final repository = _legacyV2Repository(
+        database,
+        Uri.parse('http://${server.address.host}:${server.port}'),
       );
 
-      final result = await dependencies.routeRepository.searchRoute(
+      final result = await repository.searchRoute(
         const RouteSearchRequest(
           originStationId: 'station-sangnoksu',
           destinationStationId: 'station-sadang',
@@ -877,7 +866,7 @@ void main() {
       expect(result.officialOdFareQuote, isNull);
 
       await expectLater(
-        dependencies.routeRepository.refreshRoute(result.routeSearchId),
+        repository.refreshRoute(result.routeSearchId),
         throwsA(isA<RouteSearchException>()),
       );
 
@@ -919,19 +908,14 @@ void main() {
       });
       final metrics = RouteSearchOnlineFirstMetrics();
 
-      final dependencies = AppDependencies.resolve(
-        catalogDatabase: database,
-        reportRepository: const UnavailableFacilityReportRepository(),
-        apiBaseUri: () =>
-            Uri.parse('http://${server.address.host}:${server.port}'),
-        enablePushNotifications: false,
-        enableRouteV2OnlineFirst: true,
-        routeSearchOnlineFirstMetrics: metrics,
-        playIntegrityAttestor: const _FakePlayIntegrityAttestor(),
+      final repository = _legacyV2Repository(
+        database,
+        Uri.parse('http://${server.address.host}:${server.port}'),
+        metrics: metrics,
       );
 
       await expectLater(
-        dependencies.routeRepository.searchRoute(
+        repository.searchRoute(
           const RouteSearchRequest(
             originStationId: 'station-sangnoksu',
             destinationStationId: 'station-sadang',
@@ -978,19 +962,14 @@ void main() {
       });
       final metrics = RouteSearchOnlineFirstMetrics();
 
-      final dependencies = AppDependencies.resolve(
-        catalogDatabase: database,
-        reportRepository: const UnavailableFacilityReportRepository(),
-        apiBaseUri: () =>
-            Uri.parse('http://${server.address.host}:${server.port}'),
-        enablePushNotifications: false,
-        enableRouteV2OnlineFirst: true,
-        routeSearchOnlineFirstMetrics: metrics,
-        playIntegrityAttestor: const _FakePlayIntegrityAttestor(),
+      final repository = _legacyV2Repository(
+        database,
+        Uri.parse('http://${server.address.host}:${server.port}'),
+        metrics: metrics,
       );
 
       await expectLater(
-        dependencies.routeRepository.searchRoute(
+        repository.searchRoute(
           const RouteSearchRequest(
             originStationId: 'station-sangnoksu',
             destinationStationId: 'station-sadang',
@@ -1035,19 +1014,14 @@ void main() {
     });
     final metrics = RouteSearchOnlineFirstMetrics();
 
-    final dependencies = AppDependencies.resolve(
-      catalogDatabase: database,
-      reportRepository: const UnavailableFacilityReportRepository(),
-      apiBaseUri: () =>
-          Uri.parse('http://${server.address.host}:${server.port}'),
-      enablePushNotifications: false,
-      enableRouteV2OnlineFirst: true,
-      routeSearchOnlineFirstMetrics: metrics,
-      playIntegrityAttestor: const _FakePlayIntegrityAttestor(),
+    final repository = _legacyV2Repository(
+      database,
+      Uri.parse('http://${server.address.host}:${server.port}'),
+      metrics: metrics,
     );
 
     await expectLater(
-      dependencies.routeRepository.searchRoute(
+      repository.searchRoute(
         const RouteSearchRequest(
           originStationId: 'station-sangnoksu',
           destinationStationId: 'station-sadang',
@@ -1090,19 +1064,14 @@ void main() {
     });
     final metrics = RouteSearchOnlineFirstMetrics();
 
-    final dependencies = AppDependencies.resolve(
-      catalogDatabase: database,
-      reportRepository: const UnavailableFacilityReportRepository(),
-      apiBaseUri: () =>
-          Uri.parse('http://${server.address.host}:${server.port}'),
-      enablePushNotifications: false,
-      enableRouteV2OnlineFirst: true,
-      routeSearchOnlineFirstMetrics: metrics,
-      playIntegrityAttestor: const _FakePlayIntegrityAttestor(),
+    final repository = _legacyV2Repository(
+      database,
+      Uri.parse('http://${server.address.host}:${server.port}'),
+      metrics: metrics,
     );
 
     await expectLater(
-      dependencies.routeRepository.searchRoute(
+      repository.searchRoute(
         const RouteSearchRequest(
           originStationId: 'station-sangnoksu',
           destinationStationId: 'station-sadang',
@@ -7041,6 +7010,37 @@ Future<bool> _respondWithRouteV2Session(HttpRequest request) async {
     );
   await request.response.close();
   return true;
+}
+
+RouteSearchRepository _legacyV2Repository(
+  CatalogDatabase database,
+  Uri baseUri, {
+  RouteSearchOnlineFirstMetrics? metrics,
+}) {
+  final localRepository = LocalRouteRepository(
+    catalogDatabase: database,
+    officialOdFareRepository: OfficialOdFareRepository(
+      catalogDatabase: database,
+    ),
+  );
+  final sessionProvider = PlayIntegrityRouteV2SessionProvider(
+    apiClient: ApiClient(baseUri: baseUri),
+    attestor: const _FakePlayIntegrityAttestor(),
+  );
+  return TransportScopedRouteSearchRepository(
+    localRepository: LocalFirstRouteSearchRepository(
+      localRepository: localRepository,
+    ),
+    itxOnlineRepository: OnlineFirstRouteSearchRepository(
+      onlineRepository: RouteSearchV2ApiRepository(
+        baseUri: baseUri,
+        bearerTokenProvider: sessionProvider.issueToken,
+        bearerTokenInvalidator: sessionProvider.invalidateSession,
+      ),
+      localRepository: localRepository,
+      metrics: metrics,
+    ),
+  );
 }
 
 class _FakePlayIntegrityAttestor implements PlayIntegrityAttestor {

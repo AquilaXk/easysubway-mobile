@@ -25,7 +25,6 @@ import '../core/database/catalog/catalog_database.dart';
 import '../core/database/catalog/catalog_database_opener.dart';
 import '../core/database/user/user_database.dart';
 import '../core/database/user/user_database_opener.dart';
-import '../features/routes/data/local_route_repository.dart';
 import 'app_endpoints.dart';
 import 'app_dependencies.dart';
 
@@ -45,7 +44,6 @@ class AppBootstrap {
     required this.resumeDataPackUpdate,
     required this.acceptMeteredDataPackUpdate,
     required this.bundledDataPackFreshness,
-    this.localRouteRepository,
   });
 
   final AppDependencies dependencies;
@@ -55,14 +53,12 @@ class AppBootstrap {
   final Future<void> Function() resumeDataPackUpdate;
   final Future<void> Function() acceptMeteredDataPackUpdate;
   final BundledDataPackFreshness? bundledDataPackFreshness;
-  final LocalRouteRepository? localRouteRepository;
 
   static Future<AppBootstrap> initialize({
     Directory? databaseDirectory,
     AssetBundle? assetBundle,
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
-    RouteSearchRepository? routeRepository,
     RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
@@ -101,12 +97,6 @@ class AppBootstrap {
           ? await BundledDataPackFreshness.read(supportDirectory)
           : await _installedDataPackFreshness(userDatabase);
       final runner = dataPackUpdateRunner ?? _defaultDataPackUpdateRunner;
-      final localRouteRepository = routeRepository == null
-          ? LocalRouteRepository(
-              catalogDatabase: catalogDatabase,
-              artifactIdentity: catalogDatabaseOpener.openedArtifactIdentity,
-            )
-          : null;
 
       // 설치 pointer는 갱신하되, 세션의 catalog 의존성은 다음 bootstrap까지
       // 함께 열린 동일 DB를 유지해 기능별로 서로 다른 데이터팩을 노출하지 않는다.
@@ -120,8 +110,6 @@ class AppBootstrap {
       final dependencies = AppDependencies.resolve(
         repository: repository,
         reportRepository: reportRepository,
-        routeRepository: routeRepository,
-        localRouteRepository: localRouteRepository,
         routeFeedbackRepository: routeFeedbackRepository,
         favoriteRepository: favoriteRepository,
         favoriteFacilityRepository: favoriteFacilityRepository,
@@ -156,7 +144,6 @@ class AppBootstrap {
           trigger: UpdateTrigger.userConsent,
         ),
         bundledDataPackFreshness: bundledDataPackFreshness,
-        localRouteRepository: localRouteRepository,
       );
     } catch (error, stackTrace) {
       await dataPackUpdate;
@@ -179,9 +166,6 @@ class AppBootstrap {
     }
 
     await closeResource(() => dataPackUpdate);
-    await closeResource(
-      () => localRouteRepository?.close() ?? Future<void>.value(),
-    );
     await closeResource(catalogDatabase.close);
     await closeResource(userDatabase.close);
     if (firstError != null) {
