@@ -2,7 +2,6 @@ import 'package:flutter/foundation.dart';
 
 import '../../core/logging/app_logger.dart';
 import '../../mobile_error_reporter.dart';
-import '../notifications/domain/notification_permission.dart';
 import 'data/get_off_alarm_recovery_notice_store.dart';
 import 'data/get_off_alarm_state_repository.dart';
 import 'exact_alarm_permission.dart';

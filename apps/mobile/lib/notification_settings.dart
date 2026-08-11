@@ -7,10 +7,12 @@ import 'package:flutter/services.dart';
 
 import 'accessible_design.dart';
 import 'auth_headers.dart';
-import 'features/notifications/domain/notification_permission.dart';
+import 'features/get_off_alarm/exact_alarm_permission.dart'
+    show NotificationPermissionProvider, NotificationPermissionStatus;
 import 'mobile_error_reporter.dart';
 
-export 'features/notifications/domain/notification_permission.dart';
+export 'features/get_off_alarm/exact_alarm_permission.dart'
+    show NotificationPermissionProvider, NotificationPermissionStatus;
 
 const _notificationSettingsTimeout = Duration(seconds: 8);
 const _notificationSettingsLoadErrorMessage = '알림 설정을 불러오지 못했어요.';
