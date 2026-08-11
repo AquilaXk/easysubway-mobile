@@ -8,7 +8,7 @@ void main() {
   test('realtime API 저장소는 fresh 도착 정보를 파싱한다', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       expect(request.uri.path, '/api/v1/realtime/arrivals');
       request.response
         ..statusCode = HttpStatus.ok
@@ -34,8 +34,8 @@ void main() {
               ],
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
     final repository = RealtimeApiRepository(
       baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
@@ -57,7 +57,7 @@ void main() {
   test('realtime API 저장소는 unsupported 응답을 안전한 상태로 파싱한다', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
@@ -71,8 +71,8 @@ void main() {
               'arrivals': <Object?>[],
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
     final repository = RealtimeApiRepository(
       baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
@@ -93,7 +93,7 @@ void main() {
   test('realtime API 저장소는 비어 있는 선택 도착 표시 필드를 허용한다', () async {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
@@ -116,8 +116,8 @@ void main() {
               ],
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
     final repository = RealtimeApiRepository(
       baseUri: Uri.parse('http://${server.address.host}:${server.port}'),

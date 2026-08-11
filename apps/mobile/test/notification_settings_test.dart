@@ -281,7 +281,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
       authorizationHeaders.add(
         request.headers.value(HttpHeaders.authorizationHeader),
@@ -291,8 +291,8 @@ void main() {
       if (requestCount == 1) {
         request.response
           ..statusCode = HttpStatus.unauthorized
-          ..write(jsonEncode({'success': false}))
-          ..close();
+          ..write(jsonEncode({'success': false}));
+        await request.response.close();
         return;
       }
 
@@ -310,8 +310,8 @@ void main() {
               'updatedAt': '2026-06-14T09:10:00',
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final authProvider = RetryAuthorizationHeaderProvider();

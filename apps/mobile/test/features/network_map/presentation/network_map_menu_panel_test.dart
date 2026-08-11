@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
@@ -31,22 +32,24 @@ Widget _menuHost({
           child: FilledButton(
             key: const Key('openNetworkMapMenuForTest'),
             onPressed: () {
-              showGeneralDialog<void>(
-                context: context,
-                barrierDismissible: true,
-                barrierLabel: '메뉴 닫기',
-                pageBuilder: (context, animation, secondaryAnimation) {
-                  return NetworkMapMenuPanel(
-                    bottomBanner: const SizedBox(
-                      key: Key('networkMapMenuAdBanner'),
-                    ),
-                    onOpenStationSearch: onOpenStationSearch,
-                    onOpenSavedItems: onOpenSavedItems,
-                    onOpenTrainSearch: onOpenTrainSearch,
-                    onOpenServiceNotices: onOpenServiceNotices,
-                    onOpenSettings: onOpenSettings,
-                  );
-                },
+              unawaited(
+                showGeneralDialog<void>(
+                  context: context,
+                  barrierDismissible: true,
+                  barrierLabel: '메뉴 닫기',
+                  pageBuilder: (context, animation, secondaryAnimation) {
+                    return NetworkMapMenuPanel(
+                      bottomBanner: const SizedBox(
+                        key: Key('networkMapMenuAdBanner'),
+                      ),
+                      onOpenStationSearch: onOpenStationSearch,
+                      onOpenSavedItems: onOpenSavedItems,
+                      onOpenTrainSearch: onOpenTrainSearch,
+                      onOpenServiceNotices: onOpenServiceNotices,
+                      onOpenSettings: onOpenSettings,
+                    );
+                  },
+                ),
               );
             },
             child: const Text('메뉴 열기'),

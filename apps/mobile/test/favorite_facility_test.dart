@@ -12,7 +12,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       authorizationHeader = request.headers.value(
         HttpHeaders.authorizationHeader,
@@ -44,8 +44,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = FavoriteFacilityApiRepository(
@@ -117,7 +117,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
       authorizationHeaders.add(
         request.headers.value(HttpHeaders.authorizationHeader),
@@ -127,15 +127,15 @@ void main() {
       if (requestCount == 1) {
         request.response
           ..statusCode = HttpStatus.unauthorized
-          ..write(jsonEncode({'success': false}))
-          ..close();
+          ..write(jsonEncode({'success': false}));
+        await request.response.close();
         return;
       }
 
       request.response
         ..statusCode = HttpStatus.ok
-        ..write(jsonEncode({'success': true, 'data': <Object?>[]}))
-        ..close();
+        ..write(jsonEncode({'success': true, 'data': <Object?>[]}));
+      await request.response.close();
     });
 
     final authProvider = RetryAuthorizationHeaderProvider();
@@ -158,7 +158,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedMethods.add(request.method);
       requestedPaths.add(request.uri.path);
       request.response.headers.contentType = ContentType.json;
@@ -187,15 +187,15 @@ void main() {
                 'addedAt': '2026-06-14T10:00:00',
               },
             }),
-          )
-          ..close();
+          );
+        await request.response.close();
         return;
       }
 
       request.response
         ..statusCode = HttpStatus.ok
-        ..write(jsonEncode({'success': true, 'data': null}))
-        ..close();
+        ..write(jsonEncode({'success': true, 'data': null}));
+      await request.response.close();
     });
 
     final repository = FavoriteFacilityApiRepository(

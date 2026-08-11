@@ -13,7 +13,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedMethod = request.method;
       requestedUri = request.uri;
       acceptHeader = request.headers.value(HttpHeaders.acceptHeader);
@@ -28,8 +28,8 @@ void main() {
             'success': true,
             'data': {'id': 'report-1', 'status': 'ACCEPTED'},
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final client = ApiClient(
@@ -241,7 +241,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedMethod = request.method;
       requestedUri = request.uri;
       acceptHeader = request.headers.value(HttpHeaders.acceptHeader);
@@ -256,8 +256,8 @@ void main() {
             'success': true,
             'data': {'userId': 'anonymous-user-1'},
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final client = ApiClient(
@@ -324,12 +324,12 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write('not-json')
-        ..close();
+        ..write('not-json');
+      await request.response.close();
     });
 
     final client = ApiClient(
@@ -363,12 +363,12 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write('not-json')
-        ..close();
+        ..write('not-json');
+      await request.response.close();
     });
 
     final client = ApiClient(

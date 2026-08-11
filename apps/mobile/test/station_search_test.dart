@@ -178,7 +178,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       request.response
         ..statusCode = HttpStatus.ok
@@ -209,8 +209,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(
@@ -235,7 +235,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       request.response
         ..statusCode = HttpStatus.ok
@@ -266,8 +266,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(
@@ -286,7 +286,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       request.response
         ..statusCode = HttpStatus.ok
@@ -317,8 +317,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(
@@ -338,7 +338,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       request.response
         ..statusCode = HttpStatus.ok
@@ -367,8 +367,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(
@@ -416,7 +416,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       request.response
         ..statusCode = HttpStatus.ok
@@ -448,8 +448,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(
@@ -477,7 +477,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
@@ -504,8 +504,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(
@@ -535,7 +535,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       request.response
         ..statusCode = HttpStatus.ok
@@ -624,7 +624,7 @@ void main() {
           break;
       }
 
-      request.response.close();
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(
@@ -669,7 +669,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       authorizationHeader = request.headers.value(
         HttpHeaders.authorizationHeader,
@@ -702,8 +702,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = FavoriteStationApiRepository(
@@ -734,15 +734,15 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       authorizationHeader = request.headers.value(
         HttpHeaders.authorizationHeader,
       );
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'success': true, 'data': <Object?>[]}))
-        ..close();
+        ..write(jsonEncode({'success': true, 'data': <Object?>[]}));
+      await request.response.close();
     });
 
     final repository = FavoriteStationApiRepository(
@@ -762,7 +762,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
       authorizationHeaders.add(
         request.headers.value(HttpHeaders.authorizationHeader),
@@ -772,8 +772,8 @@ void main() {
       if (requestCount == 1) {
         request.response
           ..statusCode = HttpStatus.unauthorized
-          ..write(jsonEncode({'success': false}))
-          ..close();
+          ..write(jsonEncode({'success': false}));
+        await request.response.close();
         return;
       }
 
@@ -804,8 +804,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final authProvider = RetryFavoriteStationAuthProvider();
@@ -828,7 +828,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedMethods.add(request.method);
       requestedPaths.add(request.uri.path);
       request.response
@@ -857,7 +857,7 @@ void main() {
         request.response.write(jsonEncode({'success': true, 'data': null}));
       }
 
-      request.response.close();
+      await request.response.close();
     });
 
     final repository = FavoriteStationApiRepository(
@@ -884,7 +884,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
@@ -909,8 +909,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = StationSearchApiRepository(

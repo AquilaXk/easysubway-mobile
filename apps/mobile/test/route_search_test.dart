@@ -127,12 +127,12 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'success': false}))
-        ..close();
+        ..write(jsonEncode({'success': false}));
+      await request.response.close();
     });
 
     final repository = InternalRouteApiRepository(
