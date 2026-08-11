@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../route_draft/domain/route_draft.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
@@ -8,6 +9,8 @@ import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
 
+typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
+
 class JourneySearchScreen extends StatefulWidget {
   const JourneySearchScreen({
     required this.repository,
@@ -15,6 +18,7 @@ class JourneySearchScreen extends StatefulWidget {
     required this.draft,
     required this.mobilityType,
     required this.onShellBackToHome,
+    this.shareInvoker,
     super.key,
   });
 
@@ -23,6 +27,7 @@ class JourneySearchScreen extends StatefulWidget {
   final RouteDraft draft;
   final String mobilityType;
   final VoidCallback onShellBackToHome;
+  final JourneyShareInvoker? shareInvoker;
 
   @override
   State<JourneySearchScreen> createState() => _JourneySearchScreenState();
@@ -31,6 +36,7 @@ class JourneySearchScreen extends StatefulWidget {
 class _JourneySearchScreenState extends State<JourneySearchScreen> {
   late final JourneySearchController _controller;
   JourneySearchStatus _lastAnnouncedStatus = JourneySearchStatus.idle;
+  bool _isSharing = false;
 
   @override
   void initState() {
@@ -72,11 +78,15 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
   }
 
   String _arrivalTime(Journey journey) {
-    final value = (journey.realtimeArrivalTime ?? journey.plannedArrivalTime)
-        .toUtc()
-        .add(const Duration(hours: 9));
+    return _kstTime(journey.realtimeArrivalTime ?? journey.plannedArrivalTime);
+  }
+
+  String _kstTime(DateTime dateTime) {
+    final value = dateTime.toUtc().add(const Duration(hours: 9));
     return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
   }
+
+  String _durationLabel(int seconds) => '${(seconds + 59) ~/ 60}분';
 
   Widget _candidateRow(BuildContext context, Journey journey) {
     final selected = _controller.state.selectedJourneyId == journey.journeyId;
@@ -146,6 +156,123 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
         ),
       ),
     );
+  }
+
+  (String, String) _legLabel(JourneyLeg leg) => switch (leg) {
+    JourneyEntryLeg(:final durationSeconds) => (
+      '승강장으로 이동',
+      _durationLabel(durationSeconds),
+    ),
+    JourneyRideLeg(
+      :final plannedDepartureTime,
+      :final plannedArrivalTime,
+      :final realtimeDepartureTime,
+      :final realtimeArrivalTime,
+    ) =>
+      (
+        '열차 탑승',
+        '${_kstTime(realtimeDepartureTime ?? plannedDepartureTime)}–${_kstTime(realtimeArrivalTime ?? plannedArrivalTime)}',
+      ),
+    JourneyTransferLeg(:final durationSeconds) => (
+      '환승 이동',
+      _durationLabel(durationSeconds),
+    ),
+    JourneyExitLeg(:final durationSeconds) => (
+      '도착역 나가기',
+      _durationLabel(durationSeconds),
+    ),
+  };
+
+  Widget _selectedDetail(JourneySelectedSnapshot snapshot) {
+    final journey = snapshot.journey;
+    return Column(
+      key: const Key('selected-journey-detail'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 24),
+        Text('선택 경로 상세', style: Theme.of(context).textTheme.titleLarge),
+        const SizedBox(height: 8),
+        for (var index = 0; index < journey.legs.length; index++)
+          _detailLeg(index, journey.legs[index]),
+        const SizedBox(height: 8),
+        Builder(
+          builder: (buttonContext) => OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+            onPressed: _isSharing
+                ? null
+                : () => _share(buttonContext, snapshot),
+            icon: const Icon(Icons.share_outlined),
+            label: const Text('공유'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _detailLeg(int index, JourneyLeg leg) {
+    final (title, detail) = _legLabel(leg);
+    return Semantics(
+      label: '$title, $detail',
+      child: ExcludeSemantics(
+        child: Container(
+          key: Key('selected-journey-leg-$index'),
+          constraints: const BoxConstraints(minHeight: 48),
+          padding: const EdgeInsets.symmetric(vertical: 8),
+          child: Row(
+            children: [
+              Expanded(child: Text(title)),
+              Text(detail),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  String _shareText(JourneySelectedSnapshot snapshot) {
+    final journey = snapshot.journey;
+    final transfer = journey.transferCount == 0
+        ? '환승 없음'
+        : '환승 ${journey.transferCount}회';
+    final accessibility = journey.accessibility.stairFree
+        ? '무단차 경로'
+        : '무단차 경로 아님';
+    return '${widget.draft.origin!.displayName} → ${widget.draft.destination!.displayName}\n'
+        '${_durationLabel(journey.durationSeconds)} · $transfer · ${_arrivalTime(journey)} 도착 · $accessibility';
+  }
+
+  Future<void> _share(
+    BuildContext buttonContext,
+    JourneySelectedSnapshot snapshot,
+  ) async {
+    if (_isSharing) return;
+    setState(() => _isSharing = true);
+    try {
+      final renderBox = buttonContext.findRenderObject();
+      if (renderBox is! RenderBox || !renderBox.hasSize) {
+        throw StateError('Journey share trigger is unavailable');
+      }
+      final origin = renderBox.localToGlobal(Offset.zero) & renderBox.size;
+      final text = _shareText(snapshot);
+      final invoker = widget.shareInvoker;
+      if (invoker != null) {
+        await invoker(text, origin);
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(text: text, sharePositionOrigin: origin),
+        );
+      }
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('경로 요약을 공유하지 못했어요.')));
+      }
+    } finally {
+      if (mounted) setState(() => _isSharing = false);
+    }
   }
 
   void _search() {
@@ -240,6 +367,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
                   if (index > 0) const Divider(height: 1),
                   _candidateRow(context, state.response!.journeys[index]),
                 ],
+                if (state.selectedSnapshot case final snapshot?)
+                  _selectedDetail(snapshot),
               ],
             ],
           ),

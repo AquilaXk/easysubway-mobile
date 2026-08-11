@@ -23,6 +23,53 @@ enum JourneySearchFailure {
 }
 
 @immutable
+class JourneySelectedSnapshot {
+  JourneySelectedSnapshot.fromResponse(
+    JourneySearchSuccess response,
+    Journey selected,
+  ) : contractVersion = response.contractVersion,
+      requestId = response.requestId,
+      queryId = response.queryId,
+      effectiveDepartureTime = response.effectiveDepartureTime,
+      sourceIdentity = JourneySourceIdentity(
+        routeBundleId: response.sourceIdentity.routeBundleId,
+        routeBundleSha256: response.sourceIdentity.routeBundleSha256,
+        timetableSnapshotId: response.sourceIdentity.timetableSnapshotId,
+        accessibilitySnapshotId:
+            response.sourceIdentity.accessibilitySnapshotId,
+        realtimeSnapshotId: response.sourceIdentity.realtimeSnapshotId,
+      ),
+      journey = Journey(
+        journeyId: selected.journeyId,
+        status: selected.status,
+        planSource: selected.planSource,
+        plannedDepartureTime: selected.plannedDepartureTime,
+        plannedArrivalTime: selected.plannedArrivalTime,
+        realtimeDepartureTime: selected.realtimeDepartureTime,
+        realtimeArrivalTime: selected.realtimeArrivalTime,
+        durationSeconds: selected.durationSeconds,
+        transferCount: selected.transferCount,
+        walkingDistanceMeters: selected.walkingDistanceMeters,
+        timeSource: selected.timeSource,
+        accessibility: JourneyAccessibility(
+          result: selected.accessibility.result,
+          stairFree: selected.accessibility.stairFree,
+          reasonCodes: List<String>.unmodifiable(
+            selected.accessibility.reasonCodes,
+          ),
+        ),
+        legs: List<JourneyLeg>.unmodifiable(selected.legs),
+      );
+
+  final JourneyContractVersion contractVersion;
+  final String requestId;
+  final String queryId;
+  final DateTime effectiveDepartureTime;
+  final JourneySourceIdentity sourceIdentity;
+  final Journey journey;
+}
+
+@immutable
 class JourneySearchCommand {
   const JourneySearchCommand({
     required this.originStationId,
@@ -75,7 +122,7 @@ class JourneySearchState {
     required this.status,
     this.response,
     this.failure,
-    this.selectedJourneyId,
+    this.selectedSnapshot,
   });
 
   const JourneySearchState.idle() : this._(status: JourneySearchStatus.idle);
@@ -85,11 +132,11 @@ class JourneySearchState {
 
   const JourneySearchState.success(
     JourneySearchSuccess response, {
-    String? selectedJourneyId,
+    JourneySelectedSnapshot? selectedSnapshot,
   }) : this._(
          status: JourneySearchStatus.success,
          response: response,
-         selectedJourneyId: selectedJourneyId,
+         selectedSnapshot: selectedSnapshot,
        );
 
   const JourneySearchState.failure(JourneySearchFailure failure)
@@ -98,7 +145,9 @@ class JourneySearchState {
   final JourneySearchStatus status;
   final JourneySearchSuccess? response;
   final JourneySearchFailure? failure;
-  final String? selectedJourneyId;
+  final JourneySelectedSnapshot? selectedSnapshot;
+
+  String? get selectedJourneyId => selectedSnapshot?.journey.journeyId;
 }
 
 class JourneySearchController extends ChangeNotifier {
@@ -170,7 +219,15 @@ class JourneySearchController extends ChangeNotifier {
       return false;
     }
     if (_state.selectedJourneyId == journeyId) return true;
-    _state = JourneySearchState.success(response, selectedJourneyId: journeyId);
+    _state = JourneySearchState.success(
+      response,
+      selectedSnapshot: JourneySelectedSnapshot.fromResponse(
+        response,
+        response.journeys.singleWhere(
+          (journey) => journey.journeyId == journeyId,
+        ),
+      ),
+    );
     _safeNotify();
     return true;
   }
