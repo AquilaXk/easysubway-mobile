@@ -14,6 +14,7 @@ import 'ad_slot.dart';
 import 'design_tokens.dart';
 import 'facility_report.dart';
 import 'features/ads/ad_repository.dart';
+import 'features/facility_report/domain/facility_report_target.dart';
 import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
