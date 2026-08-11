@@ -110,6 +110,28 @@ test("tracked policy, baseline, and current immutable graph match the reviewed c
   assert.deepEqual(Object.fromEntries([18, 19, 20, 22].map((number) => [number, decision.currentEdges.filter((edge) => edge.ownerIssue === number).length])), { 18: 14, 19: 3, 20: 6, 22: 24 });
 });
 
+test("Journey domain and data fixtures are classified as feature production", () => {
+  const files = {
+    "apps/mobile/lib/features/journey/data/journey_api_repository.dart": "final class JourneyApiRepository {}\n",
+    "apps/mobile/lib/features/journey/domain/journey_repository.dart": "abstract interface class JourneyRepository {}\n",
+  };
+  const graph = buildImmutableDartSourceGraph({ files });
+  const beforeJourneyRoot = { ...POLICY, featureRoots: POLICY.featureRoots.filter((root) => root !== "journey") };
+  const before = classifyRootImportGraph({ graph, files, policy: beforeJourneyRoot, baseline: BASELINE });
+  assert.deepEqual(before.importers, []);
+  assert.deepEqual(before.uncertainty, [
+    { path: "apps/mobile/lib/features/journey/data/journey_api_repository.dart", code: "IMPORTER_CLASSIFICATION_UNKNOWN" },
+    { path: "apps/mobile/lib/features/journey/domain/journey_repository.dart", code: "IMPORTER_CLASSIFICATION_UNKNOWN" },
+  ]);
+
+  const after = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE });
+  assert.deepEqual(after.importers.map(({ path: importerPath, importerClass }) => [importerPath, importerClass]), [
+    ["apps/mobile/lib/features/journey/data/journey_api_repository.dart", "FEATURE_PRODUCTION"],
+    ["apps/mobile/lib/features/journey/domain/journey_repository.dart", "FEATURE_PRODUCTION"],
+  ]);
+  assert.deepEqual(after.uncertainty, []);
+});
+
 test("immutable pubspec package identity binds self-package imports", async () => {
   const module = await import("./mobile-root-import-ratchet.mjs");
   assert.equal(typeof module.loadImmutableMobileTree, "function");
@@ -145,6 +167,35 @@ test("immutable pubspec package identity binds self-package imports", async () =
   assert.throws(() => module.loadImmutableMobileTree(commit, { gitApi }), /missing or duplicated/);
   objects.set(pubspecObject, "name: Renamed-Mobile\n");
   assert.throws(() => module.loadImmutableMobileTree(commit, { gitApi }), /package name is invalid/);
+});
+
+test("Facility Report feature root is classified without graph uncertainty", () => {
+  const files = {
+    "apps/mobile/lib/features/facility_report/domain/facility_report_photo.dart":
+      "final class FacilityReportPhoto {}\n",
+  };
+  const decision = classifyRootImportGraph({
+    graph: buildImmutableDartSourceGraph({ files }),
+    files,
+    policy: POLICY,
+    baseline: BASELINE,
+    baseForbiddenEdges: [],
+    ownerStatus: [],
+  });
+
+  assert.deepEqual(decision.uncertainty, []);
+  assert.deepEqual(
+    decision.importers.map(({ path: importerPath, importerClass }) => [
+      importerPath,
+      importerClass,
+    ]),
+    [
+      [
+        "apps/mobile/lib/features/facility_report/domain/facility_report_photo.dart",
+        "FEATURE_PRODUCTION",
+      ],
+    ],
+  );
 });
 
 function requireGitText(args) {

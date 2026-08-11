@@ -57,6 +57,14 @@ EasySubwayApp buildEasySubwayTestApp({
   GlobalKey<NavigatorState>? navigatorKey,
   Key? key,
 }) {
+  // Widget fixtures use a dual-port fake; adapt it only at this test composition boundary.
+  final fixtureNetworkMapRepository =
+      networkMapRepository ??
+      switch (repository) {
+        final NetworkMapRepository dualPortRepository => dualPortRepository,
+        _ => null,
+      };
+
   return EasySubwayApp(
     dependencies:
         dependencies ??
@@ -71,7 +79,7 @@ EasySubwayApp buildEasySubwayTestApp({
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           internalRouteRepository: internalRouteRepository,
-          networkMapRepository: networkMapRepository,
+          networkMapRepository: fixtureNetworkMapRepository,
           networkMapViewportRepository: networkMapViewportRepository,
           realtimeRepository: realtimeRepository,
           notificationRepository: notificationRepository,

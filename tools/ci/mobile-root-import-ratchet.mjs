@@ -20,7 +20,7 @@ import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mj
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[^\u0000-\u001f\u007f]+$/u;
-const POLICY_SHA256 = "73c930ae6c9a15fb079a0f8e63ae47eb54abe07c44d5a3f9b0ea7ec7a95de2a9";
+const POLICY_SHA256 = "394bc9f014da80e276c1f4c3ee71ab1efd721d976b15b07927c2cf202c845d0f";
 const BASELINE_SHA256 = "b4868596d3741c966e785a143f1994ccc886dbe68e9b0d6f667f0fdee5d2876b";
 const PHASE = "NO_INCREASE";
 const REPOSITORY = "AquilaXk/easysubway-mobile";
@@ -41,7 +41,7 @@ const OWNER_STATUS_KEYS = ["number", "title", "url", "state"];
 const ROOT_CLASSES = ["APPROVED_APP_ENTRYPOINT_OR_COMPOSITION", "APPROVED_NEUTRAL_FOUNDATION", "TEMPORARY_ROOT_IMPLEMENTATION_TO_MOVE", "LEGACY_ROUTE_DELETE", "GENERATED_OR_PLATFORM_OWNER", "TEST_OR_FIXTURE_ONLY", "FORBIDDEN_OR_UNKNOWN"];
 const IMPORTER_CLASSES = ["FEATURE_PRODUCTION", "APP_COMPOSITION", "SHARED_NEUTRAL", "ROOT_PRODUCTION", "TEST_OR_FIXTURE", "GENERATED"];
 const URI_KINDS = ["RELATIVE", "OWN_PACKAGE", "DART_EXTERNAL", "OTHER_PACKAGE_EXTERNAL", "NAMED_PART"];
-const FEATURE_ROOTS = ["account", "ads", "attribution", "fare", "favorites", "get_off_alarm", "home", "home_widget", "internal_route", "mobility_profile", "network_map", "notifications", "preferences", "realtime", "route_draft", "routes", "search_history", "service_notice", "settings", "stations", "support", "train_search"];
+const FEATURE_ROOTS = ["account", "ads", "attribution", "fare", "facility_report", "favorites", "get_off_alarm", "home", "home_widget", "internal_route", "journey", "mobility_profile", "network_map", "notifications", "preferences", "realtime", "route_draft", "routes", "search_history", "service_notice", "settings", "stations", "support", "train_search"];
 const POLICY_URL = new URL("./mobile-root-import-policy.json", import.meta.url);
 const BASELINE_URL = new URL("./mobile-root-import-baseline.json", import.meta.url);
 const HELPER_URL = new URL("./lib/mobile-dart-source-graph.mjs", import.meta.url);
