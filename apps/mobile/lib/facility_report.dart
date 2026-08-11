@@ -10,6 +10,7 @@ import 'app/easy_subway_family_app_bar.dart';
 import 'design_tokens.dart';
 import 'auth_headers.dart';
 import 'core/network/api_client.dart';
+import 'features/facility_report/application/facility_report_state.dart';
 import 'features/facility_report/data/facility_report_photo_upload_intent.dart';
 import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'features/facility_report/domain/facility_report_exception.dart';
@@ -456,25 +457,6 @@ bool _isRetryablePhotoUploadStatus(int statusCode) {
   return statusCode == HttpStatus.requestTimeout ||
       statusCode == HttpStatus.tooManyRequests ||
       statusCode >= HttpStatus.internalServerError;
-}
-
-enum FacilityReportViewStatus { idle, loading, success, failure }
-
-class FacilityReportState {
-  const FacilityReportState({
-    required this.status,
-    this.message = '',
-    this.result,
-  });
-
-  const FacilityReportState.idle()
-    : status = FacilityReportViewStatus.idle,
-      message = '',
-      result = null;
-
-  final FacilityReportViewStatus status;
-  final String message;
-  final FacilityReportResult? result;
 }
 
 class FacilityReportController extends ChangeNotifier {
