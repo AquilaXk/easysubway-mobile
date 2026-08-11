@@ -111,7 +111,7 @@ void main() {
     );
   });
 
-  test('로컬 데이터베이스가 있으면 API 주소 없이도 경로 의존성이 동작한다', () async {
+  test('로컬 데이터베이스가 있으면 API 주소 없이 경로와 알림 의존성이 동작한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -125,10 +125,11 @@ void main() {
       apiBaseUri: () {
         throw StateError('Local catalog defaults must not read API base URL.');
       },
-      enablePushNotifications: false,
+      enablePushNotifications: true,
     );
 
     expect(dependencies.repository, isA<DriftStationRepository>());
+    expect(dependencies.notificationRepository, isNotNull);
     expect(
       dependencies.reportRepository,
       isA<UnavailableFacilityReportRepository>(),
