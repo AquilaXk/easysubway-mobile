@@ -4,17 +4,16 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
-import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:flutter/material.dart';
 import 'accessible_design.dart';
 import 'app/easy_subway_family_app_bar.dart';
 import 'design_tokens.dart';
 import 'auth_headers.dart';
-import 'core/database/user/user_database.dart' as user_db;
 import 'core/network/api_client.dart';
 import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'features/facility_report/domain/facility_report_location.dart';
 import 'features/facility_report/domain/facility_report_photo.dart';
+import 'features/facility_report/domain/facility_report_receipt.dart';
 import 'mobile_error_reporter.dart';
 import 'secure_key_value_storage.dart';
 
@@ -648,113 +647,6 @@ Map<String, String> _optionalStringMap(
     }
     return MapEntry(key, mapValue);
   });
-}
-
-class FacilityReportReceipt {
-  const FacilityReportReceipt({
-    required this.receiptId,
-    required this.reportId,
-    required this.status,
-    required this.receiptToken,
-    required this.createdAt,
-    this.publicReceiptCode,
-  });
-
-  final String receiptId;
-  final String reportId;
-  final String? publicReceiptCode;
-  final String status;
-  final String receiptToken;
-  final DateTime createdAt;
-}
-
-abstract interface class FacilityReportReceiptStore {
-  Future<void> saveReceipt(FacilityReportReceipt receipt);
-
-  Future<String?> receiptTokenForReport(String reportId);
-
-  Future<List<FacilityReportReceipt>> listReceipts();
-}
-
-class DriftFacilityReportReceiptStore implements FacilityReportReceiptStore {
-  const DriftFacilityReportReceiptStore({
-    required this.userDatabase,
-    this.storage = const FlutterSecureKeyValueStorage(),
-  });
-
-  final user_db.UserDatabase userDatabase;
-  final SecureKeyValueStorage storage;
-
-  @override
-  Future<void> saveReceipt(FacilityReportReceipt receipt) async {
-    final secureKey = 'easysubway.facilityReport.receipt.${receipt.receiptId}';
-    await storage.write(key: secureKey, value: receipt.receiptToken);
-    await userDatabase
-        .into(userDatabase.reportReceipts)
-        .insertOnConflictUpdate(
-          user_db.ReportReceiptsCompanion.insert(
-            receiptId: receipt.receiptId,
-            reportId: Value(receipt.reportId),
-            publicReceiptCode: Value(receipt.publicReceiptCode),
-            status: receipt.status,
-            createdAt: receipt.createdAt,
-          ),
-        );
-  }
-
-  @override
-  Future<String?> receiptTokenForReport(String reportId) async {
-    final trimmedReportId = reportId.trim();
-    if (trimmedReportId.isEmpty) {
-      return null;
-    }
-    final directToken = await storage.read(
-      key: 'easysubway.facilityReport.receipt.$trimmedReportId',
-    );
-    if (directToken != null && directToken.isNotEmpty) {
-      return directToken;
-    }
-    final receipt = await (userDatabase.select(
-      userDatabase.reportReceipts,
-    )..where((row) => row.reportId.equals(trimmedReportId))).getSingleOrNull();
-    if (receipt == null) {
-      return null;
-    }
-    return storage.read(
-      key: 'easysubway.facilityReport.receipt.${receipt.receiptId}',
-    );
-  }
-
-  @override
-  Future<List<FacilityReportReceipt>> listReceipts() async {
-    final receipts = await (userDatabase.select(
-      userDatabase.reportReceipts,
-    )..orderBy([(row) => OrderingTerm.desc(row.createdAt)])).get();
-    final results = <FacilityReportReceipt>[];
-    for (final receipt in receipts) {
-      final reportId = receipt.reportId?.trim();
-      if (reportId == null || reportId.isEmpty) {
-        continue;
-      }
-      final receiptToken = await storage.read(
-        key: 'easysubway.facilityReport.receipt.${receipt.receiptId}',
-      );
-      if (receiptToken == null || receiptToken.isEmpty) {
-        continue;
-      }
-      results.add(
-        FacilityReportReceipt(
-          receiptId: receipt.receiptId,
-          reportId: reportId,
-          publicReceiptCode: receipt.publicReceiptCode,
-          status: receipt.status,
-          receiptToken: receiptToken,
-          createdAt: receipt.createdAt,
-        ),
-      );
-    }
-    return results;
-  }
 }
 
 class FacilityReportResult {
