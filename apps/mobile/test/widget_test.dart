@@ -314,7 +314,7 @@ Future<void> _tapFanMenuSector(WidgetTester tester, String label) async {
   await tester.pump();
 }
 
-/// 역 노드를 접근성 Semantics onTap 액션으로 탭한다(_StationHitTarget의
+/// 역 노드를 접근성 Semantics onTap 액션으로 탭한다(NetworkMapStationHitTarget의
 /// Semantics(button: true, label: station.displayName, onTap: ...)를 사용).
 /// draft pin이 지정된 역은 pin이 노드 바로 위에 겹쳐 그려져 좌표 tap(tester.tap)이
 /// pin의 Material에 가로채이므로, 역 재탭 시나리오는 좌표 대신 이 경로를 쓴다.
