@@ -28,6 +28,7 @@ import 'features/network_map/presentation/nearby_station_line_bar.dart';
 import 'features/network_map/presentation/network_map_camera_policy.dart';
 import 'features/network_map/presentation/network_map_chrome_controls.dart';
 import 'features/network_map/presentation/network_map_menu_panel.dart';
+import 'features/network_map/presentation/network_map_unavailable_states.dart';
 import 'features/network_map/presentation/region_menu.dart';
 import 'features/network_map/presentation/station_fan_menu.dart';
 import 'features/network_map/presentation/station_fan_menu_policy.dart';
@@ -866,7 +867,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                 onPickWaypoint: widget.onPickStationForSlot == null
                     ? null
                     : _pickWaypointStation,
-                child: _NetworkMapLoadFailure(onRetry: () => _reload()),
+                child: NetworkMapLoadFailure(onRetry: () => _reload()),
               );
             }
             final loadResult = snapshot.data!;
@@ -3561,34 +3562,6 @@ class _NetworkMapBottomAdBanner extends StatelessWidget {
   }
 }
 
-class _NetworkMapLoadFailure extends StatelessWidget {
-  const _NetworkMapLoadFailure({required this.onRetry});
-
-  final VoidCallback onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: AccessibleStateCard(
-          icon: Icons.map_outlined,
-          title: '노선도를 불러오지 못했어요',
-          subtitle: '네트워크 상태를 확인한 뒤 다시 시도하거나 역명으로 검색해 주세요.',
-          actions: [
-            FilledButton.icon(
-              key: const Key('networkMapRetryButton'),
-              onPressed: onRetry,
-              icon: const Icon(Icons.refresh),
-              label: const Text('다시 시도'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // 지도 datapack manifest(assets/datapacks/metro_map_pack/manifest.json)의
 // license 블록에서 지역별 attribution 표기 문자열을 만든다(#1951). 하드코딩
 // 지역 분기 대신 manifest의 `attributionRequired`를 정본으로 삼는다 —
@@ -4092,7 +4065,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
             _cameraFocusedStationKey = null;
           }
           if (_routeMapBasemapFailed || !_routeMapRendererActive) {
-            return const _OriginalRouteMapUnavailable();
+            return const OriginalRouteMapUnavailable();
           }
           final presentedRendererCamera = _presentedRendererCamera;
           final interactionCamera = presentedRendererCamera == null
@@ -4817,23 +4790,6 @@ _CachedRouteMapPath _cachedRouteMapPath(String pathData, Offset origin) {
     final path = _pathFromSvg(pathData).shift(-origin);
     return _CachedRouteMapPath(path, path.getBounds());
   });
-}
-
-class _OriginalRouteMapUnavailable extends StatelessWidget {
-  const _OriginalRouteMapUnavailable();
-
-  @override
-  Widget build(BuildContext context) {
-    return const ColoredBox(
-      color: EasySubwayAccessibleColors.surfaceDefault,
-      child: Center(
-        child: Text(
-          '노선도를 불러오지 못했어요',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-        ),
-      ),
-    );
-  }
 }
 
 /// 저장형 권역명('부산권')을 표시형('부산')으로 정규화한다. 규칙의 단일 원본은
