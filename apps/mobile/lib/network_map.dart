@@ -14,6 +14,7 @@ import 'ad_slot.dart';
 import 'design_tokens.dart';
 import 'facility_report.dart';
 import 'features/ads/ad_repository.dart';
+import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
 import 'features/network_map/domain/map_camera.dart';
 import 'features/network_map/domain/network_map_models.dart';
@@ -195,7 +196,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   int _selectionClearRevision = 0;
   int _nearestStationRequestToken = 0;
 
-  /// 하단 패널 데이터 요청 generation. 역·호선과 함께 [_NearbyPanelRequestKey]로
+  /// 하단 패널 데이터 요청 generation. 역·호선과 함께 [NearbyPanelRequestKey]로
   /// 늦은 응답을 걸러 낸다(#2453 Task 3).
   int _nearbyDataRequestToken = 0;
   // #2200: 캔버스 역 탭 → StationSearchResult 해석은 비동기라 연속 탭 시 마지막
@@ -220,17 +221,17 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   int? _nearbyRealtimeInFlightGeneration;
   int? _nearbyTimetableInFlightGeneration;
 
-  void _markNearbyRealtimeInFlight(_NearbyPanelRequestKey request) {
+  void _markNearbyRealtimeInFlight(NearbyPanelRequestKey request) {
     _nearbyRealtimeRequestInFlight = true;
     _nearbyRealtimeInFlightGeneration = request.generation;
   }
 
-  void _markNearbyTimetableInFlight(_NearbyPanelRequestKey request) {
+  void _markNearbyTimetableInFlight(NearbyPanelRequestKey request) {
     _nearbyTimetableRequestInFlight = true;
     _nearbyTimetableInFlightGeneration = request.generation;
   }
 
-  void _clearNearbyRealtimeInFlightIf(_NearbyPanelRequestKey request) {
+  void _clearNearbyRealtimeInFlightIf(NearbyPanelRequestKey request) {
     if (_nearbyRealtimeInFlightGeneration != request.generation) {
       return;
     }
@@ -238,7 +239,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     _nearbyRealtimeInFlightGeneration = null;
   }
 
-  void _clearNearbyTimetableInFlightIf(_NearbyPanelRequestKey request) {
+  void _clearNearbyTimetableInFlightIf(NearbyPanelRequestKey request) {
     if (_nearbyTimetableInFlightGeneration != request.generation) {
       return;
     }
@@ -443,7 +444,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     final generation = ++_nearbyDataRequestToken;
     final request = selectedLine == null
         ? null
-        : _NearbyPanelRequestKey(
+        : NearbyPanelRequestKey(
             stationId: station.id,
             lineId: selectedLine.id,
             generation: generation,
@@ -477,12 +478,14 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
 
   /// 현재 패널에 반영해도 되는 최신 요청인지 검사한다.
   /// `mounted`만으로 setState 하지 않도록 완료 경로에서 반드시 호출한다.
-  bool _isCurrentNearbyRequest(_NearbyPanelRequestKey request) {
+  bool _isCurrentNearbyRequest(NearbyPanelRequestKey request) {
     return mounted &&
         _nearbyPanelVisible &&
-        request.generation == _nearbyDataRequestToken &&
-        request.stationId == _nearbySelectedStationId &&
-        request.lineId == _nearbySelectedLineId;
+        request.matches(
+          stationId: _nearbySelectedStationId,
+          lineId: _nearbySelectedLineId,
+          generation: _nearbyDataRequestToken,
+        );
   }
 
   bool _nearbyRealtimeDisplayMatchesCurrent() {
@@ -1236,7 +1239,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   void _startNearbyPanelDataLoads(
     StationSearchResult station,
     StationSearchLine line,
-    _NearbyPanelRequestKey request,
+    NearbyPanelRequestKey request,
   ) {
     unawaited(_loadNearbyRealtime(station, line, request: request));
     unawaited(_loadNearbyTimetable(station, line, request: request));
@@ -1245,7 +1248,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   Future<void> _loadNearbyRealtime(
     StationSearchResult station,
     StationSearchLine line, {
-    required _NearbyPanelRequestKey request,
+    required NearbyPanelRequestKey request,
   }) async {
     final repository = widget.realtimeRepository;
     if (repository == null) {
@@ -1348,7 +1351,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   Future<void> _handleNearbyRealtimeUnavailable(
     StationSearchResult station,
     StationSearchLine line, {
-    required _NearbyPanelRequestKey request,
+    required NearbyPanelRequestKey request,
   }) async {
     final shouldFallbackToTimetable =
         mounted &&
@@ -1372,7 +1375,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   Future<void> _loadNearbyTimetable(
     StationSearchResult station,
     StationSearchLine line, {
-    required _NearbyPanelRequestKey request,
+    required NearbyPanelRequestKey request,
   }) async {
     final repository = widget.stationSearchRepository;
     if (repository is! StationTimetableRepository) {
@@ -1430,7 +1433,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       return;
     }
     final station = _nearbyPanelData.results.first;
-    final request = _NearbyPanelRequestKey(
+    final request = NearbyPanelRequestKey(
       stationId: station.id,
       lineId: line.id,
       generation: ++_nearbyDataRequestToken,
@@ -1470,7 +1473,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       if (_nearbyRealtimeRequestInFlight) {
         return;
       }
-      final request = _NearbyPanelRequestKey(
+      final request = NearbyPanelRequestKey(
         stationId: station.id,
         lineId: line.id,
         generation: ++_nearbyDataRequestToken,
@@ -1491,7 +1494,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (_nearbyTimetableRequestInFlight) {
       return;
     }
-    final request = _NearbyPanelRequestKey(
+    final request = NearbyPanelRequestKey(
       stationId: station.id,
       lineId: line.id,
       generation: ++_nearbyDataRequestToken,
@@ -2764,20 +2767,6 @@ class _NetworkMapSearchSessionState extends State<_NetworkMapSearchSession> {
 enum _NetworkMapNearbyPanelStatus { idle, loading, success }
 
 enum _NearbyPanelDataSource { realtime, timetable }
-
-/// 하단 패널 비동기 요청 신원. stationId·lineId·generation이 모두 현재와
-/// 일치할 때만 응답을 UI에 반영한다(#2453 Task 3).
-class _NearbyPanelRequestKey {
-  const _NearbyPanelRequestKey({
-    required this.stationId,
-    required this.lineId,
-    required this.generation,
-  });
-
-  final String stationId;
-  final String lineId;
-  final int generation;
-}
 
 /// 성공한 실시간 스냅샷의 keyed display cache(#2453 Task 4).
 class _NearbyRealtimeDisplay {
