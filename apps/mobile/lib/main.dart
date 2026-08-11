@@ -13,6 +13,7 @@ import 'features/home_widget/home_widget_link_handler.dart';
 import 'features/home_widget/next_train_widget_repository.dart';
 import 'features/home_widget/next_train_widget_runtime.dart'
     as next_train_widget_runtime;
+import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'features/stations/presentation/station_detail_screen.dart';
 import 'facility_report.dart';
 import 'legacy_credential_cleanup.dart';

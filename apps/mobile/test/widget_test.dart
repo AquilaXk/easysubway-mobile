@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'package:easysubway_mobile/favorite_facility.dart';
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart'
@@ -18,6 +19,7 @@ import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/account/presentation/user_data_deletion_screen.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/features/favorites/presentation/favorite_home_screen.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/support/presentation/inquiry_screen.dart';
 import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
 import 'package:easysubway_mobile/features/fare/official_od_fare_quote.dart';
@@ -68,6 +70,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image_picker/image_picker.dart';
 
 import 'support/easy_subway_app_fixture.dart';
 
@@ -19410,6 +19413,68 @@ void main() {
     expect(find.text('사진 1장 추가됨'), findsOneWidget);
   });
 
+  testWidgets('시설 신고 화면 기본 선택기는 카메라와 앨범 경로를 구분한다', (tester) async {
+    final imagePicker = FakeFacilityReportImagePicker(
+      galleryFile: XFile.fromData(
+        Uint8List.fromList([1, 2, 3, 4]),
+        name: 'picker-photo.webp',
+      ),
+    );
+    final devicePhotoPicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: imagePicker,
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: FacilityReportScreen(
+          repository: FakeFacilityReportRepository(),
+          target: const FacilityReportTarget(
+            stationId: 'station-sangnoksu',
+            stationName: '상록수',
+            facilityId: 'facility-sangnoksu-elevator-1',
+            facilityName: '1번 출구 엘리베이터',
+            facilityTypeLabel: '엘리베이터',
+            facilityStatusLabel: '정상',
+          ),
+          deviceCameraPhotoPicker: devicePhotoPicker.takePhoto,
+          deviceGalleryPhotoPicker: devicePhotoPicker.pickFromGallery,
+        ),
+      ),
+    );
+    await tester.pump();
+    final addPhotoButton = find.byKey(
+      const Key('facilityReportAddPhotoButton'),
+    );
+    await tester.dragUntilVisible(
+      addPhotoButton,
+      find.byType(Scrollable).first,
+      const Offset(0, -300),
+    );
+
+    await tester.tap(addPhotoButton);
+    await tester.pump(const Duration(milliseconds: 300));
+    await _continuePhotoUse(tester, settle: false);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('사진 찍기'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+    expect(find.text('사진 1장 추가됨'), findsNothing);
+
+    await tester.tap(addPhotoButton);
+    await tester.pump(const Duration(milliseconds: 300));
+    await _continuePhotoUse(tester, settle: false);
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('앨범에서 선택'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
+
+    expect(imagePicker.pickedSources, [
+      ImageSource.camera,
+      ImageSource.gallery,
+    ]);
+    expect(find.text('사진 1장 추가됨'), findsOneWidget);
+  });
+
   testWidgets('시설 신고 화면은 사진 확인 중 빠른 중복 탭을 무시한다', (tester) async {
     final reportRepository = FakeFacilityReportRepository();
     var pickerCallCount = 0;
@@ -22163,6 +22228,29 @@ class FakeRouteFeedbackRepository implements RouteFeedbackRepository {
     if (currentError != null) {
       throw currentError;
     }
+  }
+}
+
+class FakeFacilityReportImagePicker extends ImagePicker {
+  FakeFacilityReportImagePicker({required this.galleryFile});
+
+  final XFile galleryFile;
+  final List<ImageSource> pickedSources = [];
+
+  @override
+  Future<XFile?> pickImage({
+    required ImageSource source,
+    double? maxWidth,
+    double? maxHeight,
+    int? imageQuality,
+    CameraDevice preferredCameraDevice = CameraDevice.rear,
+    bool requestFullMetadata = true,
+  }) async {
+    pickedSources.add(source);
+    expect(maxWidth, 1600);
+    expect(maxHeight, 1600);
+    expect(imageQuality, 72);
+    return source == ImageSource.gallery ? galleryFile : null;
   }
 }
 

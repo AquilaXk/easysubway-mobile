@@ -5,6 +5,7 @@ import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
 import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/favorite_facility.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
