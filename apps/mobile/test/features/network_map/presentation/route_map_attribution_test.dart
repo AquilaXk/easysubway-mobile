@@ -17,6 +17,7 @@
 // 필드를 직접 assert한다 — 이 방식이 렌더 방식과 가장 정합적이고 신뢰성 있다.
 import 'dart:convert';
 
+import 'package:easysubway_mobile/features/network_map/data/network_map_attribution.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
@@ -25,10 +26,6 @@ import 'package:easysubway_mobile/network_map.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-/// network_map.dart의 private `_mapManifestAssetPath`와 동일한 값을 가져야 한다
-/// (재시도 회귀 테스트에서 manifest asset 로드를 mock으로 가로채기 위한 키).
-const _mapManifestAssetPath = 'assets/datapacks/metro_map_pack/manifest.json';
 
 class _FakeNetworkMapRepository implements NetworkMapRepository {
   _FakeNetworkMapRepository({required this.selectedRegion});
@@ -197,7 +194,7 @@ void main() {
       // 붙들면 1차 실패가 영구 미표기로 고정된다. 캐시 무효화는 _loadAttributionText의
       // catch 블록(`_sharedAttributionTextByRegionFuture = null`)이 담당하므로, 그
       // 무효화가 사라지면(=재시도 안 됨) manifestLoadAttempts가 2에 도달하지 못한다.
-      final manifestBytes = await rootBundle.load(_mapManifestAssetPath);
+      final manifestBytes = await rootBundle.load(networkMapManifestAssetPath);
       // 광주 바탕 .vec를 실제 번들 바이트로 미리 로드해 mock 핸들러가 서빙한다
       // (#2068). 이 테스트가 가로채는 대상은 manifest 로드 재시도이며, 바탕 .vec
       // 로드 실패는 이 불변식과 무관한 노이즈다 — 실제 바이트로 서빙해 basemap이
@@ -208,8 +205,8 @@ void main() {
       // rootBundle은 loadString(cache:true)을 프로세스 생애주기 동안 캐시한다. 앞선
       // 테스트가 이미 이 키를 성공 로드해 rootBundle 자체의 _stringCache에 남아
       // 있으므로, induced failure를 실제로 겪으려면 그 캐시를 먼저 비운다.
-      rootBundle.evict(_mapManifestAssetPath);
-      addTearDown(() => rootBundle.evict(_mapManifestAssetPath));
+      rootBundle.evict(networkMapManifestAssetPath);
+      addTearDown(() => rootBundle.evict(networkMapManifestAssetPath));
 
       final binaryMessenger =
           TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
@@ -221,7 +218,7 @@ void main() {
         if (key == basemapAssetPath) {
           return basemapBytes; // 바탕 .vec는 항상 실제 바이트로 성공 로드.
         }
-        if (key != _mapManifestAssetPath) {
+        if (key != networkMapManifestAssetPath) {
           return null;
         }
         manifestLoadAttempts += 1;
@@ -263,7 +260,7 @@ void main() {
       // _loadNetworkMapAttributionTextByRegion이 재시도된다. rootBundle
       // (cache:true)이 실패 Future를 자체 _stringCache에 캐시하므로 하위 레이어도
       // evict해야 실제 새 로드가 일어난다.
-      rootBundle.evict(_mapManifestAssetPath);
+      rootBundle.evict(networkMapManifestAssetPath);
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump();
       await tester.pumpWidget(

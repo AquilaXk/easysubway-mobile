@@ -18,6 +18,7 @@ import 'features/facility_report/domain/facility_report_target.dart';
 import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
+import 'features/network_map/data/network_map_attribution.dart';
 import 'features/network_map/domain/map_camera.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
@@ -3501,46 +3502,6 @@ class _NetworkMapBottomAdBanner extends StatelessWidget {
   }
 }
 
-// 지도 datapack manifest(assets/datapacks/metro_map_pack/manifest.json)의
-// license 블록에서 지역별 attribution 표기 문자열을 만든다(#1951). 하드코딩
-// 지역 분기 대신 manifest의 `attributionRequired`를 정본으로 삼는다 —
-// attributionRequired가 false면 해당 지역은 맵에서 제외한다.
-const _mapManifestAssetPath = 'assets/datapacks/metro_map_pack/manifest.json';
-
-@visibleForTesting
-Map<String, String> parseNetworkMapAttributionByRegion(String manifestJson) {
-  final manifest = jsonDecode(manifestJson) as Map<String, Object?>;
-  final maps = (manifest['maps'] as List? ?? const [])
-      .cast<Map<String, Object?>>();
-  final result = <String, String>{};
-  for (final map in maps) {
-    final appRegion = map['app_region'] as String?;
-    final license = map['license'] as Map<String, Object?>?;
-    if (appRegion == null || license == null) {
-      continue;
-    }
-    if (license['attributionRequired'] != true) {
-      continue;
-    }
-    final authors = (license['authors'] as List? ?? const [])
-        .whereType<Object>()
-        .map((author) => '$author')
-        .join(', ');
-    final spdx = (license['spdx'] as String?)?.replaceAll('-', ' ').trim();
-    final licenseLabel = (spdx != null && spdx.isNotEmpty)
-        ? spdx
-        : (license['name'] as String? ?? '');
-    final text = [
-      if (authors.isNotEmpty) authors,
-      if (licenseLabel.isNotEmpty) licenseLabel,
-    ].join(', ');
-    if (text.isNotEmpty) {
-      result[appRegion] = text;
-    }
-  }
-  return result;
-}
-
 // manifest는 프로세스 생애주기 동안 바뀌지 않는 번들 asset이라, 노선도 canvas가
 // 새로 마운트될 때마다(지역 전환 등) 매번 asset을 다시 읽지 않도록 모듈 캐시
 // (_sharedAttributionTextByRegionFuture)로 1회만 로드해 공유한다. 로드 실패
@@ -3549,7 +3510,7 @@ Future<Map<String, String>>? _sharedAttributionTextByRegionFuture;
 
 Future<Map<String, String>> _loadNetworkMapAttributionTextByRegion() {
   return _sharedAttributionTextByRegionFuture ??= rootBundle
-      .loadString(_mapManifestAssetPath)
+      .loadString(networkMapManifestAssetPath)
       .then(parseNetworkMapAttributionByRegion);
 }
 
