@@ -16,7 +16,6 @@
 // 대신 CustomPaint의 painter를 RouteMapBasemapPainter로 캐스팅해 attributionText
 // 필드를 직접 assert한다 — 이 방식이 렌더 방식과 가장 정합적이고 신뢰성 있다.
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution_cache.dart';
