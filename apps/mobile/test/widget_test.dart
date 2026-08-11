@@ -60,6 +60,7 @@ import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_pol
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:easysubway_mobile/features/network_map/application/network_map_region_bridge.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_attribution_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/network_map.dart';
 import 'package:easysubway_mobile/search_field.dart';
@@ -624,7 +625,7 @@ void main() {
   // cold 캐시에서 시작하도록 rootBundle과 모듈 attribution 캐시를 초기화한다.
   tearDown(() {
     rootBundle.clear();
-    resetNetworkMapAttributionCacheForTest();
+    resetNetworkMapAttributionCache();
   });
 
   testWidgets('홈에서 내 신고 화면으로 이동한다', (tester) async {
