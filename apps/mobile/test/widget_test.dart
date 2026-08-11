@@ -61,6 +61,7 @@ import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:easysubway_mobile/features/network_map/application/network_map_region_bridge.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution_cache.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/network_map.dart';
 import 'package:easysubway_mobile/search_field.dart';
