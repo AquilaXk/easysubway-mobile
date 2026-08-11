@@ -21,6 +21,7 @@ import 'features/facility_report/domain/facility_report_request.dart';
 import 'features/facility_report/domain/facility_report_result.dart';
 import 'features/facility_report/domain/facility_report_target.dart';
 import 'features/facility_report/domain/facility_report_type.dart';
+import 'features/facility_report/presentation/facility_report_form_components.dart';
 import 'features/facility_report/presentation/facility_report_result_labels.dart';
 import 'features/facility_report/presentation/facility_report_type_options.dart';
 import 'mobile_error_reporter.dart';
@@ -29,7 +30,6 @@ const _facilityReportTimeout = Duration(seconds: 8);
 const _facilityReportErrorMessage = '제보를 보내지 못했어요.';
 const _facilityReportStatusErrorMessage = '제보 진행 상황을 확인하지 못했어요.';
 const _facilityReportListErrorMessage = '제보 내역을 불러오지 못했어요.';
-const _facilityReportFailureNextAction = '내용을 확인한 뒤 네트워크 상태를 보고 다시 보내 주세요.';
 const _facilityReportPhotoUploadMaxAttempts = 2;
 const _facilityReportLocationDisabledMessage =
     '휴대전화의 위치 기능을 켜 주세요. 가까운 역을 찾는 데 필요합니다.';
@@ -45,22 +45,6 @@ const _facilityReportUploadDisclosureScope =
     '제보 내용은 접수 담당자에게 전달되며 앱 사용자에게 공개되지 않습니다.';
 const _facilityReportPagePadding = EdgeInsets.only(bottom: 32);
 const _facilityReportContentPadding = EdgeInsets.symmetric(horizontal: 20);
-const _facilityReportCardRadius = BorderRadius.all(
-  Radius.circular(EasySubwayRadius.sheet),
-);
-
-/// 제보 상태(FacilityReportStatus)를 상태색으로 매핑한다. 박스 대신 색 점·색
-/// 텍스트로 상태를 구분하기 위한 전경색만 돌려준다.
-Color _reportStatusColor(String status) {
-  return switch (status) {
-    'SUBMITTED' => EasySubwayAccessibleColors.statusInfoContent,
-    'UNDER_REVIEW' => EasySubwayAccessibleColors.amber,
-    'ACCEPTED' || 'RESOLVED' => EasySubwayAccessibleColors.mintDark,
-    'REJECTED' => EasySubwayAccessibleColors.red,
-    'DUPLICATE' => EasySubwayAccessibleColors.mutedText,
-    _ => EasySubwayAccessibleColors.mutedText,
-  };
-}
 
 abstract class FacilityReportRepository {
   Future<FacilityReportResult> createReport(FacilityReportRequest request);
@@ -1076,7 +1060,7 @@ class _MyReportDetailStatus extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _reportStatusColor(status);
+    final color = facilityReportStatusColor(status);
     return Align(
       alignment: Alignment.centerLeft,
       child: Row(
@@ -1150,7 +1134,7 @@ class _MyReportStatusLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _reportStatusColor(status);
+    final color = facilityReportStatusColor(status);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1250,11 +1234,11 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const _FacilityReportSectionTitle(title: '대상'),
-              _FacilityReportHeader(target: widget.target),
-              const _FacilityReportSectionTitle(title: '어떤 일인가요?'),
+              const FacilityReportSectionTitle(title: '대상'),
+              FacilityReportHeader(target: widget.target),
+              const FacilityReportSectionTitle(title: '어떤 일인가요?'),
               for (final option in _reportTypeOptions) ...[
-                _FacilityReportTypeRow(
+                FacilityReportTypeRow(
                   option: option,
                   selected: option == _selectedType,
                   onTap: isLoading || hasSubmittedReport
@@ -1270,7 +1254,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                     color: EasySubwayAccessibleColors.line,
                   ),
               ],
-              const _FacilityReportSectionTitle(title: '내용'),
+              const FacilityReportSectionTitle(title: '내용'),
               Padding(
                 padding: _facilityReportContentPadding,
                 child: TextField(
@@ -1284,7 +1268,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                   decoration: const InputDecoration(
                     hintText: '상황을 짧게 적어 주세요',
                     border: OutlineInputBorder(
-                      borderRadius: _facilityReportCardRadius,
+                      borderRadius: facilityReportCardRadius,
                     ),
                   ),
                 ),
@@ -1315,7 +1299,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                 const SizedBox(height: 10),
                 Padding(
                   padding: _facilityReportContentPadding,
-                  child: _FacilityReportLocationMessage(
+                  child: FacilityReportLocationMessage(
                     message: _photoMessage,
                     isFailure: _isPhotoFailure,
                   ),
@@ -1387,7 +1371,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                   const SizedBox(height: 10),
                   Padding(
                     padding: _facilityReportContentPadding,
-                    child: _FacilityReportLocationMessage(
+                    child: FacilityReportLocationMessage(
                       message: _locationMessage,
                       isFailure: _isLocationFailure,
                     ),
@@ -1429,14 +1413,14 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                 const SizedBox(height: 16),
                 Padding(
                   padding: _facilityReportContentPadding,
-                  child: _FacilityReportMessage(state: state),
+                  child: FacilityReportMessage(state: state),
                 ),
               ],
               if (reportResult != null) ...[
                 const SizedBox(height: 16),
                 Padding(
                   padding: _facilityReportContentPadding,
-                  child: _FacilityReportStatusPanel(
+                  child: FacilityReportStatusPanel(
                     result: reportResult,
                     isLoading: isLoading,
                     onRefresh: _controller.refreshCurrentReport,
@@ -1870,359 +1854,6 @@ String _friendlyFacilityReportLocationMessage(String message) {
     return _facilityReportLocationPermissionMessage;
   }
   return message.isEmpty ? '현재 위치를 확인하지 못했어요.' : message;
-}
-
-class _FacilityReportStatusPanel extends StatelessWidget {
-  const _FacilityReportStatusPanel({
-    required this.result,
-    required this.isLoading,
-    required this.onRefresh,
-  });
-
-  final FacilityReportResult result;
-  final bool isLoading;
-  final VoidCallback onRefresh;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.surface,
-        borderRadius: _facilityReportCardRadius,
-        border: Border.all(color: EasySubwayAccessibleColors.line),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              // 제보 번호와 상태를 한 문장으로 묶어 스크린리더가 상태 변화를 읽게 한다.
-              label:
-                  '제보 번호 ${result.displayReceiptCode}, 현재 상태 ${result.statusLabel}',
-              liveRegion: true,
-              child: ExcludeSemantics(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _FacilityReportStatusRow(
-                      label: '제보 번호',
-                      value: result.displayReceiptCode,
-                    ),
-                    const SizedBox(height: 10),
-                    _FacilityReportStatusRow(
-                      label: '진행 상황',
-                      value: result.statusLabel,
-                      valueColor: _reportStatusColor(result.status),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton.icon(
-              key: const Key('facilityReportRefreshButton'),
-              onPressed: isLoading ? null : onRefresh,
-              icon: const Icon(Icons.refresh),
-              label: Text(isLoading ? '확인 중' : '진행 상황 확인'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _FacilityReportStatusRow extends StatelessWidget {
-  const _FacilityReportStatusRow({
-    required this.label,
-    required this.value,
-    this.valueColor,
-  });
-
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: textTheme.labelLarge?.copyWith(
-            color: EasySubwayAccessibleColors.mutedText,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(
-          value,
-          style: textTheme.titleMedium?.copyWith(
-            color: valueColor ?? EasySubwayAccessibleColors.text,
-            fontWeight: FontWeight.w700,
-            height: 1.25,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FacilityReportHeader extends StatelessWidget {
-  const _FacilityReportHeader({required this.target});
-
-  final FacilityReportTarget target;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Semantics(
-      label:
-          '${target.stationName}역, ${target.facilityName}, ${target.facilityTypeLabel}, 현재 ${target.facilityStatusLabel}',
-      child: ExcludeSemantics(
-        child: ColoredBox(
-          color: EasySubwayAccessibleColors.surface,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '${target.stationName}역',
-                  style: textTheme.bodyLarge?.copyWith(
-                    color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.w700,
-                    height: 1.25,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  target.facilityName,
-                  style: textTheme.bodyLarge?.copyWith(
-                    color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${target.facilityTypeLabel} · ${target.facilityStatusLabel}',
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: EasySubwayAccessibleColors.mutedText,
-                    fontWeight: FontWeight.w700,
-                    height: 1.3,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FacilityReportSectionTitle extends StatelessWidget {
-  const _FacilityReportSectionTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return ColoredBox(
-      color: EasySubwayAccessibleColors.scaffoldSurface,
-      child: SizedBox(
-        width: double.infinity,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
-          child: Semantics(
-            header: true,
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FacilityReportTypeRow extends StatelessWidget {
-  const _FacilityReportTypeRow({
-    required this.option,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final FacilityReportTypeOption option;
-  final bool selected;
-  final VoidCallback? onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = selected
-        ? EasySubwayAccessibleColors.primary
-        : EasySubwayAccessibleColors.text;
-    final enabled = onTap != null;
-    final stateLabel = !enabled ? '선택 불가' : (selected ? '선택됨' : '선택 가능');
-    final semanticsLabel = '${option.label} $stateLabel';
-
-    return Semantics(
-      label: semanticsLabel,
-      button: true,
-      enabled: enabled,
-      selected: selected,
-      onTap: onTap,
-      child: ExcludeSemantics(
-        child: ListTile(
-          key: Key('facilityReportType-${option.reportType}'),
-          onTap: onTap,
-          enabled: onTap != null,
-          minVerticalPadding: 12,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 20),
-          tileColor: EasySubwayAccessibleColors.surface,
-          leading: Icon(option.icon, color: textColor, size: 26),
-          title: Text(
-            option.label,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: textColor,
-              fontWeight: FontWeight.w700,
-              height: 1.25,
-            ),
-          ),
-          trailing: selected
-              ? const Icon(
-                  Icons.check_circle,
-                  color: EasySubwayAccessibleColors.primary,
-                )
-              : const Icon(
-                  Icons.circle_outlined,
-                  color: EasySubwayAccessibleColors.disclosure,
-                ),
-        ),
-      ),
-    );
-  }
-}
-
-class _FacilityReportMessage extends StatelessWidget {
-  const _FacilityReportMessage({required this.state});
-
-  final FacilityReportState state;
-
-  @override
-  Widget build(BuildContext context) {
-    final isFailure = state.status == FacilityReportViewStatus.failure;
-    final color = isFailure
-        ? EasySubwayAccessibleColors.red
-        : EasySubwayAccessibleColors.primary;
-    final icon = isFailure ? Icons.error_outline : Icons.check_circle_outline;
-    final shouldShowNextAction = _shouldShowFacilityReportFailureNextAction(
-      state,
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Semantics(
-          container: true,
-          label: state.message,
-          liveRegion: true,
-          child: ExcludeSemantics(
-            child: Row(
-              children: [
-                Icon(icon, color: color, size: 26),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    state.message,
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: EasySubwayAccessibleColors.text,
-                      fontWeight: FontWeight.w700,
-                      height: 1.3,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (shouldShowNextAction) ...[
-          const SizedBox(height: 8),
-          Semantics(
-            key: const Key('facilityReportFailureNextAction'),
-            container: true,
-            excludeSemantics: true,
-            liveRegion: true,
-            label: '도움말, $_facilityReportFailureNextAction',
-            child: Text(
-              _facilityReportFailureNextAction,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: EasySubwayAccessibleColors.mutedText,
-                fontWeight: FontWeight.w700,
-                height: 1.35,
-              ),
-            ),
-          ),
-        ],
-      ],
-    );
-  }
-}
-
-bool _shouldShowFacilityReportFailureNextAction(FacilityReportState state) {
-  return state.status == FacilityReportViewStatus.failure &&
-      state.result == null;
-}
-
-class _FacilityReportLocationMessage extends StatelessWidget {
-  const _FacilityReportLocationMessage({
-    required this.message,
-    required this.isFailure,
-  });
-
-  final String message;
-  final bool isFailure;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = isFailure
-        ? EasySubwayAccessibleColors.red
-        : EasySubwayAccessibleColors.primary;
-    final icon = isFailure ? Icons.error_outline : Icons.check_circle_outline;
-
-    return Semantics(
-      label: message,
-      liveRegion: true,
-      child: ExcludeSemantics(
-        child: Row(
-          children: [
-            Icon(icon, color: color, size: 24),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                message,
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
 
 String? _nonBlankReportString(String? value) {
