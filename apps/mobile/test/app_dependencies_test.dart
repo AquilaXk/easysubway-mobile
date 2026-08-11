@@ -8,6 +8,7 @@ import 'package:easysubway_mobile/core/database/user/user_database.dart'
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';
+import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
@@ -110,7 +111,7 @@ void main() {
     );
   });
 
-  test('로컬 데이터베이스가 있으면 API 주소 없이도 경로 의존성이 동작한다', () async {
+  test('로컬 데이터베이스가 있으면 API 주소 없이 경로와 알림 의존성이 동작한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -124,10 +125,11 @@ void main() {
       apiBaseUri: () {
         throw StateError('Local catalog defaults must not read API base URL.');
       },
-      enablePushNotifications: false,
+      enablePushNotifications: true,
     );
 
     expect(dependencies.repository, isA<DriftStationRepository>());
+    expect(dependencies.notificationRepository, isNotNull);
     expect(
       dependencies.reportRepository,
       isA<UnavailableFacilityReportRepository>(),
@@ -406,6 +408,62 @@ void main() {
       ),
     );
   });
+
+  test(
+    'Network Map capability는 station repository runtime type이 아니라 명시적 주입으로만 선택한다',
+    () {
+      final catalogDatabase = CatalogDatabase.memory();
+      final dualInterfaceStationRepository = DriftStationRepository(
+        database: catalogDatabase,
+      );
+      final explicitNetworkMapRepository = _InjectedNetworkMapRepository();
+      addTearDown(catalogDatabase.close);
+
+      final stationOnlyDependencies = AppDependencies.resolve(
+        repository: dualInterfaceStationRepository,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        routeRepository: _InjectedRouteSearchRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      expect(
+        stationOnlyDependencies.repository,
+        same(dualInterfaceStationRepository),
+      );
+      expect(
+        stationOnlyDependencies.networkMapRepository,
+        isNot(same(dualInterfaceStationRepository)),
+      );
+
+      final explicitDependencies = AppDependencies.resolve(
+        repository: dualInterfaceStationRepository,
+        networkMapRepository: explicitNetworkMapRepository,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        routeRepository: _InjectedRouteSearchRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      expect(
+        explicitDependencies.networkMapRepository,
+        same(explicitNetworkMapRepository),
+      );
+
+      final defaultCatalogDependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        routeRepository: _InjectedRouteSearchRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      expect(
+        defaultCatalogDependencies.networkMapRepository,
+        same(defaultCatalogDependencies.repository),
+      );
+    },
+  );
 }
 
 class _InjectedRouteSearchRepository implements RouteSearchRepository {
@@ -417,5 +475,19 @@ class _InjectedRouteSearchRepository implements RouteSearchRepository {
   @override
   Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
     throw UnimplementedError();
+  }
+}
+
+class _InjectedNetworkMapRepository implements NetworkMapRepository {
+  @override
+  Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
+    return NetworkMapData(
+      regions: const [],
+      selectedRegion: region ?? '',
+      lines: const [],
+      stations: const [],
+      edges: const [],
+      positionSources: const [],
+    );
   }
 }

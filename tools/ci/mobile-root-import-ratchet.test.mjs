@@ -169,6 +169,35 @@ test("immutable pubspec package identity binds self-package imports", async () =
   assert.throws(() => module.loadImmutableMobileTree(commit, { gitApi }), /package name is invalid/);
 });
 
+test("Facility Report feature root is classified without graph uncertainty", () => {
+  const files = {
+    "apps/mobile/lib/features/facility_report/domain/facility_report_photo.dart":
+      "final class FacilityReportPhoto {}\n",
+  };
+  const decision = classifyRootImportGraph({
+    graph: buildImmutableDartSourceGraph({ files }),
+    files,
+    policy: POLICY,
+    baseline: BASELINE,
+    baseForbiddenEdges: [],
+    ownerStatus: [],
+  });
+
+  assert.deepEqual(decision.uncertainty, []);
+  assert.deepEqual(
+    decision.importers.map(({ path: importerPath, importerClass }) => [
+      importerPath,
+      importerClass,
+    ]),
+    [
+      [
+        "apps/mobile/lib/features/facility_report/domain/facility_report_photo.dart",
+        "FEATURE_PRODUCTION",
+      ],
+    ],
+  );
+});
+
 function requireGitText(args) {
   return new TextDecoder().decode(execFileSync("git", args, { encoding: "buffer" })).trim();
 }
