@@ -24,6 +24,7 @@ import 'features/network_map/domain/route_map_label_polygon.dart';
 import 'features/network_map/domain/route_map_min_scale.dart';
 import 'features/network_map/domain/route_map_owner_labels.dart';
 import 'features/network_map/domain/structured_route_map.dart';
+import 'features/network_map/infrastructure/cached_route_map_path.dart';
 import 'features/network_map/presentation/nearby_data_source_toggle.dart';
 import 'features/network_map/presentation/nearby_direction_columns.dart';
 import 'features/network_map/presentation/nearby_direction_title.dart';
@@ -4711,20 +4712,13 @@ NetworkMapStation? _stationForMapEdgeEndpoint(
           : endpointStations.first);
 }
 
-class _CachedRouteMapPath {
-  const _CachedRouteMapPath(this.path, this.bounds);
+final _routeMapPathCache = <String, CachedRouteMapPath>{};
 
-  final Path path;
-  final Rect bounds;
-}
-
-final _routeMapPathCache = <String, _CachedRouteMapPath>{};
-
-_CachedRouteMapPath _cachedRouteMapPath(String pathData, Offset origin) {
+CachedRouteMapPath _cachedRouteMapPath(String pathData, Offset origin) {
   final key = '${origin.dx}:${origin.dy}:$pathData';
   return _routeMapPathCache.putIfAbsent(key, () {
     final path = _pathFromSvg(pathData).shift(-origin);
-    return _CachedRouteMapPath(path, path.getBounds());
+    return CachedRouteMapPath(path, path.getBounds());
   });
 }
 
