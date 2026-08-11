@@ -70,6 +70,34 @@ test("Facility Report source has one direct feature owner without uncertainty", 
   assert.deepEqual(classified.requirements, policy.requirements.FEATURE);
 });
 
+test("Fare and Facility Report remain valid in lexical affected-feature order", () => {
+  const checked = validatePolicy(policy);
+  const changedPaths = [
+    "apps/mobile/lib/features/facility_report/domain/facility_report_photo.dart",
+    "apps/mobile/lib/features/fare/fare_repository.dart",
+  ];
+  const classification = classifyEntries(changedPaths.map((changedPath, index) => ({
+    status: "ADDED",
+    oldPath: null,
+    newPath: changedPath,
+    oldMode: null,
+    newMode: "100644",
+    oldBlobSha: null,
+    newBlobSha: sha(String.fromCharCode(97 + index)),
+    isBinary: false,
+    reasons: [],
+  })), checked);
+
+  assert.deepEqual(classification.affectedFeatures, ["facility_report", "fare"]);
+  const result = buildResult({
+    event: { name: "push", ref: "refs/heads/main", pullRequestNumber: null },
+    comparison: { baseSha: sha("a"), headSha: sha("b"), mergeBaseSha: sha("a") },
+    classifier: { sourceSha256: "c".repeat(64), policySha256: "d".repeat(64), workflowSha256: "e".repeat(64) },
+    classification,
+  });
+  assert.deepEqual(result.affectedFeatures, ["facility_report", "fare"]);
+});
+
 test("Journey V3 생성 Dart 다섯 개만 계약 산출물로 분류한다", () => {
   const checked = validatePolicy(policy);
   const names = ["journey_v3_contract.dart", "journey_v3_enums.dart", "journey_v3_error.dart", "journey_v3_generation_receipt.json", "journey_v3_models.dart", "journey_v3_validation.dart"];
