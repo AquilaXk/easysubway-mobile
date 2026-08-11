@@ -6,6 +6,7 @@ import '../../../core/external/kakao_map_launcher.dart';
 import '../../../facility_report.dart';
 import '../../../internal_route.dart';
 import '../../ads/ad_repository.dart';
+import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/application/route_draft_controller.dart';
 import '../application/station_detail_controller.dart';
