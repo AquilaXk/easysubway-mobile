@@ -9,8 +9,10 @@ const trackedLockPath = join(repositoryRoot, 'contracts/mobile/journey-v3-client
 const resourcePaths = [
   'contracts/api/journey-v3-error-catalog.json',
   'contracts/api/journey-v3-error-disposition.json',
+  'contracts/api/journey-v3-session-integrity.json',
   'contracts/api/journey-v3.openapi.yaml',
 ];
+const publishedPublicationReceiptSha256 = 'dcb93a99c86f9a7790e33ceebc8c9392bb65178db1c0d2b6c0eeea5b8e75a6cd';
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`stage-journey-v3-contract: ${message}`); };
 
@@ -124,11 +126,12 @@ function parseArguments(argv) {
   return { lock: argv[1], input: argv[3], output: argv[5] };
 }
 
-function stage({ lockPath, inputPath, outputPath, enforceTrackedLock, allowedBuildRoot = buildRoot }) {
+function stage({ lockPath, inputPath, outputPath, enforceTrackedLock, allowedBuildRoot = buildRoot, expectedPublicationReceiptSha256 = publishedPublicationReceiptSha256 }) {
   if (enforceTrackedLock && resolve(lockPath) !== trackedLockPath) fail('lock must be the tracked journey-v3-client lock');
   const lockBytes = readRegular(lockPath, 'lock');
   const inputBytes = readRegular(inputPath, 'input');
   const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock);
+  if (expectedPublicationReceiptSha256 !== undefined && lock.publicationReceiptSha256 !== expectedPublicationReceiptSha256) fail('lock publication receipt SHA-256 does not match the expected receipt');
   if (basename(inputPath) !== lock.payload.fileName) fail('input file name does not match locked payload');
   const resources = validatePayload(duplicateFreeJson(inputBytes.toString('utf8'), 'payload'), lock, inputBytes);
   const output = prepareOutput(outputPath, allowedBuildRoot);

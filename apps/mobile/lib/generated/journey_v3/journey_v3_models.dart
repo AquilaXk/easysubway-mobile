@@ -10,13 +10,13 @@ class JourneySessionRequest {
   const JourneySessionRequest._({required this.integrityToken, required this.clientNonce});
   factory JourneySessionRequest({required String integrityToken, required String clientNonce}) {
     if (integrityToken.isEmpty || integrityToken.length > 16384) throw const FormatException('integrityToken length');
-    return JourneySessionRequest._(integrityToken: integrityToken, clientNonce: JourneyV3Validation.matching(clientNonce, 'clientNonce', RegExp(r'^[A-Za-z0-9_-]{22}(?![\s\S])')));
+    return JourneySessionRequest._(integrityToken: integrityToken, clientNonce: JourneyV3Validation.matching(clientNonce, 'clientNonce', RegExp(r'^[A-Za-z0-9_-]{21}[AQgw](?![\s\S])')));
   }
   factory JourneySessionRequest.fromJson(Map<String, Object?> json) {
     JourneyV3Validation.exactKeys(json, {'integrityToken', 'clientNonce'});
     final integrityToken = JourneyV3Validation.string(json['integrityToken'], 'integrityToken');
     if (integrityToken.isEmpty || integrityToken.length > 16384) throw const FormatException('integrityToken length');
-    return JourneySessionRequest(integrityToken: integrityToken, clientNonce: JourneyV3Validation.matching(json['clientNonce'], 'clientNonce', RegExp(r'^[A-Za-z0-9_-]{22}$')));
+    return JourneySessionRequest(integrityToken: integrityToken, clientNonce: JourneyV3Validation.matching(json['clientNonce'], 'clientNonce', RegExp(r'^[A-Za-z0-9_-]{21}[AQgw]$')));
   }
   Map<String, Object?> toJson() => {'integrityToken': integrityToken, 'clientNonce': clientNonce};
 }
