@@ -7,6 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { analyze, changedExecutableLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
+import { normalizeLcov } from "./filter-mobile-lcov.mjs";
 
 const policyFile = new URL("./mobile-coverage-policy.json", import.meta.url);
 const baselineFile = new URL("./mobile-coverage-baseline.json", import.meta.url);
@@ -216,13 +217,12 @@ test("owner issue retry는 최대 두 번과 제한된 provider backoff만 허�
 const sha = (value) => createHash("sha256").update(value).digest("hex");
 const head = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
 function discoveryInput(dir, event = "workflow_dispatch") {
-  const normalized = Buffer.from("SF:lib/accessible_design.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n");
-  const raw = Buffer.from(`${normalized}SF:lib/core/database/catalog/catalog_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\nSF:lib/core/database/user/user_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n`);
+  const raw = Buffer.from("SF:lib/accessible_design.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\nSF:lib/core/database/catalog/catalog_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\nSF:lib/core/database/user/user_database.g.dart\nDA:1,0\nLF:1\nLH:0\nend_of_record\n");
+  const policyBytes = readFileSync(policyFile); const policy = parsePolicyBytes(policyBytes); const filtered = normalizeLcov(raw.toString("utf8"), { policy, repositoryRoot, policySha256: sha(policyBytes) }); const normalized = Buffer.from(filtered.content);
   const rawFile = path.join(dir, "raw.lcov"); const normalizedFile = path.join(dir, "normalized.lcov"); const filterFile = path.join(dir, "filter.json"); const eventFile = path.join(dir, "event.json");
   writeFileSync(rawFile, raw); writeFileSync(normalizedFile, normalized);
   writeFileSync(eventFile, JSON.stringify(event === "pull_request" ? { pull_request: { base: { sha: head }, head: { sha: head } } } : { ref: "refs/heads/main", after: head }));
-  const exclusions = JSON.parse(readFileSync(policyFile, "utf8")).exclusions.map((entry, index) => index < 2 ? ({ path: entry.path, reason: entry.id, presence: "TRACKED_GENERATED", lcovRecordPresent: true, executableLines: 1, coveredLines: 0 }) : ({ path: entry.path, reason: entry.id, presence: "RESERVED_ABSENT", lcovRecordPresent: false, executableLines: 0, coveredLines: 0 }));
-  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(normalized), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions, outcome: "success" })}\n`);
+  writeFileSync(filterFile, `${JSON.stringify(filtered.result)}\n`);
   return { event, eventPath: eventFile, baseSha: head, headSha: head, testedMergeSha: head, eventRef: event === "pull_request" ? "refs/pull/48/merge" : "refs/heads/main", pullRequestNumber: event === "pull_request" ? "48" : "none", rawLcov: rawFile, normalizedLcov: normalizedFile, filterResult: filterFile, policy: "tools/ci/mobile-coverage-policy.json", baseline: "tools/ci/mobile-coverage-baseline.json" };
 }
 
@@ -263,7 +263,7 @@ test("PR #140 상태의 tracked Journey 생성 5개와 LCOV 부재를 artifact �
   const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
   const paths = ["journey_v3_contract.dart", "journey_v3_enums.dart", "journey_v3_error.dart", "journey_v3_models.dart", "journey_v3_validation.dart"].map((name) => `apps/mobile/lib/generated/journey_v3/${name}`);
   const baseGit = { text: (args) => execFileSync("git", ["-C", repositoryRoot, ...args], { encoding: "utf8" }).trim(), bytes: (args) => execFileSync("git", ["-C", repositoryRoot, ...args]) };
-  const blobs = new Map(paths.map((file, index) => [file, String(index + 1).repeat(40)]));
+  const baseTree = treeSources(head, baseGit); const missingPaths = paths.filter((file) => !baseTree.has(file)); const blobs = new Map(missingPaths.map((file, index) => [file, String(index + 1).repeat(40)]));
   const gitApi = { text: baseGit.text, bytes(args) { if (args[0] === "ls-tree") return Buffer.concat([baseGit.bytes(args), Buffer.from([...blobs].map(([file, blob]) => `100644 blob ${blob}\t${file}\0`).join(""))]); if (args[0] === "cat-file" && [...blobs.values()].includes(args[2])) return Buffer.from("// GENERATED CODE - DO NOT MODIFY BY HAND\n"); return baseGit.bytes(args); } };
   try {
     const options = discoveryInput(dir); const filter = JSON.parse(readFileSync(options.filterResult, "utf8"));
@@ -271,7 +271,8 @@ test("PR #140 상태의 tracked Journey 생성 5개와 LCOV 부재를 artifact �
     writeFileSync(options.filterResult, `${JSON.stringify(filter)}\n`);
     const artifact = path.join(dir, "artifact"); const result = analyze(options, { repositoryRoot, reportDirectory: artifact, gitApi });
     const inventory = JSON.parse(readFileSync(path.join(artifact, "mobile-coverage-source-inventory.json"), "utf8"));
-    assert.equal(inventory.summary.sources, treeSources(head, baseGit).size + paths.length); assert.equal(inventory.summary.excluded, 7);
+    assert.equal(inventory.summary.sources, new Set([...baseTree.keys(), ...paths]).size); assert.equal(inventory.summary.excluded, 7);
+    assert.equal(paths.every((file) => inventory.sources.filter((source) => source.path === file).length === 1), true);
     assert.deepEqual(result.exclusions.filter((entry) => paths.includes(entry.path)).map(({ presence, lcovRecordPresent, executableLines, coveredLines }) => [presence, lcovRecordPresent, executableLines, coveredLines]), Array(5).fill(["TRACKED_GENERATED", false, 0, 0]));
     assert.equal(verifyArtifactDirectory(artifact, { repositoryRoot, gitApi }).phase, "DISCOVERY_REMOTE_RED");
     const resultFile = path.join(artifact, "mobile-coverage-result.json"); const canonical = readFileSync(resultFile, "utf8");
