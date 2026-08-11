@@ -14,6 +14,7 @@ class JourneySearchScreen extends StatefulWidget {
     required this.attestor,
     required this.draft,
     required this.mobilityType,
+    required this.onShellBackToHome,
     super.key,
   });
 
@@ -21,6 +22,7 @@ class JourneySearchScreen extends StatefulWidget {
   final JourneyV3IntegrityAttestor attestor;
   final RouteDraft draft;
   final String mobilityType;
+  final VoidCallback onShellBackToHome;
 
   @override
   State<JourneySearchScreen> createState() => _JourneySearchScreenState();
@@ -114,7 +116,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
         widget.draft.destination != null &&
         widget.draft.waypoint == null;
     return Scaffold(
-      appBar: AppBar(title: const Text('경로 찾기')),
+      appBar: AppBar(
+        leading: BackButton(onPressed: widget.onShellBackToHome),
+        title: const Text('경로 찾기'),
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(16),

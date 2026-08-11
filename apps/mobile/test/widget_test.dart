@@ -2014,12 +2014,10 @@ void main() {
   });
 
   testWidgets('홈 shell 즐겨찾기 경로 다시 찾기는 저장된 이동 조건을 유지한다', (tester) async {
-    final routeRepository = FakeRouteSearchRepository();
     await tester.pumpWidget(
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(
@@ -2038,13 +2036,14 @@ void main() {
     await tester.tap(find.text('상록수역 → 사당역'));
     await tester.pumpAndSettle();
 
-    expect(find.byKey(const Key('routeSearchScreen')), findsOneWidget);
+    expect(find.byType(JourneySearchScreen), findsOneWidget);
     expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
-    // #1933 C: 저장된 조합(출발·도착 확정)으로 진입하면 저장된 이동 조건 그대로
-    // 자동 검색까지 이어진다.
-    await tester.pumpAndSettle();
-
-    expect(routeRepository.requests.last.mobilityType, 'WHEELCHAIR');
+    expect(
+      tester
+          .widget<JourneySearchScreen>(find.byType(JourneySearchScreen))
+          .mobilityType,
+      'WHEELCHAIR',
+    );
   });
 
   testWidgets('노선도에서 출발·도착을 정하면 길찾기 결과 화면으로 전환한다', (tester) async {
@@ -2052,7 +2051,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
@@ -2063,11 +2061,15 @@ void main() {
 
     await _openRouteSearchScreen(tester);
 
+    expect(find.byType(JourneySearchScreen), findsOneWidget);
     expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
-    expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('길찾기')),
-      findsOneWidget,
-    );
+    expect(find.byType(BackButton), findsOneWidget);
+
+    await tester.tap(find.byType(BackButton));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('networkMapScreen')), findsOneWidget);
+    expect(find.byKey(const Key('networkMapRouteDraftOverlay')), findsNothing);
   });
 
   testWidgets('결과 화면에서 뒤로가기로 홈에 오면 상단바가 빈 검색바로 복귀한다', (tester) async {
@@ -2075,7 +2077,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
@@ -2087,7 +2088,7 @@ void main() {
     await _openRouteSearchScreen(tester);
     expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
     expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('길찾기')),
+      find.descendant(of: find.byType(AppBar), matching: find.text('경로 찾기')),
       findsOneWidget,
     );
 

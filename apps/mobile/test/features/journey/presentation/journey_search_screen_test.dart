@@ -144,6 +144,7 @@ Future<void> _pumpScreen(
         attestor: const _Attestor(),
         draft: draft ?? _completeDraft(),
         mobilityType: mobilityType,
+        onShellBackToHome: () {},
       ),
     ),
   );

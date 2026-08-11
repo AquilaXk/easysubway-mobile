@@ -376,6 +376,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       });
     }
 
+    void closeRouteTab() {
+      _routeDraftController.clear();
+      openHomeTab();
+    }
+
     void openRouteTab([
       String? mobilityType,
       RouteTransportScope transportScope = RouteTransportScope.subway,
@@ -540,6 +545,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           if (didPop || _selectedTabIndex == 0) {
             return;
           }
+          if (_selectedTabIndex == 2) {
+            closeRouteTab();
+            return;
+          }
           // 설정 탭은 AppBar 뒤로가기와 같이 직전 탭(없으면 홈)으로 돌아간다.
           if (_selectedTabIndex == 4) {
             openPreviousTabOrHome();
@@ -700,10 +709,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             initialDraft: _routeDraftController.draft,
             regionLabel: _currentRegionLabel,
             simpleViewEnabled: widget.simpleViewEnabled,
-            onShellBackToHome: () {
-              _routeDraftController.clear();
-              openHomeTab();
-            },
+            onShellBackToHome: closeRouteTab,
           ),
         );
       }
@@ -712,7 +718,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           repository: widget.journeyRepository,
           attestor: widget.journeyAttestor,
           draft: _routeDraftController.draft,
-          mobilityType: _mobilityType,
+          mobilityType: _routeTabMobilityType ?? initialMobilityType,
+          onShellBackToHome: closeRouteTab,
         ),
       );
     }
