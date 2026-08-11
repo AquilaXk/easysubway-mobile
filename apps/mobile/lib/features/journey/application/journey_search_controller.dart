@@ -134,10 +134,10 @@ class JourneySearchController extends ChangeNotifier {
     final generation = ++_generation;
     _inFlightCommand = command;
     _lastAcceptedCommand = command;
-    _state = const JourneySearchState.searching();
-    _safeNotify();
     final task = _run(command, generation);
     _inFlight = task;
+    _state = const JourneySearchState.searching();
+    _safeNotify();
     return task;
   }
 
@@ -186,7 +186,7 @@ class JourneySearchController extends ChangeNotifier {
         _safeNotify();
       }
     } catch (error) {
-      if (_isSessionAuthenticationFailure(error)) {
+      if (_isCurrent(generation) && _isSessionAuthenticationFailure(error)) {
         _invalidateSession();
       }
       if (_isCurrent(generation)) {

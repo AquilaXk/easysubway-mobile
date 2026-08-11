@@ -97,6 +97,66 @@ void main() {
     );
   });
 
+  test(
+    'SEARCHING listener reset은 session·search·cache side effect 없이 현재 task를 폐기한다',
+    () async {
+      final repository = _Repository();
+      final controller = JourneySearchController(
+        repository: repository,
+        attestor: _Attestor(),
+        now: () => DateTime.utc(2026, 8, 12),
+      );
+      controller.addListener(() {
+        if (controller.state.status == JourneySearchStatus.searching) {
+          controller.reset();
+        }
+      });
+
+      await controller.search(_command());
+
+      expect(repository.sessionRequests, 0);
+      expect(repository.searchRequests, 0);
+      expect(controller.state.status, JourneySearchStatus.idle);
+    },
+  );
+
+  test(
+    'SEARCHING listener의 supersede는 inner task를 current in-flight로 보존한다',
+    () async {
+      final repository = _Repository();
+      final controller = JourneySearchController(
+        repository: repository,
+        attestor: _Attestor(),
+        now: () => DateTime.utc(2026, 8, 12),
+      );
+      final replacement = JourneySearchCommand(
+        originStationId: 'replacement',
+        destinationStationId: 'destination',
+        departure: const JourneyDepartureNow(),
+        timePolicy: TimePolicy.timetableRequired,
+        mobilityProfile: MobilityProfile.standard,
+        constraintMode: ConstraintMode.none,
+        maxTransfers: 1,
+        alternativeCount: 1,
+      );
+      Future<void>? replacementTask;
+      var replaced = false;
+      controller.addListener(() {
+        if (!replaced &&
+            controller.state.status == JourneySearchStatus.searching) {
+          replaced = true;
+          replacementTask = controller.search(replacement);
+        }
+      });
+
+      await controller.search(_command());
+      await replacementTask;
+
+      expect(repository.searchRequests, 1);
+      expect(repository.originIds, <String>['replacement']);
+    },
+  );
+
   test('401은 cache를 무효화하지만 자동 재시도 없이 다음 명시 search만 새 session을 발급한다', () async {
     final repository = _Repository()
       ..searchFailures.add(
@@ -131,6 +191,36 @@ void main() {
 
     expect(repository.sessionRequests, 2);
     expect(repository.searchRequests, 2);
+  });
+
+  test('stale 401은 newer session cache를 무효화하지 않는다', () async {
+    final repository = _Repository()..pendingSearch = true;
+    final controller = JourneySearchController(
+      repository: repository,
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+    );
+    final newer = JourneySearchCommand(
+      originStationId: 'newer',
+      destinationStationId: 'destination',
+      departure: const JourneyDepartureNow(),
+      timePolicy: TimePolicy.timetableRequired,
+      mobilityProfile: MobilityProfile.standard,
+      constraintMode: ConstraintMode.none,
+      maxTransfers: 1,
+      alternativeCount: 1,
+    );
+
+    final old = controller.search(_command());
+    await Future<void>.delayed(Duration.zero);
+    repository.pendingSearch = false;
+    await controller.search(newer);
+    repository.completePendingSearchError(_sessionRequired401());
+    await old;
+    await controller.search(newer);
+
+    expect(repository.sessionRequests, 1);
+    expect(repository.searchRequests, 3);
   });
 
   test(
@@ -410,6 +500,23 @@ JourneySearchSuccess _success() => JourneySearchSuccess(
   journeys: const <Journey>[],
 );
 
+JourneyRejectedFailure _sessionRequired401() => JourneyRejectedFailure(
+  JourneyOperation.searchJourneys,
+  statusCode: 401,
+  error: JourneyV3Error(
+    contractVersion: JourneyErrorContractVersion.journeyErrorV1,
+    requestId: '01J9VV0K000000000000000000',
+    code: JourneyErrorCode.routeSessionRequired,
+    retryable: false,
+    occurredAt: DateTime.utc(2026, 8, 12),
+  ),
+  disposition: JourneyErrorDispositions.lookup(
+    JourneyOperation.searchJourneys,
+    401,
+    JourneyErrorCode.routeSessionRequired,
+  ),
+);
+
 class _Attestor implements JourneyV3IntegrityAttestor {
   final List<String> hashes = <String>[];
 
@@ -428,10 +535,12 @@ class _Repository implements JourneyRepository {
   bool pendingSession = false;
   JourneySearchSuccess? success;
   Object? searchFailure;
+  bool pendingSearch = false;
   final List<Object> searchFailures = <Object>[];
   final List<Object> sessionFailures = <Object>[];
   final List<Completer<JourneySessionResponse>> _sessionCompleters =
       <Completer<JourneySessionResponse>>[];
+  final _pendingSearch = Completer<JourneySearchSuccess>();
 
   @override
   Future<JourneySessionResponse> issueSession(
@@ -460,6 +569,7 @@ class _Repository implements JourneyRepository {
     searchRequests++;
     requestIds.add(request.requestId);
     originIds.add(request.originStationId);
+    if (pendingSearch) return _pendingSearch.future;
     final successful = success;
     if (successful != null) return successful;
     final failure = searchFailure;
@@ -485,5 +595,9 @@ class _Repository implements JourneyRepository {
         expiresAt: DateTime.utc(2026, 8, 12, 0, 10),
       ),
     );
+  }
+
+  void completePendingSearchError(Object error) {
+    _pendingSearch.completeError(error);
   }
 }
