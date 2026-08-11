@@ -3,11 +3,15 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easysubway_mobile/auth_headers.dart';
+import 'package:easysubway_mobile/core/database/user/user_database.dart'
+    as user_db;
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/data/drift_facility_report_receipt_store.dart';
 import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_receipt.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -140,6 +144,53 @@ void main() {
     expect(location.latitude, 37.302421);
     expect(location.longitude, 126.866221);
     expect(error.toString(), '위치 권한을 확인해 주세요.');
+  });
+
+  test('시설 신고 receipt 저장소는 token secrecy와 최신순 복원을 보존한다', () async {
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(userDatabase.close);
+    final storage = FakeSecureKeyValueStorage();
+    final store = DriftFacilityReportReceiptStore(
+      userDatabase: userDatabase,
+      storage: storage,
+    );
+    final older = FacilityReportReceipt(
+      receiptId: 'receipt-1',
+      reportId: 'report-1',
+      publicReceiptCode: 'ES-1001',
+      status: 'ACCEPTED',
+      receiptToken: 'secret-token-1',
+      createdAt: DateTime.utc(2026, 8, 11, 10),
+    );
+    final newer = FacilityReportReceipt(
+      receiptId: 'receipt-2',
+      reportId: 'report-2',
+      publicReceiptCode: 'ES-1002',
+      status: 'IN_PROGRESS',
+      receiptToken: 'secret-token-2',
+      createdAt: DateTime.utc(2026, 8, 11, 11),
+    );
+
+    await store.saveReceipt(older);
+    await store.saveReceipt(newer);
+
+    expect(await store.receiptTokenForReport(' report-1 '), 'secret-token-1');
+    storage.values['easysubway.facilityReport.receipt.report-1'] =
+        'direct-token-1';
+    expect(await store.receiptTokenForReport('report-1'), 'direct-token-1');
+    expect(storage.values.keys, {
+      'easysubway.facilityReport.receipt.receipt-1',
+      'easysubway.facilityReport.receipt.receipt-2',
+      'easysubway.facilityReport.receipt.report-1',
+    });
+    expect((await store.listReceipts()).map((receipt) => receipt.reportId), [
+      'report-2',
+      'report-1',
+    ]);
+    storage.values['easysubway.facilityReport.receipt.receipt-2'] = '';
+    expect((await store.listReceipts()).map((receipt) => receipt.reportId), [
+      'report-1',
+    ]);
   });
 
   test('시설 신고 API 저장소는 백엔드 계약에 맞춰 신고를 전송한다', () async {
