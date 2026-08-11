@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
@@ -9,9 +10,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('complete draft는 fixed Journey V3 command를 한 번 전송한다', (
+  testWidgets('complete draft는 server-order 후보를 보여주고 exact ID만 선택한다', (
     tester,
   ) async {
+    final semantics = tester.ensureSemantics();
     final repository = _Repository();
     await _pumpScreen(tester, repository: repository, mobilityType: 'STANDARD');
 
@@ -29,9 +31,53 @@ void main() {
     expect(request.constraintMode, ConstraintMode.none);
     expect(request.maxTransfers, 3);
     expect(request.alternativeCount, 3);
-    expect(find.text('경로 2개'), findsOneWidget);
-    expect(find.text('journey-1'), findsNothing);
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+    final second = find.byKey(const Key('journey-candidate-journey-1'));
+    final first = find.byKey(const Key('journey-candidate-journey-2'));
+    expect(first, findsOneWidget);
+    expect(second, findsOneWidget);
+    expect(tester.getTopLeft(first).dy, lessThan(tester.getTopLeft(second).dy));
+    expect(find.textContaining('09:05 도착'), findsNWidgets(2));
+    expect(find.textContaining('환승 2회'), findsOneWidget);
+    expect(
+      tester.getSemantics(first).flagsCollection.isSelected,
+      isNot(Tristate.isTrue),
+    );
+    expect(tester.getSize(second).height, greaterThanOrEqualTo(48));
+
+    final candidateSemantics = tester.getSemantics(second);
+    expect(
+      candidateSemantics.getSemanticsData().hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    candidateSemantics.owner!.performAction(
+      candidateSemantics.id,
+      SemanticsAction.tap,
+    );
+    await tester.pump();
+    expect(
+      tester.getSemantics(second).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
+    await tester.pump();
+    expect(
+      tester.getSemantics(second).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
     expect(find.text('상세'), findsNothing);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    final single = _Repository()..journeyIds = <String>['journey-only'];
+    await _pumpScreen(tester, repository: single);
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 1개'), findsOneWidget);
+    expect(
+      find.byKey(const Key('journey-candidate-journey-only')),
+      findsOneWidget,
+    );
+    semantics.dispose();
   });
 
   testWidgets('계단 회피 profile은 REQUIRE_STEP_FREE로 전송한다', (tester) async {
@@ -74,7 +120,7 @@ void main() {
 
     session.complete(_sessionResponse());
     await tester.pumpAndSettle();
-    expect(find.text('경로 2개'), findsOneWidget);
+    expect(find.text('경로 후보 2개'), findsOneWidget);
   });
 
   testWidgets('incomplete 또는 waypoint draft는 request를 만들지 않는다', (tester) async {
@@ -127,7 +173,7 @@ void main() {
 
     expect(repository.sessionRequests, 1);
     expect(repository.requests, hasLength(2));
-    expect(find.text('경로 2개'), findsOneWidget);
+    expect(find.text('경로 후보 2개'), findsOneWidget);
   });
 }
 
@@ -171,6 +217,7 @@ class _Repository implements JourneyRepository {
   int sessionRequests = 0;
   int failuresRemaining = 0;
   Completer<JourneySessionResponse>? sessionCompleter;
+  List<String> journeyIds = <String>['journey-2', 'journey-1'];
   final List<JourneySearchRequest> requests = <JourneySearchRequest>[];
 
   @override
@@ -194,7 +241,7 @@ class _Repository implements JourneyRepository {
         'private transport detail',
       );
     }
-    return _success(request);
+    return _success(request, journeyIds);
   }
 }
 
@@ -208,8 +255,11 @@ JourneySessionResponse _sessionResponse() {
   );
 }
 
-JourneySearchSuccess _success(JourneySearchRequest request) {
-  final now = DateTime.now().toUtc();
+JourneySearchSuccess _success(
+  JourneySearchRequest request,
+  List<String> journeyIds,
+) {
+  final now = DateTime.utc(2026, 8, 12);
   return JourneySearchSuccess(
     contractVersion: JourneyContractVersion.journeySearchV3,
     requestId: request.requestId,
@@ -233,7 +283,7 @@ JourneySearchSuccess _success(JourneySearchRequest request) {
       maxTransfers: request.maxTransfers,
       alternativeCount: request.alternativeCount,
     ),
-    journeys: <Journey>[_journey('journey-2', now), _journey('journey-1', now)],
+    journeys: journeyIds.map((id) => _journey(id, now)).toList(growable: false),
   );
 }
 
@@ -246,7 +296,7 @@ Journey _journey(String id, DateTime now) => Journey(
   realtimeDepartureTime: null,
   realtimeArrivalTime: null,
   durationSeconds: 300,
-  transferCount: 0,
+  transferCount: id == 'journey-1' ? 2 : 0,
   walkingDistanceMeters: 0,
   timeSource: JourneyTimeSource.timetable,
   accessibility: const JourneyAccessibility(

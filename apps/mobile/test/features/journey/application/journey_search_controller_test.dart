@@ -446,7 +446,7 @@ void main() {
     expect(notifications, beforeDispose);
   });
 
-  test('성공 상태는 서버 응답 객체 전체를 보존하고 선택 상태를 만들지 않는다', () async {
+  test('성공 후보는 exact journeyId만 명시 선택하고 새 검색은 선택을 지운다', () async {
     final response = _success();
     final controller = JourneySearchController(
       repository: _Repository()..success = response,
@@ -460,6 +460,20 @@ void main() {
     expect(controller.state.status, JourneySearchStatus.success);
     expect(controller.state.response, same(response));
     expect(controller.state.failure, isNull);
+    expect(controller.state.selectedJourneyId, isNull);
+
+    expect(controller.selectJourney('journey-1'), isTrue);
+    expect(controller.state.response, same(response));
+    expect(controller.state.selectedJourneyId, 'journey-1');
+    expect(controller.selectJourney('missing'), isFalse);
+    expect(controller.state.selectedJourneyId, 'journey-1');
+
+    final next = controller.search(_command());
+    expect(controller.state.status, JourneySearchStatus.searching);
+    expect(controller.state.selectedJourneyId, isNull);
+    await next;
+    expect(controller.state.status, JourneySearchStatus.success);
+    expect(controller.state.selectedJourneyId, isNull);
   });
 }
 
@@ -497,7 +511,29 @@ JourneySearchSuccess _success() => JourneySearchSuccess(
     maxTransfers: 1,
     alternativeCount: 1,
   ),
-  journeys: const <Journey>[],
+  journeys: <Journey>[_journey('journey-2'), _journey('journey-1')],
+);
+
+Journey _journey(String id) => Journey(
+  journeyId: id,
+  status: JourneyStatus.found,
+  planSource: JourneyPlanSource.serverTimetableRaptor,
+  plannedDepartureTime: DateTime.utc(2026, 8, 12),
+  plannedArrivalTime: DateTime.utc(2026, 8, 12, 0, 5),
+  realtimeDepartureTime: null,
+  realtimeArrivalTime: null,
+  durationSeconds: 300,
+  transferCount: 0,
+  walkingDistanceMeters: 0,
+  timeSource: JourneyTimeSource.timetable,
+  accessibility: const JourneyAccessibility(
+    result: JourneyAccessibilityResult.verified,
+    stairFree: false,
+    reasonCodes: <String>[],
+  ),
+  legs: const <JourneyLeg>[
+    JourneyEntryLeg(fromStationId: 'origin', durationSeconds: 0),
+  ],
 );
 
 JourneyRejectedFailure _sessionRequired401() => JourneyRejectedFailure(

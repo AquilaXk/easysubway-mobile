@@ -30,6 +30,7 @@ class JourneySearchScreen extends StatefulWidget {
 
 class _JourneySearchScreenState extends State<JourneySearchScreen> {
   late final JourneySearchController _controller;
+  JourneySearchStatus _lastAnnouncedStatus = JourneySearchStatus.idle;
 
   @override
   void initState() {
@@ -53,6 +54,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     }
     setState(() {});
     final state = _controller.state;
+    if (state.status == _lastAnnouncedStatus) return;
+    _lastAnnouncedStatus = state.status;
     final message = <JourneySearchStatus, String Function()>{
       JourneySearchStatus.searching: () => '경로를 찾고 있어요.',
       JourneySearchStatus.success: () =>
@@ -66,6 +69,83 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
         TextDirection.ltr,
       );
     }
+  }
+
+  String _arrivalTime(Journey journey) {
+    final value = (journey.realtimeArrivalTime ?? journey.plannedArrivalTime)
+        .toUtc()
+        .add(const Duration(hours: 9));
+    return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  }
+
+  Widget _candidateRow(BuildContext context, Journey journey) {
+    final selected = _controller.state.selectedJourneyId == journey.journeyId;
+    final durationMinutes = (journey.durationSeconds + 59) ~/ 60;
+    final transfer = journey.transferCount == 0
+        ? '환승 없이 이동'
+        : '환승 ${journey.transferCount}회';
+    final accessibility = journey.accessibility.stairFree
+        ? '무단차 경로'
+        : '무단차 경로 아님';
+    final summary =
+        '$durationMinutes분, $transfer, 도보 ${journey.walkingDistanceMeters}m, ${_arrivalTime(journey)} 도착, $accessibility';
+    final color = Theme.of(context).colorScheme.primary;
+    void selectJourney() {
+      _controller.selectJourney(journey.journeyId);
+    }
+
+    return Semantics(
+      key: Key('journey-candidate-${journey.journeyId}'),
+      container: true,
+      button: true,
+      selected: selected,
+      label: summary,
+      onTap: selectJourney,
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: selectJourney,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 64),
+          decoration: selected
+              ? BoxDecoration(
+                  border: Border(left: BorderSide(color: color, width: 2)),
+                )
+              : null,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      '$durationMinutes분',
+                      style: selected
+                          ? Theme.of(context).textTheme.titleMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            )
+                          : Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '$transfer · 도보 ${journey.walkingDistanceMeters}m · ${_arrivalTime(journey)} 도착',
+                    ),
+                    Text(accessibility),
+                  ],
+                ),
+              ),
+              if (selected)
+                Icon(
+                  Icons.check,
+                  key: Key('selected-journey-${journey.journeyId}'),
+                  color: color,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   void _search() {
@@ -149,8 +229,18 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
                   onPressed: _controller.retry,
                   child: const Text('다시 시도'),
                 ),
-              if (state.status == JourneySearchStatus.success)
-                Text('경로 ${state.response!.journeys.length}개'),
+              if (state.status == JourneySearchStatus.success) ...[
+                Text('경로 후보 ${state.response!.journeys.length}개'),
+                const SizedBox(height: 8),
+                for (
+                  var index = 0;
+                  index < state.response!.journeys.length;
+                  index++
+                ) ...[
+                  if (index > 0) const Divider(height: 1),
+                  _candidateRow(context, state.response!.journeys[index]),
+                ],
+              ],
             ],
           ),
         ),

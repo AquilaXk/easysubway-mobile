@@ -75,6 +75,7 @@ class JourneySearchState {
     required this.status,
     this.response,
     this.failure,
+    this.selectedJourneyId,
   });
 
   const JourneySearchState.idle() : this._(status: JourneySearchStatus.idle);
@@ -82,8 +83,14 @@ class JourneySearchState {
   const JourneySearchState.searching()
     : this._(status: JourneySearchStatus.searching);
 
-  const JourneySearchState.success(JourneySearchSuccess response)
-    : this._(status: JourneySearchStatus.success, response: response);
+  const JourneySearchState.success(
+    JourneySearchSuccess response, {
+    String? selectedJourneyId,
+  }) : this._(
+         status: JourneySearchStatus.success,
+         response: response,
+         selectedJourneyId: selectedJourneyId,
+       );
 
   const JourneySearchState.failure(JourneySearchFailure failure)
     : this._(status: JourneySearchStatus.failure, failure: failure);
@@ -91,6 +98,7 @@ class JourneySearchState {
   final JourneySearchStatus status;
   final JourneySearchSuccess? response;
   final JourneySearchFailure? failure;
+  final String? selectedJourneyId;
 }
 
 class JourneySearchController extends ChangeNotifier {
@@ -147,6 +155,24 @@ class JourneySearchController extends ChangeNotifier {
       return Future<void>.value();
     }
     return search(command);
+  }
+
+  bool selectJourney(String journeyId) {
+    final response = _state.response;
+    if (_disposed ||
+        _inFlight != null ||
+        _state.status != JourneySearchStatus.success ||
+        response == null ||
+        response.journeys
+                .where((journey) => journey.journeyId == journeyId)
+                .length !=
+            1) {
+      return false;
+    }
+    if (_state.selectedJourneyId == journeyId) return true;
+    _state = JourneySearchState.success(response, selectedJourneyId: journeyId);
+    _safeNotify();
+    return true;
   }
 
   void reset() {
