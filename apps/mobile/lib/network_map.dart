@@ -3218,7 +3218,7 @@ String _arrivalDirectionLabel(RealtimeArrival arrival) {
 /// 주변역 패널의 실시간 도착 정보. 열차 정보가 없어도(전체 또는 한쪽) 인접역에서
 /// "○○ 방면" 제목을 유도해 두 열 + 구분선 스켈레톤을 유지하고, 데이터 없는 열에는
 /// 대시('-')를 그린다(오너 스펙 #2200 QA). 인접역 정보도 없고 데이터도 없으면
-/// 기존 대시 폴백(`_SubwayDataUnavailable`)으로 수렴한다.
+/// 기존 대시 폴백([NearbyDataUnavailable])으로 수렴한다.
 class _SubwayArrivalPanel extends StatelessWidget {
   const _SubwayArrivalPanel({
     required this.snapshot,
@@ -3258,7 +3258,7 @@ class _SubwayArrivalPanel extends StatelessWidget {
       rightName: rightName,
     );
     if (slots.isEmpty) {
-      return const _SubwayDataUnavailable();
+      return const NearbyDataUnavailable();
     }
 
     final columns = <NearbyPanelColumn>[];
@@ -3340,32 +3340,6 @@ class _SubwayArrivalPanel extends StatelessWidget {
   }
 }
 
-class _SubwayDataUnavailable extends StatelessWidget {
-  const _SubwayDataUnavailable();
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: '정보 없음',
-      excludeSemantics: true,
-      child: const SizedBox(
-        height: 46,
-        child: Center(
-          child: Text(
-            '-',
-            key: Key('networkMapNearbyDataUnavailable'),
-            style: TextStyle(
-              color: EasySubwayAccessibleColors.contentPrimary,
-              fontSize: 16,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _SubwayTimetablePanel extends StatelessWidget {
   const _SubwayTimetablePanel({
     required this.timetable,
@@ -3402,7 +3376,7 @@ class _SubwayTimetablePanel extends StatelessWidget {
       rightName: rightName,
     );
     if (slots.isEmpty) {
-      return const _SubwayDataUnavailable();
+      return const NearbyDataUnavailable();
     }
 
     final columns = <NearbyPanelColumn>[];

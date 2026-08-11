@@ -537,6 +537,32 @@ void main() {
       );
     }
 
+    testWidgets('standalone 정보 없음은 exact Semantics와 대시 표면을 보존한다', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        const MaterialApp(home: Scaffold(body: NearbyDataUnavailable())),
+      );
+
+      final dash = find.byKey(const Key('networkMapNearbyDataUnavailable'));
+      expect(dash, findsOneWidget);
+      expect(find.text('-'), findsOneWidget);
+      expect(find.bySemanticsLabel('정보 없음'), findsOneWidget);
+      expect(
+        find.ancestor(
+          of: dash,
+          matching: find.byWidgetPredicate(
+            (widget) => widget is SizedBox && widget.height == 46,
+          ),
+        ),
+        findsOneWidget,
+      );
+      final dashText = tester.widget<Text>(dash);
+      expect(dashText.style, NearbyPanelColumns.dashStyle);
+      handle.dispose();
+    });
+
     testWidgets('데이터 없는 두 열은 제목 + 대시 + 1개 구분선을 그린다', (tester) async {
       await tester.pumpWidget(
         host(const [
