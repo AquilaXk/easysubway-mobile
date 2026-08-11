@@ -48,6 +48,49 @@ test("healthy fixture resolves a test-relative literal reference", () => {
   });
 });
 
+test("Dart comments and ordinary strings do not create golden references", () => {
+  const fixture = healthyFixture();
+  fixture.set(
+    "apps/mobile/test/features/example/example_golden_test.dart",
+    `// matchesGoldenFile('goldens/comment.png')
+/* matchesGoldenFile('goldens/block-comment.png') */
+const example = "matchesGoldenFile('goldens/string.png')";
+expect(widget, matchesGoldenFile('goldens/example.png'));
+`,
+  );
+
+  assert.deepEqual(analyzeGoldenParity(fixture).findings, []);
+});
+
+test("named versions resolve the comparator versioned asset", () => {
+  const fixture = new Map([
+    [
+      "apps/mobile/test/features/example/example_golden_test.dart",
+      `expect(
+  widget,
+  matchesGoldenFile('goldens/example.png', version: 2),
+);
+`,
+    ],
+    [
+      "apps/mobile/test/features/example/goldens/example.2.png",
+      Buffer.from("png"),
+    ],
+  ]);
+
+  assert.deepEqual(analyzeGoldenParity(fixture), {
+    tests: ["apps/mobile/test/features/example/example_golden_test.dart"],
+    references: [
+      {
+        test: "apps/mobile/test/features/example/example_golden_test.dart",
+        asset: "apps/mobile/test/features/example/goldens/example.2.png",
+      },
+    ],
+    assets: ["apps/mobile/test/features/example/goldens/example.2.png"],
+    findings: [],
+  });
+});
+
 test("zero, missing, orphan, duplicate and ambiguous references fail closed", () => {
   assert.deepEqual(analyzeGoldenParity(new Map()).findings, [
     { code: "ZERO_GOLDEN_REFERENCE", path: "apps/mobile/test" },
