@@ -10,7 +10,6 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscript
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_get_off_alarm_toggle.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
-import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

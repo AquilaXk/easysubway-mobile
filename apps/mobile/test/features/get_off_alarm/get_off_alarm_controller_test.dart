@@ -12,7 +12,6 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscript
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:easysubway_mobile/main.dart' as app;
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
-import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
