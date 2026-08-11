@@ -38,6 +38,7 @@ void main() {
     expect(second, findsOneWidget);
     expect(tester.getTopLeft(first).dy, lessThan(tester.getTopLeft(second).dy));
     expect(find.textContaining('09:05 도착'), findsNWidgets(2));
+    expect(find.textContaining('환승 2회'), findsOneWidget);
     expect(
       tester.getSemantics(first).flagsCollection.isSelected,
       isNot(Tristate.isTrue),
@@ -287,7 +288,7 @@ Journey _journey(String id, DateTime now) => Journey(
   realtimeDepartureTime: null,
   realtimeArrivalTime: null,
   durationSeconds: 300,
-  transferCount: 0,
+  transferCount: id == 'journey-1' ? 2 : 0,
   walkingDistanceMeters: 0,
   timeSource: JourneyTimeSource.timetable,
   accessibility: const JourneyAccessibility(
