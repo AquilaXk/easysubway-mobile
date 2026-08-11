@@ -11,6 +11,7 @@ import '../../../mobile_error_reporter.dart';
 import '../../../route_search.dart';
 import '../../../station_search.dart';
 import '../../ads/ad_repository.dart';
+import '../../facility_report/domain/facility_report_location.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/application/route_draft_controller.dart';
 import '../../route_draft/domain/route_draft.dart';

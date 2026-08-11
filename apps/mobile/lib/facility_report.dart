@@ -13,6 +13,7 @@ import 'auth_headers.dart';
 import 'core/database/user/user_database.dart' as user_db;
 import 'core/network/api_client.dart';
 import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
+import 'features/facility_report/domain/facility_report_location.dart';
 import 'features/facility_report/domain/facility_report_photo.dart';
 import 'mobile_error_reporter.dart';
 import 'secure_key_value_storage.dart';
@@ -755,33 +756,6 @@ class DriftFacilityReportReceiptStore implements FacilityReportReceiptStore {
     return results;
   }
 }
-
-class FacilityReportLocation {
-  const FacilityReportLocation({
-    required this.latitude,
-    required this.longitude,
-  });
-
-  final double latitude;
-  final double longitude;
-}
-
-class FacilityReportLocationException implements Exception {
-  const FacilityReportLocationException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-typedef FacilityReportLocationLoader =
-    Future<FacilityReportLocation> Function();
-
-typedef FacilityReportLocationPermissionRequestChecker =
-    Future<bool> Function();
-
-typedef FacilityReportLocationSettingsOpener = Future<bool> Function();
 
 class FacilityReportResult {
   const FacilityReportResult({
