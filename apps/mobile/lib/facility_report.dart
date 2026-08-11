@@ -10,6 +10,7 @@ import 'app/easy_subway_family_app_bar.dart';
 import 'design_tokens.dart';
 import 'auth_headers.dart';
 import 'core/network/api_client.dart';
+import 'features/facility_report/data/facility_report_photo_upload_intent.dart';
 import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'features/facility_report/domain/facility_report_exception.dart';
 import 'features/facility_report/domain/facility_report_location.dart';
@@ -455,66 +456,6 @@ bool _isRetryablePhotoUploadStatus(int statusCode) {
   return statusCode == HttpStatus.requestTimeout ||
       statusCode == HttpStatus.tooManyRequests ||
       statusCode >= HttpStatus.internalServerError;
-}
-
-class FacilityReportPhotoUploadIntent {
-  const FacilityReportPhotoUploadIntent({
-    required this.objectKey,
-    required this.uploadUrl,
-    required this.uploadMethod,
-    this.uploadHeaders = const {},
-  });
-
-  factory FacilityReportPhotoUploadIntent.fromJson(
-    Object? decoded, {
-    required String errorMessage,
-  }) {
-    if (decoded is! Map<String, Object?> || decoded['success'] != true) {
-      throw FacilityReportException(errorMessage);
-    }
-    final data = decoded['data'];
-    if (data is! Map<String, Object?>) {
-      throw FacilityReportException(errorMessage);
-    }
-    return FacilityReportPhotoUploadIntent(
-      objectKey: _requiredReportString(data, 'objectKey'),
-      uploadUrl: _requiredReportString(data, 'uploadUrl'),
-      uploadMethod: _requiredReportString(data, 'uploadMethod'),
-      uploadHeaders: _optionalStringMap(data, 'uploadHeaders'),
-    );
-  }
-
-  final String objectKey;
-  final String uploadUrl;
-  final String uploadMethod;
-  final Map<String, String> uploadHeaders;
-
-  Uri uploadUri(Uri baseUri) {
-    final parsed = Uri.parse(uploadUrl);
-    if (parsed.hasScheme) {
-      return parsed;
-    }
-    return baseUri.resolve(uploadUrl);
-  }
-}
-
-Map<String, String> _optionalStringMap(
-  Map<String, Object?> data,
-  String fieldName,
-) {
-  final value = data[fieldName];
-  if (value == null) {
-    return const {};
-  }
-  if (value is! Map<String, Object?>) {
-    throw const FacilityReportException(_facilityReportErrorMessage);
-  }
-  return value.map((key, mapValue) {
-    if (mapValue is! String) {
-      throw const FacilityReportException(_facilityReportErrorMessage);
-    }
-    return MapEntry(key, mapValue);
-  });
 }
 
 enum FacilityReportViewStatus { idle, loading, success, failure }
@@ -2300,14 +2241,6 @@ class _FacilityReportLocationMessage extends StatelessWidget {
       ),
     );
   }
-}
-
-String _requiredReportString(Map<String, Object?> json, String key) {
-  final value = json[key];
-  if (value is String && value.trim().isNotEmpty) {
-    return value;
-  }
-  throw FormatException('Missing required report field: $key');
 }
 
 String? _nonBlankReportString(String? value) {
