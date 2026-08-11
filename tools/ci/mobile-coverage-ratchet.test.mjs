@@ -45,6 +45,15 @@ test("Phase 2 canonical policy와 reviewed line-oriented baseline을 닫힌 계�
     "apps/mobile/lib/features/stations/presentation/station_detail_header.dart",
   ]);
   assert.equal(baseline.paths.filter((source) => !source.lcovPresent && source.absenceDisposition === null).length, 2);
+  assert.deepEqual(policy.exclusions.map(({ id, availability }) => [id, availability]), [
+    ["DRIFT_CATALOG_DATABASE_GENERATED", "TRACKED_GENERATED_REQUIRED"],
+    ["DRIFT_USER_DATABASE_GENERATED", "TRACKED_GENERATED_REQUIRED"],
+    ["JOURNEY_V3_CONTRACT_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_ENUMS_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_ERROR_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_MODELS_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_VALIDATION_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+  ]);
 });
 
 test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거부한다", () => {
@@ -58,11 +67,11 @@ test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거�
 });
 
 test("Phase 2 baseline serializer, owner API, Flutter producer는 closed contract를 강제한다", () => {
+  const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
   const baselineBytes = readFileSync(baselineFile);
   const baseline = parseBaselineBytes(baselineBytes);
   assert.equal(serializeBaseline(baseline), baselineBytes.toString("utf8"));
   assert.throws(() => parseBaselineBytes(Buffer.from(baselineBytes.toString("utf8").replace('    {"path"', '     {"path"'))), /reviewed Phase 2 pin/i);
-  const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
   assert.equal(validateOwnerIssueResponse(owner).number, 102);
   for (const response of [{ ...owner, statusCode: 404 }, { ...owner, redirected: true }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"closed"}') }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open","pull_request":{}}') }]) assert.throws(() => validateOwnerIssueResponse(response));
   assert.equal(flutterVersionFromMachine(Buffer.from('{"frameworkVersion":"3.44.0"}')), "3.44.0");
@@ -212,7 +221,8 @@ function discoveryInput(dir, event = "workflow_dispatch") {
   const rawFile = path.join(dir, "raw.lcov"); const normalizedFile = path.join(dir, "normalized.lcov"); const filterFile = path.join(dir, "filter.json"); const eventFile = path.join(dir, "event.json");
   writeFileSync(rawFile, raw); writeFileSync(normalizedFile, normalized);
   writeFileSync(eventFile, JSON.stringify(event === "pull_request" ? { pull_request: { base: { sha: head }, head: { sha: head } } } : { ref: "refs/heads/main", after: head }));
-  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(normalized), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions: [{ path: "apps/mobile/lib/core/database/catalog/catalog_database.g.dart", reason: "DRIFT_CATALOG_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }, { path: "apps/mobile/lib/core/database/user/user_database.g.dart", reason: "DRIFT_USER_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }], outcome: "success" })}\n`);
+  const exclusions = JSON.parse(readFileSync(policyFile, "utf8")).exclusions.map((entry, index) => index < 2 ? ({ path: entry.path, reason: entry.id, presence: "TRACKED_GENERATED", lcovRecordPresent: true, executableLines: 1, coveredLines: 0 }) : ({ path: entry.path, reason: entry.id, presence: "RESERVED_ABSENT", lcovRecordPresent: false, executableLines: 0, coveredLines: 0 }));
+  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(normalized), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions, outcome: "success" })}\n`);
   return { event, eventPath: eventFile, baseSha: head, headSha: head, testedMergeSha: head, eventRef: event === "pull_request" ? "refs/pull/48/merge" : "refs/heads/main", pullRequestNumber: event === "pull_request" ? "48" : "none", rawLcov: rawFile, normalizedLcov: normalizedFile, filterResult: filterFile, policy: "tools/ci/mobile-coverage-policy.json", baseline: "tools/ci/mobile-coverage-baseline.json" };
 }
 
@@ -227,14 +237,45 @@ test("Phase 1 analyzer는 manual artifact를 exact DISCOVERY_REMOTE_RED로 결�
     assert.deepEqual(Object.keys(manual.producer), ["policySha256", "baselineSha256", "filterSha256", "ratchetSha256", "rawLcovSha256", "normalizedLcovSha256", "sourceInventorySha256", "lcovTagSubset"]);
     assert.equal(readFileSync(path.join(dir, "manual", "mobile-coverage-result.json"), "utf8"), `${JSON.stringify(manual, null, 2)}\n`);
     assert.equal(verifyArtifactDirectory(path.join(dir, "manual")).outcome, "DISCOVERY_REMOTE_RED");
-    assert.deepEqual(manual.exclusions.map(({ id }) => id), ["DRIFT_CATALOG_DATABASE_GENERATED", "DRIFT_USER_DATABASE_GENERATED"]);
+    assert.deepEqual(manual.exclusions.map(({ id }) => id), ["DRIFT_CATALOG_DATABASE_GENERATED", "DRIFT_USER_DATABASE_GENERATED", "JOURNEY_V3_CONTRACT_GENERATED", "JOURNEY_V3_ENUMS_GENERATED", "JOURNEY_V3_ERROR_GENERATED", "JOURNEY_V3_MODELS_GENERATED", "JOURNEY_V3_VALIDATION_GENERATED"]);
     assert.deepEqual(manual.criticalBoundaries.map(({ id }) => id), ["JOURNEY_ROUTE_INGRESS", "JOURNEY_REPOSITORY_DI_STATE_IDENTITY", "DATAPACK_CATALOG_LIFECYCLE", "ACCESSIBILITY_ERROR_TRUTHFULNESS", "ALARM_WIDGET_REPORT_IO", "CRASHLYTICS_PRIVACY", "CONTRACT_ARTIFACT_IDENTITY"]);
-    assert.equal(manual.exclusions.length, 2);
+    assert.equal(manual.exclusions.length, 7);
     assert.equal(manual.coverage.lcovMissingSources.includes("apps/mobile/lib/core/database/catalog/catalog_database.g.dart"), true);
     assert.equal(manual.coverage.lcovMissingSources.includes("apps/mobile/lib/core/database/user/user_database.g.dart"), true);
     const inventory = JSON.parse(readFileSync(path.join(dir, "manual", "mobile-coverage-source-inventory.json"), "utf8"));
     assert.equal(inventory.sources.some((source) => source.path === "apps/mobile/lib/accessible_design.dart"), true);
     assert.equal(inventory.sources.every((source) => source.owners.length >= 1 && source.owners.length <= 4 && !source.owners.includes("UNKNOWN")), true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("accepted CRLF raw LCOV는 분석과 artifact 재검증에서 canonical LF와 동등하다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-crlf-"));
+  try {
+    const options = discoveryInput(dir); const raw = readFileSync(options.rawLcov); writeFileSync(options.rawLcov, raw.toString("utf8").replaceAll("\n", "\r\n"));
+    const filter = JSON.parse(readFileSync(options.filterResult, "utf8")); filter.inputSha256 = sha(readFileSync(options.rawLcov)); writeFileSync(options.filterResult, `${JSON.stringify(filter)}\n`);
+    const artifact = path.join(dir, "artifact"); assert.equal(analyze(options, { repositoryRoot, reportDirectory: artifact }).outcome, "DISCOVERY_REMOTE_RED"); assert.equal(verifyArtifactDirectory(artifact, { repositoryRoot }).outcome, "DISCOVERY_REMOTE_RED");
+    const invalidDirectory = path.join(dir, "invalid"); mkdirSync(invalidDirectory); const invalid = discoveryInput(invalidDirectory); const normalized = readFileSync(invalid.normalizedLcov, "utf8").replaceAll("\n", "\r\n"); writeFileSync(invalid.normalizedLcov, normalized); const invalidFilter = JSON.parse(readFileSync(invalid.filterResult, "utf8")); invalidFilter.outputSha256 = sha(normalized); writeFileSync(invalid.filterResult, `${JSON.stringify(invalidFilter)}\n`); assert.throws(() => analyze(invalid, { repositoryRoot, reportDirectory: path.join(dir, "invalid-artifact") }), /normalized LCOV/i);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("PR #140 상태의 tracked Journey 생성 5개와 LCOV 부재를 artifact 재계산까지 보존한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "journey-ratchet-"));
+  const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };
+  const paths = ["journey_v3_contract.dart", "journey_v3_enums.dart", "journey_v3_error.dart", "journey_v3_models.dart", "journey_v3_validation.dart"].map((name) => `apps/mobile/lib/generated/journey_v3/${name}`);
+  const baseGit = { text: (args) => execFileSync("git", ["-C", repositoryRoot, ...args], { encoding: "utf8" }).trim(), bytes: (args) => execFileSync("git", ["-C", repositoryRoot, ...args]) };
+  const blobs = new Map(paths.map((file, index) => [file, String(index + 1).repeat(40)]));
+  const gitApi = { text: baseGit.text, bytes(args) { if (args[0] === "ls-tree") return Buffer.concat([baseGit.bytes(args), Buffer.from([...blobs].map(([file, blob]) => `100644 blob ${blob}\t${file}\0`).join(""))]); if (args[0] === "cat-file" && [...blobs.values()].includes(args[2])) return Buffer.from("// GENERATED CODE - DO NOT MODIFY BY HAND\n"); return baseGit.bytes(args); } };
+  try {
+    const options = discoveryInput(dir); const filter = JSON.parse(readFileSync(options.filterResult, "utf8"));
+    for (const evidence of filter.exclusions.filter((entry) => paths.includes(entry.path))) Object.assign(evidence, { presence: "TRACKED_GENERATED", lcovRecordPresent: false, executableLines: 0, coveredLines: 0 });
+    writeFileSync(options.filterResult, `${JSON.stringify(filter)}\n`);
+    const artifact = path.join(dir, "artifact"); const result = analyze(options, { repositoryRoot, reportDirectory: artifact, gitApi });
+    const inventory = JSON.parse(readFileSync(path.join(artifact, "mobile-coverage-source-inventory.json"), "utf8"));
+    assert.equal(inventory.summary.sources, treeSources(head, baseGit).size + paths.length); assert.equal(inventory.summary.excluded, 7);
+    assert.deepEqual(result.exclusions.filter((entry) => paths.includes(entry.path)).map(({ presence, lcovRecordPresent, executableLines, coveredLines }) => [presence, lcovRecordPresent, executableLines, coveredLines]), Array(5).fill(["TRACKED_GENERATED", false, 0, 0]));
+    assert.equal(verifyArtifactDirectory(artifact, { repositoryRoot, gitApi }).phase, "DISCOVERY_REMOTE_RED");
+    const resultFile = path.join(artifact, "mobile-coverage-result.json"); const canonical = readFileSync(resultFile, "utf8");
+    for (const [key, value] of [["presence", "RESERVED_ABSENT"], ["lcovRecordPresent", true]]) { const tampered = JSON.parse(canonical); tampered.exclusions[2][key] = value; writeFileSync(resultFile, `${JSON.stringify(tampered, null, 2)}\n`); assert.throws(() => verifyArtifactDirectory(artifact, { repositoryRoot, gitApi })); writeFileSync(resultFile, canonical); }
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -418,6 +459,23 @@ test("F1 changed executable set은 producer coverage-ignore 지시를 fail-close
   assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, coverage, changed(nearMiss)), {
     state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null,
   });
+});
+
+test("Journey의 exact validated exclusion만 changed-line LCOV 부재를 건너뛴다", () => {
+  const journey = "apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart";
+  const ordinary = "apps/mobile/lib/generated/other.dart";
+  const seam = (rawPath) => ({
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1 @@\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`1\t0\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return Buffer.from("final generated = 1;\n");
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  });
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, new Map(), seam(journey), new Set([journey])), { state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null });
+  assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, new Map(), seam(ordinary), new Set([journey])), /missing LCOV/i);
 });
 
 test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", () => {

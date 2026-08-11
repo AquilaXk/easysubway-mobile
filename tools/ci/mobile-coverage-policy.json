@@ -14,6 +14,7 @@
   "exclusions": [
     {
       "id": "DRIFT_CATALOG_DATABASE_GENERATED",
+      "availability": "TRACKED_GENERATED_REQUIRED",
       "path": "apps/mobile/lib/core/database/catalog/catalog_database.g.dart",
       "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
       "reason": "Tracked Drift generated output; handwritten schema and adapters remain covered.",
@@ -23,12 +24,63 @@
     },
     {
       "id": "DRIFT_USER_DATABASE_GENERATED",
+      "availability": "TRACKED_GENERATED_REQUIRED",
       "path": "apps/mobile/lib/core/database/user/user_database.g.dart",
       "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
       "reason": "Tracked Drift generated output; handwritten schema and adapters remain covered.",
       "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/48",
       "ownerIssueTitle": "[Build][Mobile][P1] LCOV·diff coverage ratchet — filter-mobile-lcov 확장과 CI 배선",
       "removalTrigger": "Review immediately when the generated header, Drift generation relationship, source path, coverage producer, or handwritten/generated boundary changes."
+    },
+    {
+      "id": "JOURNEY_V3_CONTRACT_GENERATED",
+      "availability": "RESERVED_ABSENT_OR_TRACKED_GENERATED",
+      "path": "apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart",
+      "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
+      "reason": "Tracked Journey V3 generated contract output; generator and receipt remain authoritative.",
+      "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/142",
+      "ownerIssueTitle": "[CI][Mobile][P1] Journey 생성 소스 classifier·coverage admission",
+      "removalTrigger": "Review immediately when the generated header, Journey V3 generator or receipt relationship, source path, coverage producer, or reservation state changes."
+    },
+    {
+      "id": "JOURNEY_V3_ENUMS_GENERATED",
+      "availability": "RESERVED_ABSENT_OR_TRACKED_GENERATED",
+      "path": "apps/mobile/lib/generated/journey_v3/journey_v3_enums.dart",
+      "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
+      "reason": "Tracked Journey V3 generated contract output; generator and receipt remain authoritative.",
+      "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/142",
+      "ownerIssueTitle": "[CI][Mobile][P1] Journey 생성 소스 classifier·coverage admission",
+      "removalTrigger": "Review immediately when the generated header, Journey V3 generator or receipt relationship, source path, coverage producer, or reservation state changes."
+    },
+    {
+      "id": "JOURNEY_V3_ERROR_GENERATED",
+      "availability": "RESERVED_ABSENT_OR_TRACKED_GENERATED",
+      "path": "apps/mobile/lib/generated/journey_v3/journey_v3_error.dart",
+      "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
+      "reason": "Tracked Journey V3 generated contract output; generator and receipt remain authoritative.",
+      "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/142",
+      "ownerIssueTitle": "[CI][Mobile][P1] Journey 생성 소스 classifier·coverage admission",
+      "removalTrigger": "Review immediately when the generated header, Journey V3 generator or receipt relationship, source path, coverage producer, or reservation state changes."
+    },
+    {
+      "id": "JOURNEY_V3_MODELS_GENERATED",
+      "availability": "RESERVED_ABSENT_OR_TRACKED_GENERATED",
+      "path": "apps/mobile/lib/generated/journey_v3/journey_v3_models.dart",
+      "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
+      "reason": "Tracked Journey V3 generated contract output; generator and receipt remain authoritative.",
+      "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/142",
+      "ownerIssueTitle": "[CI][Mobile][P1] Journey 생성 소스 classifier·coverage admission",
+      "removalTrigger": "Review immediately when the generated header, Journey V3 generator or receipt relationship, source path, coverage producer, or reservation state changes."
+    },
+    {
+      "id": "JOURNEY_V3_VALIDATION_GENERATED",
+      "availability": "RESERVED_ABSENT_OR_TRACKED_GENERATED",
+      "path": "apps/mobile/lib/generated/journey_v3/journey_v3_validation.dart",
+      "requiredFirstLine": "// GENERATED CODE - DO NOT MODIFY BY HAND",
+      "reason": "Tracked Journey V3 generated contract output; generator and receipt remain authoritative.",
+      "ownerIssueUrl": "https://github.com/AquilaXk/easysubway-mobile/issues/142",
+      "ownerIssueTitle": "[CI][Mobile][P1] Journey 생성 소스 classifier·coverage admission",
+      "removalTrigger": "Review immediately when the generated header, Journey V3 generator or receipt relationship, source path, coverage producer, or reservation state changes."
     }
   ],
   "criticalBoundaryRules": {

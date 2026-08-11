@@ -8,10 +8,17 @@ import { pathToFileURL } from "node:url";
 
 const TAGS = ["TN", "SF", "FN", "FNDA", "FNF", "FNH", "BRDA", "BRF", "BRH", "DA", "LF", "LH", "end_of_record"];
 const EXCLUSIONS = [
-  ["DRIFT_CATALOG_DATABASE_GENERATED", "apps/mobile/lib/core/database/catalog/catalog_database.g.dart"],
-  ["DRIFT_USER_DATABASE_GENERATED", "apps/mobile/lib/core/database/user/user_database.g.dart"],
+  ["DRIFT_CATALOG_DATABASE_GENERATED", "apps/mobile/lib/core/database/catalog/catalog_database.g.dart", "TRACKED_GENERATED_REQUIRED"],
+  ["DRIFT_USER_DATABASE_GENERATED", "apps/mobile/lib/core/database/user/user_database.g.dart", "TRACKED_GENERATED_REQUIRED"],
+  ["JOURNEY_V3_CONTRACT_GENERATED", "apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+  ["JOURNEY_V3_ENUMS_GENERATED", "apps/mobile/lib/generated/journey_v3/journey_v3_enums.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+  ["JOURNEY_V3_ERROR_GENERATED", "apps/mobile/lib/generated/journey_v3/journey_v3_error.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+  ["JOURNEY_V3_MODELS_GENERATED", "apps/mobile/lib/generated/journey_v3/journey_v3_models.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+  ["JOURNEY_V3_VALIDATION_GENERATED", "apps/mobile/lib/generated/journey_v3/journey_v3_validation.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
 ];
 const HEADER = "// GENERATED CODE - DO NOT MODIFY BY HAND";
+const DRIFT_METADATA = { reason: "Tracked Drift generated output; handwritten schema and adapters remain covered.", ownerIssueUrl: "https://github.com/AquilaXk/easysubway-mobile/issues/48", ownerIssueTitle: "[Build][Mobile][P1] LCOV·diff coverage ratchet — filter-mobile-lcov 확장과 CI 배선", removalTrigger: "Review immediately when the generated header, Drift generation relationship, source path, coverage producer, or handwritten/generated boundary changes." };
+const JOURNEY_METADATA = { reason: "Tracked Journey V3 generated contract output; generator and receipt remain authoritative.", ownerIssueUrl: "https://github.com/AquilaXk/easysubway-mobile/issues/142", ownerIssueTitle: "[CI][Mobile][P1] Journey 생성 소스 classifier·coverage admission", removalTrigger: "Review immediately when the generated header, Journey V3 generator or receipt relationship, source path, coverage producer, or reservation state changes." };
 const fail = (message) => { throw new Error(message); };
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 
@@ -55,11 +62,15 @@ function validatePolicy(policy, { full = false } = {}) {
   const scope = policy.sourceScope;
   if (!scope || scope.root !== "apps/mobile/lib" || scope.include !== "apps/mobile/lib/**/*.dart" || scope.kind !== "PRODUCTION_DART") fail("invalid policy sourceScope");
   if (!Array.isArray(policy.lcov?.closedTags) || policy.lcov.closedTags.length !== TAGS.length || policy.lcov.closedTags.some((tag, index) => tag !== TAGS[index])) fail("invalid policy closedTags");
-  if (!Array.isArray(policy.exclusions) || policy.exclusions.length !== EXCLUSIONS.length) fail("invalid policy exclusions");
+  const expectedExclusions = policy.transition?.phase === "REVIEWED_BASELINE_ENFORCED" ? EXCLUSIONS : EXCLUSIONS.slice(0, 2);
+  if (!Array.isArray(policy.exclusions) || policy.exclusions.length !== expectedExclusions.length) fail("invalid policy exclusions");
   policy.exclusions.forEach((entry, index) => {
-    const [id, file] = EXCLUSIONS[index];
-    if (full) exactKeys(entry, ["id", "path", "requiredFirstLine", "reason", "ownerIssueUrl", "ownerIssueTitle", "removalTrigger"], "exclusion keys");
-    if (!entry || entry.id !== id || entry.path !== file || (full && (entry.requiredFirstLine !== HEADER || entry.reason !== "Tracked Drift generated output; handwritten schema and adapters remain covered." || entry.ownerIssueUrl !== "https://github.com/AquilaXk/easysubway-mobile/issues/48" || entry.ownerIssueTitle !== "[Build][Mobile][P1] LCOV·diff coverage ratchet — filter-mobile-lcov 확장과 CI 배선" || entry.removalTrigger !== "Review immediately when the generated header, Drift generation relationship, source path, coverage producer, or handwritten/generated boundary changes."))) fail("invalid policy exclusions");
+    const [id, file, availability] = expectedExclusions[index];
+    if (full) exactKeys(entry, policy.transition.phase === "REVIEWED_BASELINE_ENFORCED" ? ["id", "availability", "path", "requiredFirstLine", "reason", "ownerIssueUrl", "ownerIssueTitle", "removalTrigger"] : ["id", "path", "requiredFirstLine", "reason", "ownerIssueUrl", "ownerIssueTitle", "removalTrigger"], "exclusion keys");
+    const metadata = availability === "TRACKED_GENERATED_REQUIRED" ? DRIFT_METADATA : JOURNEY_METADATA;
+    if (!entry || entry.id !== id || entry.path !== file || entry.requiredFirstLine !== HEADER) fail("invalid policy exclusions");
+    if (full && ((availability === "TRACKED_GENERATED_REQUIRED" && (entry.reason !== metadata.reason || entry.ownerIssueUrl !== metadata.ownerIssueUrl || entry.ownerIssueTitle !== metadata.ownerIssueTitle || entry.removalTrigger !== metadata.removalTrigger)) || (policy.transition.phase === "REVIEWED_BASELINE_ENFORCED" && (entry.availability !== availability || entry.reason !== metadata.reason || entry.ownerIssueUrl !== metadata.ownerIssueUrl || entry.ownerIssueTitle !== metadata.ownerIssueTitle || entry.removalTrigger !== metadata.removalTrigger)))) fail("invalid policy exclusions");
+    if (!full && entry.availability !== undefined && entry.availability !== availability) fail("invalid policy exclusions");
   });
 }
 
@@ -81,6 +92,17 @@ function assertSafeTracked(absolute, repositoryRoot, io) {
   if (!stat.isFile() || stat.isSymbolicLink() || !io.isTracked(absolute, repositoryRoot)) fail("source file is not a tracked regular file");
   if (!io.realpath(absolute).startsWith(rootReal + path.sep)) fail("source outside repository");
   return { size: stat.size, mtimeMs: stat.mtimeMs, digest: sha256(io.readFile(absolute)) };
+}
+function reservedMissing(error) { return error?.code === "ENOENT"; }
+function assertSafeReservedAbsent(absolute, repositoryRoot, io) {
+  const rootAbsolute = path.resolve(repositoryRoot); const rootReal = io.realpath(rootAbsolute); const target = path.resolve(absolute); const scope = rootAbsolute + path.sep;
+  if (!target.startsWith(scope)) fail("reserved source outside repository");
+  try { io.lstat(target); fail("reserved generated source appeared"); } catch (error) { if (!reservedMissing(error)) throw error; }
+  for (let cursor = path.dirname(target); ; cursor = path.dirname(cursor)) {
+    if (cursor !== rootAbsolute && !cursor.startsWith(scope)) fail("reserved source ancestor outside repository");
+    try { const stat = io.lstat(cursor); if (stat.isSymbolicLink() || !stat.isDirectory()) fail("reserved source ancestor is unsafe"); if (!io.realpath(cursor).startsWith(rootReal)) fail("reserved source ancestor outside repository"); } catch (error) { if (!reservedMissing(error)) throw error; }
+    if (cursor === rootAbsolute) return;
+  }
 }
 function canonicalSource(raw, repositoryRoot, io) {
   if (typeof raw !== "string" || raw.includes("\\") || raw.includes("%") || /[\x00-\x1f\x7f]/.test(raw) || raw.includes("//")) fail("invalid source path");
@@ -173,10 +195,17 @@ function sameSnapshot(absolute, snapshot, repositoryRoot, io) {
 }
 export function normalizeLcov(content, { policy, repositoryRoot = process.cwd(), policySha256, io = defaultIo } = {}) {
   validatePolicy(policy);
-  const exclusionSnapshots = EXCLUSIONS.map(([, file]) => {
-    const absolute = path.resolve(repositoryRoot, file); const snapshot = assertSafeTracked(absolute, repositoryRoot, io);
-    if (io.readFile(absolute, "utf8").split("\n", 1)[0] !== HEADER) fail("invalid generated header");
-    return { path: file, absolute, snapshot };
+  const exclusionSnapshots = policy.exclusions.map(({ id, path: file, availability = "TRACKED_GENERATED_REQUIRED" }) => {
+    const absolute = path.resolve(repositoryRoot, file);
+    try {
+      const snapshot = assertSafeTracked(absolute, repositoryRoot, io);
+      if (io.readFile(absolute, "utf8").split("\n", 1)[0] !== HEADER) fail("invalid generated header");
+      return { path: file, absolute, availability, presence: "TRACKED_GENERATED", snapshot };
+    } catch (error) {
+      if (availability !== "RESERVED_ABSENT_OR_TRACKED_GENERATED" || !reservedMissing(error)) throw error;
+      assertSafeReservedAbsent(absolute, repositoryRoot, io);
+      return { path: file, absolute, availability, presence: "RESERVED_ABSENT", snapshot: null };
+    }
   });
   if (typeof content !== "string" || content.startsWith("\uFEFF") || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(content) || /\r(?!\n)/.test(content)) fail("invalid LCOV encoding");
   const lines = content.replaceAll("\r\n", "\n").split("\n");
@@ -191,20 +220,21 @@ export function normalizeLcov(content, { policy, repositoryRoot = process.cwd(),
   const seen = new Set(); const excluded = []; const retained = [];
   for (const record of records) {
     if (seen.has(record.source)) fail("duplicate source record"); seen.add(record.source);
-    const exclusion = EXCLUSIONS.find(([, file]) => file === record.source);
+    const exclusion = policy.exclusions.find((entry) => entry.path === record.source);
     if (exclusion) {
-      if (io.readFile(path.join(repositoryRoot, record.source), "utf8").split("\n", 1)[0] !== HEADER) fail("invalid generated header");
-      excluded.push({ path: record.source, reason: exclusion[0], executableLines: record.da.size, coveredLines: [...record.da.values()].filter(({ hits }) => hits > 0).length });
+      if (io.readFile(path.join(repositoryRoot, record.source), "utf8").split("\n", 1)[0] !== exclusion.requiredFirstLine) fail("invalid generated header");
+      excluded.push({ path: record.source, reason: exclusion.id, presence: "TRACKED_GENERATED", lcovRecordPresent: true, executableLines: record.da.size, coveredLines: [...record.da.values()].filter(({ hits }) => hits > 0).length });
     } else retained.push(record);
   }
   if (!retained.length) fail("no retained LCOV record");
-  const verifySources = () => { for (const item of exclusionSnapshots) sameSnapshot(item.absolute, item.snapshot, repositoryRoot, io); for (const record of retained) sameSnapshot(record.sourceAbsolute, record.sourceSnapshot, repositoryRoot, io); };
+  const verifySources = () => { for (const item of exclusionSnapshots) { if (item.presence === "TRACKED_GENERATED") sameSnapshot(item.absolute, item.snapshot, repositoryRoot, io); else assertSafeReservedAbsent(item.absolute, repositoryRoot, io); } for (const record of retained) sameSnapshot(record.sourceAbsolute, record.sourceSnapshot, repositoryRoot, io); };
   verifySources();
   retained.sort((a, b) => Buffer.compare(Buffer.from(a.source), Buffer.from(b.source)));
   excluded.sort((a, b) => compareIdentity(a.path, b.path));
   const normalized = retained.map(render).join("");
   const linesCount = retained.reduce((total, record) => ({ executable: total.executable + record.da.size, covered: total.covered + [...record.da.values()].filter(({ hits }) => hits > 0).length }), { executable: 0, covered: 0 });
-  return { content: normalized, verifySources, result: { schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: policySha256 ?? sha256(JSON.stringify(policy)), inputSha256: sha256(content), outputSha256: sha256(normalized), records: { retained: retained.length, excluded: excluded.length }, lines: linesCount, exclusions: excluded, outcome: "success" } };
+  const evidence = exclusionSnapshots.map((item) => excluded.find((entry) => entry.path === item.path) ?? { path: item.path, reason: policy.exclusions.find((entry) => entry.path === item.path).id, presence: item.presence, lcovRecordPresent: false, executableLines: 0, coveredLines: 0 });
+  return { content: normalized, verifySources, result: { schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: policySha256 ?? sha256(JSON.stringify(policy)), inputSha256: sha256(content), outputSha256: sha256(normalized), records: { retained: retained.length, excluded: excluded.length }, lines: linesCount, exclusions: evidence, outcome: "success" } };
 }
 
 function usage() { process.stderr.write("usage: node tools/ci/filter-mobile-lcov.mjs normalize --input <raw-lcov> --output <normalized-lcov> --policy <policy-json> --result <filter-result-json>\n"); }

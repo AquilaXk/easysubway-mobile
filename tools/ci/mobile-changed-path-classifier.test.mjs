@@ -56,6 +56,20 @@ test("policy schema is closed and literal path rules classify a feature", () => 
   ]) { const changed = structuredClone(policy); mutate(changed); assert.throws(() => validatePolicy(changed), /exactly match/i); }
 });
 
+test("Journey V3 생성 Dart 다섯 개만 계약 산출물로 분류한다", () => {
+  const checked = validatePolicy(policy);
+  const names = ["journey_v3_contract.dart", "journey_v3_enums.dart", "journey_v3_error.dart", "journey_v3_generation_receipt.json", "journey_v3_models.dart", "journey_v3_validation.dart"];
+  const entries = names.map((name, index) => ({ status: "ADDED", oldPath: null, newPath: `apps/mobile/lib/generated/journey_v3/${name}`, oldMode: null, newMode: "100644", oldBlobSha: null, newBlobSha: sha(String.fromCharCode(97 + index)), isBinary: false, reasons: [] }));
+  const classified = classifyEntries(entries, checked);
+  assert.equal(classified.outcome, "CLASSIFIED");
+  assert.deepEqual(classified.owners.map((owner) => owner.owner), Array(6).fill("CONTRACT_ARTIFACT"));
+  assert.equal(classified.owners.every((owner) => owner.logicalClass === "GENERATED_CONTRACT_OR_CODEGEN" && JSON.stringify(owner.risks) === JSON.stringify(["P1_HIGH"])), true);
+  assert.deepEqual(classified.requirements, policy.requirements.FEATURE_CONTRACT);
+  assert.deepEqual(classified.affectedBoundaries, ["JOURNEY_CONTRACT"]);
+  const otherGenerated = classifyEntries([{ ...entries[0], newPath: "apps/mobile/lib/generated/other.dart" }], checked);
+  assert.equal(otherGenerated.outcome, "FULL_REQUIRED");
+});
+
 test("raw and numstat streams are parsed independently and joined by exact shape", () => {
   const raw = Buffer.from(`:100644 100644 ${sha("a")} ${sha("b")} M\0apps/mobile/lib/features/home/a.dart\0:100644 100644 ${sha("c")} ${sha("d")} R090\0apps/mobile/lib/features/home/old.dart\0apps/mobile/lib/features/home/new.dart\0`);
   const numstat = Buffer.from("1\t2\tapps/mobile/lib/features/home/a.dart\0" + "3\t4\t\0apps/mobile/lib/features/home/old.dart\0apps/mobile/lib/features/home/new.dart\0");
@@ -101,7 +115,7 @@ test("old and new paths and fanout consumers fail closed independently", () => {
 });
 
 test("policy fixes generic feature identifiers and README-only docs uncertainty", () => {
-  assert.deepEqual(policy.pathRules.map((rule) => rule.id).slice(17, 39), [
+  assert.deepEqual(policy.pathRules.map((rule) => rule.id).slice(18, 40), [
     "feature-account", "feature-ads", "feature-attribution", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
   ]);
   assert.deepEqual(policy.pathRules.find((rule) => rule.id === "root-policy").reasons, ["root-policy"]);
