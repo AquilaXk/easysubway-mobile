@@ -251,7 +251,7 @@ function renderRequestModels() {
 function replaceRequired(source, anchor, replacement, label) { if (!source.includes(anchor)) fail(`${label} renderer anchor is missing`); return source.replace(anchor, replacement); }
 function renderCorrectedRequestModels() { return replaceRequired(renderRequestModels(), "'destinationStationId': destination.toJson()", "'destinationStationId': destinationStationId, 'departure': departure.toJson()", 'request'); }
 function renderValidatedRequestModels() {
-  return replaceRequired(replaceRequired(renderCorrectedRequestModels(), 'const JourneySessionRequest({required this.integrityToken, required this.clientNonce});', `const JourneySessionRequest._({required this.integrityToken, required this.clientNonce});
+  const validated = replaceRequired(replaceRequired(renderCorrectedRequestModels(), 'const JourneySessionRequest({required this.integrityToken, required this.clientNonce});', `const JourneySessionRequest._({required this.integrityToken, required this.clientNonce});
   factory JourneySessionRequest({required String integrityToken, required String clientNonce}) {
     if (integrityToken.isEmpty || integrityToken.length > 16384) throw const FormatException('integrityToken length');
     return JourneySessionRequest._(integrityToken: integrityToken, clientNonce: JourneyV3Validation.matching(clientNonce, 'clientNonce', RegExp(r'^[A-Za-z0-9_-]{22}(?![\\s\\S])')));
@@ -260,6 +260,8 @@ function renderValidatedRequestModels() {
     if (mobilityProfile == MobilityProfile.noStairs && constraintMode == ConstraintMode.none) throw const FormatException('NO_STAIRS plus NONE is forbidden');
     return JourneySearchRequest._(requestId: JourneyV3Validation.ulid(requestId, 'requestId'), originStationId: JourneyV3Validation.nonBlank(originStationId, 'originStationId'), destinationStationId: JourneyV3Validation.nonBlank(destinationStationId, 'destinationStationId'), departure: departure, timePolicy: timePolicy, mobilityProfile: mobilityProfile, constraintMode: constraintMode, maxTransfers: JourneyV3Validation.integer(maxTransfers, 'maxTransfers', 0, 3), alternativeCount: JourneyV3Validation.integer(alternativeCount, 'alternativeCount', 1, 3));
   }`, 'search request');
+  const withJsonNoncePattern = replaceRequired(validated, "RegExp(r'^[A-Za-z0-9_-]{22}", "RegExp(r'^[A-Za-z0-9_-]{21}[AQgw]", 'session request JSON nonce');
+  return replaceRequired(withJsonNoncePattern, "RegExp(r'^[A-Za-z0-9_-]{22}", "RegExp(r'^[A-Za-z0-9_-]{21}[AQgw]", 'session request constructor nonce');
 }
 export function renderJourneyV3ValidationAndEnumsForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); return Object.freeze({ validation: renderStrictValidation(), enums: renderDartEnums(ir) }); }
 export function renderJourneyV3RequestModelsForTest(options) { validate({ ...options, enforceTrackedLock: false }); return renderValidatedRequestModels(); }
