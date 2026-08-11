@@ -461,19 +461,43 @@ void main() {
     expect(controller.state.response, same(response));
     expect(controller.state.failure, isNull);
     expect(controller.state.selectedJourneyId, isNull);
+    expect(controller.state.selectedSnapshot, isNull);
 
     expect(controller.selectJourney('journey-1'), isTrue);
     expect(controller.state.response, same(response));
     expect(controller.state.selectedJourneyId, 'journey-1');
+    final snapshot = controller.state.selectedSnapshot!;
+    expect(snapshot.contractVersion, response.contractVersion);
+    expect(snapshot.requestId, response.requestId);
+    expect(snapshot.queryId, response.queryId);
+    expect(snapshot.effectiveDepartureTime, response.effectiveDepartureTime);
+    expect(snapshot.sourceIdentity.routeBundleId, 'route');
+    expect(snapshot.sourceIdentity.routeBundleSha256, 'a' * 64);
+    expect(snapshot.sourceIdentity.timetableSnapshotId, 'timetable');
+    expect(snapshot.sourceIdentity.accessibilitySnapshotId, 'accessibility');
+    expect(snapshot.sourceIdentity.realtimeSnapshotId, isNull);
+    expect(snapshot.journey.journeyId, 'journey-1');
+    expect(
+      () => snapshot.journey.accessibility.reasonCodes.add('MUTATED'),
+      throwsUnsupportedError,
+    );
+    expect(
+      () => snapshot.journey.legs.add(
+        const JourneyExitLeg(fromStationId: 'destination', durationSeconds: 0),
+      ),
+      throwsUnsupportedError,
+    );
     expect(controller.selectJourney('missing'), isFalse);
-    expect(controller.state.selectedJourneyId, 'journey-1');
+    expect(controller.state.selectedSnapshot, same(snapshot));
 
     final next = controller.search(_command());
     expect(controller.state.status, JourneySearchStatus.searching);
     expect(controller.state.selectedJourneyId, isNull);
+    expect(controller.state.selectedSnapshot, isNull);
     await next;
     expect(controller.state.status, JourneySearchStatus.success);
     expect(controller.state.selectedJourneyId, isNull);
+    expect(controller.state.selectedSnapshot, isNull);
   });
 }
 

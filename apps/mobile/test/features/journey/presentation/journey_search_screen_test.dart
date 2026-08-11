@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/features/journey/presentation/journey_search_s
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -15,7 +16,13 @@ void main() {
   ) async {
     final semantics = tester.ensureSemantics();
     final repository = _Repository();
-    await _pumpScreen(tester, repository: repository, mobilityType: 'STANDARD');
+    final shared = <String>[];
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      mobilityType: 'STANDARD',
+      shareInvoker: (text, _) async => shared.add(text),
+    );
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
@@ -65,7 +72,32 @@ void main() {
       tester.getSemantics(second).flagsCollection.isSelected,
       Tristate.isTrue,
     );
-    expect(find.text('상세'), findsNothing);
+    expect(find.text('선택 경로 상세'), findsOneWidget);
+    final entry = find.text('승강장으로 이동');
+    final ride = find.text('열차 탑승');
+    final transfer = find.text('환승 이동');
+    final exit = find.text('도착역 나가기');
+    expect(tester.getTopLeft(entry).dy, lessThan(tester.getTopLeft(ride).dy));
+    expect(
+      tester.getTopLeft(ride).dy,
+      lessThan(tester.getTopLeft(transfer).dy),
+    );
+    expect(
+      tester.getTopLeft(transfer).dy,
+      lessThan(tester.getTopLeft(exit).dy),
+    );
+    final shareButton = find.widgetWithText(OutlinedButton, '공유');
+    await tester.ensureVisible(shareButton);
+    await tester.tap(shareButton);
+    await tester.pump();
+    expect(shared, hasLength(1));
+    expect(shared.single, contains('용산역 → 춘천역'));
+    expect(shared.single, contains('5분'));
+    expect(shared.single, isNot(contains('journey-1')));
+    expect(shared.single, isNot(contains('query-1')));
+    expect(shared.single, isNot(contains('bundle-1')));
+    expect(shared.single, isNot(contains('station-origin')));
+    expect(shared.single, isNot(contains('a' * 64)));
 
     await tester.pumpWidget(const SizedBox.shrink());
     final single = _Repository()..journeyIds = <String>['journey-only'];
@@ -155,6 +187,17 @@ void main() {
   ) async {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      shareChannel,
+      (_) async => throw PlatformException(code: 'share_failed'),
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        shareChannel,
+        null,
+      ),
+    );
     final repository = _Repository()..failuresRemaining = 1;
     await _pumpScreen(tester, repository: repository);
 
@@ -174,6 +217,18 @@ void main() {
     expect(repository.sessionRequests, 1);
     expect(repository.requests, hasLength(2));
     expect(find.text('경로 후보 2개'), findsOneWidget);
+    final candidate = find.byKey(const Key('journey-candidate-journey-1'));
+    await tester.tap(candidate);
+    await tester.pump();
+    final shareButton = find.widgetWithText(OutlinedButton, '공유');
+    await tester.ensureVisible(shareButton);
+    await tester.tap(shareButton);
+    await tester.pump();
+    expect(find.text('경로 요약을 공유하지 못했어요.'), findsOneWidget);
+    expect(
+      tester.getSemantics(candidate).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
   });
 }
 
@@ -182,6 +237,7 @@ Future<void> _pumpScreen(
   required _Repository repository,
   RouteDraft? draft,
   String mobilityType = 'STANDARD',
+  JourneyShareInvoker? shareInvoker,
 }) {
   return tester.pumpWidget(
     MaterialApp(
@@ -191,6 +247,7 @@ Future<void> _pumpScreen(
         draft: draft ?? _completeDraft(),
         mobilityType: mobilityType,
         onShellBackToHome: () {},
+        shareInvoker: shareInvoker,
       ),
     ),
   );
@@ -304,7 +361,27 @@ Journey _journey(String id, DateTime now) => Journey(
     stairFree: false,
     reasonCodes: <String>[],
   ),
-  legs: const <JourneyLeg>[
-    JourneyEntryLeg(fromStationId: 'station-origin', durationSeconds: 0),
+  legs: <JourneyLeg>[
+    const JourneyEntryLeg(fromStationId: 'station-origin', durationSeconds: 60),
+    JourneyRideLeg(
+      lineId: 'line-private',
+      tripId: 'trip-private',
+      directionStationId: 'station-direction',
+      fromStationId: 'station-origin',
+      toStationId: 'station-transfer',
+      plannedDepartureTime: now,
+      plannedArrivalTime: now.add(const Duration(minutes: 3)),
+      realtimeDepartureTime: null,
+      realtimeArrivalTime: null,
+    ),
+    const JourneyTransferLeg(
+      fromStationId: 'station-transfer',
+      toStationId: 'station-destination',
+      durationSeconds: 60,
+    ),
+    const JourneyExitLeg(
+      fromStationId: 'station-destination',
+      durationSeconds: 60,
+    ),
   ],
 );
