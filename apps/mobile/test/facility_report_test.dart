@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
