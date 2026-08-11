@@ -10,11 +10,15 @@ import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/facility_report/data/drift_facility_report_receipt_store.dart';
 import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'package:easysubway_mobile/features/facility_report/data/secure_facility_report_draft_target_store.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_receipt.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_type.dart';
+import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_result_labels.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -398,6 +402,37 @@ void main() {
     expect(result.displayReceiptCode, '발급 전');
   });
 
+  test('시설 신고 결과 domain parsing과 표시 문구 정책을 보존한다', () {
+    final parsed = FacilityReportResult.fromJson({
+      'id': ' report-1 ',
+      'stationId': 'station-sangnoksu',
+      'facilityId': 'facility-sangnoksu-elevator-1',
+      'reportType': 'UNKNOWN',
+      'description': 42,
+      'status': 'UNKNOWN',
+      'createdAt': '2026-06-13T10:00:00',
+      'receiptToken': null,
+      'publicReceiptCode': '   ',
+    });
+
+    expect(parsed.id, ' report-1 ');
+    expect(parsed.description, '');
+    expect(parsed.receiptToken, '');
+    expect(parsed.displayReceiptCode, '발급 전');
+    expect(parsed.statusLabel, '접수 상태를 불러오지 못했어요');
+    expect(parsed.reportTypeLabel, '시설 제보');
+    expect(
+      () => FacilityReportResult.fromJson(const {}),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          'Missing required report field: id',
+        ),
+      ),
+    );
+  });
+
   test('시설 신고 요청은 사진 Base64 대신 object metadata를 전송한다', () {
     final request = FacilityReportRequest(
       userId: 'anonymous-mobile-user',
@@ -425,6 +460,54 @@ void main() {
     expect(json['photoSha256'], 'a' * 64);
     expect(json['photoSizeBytes'], 4096);
     expect(json, isNot(contains('photoDataBase64')));
+  });
+
+  test('시설 신고 요청은 trim 뒤 upload object identity만 복사한다', () {
+    const request = FacilityReportRequest(
+      userId: ' anonymous-mobile-user ',
+      clientSubmissionId: ' stale-submission ',
+      stationId: ' station-sangnoksu ',
+      facilityId: ' facility-sangnoksu-elevator-1 ',
+      reportType: ' BROKEN ',
+      description: ' 문이 열리지 않습니다. ',
+      photoFileName: ' elevator-door.jpg ',
+      photoContentType: ' image/jpeg ',
+      photoDataBase64: ' aW1hZ2UtYnl0ZXM= ',
+      latitude: 37.302421,
+      longitude: 126.866221,
+    );
+
+    final uploaded = request.withUploadedPhoto(
+      clientSubmissionId: 'current-submission',
+      photoObjectKey: 'facility-reports/current-submission/photo.jpg',
+      photoSha256: 'a' * 64,
+      photoSizeBytes: 4096,
+    );
+
+    expect(uploaded.userId, 'anonymous-mobile-user');
+    expect(uploaded.clientSubmissionId, 'current-submission');
+    expect(uploaded.stationId, 'station-sangnoksu');
+    expect(uploaded.facilityId, 'facility-sangnoksu-elevator-1');
+    expect(uploaded.reportType, 'BROKEN');
+    expect(uploaded.description, '문이 열리지 않습니다.');
+    expect(uploaded.photoFileName, 'elevator-door.jpg');
+    expect(uploaded.photoContentType, 'image/jpeg');
+    expect(uploaded.photoDataBase64, isNull);
+    expect(
+      uploaded.photoObjectKey,
+      'facility-reports/current-submission/photo.jpg',
+    );
+    expect(uploaded.photoSha256, 'a' * 64);
+    expect(uploaded.photoSizeBytes, 4096);
+    expect(uploaded.latitude, 37.302421);
+    expect(uploaded.longitude, 126.866221);
+  });
+
+  test('시설 신고 failure domain은 exact 안내 문구를 보존한다', () {
+    const error = FacilityReportException('제보를 보내지 못했어요.');
+
+    expect(error.message, '제보를 보내지 못했어요.');
+    expect(error.toString(), '제보를 보내지 못했어요.');
   });
 
   test('시설 신고 유형은 현장 접근성 보정 항목을 노출한다', () {

@@ -11,11 +11,15 @@ import 'design_tokens.dart';
 import 'auth_headers.dart';
 import 'core/network/api_client.dart';
 import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
+import 'features/facility_report/domain/facility_report_exception.dart';
 import 'features/facility_report/domain/facility_report_location.dart';
 import 'features/facility_report/domain/facility_report_photo.dart';
 import 'features/facility_report/domain/facility_report_receipt.dart';
+import 'features/facility_report/domain/facility_report_request.dart';
+import 'features/facility_report/domain/facility_report_result.dart';
 import 'features/facility_report/domain/facility_report_target.dart';
 import 'features/facility_report/domain/facility_report_type.dart';
+import 'features/facility_report/presentation/facility_report_result_labels.dart';
 import 'features/facility_report/presentation/facility_report_type_options.dart';
 import 'mobile_error_reporter.dart';
 
@@ -453,142 +457,6 @@ bool _isRetryablePhotoUploadStatus(int statusCode) {
       statusCode >= HttpStatus.internalServerError;
 }
 
-class FacilityReportException implements Exception {
-  const FacilityReportException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
-class FacilityReportRequest {
-  const FacilityReportRequest({
-    this.userId,
-    this.clientSubmissionId,
-    required this.stationId,
-    required this.facilityId,
-    required this.reportType,
-    required this.description,
-    this.photoFileName,
-    this.photoContentType,
-    this.photoDataBase64,
-    this.photoObjectKey,
-    this.photoSha256,
-    this.photoSizeBytes,
-    this.latitude,
-    this.longitude,
-  });
-
-  final String? userId;
-  final String? clientSubmissionId;
-  final String stationId;
-  final String facilityId;
-  final String reportType;
-  final String description;
-  final String? photoFileName;
-  final String? photoContentType;
-  final String? photoDataBase64;
-  final String? photoObjectKey;
-  final String? photoSha256;
-  final int? photoSizeBytes;
-  final double? latitude;
-  final double? longitude;
-
-  FacilityReportRequest trimmed() {
-    return FacilityReportRequest(
-      userId: userId?.trim(),
-      clientSubmissionId: clientSubmissionId?.trim(),
-      stationId: stationId.trim(),
-      facilityId: facilityId.trim(),
-      reportType: reportType.trim(),
-      description: description.trim(),
-      photoFileName: photoFileName?.trim(),
-      photoContentType: photoContentType?.trim(),
-      photoDataBase64: photoDataBase64?.trim(),
-      photoObjectKey: photoObjectKey?.trim(),
-      photoSha256: photoSha256?.trim(),
-      photoSizeBytes: photoSizeBytes,
-      latitude: latitude,
-      longitude: longitude,
-    );
-  }
-
-  Map<String, Object?> toJson() {
-    final request = trimmed();
-    final json = <String, Object?>{
-      'stationId': request.stationId,
-      'facilityId': request.facilityId,
-      'reportType': request.reportType,
-      'description': request.description,
-    };
-    if (request.clientSubmissionId != null &&
-        request.clientSubmissionId!.isNotEmpty) {
-      json['clientSubmissionId'] = request.clientSubmissionId;
-    }
-    if (request.photoFileName != null &&
-        request.photoFileName!.isNotEmpty &&
-        request.photoContentType != null &&
-        request.photoContentType!.isNotEmpty &&
-        request.photoObjectKey != null &&
-        request.photoObjectKey!.isNotEmpty &&
-        request.photoSha256 != null &&
-        request.photoSha256!.isNotEmpty &&
-        request.photoSizeBytes != null) {
-      json['photoFileName'] = request.photoFileName;
-      json['photoContentType'] = request.photoContentType;
-      json['photoObjectKey'] = request.photoObjectKey;
-      json['photoSha256'] = request.photoSha256;
-      json['photoSizeBytes'] = request.photoSizeBytes;
-    }
-    // 좌표 한쪽만 저장되면 현장 위치를 잘못 해석할 수 있어 한 쌍일 때만 보낸다.
-    if (request.latitude != null && request.longitude != null) {
-      json['latitude'] = request.latitude;
-      json['longitude'] = request.longitude;
-    }
-    return json;
-  }
-
-  FacilityReportRequest withUploadedPhoto({
-    required String clientSubmissionId,
-    required String photoObjectKey,
-    required String photoSha256,
-    required int photoSizeBytes,
-  }) {
-    final request = trimmed();
-    return request.withClientSubmissionId(
-      clientSubmissionId,
-      photoObjectKey: photoObjectKey,
-      photoSha256: photoSha256,
-      photoSizeBytes: photoSizeBytes,
-    );
-  }
-
-  FacilityReportRequest withClientSubmissionId(
-    String clientSubmissionId, {
-    String? photoObjectKey,
-    String? photoSha256,
-    int? photoSizeBytes,
-  }) {
-    final request = trimmed();
-    return FacilityReportRequest(
-      userId: request.userId,
-      clientSubmissionId: clientSubmissionId,
-      stationId: request.stationId,
-      facilityId: request.facilityId,
-      reportType: request.reportType,
-      description: request.description,
-      photoFileName: request.photoFileName,
-      photoContentType: request.photoContentType,
-      photoObjectKey: photoObjectKey,
-      photoSha256: photoSha256,
-      photoSizeBytes: photoSizeBytes,
-      latitude: request.latitude,
-      longitude: request.longitude,
-    );
-  }
-}
-
 class FacilityReportPhotoUploadIntent {
   const FacilityReportPhotoUploadIntent({
     required this.objectKey,
@@ -647,81 +515,6 @@ Map<String, String> _optionalStringMap(
     }
     return MapEntry(key, mapValue);
   });
-}
-
-class FacilityReportResult {
-  const FacilityReportResult({
-    required this.id,
-    required this.stationId,
-    required this.facilityId,
-    required this.reportType,
-    required this.description,
-    required this.status,
-    required this.createdAt,
-    this.receiptToken,
-    this.publicReceiptCode,
-  });
-
-  factory FacilityReportResult.fromJson(Map<String, Object?> json) {
-    return FacilityReportResult(
-      id: _requiredReportString(json, 'id'),
-      stationId: _requiredReportString(json, 'stationId'),
-      facilityId: _requiredReportString(json, 'facilityId'),
-      reportType: _requiredReportString(json, 'reportType'),
-      description: _optionalReportString(json, 'description'),
-      status: _requiredReportString(json, 'status'),
-      createdAt: _requiredReportString(json, 'createdAt'),
-      receiptToken: _optionalReportString(json, 'receiptToken'),
-      publicReceiptCode: _optionalReportString(json, 'publicReceiptCode'),
-    );
-  }
-
-  final String id;
-  final String stationId;
-  final String facilityId;
-  final String reportType;
-  final String description;
-  final String status;
-  final String createdAt;
-  final String? receiptToken;
-  final String? publicReceiptCode;
-
-  String get displayReceiptCode {
-    final code = publicReceiptCode?.trim();
-    if (code == null || code.isEmpty) {
-      return '발급 전';
-    }
-    return code;
-  }
-
-  String get statusLabel {
-    return switch (status) {
-      'SUBMITTED' => '접수됨',
-      'UNDER_REVIEW' => '확인 중',
-      'ACCEPTED' => '반영됨',
-      'REJECTED' => '반려됨',
-      'DUPLICATE' => '중복 제보',
-      'RESOLVED' => '확인 완료',
-      _ => '접수 상태를 불러오지 못했어요',
-    };
-  }
-
-  String get reportTypeLabel {
-    return switch (reportType) {
-      'BROKEN' => '고장',
-      'UNDER_CONSTRUCTION' => '공사 중',
-      'CLOSED' => '폐쇄',
-      'ROUTE_BLOCKED' => '경로가 막혔어요',
-      'ELEVATOR_UNAVAILABLE' => '엘리베이터 이용 불가',
-      'STAIRS_PRESENT' => '계단이 있어요',
-      'ETA_INACCURATE' => '도착 시간이 달라요',
-      'TRANSFER_IMPOSSIBLE' => '환승이 어려워요',
-      'LOCATION_WRONG' => '위치가 달라요',
-      'INFORMATION_WRONG' => '정보가 달라요',
-      'RECOVERED' => '다시 정상',
-      _ => '시설 제보',
-    };
-  }
 }
 
 enum FacilityReportViewStatus { idle, loading, success, failure }
@@ -2515,14 +2308,6 @@ String _requiredReportString(Map<String, Object?> json, String key) {
     return value;
   }
   throw FormatException('Missing required report field: $key');
-}
-
-String _optionalReportString(Map<String, Object?> json, String key) {
-  final value = json[key];
-  if (value is String) {
-    return value;
-  }
-  return '';
 }
 
 String? _nonBlankReportString(String? value) {
