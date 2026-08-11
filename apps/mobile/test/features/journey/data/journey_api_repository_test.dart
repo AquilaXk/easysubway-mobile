@@ -133,7 +133,7 @@ void main() {
     final repository = JourneyApiRepository(client);
 
     final session = await repository.issueSession(_sessionRequest);
-    final success = await repository.searchJourneys(
+    await repository.searchJourneys(
       _searchRequest,
       sessionToken: session.token,
     );
@@ -145,6 +145,20 @@ void main() {
     expect(client.posts[1].path, '/api/v3/journeys/search');
     expect(client.posts[1].body, _searchRequest.toJson());
     expect(client.posts[1].headers, {'Authorization': 'Bearer session-token'});
+  });
+
+  test('valid search success의 identity·server order·source를 보존한다', () async {
+    final client = _StubApiClient([
+      ApiResponse(statusCode: 200, jsonBody: _successJson()),
+    ]);
+    final repository = JourneyApiRepository(client);
+
+    final success = await repository.searchJourneys(
+      _searchRequest,
+      sessionToken: 'session-token',
+    );
+
+    expect(client.posts, hasLength(1));
     expect(success.requestId, _searchRequest.requestId);
     expect(success.journeys.map((value) => value.journeyId), [
       'journey-2',
@@ -164,37 +178,7 @@ void main() {
   });
 
   test(
-    'declared rejected response는 generated error와 disposition을 보존한다',
-    () async {
-      final client = _StubApiClient([
-        ApiResponse(
-          statusCode: 401,
-          jsonBody: _errorJson('ROUTE_SESSION_REQUIRED'),
-        ),
-      ]);
-      final repository = JourneyApiRepository(client);
-
-      await expectLater(
-        repository.searchJourneys(
-          _searchRequest,
-          sessionToken: 'expired-token',
-        ),
-        throwsA(
-          isA<JourneyRejectedFailure>()
-              .having(
-                (value) => value.error.code,
-                'code',
-                JourneyErrorCode.routeSessionRequired,
-              )
-              .having((value) => value.disposition.httpStatus, 'status', 401),
-        ),
-      );
-      expect(client.posts, hasLength(1));
-    },
-  );
-
-  test(
-    'generated disposition table의 모든 declared status/code 조합만 rejected failure다',
+    'representative rejected response와 generated disposition table을 보존한다',
     () async {
       const searchCases = [
         (400, 'INVALID_JOURNEY_REQUEST'),
@@ -217,6 +201,30 @@ void main() {
         (403, 'ROUTE_SESSION_ATTESTATION_REJECTED'),
         (503, 'ROUTE_SESSION_ATTESTATION_UNAVAILABLE'),
       ];
+
+      final representativeClient = _StubApiClient([
+        ApiResponse(
+          statusCode: 401,
+          jsonBody: _errorJson('ROUTE_SESSION_REQUIRED'),
+        ),
+      ]);
+      final representative = JourneyApiRepository(representativeClient);
+      await expectLater(
+        representative.searchJourneys(
+          _searchRequest,
+          sessionToken: 'expired-token',
+        ),
+        throwsA(
+          isA<JourneyRejectedFailure>()
+              .having(
+                (value) => value.error.code,
+                'code',
+                JourneyErrorCode.routeSessionRequired,
+              )
+              .having((value) => value.disposition.httpStatus, 'status', 401),
+        ),
+      );
+      expect(representativeClient.posts, hasLength(1));
 
       for (final (statusCode, code) in searchCases) {
         final repository = JourneyApiRepository(
@@ -251,190 +259,157 @@ void main() {
     },
   );
 
-  test(
-    'requestId mismatch, duplicate journeyId, invalid status pair는 protocol failure다',
-    () async {
-      final mismatch = JourneyApiRepository(
-        _StubApiClient([
-          ApiResponse(
-            statusCode: 200,
-            jsonBody: _successJson(requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAW'),
-          ),
-        ]),
-      );
-      final duplicate = JourneyApiRepository(
-        _StubApiClient([
-          ApiResponse(
-            statusCode: 200,
-            jsonBody: _successJson(journeyIds: ['journey-1', 'journey-1']),
-          ),
-        ]),
-      );
-      final invalidPair = JourneyApiRepository(
-        _StubApiClient([
-          ApiResponse(
-            statusCode: 400,
-            jsonBody: _errorJson('ROUTE_SESSION_REQUIRED'),
-          ),
-        ]),
-      );
+  test('malformed response matrix는 protocol failure로 fail closed한다', () async {
+    final mismatch = JourneyApiRepository(
+      _StubApiClient([
+        ApiResponse(
+          statusCode: 200,
+          jsonBody: _successJson(requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAW'),
+        ),
+      ]),
+    );
+    final duplicate = JourneyApiRepository(
+      _StubApiClient([
+        ApiResponse(
+          statusCode: 200,
+          jsonBody: _successJson(journeyIds: ['journey-1', 'journey-1']),
+        ),
+      ]),
+    );
+    final invalidPair = JourneyApiRepository(
+      _StubApiClient([
+        ApiResponse(
+          statusCode: 400,
+          jsonBody: _errorJson('ROUTE_SESSION_REQUIRED'),
+        ),
+      ]),
+    );
 
-      await expectLater(
-        mismatch.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-      await expectLater(
-        duplicate.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-      await expectLater(
-        invalidPair.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-    },
-  );
+    final nonObject = JourneyApiRepository(
+      _StubApiClient([const ApiResponse(statusCode: 200, jsonBody: null)]),
+    );
+    final extraSuccess = Map<String, Object?>.of(_successJson())
+      ..['unexpected'] = true;
+    final extraSuccessRepository = JourneyApiRepository(
+      _StubApiClient([ApiResponse(statusCode: 200, jsonBody: extraSuccess)]),
+    );
+    final policy = Map<String, Object?>.of(_successJson());
+    final policyBody = Map<String, Object?>.of(
+      policy['requestPolicy']! as Map<String, Object?>,
+    )..['maxTransfers'] = 1;
+    policy['requestPolicy'] = policyBody;
+    final policyMismatch = JourneyApiRepository(
+      _StubApiClient([ApiResponse(statusCode: 200, jsonBody: policy)]),
+    );
+    final missingError = Map<String, Object?>.of(
+      _errorJson('ROUTE_SERVICE_UNAVAILABLE'),
+    )..remove('code');
+    final extraError = Map<String, Object?>.of(
+      _errorJson('ROUTE_SERVICE_UNAVAILABLE'),
+    )..['unexpected'] = true;
+    final errorBodies = <Object?>[
+      null,
+      _errorJson('UNKNOWN_ERROR_CODE'),
+      missingError,
+      extraError,
+    ];
+    final invalidSuccessBodies = <Map<String, Object?>>[
+      Map<String, Object?>.of(_successJson())
+        ..['contractVersion'] = 'UNKNOWN_CONTRACT',
+      Map<String, Object?>.of(_successJson())..['serviceTimezone'] = 'UTC',
+      Map<String, Object?>.of(_successJson())..['journeys'] = <Object?>[],
+    ];
+    final realtimeSource = Map<String, Object?>.of(_successJson());
+    realtimeSource['sourceIdentity'] = Map<String, Object?>.of(
+      realtimeSource['sourceIdentity']! as Map<String, Object?>,
+    )..['realtimeSnapshotId'] = 'realtime-1';
+    invalidSuccessBodies.add(realtimeSource);
+    final unsupportedBody = Map<String, Object?>.of(_successJson());
+    final journeys = List<Object?>.of(
+      unsupportedBody['journeys']! as List<Object?>,
+    );
+    journeys[0] = Map<String, Object?>.of(journeys[0]! as Map<String, Object?>)
+      ..['planSource'] = 'UNSUPPORTED';
+    unsupportedBody['journeys'] = journeys;
+    final unsupported = JourneyApiRepository(
+      _StubApiClient([ApiResponse(statusCode: 200, jsonBody: unsupportedBody)]),
+    );
 
-  test(
-    'non-object·extra response body와 request policy mismatch는 protocol failure다',
-    () async {
-      final nonObject = JourneyApiRepository(
-        _StubApiClient([const ApiResponse(statusCode: 200, jsonBody: null)]),
-      );
-      final extra = Map<String, Object?>.of(_successJson())
-        ..['unexpected'] = true;
-      final malformed = JourneyApiRepository(
-        _StubApiClient([ApiResponse(statusCode: 200, jsonBody: extra)]),
-      );
-      final policy = Map<String, Object?>.of(_successJson());
-      final policyBody = Map<String, Object?>.of(
-        policy['requestPolicy']! as Map<String, Object?>,
-      )..['maxTransfers'] = 1;
-      policy['requestPolicy'] = policyBody;
-      final mismatch = JourneyApiRepository(
-        _StubApiClient([ApiResponse(statusCode: 200, jsonBody: policy)]),
-      );
-
-      await expectLater(
-        nonObject.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-      await expectLater(
-        malformed.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-      await expectLater(
-        mismatch.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-    },
-  );
-
-  test(
-    'unknown·missing·extra·non-object error body는 protocol failure다',
-    () async {
-      final missing = Map<String, Object?>.of(
-        _errorJson('ROUTE_SERVICE_UNAVAILABLE'),
-      )..remove('code');
-      final extra = Map<String, Object?>.of(
-        _errorJson('ROUTE_SERVICE_UNAVAILABLE'),
-      )..['unexpected'] = true;
-      final bodies = <Object?>[
-        null,
-        _errorJson('UNKNOWN_ERROR_CODE'),
-        missing,
-        extra,
-      ];
-
-      for (final body in bodies) {
-        final client = _StubApiClient([
-          ApiResponse(statusCode: 503, jsonBody: body),
-        ]);
-        final repository = JourneyApiRepository(client);
-        await expectLater(
-          repository.searchJourneys(_searchRequest, sessionToken: 'token'),
-          throwsA(isA<JourneyProtocolFailure>()),
-        );
-        expect(client.posts, hasLength(1));
-      }
-    },
-  );
-
-  test(
-    'invalid contract·timezone·realtime source·empty inventory는 protocol failure다',
-    () async {
-      final invalidBodies = <Map<String, Object?>>[
-        Map<String, Object?>.of(_successJson())
-          ..['contractVersion'] = 'UNKNOWN_CONTRACT',
-        Map<String, Object?>.of(_successJson())..['serviceTimezone'] = 'UTC',
-        Map<String, Object?>.of(_successJson())..['journeys'] = <Object?>[],
-      ];
-      final realtimeSource = Map<String, Object?>.of(_successJson());
-      realtimeSource['sourceIdentity'] = Map<String, Object?>.of(
-        realtimeSource['sourceIdentity']! as Map<String, Object?>,
-      )..['realtimeSnapshotId'] = 'realtime-1';
-      invalidBodies.add(realtimeSource);
-
-      for (final body in invalidBodies) {
-        final client = _StubApiClient([
-          ApiResponse(statusCode: 200, jsonBody: body),
-        ]);
-        final repository = JourneyApiRepository(client);
-        await expectLater(
-          repository.searchJourneys(_searchRequest, sessionToken: 'token'),
-          throwsA(isA<JourneyProtocolFailure>()),
-        );
-        expect(client.posts, hasLength(1));
-      }
-    },
-  );
-
-  test(
-    'blank token과 unsupported plan source는 protocol failure로 fail closed한다',
-    () async {
-      final blankTokenClient = _StubApiClient([
-        ApiResponse(statusCode: 200, jsonBody: _successJson()),
+    await expectLater(
+      mismatch.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    await expectLater(
+      duplicate.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    await expectLater(
+      invalidPair.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    await expectLater(
+      nonObject.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    await expectLater(
+      extraSuccessRepository.searchJourneys(
+        _searchRequest,
+        sessionToken: 'token',
+      ),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    await expectLater(
+      policyMismatch.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    for (final body in errorBodies) {
+      final client = _StubApiClient([
+        ApiResponse(statusCode: 503, jsonBody: body),
       ]);
-      final blankToken = JourneyApiRepository(blankTokenClient);
-      final unsupportedBody = Map<String, Object?>.of(_successJson());
-      final journeys = List<Object?>.of(
-        unsupportedBody['journeys']! as List<Object?>,
-      );
-      journeys[0] = Map<String, Object?>.of(
-        journeys[0]! as Map<String, Object?>,
-      )..['planSource'] = 'UNSUPPORTED';
-      unsupportedBody['journeys'] = journeys;
-      final unsupported = JourneyApiRepository(
-        _StubApiClient([
-          ApiResponse(statusCode: 200, jsonBody: unsupportedBody),
-        ]),
-      );
-
-      await expectLater(
-        blankToken.searchJourneys(_searchRequest, sessionToken: '   '),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-      expect(blankTokenClient.posts, isEmpty);
-      await expectLater(
-        unsupported.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyProtocolFailure>()),
-      );
-    },
-  );
-
-  test(
-    'ApiException transport failure는 재시도·session refresh 없이 typed transport failure다',
-    () async {
-      final client = _StubApiClient(
-        const [],
-        error: const ApiException('timeout', path: '/api/v3/journeys/search'),
-      );
       final repository = JourneyApiRepository(client);
-
       await expectLater(
         repository.searchJourneys(_searchRequest, sessionToken: 'token'),
-        throwsA(isA<JourneyTransportFailure>()),
+        throwsA(isA<JourneyProtocolFailure>()),
       );
       expect(client.posts, hasLength(1));
-    },
-  );
+    }
+    for (final body in invalidSuccessBodies) {
+      final client = _StubApiClient([
+        ApiResponse(statusCode: 200, jsonBody: body),
+      ]);
+      final repository = JourneyApiRepository(client);
+      await expectLater(
+        repository.searchJourneys(_searchRequest, sessionToken: 'token'),
+        throwsA(isA<JourneyProtocolFailure>()),
+      );
+      expect(client.posts, hasLength(1));
+    }
+    await expectLater(
+      unsupported.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+  });
+
+  test('transport는 한 번만 시도하고 retry·session refresh 없이 fail closed한다', () async {
+    final blankTokenClient = _StubApiClient([
+      ApiResponse(statusCode: 200, jsonBody: _successJson()),
+    ]);
+    final blankToken = JourneyApiRepository(blankTokenClient);
+    final client = _StubApiClient(
+      const [],
+      error: const ApiException('timeout', path: '/api/v3/journeys/search'),
+    );
+    final repository = JourneyApiRepository(client);
+
+    await expectLater(
+      repository.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    expect(client.posts, hasLength(1));
+    await expectLater(
+      blankToken.searchJourneys(_searchRequest, sessionToken: '   '),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    expect(blankTokenClient.posts, isEmpty);
+  });
 }
