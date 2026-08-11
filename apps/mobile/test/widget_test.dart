@@ -21,6 +21,7 @@ import 'package:easysubway_mobile/features/attribution/presentation/data_source_
 import 'package:easysubway_mobile/features/favorites/presentation/favorite_home_screen.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/support/presentation/inquiry_screen.dart';
 import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
 import 'package:easysubway_mobile/features/fare/official_od_fare_quote.dart';
