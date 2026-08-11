@@ -442,8 +442,11 @@ void main() {
     await expectLater(
       statusRepository.searchJourneys(_searchRequest, sessionToken: 'token'),
       throwsA(
-        isA<JourneyProtocolFailure>()
-            .having((value) => value.statusCode, 'status', 503),
+        isA<JourneyProtocolFailure>().having(
+          (value) => value.statusCode,
+          'status',
+          503,
+        ),
       ),
     );
     expect(statusClient.posts, hasLength(1));
