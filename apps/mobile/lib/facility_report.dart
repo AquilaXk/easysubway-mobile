@@ -12,6 +12,7 @@ import 'auth_headers.dart';
 import 'core/network/api_client.dart';
 import 'features/facility_report/application/facility_report_state.dart';
 import 'features/facility_report/data/facility_report_photo_upload_intent.dart';
+import 'features/facility_report/data/facility_report_result_projection.dart';
 import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'features/facility_report/domain/facility_report_exception.dart';
 import 'features/facility_report/domain/facility_report_location.dart';
@@ -138,7 +139,7 @@ class FacilityReportApiRepository implements FacilityReportRepository {
         throw const FacilityReportException(_facilityReportErrorMessage);
       }
 
-      final result = _reportResultFromJson(
+      final result = facilityReportResultFromJsonEnvelope(
         response.jsonBody,
         errorMessage: _facilityReportErrorMessage,
       );
@@ -296,7 +297,7 @@ class FacilityReportApiRepository implements FacilityReportRepository {
         throw const FacilityReportException(_facilityReportStatusErrorMessage);
       }
 
-      return _reportResultFromJson(
+      return facilityReportResultFromJsonEnvelope(
         response.jsonBody,
         errorMessage: _facilityReportStatusErrorMessage,
       );
@@ -326,10 +327,8 @@ class FacilityReportApiRepository implements FacilityReportRepository {
         receipts.map((receipt) async {
           try {
             final report = await getReport(receipt.reportId);
-            final reportWithReceiptCode = _reportWithReceiptCodeFallback(
-              report,
-              receipt,
-            );
+            final reportWithReceiptCode =
+                facilityReportResultWithReceiptCodeFallback(report, receipt);
             await _refreshReceiptIfPossible(receipt, reportWithReceiptCode);
             return reportWithReceiptCode;
           } catch (error, stackTrace) {
@@ -338,7 +337,7 @@ class FacilityReportApiRepository implements FacilityReportRepository {
               stackTrace,
               context: '시설 제보 receipt 기반 상태 조회 중 예외가 발생했습니다.',
             );
-            return _reportResultFromReceipt(receipt);
+            return facilityReportResultFromReceipt(receipt);
           }
         }),
       );
@@ -365,8 +364,8 @@ class FacilityReportApiRepository implements FacilityReportRepository {
               receiptId: receipt.receiptId,
               reportId: receipt.reportId,
               publicReceiptCode:
-                  _nonBlankReportString(report.publicReceiptCode) ??
-                  _nonBlankReportString(receipt.publicReceiptCode),
+                  nonBlankFacilityReportString(report.publicReceiptCode) ??
+                  nonBlankFacilityReportString(receipt.publicReceiptCode),
               status: report.status,
               receiptToken: receipt.receiptToken,
               createdAt: receipt.createdAt,
@@ -380,60 +379,6 @@ class FacilityReportApiRepository implements FacilityReportRepository {
         context: '시설 제보 receipt 상태 갱신 중 예외가 발생했습니다.',
       );
     }
-  }
-
-  FacilityReportResult _reportWithReceiptCodeFallback(
-    FacilityReportResult report,
-    FacilityReportReceipt receipt,
-  ) {
-    final publicReceiptCode =
-        _nonBlankReportString(report.publicReceiptCode) ??
-        _nonBlankReportString(receipt.publicReceiptCode);
-    if (publicReceiptCode == null ||
-        publicReceiptCode == report.publicReceiptCode) {
-      return report;
-    }
-    return FacilityReportResult(
-      id: report.id,
-      stationId: report.stationId,
-      facilityId: report.facilityId,
-      reportType: report.reportType,
-      description: report.description,
-      status: report.status,
-      createdAt: report.createdAt,
-      receiptToken: report.receiptToken,
-      publicReceiptCode: publicReceiptCode,
-    );
-  }
-
-  FacilityReportResult _reportResultFromJson(
-    Object? decoded, {
-    required String errorMessage,
-  }) {
-    if (decoded is! Map<String, Object?> || decoded['success'] != true) {
-      throw FacilityReportException(errorMessage);
-    }
-
-    final data = decoded['data'];
-    if (data is! Map<String, Object?>) {
-      throw FacilityReportException(errorMessage);
-    }
-
-    return FacilityReportResult.fromJson(data);
-  }
-
-  FacilityReportResult _reportResultFromReceipt(FacilityReportReceipt receipt) {
-    return FacilityReportResult(
-      id: receipt.reportId,
-      stationId: '',
-      facilityId: '',
-      reportType: '',
-      description: '',
-      status: receipt.status,
-      createdAt: receipt.createdAt.toIso8601String(),
-      receiptToken: receipt.receiptToken,
-      publicReceiptCode: receipt.publicReceiptCode,
-    );
   }
 }
 
@@ -1854,12 +1799,4 @@ String _friendlyFacilityReportLocationMessage(String message) {
     return _facilityReportLocationPermissionMessage;
   }
   return message.isEmpty ? '현재 위치를 확인하지 못했어요.' : message;
-}
-
-String? _nonBlankReportString(String? value) {
-  final trimmed = value?.trim();
-  if (trimmed == null || trimmed.isEmpty) {
-    return null;
-  }
-  return trimmed;
 }
