@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "generator": {
+    "id": "easysubway-mobile-journey-v3-client",
+    "version": "1.0.0",
+    "sourceSha256": "beafd0bd02e74d3b3ffd79d204f4e587de6cc1ac617ecd8c52c2a9dc692d9bf0",
+    "formatter": {
+      "command": "dart format",
+      "sdkVersion": "3.12.0"
+    }
+  },
+  "lockSha256": "05d9a798ab8be5205405b37ba3b0650e8b8edeab6dfdf2a814831b42f341c213",
+  "producer": {
+    "repository": "AquilaXk/easysubway-backend",
+    "gitSha": "d789995d0beeb421bedd627a924ae8f660fa97bc"
+  },
+  "artifact": {
+    "repository": "ghcr.io/aquilaxk/easysubway-backend-contracts",
+    "manifestDigest": "sha256:415cee82879c5af68fbca7f74e6437d9bc00f043378a555479a004a04297ca44",
+    "artifactType": "application/vnd.easysubway.journey.contract-bundle.v2"
+  },
+  "payload": {
+    "fileName": "journey-v3-contract-bundle-v2.json",
+    "mediaType": "application/vnd.easysubway.journey.contract-bundle.v2+json",
+    "sha256": "702c180011b9c2378f3e4199df30f6592512ec4892e7f078907d5e292225705c"
+  },
+  "publicationReceiptSha256": "e7a5338c2a84f00ca3a18e1688f8f2058bbc5efe3d23501bb7913c168f408998",
+  "resources": [
+    {
+      "id": "journey-v3-error-catalog",
+      "path": "contracts/api/journey-v3-error-catalog.json",
+      "owner": "AquilaXk/easysubway-backend",
+      "mediaType": "application/json",
+      "sha256": "5b93075c2e19801c8084e8ab08b5efb1ef8267822b3a71487742e7888e822772"
+    },
+    {
+      "id": "journey-v3-error-disposition",
+      "path": "contracts/api/journey-v3-error-disposition.json",
+      "owner": "AquilaXk/easysubway-backend",
+      "mediaType": "application/json",
+      "sha256": "1e03ee7262897e0887ef837c95a2802ff420ffeaf15c921e0dca8a9750280780"
+    },
+    {
+      "id": "journey-v3-openapi",
+      "path": "contracts/api/journey-v3.openapi.yaml",
+      "owner": "AquilaXk/easysubway-backend",
+      "mediaType": "application/yaml",
+      "sha256": "582bf1f2454c810249a61342bce6f3bc455c7842a2f56f8e55fbe365f9fec2ab"
+    }
+  ],
+  "supportedFeatures": [
+    "array",
+    "boolean",
+    "closed-object",
+    "enum",
+    "integer-bounds",
+    "json-post",
+    "local-ref",
+    "nullable",
+    "openapi-3.0.3",
+    "request-response-security",
+    "strict-yaml-subset",
+    "string-constraints",
+    "tagged-one-of"
+  ],
+  "files": [
+    {
+      "path": "journey_v3_contract.dart",
+      "sha256": "e232140bfd60ec2010d83f7e24694cf1efe00a8a5252acc812784afde31121d3"
+    },
+    {
+      "path": "journey_v3_enums.dart",
+      "sha256": "7e59c9ee5e59945f7487a0d7e060673f3b6e0cfb20138dfbf09eeef5589eaa5b"
+    },
+    {
+      "path": "journey_v3_error.dart",
+      "sha256": "977b35327e41dbb12df90145f86cf7db244e34a231d240d52a28ac6b386a6d38"
+    },
+    {
+      "path": "journey_v3_models.dart",
+      "sha256": "467588b04cf8c8995b091bf00f15ecd1d2d0297149e2bdacb19f1763a5a6dc73"
+    },
+    {
+      "path": "journey_v3_validation.dart",
+      "sha256": "30925ca5f68c044913f41dfbc4ae7fda6be7a3f609950d8bcfd712f174a890c2"
+    }
+  ],
+  "treeSha256": "b115a1d7de959d462f23df2920e2c2e084e1ccd42f0de46aff939e2dae1bf9e0"
+}

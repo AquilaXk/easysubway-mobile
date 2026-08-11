@@ -1,11 +1,18 @@
 import { createHash } from 'node:crypto';
-import { constants, closeSync, fstatSync, openSync, readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { constants, closeSync, fstatSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync, rmSync, rmdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const repositoryRoot = resolve(import.meta.dirname, '..', '..');
+const generatorSourcePath = fileURLToPath(import.meta.url);
 const trackedLock = join(repositoryRoot, 'contracts/mobile/journey-v3-client.lock.json');
 const resourcePaths = ['contracts/api/journey-v3-error-catalog.json', 'contracts/api/journey-v3-error-disposition.json', 'contracts/api/journey-v3.openapi.yaml'];
+const generatedDartPaths = ['journey_v3_contract.dart', 'journey_v3_enums.dart', 'journey_v3_error.dart', 'journey_v3_models.dart', 'journey_v3_validation.dart'];
+const generationReceiptName = 'journey_v3_generation_receipt.json';
+const formatterIdentity = Object.freeze({ command: 'dart format', sdkVersion: '3.12.0' });
+const supportedFeatures = ['array', 'boolean', 'closed-object', 'enum', 'integer-bounds', 'json-post', 'local-ref', 'nullable', 'openapi-3.0.3', 'request-response-security', 'strict-yaml-subset', 'string-constraints', 'tagged-one-of'];
 const expectedOperations = new Map([
   ['/api/v3/journeys/session', { id: 'issueJourneySession', responses: ['200', '400', '403', '503'], request: 'JourneySessionRequest', success: 'JourneySessionResponse' }],
   ['/api/v3/journeys/search', { id: 'searchJourneys', responses: ['200', '400', '404', '422', '503', '504', '401', '429'], request: 'JourneySearchRequest', success: 'JourneySearchSuccess' }],
@@ -27,6 +34,24 @@ function duplicateFreeJson(text, label) {
 
 function exactKeys(value, keys, label) { if (!isObject(value) || Object.keys(value).length !== keys.length || keys.some((key) => !(key in value))) fail(`${label} has unexpected or missing fields`); }
 function regular(path, label) { if (constants.O_NOFOLLOW === undefined) fail('O_NOFOLLOW is required'); let fd; try { fd = openSync(path, constants.O_RDONLY | constants.O_NOFOLLOW); if (!fstatSync(fd).isFile()) fail(`${label} must be regular`); return readFileSync(fd); } catch (error) { if (error.message.startsWith('generate-journey-v3-client:')) throw error; fail(`${label} must be a regular non-symlink file`); } finally { if (fd !== undefined) closeSync(fd); } }
+function snapshotGenerationInput({ contractRoot, lockPath }, enforceTrackedLock) {
+  if (enforceTrackedLock && resolve(lockPath) !== trackedLock) fail('lock must be the tracked journey-v3-client lock');
+  return Object.freeze({
+    generatorBytes: regular(generatorSourcePath, 'generator source'),
+    lockBytes: regular(lockPath, 'lock'),
+    stageReceiptBytes: regular(join(contractRoot, 'journey-v3-contract-stage-receipt.json'), 'stage receipt'),
+    resourceBytes: Object.freeze(Object.fromEntries(resourcePaths.map((path) => [path, regular(join(contractRoot, path), path)]))),
+  });
+}
+function assertSnapshotUnchanged({ contractRoot, lockPath }, snapshot) {
+  const entries = [
+    [generatorSourcePath, 'generator source', snapshot.generatorBytes],
+    [lockPath, 'lock', snapshot.lockBytes],
+    [join(contractRoot, 'journey-v3-contract-stage-receipt.json'), 'stage receipt', snapshot.stageReceiptBytes],
+    ...resourcePaths.map((path) => [join(contractRoot, path), path, snapshot.resourceBytes[path]]),
+  ];
+  for (const [path, label, expected] of entries) if (!regular(path, label).equals(expected)) fail(`${label} changed during generation`);
+}
 function ref(value, label) { if (typeof value !== 'string' || !/^#\/components\/schemas\/[A-Z][A-Za-z0-9]+$/.test(value)) fail(`${label} must be a local component reference`); return value.slice('#/components/schemas/'.length); }
 
 function parseScalar(raw, label) {
@@ -71,10 +96,11 @@ function validateLock(lock) {
   if (!Array.isArray(lock.resources) || lock.resources.length !== 3) fail('lock must have exactly three resources'); lock.resources.forEach((resource, index) => { exactKeys(resource, ['id', 'path', 'owner', 'mediaType', 'sha256'], `lock resource ${index}`); if (resource.path !== resourcePaths[index] || !/^[a-f0-9]{64}$/.test(resource.sha256)) fail('lock resource path or SHA-256 is invalid'); });
 }
 
-function validateStage(lock, lockBytes, root) {
-  const receipt = duplicateFreeJson(regular(join(root, 'journey-v3-contract-stage-receipt.json'), 'stage receipt').toString('utf8'), 'stage receipt'); exactKeys(receipt, ['schemaVersion', 'lockSha256', 'payloadSha256', 'publicationReceiptSha256', 'artifact', 'resources'], 'stage receipt');
+function validateStage(lock, lockBytes, root, snapshot) {
+  const receiptBytes = snapshot?.stageReceiptBytes ?? regular(join(root, 'journey-v3-contract-stage-receipt.json'), 'stage receipt');
+  const receipt = duplicateFreeJson(receiptBytes.toString('utf8'), 'stage receipt'); exactKeys(receipt, ['schemaVersion', 'lockSha256', 'payloadSha256', 'publicationReceiptSha256', 'artifact', 'resources'], 'stage receipt');
   if (receipt.schemaVersion !== 1 || receipt.lockSha256 !== sha256(lockBytes) || receipt.payloadSha256 !== lock.payload.sha256 || receipt.publicationReceiptSha256 !== lock.publicationReceiptSha256 || JSON.stringify(receipt.artifact) !== JSON.stringify(lock.artifact) || !isObject(receipt.resources) || JSON.stringify(Object.keys(receipt.resources)) !== JSON.stringify(resourcePaths)) fail('stage receipt does not bind the raw lock identity');
-  for (const resource of lock.resources) { const bytes = regular(join(root, resource.path), resource.path); if (sha256(bytes) !== resource.sha256 || receipt.resources[resource.path] !== resource.sha256) fail(`${resource.path} SHA-256 does not match staged lock`); }
+  for (const resource of lock.resources) { const bytes = snapshot?.resourceBytes[resource.path] ?? regular(join(root, resource.path), resource.path); if (sha256(bytes) !== resource.sha256 || receipt.resources[resource.path] !== resource.sha256) fail(`${resource.path} SHA-256 does not match staged lock`); }
 }
 
 function assertAllowed(value, keys, label) { if (!isObject(value) || Object.keys(value).some((key) => !keys.includes(key))) fail(`${label} has unsupported schema construct`); }
@@ -107,9 +133,9 @@ function validateErrors(catalog, disposition) {
   exactKeys(disposition, ['schemaVersion', 'artifactKind', 'sourceCatalog', 'entries'], 'error disposition'); exactKeys(disposition.sourceCatalog, ['path', 'schemaVersion', 'sha256'], 'error disposition sourceCatalog'); if (disposition.schemaVersion !== 'JOURNEY_ERROR_DISPOSITION_V1' || disposition.artifactKind !== 'journey-v3-error-disposition' || disposition.sourceCatalog.path !== 'journey-v3-error-catalog.json' || disposition.sourceCatalog.schemaVersion !== 'JOURNEY_ERROR_CATALOG_V1' || !Array.isArray(disposition.entries) || disposition.entries.length !== 17) fail('error disposition is unsupported'); const seen = new Set(); const bindings = []; for (const entry of disposition.entries) { const keys = ['operation', 'httpStatus', 'machineCode', 'semanticCategory', 'exposure', 'userVisible', 'publicMessageKey', 'canonicalKoreanCopy', 'mobileResourceKey', 'mobilePresentation', 'retryDisposition', 'primaryActionKey', 'secondaryActionKey', 'safeDiagnosticKey', 'sensitiveDetailPolicy']; exactKeys(entry, keys, 'error disposition entry'); const key = `${entry.operation}\0${entry.httpStatus}\0${entry.machineCode}`; if (!tuples.has(key) || seen.has(key) || entry.exposure !== 'MOBILE_USER_VISIBLE' || entry.userVisible !== true || entry.mobilePresentation !== 'FAILURE_SCREEN' || entry.retryDisposition !== 'FORBIDDEN' || entry.secondaryActionKey !== null || entry.sensitiveDetailPolicy !== 'NEVER_PUBLIC' || typeof entry.semanticCategory !== 'string' || typeof entry.publicMessageKey !== 'string' || typeof entry.canonicalKoreanCopy !== 'string' || typeof entry.mobileResourceKey !== 'string' || typeof entry.safeDiagnosticKey !== 'string' || !(entry.primaryActionKey === null || typeof entry.primaryActionKey === 'string')) fail('error disposition does not have the fixed mobile policy'); seen.add(key); bindings.push(Object.freeze({ ...entry, code: entry.machineCode })); } if (seen.size !== tuples.size) fail('error catalog and disposition are not one-to-one'); return Object.freeze(bindings); }
 function expectedOperationsHas(operation) { return [...expectedOperations.values()].some(({ id }) => id === operation); }
 
-function validate({ contractRoot, lockPath, enforceTrackedLock }) {
-  if (enforceTrackedLock && resolve(lockPath) !== trackedLock) fail('lock must be the tracked journey-v3-client lock'); const lockBytes = regular(lockPath, 'lock'); const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock); validateStage(lock, lockBytes, contractRoot);
-  const catalogBytes = regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const yaml = regular(join(contractRoot, resourcePaths[2]), 'OpenAPI').toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(document.components.schemas); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; if (!Array.isArray(errorCodes) || errorCodes.length !== 17 || new Set(errorCodes).size !== 17 || errorCodes.some((code) => !errors.some((entry) => entry.code === code))) fail('JourneyErrorCode must exactly bind the 17-entry catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors });
+function validate({ contractRoot, lockPath, enforceTrackedLock, snapshot }) {
+  if (enforceTrackedLock && resolve(lockPath) !== trackedLock) fail('lock must be the tracked journey-v3-client lock'); const lockBytes = snapshot?.lockBytes ?? regular(lockPath, 'lock'); const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock); validateStage(lock, lockBytes, contractRoot, snapshot);
+  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const yaml = (snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(document.components.schemas); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; if (!Array.isArray(errorCodes) || errorCodes.length !== 17 || new Set(errorCodes).size !== 17 || errorCodes.some((code) => !errors.some((entry) => entry.code === code))) fail('JourneyErrorCode must exactly bind the 17-entry catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors });
 }
 
 const dartCase = (token) => token.split(/[^A-Za-z0-9]+/).filter(Boolean).map((part, index) => { const normalized = part === part.toUpperCase() ? part.toLowerCase() : `${part[0].toLowerCase()}${part.slice(1)}`; return index === 0 ? normalized : `${normalized[0].toUpperCase()}${normalized.slice(1)}`; }).join('');
@@ -298,16 +324,22 @@ function renderClosedErrors(ir) {
 export function renderJourneyV3ErrorsAndBarrelForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); const lock = duplicateFreeJson(regular(options.lockPath, 'lock').toString('utf8'), 'lock'); return Object.freeze({ error: renderClosedErrors(ir), contract: renderDartContract(lock) }); }
 export function renderJourneyV3DartLiteralSeamForTest({ enumToken, lock }) { return Object.freeze({ enums: renderDartEnums({ schemas: { SpecialWire: { type: 'string', enum: [enumToken] } }, errorDispositions: [{ semanticCategory: 'TEST', primaryActionKey: 'test.action' }] }), contract: renderDartContract(lock) }); }
 
-function renderFiles(options, enforceTrackedLock) {
-  const ir = validate({ ...options, enforceTrackedLock });
-  const lock = duplicateFreeJson(regular(options.lockPath, 'lock').toString('utf8'), 'lock');
-  const generatedHeader = (source) => source.replace(/^\/\/ Test-only [^\n]+\n/, '// Generated from the locked Journey V3 contract.\n');
+function renderFiles(options, enforceTrackedLock, snapshot) {
+  const ir = validate({ ...options, enforceTrackedLock, snapshot });
+  const lockBytes = snapshot?.lockBytes ?? regular(options.lockPath, 'lock');
+  const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock');
+  const generatedHeader = (source) => {
+    const generated = source.replace(/^\/\/ Test-only [^\n]+\n/, '// Generated from the locked Journey V3 contract.\n');
+    const firstLineEnd = generated.indexOf('\n');
+    if (!generated.startsWith('// Generated ') || firstLineEnd < 0) fail('generated Dart header is not canonical');
+    return `${generated.slice(0, firstLineEnd + 1)}// dart format width=200\n${generated.slice(firstLineEnd + 1)}`;
+  };
   return Object.freeze({
     'journey_v3_contract.dart': generatedHeader(renderDartContract(lock)),
-    'journey_v3_enums.dart': renderDartEnums(ir),
+    'journey_v3_enums.dart': generatedHeader(renderDartEnums(ir)),
     'journey_v3_error.dart': generatedHeader(renderClosedErrors(ir)),
-    'journey_v3_models.dart': renderStrictModels(),
-    'journey_v3_validation.dart': renderStrictValidation(),
+    'journey_v3_models.dart': generatedHeader(renderStrictModels()),
+    'journey_v3_validation.dart': generatedHeader(renderStrictValidation()),
   });
 }
 
@@ -315,6 +347,105 @@ export function renderJourneyV3FilesForTest(options) {
   return renderFiles(options, false);
 }
 
+function formatRenderedDart(rendered, dartExecutable = 'dart') {
+  const version = spawnSync(dartExecutable, ['--version'], { encoding: 'utf8', timeout: 10_000 });
+  const versionText = `${version.stdout ?? ''}${version.stderr ?? ''}`.trim();
+  if (version.error || version.status !== 0 || !versionText.startsWith(`Dart SDK version: ${formatterIdentity.sdkVersion} `)) fail(`Dart formatter is required at exact SDK ${formatterIdentity.sdkVersion}`);
+  const formatRoot = mkdtempSync(join(tmpdir(), 'journey-v3-dart-format-'));
+  try {
+    const paths = generatedDartPaths.map((path) => join(formatRoot, path));
+    for (let index = 0; index < paths.length; index += 1) writeFileSync(paths[index], rendered[generatedDartPaths[index]], { flag: 'wx', mode: 0o600 });
+    const result = spawnSync(dartExecutable, ['format', ...paths], { encoding: 'utf8', timeout: 10_000 });
+    if (result.error || result.status !== 0) fail('Dart formatter failed');
+    return Object.freeze(Object.fromEntries(generatedDartPaths.map((path, index) => [path, regular(paths[index], `formatted ${path}`)])));
+  } finally {
+    rmSync(formatRoot, { recursive: true, force: true });
+  }
+}
+
+function buildGeneration(options, enforceTrackedLock) {
+  const snapshot = snapshotGenerationInput(options, enforceTrackedLock);
+  const lock = duplicateFreeJson(snapshot.lockBytes.toString('utf8'), 'lock');
+  const rendered = renderFiles(options, enforceTrackedLock, snapshot);
+  const formatted = formatRenderedDart(rendered, options.dartExecutable);
+  const files = generatedDartPaths.map((path) => Object.freeze({ path, sha256: sha256(formatted[path]) }));
+  const treeSha256 = sha256(Buffer.from(files.map(({ path, sha256: digest }) => `${path}\0${digest}\n`).join(''), 'utf8'));
+  const receipt = Object.freeze({
+    schemaVersion: 1,
+    generator: Object.freeze({ id: 'easysubway-mobile-journey-v3-client', version: '1.0.0', sourceSha256: sha256(snapshot.generatorBytes), formatter: formatterIdentity }),
+    lockSha256: sha256(snapshot.lockBytes),
+    producer: lock.producer,
+    artifact: lock.artifact,
+    payload: lock.payload,
+    publicationReceiptSha256: lock.publicationReceiptSha256,
+    resources: lock.resources,
+    supportedFeatures,
+    files,
+    treeSha256,
+  });
+  const receiptBytes = Buffer.from(`${JSON.stringify(receipt, null, 2)}\n`, 'utf8');
+  assertSnapshotUnchanged(options, snapshot);
+  return Object.freeze({
+    files: Object.freeze(Object.fromEntries([
+      ...generatedDartPaths.map((path) => [path, formatted[path]]),
+      [generationReceiptName, receiptBytes],
+    ])),
+    receipt,
+    snapshot,
+  });
+}
+
+export function buildJourneyV3GenerationForDrift(options) {
+  const generation = buildGeneration(options, true);
+  assertSnapshotUnchanged(options, generation.snapshot);
+  return Object.freeze({ files: generation.files, receipt: generation.receipt });
+}
+
+function assertOutputParent(outputRoot) {
+  const parent = dirname(outputRoot);
+  let stat;
+  try { stat = lstatSync(parent); } catch { fail('output parent must be an existing directory'); }
+  if (!stat.isDirectory() || stat.isSymbolicLink()) fail('output parent must be a real non-symlink directory');
+}
+
+function createExclusive(path, bytes, createdPaths) {
+  let fd;
+  try {
+    fd = openSync(path, constants.O_CREAT | constants.O_EXCL | constants.O_WRONLY | constants.O_NOFOLLOW, 0o600);
+    createdPaths.push(path);
+    writeFileSync(fd, bytes);
+  } catch (error) {
+    if (error.message.startsWith('generate-journey-v3-client:')) throw error;
+    fail(`cannot create ${path}`);
+  } finally {
+    if (fd !== undefined) closeSync(fd);
+  }
+}
+
+function publishGeneration(options, generation) {
+  const outputRoot = resolve(options.outputRoot);
+  const receiptPath = resolve(options.receiptPath);
+  if (receiptPath !== join(outputRoot, generationReceiptName)) fail('receipt must be the exact output-root generation receipt');
+  assertOutputParent(outputRoot);
+  try { mkdirSync(outputRoot, { mode: 0o700 }); } catch { fail('output root must be absent'); }
+  const createdPaths = [];
+  try {
+    for (const path of generatedDartPaths) createExclusive(join(outputRoot, path), generation.files[path], createdPaths);
+    if (options.beforeReceiptForTest !== undefined) options.beforeReceiptForTest();
+    assertSnapshotUnchanged(options, generation.snapshot);
+    createExclusive(receiptPath, generation.files[generationReceiptName], createdPaths);
+  } catch (error) {
+    for (const path of createdPaths.reverse()) { try { unlinkSync(path); } catch {} }
+    try { rmdirSync(outputRoot); } catch {}
+    throw error;
+  }
+  return Object.freeze({ outputRoot, receiptPath, receipt: generation.receipt });
+}
+
+export function generateJourneyV3ClientForTest(options) {
+  return publishGeneration(options, buildGeneration(options, false));
+}
+
 function parseArguments(argv) { if (argv.length !== 8 || argv[0] !== '--contract-root' || argv[2] !== '--lock' || argv[4] !== '--output-root' || argv[6] !== '--receipt') fail('usage is --contract-root <root> --lock <lock> --output-root <absent> --receipt <output>/journey_v3_generation_receipt.json'); return { contractRoot: argv[1], lockPath: argv[3], outputRoot: argv[5], receiptPath: argv[7] }; }
 export function validateJourneyV3ClientInputForTest(options) { return validate({ ...options, enforceTrackedLock: false }); }
-if (process.argv[1] === fileURLToPath(import.meta.url)) try { const options = parseArguments(process.argv.slice(2)); validate({ ...options, enforceTrackedLock: true }); fail('renderer B is not implemented; no generated output is accepted'); } catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }
+if (process.argv[1] === generatorSourcePath) try { const options = parseArguments(process.argv.slice(2)); publishGeneration(options, buildGeneration(options, true)); } catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }

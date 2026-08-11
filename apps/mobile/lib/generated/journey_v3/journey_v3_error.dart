@@ -1,0 +1,370 @@
+// Generated from the locked Journey V3 contract.
+// dart format width=200
+import 'journey_v3_enums.dart';
+import 'journey_v3_validation.dart';
+
+class JourneyV3Error {
+  final JourneyErrorContractVersion contractVersion;
+  final String requestId;
+  final JourneyErrorCode code;
+  final bool retryable;
+  final DateTime occurredAt;
+  const JourneyV3Error({required this.contractVersion, required this.requestId, required this.code, required this.retryable, required this.occurredAt});
+  factory JourneyV3Error.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'contractVersion', 'requestId', 'code', 'retryable', 'occurredAt'});
+    return JourneyV3Error(
+      contractVersion: JourneyErrorContractVersionWire.fromWire(json['contractVersion']),
+      requestId: JourneyV3Validation.ulid(json['requestId'], 'requestId'),
+      code: JourneyErrorCodeWire.fromWire(json['code']),
+      retryable: JourneyV3Validation.boolean(json['retryable'], 'retryable'),
+      occurredAt: JourneyV3Validation.rfc3339(json['occurredAt'], 'occurredAt'),
+    );
+  }
+  static JourneyV3Error fromResponse(JourneyOperation operation, int httpStatus, Map<String, Object?> json) {
+    final error = JourneyV3Error.fromJson(json);
+    JourneyErrorDispositions.lookup(operation, httpStatus, error.code);
+    return error;
+  }
+
+  Map<String, Object?> toJson() => {
+    'contractVersion': contractVersion.wire,
+    'requestId': requestId,
+    'code': code.wire,
+    'retryable': retryable,
+    'occurredAt': JourneyV3Validation.rfc3339Wire(occurredAt),
+  };
+}
+
+class JourneyErrorDisposition {
+  final String operation;
+  final int httpStatus;
+  final JourneyErrorCode code;
+  final JourneyErrorSemanticCategory semanticCategory;
+  final String exposure;
+  final bool userVisible;
+  final String publicMessageKey;
+  final String canonicalKoreanCopy;
+  final String mobileResourceKey;
+  final String mobilePresentation;
+  final String retryDisposition;
+  final JourneyErrorActionKey? primaryActionKey;
+  final String? secondaryActionKey;
+  final String safeDiagnosticKey;
+  final String sensitiveDetailPolicy;
+  const JourneyErrorDisposition({
+    required this.operation,
+    required this.httpStatus,
+    required this.code,
+    required this.semanticCategory,
+    required this.exposure,
+    required this.userVisible,
+    required this.publicMessageKey,
+    required this.canonicalKoreanCopy,
+    required this.mobileResourceKey,
+    required this.mobilePresentation,
+    required this.retryDisposition,
+    required this.primaryActionKey,
+    required this.secondaryActionKey,
+    required this.safeDiagnosticKey,
+    required this.sensitiveDetailPolicy,
+  });
+}
+
+abstract final class JourneyErrorDispositions {
+  static const Map<String, JourneyErrorDisposition> _byContext = {
+    'searchJourneys|400|INVALID_JOURNEY_REQUEST': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 400,
+      code: JourneyErrorCode.invalidJourneyRequest,
+      semanticCategory: JourneyErrorSemanticCategory.requestCorrection,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.invalid_journey_request",
+      canonicalKoreanCopy: "출발역·도착역과 이동 조건을 확인해 주세요.",
+      mobileResourceKey: "journeyErrorInvalidJourneyRequest",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionEditRequest,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.invalid_journey_request",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|404|STATION_NOT_FOUND': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 404,
+      code: JourneyErrorCode.stationNotFound,
+      semanticCategory: JourneyErrorSemanticCategory.requestCorrection,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.station_not_found",
+      canonicalKoreanCopy: "선택한 역 정보를 찾을 수 없어요.",
+      mobileResourceKey: "journeyErrorStationNotFound",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionReselectStation,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.station_not_found",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|422|ROUTE_NOT_FOUND': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 422,
+      code: JourneyErrorCode.routeNotFound,
+      semanticCategory: JourneyErrorSemanticCategory.routeAbsent,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.route_not_found",
+      canonicalKoreanCopy: "현재 조건에 맞는 경로가 없어요.",
+      mobileResourceKey: "journeyErrorRouteNotFound",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionEditRequest,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.route_not_found",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|422|ACCESSIBILITY_CONSTRAINT_UNSATISFIED': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 422,
+      code: JourneyErrorCode.accessibilityConstraintUnsatisfied,
+      semanticCategory: JourneyErrorSemanticCategory.accessibilityUnsatisfied,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.accessibility_constraint_unsatisfied",
+      canonicalKoreanCopy: "요청한 접근성 조건을 만족하는 검증된 경로가 없어요.",
+      mobileResourceKey: "journeyErrorAccessibilityConstraintUnsatisfied",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionEditAccessibility,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.accessibility_constraint_unsatisfied",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|503|ROUTING_BUNDLE_UNAVAILABLE': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 503,
+      code: JourneyErrorCode.routingBundleUnavailable,
+      semanticCategory: JourneyErrorSemanticCategory.routingDataUnavailable,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.routing_bundle_unavailable",
+      canonicalKoreanCopy: "경로 데이터를 준비하지 못했어요.",
+      mobileResourceKey: "journeyErrorRoutingBundleUnavailable",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.routing_bundle_unavailable",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|503|ROUTING_BUNDLE_STALE': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 503,
+      code: JourneyErrorCode.routingBundleStale,
+      semanticCategory: JourneyErrorSemanticCategory.routingDataStale,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.routing_bundle_stale",
+      canonicalKoreanCopy: "최신 경로 데이터를 확인할 수 없어요.",
+      mobileResourceKey: "journeyErrorRoutingBundleStale",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.routing_bundle_stale",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|503|TIMETABLE_UNAVAILABLE': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 503,
+      code: JourneyErrorCode.timetableUnavailable,
+      semanticCategory: JourneyErrorSemanticCategory.routingDataUnavailable,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.timetable_unavailable",
+      canonicalKoreanCopy: "시간표를 확인할 수 없어요.",
+      mobileResourceKey: "journeyErrorTimetableUnavailable",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.timetable_unavailable",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|503|TIMETABLE_STALE': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 503,
+      code: JourneyErrorCode.timetableStale,
+      semanticCategory: JourneyErrorSemanticCategory.routingDataStale,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.timetable_stale",
+      canonicalKoreanCopy: "최신 시간표를 확인할 수 없어요.",
+      mobileResourceKey: "journeyErrorTimetableStale",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.timetable_stale",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|503|REALTIME_REQUIRED_UNAVAILABLE': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 503,
+      code: JourneyErrorCode.realtimeRequiredUnavailable,
+      semanticCategory: JourneyErrorSemanticCategory.routingDataUnavailable,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.realtime_required_unavailable",
+      canonicalKoreanCopy: "필요한 실시간 정보를 확인할 수 없어요.",
+      mobileResourceKey: "journeyErrorRealtimeRequiredUnavailable",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.realtime_required_unavailable",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|503|ROUTING_IDENTITY_MISMATCH': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 503,
+      code: JourneyErrorCode.routingIdentityMismatch,
+      semanticCategory: JourneyErrorSemanticCategory.routingIdentityFailure,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.routing_identity_mismatch",
+      canonicalKoreanCopy: "경로 데이터 확인 중 문제가 발생했어요.",
+      mobileResourceKey: "journeyErrorRoutingIdentityMismatch",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.routing_identity_mismatch",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|503|ROUTE_SERVICE_UNAVAILABLE': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 503,
+      code: JourneyErrorCode.routeServiceUnavailable,
+      semanticCategory: JourneyErrorSemanticCategory.serviceUnavailable,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.route_service_unavailable",
+      canonicalKoreanCopy: "경로를 불러오지 못했어요. 잠시 후 다시 검색해 주세요.",
+      mobileResourceKey: "journeyErrorRouteServiceUnavailable",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.route_service_unavailable",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|504|JOURNEY_SEARCH_TIMEOUT': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 504,
+      code: JourneyErrorCode.journeySearchTimeout,
+      semanticCategory: JourneyErrorSemanticCategory.searchTimeout,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.journey_search_timeout",
+      canonicalKoreanCopy: "경로 검색 시간이 초과되었어요. 다시 검색해 주세요.",
+      mobileResourceKey: "journeyErrorJourneySearchTimeout",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.journey_search_timeout",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|401|ROUTE_SESSION_REQUIRED': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 401,
+      code: JourneyErrorCode.routeSessionRequired,
+      semanticCategory: JourneyErrorSemanticCategory.sessionAuthentication,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.route_session_required",
+      canonicalKoreanCopy: "경로 검색 인증이 만료되었어요.",
+      mobileResourceKey: "journeyErrorRouteSessionRequired",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionReauthenticate,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.route_session_required",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'searchJourneys|429|ROUTE_RATE_LIMITED': JourneyErrorDisposition(
+      operation: 'searchJourneys',
+      httpStatus: 429,
+      code: JourneyErrorCode.routeRateLimited,
+      semanticCategory: JourneyErrorSemanticCategory.rateLimit,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.route_rate_limited",
+      canonicalKoreanCopy: "요청이 많아요. 잠시 후 다시 검색해 주세요.",
+      mobileResourceKey: "journeyErrorRouteRateLimited",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: null,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.route_rate_limited",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'issueJourneySession|400|INVALID_JOURNEY_SESSION_REQUEST': JourneyErrorDisposition(
+      operation: 'issueJourneySession',
+      httpStatus: 400,
+      code: JourneyErrorCode.invalidJourneySessionRequest,
+      semanticCategory: JourneyErrorSemanticCategory.sessionAuthentication,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.invalid_journey_session_request",
+      canonicalKoreanCopy: "경로 검색 인증 요청을 확인할 수 없어요.",
+      mobileResourceKey: "journeyErrorInvalidJourneySessionRequest",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionReauthenticate,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.invalid_journey_session_request",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'issueJourneySession|403|ROUTE_SESSION_ATTESTATION_REJECTED': JourneyErrorDisposition(
+      operation: 'issueJourneySession',
+      httpStatus: 403,
+      code: JourneyErrorCode.routeSessionAttestationRejected,
+      semanticCategory: JourneyErrorSemanticCategory.sessionAuthentication,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.route_session_attestation_rejected",
+      canonicalKoreanCopy: "기기 인증을 확인하지 못했어요.",
+      mobileResourceKey: "journeyErrorRouteSessionAttestationRejected",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionReauthenticate,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.route_session_attestation_rejected",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+    'issueJourneySession|503|ROUTE_SESSION_ATTESTATION_UNAVAILABLE': JourneyErrorDisposition(
+      operation: 'issueJourneySession',
+      httpStatus: 503,
+      code: JourneyErrorCode.routeSessionAttestationUnavailable,
+      semanticCategory: JourneyErrorSemanticCategory.serviceUnavailable,
+      exposure: "MOBILE_USER_VISIBLE",
+      userVisible: true,
+      publicMessageKey: "journey.error.route_session_attestation_unavailable",
+      canonicalKoreanCopy: "기기 인증 서비스를 지금 사용할 수 없어요.",
+      mobileResourceKey: "journeyErrorRouteSessionAttestationUnavailable",
+      mobilePresentation: "FAILURE_SCREEN",
+      retryDisposition: "FORBIDDEN",
+      primaryActionKey: JourneyErrorActionKey.journeyActionNewSearch,
+      secondaryActionKey: null,
+      safeDiagnosticKey: "journey.diagnostic.route_session_attestation_unavailable",
+      sensitiveDetailPolicy: "NEVER_PUBLIC",
+    ),
+  };
+  static JourneyErrorDisposition lookup(JourneyOperation operation, int httpStatus, JourneyErrorCode code) {
+    final value = _byContext['${operation.wire}|$httpStatus|${code.wire}'];
+    if (value == null) throw const FormatException('unknown Journey error context');
+    return value;
+  }
+}
