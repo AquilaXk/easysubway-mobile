@@ -260,6 +260,13 @@ void main() {
   );
 
   test('malformed response matrix는 protocol failure로 fail closed한다', () async {
+    final malformedSession = Map<String, Object?>.of(_sessionJson())
+      ..['unexpected'] = true;
+    final malformedSessionRepository = JourneyApiRepository(
+      _StubApiClient([
+        ApiResponse(statusCode: 200, jsonBody: malformedSession),
+      ]),
+    );
     final mismatch = JourneyApiRepository(
       _StubApiClient([
         ApiResponse(
@@ -340,6 +347,18 @@ void main() {
       throwsA(isA<JourneyProtocolFailure>()),
     );
     await expectLater(
+      malformedSessionRepository.issueSession(_sessionRequest),
+      throwsA(
+        isA<JourneyProtocolFailure>()
+            .having(
+              (value) => value.operation,
+              'operation',
+              JourneyOperation.issueJourneySession,
+            )
+            .having((value) => value.statusCode, 'status', 200),
+      ),
+    );
+    await expectLater(
       duplicate.searchJourneys(_searchRequest, sessionToken: 'token'),
       throwsA(isA<JourneyProtocolFailure>()),
     );
@@ -400,12 +419,42 @@ void main() {
       error: const ApiException('timeout', path: '/api/v3/journeys/search'),
     );
     final repository = JourneyApiRepository(client);
+    final statusClient = _StubApiClient(
+      const [],
+      error: const ApiException(
+        'upstream rejected',
+        statusCode: 503,
+        path: '/api/v3/journeys/search',
+      ),
+    );
+    final statusRepository = JourneyApiRepository(statusClient);
+    final unexpectedClient = _StubApiClient(
+      const [],
+      error: StateError('unexpected transport failure'),
+    );
+    final unexpectedRepository = JourneyApiRepository(unexpectedClient);
 
     await expectLater(
       repository.searchJourneys(_searchRequest, sessionToken: 'token'),
       throwsA(isA<JourneyTransportFailure>()),
     );
     expect(client.posts, hasLength(1));
+    await expectLater(
+      statusRepository.searchJourneys(_searchRequest, sessionToken: 'token'),
+      throwsA(
+        isA<JourneyProtocolFailure>()
+            .having((value) => value.statusCode, 'status', 503),
+      ),
+    );
+    expect(statusClient.posts, hasLength(1));
+    await expectLater(
+      unexpectedRepository.searchJourneys(
+        _searchRequest,
+        sessionToken: 'token',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    expect(unexpectedClient.posts, hasLength(1));
     await expectLater(
       blankToken.searchJourneys(_searchRequest, sessionToken: '   '),
       throwsA(isA<JourneyProtocolFailure>()),
