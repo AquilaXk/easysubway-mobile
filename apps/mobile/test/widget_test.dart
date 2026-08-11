@@ -19414,14 +19414,14 @@ void main() {
   });
 
   testWidgets('시설 신고 화면 기본 선택기는 카메라와 앨범 경로를 구분한다', (tester) async {
-    final tempDir = await Directory.systemTemp.createTemp(
-      'facility-report-device-picker-',
-    );
-    addTearDown(() => tempDir.delete(recursive: true));
-    final photoFile = File('${tempDir.path}/picker-photo.webp');
-    await photoFile.writeAsBytes([1, 2, 3, 4]);
     final imagePicker = FakeFacilityReportImagePicker(
-      galleryFile: XFile(photoFile.path),
+      galleryFile: XFile.fromData(
+        Uint8List.fromList([1, 2, 3, 4]),
+        name: 'picker-photo.webp',
+      ),
+    );
+    final devicePhotoPicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: imagePicker,
     );
 
     await tester.pumpWidget(
@@ -19436,13 +19436,12 @@ void main() {
             facilityTypeLabel: '엘리베이터',
             facilityStatusLabel: '정상',
           ),
-          devicePhotoPicker: ImagePickerFacilityReportPhotoPicker(
-            imagePicker: imagePicker,
-          ),
+          deviceCameraPhotoPicker: devicePhotoPicker.takePhoto,
+          deviceGalleryPhotoPicker: devicePhotoPicker.pickFromGallery,
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
     final addPhotoButton = find.byKey(
       const Key('facilityReportAddPhotoButton'),
     );
@@ -19453,19 +19452,21 @@ void main() {
     );
 
     await tester.tap(addPhotoButton);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     await _continuePhotoUse(tester, settle: false);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('사진 찍기'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
     expect(find.text('사진 1장 추가됨'), findsNothing);
 
     await tester.tap(addPhotoButton);
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
     await _continuePhotoUse(tester, settle: false);
     await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('앨범에서 선택'));
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.pump();
 
     expect(imagePicker.pickedSources, [
       ImageSource.camera,

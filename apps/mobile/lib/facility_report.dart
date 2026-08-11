@@ -1263,7 +1263,8 @@ class FacilityReportScreen extends StatefulWidget {
     this.needsLocationPermissionRequest,
     this.openLocationSettings,
     this.photoPicker,
-    this.devicePhotoPicker,
+    this.deviceCameraPhotoPicker,
+    this.deviceGalleryPhotoPicker,
     this.lostPhotoRestorer,
     this.draftTargetStore,
     this.initialPhotoAttachment,
@@ -1277,7 +1278,8 @@ class FacilityReportScreen extends StatefulWidget {
   needsLocationPermissionRequest;
   final FacilityReportLocationSettingsOpener? openLocationSettings;
   final FacilityReportPhotoPicker? photoPicker;
-  final ImagePickerFacilityReportPhotoPicker? devicePhotoPicker;
+  final FacilityReportPhotoPicker? deviceCameraPhotoPicker;
+  final FacilityReportPhotoPicker? deviceGalleryPhotoPicker;
   final FacilityReportLostPhotoRestorer? lostPhotoRestorer;
   final FacilityReportDraftTargetStore? draftTargetStore;
   final FacilityReportPhotoAttachment? initialPhotoAttachment;
@@ -1858,8 +1860,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
     _selectedType = _reportTypeOptions.first;
     _controller = FacilityReportController(repository: widget.repository)
       ..addListener(_onReportStateChanged);
-    _defaultPhotoPicker =
-        widget.devicePhotoPicker ?? ImagePickerFacilityReportPhotoPicker();
+    _defaultPhotoPicker = ImagePickerFacilityReportPhotoPicker();
     _photoAttachment = widget.initialPhotoAttachment;
     if (_photoAttachment != null) {
       _photoMessage = '사진 1장 추가됨';
@@ -2441,6 +2442,10 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
   }
 
   Future<FacilityReportPhotoAttachment?> _pickPhotoWithDevicePicker() async {
+    final takePhoto =
+        widget.deviceCameraPhotoPicker ?? _defaultPhotoPicker.takePhoto;
+    final pickFromGallery =
+        widget.deviceGalleryPhotoPicker ?? _defaultPhotoPicker.pickFromGallery;
     final picker = await showModalBottomSheet<FacilityReportPhotoPicker>(
       context: context,
       builder: (context) => SafeArea(
@@ -2450,15 +2455,12 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
             ListTile(
               leading: const Icon(Icons.photo_camera),
               title: const Text('사진 찍기'),
-              onTap: () =>
-                  Navigator.of(context).pop(_defaultPhotoPicker.takePhoto),
+              onTap: () => Navigator.of(context).pop(takePhoto),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('앨범에서 선택'),
-              onTap: () => Navigator.of(
-                context,
-              ).pop(_defaultPhotoPicker.pickFromGallery),
+              onTap: () => Navigator.of(context).pop(pickFromGallery),
             ),
           ],
         ),
