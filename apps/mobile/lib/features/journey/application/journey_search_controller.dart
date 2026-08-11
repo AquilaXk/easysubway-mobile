@@ -406,8 +406,6 @@ class _JourneyV3SessionIntegritySpec {
         scope: session['scope']! as String,
         ttlSeconds: session['ttlSeconds']! as int,
       );
-    } on FormatException {
-      rethrow;
     } catch (_) {
       throw const FormatException('Invalid generated Journey V3 session spec');
     }

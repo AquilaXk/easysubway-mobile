@@ -75,6 +75,91 @@ void main() {
     ]);
   });
 
+  test('동일 command는 값 동등성과 hash를 보존한다', () {
+    final equal = _command();
+
+    expect(equal, _command());
+    expect(equal.hashCode, _command().hashCode);
+    expect(
+      equal,
+      isNot(
+        JourneySearchCommand(
+          originStationId: 'other',
+          destinationStationId: 'destination',
+          departure: const JourneyDepartureNow(),
+          timePolicy: TimePolicy.timetableRequired,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 1,
+          alternativeCount: 1,
+        ),
+      ),
+    );
+  });
+
+  test('401은 cache를 무효화하지만 자동 재시도 없이 다음 명시 search만 새 session을 발급한다', () async {
+    final repository = _Repository()
+      ..searchFailures.add(
+        JourneyRejectedFailure(
+          JourneyOperation.searchJourneys,
+          statusCode: 401,
+          error: JourneyV3Error(
+            contractVersion: JourneyErrorContractVersion.journeyErrorV1,
+            requestId: '01J9VV0K000000000000000000',
+            code: JourneyErrorCode.routeSessionRequired,
+            retryable: false,
+            occurredAt: DateTime.utc(2026, 8, 12),
+          ),
+          disposition: JourneyErrorDispositions.lookup(
+            JourneyOperation.searchJourneys,
+            401,
+            JourneyErrorCode.routeSessionRequired,
+          ),
+        ),
+      );
+    final controller = JourneySearchController(
+      repository: repository,
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+      requestIdGenerator: () => '01J9VV0K000000000000000000',
+    );
+
+    await controller.search(_command());
+    expect(repository.sessionRequests, 1);
+    expect(repository.searchRequests, 1);
+    await controller.search(_command());
+
+    expect(repository.sessionRequests, 2);
+    expect(repository.searchRequests, 2);
+  });
+
+  test(
+    'session issuance transport failure는 cache를 남기지 않고 다음 명시 search에서 다시 발급한다',
+    () async {
+      final repository = _Repository()
+        ..sessionFailures.add(
+          const JourneyTransportFailure(
+            JourneyOperation.issueJourneySession,
+            'private provider failure',
+          ),
+        );
+      final controller = JourneySearchController(
+        repository: repository,
+        attestor: _Attestor(),
+        now: () => DateTime.utc(2026, 8, 12),
+        requestIdGenerator: () => '01J9VV0K000000000000000000',
+      );
+
+      await controller.search(_command());
+      expect(controller.state.failure, JourneySearchFailure.sessionUnavailable);
+      expect(repository.sessionRequests, 1);
+      await controller.search(_command());
+
+      expect(repository.sessionRequests, 2);
+      expect(repository.searchRequests, 1);
+    },
+  );
+
   test('command 없음·in-flight·dispose 상태의 retry는 fail-closed no-op이다', () async {
     final repository = _Repository()..pendingSession = true;
     final controller = JourneySearchController(
@@ -343,6 +428,8 @@ class _Repository implements JourneyRepository {
   bool pendingSession = false;
   JourneySearchSuccess? success;
   Object? searchFailure;
+  final List<Object> searchFailures = <Object>[];
+  final List<Object> sessionFailures = <Object>[];
   final List<Completer<JourneySessionResponse>> _sessionCompleters =
       <Completer<JourneySessionResponse>>[];
 
@@ -351,6 +438,7 @@ class _Repository implements JourneyRepository {
     JourneySessionRequest request,
   ) async {
     sessionRequests++;
+    if (sessionFailures.isNotEmpty) throw sessionFailures.removeAt(0);
     if (pendingSession) {
       final completer = Completer<JourneySessionResponse>();
       _sessionCompleters.add(completer);
@@ -376,6 +464,7 @@ class _Repository implements JourneyRepository {
     if (successful != null) return successful;
     final failure = searchFailure;
     if (failure != null) throw failure;
+    if (searchFailures.isNotEmpty) throw searchFailures.removeAt(0);
     throw const JourneyTransportFailure(
       JourneyOperation.searchJourneys,
       'offline',
