@@ -14,6 +14,7 @@ import 'ad_slot.dart';
 import 'design_tokens.dart';
 import 'facility_report.dart';
 import 'features/ads/ad_repository.dart';
+import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
 import 'features/network_map/domain/map_camera.dart';
@@ -50,16 +51,6 @@ import 'search_field.dart';
 import 'station_search.dart';
 
 const _networkMapTopBarHeight = easySubwayTopBarContentHeight;
-
-class _NetworkMapLoadResult {
-  const _NetworkMapLoadResult({
-    required this.data,
-    required this.initialViewport,
-  });
-
-  final NetworkMapData data;
-  final Rect? initialViewport;
-}
 
 class NetworkMapScreen extends StatefulWidget {
   const NetworkMapScreen({
@@ -250,7 +241,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   /// 하단 패널 실시간은 API 기본 8초보다 짧게 끊고 시간표로 넘긴다.
   static const _nearbyRealtimeTimeout = Duration(seconds: 2);
   int _mapLoadGeneration = 0;
-  late Future<_NetworkMapLoadResult> _future = _startMapLoad();
+  late Future<NetworkMapLoadResult> _future = _startMapLoad();
 
   /// 지도 탭 → draft 슬롯 지정 시 역의 [NetworkMapStation.lineId]로 노선
   /// 이름·색을 채우기 위해 마지막으로 로드된 맵 데이터를 캐시한다.
@@ -611,11 +602,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     super.dispose();
   }
 
-  Future<_NetworkMapLoadResult> _startMapLoad() {
+  Future<NetworkMapLoadResult> _startMapLoad() {
     return _loadMap(++_mapLoadGeneration);
   }
 
-  Future<_NetworkMapLoadResult> _loadMap(int generation) async {
+  Future<NetworkMapLoadResult> _loadMap(int generation) async {
     var requestedRegion = _selectedRegion;
     var restoringSavedRegion = false;
     final viewportRepository = widget.viewportRepository;
@@ -640,7 +631,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       data = await widget.repository.getNetworkMap();
     }
     if (generation != _mapLoadGeneration) {
-      return _NetworkMapLoadResult(data: data, initialViewport: null);
+      return NetworkMapLoadResult(data: data, initialViewport: null);
     }
     // #2082/#2083 후속: 저장된(persisted) 지역이 있는 사용자는 세션 중
     // 지역 선택기를 조작하지 않는 한 _selectedRegion이 계속 null이라, 로드된
@@ -655,10 +646,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     }
     await _saveSelectedRegion(data.selectedRegion);
     final viewport = await _loadSavedViewport(data.selectedRegion);
-    return _NetworkMapLoadResult(data: data, initialViewport: viewport);
+    return NetworkMapLoadResult(data: data, initialViewport: viewport);
   }
 
-  Future<_NetworkMapLoadResult> _loadMapForRegion(
+  Future<NetworkMapLoadResult> _loadMapForRegion(
     String region, {
     bool loadStoredViewport = true,
   }) async {
@@ -667,7 +658,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     final viewport = loadStoredViewport
         ? await _loadSavedViewport(data.selectedRegion)
         : null;
-    return _NetworkMapLoadResult(data: data, initialViewport: viewport);
+    return NetworkMapLoadResult(data: data, initialViewport: viewport);
   }
 
   Future<void> _saveSelectedRegion(String region) async {
@@ -736,7 +727,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       child: Scaffold(
         key: const Key('networkMapScreen'),
         backgroundColor: EasySubwayAccessibleColors.surface,
-        body: FutureBuilder<_NetworkMapLoadResult>(
+        body: FutureBuilder<NetworkMapLoadResult>(
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
