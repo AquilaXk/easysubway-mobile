@@ -158,7 +158,7 @@ test("old and new paths and fanout consumers fail closed independently", () => {
 
 test("policy fixes generic feature identifiers and README-only docs uncertainty", () => {
   assert.deepEqual(policy.pathRules.map((rule) => rule.id).slice(18, 41), [
-    "feature-account", "feature-ads", "feature-attribution", "feature-fare", "feature-facility_report", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
+    "feature-account", "feature-ads", "feature-attribution", "feature-facility_report", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
   ]);
   assert.deepEqual(policy.pathRules.find((rule) => rule.id === "root-policy").reasons, ["root-policy"]);
   const rootFiles = [".gitattributes", ".gitignore", "README.md"].map((changedPath, index) => ({ status: "MODIFIED", oldPath: changedPath, newPath: changedPath, oldMode: "100644", newMode: "100644", oldBlobSha: sha(String.fromCharCode(97 + index)), newBlobSha: sha(String.fromCharCode(100 + index)), isBinary: false, reasons: [] }));
