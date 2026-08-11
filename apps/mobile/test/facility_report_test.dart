@@ -5,6 +5,9 @@ import 'dart:io';
 import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -94,6 +97,49 @@ void main() {
         ),
       ),
     );
+  });
+
+  test('시설 신고 사진 선택기는 900 KiB 초과 사진을 거부한다', () async {
+    final picker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(
+          file: XFile.fromData(
+            Uint8List(900 * 1024 + 1),
+            name: 'too-large.jpg',
+          ),
+          type: RetrieveType.image,
+        ),
+      ),
+    );
+
+    await expectLater(
+      picker.retrieveLostPhoto(),
+      throwsA(
+        isA<FacilityReportPhotoException>().having(
+          (error) => error.message,
+          'message',
+          '사진이 너무 큽니다. 다른 사진을 선택해 주세요.',
+        ),
+      ),
+    );
+  });
+
+  test('시설 신고 사진 오류는 쉬운 안내 문자열을 그대로 노출한다', () {
+    const error = FacilityReportPhotoException('사진을 다시 선택해 주세요.');
+
+    expect(error.toString(), '사진을 다시 선택해 주세요.');
+  });
+
+  test('시설 신고 위치 도메인 계약은 좌표와 쉬운 오류 문자열을 보존한다', () {
+    const location = FacilityReportLocation(
+      latitude: 37.302421,
+      longitude: 126.866221,
+    );
+    const error = FacilityReportLocationException('위치 권한을 확인해 주세요.');
+
+    expect(location.latitude, 37.302421);
+    expect(location.longitude, 126.866221);
+    expect(error.toString(), '위치 권한을 확인해 주세요.');
   });
 
   test('시설 신고 API 저장소는 백엔드 계약에 맞춰 신고를 전송한다', () async {

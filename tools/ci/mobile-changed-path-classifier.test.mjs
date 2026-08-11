@@ -56,6 +56,117 @@ test("policy schema is closed and literal path rules classify a feature", () => 
   ]) { const changed = structuredClone(policy); mutate(changed); assert.throws(() => validatePolicy(changed), /exactly match/i); }
 });
 
+test("Facility Report source has one direct feature owner without uncertainty", () => {
+  const checked = validatePolicy(policy);
+  const changedPath = "apps/mobile/lib/features/facility_report/domain/facility_report_photo.dart";
+  const classified = classifyEntries([
+    { status: "ADDED", oldPath: null, newPath: changedPath, oldMode: null, newMode: "100644", oldBlobSha: null, newBlobSha: sha("a"), isBinary: false, reasons: [] },
+  ], checked);
+
+  assert.equal(classified.outcome, "CLASSIFIED");
+  assert.deepEqual(classified.owners.map((owner) => owner.owner), ["FEATURE:facility_report"]);
+  assert.deepEqual(classified.affectedFeatures, ["facility_report"]);
+  assert.deepEqual(classified.uncertainty, { isFullRequired: false, codes: [], paths: [] });
+  assert.deepEqual(classified.requirements, policy.requirements.FEATURE);
+});
+
+test("Journey production sources retain exact feature and contract owners without uncertainty", () => {
+  const checked = validatePolicy(policy);
+  const changedPaths = [
+    "apps/mobile/lib/features/journey/domain/journey_repository.dart",
+    "apps/mobile/lib/features/journey/data/journey_api_repository.dart",
+  ];
+  const classified = classifyEntries(changedPaths.map((changedPath, index) => ({
+    status: "ADDED",
+    oldPath: null,
+    newPath: changedPath,
+    oldMode: null,
+    newMode: "100644",
+    oldBlobSha: null,
+    newBlobSha: sha(String.fromCharCode(97 + index)),
+    isBinary: false,
+    reasons: [],
+  })), checked);
+
+  assert.equal(classified.outcome, "CLASSIFIED");
+  assert.deepEqual(classified.entries.map(({ newPath, reasons }) => ({ newPath, reasons })), [
+    {
+      newPath: "apps/mobile/lib/features/journey/domain/journey_repository.dart",
+      reasons: ["journey-contract", "feature-journey", "feature-contract"],
+    },
+    {
+      newPath: "apps/mobile/lib/features/journey/data/journey_api_repository.dart",
+      reasons: ["journey-contract", "feature-journey", "feature-contract"],
+    },
+  ]);
+  assert.deepEqual(classified.owners, [
+    {
+      owner: "CONTRACT_ARTIFACT",
+      logicalClass: "GENERIC_CONSUMER_CONTRACT",
+      risks: ["P1_HIGH"],
+      reasons: ["journey-contract", "feature-contract"],
+      paths: ["apps/mobile/lib/features/journey/data/journey_api_repository.dart"],
+    },
+    {
+      owner: "CONTRACT_ARTIFACT",
+      logicalClass: "GENERIC_CONSUMER_CONTRACT",
+      risks: ["P1_HIGH"],
+      reasons: ["journey-contract", "feature-contract"],
+      paths: ["apps/mobile/lib/features/journey/domain/journey_repository.dart"],
+    },
+    {
+      owner: "FEATURE:journey",
+      logicalClass: "FEATURE",
+      risks: ["P2_STANDARD"],
+      reasons: ["feature-journey"],
+      paths: ["apps/mobile/lib/features/journey/data/journey_api_repository.dart"],
+    },
+    {
+      owner: "FEATURE:journey",
+      logicalClass: "FEATURE",
+      risks: ["P2_STANDARD"],
+      reasons: ["feature-journey"],
+      paths: ["apps/mobile/lib/features/journey/domain/journey_repository.dart"],
+    },
+  ]);
+  assert.deepEqual(classified.owners.map((owner) => owner.owner), [
+    "CONTRACT_ARTIFACT", "CONTRACT_ARTIFACT", "FEATURE:journey", "FEATURE:journey",
+  ]);
+  assert.deepEqual(classified.affectedFeatures, ["journey"]);
+  assert.deepEqual(classified.affectedBoundaries, ["FEATURE", "JOURNEY_CONTRACT"]);
+  assert.deepEqual(classified.uncertainty, { isFullRequired: false, codes: [], paths: [] });
+  assert.deepEqual(classified.requirements, policy.requirements.FEATURE_CONTRACT);
+  assert.equal(classified.owners.every((owner) => JSON.stringify(owner.risks) === JSON.stringify(owner.owner === "CONTRACT_ARTIFACT" ? ["P1_HIGH"] : ["P2_STANDARD"])), true);
+});
+
+test("Fare and Facility Report remain valid in lexical affected-feature order", () => {
+  const checked = validatePolicy(policy);
+  const changedPaths = [
+    "apps/mobile/lib/features/facility_report/domain/facility_report_photo.dart",
+    "apps/mobile/lib/features/fare/fare_repository.dart",
+  ];
+  const classification = classifyEntries(changedPaths.map((changedPath, index) => ({
+    status: "ADDED",
+    oldPath: null,
+    newPath: changedPath,
+    oldMode: null,
+    newMode: "100644",
+    oldBlobSha: null,
+    newBlobSha: sha(String.fromCharCode(97 + index)),
+    isBinary: false,
+    reasons: [],
+  })), checked);
+
+  assert.deepEqual(classification.affectedFeatures, ["facility_report", "fare"]);
+  const result = buildResult({
+    event: { name: "push", ref: "refs/heads/main", pullRequestNumber: null },
+    comparison: { baseSha: sha("a"), headSha: sha("b"), mergeBaseSha: sha("a") },
+    classifier: { sourceSha256: "c".repeat(64), policySha256: "d".repeat(64), workflowSha256: "e".repeat(64) },
+    classification,
+  });
+  assert.deepEqual(result.affectedFeatures, ["facility_report", "fare"]);
+});
+
 test("Journey V3 생성 Dart 다섯 개만 계약 산출물로 분류한다", () => {
   const checked = validatePolicy(policy);
   const names = ["journey_v3_contract.dart", "journey_v3_enums.dart", "journey_v3_error.dart", "journey_v3_generation_receipt.json", "journey_v3_models.dart", "journey_v3_validation.dart"];
@@ -115,8 +226,8 @@ test("old and new paths and fanout consumers fail closed independently", () => {
 });
 
 test("policy fixes generic feature identifiers and README-only docs uncertainty", () => {
-  assert.deepEqual(policy.pathRules.map((rule) => rule.id).slice(18, 40), [
-    "feature-account", "feature-ads", "feature-attribution", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
+  assert.deepEqual(policy.pathRules.map((rule) => rule.id).slice(18, 42), [
+    "feature-account", "feature-ads", "feature-attribution", "feature-facility_report", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-journey", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
   ]);
   assert.deepEqual(policy.pathRules.find((rule) => rule.id === "root-policy").reasons, ["root-policy"]);
   const rootFiles = [".gitattributes", ".gitignore", "README.md"].map((changedPath, index) => ({ status: "MODIFIED", oldPath: changedPath, newPath: changedPath, oldMode: "100644", newMode: "100644", oldBlobSha: sha(String.fromCharCode(97 + index)), newBlobSha: sha(String.fromCharCode(100 + index)), isBinary: false, reasons: [] }));
