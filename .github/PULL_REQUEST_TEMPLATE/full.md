@@ -1,4 +1,4 @@
-<!-- High-risk generated contract, application state, UI/accessibility, device, privacy, artifact or release changes. -->
+<!-- A등급: high-risk generated contract, state, UI/accessibility, privacy, artifact, release, CI·contract 변경. -->
 
 ## Related issue
 
@@ -35,6 +35,35 @@ Related #
 - UI / accessibility behavior:
 - Backward compatibility:
 - Migration or release cutover:
+
+## Version impact
+
+- [ ] no version change
+- [ ] mobile patch
+- [ ] mobile minor
+- [ ] mobile major
+- [ ] store release only
+- [ ] datapack 소비 변경
+- [ ] contracts/mobile/** 계약 변경
+
+## Release gate impact
+
+- [ ] apps/mobile/release/*.json 영향 없음
+- [ ] android release quality, accessibility QA, signed artifact, route result UI copy 근거를 갱신했습니다.
+- [ ] 출시 준비 완료 claim을 추가하거나 변경하지 않습니다.
+
+## Store submission readiness impact
+
+- [ ] store-submission-readiness.json 영향 없음
+- [ ] play production access, privacy inventory, 제출 콘텐츠 근거를 갱신했습니다.
+- [ ] Google Play 출시 가능 claim을 추가하거나 변경하지 않습니다.
+
+### Version decision
+
+- mobile versionName / versionCode:
+- datapack version:
+- mobile contract / consumer snapshot:
+- AAB identity:
 
 ## Verification
 
@@ -78,3 +107,7 @@ Related #
 - [ ] 위험에 필요한 검증과 미실행 사유를 기록했습니다.
 - [ ] 실패·호환성·release·recovery 동작이 명확합니다.
 - [ ] current failure를 previous/local/legacy 결과의 성공 표시로 바꾸지 않습니다.
+- [ ] CodeRabbit 리뷰 결과와 필요한 조치를 확인했습니다.
+- [ ] GitHub PR Review 객체가 있는지 확인했습니다. CodeRabbit status check만으로는 리뷰 완료로 보지 않습니다.
+- [ ] CodeRabbit Review 객체가 없으면 지원되는 Codex CLI 폴백 Review를 단일 GitHub PR Review로 게시했습니다.
+- [ ] store 배포 영향이 있는 경우 release·distribution workflow 상태를 확인했습니다.
