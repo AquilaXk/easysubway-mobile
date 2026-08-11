@@ -332,7 +332,7 @@ function renderFiles(options, enforceTrackedLock, snapshot) {
     const generated = source.replace(/^\/\/ Test-only [^\n]+\n/, '// Generated from the locked Journey V3 contract.\n');
     const firstLineEnd = generated.indexOf('\n');
     if (!generated.startsWith('// Generated ') || firstLineEnd < 0) fail('generated Dart header is not canonical');
-    return `${generated.slice(0, firstLineEnd + 1)}// dart format width=200\n${generated.slice(firstLineEnd + 1)}`;
+    return `// GENERATED CODE - DO NOT MODIFY BY HAND\n// dart format width=200\n${generated}`;
   };
   return Object.freeze({
     'journey_v3_contract.dart': generatedHeader(renderDartContract(lock)),

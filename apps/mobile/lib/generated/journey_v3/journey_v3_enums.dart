@@ -1,5 +1,6 @@
-// Generated closed Journey V3 wire enums.
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format width=200
+// Generated closed Journey V3 wire enums.
 enum JourneyContractVersion { journeySearchV3 }
 
 extension JourneyContractVersionWire on JourneyContractVersion {

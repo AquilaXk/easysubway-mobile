@@ -1,5 +1,6 @@
-// Generated from the locked Journey V3 contract.
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format width=200
+// Generated from the locked Journey V3 contract.
 import 'journey_v3_enums.dart';
 import 'journey_v3_validation.dart';
 

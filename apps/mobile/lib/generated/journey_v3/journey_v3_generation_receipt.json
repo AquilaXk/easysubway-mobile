@@ -3,7 +3,7 @@
   "generator": {
     "id": "easysubway-mobile-journey-v3-client",
     "version": "1.0.0",
-    "sourceSha256": "beafd0bd02e74d3b3ffd79d204f4e587de6cc1ac617ecd8c52c2a9dc692d9bf0",
+    "sourceSha256": "c51d68b2be59fb7c5e62f4411ad0dae67622fb219c140820ecb7f5eb21be196b",
     "formatter": {
       "command": "dart format",
       "sdkVersion": "3.12.0"
@@ -66,24 +66,24 @@
   "files": [
     {
       "path": "journey_v3_contract.dart",
-      "sha256": "e232140bfd60ec2010d83f7e24694cf1efe00a8a5252acc812784afde31121d3"
+      "sha256": "be5dd2fff10186ad3f170808341e8daf07ecc340cdfa4115d2522471f713e348"
     },
     {
       "path": "journey_v3_enums.dart",
-      "sha256": "7e59c9ee5e59945f7487a0d7e060673f3b6e0cfb20138dfbf09eeef5589eaa5b"
+      "sha256": "616b27b090f94245723f4a447138405ca20fd15e15cde4639c59cacadc077733"
     },
     {
       "path": "journey_v3_error.dart",
-      "sha256": "977b35327e41dbb12df90145f86cf7db244e34a231d240d52a28ac6b386a6d38"
+      "sha256": "aaa95967eb6b2f4c8c9f5078c22ec901eb3bf4bc9b1b2d3d3b95a730c71bc2dc"
     },
     {
       "path": "journey_v3_models.dart",
-      "sha256": "467588b04cf8c8995b091bf00f15ecd1d2d0297149e2bdacb19f1763a5a6dc73"
+      "sha256": "e3fb35d5a507452d833064ba257aad4ea9037605bd0255e9ef388c44146d4a15"
     },
     {
       "path": "journey_v3_validation.dart",
-      "sha256": "30925ca5f68c044913f41dfbc4ae7fda6be7a3f609950d8bcfd712f174a890c2"
+      "sha256": "efee7ae2e160feda52fc9683b14f66e0bdb4c2cd0f5e34fd662dbaa11f8594c9"
     }
   ],
-  "treeSha256": "b115a1d7de959d462f23df2920e2c2e084e1ccd42f0de46aff939e2dae1bf9e0"
+  "treeSha256": "32bb55a45ddbdc060f0e19146925f0f5ab235e2fd23503dd9827dca67c12b169"
 }

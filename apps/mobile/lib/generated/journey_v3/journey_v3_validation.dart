@@ -1,5 +1,6 @@
-// Generated strict Journey V3 JSON validation helpers.
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format width=200
+// Generated strict Journey V3 JSON validation helpers.
 class JourneyDate {
   final String value;
   const JourneyDate._(this.value);

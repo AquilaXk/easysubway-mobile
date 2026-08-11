@@ -1,5 +1,6 @@
-// Generated strict Journey V3 request models.
+// GENERATED CODE - DO NOT MODIFY BY HAND
 // dart format width=200
+// Generated strict Journey V3 request models.
 import 'journey_v3_enums.dart';
 import 'journey_v3_validation.dart';
 
