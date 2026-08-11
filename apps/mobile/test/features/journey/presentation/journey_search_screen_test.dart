@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/features/journey/presentation/journey_search_s
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -186,12 +187,19 @@ void main() {
   ) async {
     tester.platformDispatcher.textScaleFactorTestValue = 2;
     addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
-    final repository = _Repository()..failuresRemaining = 1;
-    await _pumpScreen(
-      tester,
-      repository: repository,
-      shareInvoker: (_, _) async => throw StateError('private share failure'),
+    const shareChannel = MethodChannel('dev.fluttercommunity.plus/share');
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      shareChannel,
+      (_) async => throw PlatformException(code: 'share_failed'),
     );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        shareChannel,
+        null,
+      ),
+    );
+    final repository = _Repository()..failuresRemaining = 1;
+    await _pumpScreen(tester, repository: repository);
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();

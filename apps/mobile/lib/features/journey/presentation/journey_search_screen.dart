@@ -250,10 +250,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     if (_isSharing) return;
     setState(() => _isSharing = true);
     try {
-      final renderBox = buttonContext.findRenderObject();
-      if (renderBox is! RenderBox || !renderBox.hasSize) {
-        throw StateError('Journey share trigger is unavailable');
-      }
+      final renderBox = buttonContext.findRenderObject()! as RenderBox;
       final origin = renderBox.localToGlobal(Offset.zero) & renderBox.size;
       final text = _shareText(snapshot);
       final invoker = widget.shareInvoker;
