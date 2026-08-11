@@ -7,7 +7,10 @@ import 'package:flutter/services.dart';
 
 import 'accessible_design.dart';
 import 'auth_headers.dart';
+import 'features/notifications/domain/notification_permission.dart';
 import 'mobile_error_reporter.dart';
+
+export 'features/notifications/domain/notification_permission.dart';
 
 const _notificationSettingsTimeout = Duration(seconds: 8);
 const _notificationSettingsLoadErrorMessage = '알림 설정을 불러오지 못했어요.';
@@ -31,15 +34,6 @@ abstract class NotificationSettingsRepository {
 abstract class DeviceRegistrationRepository {
   Future<RegisteredDevice> registerDevice(DeviceRegistrationRequest request);
 }
-
-abstract class NotificationPermissionProvider {
-  Future<NotificationPermissionStatus> requestNotificationPermission();
-
-  /// 시스템 설정의 현재 알림 권한만 읽고 프롬프트를 띄우지 않는다.
-  Future<NotificationPermissionStatus> notificationPermissionStatus();
-}
-
-enum NotificationPermissionStatus { granted, denied }
 
 class MethodChannelNotificationPermissionProvider
     implements NotificationPermissionProvider {
