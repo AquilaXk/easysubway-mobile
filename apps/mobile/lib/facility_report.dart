@@ -867,7 +867,7 @@ class _MyReportListItem extends StatelessWidget {
     final description = report.description.isEmpty
         ? report.reportTypeLabel
         : report.description;
-    final createdAtLabel = _reportDateLabel(report.createdAt);
+    final createdAtLabel = report.createdDateLabel;
     void openReportDetail() {
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -951,7 +951,7 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
     final description = report.description.isEmpty
         ? report.reportTypeLabel
         : report.description;
-    final createdAtLabel = _reportDateLabel(report.createdAt);
+    final createdAtLabel = report.createdDateLabel;
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -2249,14 +2249,4 @@ String? _nonBlankReportString(String? value) {
     return null;
   }
   return trimmed;
-}
-
-String _reportDateLabel(String createdAt) {
-  final parsed = DateTime.tryParse(createdAt);
-  if (parsed == null) {
-    return createdAt;
-  }
-  final month = parsed.month.toString().padLeft(2, '0');
-  final day = parsed.day.toString().padLeft(2, '0');
-  return '${parsed.year}.$month.$day';
 }

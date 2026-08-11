@@ -1,6 +1,16 @@
 import '../domain/facility_report_result.dart';
 
 extension FacilityReportResultLabels on FacilityReportResult {
+  String get createdDateLabel {
+    final parsed = DateTime.tryParse(createdAt);
+    if (parsed == null) {
+      return createdAt;
+    }
+    final month = parsed.month.toString().padLeft(2, '0');
+    final day = parsed.day.toString().padLeft(2, '0');
+    return '${parsed.year}.$month.$day';
+  }
+
   String get displayReceiptCode {
     final code = publicReceiptCode?.trim();
     if (code == null || code.isEmpty) {

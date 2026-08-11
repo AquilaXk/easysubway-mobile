@@ -402,6 +402,30 @@ void main() {
     expect(result.displayReceiptCode, '발급 전');
   });
 
+  test('시설 신고 결과 접수일 표시 정책을 보존한다', () {
+    const valid = FacilityReportResult(
+      id: 'report-valid-date',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      status: 'SUBMITTED',
+      createdAt: '2026-06-13T10:00:00',
+    );
+    const invalid = FacilityReportResult(
+      id: 'report-invalid-date',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      status: 'SUBMITTED',
+      createdAt: '__CREATED_AT__',
+    );
+
+    expect(valid.createdDateLabel, '2026.06.13');
+    expect(invalid.createdDateLabel, '__CREATED_AT__');
+  });
+
   test('시설 신고 결과 domain parsing과 표시 문구 정책을 보존한다', () {
     final parsed = FacilityReportResult.fromJson({
       'id': ' report-1 ',
