@@ -159,6 +159,23 @@ void main() {
       _manifestWithGwangjuAttributionRequired(true),
     );
     expect(restored['광주'], contains('kiwitree'));
+
+    final licenseNameFallback = parseNetworkMapAttributionByRegion(
+      jsonEncode(<String, Object?>{
+        'maps': [
+          <String, Object?>{
+            'app_region': '광주',
+            'license': <String, Object?>{
+              'name': '사용자 지정 라이선스',
+              'spdx': '',
+              'authors': <String>[],
+              'attributionRequired': true,
+            },
+          },
+        ],
+      }),
+    );
+    expect(licenseNameFallback['광주'], '사용자 지정 라이선스');
   });
 
   testWidgets('수도권 노선도는 attribution을 표시하지 않는다(#1951)', (tester) async {
