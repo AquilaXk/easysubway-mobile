@@ -16,8 +16,10 @@ import 'features/facility_report/domain/facility_report_location.dart';
 import 'features/facility_report/domain/facility_report_photo.dart';
 import 'features/facility_report/domain/facility_report_receipt.dart';
 import 'features/facility_report/domain/facility_report_request.dart';
+import 'features/facility_report/domain/facility_report_result.dart';
 import 'features/facility_report/domain/facility_report_target.dart';
 import 'features/facility_report/domain/facility_report_type.dart';
+import 'features/facility_report/presentation/facility_report_result_labels.dart';
 import 'features/facility_report/presentation/facility_report_type_options.dart';
 import 'mobile_error_reporter.dart';
 
@@ -513,81 +515,6 @@ Map<String, String> _optionalStringMap(
     }
     return MapEntry(key, mapValue);
   });
-}
-
-class FacilityReportResult {
-  const FacilityReportResult({
-    required this.id,
-    required this.stationId,
-    required this.facilityId,
-    required this.reportType,
-    required this.description,
-    required this.status,
-    required this.createdAt,
-    this.receiptToken,
-    this.publicReceiptCode,
-  });
-
-  factory FacilityReportResult.fromJson(Map<String, Object?> json) {
-    return FacilityReportResult(
-      id: _requiredReportString(json, 'id'),
-      stationId: _requiredReportString(json, 'stationId'),
-      facilityId: _requiredReportString(json, 'facilityId'),
-      reportType: _requiredReportString(json, 'reportType'),
-      description: _optionalReportString(json, 'description'),
-      status: _requiredReportString(json, 'status'),
-      createdAt: _requiredReportString(json, 'createdAt'),
-      receiptToken: _optionalReportString(json, 'receiptToken'),
-      publicReceiptCode: _optionalReportString(json, 'publicReceiptCode'),
-    );
-  }
-
-  final String id;
-  final String stationId;
-  final String facilityId;
-  final String reportType;
-  final String description;
-  final String status;
-  final String createdAt;
-  final String? receiptToken;
-  final String? publicReceiptCode;
-
-  String get displayReceiptCode {
-    final code = publicReceiptCode?.trim();
-    if (code == null || code.isEmpty) {
-      return '발급 전';
-    }
-    return code;
-  }
-
-  String get statusLabel {
-    return switch (status) {
-      'SUBMITTED' => '접수됨',
-      'UNDER_REVIEW' => '확인 중',
-      'ACCEPTED' => '반영됨',
-      'REJECTED' => '반려됨',
-      'DUPLICATE' => '중복 제보',
-      'RESOLVED' => '확인 완료',
-      _ => '접수 상태를 불러오지 못했어요',
-    };
-  }
-
-  String get reportTypeLabel {
-    return switch (reportType) {
-      'BROKEN' => '고장',
-      'UNDER_CONSTRUCTION' => '공사 중',
-      'CLOSED' => '폐쇄',
-      'ROUTE_BLOCKED' => '경로가 막혔어요',
-      'ELEVATOR_UNAVAILABLE' => '엘리베이터 이용 불가',
-      'STAIRS_PRESENT' => '계단이 있어요',
-      'ETA_INACCURATE' => '도착 시간이 달라요',
-      'TRANSFER_IMPOSSIBLE' => '환승이 어려워요',
-      'LOCATION_WRONG' => '위치가 달라요',
-      'INFORMATION_WRONG' => '정보가 달라요',
-      'RECOVERED' => '다시 정상',
-      _ => '시설 제보',
-    };
-  }
 }
 
 enum FacilityReportViewStatus { idle, loading, success, failure }
@@ -2381,14 +2308,6 @@ String _requiredReportString(Map<String, Object?> json, String key) {
     return value;
   }
   throw FormatException('Missing required report field: $key');
-}
-
-String _optionalReportString(Map<String, Object?> json, String key) {
-  final value = json[key];
-  if (value is String) {
-    return value;
-  }
-  return '';
 }
 
 String? _nonBlankReportString(String? value) {

@@ -13,6 +13,7 @@ import '../features/fare/official_od_fare_repository.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
 import '../features/facility_report/domain/facility_report_request.dart';
+import '../features/facility_report/domain/facility_report_result.dart';
 import '../features/get_off_alarm/data/get_off_alarm_recovery_notice_store.dart';
 import '../features/get_off_alarm/data/get_off_alarm_state_repository.dart';
 import '../features/get_off_alarm/exact_alarm_permission.dart';

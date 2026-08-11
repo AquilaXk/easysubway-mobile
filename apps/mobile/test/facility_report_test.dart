@@ -15,8 +15,10 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_receipt.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_type.dart';
+import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_result_labels.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -398,6 +400,37 @@ void main() {
     );
 
     expect(result.displayReceiptCode, '발급 전');
+  });
+
+  test('시설 신고 결과 domain parsing과 표시 문구 정책을 보존한다', () {
+    final parsed = FacilityReportResult.fromJson({
+      'id': ' report-1 ',
+      'stationId': 'station-sangnoksu',
+      'facilityId': 'facility-sangnoksu-elevator-1',
+      'reportType': 'UNKNOWN',
+      'description': 42,
+      'status': 'UNKNOWN',
+      'createdAt': '2026-06-13T10:00:00',
+      'receiptToken': null,
+      'publicReceiptCode': '   ',
+    });
+
+    expect(parsed.id, ' report-1 ');
+    expect(parsed.description, '');
+    expect(parsed.receiptToken, '');
+    expect(parsed.displayReceiptCode, '발급 전');
+    expect(parsed.statusLabel, '접수 상태를 불러오지 못했어요');
+    expect(parsed.reportTypeLabel, '시설 제보');
+    expect(
+      () => FacilityReportResult.fromJson(const {}),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          'Missing required report field: id',
+        ),
+      ),
+    );
   });
 
   test('시설 신고 요청은 사진 Base64 대신 object metadata를 전송한다', () {
