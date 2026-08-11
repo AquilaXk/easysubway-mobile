@@ -65,6 +65,18 @@ List<EasySubwayRegionMenuItem> _stationSearchRegionsForMap(
       : [...defaultStationSearchRegions, ...extras];
 }
 
+Future<String> Function(String stationId) journeyAlarmStationNameResolver(
+  StationSearchRepository repository,
+) {
+  return (stationId) async {
+    final station = await repository.getStationDetail(stationId);
+    if (station.id != stationId) {
+      throw StateError('station identity mismatch');
+    }
+    return station.nameKo;
+  };
+}
+
 class HomeScreen extends StatefulWidget {
   HomeScreen({
     required this.repository,
@@ -721,15 +733,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           mobilityType: _routeTabMobilityType ?? initialMobilityType,
           onShellBackToHome: closeRouteTab,
           getOffAlarmController: widget.getOffAlarmController,
-          stationNameResolver: widget.getOffAlarmController == null
-              ? null
-              : (stationId) async {
-                  final station = await repository.getStationDetail(stationId);
-                  if (station.id != stationId) {
-                    throw StateError('station identity mismatch');
-                  }
-                  return station.nameKo;
-                },
+          stationNameResolver: journeyAlarmStationNameResolver(repository),
         ),
       );
     }

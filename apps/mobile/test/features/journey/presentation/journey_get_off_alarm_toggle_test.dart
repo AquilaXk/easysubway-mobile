@@ -159,6 +159,22 @@ void main() {
 
     expect(find.text('역 이름을 확인하지 못해 알림을 켜지 않았어요.'), findsOneWidget);
     expect(controller.enableCalls, 0);
+
+    await tester.pumpWidget(
+      _host(
+        JourneyGetOffAlarmToggle(
+          snapshot: _snapshot(journeyId: 'journey-resolver-error'),
+          controller: controller,
+          stationNameResolver: (_) => throw StateError('catalog failed'),
+          now: () => now,
+        ),
+      ),
+    );
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(find.text('역 이름을 확인하지 못해 알림을 켜지 않았어요.'), findsOneWidget);
+    expect(controller.enableCalls, 0);
   });
 
   testWidgets('station resolve 중 선택 generation이 바뀌면 effect 0이다', (
@@ -180,6 +196,119 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(controller.enableCalls, 0);
+  });
+
+  testWidgets('controller 교체는 listener를 옮기고 새 controller state를 반영한다', (
+    tester,
+  ) async {
+    final replacement = _Controller();
+    addTearDown(replacement.dispose);
+    final snapshot = _snapshot();
+    Widget toggle(_Controller target) => JourneyGetOffAlarmToggle(
+      snapshot: snapshot,
+      controller: target,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+      now: () => now,
+    );
+
+    await tester.pumpWidget(_host(toggle(controller)));
+    await tester.pumpWidget(_host(toggle(replacement)));
+
+    expect(controller.removeListenerCalls, 1);
+    expect(replacement.addListenerCalls, 1);
+
+    replacement.setTestState(
+      GetOffAlarmState(
+        enabled: true,
+        activeRouteId: 'journey-1',
+        activeJourneyIdentity: journeyAlarmIdentityForSnapshot(snapshot),
+        scheduledCount: 2,
+      ),
+    );
+    await tester.pump();
+
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+  });
+
+  testWidgets('켜진 toggle은 disable 성공과 실패를 각각 표시한다', (tester) async {
+    final snapshot = _snapshot();
+    Widget toggle() => JourneyGetOffAlarmToggle(
+      snapshot: snapshot,
+      controller: controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+      now: () => now,
+    );
+    controller.setTestState(
+      GetOffAlarmState(
+        enabled: true,
+        activeRouteId: 'journey-1',
+        activeJourneyIdentity: journeyAlarmIdentityForSnapshot(snapshot),
+        scheduledCount: 2,
+      ),
+    );
+    await tester.pumpWidget(_host(toggle()));
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+    expect(controller.disableCalls, 1);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isFalse);
+
+    controller.setTestState(
+      GetOffAlarmState(
+        enabled: true,
+        activeRouteId: 'journey-1',
+        activeJourneyIdentity: journeyAlarmIdentityForSnapshot(snapshot),
+        scheduledCount: 2,
+      ),
+    );
+    controller.disableError = StateError('disable failed');
+    await tester.pump();
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(controller.disableCalls, 2);
+    expect(find.text('알림을 끄지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
+    expect(tester.widget<Switch>(find.byType(Switch)).value, isTrue);
+  });
+
+  testWidgets('다른 active identity는 먼저 끄고 enable failure를 명시한다', (tester) async {
+    final snapshot = _snapshot();
+    controller.setTestState(
+      GetOffAlarmState(
+        enabled: true,
+        activeRouteId: 'journey-other',
+        activeJourneyIdentity: journeyAlarmIdentityForSnapshot(
+          _snapshot(journeyId: 'journey-other'),
+        ),
+        scheduledCount: 2,
+      ),
+    );
+    await tester.pumpWidget(
+      _host(
+        JourneyGetOffAlarmToggle(
+          snapshot: snapshot,
+          controller: controller,
+          stationNameResolver: (stationId) async => '$stationId 이름',
+          now: () => now,
+        ),
+      ),
+    );
+
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(controller.events, ['disable', 'enable']);
+    expect(controller.identity?.journeyId, 'journey-1');
+
+    controller.events.clear();
+    controller.setTestState(GetOffAlarmState.off);
+    controller.enableError = StateError('enable failed');
+    await tester.pump();
+    await tester.tap(find.byType(Switch));
+    await tester.pumpAndSettle();
+
+    expect(controller.events, ['enable']);
+    expect(find.text('하차 알림을 켜지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
   });
 }
 
@@ -289,9 +418,31 @@ class _Controller extends GetOffAlarmController {
 
   GetOffAlarmState _testState = GetOffAlarmState.off;
   int enableCalls = 0;
+  int disableCalls = 0;
+  int addListenerCalls = 0;
+  int removeListenerCalls = 0;
+  Object? enableError;
+  Object? disableError;
   JourneyAlarmSubscriptionIdentity? identity;
   List<GetOffAlarmStop> stops = const [];
   final events = <String>[];
+
+  void setTestState(GetOffAlarmState state) {
+    _testState = state;
+    notifyListeners();
+  }
+
+  @override
+  void addListener(VoidCallback listener) {
+    addListenerCalls++;
+    super.addListener(listener);
+  }
+
+  @override
+  void removeListener(VoidCallback listener) {
+    removeListenerCalls++;
+    super.removeListener(listener);
+  }
 
   @override
   GetOffAlarmState get state => _testState;
@@ -304,6 +455,8 @@ class _Controller extends GetOffAlarmController {
   }) async {
     enableCalls++;
     events.add('enable');
+    final error = enableError;
+    if (error != null) throw error;
     this.identity = identity;
     this.stops = List<GetOffAlarmStop>.unmodifiable(stops);
     _testState = GetOffAlarmState(
@@ -317,6 +470,10 @@ class _Controller extends GetOffAlarmController {
 
   @override
   Future<void> disable() async {
+    disableCalls++;
+    events.add('disable');
+    final error = disableError;
+    if (error != null) throw error;
     _testState = GetOffAlarmState.off;
     notifyListeners();
   }

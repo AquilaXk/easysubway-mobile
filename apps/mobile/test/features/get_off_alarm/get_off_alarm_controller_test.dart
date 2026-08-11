@@ -22,6 +22,7 @@ class _RecordingNotifier implements GetOffAlarmNotifier {
   int cancelAllCount = 0;
   Completer<void>? cancelBarrier;
   Object? cancelErrorOnce;
+  Object? scheduleError;
   int? pendingCount;
   int scheduleCalls = 0;
 
@@ -31,6 +32,10 @@ class _RecordingNotifier implements GetOffAlarmNotifier {
     required GetOffAlarmScheduleMode mode,
   }) async {
     scheduleCalls += 1;
+    final error = scheduleError;
+    if (error != null) {
+      throw error;
+    }
     scheduledAlarms = alarms;
     scheduledMode = mode;
     return result ??
@@ -328,6 +333,40 @@ void main() {
     expect(restored.state.enabled, isFalse);
     expect(notifier.cancelAllCount, 1);
     expect(await repository.loadActive(), isNull);
+  });
+
+  test('repository가 반환한 identity 없는 구독은 restore에서 정리하고 off로 닫는다', () async {
+    final stateRepository = _RecordingStateRepository()
+      ..active = GetOffAlarmSubscription(
+        routeId: 'legacy-route',
+        journeyIdentity: null,
+        transferAlarmEnabled: false,
+        scheduledCount: 1,
+        scheduleMode: GetOffAlarmScheduleMode.exact,
+        inexactNotice: null,
+        destination: GetOffAlarmStopRef(
+          stationId: 'dest',
+          stationName: '사당',
+          arrivalAt: DateTime(2026, 7, 6, 9, 30),
+        ),
+        transfers: const [],
+      );
+    final restored = GetOffAlarmController(
+      notifier: notifier,
+      permissionGate: _StubExactAlarmGate(true),
+      notificationPermissionProvider: _StubNotificationPermissionProvider(
+        NotificationPermissionStatus.granted,
+      ),
+      repository: stateRepository,
+      now: () => now,
+    );
+    addTearDown(restored.dispose);
+
+    await restored.restore();
+
+    expect(stateRepository.active, isNull);
+    expect(notifier.cancelAllCount, 1);
+    expect(restored.state, GetOffAlarmState.off);
   });
 
   test('정확 알람 권한이 없으면 inexact로 강등하고 오차 고지를 상태에 담는다', () async {
@@ -862,6 +901,39 @@ void main() {
     expect(stateRepository.active?.journeyIdentity, identity);
     expect(c.state.enabled, isTrue);
     expect(c.state.activeJourneyIdentity, identity);
+  });
+
+  test('disable 복구 예약도 실패하면 복구 오류를 보고하고 원래 clear 오류를 보존한다', () async {
+    final clearError = StateError('clear failed');
+    final compensationError = StateError('reschedule failed');
+    final stateRepository = _RecordingStateRepository();
+    final c = GetOffAlarmController(
+      notifier: notifier,
+      permissionGate: _StubExactAlarmGate(true),
+      notificationPermissionProvider: _StubNotificationPermissionProvider(
+        NotificationPermissionStatus.granted,
+      ),
+      repository: stateRepository,
+      now: () => now,
+    );
+    addTearDown(c.dispose);
+    await c.enableJourney(
+      identity: _journeyIdentity(),
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
+    stateRepository.clearError = clearError;
+    notifier.scheduleError = compensationError;
+    final reports = <FlutterErrorDetails>[];
+
+    await expectLater(
+      runWithMobileErrorReporter(reports.add, c.disable),
+      throwsA(same(clearError)),
+    );
+
+    expect(reports, hasLength(1));
+    expect(reports.single.exception, same(compensationError));
+    expect(reports.single.context.toString(), '하차 알림 끄기 실패 복구 중 예외가 발생했습니다.');
   });
 
   test('destination 스톱이 없으면 예약·저장 없이 조기 반환한다', () async {

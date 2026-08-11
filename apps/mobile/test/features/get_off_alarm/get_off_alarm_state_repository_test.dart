@@ -20,32 +20,36 @@ void main() {
     await db.close();
   });
 
-  JourneyAlarmSubscriptionIdentity identity(String journeyId) =>
-      JourneyAlarmSubscriptionIdentity(
-        contractVersion: JourneyContractVersion.journeySearchV3,
-        requestId: '01J9VV0K000000000000000000',
-        queryId: 'query-1',
-        journeyId: journeyId,
-        calculatedAt: DateTime.utc(2026, 7, 6, 8, 55),
-        validUntil: DateTime.utc(2026, 7, 6, 9, 0),
-        effectiveDepartureTime: DateTime.utc(2026, 7, 6, 9, 0),
-        serviceDate: JourneyDate.parse('2026-07-06'),
-        serviceTimezone: 'Asia/Seoul',
-        sourceIdentity: JourneySourceIdentity(
-          routeBundleId: 'bundle-1',
-          routeBundleSha256: 'a' * 64,
-          timetableSnapshotId: 'timetable-1',
-          accessibilitySnapshotId: 'accessibility-1',
-          realtimeSnapshotId: null,
-        ),
-        requestPolicy: const JourneyRequestPolicy(
-          timePolicy: TimePolicy.timetableRequired,
-          mobilityProfile: MobilityProfile.standard,
-          constraintMode: ConstraintMode.none,
-          maxTransfers: 3,
-          alternativeCount: 3,
-        ),
-      );
+  JourneyAlarmSubscriptionIdentity identity(
+    String journeyId, {
+    bool realtime = false,
+  }) => JourneyAlarmSubscriptionIdentity(
+    contractVersion: JourneyContractVersion.journeySearchV3,
+    requestId: '01J9VV0K000000000000000000',
+    queryId: 'query-1',
+    journeyId: journeyId,
+    calculatedAt: DateTime.utc(2026, 7, 6, 8, 55),
+    validUntil: DateTime.utc(2026, 7, 6, 9, 0),
+    effectiveDepartureTime: DateTime.utc(2026, 7, 6, 9, 0),
+    serviceDate: JourneyDate.parse('2026-07-06'),
+    serviceTimezone: 'Asia/Seoul',
+    sourceIdentity: JourneySourceIdentity(
+      routeBundleId: 'bundle-1',
+      routeBundleSha256: 'a' * 64,
+      timetableSnapshotId: 'timetable-1',
+      accessibilitySnapshotId: 'accessibility-1',
+      realtimeSnapshotId: realtime ? 'realtime-1' : null,
+    ),
+    requestPolicy: JourneyRequestPolicy(
+      timePolicy: realtime
+          ? TimePolicy.realtimeRequired
+          : TimePolicy.timetableRequired,
+      mobilityProfile: MobilityProfile.standard,
+      constraintMode: ConstraintMode.none,
+      maxTransfers: 3,
+      alternativeCount: 3,
+    ),
+  );
 
   GetOffAlarmSubscription subscriptionFor(String journeyId) =>
       GetOffAlarmSubscription(
@@ -92,6 +96,19 @@ void main() {
     expect(loaded.destination.arrivalAt, DateTime.utc(2026, 7, 6, 9, 30));
     expect(loaded.transfers, hasLength(1));
     expect(loaded.transfers.single.stationId, 'transfer');
+  });
+
+  test('identity parser는 malformed를 거부하고 realtime·hash equality를 보존한다', () {
+    final malformed = identity('journey-1').toJson()
+      ..['serviceDate'] = 'not-a-date';
+    expect(JourneyAlarmSubscriptionIdentity.fromJson(malformed), isNull);
+
+    final expected = identity('journey-realtime', realtime: true);
+    final restored = JourneyAlarmSubscriptionIdentity.fromJson(
+      expected.toJson(),
+    );
+    expect(restored, expected);
+    expect(restored.hashCode, expected.hashCode);
   });
 
   test('단일 활성 구독 — 새로 저장하면 이전 것을 대체한다', () async {

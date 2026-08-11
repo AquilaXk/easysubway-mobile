@@ -8,16 +8,35 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscription.dart';
+import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('Home Journey station resolver는 exact ID만 이름으로 해소한다', () async {
+    final resolver = journeyAlarmStationNameResolver(
+      _StationRepository(_stationDetail('station-destination', '춘천')),
+    );
+
+    expect(await resolver('station-destination'), '춘천');
+
+    final mismatched = journeyAlarmStationNameResolver(
+      _StationRepository(_stationDetail('station-other', '다른 역')),
+    );
+    await expectLater(
+      mismatched('station-destination'),
+      throwsA(isA<StateError>()),
+    );
+  });
+
   testWidgets('complete draft는 server-order 후보를 보여주고 exact ID만 선택한다', (
     tester,
   ) async {
@@ -180,6 +199,13 @@ void main() {
     expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
     expect(find.text('기존 하차 알림을 끄지 못해 경로를 바꾸지 않았어요.'), findsOneWidget);
 
+    await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('journey-alarm-transition-error')),
+      findsNothing,
+    );
+
     final requestsBefore = repository.requests.length;
     alarm.notifier.cancelErrorOnce = StateError('cancel failed');
     final searchButton = find.widgetWithText(FilledButton, '경로 찾기');
@@ -191,8 +217,12 @@ void main() {
     expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
 
     final nextCandidate = find.byKey(const Key('journey-candidate-journey-2'));
+    alarm.notifier.cancelBarrier = Completer<void>();
     await tester.ensureVisible(nextCandidate);
     await tester.tap(nextCandidate);
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    alarm.notifier.cancelBarrier!.complete();
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('selected-journey-journey-2')), findsOneWidget);
     expect(alarm.repository.active, isNull);
@@ -257,7 +287,14 @@ void main() {
       ),
     );
     final repository = _Repository()..failuresRemaining = 1;
-    await _pumpScreen(tester, repository: repository);
+    final alarm = _AlarmHarness();
+    addTearDown(alarm.dispose);
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      getOffAlarmController: alarm.controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+    );
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
@@ -269,9 +306,23 @@ void main() {
     );
     expect(tester.takeException(), isNull);
 
+    await alarm.controller.enable(
+      routeId: 'retry-alarm',
+      stops: [
+        GetOffAlarmStop(
+          stationId: 'station-destination',
+          stationName: '춘천',
+          arrivalAt: DateTime.utc(2026, 8, 12, 0, 30),
+          kind: GetOffAlarmKind.destination,
+        ),
+      ],
+      transferAlarmEnabled: false,
+    );
+
     await tester.tap(find.widgetWithText(FilledButton, '다시 시도'));
     await tester.pumpAndSettle();
 
+    expect(alarm.notifier.cancelAllCount, 1);
     expect(repository.sessionRequests, 1);
     expect(repository.requests, hasLength(2));
     expect(find.text('경로 후보 2개'), findsOneWidget);
@@ -470,12 +521,16 @@ class _AlarmHarness {
 
 class _AlarmNotifier implements GetOffAlarmNotifier {
   Object? cancelErrorOnce;
+  Completer<void>? cancelBarrier;
+  int cancelAllCount = 0;
 
   @override
   Future<void> cancelAll() async {
+    cancelAllCount++;
     final error = cancelErrorOnce;
     cancelErrorOnce = null;
     if (error != null) throw error;
+    await cancelBarrier?.future;
   }
 
   @override
@@ -526,4 +581,26 @@ class _AlarmPermission implements NotificationPermissionProvider {
   @override
   Future<NotificationPermissionStatus> requestNotificationPermission() async =>
       NotificationPermissionStatus.granted;
+}
+
+StationDetail _stationDetail(String id, String nameKo) => StationDetail(
+  id: id,
+  nameKo: nameKo,
+  nameEn: nameKo,
+  region: '수도권',
+  dataQualityLevel: 'VERIFIED',
+  lastVerifiedAt: '2026-08-12T00:00:00Z',
+  lines: const [],
+);
+
+class _StationRepository implements StationSearchRepository {
+  _StationRepository(this.detail);
+
+  final StationDetail detail;
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) async => detail;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
