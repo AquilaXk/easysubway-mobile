@@ -16,9 +16,12 @@
 // 대신 CustomPaint의 painter를 RouteMapBasemapPainter로 캐스팅해 attributionText
 // 필드를 직접 assert한다 — 이 방식이 렌더 방식과 가장 정합적이고 신뢰성 있다.
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution_cache.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
+import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
@@ -307,6 +310,78 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('owner-label sidecar 실패 뒤 cache가 비워져 재마운트 시 재시도한다', (
+    tester,
+  ) async {
+    final manifestBytes = ByteData.sublistView(
+      File(networkMapManifestAssetPath).readAsBytesSync(),
+    );
+    const basemapAssetPath =
+        'assets/datapacks/metro_map_pack/basemap/gwangju.vec';
+    final basemapBytes = ByteData.sublistView(
+      File(basemapAssetPath).readAsBytesSync(),
+    );
+    final binaryMessenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    var ownerLabelLoadAttempts = 0;
+    binaryMessenger.setMockMessageHandler('flutter/assets', (
+      ByteData? message,
+    ) async {
+      final key = utf8.decode(message!.buffer.asUint8List());
+      if (key == basemapAssetPath) {
+        return basemapBytes;
+      }
+      if (key == networkMapManifestAssetPath) {
+        return manifestBytes;
+      }
+      if (key != kRouteMapOwnerLabelsAssetPath) {
+        return null;
+      }
+      ownerLabelLoadAttempts += 1;
+      return null;
+    });
+    addTearDown(
+      () => binaryMessenger.setMockMessageHandler('flutter/assets', null),
+    );
+
+    resetNetworkMapAttributionCache();
+    resetNetworkMapOwnerLabelsCacheForTest();
+    addTearDown(resetNetworkMapAttributionCache);
+    addTearDown(resetNetworkMapOwnerLabelsCacheForTest);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NetworkMapScreen(
+          repository: _FakeNetworkMapRepository(selectedRegion: '광주'),
+          routeDraftController: RouteDraftController(),
+          onOpenStationSearch: (_, _) {},
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(Duration.zero);
+
+    expect(ownerLabelLoadAttempts, 1);
+    expect(tester.takeException(), isNotNull);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: NetworkMapScreen(
+          repository: _FakeNetworkMapRepository(selectedRegion: '광주'),
+          routeDraftController: RouteDraftController(),
+          onOpenStationSearch: (_, _) {},
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(Duration.zero);
+
+    expect(ownerLabelLoadAttempts, 2);
+    expect(tester.takeException(), isNotNull);
+  });
 }
 
 /// #2011 계약 전환 테스트용 최소 manifest JSON. 광주 한 권역만 담고

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' show ImageFilter;
 
@@ -7,7 +6,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
-import 'package:flutter/services.dart' show rootBundle;
 
 import 'accessible_design.dart';
 import 'ad_slot.dart';
@@ -19,6 +17,7 @@ import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
 import 'features/network_map/data/network_map_attribution_cache.dart';
+import 'features/network_map/data/network_map_owner_labels_cache.dart';
 import 'features/network_map/domain/map_camera.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
@@ -280,14 +279,14 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     // _future를 막지 않는다). 다만 노선도는 홈 기본 탭이라 이 선행 로드가 앱 시작
     // 직후 걸리므로, "cold start 경로에 아무 영향이 없다"는 뜻은 아니다 — 정확한
     // 성질은 "UI isolate 작업을 늘리지 않는다"이며, 그 근거는
-    // [_loadNetworkMapOwnerLabelsByRegion]이 디코드·파싱 전체를 compute 워커로
+    // [loadNetworkMapOwnerLabelsByRegion]이 디코드·파싱 전체를 compute 워커로
     // 넘기기 때문이다(그 함수 주석의 리뷰 finding 참고). UI isolate에는 asset
     // 바이트 읽기와 결과 대입만 남는다.
     //
     // 실패는 캔버스의 _loadOwnerLabels가 리포팅·재시도를 담당하므로 여기서는
     // 삼킨다(중복 리포트 방지).
     unawaited(
-      _loadNetworkMapOwnerLabelsByRegion().catchError(
+      loadNetworkMapOwnerLabelsByRegion().catchError(
         (Object _, StackTrace _) =>
             const <String, Map<String, List<RouteMapOwnerLabelEntry>>>{},
       ),
@@ -3502,81 +3501,6 @@ class _NetworkMapBottomAdBanner extends StatelessWidget {
   }
 }
 
-// basemap 6차(#2068) 오너 라벨 sidecar — 5권역 결합 단일 JSON이라 attribution과
-// 같은 모듈 캐시 관례로 1회만 로드해 공유한다(region 전환마다 다시 읽지 않음).
-// 로드 실패 시 캐시를 비워 다음 마운트에서 재시도하고, 그때까지 basemap 라벨은
-// 4차 자동 솔버로 전부 폴백한다(fail-safe, 크래시 금지).
-Future<Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>>?
-_sharedOwnerLabelsByRegionFuture;
-
-/// 해석이 끝난 sidecar 값의 **동기** 캐시(#2068 트랙 QA 후속).
-///
-/// 초기 카메라 가독 배율이 sidecar에 의존하게 되면서, 캔버스 첫 build가 sidecar를
-/// 못 받으면 과축소로 1프레임 그린 뒤 확대로 튀는 "줌 팝"이 생긴다. Future만으로는
-/// 이미 완료된 값이라도 마이크로태스크 뒤에야 도착해 첫 build를 놓치므로, 해석된
-/// 값을 동기적으로 읽을 수 있게 따로 들고 있는다([_NetworkMapCanvasState.initState]
-/// 가 이 값으로 자신을 시드한다). 로드는 [NetworkMapScreen] initState에서 노선도
-/// 데이터 로드와 **동시에** 시작하므로(선행 로드), 캔버스가 마운트될 때쯤이면 보통
-/// 채워져 있다. 경합에서 지더라도 동작은 종전(카메라 1회 재계산)으로 퇴화할 뿐이다.
-Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>?
-_sharedOwnerLabelsByRegionValue;
-
-/// sidecar 바이트를 워커 isolate에서 통째로 해석한다(utf8 decode + jsonDecode +
-/// 엔트리 맵 구성). [compute] 콜백이라 최상위 함수여야 한다.
-Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>
-_decodeNetworkMapOwnerLabelsSidecar(Uint8List bytes) {
-  return routeMapOwnerLabelsByRegionFrom(utf8.decode(bytes));
-}
-
-Future<Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>>
-_loadNetworkMapOwnerLabelsByRegion() {
-  // 해석 전체를 워커 isolate로 넘긴다(#2068 트랙 QA 후속 리뷰 finding).
-  //
-  // 종전 `rootBundle.loadString(...).then(routeMapOwnerLabelsByRegionFrom)`은
-  // 50KB 초과 자산의 **utf8 decode만** 워커로 보내고, 이어지는 jsonDecode와
-  // 5권역 986건 엔트리 맵 구성은 root(UI) isolate에서 돌았다(현재 sidecar
-  // 218,720 bytes). 노선도는 홈 기본 탭이라 이 로드가 앱 시작 직후 걸리므로
-  // 그 CPU가 datapack 로드·첫 프레임과 같은 isolate에서 경쟁했다.
-  //
-  // 이제 바이트만 읽고(rootBundle.load는 compute를 타지 않는다) 한 번의 compute로
-  // 디코드·파싱을 모두 워커에서 처리한다 — isolate spawn 수는 종전(loadString이
-  // 내부적으로 1회)과 같고, UI isolate에 남는 파싱 작업은 없다.
-  return _sharedOwnerLabelsByRegionFuture ??= rootBundle
-      .load(kRouteMapOwnerLabelsAssetPath)
-      .then(
-        (data) => compute(
-          _decodeNetworkMapOwnerLabelsSidecar,
-          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
-        ),
-      )
-      .then((byRegion) {
-        _sharedOwnerLabelsByRegionValue = byRegion;
-        return byRegion;
-      });
-}
-
-@visibleForTesting
-void resetNetworkMapOwnerLabelsCacheForTest() {
-  _sharedOwnerLabelsByRegionFuture = null;
-  _sharedOwnerLabelsByRegionValue = null;
-}
-
-/// 위젯 테스트가 실제 sidecar 로드 경로(rootBundle.loadString)를 거치지 않고
-/// 오너 라벨 캐시를 즉시 채운다(#2068 실기기 회귀 재현 테스트 전용). 이미
-/// 파싱한 결과(예: rootBundle.load로 바이트를 받아 테스트가 직접 디코드한 것)를
-/// 넘기면 다음 `_loadOwnerLabels()` 호출이 이 값을 즉시 받는다 — 대형 sidecar
-/// JSON(현재 170KB대, Flutter loadString의 동기 임계값을 넘어 compute() 격리
-/// isolate로 디코드된다)의 loadString 완료를 기다릴 필요가 없어, 그 경로가 느리게
-/// 동작하는 테스트 환경에서도 region 키 정규화 등 나머지 로직을 실데이터로
-/// 검증할 수 있다.
-@visibleForTesting
-void primeNetworkMapOwnerLabelsCacheForTest(
-  Map<String, Map<String, List<RouteMapOwnerLabelEntry>>> byRegion,
-) {
-  _sharedOwnerLabelsByRegionFuture = Future.value(byRegion);
-  _sharedOwnerLabelsByRegionValue = byRegion;
-}
-
 class _NetworkMapCanvas extends StatefulWidget {
   const _NetworkMapCanvas({
     required this.data,
@@ -3719,7 +3643,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
     // 해석된 값이 있으면 **첫 build 전에 동기로** 시드해 과축소 → 확대 줌 팝을
     // 없앤다. 값이 없을 때만 비동기 로드를 태운다(선행 로드가 아직 끝나지 않은
     // 경합 케이스 — 도착하면 setState로 카메라가 한 번 재계산된다).
-    _ownerLabelsByRegion = _sharedOwnerLabelsByRegionValue;
+    _ownerLabelsByRegion = cachedNetworkMapOwnerLabelsByRegion;
     if (_ownerLabelsByRegion == null) {
       _loadOwnerLabels();
     }
@@ -3748,7 +3672,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
 
   Future<void> _loadOwnerLabels() async {
     try {
-      final byRegion = await _loadNetworkMapOwnerLabelsByRegion();
+      final byRegion = await loadNetworkMapOwnerLabelsByRegion();
       if (!mounted) {
         return;
       }
@@ -3756,7 +3680,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
     } catch (error, stackTrace) {
       // #2068 6차: 로드/파싱 실패는 basemap 라벨의 4차 자동 솔버 폴백으로
       // 안전 처리한다(크래시 금지). 재시도를 위해 캐시를 비운다.
-      _sharedOwnerLabelsByRegionFuture = null;
+      invalidateNetworkMapOwnerLabelsLoad();
       reportMobileError(
         error,
         stackTrace,
