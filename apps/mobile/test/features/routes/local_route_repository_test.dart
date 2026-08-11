@@ -217,6 +217,7 @@ void main() {
         originStationId: 'station-sangnoksu',
         destinationStationId: 'station-sadang',
         mobilityType: 'STANDARD',
+        mobilityPreset: 'STANDARD',
       ),
     );
 

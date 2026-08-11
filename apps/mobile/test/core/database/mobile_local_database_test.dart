@@ -295,6 +295,8 @@ void main() {
     final database = await opener.open();
     addTearDown(database.close);
 
+    expect(opener.openedArtifactIdentity, isNotEmpty);
+
     final metadata = await database.customSelect('''
           SELECT value
           FROM catalog_metadata
