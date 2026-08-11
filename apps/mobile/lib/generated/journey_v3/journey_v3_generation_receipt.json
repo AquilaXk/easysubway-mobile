@@ -3,7 +3,7 @@
   "generator": {
     "id": "easysubway-mobile-journey-v3-client",
     "version": "2.0.0",
-    "sourceSha256": "b6648cd38cec50d96d0961b64422aa0523d752d10cc39f7027dc4c726586ccc6",
+    "sourceSha256": "7328a16fc1707c604a6dd5877752fedc587af2e5bfd8b8999f2048f326a46467",
     "formatter": {
       "command": "dart format",
       "sdkVersion": "3.12.0"
@@ -14,14 +14,14 @@
     "sourceFiles": [
       {
         "path": "contracts/mobile/journey-v3-client.lock.json",
-        "sha256": "05d9a798ab8be5205405b37ba3b0650e8b8edeab6dfdf2a814831b42f341c213"
+        "sha256": "2b7e2b1efff2eb9705b7329e02f97680d433f4fb696936835b087c7fa955d3bc"
       },
       {
         "path": "tools/mobile/generate-journey-v3-client.mjs",
-        "sha256": "b6648cd38cec50d96d0961b64422aa0523d752d10cc39f7027dc4c726586ccc6"
+        "sha256": "7328a16fc1707c604a6dd5877752fedc587af2e5bfd8b8999f2048f326a46467"
       }
     ],
-    "generationSourceTreeSha256": "109126201066c6b3dcb1bff134925463f7a5da36a893038885e43959d3ea5b90"
+    "generationSourceTreeSha256": "e1e3b41c0ffb3ef7f4ae16085fb2ed5a50baa8b425d21a09fb9cf09c9b37f720"
   },
   "runtime": {
     "node": {
@@ -43,23 +43,23 @@
       "<output-root>/journey_v3_generation_receipt.json"
     ]
   },
-  "configSha256": "051ff83e74733cf33f7002341ba5f9de279dd06efba3ab08f5f0b0bd8789ae20",
-  "lockSha256": "05d9a798ab8be5205405b37ba3b0650e8b8edeab6dfdf2a814831b42f341c213",
+  "configSha256": "0a8625ec57ef3fd832e90daeb0687203c6fe6636f81bd97072add0cebb036d82",
+  "lockSha256": "2b7e2b1efff2eb9705b7329e02f97680d433f4fb696936835b087c7fa955d3bc",
   "producer": {
     "repository": "AquilaXk/easysubway-backend",
-    "gitSha": "d789995d0beeb421bedd627a924ae8f660fa97bc"
+    "gitSha": "1c25e586270f0e40b5fcad32820ff9e9e3ff985f"
   },
   "artifact": {
     "repository": "ghcr.io/aquilaxk/easysubway-backend-contracts",
-    "manifestDigest": "sha256:415cee82879c5af68fbca7f74e6437d9bc00f043378a555479a004a04297ca44",
+    "manifestDigest": "sha256:6d3b428a6e069739b98d040f6d10c5e20af10725d8656aeaaad190d5bf9fa3b1",
     "artifactType": "application/vnd.easysubway.journey.contract-bundle.v2"
   },
   "payload": {
     "fileName": "journey-v3-contract-bundle-v2.json",
     "mediaType": "application/vnd.easysubway.journey.contract-bundle.v2+json",
-    "sha256": "702c180011b9c2378f3e4199df30f6592512ec4892e7f078907d5e292225705c"
+    "sha256": "1bdffede5aa577411d77a6c8ec4f18de8ea25c61b54f227e985386b81b65625f"
   },
-  "publicationReceiptSha256": "e7a5338c2a84f00ca3a18e1688f8f2058bbc5efe3d23501bb7913c168f408998",
+  "publicationReceiptSha256": "dcb93a99c86f9a7790e33ceebc8c9392bb65178db1c0d2b6c0eeea5b8e75a6cd",
   "resources": [
     {
       "id": "journey-v3-error-catalog",
@@ -74,6 +74,13 @@
       "owner": "AquilaXk/easysubway-backend",
       "mediaType": "application/json",
       "sha256": "1e03ee7262897e0887ef837c95a2802ff420ffeaf15c921e0dca8a9750280780"
+    },
+    {
+      "id": "journey-v3-session-integrity",
+      "path": "contracts/api/journey-v3-session-integrity.json",
+      "owner": "AquilaXk/easysubway-backend",
+      "mediaType": "application/json",
+      "sha256": "06e4fce1260ef807c5a1cc226789ea9e952d2c49f0a50bd0bd7d954b4f1910ad"
     },
     {
       "id": "journey-v3-openapi",
@@ -101,7 +108,7 @@
   "files": [
     {
       "path": "journey_v3_contract.dart",
-      "sha256": "be5dd2fff10186ad3f170808341e8daf07ecc340cdfa4115d2522471f713e348"
+      "sha256": "b757dd86825e28b16c41f42077b4ccbb9a6466db07d2886215bf7300f2f46b94"
     },
     {
       "path": "journey_v3_enums.dart",
@@ -120,5 +127,5 @@
       "sha256": "aac18e70d8410e9807536bd6e67607e91d92bb05e070e37ef50a8161751909a8"
     }
   ],
-  "treeSha256": "c2efe1e4ad2dfd00daa60d037d78364af09875a5570137f326962c85d3260404"
+  "treeSha256": "fb398f00bdd0bf202662ba70b047ad6c376db3204f0a101914c3f6a91bcafbdf"
 }
