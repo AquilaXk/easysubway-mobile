@@ -59,6 +59,22 @@ void main() {
       )?.stationCode,
       '401',
     );
+    expect(
+      networkMapStationForMapEdgeEndpoint(
+        endpoint: 'station-a',
+        lineId: 'missing-line',
+        stations: stations,
+      )?.stationCode,
+      '401',
+    );
+    expect(
+      networkMapStationForMapEdgeEndpoint(
+        endpoint: 'missing-station',
+        lineId: 'seoul-4',
+        stations: stations,
+      ),
+      isNull,
+    );
   });
 
   test('패널 인접은 network_edges RIDE만 따르고 sequence 충돌 역은 무시한다', () {
