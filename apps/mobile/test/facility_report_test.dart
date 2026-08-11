@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/application/facility_report_state.dart';
 import 'package:easysubway_mobile/features/facility_report/data/drift_facility_report_receipt_store.dart';
 import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'package:easysubway_mobile/features/facility_report/data/secure_facility_report_draft_target_store.dart';
@@ -424,6 +425,31 @@ void main() {
 
     expect(valid.createdDateLabel, '2026.06.13');
     expect(invalid.createdDateLabel, '__CREATED_AT__');
+  });
+
+  test('시설 신고 application state는 상태와 결과 참조를 보존한다', () {
+    const result = FacilityReportResult(
+      id: 'report-state',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'BROKEN',
+      description: '문이 열리지 않습니다.',
+      status: 'SUBMITTED',
+      createdAt: '2026-06-13T10:00:00',
+    );
+    const explicit = FacilityReportState(
+      status: FacilityReportViewStatus.failure,
+      message: '제보 진행 상황을 확인하지 못했어요.',
+      result: result,
+    );
+
+    const idle = FacilityReportState.idle();
+    expect(idle.status, FacilityReportViewStatus.idle);
+    expect(idle.message, isEmpty);
+    expect(idle.result, isNull);
+    expect(explicit.status, FacilityReportViewStatus.failure);
+    expect(explicit.message, '제보 진행 상황을 확인하지 못했어요.');
+    expect(identical(explicit.result, result), isTrue);
   });
 
   test('시설 신고 결과 domain parsing과 표시 문구 정책을 보존한다', () {
