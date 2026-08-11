@@ -18,6 +18,7 @@ class GetOffAlarmState {
   const GetOffAlarmState({
     this.enabled = false,
     this.activeRouteId,
+    this.activeJourneyIdentity,
     this.scheduleMode,
     this.inexactNotice,
     this.permissionNotice,
@@ -26,6 +27,7 @@ class GetOffAlarmState {
 
   final bool enabled;
   final String? activeRouteId;
+  final JourneyAlarmSubscriptionIdentity? activeJourneyIdentity;
   final GetOffAlarmScheduleMode? scheduleMode;
 
   /// 부정확 예약으로 강등됐을 때의 오차 고지 문구(없으면 null).
@@ -113,6 +115,12 @@ class GetOffAlarmController extends ChangeNotifier {
       );
       return;
     }
+    if (subscription.journeyIdentity == null ||
+        subscription.journeyIdentity!.journeyId != subscription.routeId) {
+      await _cleanUpInactiveSubscription();
+      _emit(GetOffAlarmState.off);
+      return;
+    }
     final notificationPermission = await notificationPermissionProvider
         .notificationPermissionStatus();
     if (notificationPermission != NotificationPermissionStatus.granted) {
@@ -157,6 +165,7 @@ class GetOffAlarmController extends ChangeNotifier {
     // 정리되는 계약 분열이 생긴다.
     await _schedule(
       routeId: subscription.routeId,
+      journeyIdentity: subscription.journeyIdentity,
       stops: stops,
       transferAlarmEnabled: subscription.transferAlarmEnabled,
       resolution: resolution,
@@ -223,6 +232,21 @@ class GetOffAlarmController extends ChangeNotifier {
   }) => _enqueueMutation(
     () => _enable(
       routeId: routeId,
+      journeyIdentity: null,
+      stops: stops,
+      transferAlarmEnabled: transferAlarmEnabled,
+    ),
+  );
+
+  /// Journey V3에서 선택한 exact identity와 함께 하차 알림을 켠다.
+  Future<void> enableJourney({
+    required JourneyAlarmSubscriptionIdentity identity,
+    required List<GetOffAlarmStop> stops,
+    required bool transferAlarmEnabled,
+  }) => _enqueueMutation(
+    () => _enable(
+      routeId: identity.journeyId,
+      journeyIdentity: identity,
       stops: stops,
       transferAlarmEnabled: transferAlarmEnabled,
     ),
@@ -230,6 +254,7 @@ class GetOffAlarmController extends ChangeNotifier {
 
   Future<void> _enable({
     required String routeId,
+    required JourneyAlarmSubscriptionIdentity? journeyIdentity,
     required List<GetOffAlarmStop> stops,
     required bool transferAlarmEnabled,
   }) async {
@@ -254,6 +279,7 @@ class GetOffAlarmController extends ChangeNotifier {
     );
     await _schedule(
       routeId: routeId,
+      journeyIdentity: journeyIdentity,
       stops: stops,
       transferAlarmEnabled: transferAlarmEnabled,
       resolution: resolution,
@@ -308,6 +334,7 @@ class GetOffAlarmController extends ChangeNotifier {
     );
     await _schedule(
       routeId: routeId,
+      journeyIdentity: subscription.journeyIdentity,
       stops: stops,
       transferAlarmEnabled: subscription.transferAlarmEnabled,
       resolution: resolution,
@@ -320,6 +347,7 @@ class GetOffAlarmController extends ChangeNotifier {
   /// (enable/refresh 경로의 기존 동작).
   Future<void> _schedule({
     required String routeId,
+    required JourneyAlarmSubscriptionIdentity? journeyIdentity,
     required List<GetOffAlarmStop> stops,
     required bool transferAlarmEnabled,
     required GetOffAlarmScheduleResolution resolution,
@@ -345,6 +373,7 @@ class GetOffAlarmController extends ChangeNotifier {
     }
     final subscription = _subscriptionFrom(
       routeId: routeId,
+      journeyIdentity: journeyIdentity,
       stops: stops,
       transferAlarmEnabled: transferAlarmEnabled,
       scheduledCount: delivery.scheduledCount,
@@ -365,7 +394,7 @@ class GetOffAlarmController extends ChangeNotifier {
 
   /// 하차 알림을 끈다: 예약을 취소하고 영속 상태를 지운다. 경로 안내 종료·새
   /// 경로 탐색 시 호출한다.
-  Future<void> disable() => _enqueueMutation(_turnOff);
+  Future<void> disable() => _enqueueMutation(_disable);
 
   Future<T> _enqueueMutation<T>(Future<T> Function() mutation) {
     final result = _mutationTail.then((_) => mutation());
@@ -381,6 +410,42 @@ class GetOffAlarmController extends ChangeNotifier {
     await repository.clearActive();
     await _deactivateReconcileWork();
     _emit(GetOffAlarmState(permissionNotice: permissionNotice));
+  }
+
+  Future<void> _disable() async {
+    final subscription = await repository.loadActive();
+    try {
+      await notifier.cancelAll();
+      await repository.clearActive();
+    } catch (error, stackTrace) {
+      if (subscription != null) {
+        try {
+          final alarms = computeGetOffAlarms(
+            stops: _stopsFrom(subscription),
+            policy: policy.copyWith(
+              transferAlarmEnabled: subscription.transferAlarmEnabled,
+            ),
+            now: now(),
+          );
+          if (alarms.isNotEmpty) {
+            await notifier.scheduleAlarms(
+              alarms,
+              mode: subscription.scheduleMode,
+            );
+          }
+          _emitSubscription(subscription);
+        } catch (compensationError, compensationStackTrace) {
+          reportMobileError(
+            compensationError,
+            compensationStackTrace,
+            context: '하차 알림 끄기 실패 복구 중 예외가 발생했습니다.',
+          );
+        }
+      }
+      Error.throwWithStackTrace(error, stackTrace);
+    }
+    await _deactivateReconcileWork();
+    _emit(GetOffAlarmState.off);
   }
 
   Future<void> _compensateFailedSave() async {
@@ -408,6 +473,7 @@ class GetOffAlarmController extends ChangeNotifier {
 
   GetOffAlarmSubscription _subscriptionFrom({
     required String routeId,
+    required JourneyAlarmSubscriptionIdentity? journeyIdentity,
     required List<GetOffAlarmStop> stops,
     required bool transferAlarmEnabled,
     required int scheduledCount,
@@ -429,6 +495,7 @@ class GetOffAlarmController extends ChangeNotifier {
         .toList();
     return GetOffAlarmSubscription(
       routeId: routeId,
+      journeyIdentity: journeyIdentity,
       transferAlarmEnabled: transferAlarmEnabled,
       scheduledCount: scheduledCount,
       scheduleMode: scheduleMode,
@@ -465,6 +532,7 @@ class GetOffAlarmController extends ChangeNotifier {
       GetOffAlarmState(
         enabled: true,
         activeRouteId: subscription.routeId,
+        activeJourneyIdentity: subscription.journeyIdentity,
         scheduleMode: subscription.scheduleMode,
         inexactNotice: subscription.inexactNotice,
         scheduledCount: subscription.scheduledCount,

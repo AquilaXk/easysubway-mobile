@@ -1,11 +1,19 @@
 import 'dart:async';
 import 'dart:ui' show SemanticsAction, Tristate;
 
+import 'package:easysubway_mobile/features/get_off_alarm/data/get_off_alarm_state_repository.dart';
+import 'package:easysubway_mobile/features/get_off_alarm/exact_alarm_permission.dart';
+import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_controller.dart';
+import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.dart';
+import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
+import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
+import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscription.dart';
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
+import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -140,6 +148,57 @@ void main() {
     );
   });
 
+  testWidgets('다른 후보·새 검색은 기존 Journey 알림 취소 성공 뒤에만 전환한다', (tester) async {
+    final repository = _Repository();
+    final alarm = _AlarmHarness();
+    addTearDown(alarm.dispose);
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      getOffAlarmController: alarm.controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+      getOffAlarmNow: () => DateTime.utc(2026, 8, 11, 23, 55),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+    await tester.pump();
+    final alarmToggle = find.byKey(const Key('journey-get-off-alarm-toggle'));
+    await tester.ensureVisible(alarmToggle);
+    await tester.tap(alarmToggle);
+    for (var index = 0; index < 4; index++) {
+      await tester.pump();
+    }
+    await tester.runAsync(
+      () => alarm.repository.saved.future.timeout(const Duration(seconds: 1)),
+    );
+    await tester.pumpAndSettle();
+
+    alarm.notifier.cancelErrorOnce = StateError('cancel failed');
+    await tester.tap(find.byKey(const Key('journey-candidate-journey-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
+    expect(find.text('기존 하차 알림을 끄지 못해 경로를 바꾸지 않았어요.'), findsOneWidget);
+
+    final requestsBefore = repository.requests.length;
+    alarm.notifier.cancelErrorOnce = StateError('cancel failed');
+    final searchButton = find.widgetWithText(FilledButton, '경로 찾기');
+    await tester.ensureVisible(searchButton);
+    await tester.tap(searchButton);
+    await tester.pumpAndSettle();
+
+    expect(repository.requests, hasLength(requestsBefore));
+    expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
+
+    final nextCandidate = find.byKey(const Key('journey-candidate-journey-2'));
+    await tester.ensureVisible(nextCandidate);
+    await tester.tap(nextCandidate);
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('selected-journey-journey-2')), findsOneWidget);
+    expect(alarm.repository.active, isNull);
+  });
+
   testWidgets('세션 발급 중에는 검색 진행 상태를 보여준다', (tester) async {
     final repository = _Repository();
     final session = Completer<JourneySessionResponse>();
@@ -238,6 +297,9 @@ Future<void> _pumpScreen(
   RouteDraft? draft,
   String mobilityType = 'STANDARD',
   JourneyShareInvoker? shareInvoker,
+  GetOffAlarmController? getOffAlarmController,
+  Future<String> Function(String stationId)? stationNameResolver,
+  DateTime Function()? getOffAlarmNow,
 }) {
   return tester.pumpWidget(
     MaterialApp(
@@ -248,6 +310,9 @@ Future<void> _pumpScreen(
         mobilityType: mobilityType,
         onShellBackToHome: () {},
         shareInvoker: shareInvoker,
+        getOffAlarmController: getOffAlarmController,
+        stationNameResolver: stationNameResolver,
+        getOffAlarmNow: getOffAlarmNow,
       ),
     ),
   );
@@ -385,3 +450,81 @@ Journey _journey(String id, DateTime now) => Journey(
     ),
   ],
 );
+
+class _AlarmHarness {
+  _AlarmHarness() {
+    controller = GetOffAlarmController(
+      notifier: notifier,
+      permissionGate: const _AlarmExactGate(),
+      notificationPermissionProvider: const _AlarmPermission(),
+      repository: repository,
+      now: () => DateTime.utc(2026, 8, 11, 23, 55),
+    );
+  }
+
+  final notifier = _AlarmNotifier();
+  final repository = _AlarmRepository();
+  late final GetOffAlarmController controller;
+
+  void dispose() => controller.dispose();
+}
+
+class _AlarmNotifier implements GetOffAlarmNotifier {
+  Object? cancelErrorOnce;
+
+  @override
+  Future<void> cancelAll() async {
+    final error = cancelErrorOnce;
+    cancelErrorOnce = null;
+    if (error != null) throw error;
+  }
+
+  @override
+  Future<int> pendingAlarmCount() async => 0;
+
+  @override
+  Future<ScheduleDeliveryResult> scheduleAlarms(
+    List<ScheduledGetOffAlarm> alarms, {
+    required GetOffAlarmScheduleMode mode,
+  }) async =>
+      ScheduleDeliveryResult(scheduledCount: alarms.length, failedCount: 0);
+}
+
+class _AlarmRepository implements GetOffAlarmStateRepository {
+  GetOffAlarmSubscription? active;
+  final saved = Completer<void>();
+
+  @override
+  Future<void> clearActive() async => active = null;
+
+  @override
+  Future<GetOffAlarmSubscription?> loadActive() async => active;
+
+  @override
+  Future<void> saveActive(GetOffAlarmSubscription subscription) async {
+    active = subscription;
+    if (!saved.isCompleted) saved.complete();
+  }
+}
+
+class _AlarmExactGate implements ExactAlarmPermissionGate {
+  const _AlarmExactGate();
+
+  @override
+  Future<bool> isExactAlarmPermitted() async => true;
+
+  @override
+  Future<bool> requestExactAlarmPermission() async => true;
+}
+
+class _AlarmPermission implements NotificationPermissionProvider {
+  const _AlarmPermission();
+
+  @override
+  Future<NotificationPermissionStatus> notificationPermissionStatus() async =>
+      NotificationPermissionStatus.granted;
+
+  @override
+  Future<NotificationPermissionStatus> requestNotificationPermission() async =>
+      NotificationPermissionStatus.granted;
+}

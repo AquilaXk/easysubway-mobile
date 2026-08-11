@@ -720,6 +720,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           draft: _routeDraftController.draft,
           mobilityType: _routeTabMobilityType ?? initialMobilityType,
           onShellBackToHome: closeRouteTab,
+          getOffAlarmController: widget.getOffAlarmController,
+          stationNameResolver: widget.getOffAlarmController == null
+              ? null
+              : (stationId) async {
+                  final station = await repository.getStationDetail(stationId);
+                  if (station.id != stationId) {
+                    throw StateError('station identity mismatch');
+                  }
+                  return station.nameKo;
+                },
         ),
       );
     }

@@ -9,6 +9,7 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscription.dart';
+import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:easysubway_mobile/main.dart' as app;
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:easysubway_mobile/notification_settings.dart';
@@ -99,6 +100,7 @@ GetOffAlarmSubscription _withRouteId(
 ) {
   return GetOffAlarmSubscription(
     routeId: routeId,
+    journeyIdentity: subscription.journeyIdentity,
     transferAlarmEnabled: subscription.transferAlarmEnabled,
     scheduledCount: subscription.scheduledCount,
     scheduleMode: subscription.scheduleMode,
@@ -107,6 +109,33 @@ GetOffAlarmSubscription _withRouteId(
     transfers: subscription.transfers,
   );
 }
+
+JourneyAlarmSubscriptionIdentity _journeyIdentity([String journeyId = 'r1']) =>
+    JourneyAlarmSubscriptionIdentity(
+      contractVersion: JourneyContractVersion.journeySearchV3,
+      requestId: '01J9VV0K000000000000000000',
+      queryId: 'query-1',
+      journeyId: journeyId,
+      calculatedAt: DateTime.utc(2026, 7, 6, 8, 55),
+      validUntil: DateTime.utc(2026, 7, 6, 9, 0),
+      effectiveDepartureTime: DateTime.utc(2026, 7, 6, 9, 0),
+      serviceDate: JourneyDate.parse('2026-07-06'),
+      serviceTimezone: 'Asia/Seoul',
+      sourceIdentity: JourneySourceIdentity(
+        routeBundleId: 'bundle-1',
+        routeBundleSha256: 'a' * 64,
+        timetableSnapshotId: 'timetable-1',
+        accessibilitySnapshotId: 'accessibility-1',
+        realtimeSnapshotId: null,
+      ),
+      requestPolicy: const JourneyRequestPolicy(
+        timePolicy: TimePolicy.timetableRequired,
+        mobilityProfile: MobilityProfile.standard,
+        constraintMode: ConstraintMode.none,
+        maxTransfers: 3,
+        alternativeCount: 3,
+      ),
+    );
 
 class _StubExactAlarmGate implements ExactAlarmPermissionGate {
   _StubExactAlarmGate(this.permitted);
@@ -256,7 +285,11 @@ void main() {
   test('정확 알람 권한이 있으면 exact 모드로 예약하고 상태를 켠다', () async {
     final c = controller(exactPermitted: true);
 
-    await c.enable(routeId: 'r1', stops: stops(), transferAlarmEnabled: true);
+    await c.enableJourney(
+      identity: _journeyIdentity(),
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
 
     expect(notifier.scheduledMode, GetOffAlarmScheduleMode.exact);
     expect(notifier.scheduledAlarms, hasLength(2));
@@ -265,6 +298,37 @@ void main() {
     expect(c.state.inexactNotice, isNull);
     // 활성 구독이 영속 저장된다.
     expect(await repository.loadActive(), isNotNull);
+  });
+
+  test('Journey enable은 선택 identity 전체를 저장하고 상태에 노출한다', () async {
+    final c = controller(exactPermitted: true);
+    final identity = _journeyIdentity();
+
+    await c.enableJourney(
+      identity: identity,
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
+
+    expect(c.state.activeJourneyIdentity, identity);
+    expect((await repository.loadActive())?.journeyIdentity, identity);
+  });
+
+  test('identity 없는 legacy 구독은 restore current success가 아니다', () async {
+    final first = controller(exactPermitted: true);
+    await first.enable(
+      routeId: 'legacy-route',
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
+    notifier.cancelAllCount = 0;
+    final restored = controller(exactPermitted: true);
+
+    await restored.restore();
+
+    expect(restored.state.enabled, isFalse);
+    expect(notifier.cancelAllCount, 1);
+    expect(await repository.loadActive(), isNull);
   });
 
   test('정확 알람 권한이 없으면 inexact로 강등하고 오차 고지를 상태에 담는다', () async {
@@ -304,7 +368,11 @@ void main() {
     );
     final c = controller(exactPermitted: true);
 
-    await c.enable(routeId: 'r1', stops: stops(), transferAlarmEnabled: true);
+    await c.enableJourney(
+      identity: _journeyIdentity(),
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
 
     expect(c.state.enabled, isTrue);
     expect(c.state.scheduledCount, 1);
@@ -317,8 +385,8 @@ void main() {
       failedCount: 1,
     );
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -332,8 +400,8 @@ void main() {
 
   test('restore는 현재도 inexact면 저장된 강등 고지를 유지한다', () async {
     final first = controller(exactPermitted: false);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -348,8 +416,8 @@ void main() {
 
   test('restore에서 알림 권한이 철회되면 프롬프트 없이 pending과 저장을 정리한다', () async {
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -376,8 +444,8 @@ void main() {
 
   test('restore에서 미래 구독은 pending 상태와 무관하게 전체 재예약한다', () async {
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -396,8 +464,8 @@ void main() {
   test('restore는 단일 now 스냅샷으로 계산해 마지막 알림 경계에서 갈라지지 않는다', () async {
     // 저장: 환승 9:15(fireAt 9:13)·도착 9:30(fireAt 9:28).
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -438,8 +506,8 @@ void main() {
       failedCount: 0,
     );
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -455,8 +523,8 @@ void main() {
 
   test('restore에서 exact 상태가 바뀌면 저장된 stops로 권한 요청 없이 재예약한다', () async {
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -484,7 +552,11 @@ void main() {
 
   test('refresh는 exact 권한 상태만 확인하고 권한을 다시 요청하지 않는다', () async {
     final c = controller(exactPermitted: true);
-    await c.enable(routeId: 'r1', stops: stops(), transferAlarmEnabled: true);
+    await c.enableJourney(
+      identity: _journeyIdentity(),
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
     expect(exactAlarmGate.requestCalls, 1);
     expect(exactAlarmGate.isPermittedCalls, 0);
 
@@ -510,7 +582,11 @@ void main() {
       now: () => now,
     );
     addTearDown(c.dispose);
-    await c.enable(routeId: 'r1', stops: stops(), transferAlarmEnabled: true);
+    await c.enableJourney(
+      identity: _journeyIdentity(),
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
     permission.status = NotificationPermissionStatus.denied;
 
     await c.refresh(routeId: 'r1', stops: stops());
@@ -759,6 +835,36 @@ void main() {
     expect(c.state.activeRouteId, isNull);
   });
 
+  test('disable clear 실패는 기존 Journey 예약·선택을 복구하고 오류를 돌려준다', () async {
+    final clearError = StateError('clear failed');
+    final stateRepository = _RecordingStateRepository();
+    final c = GetOffAlarmController(
+      notifier: notifier,
+      permissionGate: _StubExactAlarmGate(true),
+      notificationPermissionProvider: _StubNotificationPermissionProvider(
+        NotificationPermissionStatus.granted,
+      ),
+      repository: stateRepository,
+      now: () => now,
+    );
+    addTearDown(c.dispose);
+    final identity = _journeyIdentity();
+    await c.enableJourney(
+      identity: identity,
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
+    stateRepository.clearError = clearError;
+    final scheduleCallsBefore = notifier.scheduleCalls;
+
+    await expectLater(c.disable(), throwsA(same(clearError)));
+
+    expect(notifier.scheduleCalls, scheduleCallsBefore + 1);
+    expect(stateRepository.active?.journeyIdentity, identity);
+    expect(c.state.enabled, isTrue);
+    expect(c.state.activeJourneyIdentity, identity);
+  });
+
   test('destination 스톱이 없으면 예약·저장 없이 조기 반환한다', () async {
     final c = controller(exactPermitted: true);
 
@@ -782,8 +888,8 @@ void main() {
 
   test('restore는 영속된 활성 구독을 켜진 상태로 복원한다', () async {
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -943,8 +1049,8 @@ void main() {
 
   test('restore에서 만료 구독은 pending을 취소하고 구독을 삭제한다', () async {
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );
@@ -973,8 +1079,8 @@ void main() {
   test('알림 권한 거부 정리는 복구 안내 플래그를 기록하고 안내를 표시한다', () async {
     final store = _RecordingRecoveryNoticeStore();
     final first = controller(exactPermitted: true);
-    await first.enable(
-      routeId: 'r1',
+    await first.enableJourney(
+      identity: _journeyIdentity(),
       stops: stops(),
       transferAlarmEnabled: true,
     );

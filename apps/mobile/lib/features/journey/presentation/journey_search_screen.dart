@@ -1,12 +1,16 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../get_off_alarm/get_off_alarm_controller.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
+import 'journey_get_off_alarm_toggle.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
@@ -19,8 +23,11 @@ class JourneySearchScreen extends StatefulWidget {
     required this.mobilityType,
     required this.onShellBackToHome,
     this.shareInvoker,
+    this.getOffAlarmController,
+    this.stationNameResolver,
+    this.getOffAlarmNow,
     super.key,
-  });
+  }) : assert((getOffAlarmController == null) == (stationNameResolver == null));
 
   final JourneyRepository repository;
   final JourneyV3IntegrityAttestor attestor;
@@ -28,6 +35,9 @@ class JourneySearchScreen extends StatefulWidget {
   final String mobilityType;
   final VoidCallback onShellBackToHome;
   final JourneyShareInvoker? shareInvoker;
+  final GetOffAlarmController? getOffAlarmController;
+  final JourneyStationNameResolver? stationNameResolver;
+  final DateTime Function()? getOffAlarmNow;
 
   @override
   State<JourneySearchScreen> createState() => _JourneySearchScreenState();
@@ -37,6 +47,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
   late final JourneySearchController _controller;
   JourneySearchStatus _lastAnnouncedStatus = JourneySearchStatus.idle;
   bool _isSharing = false;
+  bool _isAlarmTransitioning = false;
+  String? _alarmTransitionError;
 
   @override
   void initState() {
@@ -100,9 +112,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     final summary =
         '$durationMinutes분, $transfer, 도보 ${journey.walkingDistanceMeters}m, ${_arrivalTime(journey)} 도착, $accessibility';
     final color = Theme.of(context).colorScheme.primary;
-    void selectJourney() {
-      _controller.selectJourney(journey.journeyId);
-    }
+    void selectJourney() => unawaited(_selectJourney(journey));
 
     return Semantics(
       key: Key('journey-candidate-${journey.journeyId}'),
@@ -110,10 +120,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
       button: true,
       selected: selected,
       label: summary,
-      onTap: selectJourney,
+      onTap: _isAlarmTransitioning ? null : selectJourney,
       excludeSemantics: true,
       child: InkWell(
-        onTap: selectJourney,
+        onTap: _isAlarmTransitioning ? null : selectJourney,
         child: Container(
           constraints: const BoxConstraints(minHeight: 64),
           decoration: selected
@@ -194,6 +204,15 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
         const SizedBox(height: 8),
         for (var index = 0; index < journey.legs.length; index++)
           _detailLeg(index, journey.legs[index]),
+        if (widget.getOffAlarmController case final alarmController?) ...[
+          const SizedBox(height: 8),
+          JourneyGetOffAlarmToggle(
+            snapshot: snapshot,
+            controller: alarmController,
+            stationNameResolver: widget.stationNameResolver!,
+            now: widget.getOffAlarmNow ?? DateTime.now,
+          ),
+        ],
         const SizedBox(height: 8),
         Builder(
           builder: (buttonContext) => OutlinedButton.icon(
@@ -272,13 +291,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     }
   }
 
-  void _search() {
+  JourneySearchCommand? _searchCommand() {
     final origin = widget.draft.origin;
     final destination = widget.draft.destination;
     if (origin == null ||
         destination == null ||
         widget.draft.waypoint != null) {
-      return;
+      return null;
     }
     final preset =
         mobilityPresetFromRepresentativeMobilityType(widget.mobilityType) ??
@@ -298,18 +317,79 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
         ConstraintMode.requireStepFree,
       ),
     };
-    _controller.search(
-      JourneySearchCommand(
-        originStationId: origin.id,
-        destinationStationId: destination.id,
-        departure: const JourneyDepartureNow(),
-        timePolicy: TimePolicy.timetableRequired,
-        mobilityProfile: profile,
-        constraintMode: constraint,
-        maxTransfers: 3,
-        alternativeCount: 3,
-      ),
+    return JourneySearchCommand(
+      originStationId: origin.id,
+      destinationStationId: destination.id,
+      departure: const JourneyDepartureNow(),
+      timePolicy: TimePolicy.timetableRequired,
+      mobilityProfile: profile,
+      constraintMode: constraint,
+      maxTransfers: 3,
+      alternativeCount: 3,
     );
+  }
+
+  Future<void> _selectJourney(Journey journey) async {
+    if (_isAlarmTransitioning) return;
+    final alarmController = widget.getOffAlarmController;
+    final response = _controller.state.response;
+    if (alarmController != null && response != null) {
+      final target = JourneySelectedSnapshot.fromResponse(response, journey);
+      final active = alarmController.state.activeJourneyIdentity;
+      if (alarmController.state.enabled &&
+          active != journeyAlarmIdentityForSnapshot(target)) {
+        if (!await _disableAlarmBeforeTransition(alarmController)) return;
+      }
+    }
+    _controller.selectJourney(journey.journeyId);
+    if (mounted && _alarmTransitionError != null) {
+      setState(() => _alarmTransitionError = null);
+    }
+  }
+
+  Future<void> _search() async {
+    final command = _searchCommand();
+    if (command == null || _isAlarmTransitioning) return;
+    final alarmController = widget.getOffAlarmController;
+    if (alarmController != null &&
+        alarmController.state.enabled &&
+        !await _disableAlarmBeforeTransition(alarmController)) {
+      return;
+    }
+    await _controller.search(command);
+  }
+
+  Future<void> _retry() async {
+    if (_isAlarmTransitioning) return;
+    final alarmController = widget.getOffAlarmController;
+    if (alarmController != null &&
+        alarmController.state.enabled &&
+        !await _disableAlarmBeforeTransition(alarmController)) {
+      return;
+    }
+    await _controller.retry();
+  }
+
+  Future<bool> _disableAlarmBeforeTransition(
+    GetOffAlarmController controller,
+  ) async {
+    setState(() {
+      _isAlarmTransitioning = true;
+      _alarmTransitionError = null;
+    });
+    try {
+      await controller.disable();
+      if (!mounted) return false;
+      setState(() => _isAlarmTransitioning = false);
+      return true;
+    } on Object {
+      if (!mounted) return false;
+      setState(() {
+        _isAlarmTransitioning = false;
+        _alarmTransitionError = '기존 하차 알림을 끄지 못해 경로를 바꾸지 않았어요.';
+      });
+      return false;
+    }
   }
 
   @override
@@ -338,19 +418,34 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
                   minimumSize: const Size.fromHeight(48),
                 ),
                 onPressed:
-                    valid && state.status != JourneySearchStatus.searching
+                    valid &&
+                        state.status != JourneySearchStatus.searching &&
+                        !_isAlarmTransitioning
                     ? _search
                     : null,
                 child: const Text('경로 찾기'),
               ),
               if (state.status == JourneySearchStatus.searching)
                 const Center(child: CircularProgressIndicator()),
+              if (_isAlarmTransitioning)
+                const Center(child: CircularProgressIndicator()),
+              if (_alarmTransitionError case final error?)
+                Semantics(
+                  liveRegion: true,
+                  child: Text(
+                    error,
+                    key: const Key('journey-alarm-transition-error'),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.error,
+                    ),
+                  ),
+                ),
               if (state.status == JourneySearchStatus.failure)
                 FilledButton(
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(48),
                   ),
-                  onPressed: _controller.retry,
+                  onPressed: _isAlarmTransitioning ? null : _retry,
                   child: const Text('다시 시도'),
                 ),
               if (state.status == JourneySearchStatus.success) ...[
