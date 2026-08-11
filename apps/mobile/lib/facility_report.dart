@@ -6,14 +6,14 @@ import 'dart:math';
 import 'package:crypto/crypto.dart';
 import 'package:drift/drift.dart' show OrderingTerm, Value;
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
-
 import 'accessible_design.dart';
 import 'app/easy_subway_family_app_bar.dart';
 import 'design_tokens.dart';
 import 'auth_headers.dart';
 import 'core/database/user/user_database.dart' as user_db;
 import 'core/network/api_client.dart';
+import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
+import 'features/facility_report/domain/facility_report_photo.dart';
 import 'mobile_error_reporter.dart';
 import 'secure_key_value_storage.dart';
 
@@ -22,7 +22,6 @@ const _facilityReportErrorMessage = '제보를 보내지 못했어요.';
 const _facilityReportStatusErrorMessage = '제보 진행 상황을 확인하지 못했어요.';
 const _facilityReportListErrorMessage = '제보 내역을 불러오지 못했어요.';
 const _facilityReportFailureNextAction = '내용을 확인한 뒤 네트워크 상태를 보고 다시 보내 주세요.';
-const _facilityReportPhotoTooLargeMessage = '사진이 너무 큽니다. 다른 사진을 선택해 주세요.';
 const _facilityReportPhotoUploadMaxAttempts = 2;
 const _facilityReportLocationDisabledMessage =
     '휴대전화의 위치 기능을 켜 주세요. 가까운 역을 찾는 데 필요합니다.';
@@ -757,27 +756,6 @@ class DriftFacilityReportReceiptStore implements FacilityReportReceiptStore {
   }
 }
 
-class FacilityReportPhotoAttachment {
-  const FacilityReportPhotoAttachment({
-    required this.fileName,
-    required this.contentType,
-    required this.dataBase64,
-  });
-
-  final String fileName;
-  final String contentType;
-  final String dataBase64;
-}
-
-class FacilityReportPhotoException implements Exception {
-  const FacilityReportPhotoException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
-
 class FacilityReportLocation {
   const FacilityReportLocation({
     required this.latitude,
@@ -804,83 +782,6 @@ typedef FacilityReportLocationPermissionRequestChecker =
     Future<bool> Function();
 
 typedef FacilityReportLocationSettingsOpener = Future<bool> Function();
-
-typedef FacilityReportPhotoPicker =
-    Future<FacilityReportPhotoAttachment?> Function();
-
-typedef FacilityReportLostPhotoRestorer =
-    Future<FacilityReportPhotoAttachment?> Function();
-
-class ImagePickerFacilityReportPhotoPicker {
-  ImagePickerFacilityReportPhotoPicker({ImagePicker? imagePicker})
-    : _imagePicker = imagePicker ?? ImagePicker();
-
-  static const int _maxPhotoBytes = 900 * 1024;
-  static const double _maxPhotoDimension = 1600;
-  static const int _imageQuality = 72;
-
-  final ImagePicker _imagePicker;
-
-  Future<FacilityReportPhotoAttachment?> pickFromGallery() {
-    return _pick(ImageSource.gallery);
-  }
-
-  Future<FacilityReportPhotoAttachment?> takePhoto() {
-    return _pick(ImageSource.camera);
-  }
-
-  Future<FacilityReportPhotoAttachment?> retrieveLostPhoto() async {
-    final response = await _imagePicker.retrieveLostData();
-    if (response.isEmpty) {
-      return null;
-    }
-    if (response.exception != null) {
-      throw const FacilityReportPhotoException('사진을 다시 선택해 주세요.');
-    }
-    if (response.type != RetrieveType.image || response.file == null) {
-      return null;
-    }
-    return _attachmentFromFile(response.file!);
-  }
-
-  Future<FacilityReportPhotoAttachment?> _pick(ImageSource source) async {
-    final image = await _imagePicker.pickImage(
-      source: source,
-      maxWidth: _maxPhotoDimension,
-      maxHeight: _maxPhotoDimension,
-      imageQuality: _imageQuality,
-    );
-    if (image == null) {
-      return null;
-    }
-    return _attachmentFromFile(image);
-  }
-
-  Future<FacilityReportPhotoAttachment> _attachmentFromFile(XFile image) async {
-    final bytes = await image.readAsBytes();
-    if (bytes.lengthInBytes > _maxPhotoBytes) {
-      throw const FacilityReportPhotoException(
-        _facilityReportPhotoTooLargeMessage,
-      );
-    }
-    return FacilityReportPhotoAttachment(
-      fileName: image.name.isEmpty ? 'facility-report.jpg' : image.name,
-      contentType: _contentTypeFromName(image.name),
-      dataBase64: base64Encode(bytes),
-    );
-  }
-
-  String _contentTypeFromName(String fileName) {
-    final lowerName = fileName.toLowerCase();
-    if (lowerName.endsWith('.png')) {
-      return 'image/png';
-    }
-    if (lowerName.endsWith('.webp')) {
-      return 'image/webp';
-    }
-    return 'image/jpeg';
-  }
-}
 
 class FacilityReportResult {
   const FacilityReportResult({
@@ -2537,7 +2438,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
   }
 
   Future<FacilityReportPhotoAttachment?> _pickPhotoWithDevicePicker() async {
-    final source = await showModalBottomSheet<ImageSource>(
+    final picker = await showModalBottomSheet<FacilityReportPhotoPicker>(
       context: context,
       builder: (context) => SafeArea(
         child: Column(
@@ -2546,22 +2447,21 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
             ListTile(
               leading: const Icon(Icons.photo_camera),
               title: const Text('사진 찍기'),
-              onTap: () => Navigator.of(context).pop(ImageSource.camera),
+              onTap: () =>
+                  Navigator.of(context).pop(_defaultPhotoPicker.takePhoto),
             ),
             ListTile(
               leading: const Icon(Icons.photo_library),
               title: const Text('앨범에서 선택'),
-              onTap: () => Navigator.of(context).pop(ImageSource.gallery),
+              onTap: () => Navigator.of(
+                context,
+              ).pop(_defaultPhotoPicker.pickFromGallery),
             ),
           ],
         ),
       ),
     );
-    return switch (source) {
-      ImageSource.camera => _defaultPhotoPicker.takePhoto(),
-      ImageSource.gallery => _defaultPhotoPicker.pickFromGallery(),
-      null => null,
-    };
+    return picker?.call();
   }
 
   Future<void> _loadCurrentLocation() async {

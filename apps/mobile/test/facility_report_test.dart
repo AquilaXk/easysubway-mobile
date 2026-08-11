@@ -5,6 +5,8 @@ import 'dart:io';
 import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
