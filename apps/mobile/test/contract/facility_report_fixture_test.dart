@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/data/facility_report_photo_upload_intent.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -52,5 +53,40 @@ void main() {
       '2c8648d103e3dd7ad87660da0f126a1443b6d21ac1bd3ec000c5e24e2373a90c',
     );
     expect(intent.uploadHeaders['x-easysubway-upload-size'], '11');
+  });
+
+  test('report upload intent parser는 malformed response를 fail closed 한다', () {
+    for (final decoded in <Object?>[
+      null,
+      const <String, Object?>{'success': true, 'data': 'invalid'},
+    ]) {
+      expect(
+        () => FacilityReportPhotoUploadIntent.fromJson(
+          decoded,
+          errorMessage: 'fixture parse failed',
+        ),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            'fixture parse failed',
+          ),
+        ),
+      );
+    }
+
+    expect(
+      () => FacilityReportPhotoUploadIntent.fromJson(const <String, Object?>{
+        'success': true,
+        'data': <String, Object?>{},
+      }, errorMessage: 'fixture parse failed'),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          'Missing required report field: objectKey',
+        ),
+      ),
+    );
   });
 }
