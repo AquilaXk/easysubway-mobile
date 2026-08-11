@@ -34,7 +34,7 @@ class _StubApiClient extends ApiClient {
 
 final _sessionRequest = JourneySessionRequest(
   integrityToken: 'integrity-token',
-  clientNonce: 'aaaaaaaaaaaaaaaaaaaaaa',
+  clientNonce: 'AAAAAAAAAAAAAAAAAAAAAA',
 );
 
 final _searchRequest = JourneySearchRequest(
