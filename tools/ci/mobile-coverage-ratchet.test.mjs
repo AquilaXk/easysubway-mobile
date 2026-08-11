@@ -45,6 +45,15 @@ test("Phase 2 canonical policy와 reviewed line-oriented baseline을 닫힌 계�
     "apps/mobile/lib/features/stations/presentation/station_detail_header.dart",
   ]);
   assert.equal(baseline.paths.filter((source) => !source.lcovPresent && source.absenceDisposition === null).length, 2);
+  assert.deepEqual(policy.exclusions.map(({ id, availability }) => [id, availability]), [
+    ["DRIFT_CATALOG_DATABASE_GENERATED", "TRACKED_GENERATED_REQUIRED"],
+    ["DRIFT_USER_DATABASE_GENERATED", "TRACKED_GENERATED_REQUIRED"],
+    ["JOURNEY_V3_CONTRACT_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_ENUMS_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_ERROR_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_MODELS_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["JOURNEY_V3_VALIDATION_GENERATED", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+  ]);
 });
 
 test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거부한다", () => {
@@ -212,7 +221,8 @@ function discoveryInput(dir, event = "workflow_dispatch") {
   const rawFile = path.join(dir, "raw.lcov"); const normalizedFile = path.join(dir, "normalized.lcov"); const filterFile = path.join(dir, "filter.json"); const eventFile = path.join(dir, "event.json");
   writeFileSync(rawFile, raw); writeFileSync(normalizedFile, normalized);
   writeFileSync(eventFile, JSON.stringify(event === "pull_request" ? { pull_request: { base: { sha: head }, head: { sha: head } } } : { ref: "refs/heads/main", after: head }));
-  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(normalized), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions: [{ path: "apps/mobile/lib/core/database/catalog/catalog_database.g.dart", reason: "DRIFT_CATALOG_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }, { path: "apps/mobile/lib/core/database/user/user_database.g.dart", reason: "DRIFT_USER_DATABASE_GENERATED", executableLines: 1, coveredLines: 0 }], outcome: "success" })}\n`);
+  const exclusions = JSON.parse(readFileSync(policyFile, "utf8")).exclusions.map((entry, index) => index < 2 ? ({ path: entry.path, reason: entry.id, presence: "TRACKED_GENERATED", lcovRecordPresent: true, executableLines: 1, coveredLines: 0 }) : ({ path: entry.path, reason: entry.id, presence: "RESERVED_ABSENT", lcovRecordPresent: false, executableLines: 0, coveredLines: 0 }));
+  writeFileSync(filterFile, `${JSON.stringify({ schemaVersion: 1, artifactKind: "mobile-lcov-filter-result-v1", policySha256: sha(readFileSync(policyFile)), inputSha256: sha(raw), outputSha256: sha(normalized), records: { retained: 1, excluded: 2 }, lines: { executable: 1, covered: 0 }, exclusions, outcome: "success" })}\n`);
   return { event, eventPath: eventFile, baseSha: head, headSha: head, testedMergeSha: head, eventRef: event === "pull_request" ? "refs/pull/48/merge" : "refs/heads/main", pullRequestNumber: event === "pull_request" ? "48" : "none", rawLcov: rawFile, normalizedLcov: normalizedFile, filterResult: filterFile, policy: "tools/ci/mobile-coverage-policy.json", baseline: "tools/ci/mobile-coverage-baseline.json" };
 }
 
@@ -227,9 +237,9 @@ test("Phase 1 analyzer는 manual artifact를 exact DISCOVERY_REMOTE_RED로 결�
     assert.deepEqual(Object.keys(manual.producer), ["policySha256", "baselineSha256", "filterSha256", "ratchetSha256", "rawLcovSha256", "normalizedLcovSha256", "sourceInventorySha256", "lcovTagSubset"]);
     assert.equal(readFileSync(path.join(dir, "manual", "mobile-coverage-result.json"), "utf8"), `${JSON.stringify(manual, null, 2)}\n`);
     assert.equal(verifyArtifactDirectory(path.join(dir, "manual")).outcome, "DISCOVERY_REMOTE_RED");
-    assert.deepEqual(manual.exclusions.map(({ id }) => id), ["DRIFT_CATALOG_DATABASE_GENERATED", "DRIFT_USER_DATABASE_GENERATED"]);
+    assert.deepEqual(manual.exclusions.map(({ id }) => id), ["DRIFT_CATALOG_DATABASE_GENERATED", "DRIFT_USER_DATABASE_GENERATED", "JOURNEY_V3_CONTRACT_GENERATED", "JOURNEY_V3_ENUMS_GENERATED", "JOURNEY_V3_ERROR_GENERATED", "JOURNEY_V3_MODELS_GENERATED", "JOURNEY_V3_VALIDATION_GENERATED"]);
     assert.deepEqual(manual.criticalBoundaries.map(({ id }) => id), ["JOURNEY_ROUTE_INGRESS", "JOURNEY_REPOSITORY_DI_STATE_IDENTITY", "DATAPACK_CATALOG_LIFECYCLE", "ACCESSIBILITY_ERROR_TRUTHFULNESS", "ALARM_WIDGET_REPORT_IO", "CRASHLYTICS_PRIVACY", "CONTRACT_ARTIFACT_IDENTITY"]);
-    assert.equal(manual.exclusions.length, 2);
+    assert.equal(manual.exclusions.length, 7);
     assert.equal(manual.coverage.lcovMissingSources.includes("apps/mobile/lib/core/database/catalog/catalog_database.g.dart"), true);
     assert.equal(manual.coverage.lcovMissingSources.includes("apps/mobile/lib/core/database/user/user_database.g.dart"), true);
     const inventory = JSON.parse(readFileSync(path.join(dir, "manual", "mobile-coverage-source-inventory.json"), "utf8"));
@@ -418,6 +428,23 @@ test("F1 changed executable set은 producer coverage-ignore 지시를 fail-close
   assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, coverage, changed(nearMiss)), {
     state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null,
   });
+});
+
+test("Journey의 exact validated exclusion만 changed-line LCOV 부재를 건너뛴다", () => {
+  const journey = "apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart";
+  const ordinary = "apps/mobile/lib/generated/other.dart";
+  const seam = (rawPath) => ({
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1 @@\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`1\t0\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return Buffer.from("final generated = 1;\n");
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  });
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, new Map(), seam(journey), new Set([journey])), { state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null });
+  assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, new Map(), seam(ordinary), new Set([journey])), /missing LCOV/i);
 });
 
 test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", () => {
