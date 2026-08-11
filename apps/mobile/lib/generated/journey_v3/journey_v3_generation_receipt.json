@@ -1,14 +1,49 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "generator": {
     "id": "easysubway-mobile-journey-v3-client",
-    "version": "1.0.0",
-    "sourceSha256": "c51d68b2be59fb7c5e62f4411ad0dae67622fb219c140820ecb7f5eb21be196b",
+    "version": "2.0.0",
+    "sourceSha256": "df0ee70c2fd449143914a0b0e04f5395653d747b54c716c0ebca2c5320a7e18a",
     "formatter": {
       "command": "dart format",
       "sdkVersion": "3.12.0"
     }
   },
+  "mobileRepository": {
+    "repository": "AquilaXk/easysubway-mobile",
+    "sourceFiles": [
+      {
+        "path": "contracts/mobile/journey-v3-client.lock.json",
+        "sha256": "05d9a798ab8be5205405b37ba3b0650e8b8edeab6dfdf2a814831b42f341c213"
+      },
+      {
+        "path": "tools/mobile/generate-journey-v3-client.mjs",
+        "sha256": "df0ee70c2fd449143914a0b0e04f5395653d747b54c716c0ebca2c5320a7e18a"
+      }
+    ],
+    "generationSourceTreeSha256": "4d634c7de7fb501ea5c3b461bbc5641adaffb39bf25e4fcf0c87ae213ae6bd52"
+  },
+  "runtime": {
+    "node": {
+      "command": "node",
+      "majorVersion": 24
+    }
+  },
+  "command": {
+    "program": "node",
+    "script": "tools/mobile/generate-journey-v3-client.mjs",
+    "arguments": [
+      "--contract-root",
+      "<staged-contract-root>",
+      "--lock",
+      "contracts/mobile/journey-v3-client.lock.json",
+      "--output-root",
+      "<absent-output-root>",
+      "--receipt",
+      "<output-root>/journey_v3_generation_receipt.json"
+    ]
+  },
+  "configSha256": "051ff83e74733cf33f7002341ba5f9de279dd06efba3ab08f5f0b0bd8789ae20",
   "lockSha256": "05d9a798ab8be5205405b37ba3b0650e8b8edeab6dfdf2a814831b42f341c213",
   "producer": {
     "repository": "AquilaXk/easysubway-backend",

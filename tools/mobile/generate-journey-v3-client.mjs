@@ -15,7 +15,8 @@ const formatterIdentity = Object.freeze({ command: 'dart format', sdkVersion: '3
 const generatorIdentity = Object.freeze({ id: 'easysubway-mobile-journey-v3-client', version: '2.0.0' });
 const mobileRepository = 'AquilaXk/easysubway-mobile';
 const nodeRuntime = Object.freeze({ command: 'node', majorVersion: 24 });
-const logicalCommand = Object.freeze({ program: 'node', script: 'tools/mobile/generate-journey-v3-client.mjs', arguments: ['--contract-root', '<staged-contract-root>', '--lock', 'contracts/mobile/journey-v3-client.lock.json', '--output-root', '<absent-output-root>', '--receipt', '<output-root>/journey_v3_generation_receipt.json', '--mobile-source-sha', '<generation-source-commit>'] });
+const mobileSourcePaths = ['contracts/mobile/journey-v3-client.lock.json', 'tools/mobile/generate-journey-v3-client.mjs'];
+const logicalCommand = Object.freeze({ program: 'node', script: 'tools/mobile/generate-journey-v3-client.mjs', arguments: ['--contract-root', '<staged-contract-root>', '--lock', 'contracts/mobile/journey-v3-client.lock.json', '--output-root', '<absent-output-root>', '--receipt', '<output-root>/journey_v3_generation_receipt.json'] });
 const supportedFeatures = ['array', 'boolean', 'closed-object', 'enum', 'integer-bounds', 'json-post', 'local-ref', 'nullable', 'openapi-3.0.3', 'request-response-security', 'strict-yaml-subset', 'string-constraints', 'tagged-one-of'];
 const expectedOperations = new Map([
   ['/api/v3/journeys/session', { id: 'issueJourneySession', responses: ['200', '400', '403', '503'], request: 'JourneySessionRequest', success: 'JourneySessionResponse' }],
@@ -39,20 +40,14 @@ function configSha256() {
   return sha256(Buffer.from(canonicalJson({ schemaProjectionSha256: expectedSchemasProjectionSha256, resourcePaths, generatedDartPaths, generationReceiptName, supportedFeatures, formatterIdentity }), 'utf8'));
 }
 
-function defaultGit(args) { return spawnSync('git', args, { cwd: repositoryRoot, encoding: null, timeout: 10_000 }); }
-function validateMobileSourceSha(sourceSha, gitApi = defaultGit, currentGeneratorBytes = regular(generatorSourcePath, 'generator source'), currentLockBytes = regular(trackedLock, 'tracked lock')) {
-  if (typeof sourceSha !== 'string' || !/^[a-f0-9]{40}$/.test(sourceSha)) fail('mobile source SHA must be lowercase 40-hex');
-  const ancestor = gitApi(['merge-base', '--is-ancestor', sourceSha, 'HEAD']);
-  if (ancestor.error || ancestor.status !== 0) fail('mobile source SHA must be an ancestor of HEAD');
-  const latest = gitApi(['log', '-1', '--format=%H', 'HEAD', '--', 'tools/mobile/generate-journey-v3-client.mjs', 'contracts/mobile/journey-v3-client.lock.json']);
-  if (latest.error || latest.status !== 0 || Buffer.from(latest.stdout ?? '').toString('utf8').trim() !== sourceSha) fail('mobile source SHA must be the latest generator and lock source revision');
-  for (const [path, expected] of [['tools/mobile/generate-journey-v3-client.mjs', currentGeneratorBytes], ['contracts/mobile/journey-v3-client.lock.json', currentLockBytes]]) {
-    const result = gitApi(['show', `${sourceSha}:${path}`]);
-    if (result.error || result.status !== 0 || !Buffer.from(result.stdout ?? '').equals(expected)) fail(`mobile source SHA ${path} blob differs from current snapshot`);
-  }
-  return sourceSha;
-}
 function validateNodeRuntime(nodeMajorVersion = Number(process.versions.node.split('.')[0])) { if (Number(nodeMajorVersion) !== nodeRuntime.majorVersion) fail(`Node ${nodeRuntime.majorVersion} is required`); }
+function mobileSourceIdentity(snapshot) {
+  const sourceFiles = Object.freeze([
+    Object.freeze({ path: mobileSourcePaths[0], sha256: sha256(snapshot.lockBytes) }),
+    Object.freeze({ path: mobileSourcePaths[1], sha256: sha256(snapshot.generatorBytes) }),
+  ]);
+  return Object.freeze({ repository: mobileRepository, sourceFiles, generationSourceTreeSha256: sha256(Buffer.from(sourceFiles.map(({ path, sha256: digest }) => `${path}\0${digest}\n`).join(''), 'utf8')) });
+}
 
 function duplicateFreeJson(text, label) {
   let index = 0;
@@ -400,7 +395,6 @@ function formatRenderedDart(rendered, dartExecutable = 'dart') {
 
 function buildGeneration(options, enforceTrackedLock) {
   const snapshot = snapshotGenerationInput(options, enforceTrackedLock);
-  const sourceSha = enforceTrackedLock ? validateMobileSourceSha(options.mobileSourceSha, options.gitApi, snapshot.generatorBytes, snapshot.lockBytes) : options.mobileSourceSha;
   if (enforceTrackedLock) validateNodeRuntime(options.nodeMajorVersion);
   const lock = duplicateFreeJson(snapshot.lockBytes.toString('utf8'), 'lock');
   const rendered = renderFiles(options, enforceTrackedLock, snapshot);
@@ -410,7 +404,7 @@ function buildGeneration(options, enforceTrackedLock) {
   const receipt = Object.freeze({
     schemaVersion: 2,
     generator: Object.freeze({ ...generatorIdentity, sourceSha256: sha256(snapshot.generatorBytes), formatter: formatterIdentity }),
-    mobileRepository: Object.freeze({ repository: mobileRepository, generationSourceCommitSha: sourceSha }),
+    mobileRepository: mobileSourceIdentity(snapshot),
     runtime: Object.freeze({ node: nodeRuntime }),
     command: logicalCommand,
     configSha256: configSha256(),
@@ -446,20 +440,16 @@ export function selectJourneyV3GenerationReceiptForDrift(receiptBytes) {
   const receipt = duplicateFreeJson(Buffer.from(receiptBytes).toString('utf8'), 'generation receipt');
   exactKeys(receipt, ['schemaVersion', 'generator', 'mobileRepository', 'runtime', 'command', 'configSha256', 'lockSha256', 'producer', 'artifact', 'payload', 'publicationReceiptSha256', 'resources', 'supportedFeatures', 'files', 'treeSha256'], 'generation receipt');
   exactKeys(receipt.generator, ['id', 'version', 'sourceSha256', 'formatter'], 'generation receipt.generator');
-  exactKeys(receipt.mobileRepository, ['repository', 'generationSourceCommitSha'], 'generation receipt.mobileRepository');
+  exactKeys(receipt.mobileRepository, ['repository', 'sourceFiles', 'generationSourceTreeSha256'], 'generation receipt.mobileRepository');
   exactKeys(receipt.runtime, ['node'], 'generation receipt.runtime'); exactKeys(receipt.runtime.node, ['command', 'majorVersion'], 'generation receipt.runtime.node');
   exactKeys(receipt.command, ['program', 'script', 'arguments'], 'generation receipt.command');
-  if (receipt.schemaVersion !== 2 || receipt.generator.id !== generatorIdentity.id || receipt.generator.version !== generatorIdentity.version || !/^[a-f0-9]{64}$/.test(receipt.generator.sourceSha256) || JSON.stringify(receipt.generator.formatter) !== JSON.stringify(formatterIdentity) || receipt.mobileRepository.repository !== mobileRepository || !/^[a-f0-9]{40}$/.test(receipt.mobileRepository.generationSourceCommitSha) || JSON.stringify(receipt.runtime.node) !== JSON.stringify(nodeRuntime) || JSON.stringify(receipt.command) !== JSON.stringify(logicalCommand) || receipt.configSha256 !== configSha256()) fail('generation receipt has unsupported v2 generator identity');
+  const sourceFiles = receipt.mobileRepository.sourceFiles;
+  if (Array.isArray(sourceFiles)) sourceFiles.forEach((sourceFile, index) => exactKeys(sourceFile, ['path', 'sha256'], `generation receipt.mobileRepository.sourceFiles ${index}`));
+  if (receipt.schemaVersion !== 2 || receipt.generator.id !== generatorIdentity.id || receipt.generator.version !== generatorIdentity.version || !/^[a-f0-9]{64}$/.test(receipt.generator.sourceSha256) || JSON.stringify(receipt.generator.formatter) !== JSON.stringify(formatterIdentity) || receipt.mobileRepository.repository !== mobileRepository || !Array.isArray(sourceFiles) || sourceFiles.length !== mobileSourcePaths.length || sourceFiles.some(({ path, sha256: digest }, index) => path !== mobileSourcePaths[index] || !/^[a-f0-9]{64}$/.test(digest)) || !/^[a-f0-9]{64}$/.test(receipt.mobileRepository.generationSourceTreeSha256) || receipt.mobileRepository.generationSourceTreeSha256 !== sha256(Buffer.from(sourceFiles.map(({ path, sha256: digest }) => `${path}\0${digest}\n`).join(''), 'utf8')) || JSON.stringify(receipt.runtime.node) !== JSON.stringify(nodeRuntime) || JSON.stringify(receipt.command) !== JSON.stringify(logicalCommand) || receipt.configSha256 !== configSha256()) fail('generation receipt has unsupported v2 generator identity');
   return Object.freeze(receipt);
 }
 
-export function journeyV3ReceiptV2ContractForTest() {
-  return Object.freeze({ generator: Object.freeze({ ...generatorIdentity, formatter: formatterIdentity }), mobileRepository, runtime: Object.freeze({ node: nodeRuntime }), command: logicalCommand, configSha256: configSha256() });
-}
-
-export function validateJourneyV3MobileSourceForTest({ sourceSha, gitApi, generatorBytes, lockBytes }) {
-  return validateMobileSourceSha(sourceSha, gitApi, generatorBytes, lockBytes);
-}
+export function journeyV3ReceiptV2ContractForTest(snapshot) { return Object.freeze({ generator: Object.freeze({ ...generatorIdentity, formatter: formatterIdentity }), mobileRepository: mobileSourceIdentity(snapshot), runtime: Object.freeze({ node: nodeRuntime }), command: logicalCommand, configSha256: configSha256() }); }
 
 export function validateJourneyV3NodeRuntimeForTest(nodeMajorVersion) { return validateNodeRuntime(nodeMajorVersion); }
 
@@ -508,6 +498,6 @@ export function generateJourneyV3ClientForTest(options) {
   return publishGeneration(options, buildGeneration(options, false));
 }
 
-function parseArguments(argv) { if (argv.length !== 10 || argv[0] !== '--contract-root' || argv[2] !== '--lock' || argv[4] !== '--output-root' || argv[6] !== '--receipt' || argv[8] !== '--mobile-source-sha') fail('usage is --contract-root <root> --lock <lock> --output-root <absent> --receipt <output>/journey_v3_generation_receipt.json --mobile-source-sha <lowercase-40hex>'); return { contractRoot: argv[1], lockPath: argv[3], outputRoot: argv[5], receiptPath: argv[7], mobileSourceSha: argv[9] }; }
+function parseArguments(argv) { if (argv.length !== 8 || argv[0] !== '--contract-root' || argv[2] !== '--lock' || argv[4] !== '--output-root' || argv[6] !== '--receipt') fail('usage is --contract-root <root> --lock <lock> --output-root <absent> --receipt <output>/journey_v3_generation_receipt.json'); return { contractRoot: argv[1], lockPath: argv[3], outputRoot: argv[5], receiptPath: argv[7] }; }
 export function validateJourneyV3ClientInputForTest(options) { return validate({ ...options, enforceTrackedLock: false, enforceSchemasProjection: options.enforceSchemasProjection === true }); }
 if (process.argv[1] === generatorSourcePath) try { const options = parseArguments(process.argv.slice(2)); publishGeneration(options, buildGeneration(options, true)); } catch (error) { process.stderr.write(`${error.message}\n`); process.exitCode = 1; }
