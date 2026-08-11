@@ -92,6 +92,9 @@ test("F1/F3/F5 Phase 2 decision, external JSON, pure rename inheritance를 fail-
   assert.deepEqual(derivePhase2Decision({ coverage: { lineBasisPoints: 8711 }, changedLines: { entries: [{ hits: 0 }], lineBasisPoints: 9999 }, criticalBoundaries: floorBoundaries }), { reasons: ["UNCOVERED_CHANGED_EXECUTABLE_LINE", "REPOSITORY_LINE_FLOOR_NOT_MET", "CHANGED_LINE_FLOOR_NOT_MET", "CRITICAL_BOUNDARY_LINE_FLOOR_NOT_MET"], outcome: "FAIL" });
   assert.deepEqual(derivePhase2Decision({ coverage: { lineBasisPoints: 8712 }, changedLines: { entries: [], lineBasisPoints: null }, criticalBoundaries: floorBoundaries.map((entry) => ({ ...entry, lineBasisPoints: { JOURNEY_ROUTE_INGRESS: 9328, JOURNEY_REPOSITORY_DI_STATE_IDENTITY: 9260, DATAPACK_CATALOG_LIFECYCLE: 8005, ACCESSIBILITY_ERROR_TRUTHFULNESS: 8904, ALARM_WIDGET_REPORT_IO: 8161, CRASHLYTICS_PRIVACY: 8596, CONTRACT_ARTIFACT_IDENTITY: 7119 }[entry.id] })) }), { reasons: [], outcome: "PASS" });
   for (const text of ['{"frameworkVersion":"3.44.0","frameworkVersion":"3.44.0"}', '{"outer":{"x":1,"x":2}}', '\ufeff{"frameworkVersion":"3.44.0"}', '{"frameworkVersion":"3.44.0"}\0', '{"frameworkVersion":"3.44.0"} trailing']) assert.throws(() => strictExternalJson(Buffer.from(text), "external"));
+  const receipt = "apps/mobile/lib/generated/journey_v3/journey_v3_generation_receipt.json";
+  assert.throws(() => parseNameStatusZ(Buffer.from(`M\0${receipt}\0`)), /ambiguous/i);
+  assert.throws(() => parseNumstatZ(Buffer.from(`1\t0\t${receipt}\0`)), /ambiguous/i);
   const disposition = { kind: "EXISTING_UNINSTRUMENTED_BASELINE" };
   const pureRename = { status: "RENAMED", oldPath: "apps/mobile/lib/old.dart", newPath: "apps/mobile/lib/new.dart", added: 0 };
   const reviewedMissing = { sourceSha256: "a".repeat(64), absenceDisposition: disposition };
@@ -388,9 +391,9 @@ test("F2는 PR base·head에서 tested merge로의 조상 관계를 각각 독�
 });
 
 test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부와 raw/tested blob mismatch를 닫는다", () => {
-  const changes = parseNameStatusZ(Buffer.from("M\0apps/mobile/lib/a.dart\0R90\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0D\0apps/mobile/lib/gone.dart\0"));
-  assert.deepEqual(changes, [{ status: "MODIFIED", oldPath: null, newPath: "apps/mobile/lib/a.dart" }, { status: "RENAMED", oldPath: "apps/mobile/lib/old.dart", newPath: "apps/mobile/lib/new.dart" }, { status: "DELETED", oldPath: "apps/mobile/lib/gone.dart", newPath: null }]);
-  const numstat = "1\t0\tapps/mobile/lib/a.dart\0" + "2\t0\t\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0" + "0\t1\tapps/mobile/lib/gone.dart\0";
+  const changes = parseNameStatusZ(Buffer.from("M\0apps/mobile/lib/a.dart\0R90\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0C100\0apps/mobile/lib/copied-from.dart\0apps/mobile/lib/copied-to.dart\0D\0apps/mobile/lib/gone.dart\0"));
+  assert.deepEqual(changes, [{ status: "MODIFIED", oldPath: null, newPath: "apps/mobile/lib/a.dart" }, { status: "RENAMED", oldPath: "apps/mobile/lib/old.dart", newPath: "apps/mobile/lib/new.dart" }, { status: "COPIED", oldPath: "apps/mobile/lib/copied-from.dart", newPath: "apps/mobile/lib/copied-to.dart" }, { status: "DELETED", oldPath: "apps/mobile/lib/gone.dart", newPath: null }]);
+  const numstat = "1\t0\tapps/mobile/lib/a.dart\0" + "2\t0\t\0apps/mobile/lib/old.dart\0apps/mobile/lib/new.dart\0" + "2\t0\t\0apps/mobile/lib/copied-from.dart\0apps/mobile/lib/copied-to.dart\0" + "0\t1\tapps/mobile/lib/gone.dart\0";
   assert.deepEqual(validateDiffTuples(changes, parseNumstatZ(Buffer.from(numstat))).map(({ status, oldPath, newPath }) => ({ status, oldPath, newPath })), changes);
   assert.throws(() => parseNumstatZ(Buffer.from("-\t-\tapps/mobile/lib/a.dart\0")), /binary/i);
   assert.throws(() => parseNameStatusZ(Buffer.from("T\0apps/mobile/lib/a.dart\0")), /type/i);
@@ -413,9 +416,11 @@ test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부�
 test("changed executable set은 present SF의 exact DA hit·miss만 사용한다", () => {
   const rawPath = "apps/mobile/lib/domain.dart";
   const source = Buffer.from("import 'dart:ui';\n\nabstract interface class Port {\n  int get value;\n  int run() => 1;\n  int covered() => 2;\n}\n");
+  const range = `${head}..${head}`; const productionDiffCalls = [];
   const diff = {
-    text: () => `+++ b/${rawPath}\n@@ -0,0 +1,7 @@\n`,
+    text: (args) => { productionDiffCalls.push(args); return `+++ b/${rawPath}\n@@ -0,0 +1,7 @@\n`; },
     bytes: (args) => {
+      if (args.includes("diff")) productionDiffCalls.push(args);
       if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
       if (args.includes("--numstat")) return Buffer.from(`7\t0\t${rawPath}\0`);
       if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
@@ -424,7 +429,7 @@ test("changed executable set은 present SF의 exact DA hit·miss만 사용한다
     },
   };
   const coverage = new Map([[rawPath, new Map([[5, 0], [6, 2]])]]);
-  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, coverage, diff), {
+  assert.deepEqual(changedExecutableLines(range, head, head, coverage, diff), {
     state: "APPLICABLE",
     entries: [
       { path: rawPath, line: 5, hits: 0, status: "ADDED" },
@@ -434,6 +439,8 @@ test("changed executable set은 present SF의 exact DA hit·miss만 사용한다
     coveredLines: 1,
     lineBasisPoints: 5000,
   });
+  assert.deepEqual(productionDiffCalls.map((args) => args.find((arg) => ["--name-status", "--numstat", "--unified=0"].includes(arg))).sort(), ["--name-status", "--numstat", "--unified=0"]);
+  for (const args of productionDiffCalls) assert.deepEqual(args.slice(-3), [range, "--", ":(glob)apps/mobile/lib/**/*.dart"]);
 });
 
 test("F1 changed executable set은 producer coverage-ignore 지시를 fail-closed한다", () => {
