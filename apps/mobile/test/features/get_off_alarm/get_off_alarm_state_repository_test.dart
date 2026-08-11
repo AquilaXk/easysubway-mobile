@@ -76,6 +76,8 @@ void main() {
   });
 
   test('저장한 활성 구독을 그대로 다시 읽는다', () async {
+    expect(subscription.toJson().containsKey('routeId'), isFalse);
+    expect(subscription.toJson()['selectedJourneyId'], 'journey-1');
     await repository.saveActive(subscription);
 
     final loaded = await repository.loadActive();
@@ -165,7 +167,9 @@ void main() {
   test('identity 없는 과거 routeId JSON은 current success로 복원하지 않는다', () async {
     final routeOnly = subscription.toJson()
       ..remove('schemaVersion')
-      ..remove('journeyIdentity');
+      ..remove('journeyIdentity')
+      ..remove('selectedJourneyId')
+      ..['routeId'] = 'journey-1';
     await writeRaw(routeOnly);
 
     expect(await repository.loadActive(), isNull);
@@ -175,7 +179,10 @@ void main() {
     await writeRaw({...subscription.toJson(), 'unknown': true});
     expect(await repository.loadActive(), isNull);
 
-    await writeRaw({...subscription.toJson(), 'routeId': 'journey-other'});
+    await writeRaw({
+      ...subscription.toJson(),
+      'selectedJourneyId': 'journey-other',
+    });
     expect(await repository.loadActive(), isNull);
   });
 

@@ -202,7 +202,7 @@ class GetOffAlarmSubscription {
     if (identity != null) {
       return {
         'schemaVersion': journeyAlarmSubscriptionSchemaVersion,
-        'routeId': routeId,
+        'selectedJourneyId': routeId,
         'journeyIdentity': identity.toJson(),
         'transferAlarmEnabled': transferAlarmEnabled,
         'scheduledCount': scheduledCount,
@@ -231,7 +231,7 @@ class GetOffAlarmSubscription {
     try {
       JourneyV3Validation.exactKeys(json, const {
         'schemaVersion',
-        'routeId',
+        'selectedJourneyId',
         'journeyIdentity',
         'transferAlarmEnabled',
         'scheduledCount',
@@ -246,7 +246,7 @@ class GetOffAlarmSubscription {
     if (json['schemaVersion'] != journeyAlarmSubscriptionSchemaVersion) {
       return null;
     }
-    final routeId = json['routeId'];
+    final routeId = json['selectedJourneyId'];
     final journeyIdentity = JourneyAlarmSubscriptionIdentity.fromJson(
       json['journeyIdentity'],
     );
