@@ -51,14 +51,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     }
     setState(() {});
     final state = _controller.state;
-    final message = switch (state.status) {
-      JourneySearchStatus.searching => '경로를 찾고 있어요.',
-      JourneySearchStatus.success =>
-        '경로 ${state.response!.journeys.length}개를 찾았어요.',
-      JourneySearchStatus.failure => '경로를 찾지 못했어요.',
-      JourneySearchStatus.idle => '',
-    };
-    if (message.isNotEmpty) {
+    final message = <JourneySearchStatus, String Function()>{
+      JourneySearchStatus.searching: () => '경로를 찾고 있어요.',
+      JourneySearchStatus.success: () =>
+          '경로 ${state.response!.journeys.length}개를 찾았어요.',
+      JourneySearchStatus.failure: () => '경로를 찾지 못했어요.',
+    }[state.status]?.call();
+    if (message != null) {
       SemanticsService.sendAnnouncement(
         View.of(context),
         message,

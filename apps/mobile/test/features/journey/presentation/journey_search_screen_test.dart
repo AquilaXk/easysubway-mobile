@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
@@ -47,6 +49,32 @@ void main() {
       repository.requests.single.constraintMode,
       ConstraintMode.requireStepFree,
     );
+
+    final stepFree = _Repository();
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpScreen(tester, repository: stepFree, mobilityType: 'WHEELCHAIR');
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(stepFree.requests.single.mobilityProfile, MobilityProfile.stepFree);
+    expect(
+      stepFree.requests.single.constraintMode,
+      ConstraintMode.requireStepFree,
+    );
+  });
+
+  testWidgets('세션 발급 중에는 검색 진행 상태를 보여준다', (tester) async {
+    final repository = _Repository();
+    final session = Completer<JourneySessionResponse>();
+    repository.sessionCompleter = session;
+    await _pumpScreen(tester, repository: repository);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+
+    session.complete(_sessionResponse());
+    await tester.pumpAndSettle();
+    expect(find.text('경로 2개'), findsOneWidget);
   });
 
   testWidgets('incomplete 또는 waypoint draft는 request를 만들지 않는다', (tester) async {
@@ -141,6 +169,7 @@ class _Attestor implements JourneyV3IntegrityAttestor {
 class _Repository implements JourneyRepository {
   int sessionRequests = 0;
   int failuresRemaining = 0;
+  Completer<JourneySessionResponse>? sessionCompleter;
   final List<JourneySearchRequest> requests = <JourneySearchRequest>[];
 
   @override
@@ -148,13 +177,7 @@ class _Repository implements JourneyRepository {
     JourneySessionRequest request,
   ) async {
     sessionRequests++;
-    final now = DateTime.now().toUtc();
-    return JourneySessionResponse(
-      token: 'session-token',
-      scope: JourneySessionScope.journeyV3,
-      issuedAt: now,
-      expiresAt: now.add(const Duration(minutes: 5)),
-    );
+    return sessionCompleter?.future ?? _sessionResponse();
   }
 
   @override
@@ -172,6 +195,16 @@ class _Repository implements JourneyRepository {
     }
     return _success(request);
   }
+}
+
+JourneySessionResponse _sessionResponse() {
+  final now = DateTime.now().toUtc();
+  return JourneySessionResponse(
+    token: 'session-token',
+    scope: JourneySessionScope.journeyV3,
+    issuedAt: now,
+    expiresAt: now.add(const Duration(minutes: 5)),
+  );
 }
 
 JourneySearchSuccess _success(JourneySearchRequest request) {

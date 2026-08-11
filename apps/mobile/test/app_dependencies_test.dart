@@ -229,6 +229,23 @@ void main() {
       ),
       throwsA(isA<JourneyTransportFailure>()),
     );
+    await expectLater(
+      dependencies.journeyRepository.searchJourneys(
+        JourneySearchRequest(
+          requestId: '01J00000000000000000000000',
+          originStationId: 'station-origin',
+          destinationStationId: 'station-destination',
+          departure: const JourneyDepartureNow(),
+          timePolicy: TimePolicy.timetableRequired,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 3,
+          alternativeCount: 3,
+        ),
+        sessionToken: 'unused',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
   });
 
   test('로컬 데이터베이스와 API 주소가 있으면 실시간은 API를 호출한다', () async {

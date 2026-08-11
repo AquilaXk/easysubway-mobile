@@ -35,6 +35,7 @@ import 'package:easysubway_mobile/features/get_off_alarm/exact_alarm_permission.
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_controller.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.dart';
 import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
+import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/settings/presentation/app_settings_screen.dart';
 import 'package:easysubway_mobile/features/settings/presentation/service_info_screen.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
@@ -863,6 +864,21 @@ void main() {
 
     expect(find.byType(RouteSearchScreen), findsOneWidget);
     expect(find.byKey(const Key('bundledDataPackStaleBanner')), findsOneWidget);
+  });
+
+  testWidgets('release 경로 탭은 Journey V3 화면만 연다', (tester) async {
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+
+    await _openRouteSearchScreen(tester);
+
+    expect(find.byType(JourneySearchScreen), findsOneWidget);
+    expect(find.byType(RouteSearchScreen), findsNothing);
   });
 
   testWidgets('기본 앱은 저장소가 없어도 노선도 중심 첫 화면을 보여준다', (tester) async {
