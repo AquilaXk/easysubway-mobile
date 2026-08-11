@@ -114,7 +114,7 @@ class NearbyPanelColumns extends StatelessWidget {
     super.key,
   });
 
-  /// 기존 `_SubwayDataUnavailable`의 대시 스타일(16sp w700 primary content)을 재사용한다.
+  /// [NearbyDataUnavailable]과 공유하는 대시 스타일(16sp w700 primary content).
   static const dashStyle = TextStyle(
     color: EasySubwayAccessibleColors.contentPrimary,
     fontSize: 16,
@@ -175,5 +175,28 @@ class NearbyPanelColumns extends StatelessWidget {
     }
     final label = column.title.isEmpty ? '정보 없음' : '${column.title} 정보 없음';
     return Semantics(label: label, excludeSemantics: true, child: body);
+  }
+}
+
+/// 주변역 패널이 방면을 유도할 수 없을 때 쓰는 standalone no-data 표면.
+class NearbyDataUnavailable extends StatelessWidget {
+  const NearbyDataUnavailable({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '정보 없음',
+      excludeSemantics: true,
+      child: const SizedBox(
+        height: 46,
+        child: Center(
+          child: Text(
+            '-',
+            key: Key('networkMapNearbyDataUnavailable'),
+            style: NearbyPanelColumns.dashStyle,
+          ),
+        ),
+      ),
+    );
   }
 }
