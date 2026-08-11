@@ -18,6 +18,7 @@
 import 'dart:convert';
 
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_attribution_cache.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
@@ -206,11 +207,10 @@ void main() {
       // null이다. 따라서 관측 수단을 attribution 표시 대신 manifest 로드 시도 횟수
       // (manifestLoadAttempts)로 재작성한다 — 자작 manifest 상태와 무관하게 성립한다.
       //
-      // 가드하는 회귀: _loadNetworkMapAttributionTextByRegion의
-      // `_sharedAttributionTextByRegionFuture ??=` 캐시가 실패한 Future를 그대로
-      // 붙들면 1차 실패가 영구 미표기로 고정된다. 캐시 무효화는 _loadAttributionText의
-      // catch 블록(`_sharedAttributionTextByRegionFuture = null`)이 담당하므로, 그
-      // 무효화가 사라지면(=재시도 안 됨) manifestLoadAttempts가 2에 도달하지 못한다.
+      // 가드하는 회귀: loadNetworkMapAttributionTextByRegion의 shared cache가
+      // 실패한 Future를 그대로 붙들면 1차 실패가 영구 미표기로 고정된다. 캐시
+      // 무효화는 _loadAttributionText의 catch 블록이 담당하므로, 그 무효화가
+      // 사라지면(=재시도 안 됨) manifestLoadAttempts가 2에 도달하지 못한다.
       final manifestBytes = await rootBundle.load(networkMapManifestAssetPath);
       // 광주 바탕 .vec를 실제 번들 바이트로 미리 로드해 mock 핸들러가 서빙한다
       // (#2068). 이 테스트가 가로채는 대상은 manifest 로드 재시도이며, 바탕 .vec
@@ -248,8 +248,13 @@ void main() {
         () => binaryMessenger.setMockMessageHandler('flutter/assets', null),
       );
 
-      resetNetworkMapAttributionCacheForTest();
-      addTearDown(resetNetworkMapAttributionCacheForTest);
+      resetNetworkMapAttributionCache();
+      addTearDown(resetNetworkMapAttributionCache);
+      // 이 regression은 attribution cache만 검증한다. 단독 실행에서도 unrelated
+      // owner-label sidecar asset 오류가 takeException 관측을 섞지 않도록 기존
+      // owner-label cache를 빈 값으로 prime하고 test 뒤 초기화한다.
+      primeNetworkMapOwnerLabelsCacheForTest({});
+      addTearDown(resetNetworkMapOwnerLabelsCacheForTest);
 
       await tester.pumpWidget(
         MaterialApp(
@@ -273,8 +278,8 @@ void main() {
       expect(manifestLoadAttempts, 1);
       expect(tester.takeException(), isNotNull);
 
-      // 재마운트 시 _sharedAttributionTextByRegionFuture는 catch에서 비워졌으므로
-      // _loadNetworkMapAttributionTextByRegion이 재시도된다. rootBundle
+      // 재마운트 시 attribution Future는 catch에서 비워졌으므로
+      // loadNetworkMapAttributionTextByRegion이 재시도된다. rootBundle
       // (cache:true)이 실패 Future를 자체 _stringCache에 캐시하므로 하위 레이어도
       // evict해야 실제 새 로드가 일어난다.
       rootBundle.evict(networkMapManifestAssetPath);
