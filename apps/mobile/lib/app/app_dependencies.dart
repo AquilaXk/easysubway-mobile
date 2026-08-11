@@ -139,20 +139,17 @@ class AppDependencies {
         ? notificationPermissionProvider
         : null;
 
+    final catalogRepository = catalogDatabase == null
+        ? null
+        : DriftStationRepository(database: catalogDatabase);
     final StationSearchRepository resolvedStationRepository =
         repository ??
-        (catalogDatabase != null
-            ? DriftStationRepository(database: catalogDatabase)
-            : StationSearchApiRepository(baseUri: requireBaseUri()));
-    final injectedNetworkMapRepository = repository is NetworkMapRepository
-        ? repository as NetworkMapRepository
-        : null;
+        catalogRepository ??
+        StationSearchApiRepository(baseUri: requireBaseUri());
     final resolvedNetworkMapRepository =
         networkMapRepository ??
-        injectedNetworkMapRepository ??
-        (catalogDatabase != null
-            ? DriftStationRepository(database: catalogDatabase)
-            : const _UnavailableNetworkMapRepository());
+        catalogRepository ??
+        const _UnavailableNetworkMapRepository();
 
     final resolvedRealtimeRepository =
         realtimeRepository ??
