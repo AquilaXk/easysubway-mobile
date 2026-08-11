@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_owner_label_bounds.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // #2068 재발 방지 게이트 — 오너 라벨 sidecar(labels.json)의 **실제 소비처** 기준
