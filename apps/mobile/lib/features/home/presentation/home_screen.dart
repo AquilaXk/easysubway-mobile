@@ -733,7 +733,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           mobilityType: _routeTabMobilityType ?? initialMobilityType,
           onShellBackToHome: closeRouteTab,
           getOffAlarmController: widget.getOffAlarmController,
-          stationNameResolver: journeyAlarmStationNameResolver(repository),
+          stationNameResolver: widget.getOffAlarmController == null
+              ? null
+              : journeyAlarmStationNameResolver(repository),
         ),
       );
     }
