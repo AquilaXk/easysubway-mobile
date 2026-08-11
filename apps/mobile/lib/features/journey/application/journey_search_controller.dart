@@ -30,7 +30,11 @@ class JourneySelectedSnapshot {
   ) : contractVersion = response.contractVersion,
       requestId = response.requestId,
       queryId = response.queryId,
+      calculatedAt = response.calculatedAt,
+      validUntil = response.validUntil,
       effectiveDepartureTime = response.effectiveDepartureTime,
+      serviceDate = JourneyDate.parse(response.serviceDate.toString()),
+      serviceTimezone = response.serviceTimezone,
       sourceIdentity = JourneySourceIdentity(
         routeBundleId: response.sourceIdentity.routeBundleId,
         routeBundleSha256: response.sourceIdentity.routeBundleSha256,
@@ -38,6 +42,13 @@ class JourneySelectedSnapshot {
         accessibilitySnapshotId:
             response.sourceIdentity.accessibilitySnapshotId,
         realtimeSnapshotId: response.sourceIdentity.realtimeSnapshotId,
+      ),
+      requestPolicy = JourneyRequestPolicy(
+        timePolicy: response.requestPolicy.timePolicy,
+        mobilityProfile: response.requestPolicy.mobilityProfile,
+        constraintMode: response.requestPolicy.constraintMode,
+        maxTransfers: response.requestPolicy.maxTransfers,
+        alternativeCount: response.requestPolicy.alternativeCount,
       ),
       journey = Journey(
         journeyId: selected.journeyId,
@@ -64,8 +75,13 @@ class JourneySelectedSnapshot {
   final JourneyContractVersion contractVersion;
   final String requestId;
   final String queryId;
+  final DateTime calculatedAt;
+  final DateTime validUntil;
   final DateTime effectiveDepartureTime;
+  final JourneyDate serviceDate;
+  final String serviceTimezone;
   final JourneySourceIdentity sourceIdentity;
+  final JourneyRequestPolicy requestPolicy;
   final Journey journey;
 }
 

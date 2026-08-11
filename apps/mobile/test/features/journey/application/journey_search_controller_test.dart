@@ -470,7 +470,25 @@ void main() {
     expect(snapshot.contractVersion, response.contractVersion);
     expect(snapshot.requestId, response.requestId);
     expect(snapshot.queryId, response.queryId);
+    expect(snapshot.calculatedAt, response.calculatedAt);
+    expect(snapshot.validUntil, response.validUntil);
     expect(snapshot.effectiveDepartureTime, response.effectiveDepartureTime);
+    expect(snapshot.serviceDate.toString(), response.serviceDate.toString());
+    expect(snapshot.serviceTimezone, response.serviceTimezone);
+    expect(
+      snapshot.requestPolicy.timePolicy,
+      response.requestPolicy.timePolicy,
+    );
+    expect(
+      snapshot.requestPolicy.mobilityProfile,
+      response.requestPolicy.mobilityProfile,
+    );
+    expect(
+      snapshot.requestPolicy.constraintMode,
+      response.requestPolicy.constraintMode,
+    );
+    expect(snapshot.requestPolicy.maxTransfers, 1);
+    expect(snapshot.requestPolicy.alternativeCount, 1);
     expect(snapshot.sourceIdentity.routeBundleId, 'route');
     expect(snapshot.sourceIdentity.routeBundleSha256, 'a' * 64);
     expect(snapshot.sourceIdentity.timetableSnapshotId, 'timetable');
