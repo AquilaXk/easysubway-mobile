@@ -34,11 +34,36 @@ const policy = {
 const record = (source, details = ["DA:2,1"]) => [`SF:${source}`, ...details, "LF:1", "LH:1", "end_of_record"].join("\n");
 const writeExclusionTargets = (root) => exclusions.forEach(({ path: file, requiredFirstLine }) => { const target = path.join(root, file); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, `${requiredFirstLine}\n`); });
 
+test("Journey V3의 exact 5개 reservation은 부재 또는 tracked generated 상태만 허용한다", () => {
+  const actual = parsePolicyBytes(readFileSync(new URL("./mobile-coverage-policy.json", import.meta.url))).value;
+  assert.equal(actual.exclusions.length, 7);
+  assert.deepEqual(actual.exclusions.slice(2).map(({ path: file, availability }) => [file, availability]), [
+    ["apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["apps/mobile/lib/generated/journey_v3/journey_v3_enums.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["apps/mobile/lib/generated/journey_v3/journey_v3_error.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["apps/mobile/lib/generated/journey_v3/journey_v3_models.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+    ["apps/mobile/lib/generated/journey_v3/journey_v3_validation.dart", "RESERVED_ABSENT_OR_TRACKED_GENERATED"],
+  ]);
+});
+
 test("정상 일반 소스를 정규화하고 결과를 재계산한다", () => {
   const result = normalizeLcov(record("lib/accessible_design.dart"), { policy, repositoryRoot });
   assert.equal(result.content, "SF:lib/accessible_design.dart\nDA:2,1\nLF:1\nLH:1\nend_of_record\n");
   assert.deepEqual(result.result.records, { retained: 1, excluded: 0 });
   assert.deepEqual(result.result.lines, { executable: 1, covered: 1 });
+});
+
+test("Phase 1 policy에 선언되지 않은 Journey reservation은 coverage에서 제외하지 않는다", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "mobile-lcov-phase1-"));
+  writeExclusionTargets(root);
+  const target = path.join(root, "apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart");
+  mkdirSync(path.dirname(target), { recursive: true });
+  writeFileSync(target, "// GENERATED CODE - DO NOT MODIFY BY HAND\n");
+  const input = record("lib/generated/journey_v3/journey_v3_contract.dart");
+  const result = normalizeLcov(input, { policy, repositoryRoot: root, io: { ...defaultIo, isTracked: () => true } });
+  assert.equal(result.content, `${input}\n`);
+  assert.deepEqual(result.result.records, { retained: 1, excluded: 0 });
+  rmSync(root, { recursive: true, force: true });
 });
 
 test("F1: canonical full policy bytes와 exact 7-key exclusion만 허용한다", () => {
@@ -47,6 +72,7 @@ test("F1: canonical full policy bytes와 exact 7-key exclusion만 허용한다",
   assert.throws(() => parsePolicyBytes(Buffer.from(JSON.stringify(policy))), /canonical/i);
   const altered = structuredClone(policy); altered.exclusions[0].id = "OTHER";
   assert.throws(() => parsePolicyBytes(Buffer.from(`${JSON.stringify(altered, null, 2)}\n`)), /exclusion/i);
+  for (const key of ["reason", "ownerIssueUrl", "ownerIssueTitle", "removalTrigger"]) { const drift = structuredClone(policy); drift.exclusions[0][key] = "tampered"; assert.throws(() => parsePolicyBytes(Buffer.from(`${JSON.stringify(drift, null, 2)}\n`)), /exclusion/i); }
 });
 
 for (const [name, mutate] of [
@@ -57,6 +83,7 @@ for (const [name, mutate] of [
 
 test("F1: Phase 2 thresholds require the exact ordered seven-boundary 0..10000 map", () => {
   const phaseTwo = structuredClone(policy);
+  phaseTwo.exclusions = JSON.parse(readFileSync(new URL("./mobile-coverage-policy.json", import.meta.url), "utf8")).exclusions;
   phaseTwo.transition = { phase: "REVIEWED_BASELINE_ENFORCED", baselineReviewed: true };
   phaseTwo.thresholds = {
     repositoryLineBasisPoints: 1,
@@ -166,6 +193,24 @@ test("다른 generated Dart는 유효한 현재 소스면 유지 대상이며 �
   assert.equal(normalizeLcov(record("lib/custom.g.dart"), { policy, repositoryRoot: fixtureRoot, io: { ...defaultIo, isTracked: () => true } }).result.records.retained, 1);
   rmSync(fixtureRoot, { recursive: true, force: true });
   assert.throws(() => normalizeLcov(record("lib/features/home/home_page.g.dart"), { policy, repositoryRoot }), /source file/i);
+});
+
+test("Phase 2 Journey reservation은 absent/present evidence와 전후 상태를 fail-closed로 결속한다", () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), "journey-reservation-"));
+  const phaseTwo = parsePolicyBytes(readFileSync(new URL("./mobile-coverage-policy.json", import.meta.url))).value;
+  const tracked = { ...defaultIo, isTracked: () => true };
+  try {
+    for (const entry of phaseTwo.exclusions.slice(0, 2)) { const target = path.join(root, entry.path); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, `${entry.requiredFirstLine}\n`); }
+    const ordinary = path.join(root, "apps/mobile/lib/accessible_design.dart"); mkdirSync(path.dirname(ordinary), { recursive: true }); writeFileSync(ordinary, "void main() {}\n");
+    const absent = normalizeLcov(record("lib/accessible_design.dart"), { policy: phaseTwo, repositoryRoot: root, io: tracked });
+    assert.deepEqual(absent.result.exclusions.slice(2).map(({ presence, lcovRecordPresent, executableLines, coveredLines }) => [presence, lcovRecordPresent, executableLines, coveredLines]), Array(5).fill(["RESERVED_ABSENT", false, 0, 0]));
+    const target = path.join(root, phaseTwo.exclusions[2].path); mkdirSync(path.dirname(target), { recursive: true }); writeFileSync(target, `${phaseTwo.exclusions[2].requiredFirstLine}\n`);
+    assert.throws(() => absent.verifySources(), /appeared/i);
+    const present = normalizeLcov(record("lib/accessible_design.dart"), { policy: phaseTwo, repositoryRoot: root, io: tracked });
+    assert.deepEqual(present.result.exclusions[2], { path: phaseTwo.exclusions[2].path, reason: phaseTwo.exclusions[2].id, presence: "TRACKED_GENERATED", lcovRecordPresent: false, executableLines: 0, coveredLines: 0 });
+    rmSync(target); assert.throws(() => present.verifySources(), /ENOENT|tracked/i);
+    assert.throws(() => normalizeLcov(`${record("lib/accessible_design.dart")}\n${record("lib/generated/journey_v3/journey_v3_enums.dart")}`, { policy: phaseTwo, repositoryRoot: root, io: tracked }), /source file|missing/i);
+  } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
 test("TN, 함수, 브랜치의 완전한 레코드를 정렬하고 요약을 다시 만든다", () => {

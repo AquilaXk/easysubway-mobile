@@ -52,12 +52,12 @@ const REQUIREMENT_OUTPUT_KEYS = Object.freeze({
 });
 const STATUS_MAP = { A: "ADDED", M: "MODIFIED", D: "DELETED", R: "RENAMED", C: "COPIED", T: "TYPE_CHANGED", U: "UNMERGED_OR_UNKNOWN" };
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
-const POLICY_SHA256 = "482fb5f29d5aeeadcced9599ad037b5fba002b189b04fce8e69744f8d0b5c256";
+const POLICY_SHA256 = "fdc9ce888971b1f47199019b85431ed83ec22645b628c46807ed7ad64eeb7907";
 const CLOSED_POLICY = JSON.parse(readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url), "utf8"));
 const POLICY_ORACLE = JSON.stringify(CLOSED_POLICY);
 const PATH_RULE_IDS = CLOSED_POLICY.pathRules.map((rule) => rule.id);
 const EXPECTED_PATH_RULE_IDS = [
-  "self", "workflow", "github-config", "root-policy", "toolchain", "android-native", "ios-native", "app-composition", "shared-core", "journey-contract", "map-catalog", "contracts", "release", "assets", "tests", "tools", "feature-network-map",
+  "self", "workflow", "github-config", "root-policy", "toolchain", "android-native", "ios-native", "app-composition", "shared-core", "journey-contract", "journey-v3-generated", "map-catalog", "contracts", "release", "assets", "tests", "tools", "feature-network-map",
   "feature-account", "feature-ads", "feature-attribution", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
   "feature-privacy", "feature-contract", "feature-catalog", "feature-native",
 ];
