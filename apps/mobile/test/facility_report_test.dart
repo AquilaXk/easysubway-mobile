@@ -14,6 +14,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_receipt.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_type.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';

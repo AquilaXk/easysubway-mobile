@@ -22,6 +22,8 @@ import 'package:easysubway_mobile/features/favorites/presentation/favorite_home_
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_type.dart';
+import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_type_options.dart';
 import 'package:easysubway_mobile/features/support/presentation/inquiry_screen.dart';
 import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
 import 'package:easysubway_mobile/features/fare/official_od_fare_quote.dart';
@@ -19301,6 +19303,87 @@ void main() {
   });
 
   group('facilityReportTypeOptionsFor', () {
+    test('모든 유형의 server token·label·icon mapping을 보존한다', () {
+      const expectations = [
+        (
+          option: FacilityReportTypeOption.broken,
+          reportType: 'BROKEN',
+          label: '고장',
+          icon: Icons.warning_amber_rounded,
+        ),
+        (
+          option: FacilityReportTypeOption.underConstruction,
+          reportType: 'UNDER_CONSTRUCTION',
+          label: '공사 중',
+          icon: Icons.construction,
+        ),
+        (
+          option: FacilityReportTypeOption.closed,
+          reportType: 'CLOSED',
+          label: '폐쇄',
+          icon: Icons.block,
+        ),
+        (
+          option: FacilityReportTypeOption.routeBlocked,
+          reportType: 'ROUTE_BLOCKED',
+          label: '경로가 막혔어요',
+          icon: Icons.route,
+        ),
+        (
+          option: FacilityReportTypeOption.elevatorUnavailable,
+          reportType: 'ELEVATOR_UNAVAILABLE',
+          label: '엘리베이터 이용 불가',
+          icon: Icons.elevator,
+        ),
+        (
+          option: FacilityReportTypeOption.stairsPresent,
+          reportType: 'STAIRS_PRESENT',
+          label: '계단이 있어요',
+          icon: Icons.stairs,
+        ),
+        (
+          option: FacilityReportTypeOption.etaInaccurate,
+          reportType: 'ETA_INACCURATE',
+          label: '도착 시간이 달라요',
+          icon: Icons.schedule,
+        ),
+        (
+          option: FacilityReportTypeOption.transferImpossible,
+          reportType: 'TRANSFER_IMPOSSIBLE',
+          label: '환승이 어려워요',
+          icon: Icons.transfer_within_a_station,
+        ),
+        (
+          option: FacilityReportTypeOption.locationWrong,
+          reportType: 'LOCATION_WRONG',
+          label: '위치가 달라요',
+          icon: Icons.wrong_location_outlined,
+        ),
+        (
+          option: FacilityReportTypeOption.informationWrong,
+          reportType: 'INFORMATION_WRONG',
+          label: '정보가 달라요',
+          icon: Icons.edit_note,
+        ),
+        (
+          option: FacilityReportTypeOption.recovered,
+          reportType: 'RECOVERED',
+          label: '다시 정상',
+          icon: Icons.check_circle_outline,
+        ),
+      ];
+
+      expect(
+        expectations.map((expectation) => expectation.option),
+        FacilityReportTypeOption.values,
+      );
+      for (final expectation in expectations) {
+        expect(expectation.option.reportType, expectation.reportType);
+        expect(expectation.option.label, expectation.label);
+        expect(expectation.option.icon, expectation.icon);
+      }
+    });
+
     test('에스컬레이터 정상은 경로/역 수준·다시 정상을 제외한다', () {
       expect(
         facilityReportTypeOptionsFor(
