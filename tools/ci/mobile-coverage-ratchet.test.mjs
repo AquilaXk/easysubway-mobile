@@ -254,6 +254,7 @@ test("accepted CRLF raw LCOV는 분석과 artifact 재검증에서 canonical LF�
     const options = discoveryInput(dir); const raw = readFileSync(options.rawLcov); writeFileSync(options.rawLcov, raw.toString("utf8").replaceAll("\n", "\r\n"));
     const filter = JSON.parse(readFileSync(options.filterResult, "utf8")); filter.inputSha256 = sha(readFileSync(options.rawLcov)); writeFileSync(options.filterResult, `${JSON.stringify(filter)}\n`);
     const artifact = path.join(dir, "artifact"); assert.equal(analyze(options, { repositoryRoot, reportDirectory: artifact }).outcome, "DISCOVERY_REMOTE_RED"); assert.equal(verifyArtifactDirectory(artifact, { repositoryRoot }).outcome, "DISCOVERY_REMOTE_RED");
+    const invalidDirectory = path.join(dir, "invalid"); mkdirSync(invalidDirectory); const invalid = discoveryInput(invalidDirectory); const normalized = readFileSync(invalid.normalizedLcov, "utf8").replaceAll("\n", "\r\n"); writeFileSync(invalid.normalizedLcov, normalized); const invalidFilter = JSON.parse(readFileSync(invalid.filterResult, "utf8")); invalidFilter.outputSha256 = sha(normalized); writeFileSync(invalid.filterResult, `${JSON.stringify(invalidFilter)}\n`); assert.throws(() => analyze(invalid, { repositoryRoot, reportDirectory: path.join(dir, "invalid-artifact") }), /normalized LCOV/i);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
