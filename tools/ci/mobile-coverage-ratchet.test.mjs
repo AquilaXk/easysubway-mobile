@@ -248,6 +248,15 @@ test("Phase 1 analyzer는 manual artifact를 exact DISCOVERY_REMOTE_RED로 결�
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
+test("accepted CRLF raw LCOV는 분석과 artifact 재검증에서 canonical LF와 동등하다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-crlf-"));
+  try {
+    const options = discoveryInput(dir); const raw = readFileSync(options.rawLcov); writeFileSync(options.rawLcov, raw.toString("utf8").replaceAll("\n", "\r\n"));
+    const filter = JSON.parse(readFileSync(options.filterResult, "utf8")); filter.inputSha256 = sha(readFileSync(options.rawLcov)); writeFileSync(options.filterResult, `${JSON.stringify(filter)}\n`);
+    const artifact = path.join(dir, "artifact"); assert.equal(analyze(options, { repositoryRoot, reportDirectory: artifact }).outcome, "DISCOVERY_REMOTE_RED"); assert.equal(verifyArtifactDirectory(artifact, { repositoryRoot }).outcome, "DISCOVERY_REMOTE_RED");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
 test("PR #140 상태의 tracked Journey 생성 5개와 LCOV 부재를 artifact 재계산까지 보존한다", () => {
   const dir = mkdtempSync(path.join(temporaryRoot, "journey-ratchet-"));
   const owner = { statusCode: 200, redirected: false, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open"}') };

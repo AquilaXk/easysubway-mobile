@@ -72,6 +72,7 @@ test("F1: canonical full policy bytes와 exact 7-key exclusion만 허용한다",
   assert.throws(() => parsePolicyBytes(Buffer.from(JSON.stringify(policy))), /canonical/i);
   const altered = structuredClone(policy); altered.exclusions[0].id = "OTHER";
   assert.throws(() => parsePolicyBytes(Buffer.from(`${JSON.stringify(altered, null, 2)}\n`)), /exclusion/i);
+  for (const key of ["reason", "ownerIssueUrl", "ownerIssueTitle", "removalTrigger"]) { const drift = structuredClone(policy); drift.exclusions[0][key] = "tampered"; assert.throws(() => parsePolicyBytes(Buffer.from(`${JSON.stringify(drift, null, 2)}\n`)), /exclusion/i); }
 });
 
 for (const [name, mutate] of [

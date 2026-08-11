@@ -69,7 +69,7 @@ function validatePolicy(policy, { full = false } = {}) {
     if (full) exactKeys(entry, policy.transition.phase === "REVIEWED_BASELINE_ENFORCED" ? ["id", "availability", "path", "requiredFirstLine", "reason", "ownerIssueUrl", "ownerIssueTitle", "removalTrigger"] : ["id", "path", "requiredFirstLine", "reason", "ownerIssueUrl", "ownerIssueTitle", "removalTrigger"], "exclusion keys");
     const metadata = availability === "TRACKED_GENERATED_REQUIRED" ? DRIFT_METADATA : JOURNEY_METADATA;
     if (!entry || entry.id !== id || entry.path !== file || entry.requiredFirstLine !== HEADER) fail("invalid policy exclusions");
-    if (full && policy.transition.phase === "REVIEWED_BASELINE_ENFORCED" && (entry.availability !== availability || entry.reason !== metadata.reason || entry.ownerIssueUrl !== metadata.ownerIssueUrl || entry.ownerIssueTitle !== metadata.ownerIssueTitle || entry.removalTrigger !== metadata.removalTrigger)) fail("invalid policy exclusions");
+    if (full && ((availability === "TRACKED_GENERATED_REQUIRED" && (entry.reason !== metadata.reason || entry.ownerIssueUrl !== metadata.ownerIssueUrl || entry.ownerIssueTitle !== metadata.ownerIssueTitle || entry.removalTrigger !== metadata.removalTrigger)) || (policy.transition.phase === "REVIEWED_BASELINE_ENFORCED" && (entry.availability !== availability || entry.reason !== metadata.reason || entry.ownerIssueUrl !== metadata.ownerIssueUrl || entry.ownerIssueTitle !== metadata.ownerIssueTitle || entry.removalTrigger !== metadata.removalTrigger)))) fail("invalid policy exclusions");
     if (!full && entry.availability !== undefined && entry.availability !== availability) fail("invalid policy exclusions");
   });
 }
