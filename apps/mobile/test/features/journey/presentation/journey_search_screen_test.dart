@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show Tristate;
+import 'dart:ui' show SemanticsAction, Tristate;
 
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
@@ -45,7 +45,15 @@ void main() {
     );
     expect(tester.getSize(second).height, greaterThanOrEqualTo(48));
 
-    await tester.tap(second);
+    final candidateSemantics = tester.getSemantics(second);
+    expect(
+      candidateSemantics.getSemanticsData().hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    candidateSemantics.owner!.performAction(
+      candidateSemantics.id,
+      SemanticsAction.tap,
+    );
     await tester.pump();
     expect(
       tester.getSemantics(second).flagsCollection.isSelected,

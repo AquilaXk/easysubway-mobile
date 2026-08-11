@@ -90,15 +90,20 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     final summary =
         '$durationMinutes분, $transfer, 도보 ${journey.walkingDistanceMeters}m, ${_arrivalTime(journey)} 도착, $accessibility';
     final color = Theme.of(context).colorScheme.primary;
+    void selectJourney() {
+      _controller.selectJourney(journey.journeyId);
+    }
+
     return Semantics(
       key: Key('journey-candidate-${journey.journeyId}'),
       container: true,
       button: true,
       selected: selected,
       label: summary,
+      onTap: selectJourney,
       excludeSemantics: true,
       child: InkWell(
-        onTap: () => _controller.selectJourney(journey.journeyId),
+        onTap: selectJourney,
         child: Container(
           constraints: const BoxConstraints(minHeight: 64),
           decoration: selected
