@@ -1,0 +1,122 @@
+name: Mobile Golden
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions: {}
+
+concurrency:
+  group: mobile-golden-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  golden:
+    name: Mobile Golden CI
+    runs-on: macos-15
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GOLDEN_EVIDENCE_DIR: mobile-golden-evidence
+      GOLDEN_FAILURES_ROOT: apps/mobile/test/features/network_map/presentation/failures
+      GOLDEN_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      GOLDEN_TEST: test/features/network_map/presentation/station_fan_menu_golden_test.dart
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: "3.44.0"
+          cache: true
+      - name: Verify golden contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
+          flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
+          node --test \
+            tools/ci/mobile-golden-execution.test.mjs \
+            tools/ci/mobile-golden-parity.test.mjs
+          umask 077
+          mkdir "$evidence_root"
+          node tools/ci/mobile-golden-parity.mjs \
+            > "$evidence_root/golden-parity.json"
+          flutter --version --machine \
+            > "$flutter_identity"
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Run actual golden comparison
+        shell: bash
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
+          actual_report="$RUNNER_TEMP/mobile-golden-actual-events.json"
+          flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
+          set +e
+          flutter test "$GOLDEN_TEST" \
+            --file-reporter "json:$actual_report"
+          test_exit_code=$?
+          set -e
+          cd "$GITHUB_WORKSPACE"
+          node tools/ci/mobile-golden-execution.mjs verify \
+            --inventory "$evidence_root/golden-parity.json" \
+            --report "$actual_report" \
+            --test-exit-code "$test_exit_code" \
+            --receipt "$evidence_root/actual-receipt.json" \
+            --runner-os "$RUNNER_OS" \
+            --image-os "$ImageOS" \
+            --image-version "$ImageVersion" \
+            --flutter-version-file "$flutter_identity" \
+            --head-sha "$GOLDEN_HEAD_SHA"
+      - name: Prove visual mutation is red
+        shell: bash
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
+          mutation_report="$RUNNER_TEMP/mobile-golden-mutation-events.json"
+          flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
+          set +e
+          flutter test "$GOLDEN_TEST" \
+            --name "^기본 상태$" \
+            --dart-define=EASYSUBWAY_GOLDEN_MUTATION=true \
+            --file-reporter "json:$mutation_report" \
+            > /dev/null 2>&1
+          test_exit_code=$?
+          set -e
+          cd "$GITHUB_WORKSPACE"
+          node tools/ci/mobile-golden-execution.mjs verify-mutation \
+            --inventory "$evidence_root/golden-parity.json" \
+            --report "$mutation_report" \
+            --test-exit-code "$test_exit_code" \
+            --receipt "$evidence_root/mutation-receipt.json" \
+            --runner-os "$RUNNER_OS" \
+            --image-os "$ImageOS" \
+            --image-version "$ImageVersion" \
+            --flutter-version-file "$flutter_identity" \
+            --head-sha "$GOLDEN_HEAD_SHA" \
+            --failures-root "$GOLDEN_FAILURES_ROOT"
+      - name: Upload golden comparison evidence
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-golden-${{ env.GOLDEN_HEAD_SHA }}
+          path: |
+            ${{ runner.temp }}/mobile-golden-evidence
+            ${{ env.GOLDEN_FAILURES_ROOT }}
+          retention-days: 5
+          if-no-files-found: error
