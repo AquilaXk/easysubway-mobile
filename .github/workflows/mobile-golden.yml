@@ -92,7 +92,7 @@ jobs:
           flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
           set +e
           flutter test "$GOLDEN_TEST" \
-            --plain-name "^기본 상태$" \
+            --name "^기본 상태$" \
             --dart-define=EASYSUBWAY_GOLDEN_MUTATION=true \
             --file-reporter "json:$mutation_report" \
             > /dev/null 2>&1
