@@ -37,7 +37,6 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.
 import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/settings/presentation/app_settings_screen.dart';
-import 'package:easysubway_mobile/features/settings/presentation/service_info_screen.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscription.dart';
@@ -55,7 +54,6 @@ import 'package:easysubway_mobile/features/service_notice/domain/service_notice.
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/internal_route.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_preset_labels.dart';
-import 'package:easysubway_mobile/features/mobility_profile/mobility_preset_picker.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
