@@ -4536,7 +4536,7 @@ class _RouteStationPickerState extends State<_RouteStationPicker> {
 
   void _search() {
     // 진행 중 검색은 requestId로 무효화되므로 loading이어도 막지 않는다.
-    _controller.search(_textController.text);
+    unawaited(_controller.search(_textController.text));
   }
 
   void _selectStation(StationSearchResult station) {
@@ -4859,7 +4859,7 @@ class _RouteSearchMessageState extends State<_RouteSearchMessage> {
   void initState() {
     super.initState();
     if (widget.liveRegion && widget.message.isNotEmpty) {
-      announceErrorMessage(widget.message);
+      unawaited(announceErrorMessage(widget.message));
     }
   }
 
@@ -4869,7 +4869,7 @@ class _RouteSearchMessageState extends State<_RouteSearchMessage> {
     if (widget.liveRegion &&
         widget.message.isNotEmpty &&
         widget.message != oldWidget.message) {
-      announceErrorMessage(widget.message);
+      unawaited(announceErrorMessage(widget.message));
     }
   }
 
@@ -5091,9 +5091,11 @@ class _RouteSearchResultCardState extends State<_RouteSearchResultCard> {
   }
 
   void _pushStage({required String title, required Widget child}) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => _RouteStageScaffold(title: title, child: child),
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => _RouteStageScaffold(title: title, child: child),
+        ),
       ),
     );
   }

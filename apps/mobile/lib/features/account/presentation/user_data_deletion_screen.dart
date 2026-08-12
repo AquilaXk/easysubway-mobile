@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -19,12 +21,14 @@ class UserDataDeletionAccessItem extends StatelessWidget {
     final deletionScope = _userDataDeletionScope(repository);
     final copy = _UserDataDeletionCopy.forScope(deletionScope);
     void openDeletionScreen() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => UserDataDeletionScreen(
-            repository: repository,
-            deletionScope: deletionScope,
-            onDeleted: onDeleted,
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => UserDataDeletionScreen(
+              repository: repository,
+              deletionScope: deletionScope,
+              onDeleted: onDeleted,
+            ),
           ),
         ),
       );
