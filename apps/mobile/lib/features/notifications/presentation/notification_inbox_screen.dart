@@ -196,11 +196,14 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
     if (repository == null) {
       return;
     }
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => NotificationSettingsScreen(
-          repository: repository,
-          notificationPermissionProvider: widget.notificationPermissionProvider,
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => NotificationSettingsScreen(
+            repository: repository,
+            notificationPermissionProvider:
+                widget.notificationPermissionProvider,
+          ),
         ),
       ),
     );
@@ -307,9 +310,11 @@ class _NotificationInboxRow extends StatelessWidget {
       if (report == null) {
         return;
       }
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => MyFacilityReportDetailScreen(report: report),
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => MyFacilityReportDetailScreen(report: report),
+          ),
         ),
       );
     }
