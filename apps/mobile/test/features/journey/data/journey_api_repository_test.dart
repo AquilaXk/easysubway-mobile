@@ -49,6 +49,18 @@ final _searchRequest = JourneySearchRequest(
   alternativeCount: 2,
 );
 
+final _stepFreeSearchRequest = JourneySearchRequest(
+  requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+  originStationId: 'station-origin',
+  destinationStationId: 'station-destination',
+  departure: const JourneyDepartureNow(),
+  timePolicy: TimePolicy.timetableRequired,
+  mobilityProfile: MobilityProfile.stepFree,
+  constraintMode: ConstraintMode.requireStepFree,
+  maxTransfers: 2,
+  alternativeCount: 2,
+);
+
 Map<String, Object?> _sessionJson() => JourneySessionResponse(
   token: 'session-token',
   scope: JourneySessionScope.journeyV3,
@@ -59,18 +71,23 @@ Map<String, Object?> _sessionJson() => JourneySessionResponse(
 Map<String, Object?> _successJson({
   String? requestId,
   List<String> journeyIds = const ['journey-2', 'journey-1'],
+  JourneySearchRequest? request,
+  List<bool>? stairFreeByJourney,
 }) {
+  final effectiveRequest = request ?? _searchRequest;
   final policy = JourneyRequestPolicy(
-    timePolicy: _searchRequest.timePolicy,
-    mobilityProfile: _searchRequest.mobilityProfile,
-    constraintMode: _searchRequest.constraintMode,
-    maxTransfers: _searchRequest.maxTransfers,
-    alternativeCount: _searchRequest.alternativeCount,
+    timePolicy: effectiveRequest.timePolicy,
+    mobilityProfile: effectiveRequest.mobilityProfile,
+    constraintMode: effectiveRequest.constraintMode,
+    maxTransfers: effectiveRequest.maxTransfers,
+    alternativeCount: effectiveRequest.alternativeCount,
   );
   final journeys = journeyIds
+      .asMap()
+      .entries
       .map(
-        (id) => Journey(
-          journeyId: id,
+        (entry) => Journey(
+          journeyId: entry.value,
           status: JourneyStatus.found,
           planSource: JourneyPlanSource.serverTimetableRaptor,
           plannedDepartureTime: DateTime.parse('2026-08-11T00:00:00Z'),
@@ -81,10 +98,10 @@ Map<String, Object?> _successJson({
           transferCount: 0,
           walkingDistanceMeters: 0,
           timeSource: JourneyTimeSource.timetable,
-          accessibility: const JourneyAccessibility(
+          accessibility: JourneyAccessibility(
             result: JourneyAccessibilityResult.verified,
-            stairFree: false,
-            reasonCodes: [],
+            stairFree: stairFreeByJourney?[entry.key] ?? false,
+            reasonCodes: const [],
           ),
           legs: const [
             JourneyEntryLeg(
@@ -97,7 +114,7 @@ Map<String, Object?> _successJson({
       .toList(growable: false);
   return JourneySearchSuccess(
     contractVersion: JourneyContractVersion.journeySearchV3,
-    requestId: requestId ?? _searchRequest.requestId,
+    requestId: requestId ?? effectiveRequest.requestId,
     queryId: 'query-1',
     calculatedAt: DateTime.parse('2026-08-11T00:00:00Z'),
     validUntil: DateTime.parse('2026-08-11T00:05:00Z'),
@@ -175,6 +192,48 @@ void main() {
     expect(success.sourceIdentity.timetableSnapshotId, 'timetable-1');
     expect(success.sourceIdentity.accessibilitySnapshotId, 'accessibility-1');
     expect(success.sourceIdentity.realtimeSnapshotId, isNull);
+    expect(
+      success.journeys.every((journey) => !journey.accessibility.stairFree),
+      isTrue,
+    );
+  });
+
+  test('REQUIRE_STEP_FREE는 모든 candidate의 verified stair-free를 요구한다', () async {
+    final invalidClient = _StubApiClient([
+      ApiResponse(
+        statusCode: 200,
+        jsonBody: _successJson(
+          request: _stepFreeSearchRequest,
+          stairFreeByJourney: const [true, false],
+        ),
+      ),
+    ]);
+    final validClient = _StubApiClient([
+      ApiResponse(
+        statusCode: 200,
+        jsonBody: _successJson(
+          request: _stepFreeSearchRequest,
+          stairFreeByJourney: const [true, true],
+        ),
+      ),
+    ]);
+
+    await expectLater(
+      JourneyApiRepository(
+        invalidClient,
+      ).searchJourneys(_stepFreeSearchRequest, sessionToken: 'session-token'),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+    final success = await JourneyApiRepository(
+      validClient,
+    ).searchJourneys(_stepFreeSearchRequest, sessionToken: 'session-token');
+
+    expect(invalidClient.posts, hasLength(1));
+    expect(validClient.posts, hasLength(1));
+    expect(
+      success.journeys.every((journey) => journey.accessibility.stairFree),
+      isTrue,
+    );
   });
 
   test(
