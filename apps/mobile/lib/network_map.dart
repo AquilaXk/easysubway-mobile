@@ -3556,14 +3556,14 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
     if (!kReleaseMode) {
       SchedulerBinding.instance.addTimingsCallback(_logRouteMapFrameTimings);
     }
-    _loadAttributionText();
+    unawaited(_loadAttributionText());
     // #2068 트랙 QA 후속: 초기 카메라 가독 배율이 sidecar에 의존하므로, 이미
     // 해석된 값이 있으면 **첫 build 전에 동기로** 시드해 과축소 → 확대 줌 팝을
     // 없앤다. 값이 없을 때만 비동기 로드를 태운다(선행 로드가 아직 끝나지 않은
     // 경합 케이스 — 도착하면 setState로 카메라가 한 번 재계산된다).
     _ownerLabelsByRegion = cachedNetworkMapOwnerLabelsByRegion;
     if (_ownerLabelsByRegion == null) {
-      _loadOwnerLabels();
+      unawaited(_loadOwnerLabels());
     }
   }
 
