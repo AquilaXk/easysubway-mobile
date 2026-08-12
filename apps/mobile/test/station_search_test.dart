@@ -1294,6 +1294,28 @@ void main() {
     expect(controller.state.detail?.nameKo, '사당');
   });
 
+  test('역 상세 컨트롤러는 늦은 이전 역 예기치 않은 실패로 현재 역을 덮지 않는다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final repository = MultiStationDetailRepository();
+    final controller = StationDetailController(repository: repository);
+    addTearDown(controller.dispose);
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      final oldLoad = controller.load('station-sangnoksu');
+      final currentLoad = controller.load('station-sadang');
+
+      repository.complete('station-sadang', name: '사당');
+      await currentLoad;
+
+      repository.failUnexpected('station-sangnoksu');
+      await oldLoad;
+    });
+
+    expect(reportedErrors, hasLength(1));
+    expect(controller.state.detail?.id, 'station-sadang');
+    expect(controller.state.detail?.nameKo, '사당');
+  });
+
   test('역 상세 컨트롤러는 실시간 도착 실패와 정적 역 정보를 분리한다', () async {
     final repository = ControlledStationDetailRepository();
     final controller = StationDetailController(
@@ -2078,6 +2100,14 @@ class MultiStationDetailRepository implements StationSearchRepository {
 
   void complete(String stationId, {required String name}) {
     _details[stationId]!.complete(_stationDetail(id: stationId, name: name));
+    _exits[stationId]!.complete(const []);
+    _facilities[stationId]!.complete(const []);
+  }
+
+  void failUnexpected(String stationId) {
+    _details[stationId]!.completeError(
+      StateError('unexpected station detail failure'),
+    );
     _exits[stationId]!.complete(const []);
     _facilities[stationId]!.complete(const []);
   }

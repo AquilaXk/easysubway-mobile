@@ -13874,6 +13874,35 @@ void main() {
     );
   });
 
+  testWidgets('확장 역 상세는 주입된 내부 이동 요청을 즉시 전달한다', (tester) async {
+    const request = InternalRouteRequest(
+      stationId: 'station-sangnoksu',
+      fromNodeId: 'node-sangnoksu-elevator-1',
+      toNodeId: 'node-sangnoksu-faregate',
+      mobilityType: 'WHEELCHAIR',
+    );
+    final internalRouteRepository = FakeInternalRouteRepository(
+      result: _internalRouteResult(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationDetailExpandHost(
+          repository: FakeStationSearchRepository(
+            stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          ),
+          reportRepository: FakeFacilityReportRepository(),
+          stationId: 'station-sangnoksu',
+          internalRouteRepository: internalRouteRepository,
+          internalRouteRequest: request,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(internalRouteRepository.requests, [request]);
+  });
+
   testWidgets('역 상세 광고는 성공 content 최하단에 station placement로 배선된다', (
     tester,
   ) async {
