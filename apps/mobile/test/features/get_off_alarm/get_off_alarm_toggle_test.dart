@@ -10,7 +10,6 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscript
 import 'package:easysubway_mobile/features/get_off_alarm/data/get_off_alarm_state_repository.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_toggle.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
-import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

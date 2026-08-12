@@ -877,10 +877,51 @@ void main() {
   });
 
   testWidgets('release 경로 탭은 Journey V3 화면만 연다', (tester) async {
+    final stationRepository = FakeStationSearchRepository();
+    final baseDependencies = AppDependencies.resolve(
+      repository: stationRepository,
+      reportRepository: FakeFacilityReportRepository(),
+      networkMapRepository: stationRepository,
+      enablePushNotifications: false,
+    );
+    final alarmController = GetOffAlarmController(
+      notifier: _RecordingGetOffAlarmNotifier(),
+      permissionGate: _StubExactAlarmPermissionGate(),
+      notificationPermissionProvider: FakeNotificationPermissionProvider(
+        nextStatus: NotificationPermissionStatus.granted,
+      ),
+      repository: _MemoryGetOffAlarmStateRepository(),
+    );
+    addTearDown(alarmController.dispose);
+    final dependencies = AppDependencies(
+      repository: baseDependencies.repository,
+      reportRepository: baseDependencies.reportRepository,
+      routeRepository: baseDependencies.routeRepository,
+      routeFeedbackRepository: baseDependencies.routeFeedbackRepository,
+      favoriteRepository: baseDependencies.favoriteRepository,
+      favoriteFacilityRepository: baseDependencies.favoriteFacilityRepository,
+      favoriteRouteRepository: baseDependencies.favoriteRouteRepository,
+      searchHistoryRepository: baseDependencies.searchHistoryRepository,
+      internalRouteRepository: baseDependencies.internalRouteRepository,
+      networkMapRepository: baseDependencies.networkMapRepository,
+      networkMapViewportRepository:
+          baseDependencies.networkMapViewportRepository,
+      realtimeRepository: baseDependencies.realtimeRepository,
+      notificationRepository: baseDependencies.notificationRepository,
+      notificationPermissionProvider:
+          baseDependencies.notificationPermissionProvider,
+      locationProvider: baseDependencies.locationProvider,
+      trainSearchRepository: baseDependencies.trainSearchRepository,
+      userDataDeletionRepository: baseDependencies.userDataDeletionRepository,
+      getOffAlarmController: alarmController,
+      noticeRepository: baseDependencies.noticeRepository,
+      adRepository: baseDependencies.adRepository,
+      journeyRepositoryFactory: baseDependencies.journeyRepositoryFactory,
+      journeyAttestor: baseDependencies.journeyAttestor,
+    );
     await tester.pumpWidget(
       buildEasySubwayTestApp(
-        repository: FakeStationSearchRepository(),
-        reportRepository: FakeFacilityReportRepository(),
+        dependencies: dependencies,
         initialOnboardingState: _completedOnboardingState(),
       ),
     );
@@ -889,6 +930,12 @@ void main() {
 
     expect(find.byType(JourneySearchScreen), findsOneWidget);
     expect(find.byType(RouteSearchScreen), findsNothing);
+    final screen = tester.widget<JourneySearchScreen>(
+      find.byType(JourneySearchScreen),
+    );
+    expect(screen.getOffAlarmController, same(alarmController));
+    expect(screen.stationNameResolver, isNotNull);
+    expect(await screen.stationNameResolver!('station-sadang'), '사당');
   });
 
   testWidgets('기본 앱은 저장소가 없어도 노선도 중심 첫 화면을 보여준다', (tester) async {

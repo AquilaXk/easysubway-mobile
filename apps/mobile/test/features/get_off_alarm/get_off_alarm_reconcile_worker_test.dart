@@ -5,7 +5,6 @@ import 'package:easysubway_mobile/features/get_off_alarm/exact_alarm_permission.
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_controller.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_reconcile_worker.dart';
-import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 컨트롤러 조립에 필요한 협력자들의 no-op 대역. reconcile을 오버라이드한
