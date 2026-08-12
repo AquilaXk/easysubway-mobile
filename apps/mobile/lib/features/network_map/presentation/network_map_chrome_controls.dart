@@ -1,7 +1,514 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 
 import '../../../accessible_design.dart';
 import '../../../search_field.dart';
+import '../../route_draft/domain/route_draft.dart';
+
+enum _RouteDraftFieldKind { origin, waypoint, destination }
+
+class NetworkMapTopBarRouteDraft extends StatelessWidget {
+  const NetworkMapTopBarRouteDraft({
+    required this.draft,
+    required this.showWaypointRow,
+    required this.regionLabel,
+    required this.onClearDraft,
+    required this.onOpenWaypointSlot,
+    required this.onClearOrigin,
+    required this.onClearDestination,
+    required this.onClearWaypoint,
+    required this.onReorderDraft,
+    required this.roleColorForSlot,
+    required this.lineBadgeBuilder,
+    this.onPickOrigin,
+    this.onPickDestination,
+    this.onPickWaypoint,
+    super.key,
+  });
+
+  static const _leadingWidth = EasySubwayTouchTarget.general;
+  static const _rowGap = 6.0;
+  static const _fieldMinHeight = easySubwaySearchFieldVisualHeight;
+  static const _chromeVerticalInset =
+      (easySubwayTopBarContentHeight - _fieldMinHeight) / 2;
+
+  final RouteDraft draft;
+  final bool showWaypointRow;
+  final String regionLabel;
+  final VoidCallback onClearDraft;
+  final VoidCallback onOpenWaypointSlot;
+  final VoidCallback onClearOrigin;
+  final VoidCallback onClearDestination;
+  final VoidCallback onClearWaypoint;
+  final void Function(RouteDraftSlot from, RouteDraftSlot to) onReorderDraft;
+  final Color Function(RouteDraftSlot slot) roleColorForSlot;
+  final Widget Function(RouteDraftStation station, double size)
+  lineBadgeBuilder;
+  final VoidCallback? onPickOrigin;
+  final VoidCallback? onPickDestination;
+  final VoidCallback? onPickWaypoint;
+
+  @override
+  Widget build(BuildContext context) {
+    final visibleSlots = <RouteDraftSlot>[
+      RouteDraftSlot.origin,
+      if (showWaypointRow) RouteDraftSlot.waypoint,
+      RouteDraftSlot.destination,
+    ];
+    List<RouteDraftSlot> targetsFor(RouteDraftSlot slot) =>
+        visibleSlots.where((candidate) => candidate != slot).toList();
+
+    final hasOrigin = draft.origin != null;
+    final hasDestination = draft.destination != null;
+    final canAddWaypoint = !showWaypointRow && (hasOrigin != hasDestination);
+
+    final originField = _NetworkMapRouteDraftField(
+      kind: _RouteDraftFieldKind.origin,
+      slot: RouteDraftSlot.origin,
+      station: draft.origin,
+      onClear: onClearOrigin,
+      onPick: onPickOrigin,
+      reorderTargets: targetsFor(RouteDraftSlot.origin),
+      onReorder: onReorderDraft,
+      roleColorForSlot: roleColorForSlot,
+      lineBadgeBuilder: lineBadgeBuilder,
+    );
+    final destinationField = _NetworkMapRouteDraftField(
+      kind: _RouteDraftFieldKind.destination,
+      slot: RouteDraftSlot.destination,
+      station: draft.destination,
+      onClear: onClearDestination,
+      onPick: onPickDestination,
+      reorderTargets: targetsFor(RouteDraftSlot.destination),
+      onReorder: onReorderDraft,
+      roleColorForSlot: roleColorForSlot,
+      lineBadgeBuilder: lineBadgeBuilder,
+    );
+
+    final fieldRows = <Widget>[
+      _draftChromeRow(
+        leading: _draftIconButton(
+          key: const Key('networkMapRouteDraftBackButton'),
+          tooltip: '경로 입력 지우기',
+          icon: Icons.arrow_back,
+          onPressed: onClearDraft,
+        ),
+        field: originField,
+      ),
+      if (showWaypointRow)
+        _draftChromeRow(
+          leading: const SizedBox(width: _leadingWidth),
+          field: _NetworkMapRouteDraftField(
+            kind: _RouteDraftFieldKind.waypoint,
+            slot: RouteDraftSlot.waypoint,
+            station: draft.waypoint,
+            onClear: onClearWaypoint,
+            onPick: onPickWaypoint,
+            reorderTargets: targetsFor(RouteDraftSlot.waypoint),
+            onReorder: onReorderDraft,
+            roleColorForSlot: roleColorForSlot,
+            lineBadgeBuilder: lineBadgeBuilder,
+            showClearWhenEmpty: true,
+          ),
+        ),
+      _draftChromeRow(
+        leading: canAddWaypoint
+            ? _draftIconButton(
+                key: const Key('networkMapRouteDraftAddWaypoint'),
+                tooltip: '경유역 칸 추가',
+                icon: Icons.add,
+                onPressed: onOpenWaypointSlot,
+              )
+            : const SizedBox(width: _leadingWidth),
+        field: destinationField,
+      ),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        4,
+        _chromeVerticalInset,
+        8,
+        _chromeVerticalInset,
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                for (var i = 0; i < fieldRows.length; i++) ...[
+                  if (i > 0) const SizedBox(height: _rowGap),
+                  fieldRows[i],
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: _fieldMinHeight,
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: _draftLockedRegionLabel(regionLabel),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Widget _draftIconButton({
+    required Key key,
+    required String tooltip,
+    required IconData icon,
+    required VoidCallback? onPressed,
+  }) {
+    return SizedBox(
+      width: _leadingWidth,
+      height: _fieldMinHeight,
+      child: IconButton(
+        key: key,
+        tooltip: tooltip,
+        onPressed: onPressed,
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(EasySubwayTouchTarget.general),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: EdgeInsets.zero,
+        ),
+        icon: Icon(
+          icon,
+          size: 26,
+          color: EasySubwayAccessibleColors.contentPrimary,
+        ),
+      ),
+    );
+  }
+
+  static Widget _draftLockedRegionLabel(String regionLabel) {
+    return Semantics(
+      label: '지역: $regionLabel, 변경할 수 없음',
+      child: ExcludeSemantics(
+        child: ConstrainedBox(
+          key: const Key('networkMapRouteDraftRegionLabel'),
+          constraints: const BoxConstraints(maxWidth: 88),
+          child: Text(
+            regionLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: EasySubwayAccessibleColors.contentSecondary,
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  static Widget _draftChromeRow({
+    required Widget leading,
+    required Widget field,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        leading,
+        const SizedBox(width: 4),
+        Expanded(child: field),
+      ],
+    );
+  }
+}
+
+class _NetworkMapRouteDraftField extends StatelessWidget {
+  const _NetworkMapRouteDraftField({
+    required this.kind,
+    required this.slot,
+    required this.station,
+    required this.onClear,
+    required this.reorderTargets,
+    required this.onReorder,
+    required this.roleColorForSlot,
+    required this.lineBadgeBuilder,
+    this.onPick,
+    this.showClearWhenEmpty = false,
+  });
+
+  final _RouteDraftFieldKind kind;
+  final RouteDraftSlot slot;
+  final RouteDraftStation? station;
+  final VoidCallback onClear;
+  final List<RouteDraftSlot> reorderTargets;
+  final void Function(RouteDraftSlot from, RouteDraftSlot to) onReorder;
+  final Color Function(RouteDraftSlot slot) roleColorForSlot;
+  final Widget Function(RouteDraftStation station, double size)
+  lineBadgeBuilder;
+  final VoidCallback? onPick;
+  final bool showClearWhenEmpty;
+
+  String get _roleLabel => slot.displayLabel;
+  String get _valuePlaceholder => '${slot.displayLabel} 입력';
+  String get _searchLabel => '${slot.displayLabel} 검색';
+
+  String get _rowKey => switch (kind) {
+    _RouteDraftFieldKind.origin => 'networkMapRouteDraftOriginRow',
+    _RouteDraftFieldKind.waypoint => 'networkMapRouteDraftWaypointRow',
+    _RouteDraftFieldKind.destination => 'networkMapRouteDraftDestinationRow',
+  };
+
+  String get _pickKey => switch (kind) {
+    _RouteDraftFieldKind.origin => 'networkMapRouteDraftPickOrigin',
+    _RouteDraftFieldKind.waypoint => 'networkMapRouteDraftPickWaypoint',
+    _RouteDraftFieldKind.destination => 'networkMapRouteDraftPickDestination',
+  };
+
+  String get _clearKey => switch (kind) {
+    _RouteDraftFieldKind.origin => 'networkMapRouteDraftClearOrigin',
+    _RouteDraftFieldKind.waypoint => 'networkMapRouteDraftClearWaypoint',
+    _RouteDraftFieldKind.destination => 'networkMapRouteDraftClearDestination',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final roleLabel = _roleLabel;
+    final filled = station != null;
+    final filledStation = station;
+    final showLineBadge = filledStation != null && filledStation.hasLine;
+    final valueText = filled ? filledStation!.displayName : _valuePlaceholder;
+    final lineNameLabel =
+        showLineBadge && filledStation.lineName.trim().isNotEmpty
+        ? filledStation.lineName.trim()
+        : null;
+    final searchLabel = _searchLabel;
+    final filledSemanticsCore = lineNameLabel == null
+        ? '$roleLabel $valueText'
+        : '$roleLabel $lineNameLabel $valueText';
+    final pickSemanticsLabel = filled
+        ? '$filledSemanticsCore, $searchLabel'
+        : '$roleLabel, $_valuePlaceholder, $searchLabel';
+
+    final roleLabelWidget = ExcludeSemantics(
+      child: SizedBox(
+        width: 72,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Text(
+            roleLabel,
+            maxLines: 1,
+            softWrap: false,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: roleColorForSlot(slot),
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              height: 1.2,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final valueRow = Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        if (showLineBadge) ...[
+          lineBadgeBuilder(filledStation, 26),
+          const SizedBox(width: 8),
+        ],
+        Expanded(
+          child: Text(
+            valueText,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              color: filled
+                  ? EasySubwayAccessibleColors.text
+                  : EasySubwayAccessibleColors.mutedText,
+              fontSize: filled ? 17 : 15,
+              fontWeight: filled ? FontWeight.w700 : FontWeight.w600,
+              height: 1.2,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final Widget pickArea = onPick == null
+        ? Semantics(
+            label: filled ? filledSemanticsCore : _valuePlaceholder,
+            child: ExcludeSemantics(
+              child: SizedBox(
+                height: easySubwaySearchFieldVisualHeight,
+                child: Center(child: valueRow),
+              ),
+            ),
+          )
+        : Semantics(
+            button: true,
+            label: pickSemanticsLabel,
+            onTap: onPick,
+            child: ExcludeSemantics(
+              child: GestureDetector(
+                key: Key(_pickKey),
+                behavior: HitTestBehavior.opaque,
+                onTap: onPick,
+                child: SizedBox(
+                  height: easySubwaySearchFieldVisualHeight,
+                  child: Center(child: valueRow),
+                ),
+              ),
+            ),
+          );
+
+    final rowContainer = Container(
+      height: easySubwaySearchFieldVisualHeight,
+      decoration: BoxDecoration(
+        color: EasySubwayAccessibleColors.searchFieldSurface,
+        borderRadius: easySubwaySearchFieldRadius,
+        border: Border.all(
+          color: easySubwaySearchFieldBorderColor,
+          width: easySubwaySearchFieldBorderWidth,
+        ),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Align(alignment: Alignment.centerLeft, child: roleLabelWidget),
+            Container(
+              width: easySubwaySearchFieldBorderWidth,
+              color: easySubwaySearchFieldBorderColor,
+            ),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(
+                  left: 10,
+                  right: (filled || showClearWhenEmpty) ? 0 : 10,
+                ),
+                child: pickArea,
+              ),
+            ),
+            if (filled || showClearWhenEmpty)
+              Semantics(
+                button: true,
+                label: filled ? '$roleLabel 지우기' : '$roleLabel 칸 닫기',
+                onTap: onClear,
+                child: ExcludeSemantics(
+                  child: IconButton(
+                    key: Key(_clearKey),
+                    onPressed: onClear,
+                    style: IconButton.styleFrom(
+                      splashFactory: NoSplash.splashFactory,
+                      highlightColor: Colors.transparent,
+                      backgroundColor: Colors.transparent,
+                      elevation: 0,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    icon: Container(
+                      width: 22,
+                      height: 22,
+                      alignment: Alignment.center,
+                      decoration: const BoxDecoration(
+                        color: EasySubwayAccessibleColors.disclosure,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        size: 14,
+                        color: EasySubwayAccessibleColors.interactionOnPrimary,
+                      ),
+                    ),
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    padding: const EdgeInsets.only(right: 4),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+
+    Widget content = rowContainer;
+    if (filled) {
+      content = LongPressDraggable<RouteDraftSlot>(
+        data: slot,
+        maxSimultaneousDrags: 1,
+        dragAnchorStrategy: childDragAnchorStrategy,
+        feedback: Material(
+          elevation: 0,
+          type: MaterialType.transparency,
+          child: SizedBox(
+            width: 220,
+            child: Container(
+              height: easySubwaySearchFieldVisualHeight,
+              decoration: BoxDecoration(
+                color: EasySubwayAccessibleColors.searchFieldSurface,
+                borderRadius: easySubwaySearchFieldRadius,
+                border: Border.all(
+                  color: easySubwaySearchFieldBorderColor,
+                  width: easySubwaySearchFieldBorderWidth,
+                ),
+              ),
+              alignment: Alignment.centerLeft,
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              child: Row(
+                children: [
+                  Text(
+                    roleLabel,
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: EasySubwayAccessibleColors.mutedText,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  if (showLineBadge) ...[
+                    lineBadgeBuilder(filledStation, 30),
+                    const SizedBox(width: 8),
+                  ],
+                  Expanded(
+                    child: Text(
+                      filledStation!.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: EasySubwayAccessibleColors.text,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        childWhenDragging: Opacity(opacity: 0.4, child: rowContainer),
+        child: rowContainer,
+      );
+      content = Semantics(
+        container: true,
+        customSemanticsActions: <CustomSemanticsAction, VoidCallback>{
+          for (final target in reorderTargets)
+            CustomSemanticsAction(label: '${target.displayLabel}으로 이동'): () =>
+                onReorder(slot, target),
+        },
+        child: content,
+      );
+    }
+
+    return DragTarget<RouteDraftSlot>(
+      key: Key(_rowKey),
+      onWillAcceptWithDetails: (details) => details.data != slot,
+      onAcceptWithDetails: (details) => onReorder(details.data, slot),
+      builder: (context, candidateData, rejectedData) => content,
+    );
+  }
+}
 
 class NetworkMapBottomAdBanner extends StatelessWidget {
   const NetworkMapBottomAdBanner({required this.slot, super.key});
