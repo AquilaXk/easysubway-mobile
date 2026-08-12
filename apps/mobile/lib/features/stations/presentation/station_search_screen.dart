@@ -162,7 +162,7 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
     if (!_hasSearchQuery) {
       _highlightQuery = '';
       if (_controller.state.status != StationSearchStatus.idle) {
-        _controller.search('');
+        unawaited(_controller.search(''));
       }
     } else {
       // 부분 입력·초성(ㅅ)도 검색한다. 첫 글자는 즉시, 이후는 짧게 디바운스.
@@ -557,7 +557,7 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         ),
       );
     }
-    Navigator.of(context).maybePop();
+    unawaited(Navigator.of(context).maybePop());
   }
 
   Future<void> _removeRecentEntry(RecentSearchEntry entry) async {

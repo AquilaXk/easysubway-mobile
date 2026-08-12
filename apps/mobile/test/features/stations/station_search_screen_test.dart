@@ -127,6 +127,45 @@ void main() {
     expect(find.byKey(const Key('stationSearchBackButton')), findsOneWidget);
   });
 
+  testWidgets('역 검색어를 지우면 결과를 닫고 최근 검색 상태로 돌아간다', (tester) async {
+    final repository = _EmptyStationSearchRepository(
+      queryResults: {
+        '상록수': [_stationResult()],
+      },
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationSearchScreen(
+          repository: repository,
+          reportRepository: const UnavailableFacilityReportRepository(),
+          regionLabel: '수도권',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final input = find.byKey(const Key('stationSearchInput'));
+    await tester.enterText(input, '상록수');
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('stationSearchResult-station-sangnoksu-seoul-4')),
+      findsOneWidget,
+    );
+
+    await tester.enterText(input, '');
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('stationSearchResult-station-sangnoksu-seoul-4')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('stationRecentSearchEmptyState')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('역 검색 지역 선택은 결과 필터와 함께 홈 노선도 동기화 콜백을 호출한다', (tester) async {
     final repository = _EmptyStationSearchRepository(
       queryResults: {
@@ -615,7 +654,8 @@ void main() {
     expect(find.byKey(const Key('stationRecentSearchQuery-서면')), findsNothing);
   });
 
-  testWidgets('최근 경로 항목은 화살표 라벨로 통합 목록에 표시된다', (tester) async {
+  testWidgets('최근 경로 항목은 화살표 라벨로 표시되고 draft에 적용된다', (tester) async {
+    final draftController = RouteDraftController();
     final searchHistoryRepository = _MemorySearchHistoryRepository(const [])
       ..seedRoute(
         RecentRouteSearchEntry(
@@ -634,6 +674,7 @@ void main() {
           repository: _EmptyStationSearchRepository(),
           reportRepository: const UnavailableFacilityReportRepository(),
           searchHistoryRepository: searchHistoryRepository,
+          routeDraftController: draftController,
           regionLabel: '수도권',
         ),
       ),
@@ -644,12 +685,16 @@ void main() {
     expect(find.text('상록수역'), findsOneWidget);
     expect(find.text('사당역'), findsOneWidget);
     expect(find.text('→'), findsOneWidget);
-    expect(
-      find.byKey(
-        const Key('recentRouteSearch-station-sangnoksu--station-sadang'),
-      ),
-      findsOneWidget,
+    final recentRoute = find.byKey(
+      const Key('recentRouteSearch-station-sangnoksu--station-sadang'),
     );
+    expect(recentRoute, findsOneWidget);
+
+    await tester.tap(recentRoute);
+    await tester.pumpAndSettle();
+
+    expect(draftController.draft.origin?.id, 'station-sangnoksu');
+    expect(draftController.draft.destination?.id, 'station-sadang');
   });
 
   testWidgets('역 검색 결과는 환승 역을 노선마다 한 행으로 펼쳐 보여준다', (tester) async {
