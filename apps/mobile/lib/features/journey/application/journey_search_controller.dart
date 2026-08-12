@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
@@ -10,6 +11,9 @@ import '../domain/journey_repository.dart';
 abstract interface class JourneyV3IntegrityAttestor {
   Future<String> attest(String requestHash);
 }
+
+typedef JourneyExpiryTimerFactory =
+    Timer Function(Duration duration, void Function() callback);
 
 enum JourneySearchStatus { idle, searching, success, failure }
 
@@ -173,9 +177,11 @@ class JourneySearchController extends ChangeNotifier {
     DateTime Function()? now,
     String Function()? requestIdGenerator,
     String Function(int entropyBytes)? nonceGenerator,
+    JourneyExpiryTimerFactory? expiryTimerFactory,
   }) : _now = now ?? DateTime.now,
        _requestIdGenerator = requestIdGenerator ?? _secureUlid,
        _nonceGenerator = nonceGenerator ?? _secureNonce,
+       _expiryTimerFactory = expiryTimerFactory ?? Timer.new,
        _sessionSpec = _JourneyV3SessionIntegritySpec.fromGeneratedArtifact();
 
   final JourneyRepository repository;
@@ -183,6 +189,7 @@ class JourneySearchController extends ChangeNotifier {
   final DateTime Function() _now;
   final String Function() _requestIdGenerator;
   final String Function(int entropyBytes) _nonceGenerator;
+  final JourneyExpiryTimerFactory _expiryTimerFactory;
   final _JourneyV3SessionIntegritySpec _sessionSpec;
 
   JourneySearchState _state = const JourneySearchState.idle();
@@ -195,6 +202,7 @@ class JourneySearchController extends ChangeNotifier {
   int _generation = 0;
   int _sessionEpoch = 0;
   bool _disposed = false;
+  Timer? _responseExpiryTimer;
 
   JourneySearchState get state => _state;
 
@@ -205,6 +213,7 @@ class JourneySearchController extends ChangeNotifier {
       return current;
     }
     final generation = ++_generation;
+    _cancelResponseExpiry();
     _inFlightCommand = command;
     _lastAcceptedCommand = command;
     final task = _run(command, generation);
@@ -222,11 +231,20 @@ class JourneySearchController extends ChangeNotifier {
     return search(command);
   }
 
-  bool selectJourney(String journeyId) {
+  bool revalidateFreshness() {
     final response = _state.response;
     if (_disposed ||
-        _inFlight != null ||
         _state.status != JourneySearchStatus.success ||
+        response == null) {
+      return false;
+    }
+    return _revalidateResponseFreshness(response, _generation);
+  }
+
+  bool selectJourney(String journeyId) {
+    if (!revalidateFreshness()) return false;
+    final response = _state.response;
+    if (_inFlight != null ||
         response == null ||
         response.journeys
                 .where((journey) => journey.journeyId == journeyId)
@@ -250,6 +268,7 @@ class JourneySearchController extends ChangeNotifier {
 
   void reset() {
     _generation++;
+    _cancelResponseExpiry();
     _sessionEpoch++;
     _inFlight = null;
     _inFlightCommand = null;
@@ -281,7 +300,15 @@ class JourneySearchController extends ChangeNotifier {
         sessionToken: session.token,
       );
       if (_isCurrent(generation)) {
+        final observedAt = _now();
+        if (!response.validUntil.isAfter(observedAt)) {
+          throw const JourneyProtocolFailure(
+            JourneyOperation.searchJourneys,
+            cause: FormatException('Journey response is expired'),
+          );
+        }
         _state = JourneySearchState.success(response);
+        _scheduleResponseExpiry(response, generation, observedAt);
         _safeNotify();
       }
     } catch (error) {
@@ -361,6 +388,47 @@ class JourneySearchController extends ChangeNotifier {
     _session = null;
   }
 
+  void _scheduleResponseExpiry(
+    JourneySearchSuccess response,
+    int generation,
+    DateTime observedAt,
+  ) {
+    _cancelResponseExpiry();
+    _responseExpiryTimer = _expiryTimerFactory(
+      response.validUntil.difference(observedAt),
+      () {
+        if (!_isCurrent(generation) || !identical(_state.response, response)) {
+          return;
+        }
+        _responseExpiryTimer = null;
+        _revalidateResponseFreshness(response, generation);
+      },
+    );
+  }
+
+  bool _revalidateResponseFreshness(
+    JourneySearchSuccess response,
+    int generation,
+  ) {
+    if (!_isCurrent(generation) || !identical(_state.response, response)) {
+      return false;
+    }
+    final observedAt = _now();
+    if (response.validUntil.isAfter(observedAt)) {
+      _scheduleResponseExpiry(response, generation, observedAt);
+      return true;
+    }
+    _cancelResponseExpiry();
+    _state = const JourneySearchState.failure(JourneySearchFailure.protocol);
+    _safeNotify();
+    return false;
+  }
+
+  void _cancelResponseExpiry() {
+    _responseExpiryTimer?.cancel();
+    _responseExpiryTimer = null;
+  }
+
   bool _isCurrent(int generation) => !_disposed && generation == _generation;
 
   bool _isSessionAuthenticationFailure(Object error) =>
@@ -428,6 +496,7 @@ class JourneySearchController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _generation++;
+    _cancelResponseExpiry();
     _sessionEpoch++;
     _inFlight = null;
     _inFlightCommand = null;

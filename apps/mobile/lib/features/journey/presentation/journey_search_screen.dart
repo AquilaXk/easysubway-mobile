@@ -26,6 +26,7 @@ class JourneySearchScreen extends StatefulWidget {
     this.getOffAlarmController,
     this.stationNameResolver,
     this.getOffAlarmNow,
+    this.journeyNow,
     super.key,
   }) : assert((getOffAlarmController == null) == (stationNameResolver == null));
 
@@ -38,12 +39,14 @@ class JourneySearchScreen extends StatefulWidget {
   final GetOffAlarmController? getOffAlarmController;
   final JourneyStationNameResolver? stationNameResolver;
   final DateTime Function()? getOffAlarmNow;
+  final DateTime Function()? journeyNow;
 
   @override
   State<JourneySearchScreen> createState() => _JourneySearchScreenState();
 }
 
-class _JourneySearchScreenState extends State<JourneySearchScreen> {
+class _JourneySearchScreenState extends State<JourneySearchScreen>
+    with WidgetsBindingObserver {
   late final JourneySearchController _controller;
   JourneySearchStatus _lastAnnouncedStatus = JourneySearchStatus.idle;
   bool _isSharing = false;
@@ -56,11 +59,22 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     _controller = JourneySearchController(
       repository: widget.repository,
       attestor: widget.attestor,
+      now: widget.journeyNow,
     )..addListener(_changed);
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _controller.revalidateFreshness();
+    }
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.removeListener(_changed);
     _controller.dispose();
     super.dispose();
@@ -266,7 +280,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     BuildContext buttonContext,
     JourneySelectedSnapshot snapshot,
   ) async {
-    if (_isSharing) return;
+    if (_isSharing || !_controller.revalidateFreshness()) return;
     setState(() => _isSharing = true);
     try {
       final renderBox = buttonContext.findRenderObject()! as RenderBox;
@@ -330,7 +344,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
   }
 
   Future<void> _selectJourney(Journey journey) async {
-    if (_isAlarmTransitioning) return;
+    if (_isAlarmTransitioning || !_controller.revalidateFreshness()) return;
     final alarmController = widget.getOffAlarmController;
     final response = _controller.state.response;
     if (alarmController != null && response != null) {

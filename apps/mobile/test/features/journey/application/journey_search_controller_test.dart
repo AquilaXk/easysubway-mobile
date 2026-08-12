@@ -446,6 +446,133 @@ void main() {
     expect(notifications, beforeDispose);
   });
 
+  test('이미 만료된 response는 current success 없이 protocol failure로 닫는다', () async {
+    final timers = <_ManualTimer>[];
+    final controller = JourneySearchController(
+      repository: _Repository()..success = _success(),
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12, 0, 5),
+      requestIdGenerator: () => '01J9VV0K000000000000000000',
+      expiryTimerFactory: (duration, callback) {
+        final timer = _ManualTimer(callback);
+        timers.add(timer);
+        return timer;
+      },
+    );
+
+    await controller.search(_command());
+
+    expect(controller.state.status, JourneySearchStatus.failure);
+    expect(controller.state.failure, JourneySearchFailure.protocol);
+    expect(controller.state.response, isNull);
+    expect(controller.state.selectedSnapshot, isNull);
+    expect(timers, isEmpty);
+  });
+
+  test(
+    'backward clock correction은 still-valid response expiry를 재예약한다',
+    () async {
+      var current = DateTime.utc(2026, 8, 12);
+      final timers = <_ManualTimer>[];
+      final controller = JourneySearchController(
+        repository: _Repository()..success = _success(),
+        attestor: _Attestor(),
+        now: () => current,
+        requestIdGenerator: () => '01J9VV0K000000000000000000',
+        expiryTimerFactory: (duration, callback) {
+          final timer = _ManualTimer(callback);
+          timers.add(timer);
+          return timer;
+        },
+      );
+
+      await controller.search(_command());
+      current = DateTime.utc(2026, 8, 11, 23, 59);
+      timers.single.invokeEvenIfCancelled();
+
+      expect(controller.state.status, JourneySearchStatus.success);
+      expect(timers, hasLength(2));
+
+      current = DateTime.utc(2026, 8, 12, 0, 5);
+      timers.last.invokeEvenIfCancelled();
+      expect(controller.state.status, JourneySearchStatus.failure);
+      expect(controller.state.failure, JourneySearchFailure.protocol);
+    },
+  );
+
+  test('forward clock correction은 selection 전에 stale success를 제거한다', () async {
+    var current = DateTime.utc(2026, 8, 12);
+    final timers = <_ManualTimer>[];
+    final controller = JourneySearchController(
+      repository: _Repository()..success = _success(),
+      attestor: _Attestor(),
+      now: () => current,
+      requestIdGenerator: () => '01J9VV0K000000000000000000',
+      expiryTimerFactory: (duration, callback) {
+        final timer = _ManualTimer(callback);
+        timers.add(timer);
+        return timer;
+      },
+    );
+
+    await controller.search(_command());
+    current = DateTime.utc(2026, 8, 12, 0, 6);
+
+    expect(controller.selectJourney('journey-1'), isFalse);
+    expect(controller.state.status, JourneySearchStatus.failure);
+    expect(controller.state.failure, JourneySearchFailure.protocol);
+    expect(controller.state.response, isNull);
+    expect(timers.single.isActive, isFalse);
+  });
+
+  test('old expiry는 newer response·reset·dispose state를 무효화하지 않는다', () async {
+    final timers = <_ManualTimer>[];
+    final repository = _Repository()..success = _success();
+    final controller = JourneySearchController(
+      repository: repository,
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+      requestIdGenerator: () => '01J9VV0K000000000000000000',
+      expiryTimerFactory: (duration, callback) {
+        final timer = _ManualTimer(callback);
+        timers.add(timer);
+        return timer;
+      },
+    );
+
+    await controller.search(_command());
+    final oldTimer = timers.single;
+    repository.success = _success(
+      queryId: 'replacement-query',
+      validUntil: DateTime.utc(2026, 8, 12, 0, 10),
+    );
+    await controller.search(
+      JourneySearchCommand(
+        originStationId: 'replacement-origin',
+        destinationStationId: 'destination',
+        departure: const JourneyDepartureNow(),
+        timePolicy: TimePolicy.timetableRequired,
+        mobilityProfile: MobilityProfile.standard,
+        constraintMode: ConstraintMode.none,
+        maxTransfers: 1,
+        alternativeCount: 1,
+      ),
+    );
+
+    expect(oldTimer.isActive, isFalse);
+    oldTimer.invokeEvenIfCancelled();
+    expect(controller.state.response!.queryId, 'replacement-query');
+
+    final replacementTimer = timers.last;
+    controller.reset();
+    expect(replacementTimer.isActive, isFalse);
+    replacementTimer.invokeEvenIfCancelled();
+    expect(controller.state.status, JourneySearchStatus.idle);
+
+    controller.dispose();
+    replacementTimer.invokeEvenIfCancelled();
+  });
+
   test('성공 후보는 exact journeyId만 명시 선택하고 새 검색은 선택을 지운다', () async {
     final response = _success();
     final controller = JourneySearchController(
@@ -530,12 +657,15 @@ JourneySearchCommand _command() => JourneySearchCommand(
   alternativeCount: 1,
 );
 
-JourneySearchSuccess _success() => JourneySearchSuccess(
+JourneySearchSuccess _success({
+  String queryId = 'query',
+  DateTime? validUntil,
+}) => JourneySearchSuccess(
   contractVersion: JourneyContractVersion.journeySearchV3,
   requestId: '01J9VV0K000000000000000000',
-  queryId: 'query',
+  queryId: queryId,
   calculatedAt: DateTime.utc(2026, 8, 12),
-  validUntil: DateTime.utc(2026, 8, 12, 0, 5),
+  validUntil: validUntil ?? DateTime.utc(2026, 8, 12, 0, 5),
   effectiveDepartureTime: DateTime.utc(2026, 8, 12),
   serviceDate: JourneyDate.parse('2026-08-12'),
   serviceTimezone: 'Asia/Seoul',
@@ -678,4 +808,22 @@ class _Repository implements JourneyRepository {
   void completePendingSearchError(Object error) {
     _pendingSearch.completeError(error);
   }
+}
+
+class _ManualTimer implements Timer {
+  _ManualTimer(this._callback);
+
+  final void Function() _callback;
+  bool _active = true;
+
+  @override
+  bool get isActive => _active;
+
+  @override
+  int get tick => 0;
+
+  @override
+  void cancel() => _active = false;
+
+  void invokeEvenIfCancelled() => _callback();
 }
