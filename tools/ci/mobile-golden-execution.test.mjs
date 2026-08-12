@@ -283,6 +283,23 @@ test("workflow pins comparison, mutation, evidence, and no baseline writes", () 
   assert.match(workflow, /mobile-golden-execution\.mjs verify/u);
   assert.match(workflow, /mobile-golden-execution\.mjs verify-mutation/u);
   assert.match(workflow, /EASYSUBWAY_GOLDEN_MUTATION=true/u);
+  assert.match(workflow, /--plain-name "\^기본 상태\$"/u);
+  assert.match(workflow, /--file-reporter "json:\$mutation_report" \\\n\s+> \/dev\/null 2>&1/u);
+  assert.match(
+    workflow,
+    /actual_report="\$RUNNER_TEMP\/mobile-golden-actual-events\.json"/u,
+  );
+  assert.match(
+    workflow,
+    /mutation_report="\$RUNNER_TEMP\/mobile-golden-mutation-events\.json"/u,
+  );
+  assert.match(
+    workflow,
+    /flutter_identity="\$RUNNER_TEMP\/mobile-golden-flutter-version\.json"/u,
+  );
+  assert.equal(workflow.includes("$evidence_root/actual-events.json"), false);
+  assert.equal(workflow.includes("$evidence_root/mutation-events.json"), false);
+  assert.equal(workflow.includes("$evidence_root/flutter-version.json"), false);
   assert.match(workflow, /actions\/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808/u);
   assert.equal(workflow.includes("--update-goldens"), false);
 });
