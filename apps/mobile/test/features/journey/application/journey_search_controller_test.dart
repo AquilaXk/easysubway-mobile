@@ -469,6 +469,62 @@ void main() {
     expect(timers, isEmpty);
   });
 
+  test(
+    'backward clock correction은 still-valid response expiry를 재예약한다',
+    () async {
+      var current = DateTime.utc(2026, 8, 12);
+      final timers = <_ManualTimer>[];
+      final controller = JourneySearchController(
+        repository: _Repository()..success = _success(),
+        attestor: _Attestor(),
+        now: () => current,
+        requestIdGenerator: () => '01J9VV0K000000000000000000',
+        expiryTimerFactory: (duration, callback) {
+          final timer = _ManualTimer(callback);
+          timers.add(timer);
+          return timer;
+        },
+      );
+
+      await controller.search(_command());
+      current = DateTime.utc(2026, 8, 11, 23, 59);
+      timers.single.invokeEvenIfCancelled();
+
+      expect(controller.state.status, JourneySearchStatus.success);
+      expect(timers, hasLength(2));
+
+      current = DateTime.utc(2026, 8, 12, 0, 5);
+      timers.last.invokeEvenIfCancelled();
+      expect(controller.state.status, JourneySearchStatus.failure);
+      expect(controller.state.failure, JourneySearchFailure.protocol);
+    },
+  );
+
+  test('forward clock correction은 selection 전에 stale success를 제거한다', () async {
+    var current = DateTime.utc(2026, 8, 12);
+    final timers = <_ManualTimer>[];
+    final controller = JourneySearchController(
+      repository: _Repository()..success = _success(),
+      attestor: _Attestor(),
+      now: () => current,
+      requestIdGenerator: () => '01J9VV0K000000000000000000',
+      expiryTimerFactory: (duration, callback) {
+        final timer = _ManualTimer(callback);
+        timers.add(timer);
+        return timer;
+      },
+    );
+
+    await controller.search(_command());
+    current = DateTime.utc(2026, 8, 12, 0, 6);
+
+    expect(controller.selectJourney('journey-1'), isFalse);
+    expect(controller.state.status, JourneySearchStatus.failure);
+    expect(controller.state.failure, JourneySearchFailure.protocol);
+    expect(controller.state.response, isNull);
+    expect(timers.single.isActive, isFalse);
+  });
+
   test('old expiry는 newer response·reset·dispose state를 무효화하지 않는다', () async {
     final timers = <_ManualTimer>[];
     final repository = _Repository()..success = _success();

@@ -231,11 +231,20 @@ class JourneySearchController extends ChangeNotifier {
     return search(command);
   }
 
-  bool selectJourney(String journeyId) {
+  bool revalidateFreshness() {
     final response = _state.response;
     if (_disposed ||
-        _inFlight != null ||
         _state.status != JourneySearchStatus.success ||
+        response == null) {
+      return false;
+    }
+    return _revalidateResponseFreshness(response, _generation);
+  }
+
+  bool selectJourney(String journeyId) {
+    if (!revalidateFreshness()) return false;
+    final response = _state.response;
+    if (_inFlight != null ||
         response == null ||
         response.journeys
                 .where((journey) => journey.journeyId == journeyId)
@@ -384,6 +393,7 @@ class JourneySearchController extends ChangeNotifier {
     int generation,
     DateTime observedAt,
   ) {
+    _cancelResponseExpiry();
     _responseExpiryTimer = _expiryTimerFactory(
       response.validUntil.difference(observedAt),
       () {
@@ -391,12 +401,27 @@ class JourneySearchController extends ChangeNotifier {
           return;
         }
         _responseExpiryTimer = null;
-        _state = const JourneySearchState.failure(
-          JourneySearchFailure.protocol,
-        );
-        _safeNotify();
+        _revalidateResponseFreshness(response, generation);
       },
     );
+  }
+
+  bool _revalidateResponseFreshness(
+    JourneySearchSuccess response,
+    int generation,
+  ) {
+    if (!_isCurrent(generation) || !identical(_state.response, response)) {
+      return false;
+    }
+    final observedAt = _now();
+    if (response.validUntil.isAfter(observedAt)) {
+      _scheduleResponseExpiry(response, generation, observedAt);
+      return true;
+    }
+    _cancelResponseExpiry();
+    _state = const JourneySearchState.failure(JourneySearchFailure.protocol);
+    _safeNotify();
+    return false;
   }
 
   void _cancelResponseExpiry() {

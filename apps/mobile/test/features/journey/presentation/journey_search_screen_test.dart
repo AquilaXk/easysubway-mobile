@@ -270,6 +270,30 @@ void main() {
     expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
   });
 
+  testWidgets('resume은 forward clock correction 뒤 stale Journey claim을 제거한다', (
+    tester,
+  ) async {
+    var current = DateTime.now().toUtc();
+    final repository = _Repository()..responseNow = current;
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      journeyNow: () => current,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+
+    current = current.add(const Duration(minutes: 6));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
+  });
+
   testWidgets('incomplete 또는 waypoint draft는 request를 만들지 않는다', (tester) async {
     final incomplete = _Repository();
     await _pumpScreen(
