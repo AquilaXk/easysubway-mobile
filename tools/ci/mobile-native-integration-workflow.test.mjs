@@ -18,6 +18,11 @@ test("native workflow runs one bounded Android Journey smoke and iOS simulator c
   assert.match(workflow, /^  workflow_dispatch:$/m);
   assert.match(workflow, /^permissions:\n  contents: read$/m);
   assert.match(workflow, /^  cancel-in-progress: true$/m);
+  assert.equal(
+    (workflow.match(/"apps\/mobile\/lib\/features\/route_draft\/\*\*"/gu) ?? [])
+      .length,
+    2,
+  );
 
   assert.match(workflow, /^  android-native:\n    name: Android Journey native smoke\n    runs-on: ubuntu-latest\n    timeout-minutes: 35$/m);
   assert.match(workflow, /reactivecircus\/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d/iu);
