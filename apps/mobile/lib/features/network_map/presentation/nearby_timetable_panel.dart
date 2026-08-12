@@ -194,7 +194,7 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
       style: const TextStyle(
         color: EasySubwayAccessibleColors.statusDangerContent,
         fontSize: 15,
-        fontWeight: FontWeight.w800,
+        fontWeight: FontWeight.w700,
       ),
     );
     if (!data.departure.isExpress) {
