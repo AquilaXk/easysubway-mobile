@@ -27,7 +27,7 @@ test("native workflow runs one bounded Android Journey smoke and iOS simulator c
   assert.match(workflow, /^          emulator-port: 5554$/m);
   assert.match(
     workflow,
-    /if ! timeout 12m flutter test integration_test\/native_test\.dart -d emulator-5554; then\n              adb logcat -d -b crash\n              exit 1\n            fi/u,
+    /timeout 12m flutter test integration_test\/native_test\.dart -d emulator-5554 \|\| \{ adb logcat -d -b crash; exit 1; \}/u,
   );
 
   assert.match(workflow, /^  ios-compile:\n    name: iOS simulator compile\n    runs-on: macos-15\n    timeout-minutes: 25$/m);

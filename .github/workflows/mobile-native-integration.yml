@@ -80,10 +80,7 @@ jobs:
           script: |
             dart format --output=none --set-exit-if-changed integration_test/native_test.dart
             flutter analyze integration_test/native_test.dart
-            if ! timeout 12m flutter test integration_test/native_test.dart -d emulator-5554; then
-              adb logcat -d -b crash
-              exit 1
-            fi
+            timeout 12m flutter test integration_test/native_test.dart -d emulator-5554 || { adb logcat -d -b crash; exit 1; }
 
   ios-compile:
     name: iOS simulator compile
