@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/ad_slot.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
+import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/search_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -154,6 +155,164 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('top-bar route draft는 one-sided chrome·callback·잠긴 지역을 보존한다', (
+    tester,
+  ) async {
+    var backCount = 0;
+    var addCount = 0;
+    var clearOriginCount = 0;
+    var pickDestinationCount = 0;
+    final badgeSizes = <double>[];
+
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 520,
+          child: NetworkMapTopBarRouteDraft(
+            draft: const RouteDraft(
+              origin: RouteDraftStation(
+                id: 'origin',
+                nameKo: '서울',
+                lineId: 'line-1',
+                lineName: '1호선',
+                lineColor: '#0052A4',
+                stationCode: '133',
+              ),
+              destination: null,
+              lastModifiedAt: null,
+            ),
+            showWaypointRow: false,
+            regionLabel: '수도권',
+            onClearDraft: () => backCount += 1,
+            onOpenWaypointSlot: () => addCount += 1,
+            onClearOrigin: () => clearOriginCount += 1,
+            onClearDestination: _noop,
+            onClearWaypoint: _noop,
+            onReorderDraft: (_, _) {},
+            onPickDestination: () => pickDestinationCount += 1,
+            roleColorForSlot: (slot) => switch (slot) {
+              RouteDraftSlot.origin => Colors.blue,
+              RouteDraftSlot.waypoint => Colors.orange,
+              RouteDraftSlot.destination => Colors.red,
+            },
+            lineBadgeBuilder: (station, size) {
+              badgeSizes.add(size);
+              return SizedBox(
+                key: Key('routeDraftBadge${size.toInt()}'),
+                width: size,
+                height: size,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const Key('networkMapRouteDraftOriginRow')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('networkMapRouteDraftDestinationRow')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('networkMapRouteDraftWaypointRow')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('networkMapRouteDraftAddWaypoint')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('routeDraftBadge26')), findsOneWidget);
+    expect(badgeSizes, containsAll(<double>[26, 30]));
+    expect(tester.widget<Text>(find.text('출발역')).style?.color, Colors.blue);
+
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('지역: 수도권, 변경할 수 없음'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('networkMapRouteDraftBackButton')));
+    await tester.tap(find.byKey(const Key('networkMapRouteDraftAddWaypoint')));
+    await tester.tap(find.byKey(const Key('networkMapRouteDraftClearOrigin')));
+    await tester.tap(
+      find.byKey(const Key('networkMapRouteDraftPickDestination')),
+    );
+    expect(backCount, 1);
+    expect(addCount, 1);
+    expect(clearOriginCount, 1);
+    expect(pickDestinationCount, 1);
+    semantics.dispose();
+  });
+
+  testWidgets('top-bar route draft는 waypoint row와 reorder Semantics를 보존한다', (
+    tester,
+  ) async {
+    var clearWaypointCount = 0;
+    var pickWaypointCount = 0;
+    final reorderPairs = <(RouteDraftSlot, RouteDraftSlot)>[];
+
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 520,
+          child: NetworkMapTopBarRouteDraft(
+            draft: const RouteDraft(
+              origin: RouteDraftStation(id: 'origin', nameKo: '서울'),
+              waypoint: RouteDraftStation(id: 'waypoint', nameKo: '시청'),
+              destination: null,
+              lastModifiedAt: null,
+            ),
+            showWaypointRow: true,
+            regionLabel: '수도권',
+            onClearDraft: _noop,
+            onOpenWaypointSlot: _noop,
+            onClearOrigin: _noop,
+            onClearDestination: _noop,
+            onClearWaypoint: () => clearWaypointCount += 1,
+            onReorderDraft: (from, to) => reorderPairs.add((from, to)),
+            onPickWaypoint: () => pickWaypointCount += 1,
+            roleColorForSlot: (_) => Colors.black,
+            lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
+          ),
+        ),
+      ),
+    );
+
+    final originRow = find.byKey(const Key('networkMapRouteDraftOriginRow'));
+    expect(originRow, findsOneWidget);
+    expect(
+      find.byKey(const Key('networkMapRouteDraftWaypointRow')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('networkMapRouteDraftAddWaypoint')),
+      findsNothing,
+    );
+    await tester.tap(find.byKey(const Key('networkMapRouteDraftPickWaypoint')));
+    await tester.tap(
+      find.byKey(const Key('networkMapRouteDraftClearWaypoint')),
+    );
+    expect(pickWaypointCount, 1);
+    expect(clearWaypointCount, 1);
+
+    final reorderSemantics = tester
+        .widgetList<Semantics>(
+          find.descendant(of: originRow, matching: find.byType(Semantics)),
+        )
+        .firstWhere(
+          (widget) =>
+              widget.properties.customSemanticsActions?.keys.any(
+                (action) => action.label == '도착역으로 이동',
+              ) ??
+              false,
+        );
+    reorderSemantics.properties.customSemanticsActions!.entries
+        .firstWhere((entry) => entry.key.label == '도착역으로 이동')
+        .value();
+    expect(reorderPairs, <(RouteDraftSlot, RouteDraftSlot)>[
+      (RouteDraftSlot.origin, RouteDraftSlot.destination),
+    ]);
+  });
+
   testWidgets('bottom-ad banner는 공용 슬롯의 안전영역·identity를 보존한다', (tester) async {
     await tester.pumpWidget(
       _host(
@@ -175,6 +334,9 @@ void main() {
 
   test('root는 direct owner만 소비하고 private compatibility surface가 없다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
+    final owner = File(
+      'lib/features/network_map/presentation/network_map_chrome_controls.dart',
+    ).readAsStringSync();
     expect(
       root,
       contains(
@@ -185,11 +347,22 @@ void main() {
     expect(root, contains('NetworkMapCurrentLocationButton('));
     expect(root, contains('NetworkMapSearchEntryButton('));
     expect(root, contains('NetworkMapBottomAdBanner('));
+    expect(root, contains('NetworkMapTopBarRouteDraft('));
     expect(root, contains('slot: AdBannerSlot('));
     expect(root, isNot(contains('class _NetworkMapLookupToast')));
     expect(root, isNot(contains('class _NetworkMapCurrentLocationButton')));
     expect(root, isNot(contains('class _NetworkMapSearchField')));
     expect(root, isNot(contains('class _NetworkMapBottomAdBanner')));
+    expect(root, isNot(contains('enum _RouteDraftFieldKind')));
+    expect(root, isNot(contains('class _NetworkMapTopBarRouteDraft')));
+    expect(root, isNot(contains('class _NetworkMapRouteDraftField')));
+    expect(owner, contains('class NetworkMapTopBarRouteDraft'));
+    expect(
+      owner,
+      contains("import '../../route_draft/domain/route_draft.dart';"),
+    );
+    expect(owner, isNot(contains('station_line_badges.dart')));
+    expect(owner, isNot(contains("import '../../../design_tokens.dart';")));
   });
 }
 
