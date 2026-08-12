@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/material.dart';
@@ -27,7 +28,7 @@ void showAnnouncedErrorSnackBar(
   String? correlationId,
   SnackBarAction? action,
 }) {
-  announceErrorMessage(message, context: context);
+  unawaited(announceErrorMessage(message, context: context));
   final messenger = ScaffoldMessenger.maybeOf(context);
   if (messenger == null) {
     return;
@@ -44,10 +45,12 @@ void showAnnouncedErrorSnackBar(
                 : SnackBarAction(
                     label: '참조 번호',
                     onPressed: () {
-                      showErrorReferenceSheet(
-                        context,
-                        message: message,
-                        correlationId: correlationId,
+                      unawaited(
+                        showErrorReferenceSheet(
+                          context,
+                          message: message,
+                          correlationId: correlationId,
+                        ),
                       );
                     },
                   )),
