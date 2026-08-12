@@ -1,0 +1,109 @@
+name: Mobile Native Integration
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-native-integration.yml"
+      - "apps/mobile/android/**"
+      - "apps/mobile/ios/**"
+      - "apps/mobile/integration_test/native_test.dart"
+      - "apps/mobile/lib/features/journey/**"
+      - "apps/mobile/lib/features/route_draft/**"
+      - "apps/mobile/lib/generated/journey_v3/**"
+      - "apps/mobile/pubspec.yaml"
+      - "apps/mobile/pubspec.lock"
+      - "tools/ci/mobile-native-integration-workflow.test.mjs"
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/mobile-native-integration.yml"
+      - "apps/mobile/android/**"
+      - "apps/mobile/ios/**"
+      - "apps/mobile/integration_test/native_test.dart"
+      - "apps/mobile/lib/features/journey/**"
+      - "apps/mobile/lib/features/route_draft/**"
+      - "apps/mobile/lib/generated/journey_v3/**"
+      - "apps/mobile/pubspec.yaml"
+      - "apps/mobile/pubspec.lock"
+      - "tools/ci/mobile-native-integration-workflow.test.mjs"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  android-native:
+    name: Android Journey native smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: "3.44.0"
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Verify native workflow contract
+        run: node --test tools/ci/mobile-native-integration-workflow.test.mjs
+      - name: Enable KVM
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Run Journey native smoke
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7
+          emulator-port: 5554
+          disable-animations: true
+          working-directory: apps/mobile
+          script: |
+            dart format --output=none --set-exit-if-changed integration_test/native_test.dart
+            flutter analyze integration_test/native_test.dart
+            timeout 12m flutter test integration_test/native_test.dart -d emulator-5554 || { adb logcat -d -b crash; exit 1; }
+
+  ios-compile:
+    name: iOS simulator compile
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version: "3.44.0"
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Compile iOS simulator debug app
+        working-directory: apps/mobile
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
+        run: flutter build ios --simulator --debug
