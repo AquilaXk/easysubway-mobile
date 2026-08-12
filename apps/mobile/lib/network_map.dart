@@ -28,9 +28,9 @@ import 'features/network_map/domain/route_map_min_scale.dart';
 import 'features/network_map/domain/route_map_owner_labels.dart';
 import 'features/network_map/domain/structured_route_map.dart';
 import 'features/network_map/infrastructure/cached_route_map_path.dart';
+import 'features/network_map/presentation/nearby_arrival_panel.dart';
 import 'features/network_map/presentation/nearby_data_source_toggle.dart';
 import 'features/network_map/presentation/nearby_direction_columns.dart';
-import 'features/network_map/presentation/nearby_direction_title.dart';
 import 'features/network_map/presentation/nearby_station_line_bar.dart';
 import 'features/network_map/presentation/network_map_camera_policy.dart';
 import 'features/network_map/presentation/network_map_chrome_controls.dart';
@@ -3080,8 +3080,26 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
           child: dataSource == _NearbyPanelDataSource.realtime
-              ? _SubwayArrivalPanel(
-                  snapshot: realtime,
+              ? NearbyArrivalPanel(
+                  data: NearbyArrivalPanelData(
+                    status: switch (realtime.status) {
+                      RealtimeSnapshotStatus.fresh =>
+                        NearbyArrivalPanelStatus.fresh,
+                      RealtimeSnapshotStatus.stale =>
+                        NearbyArrivalPanelStatus.stale,
+                      _ => NearbyArrivalPanelStatus.unavailable,
+                    },
+                    receivedAt: realtime.receivedAt,
+                    arrivals: [
+                      for (final arrival in realtime.arrivals)
+                        NearbyArrivalData(
+                          direction: arrival.direction,
+                          destination: arrival.destination,
+                          etaSeconds: arrival.etaSeconds,
+                          message: arrival.message,
+                        ),
+                    ],
+                  ),
                   lineColor: lineColor,
                   leftName: adjacentStations.leftName,
                   rightName: adjacentStations.rightName,
@@ -3094,149 +3112,6 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
                 ),
         ),
       ],
-    );
-  }
-}
-
-String _formatArrivalEta(RealtimeArrival arrival) {
-  final eta = arrival.etaSeconds;
-  if (eta != null && eta > 0) {
-    final minutes = (eta / 60).round();
-    return minutes <= 0 ? '곧 도착' : '약 $minutes분';
-  }
-  return arrival.message.trim();
-}
-
-String _arrivalDirectionLabel(RealtimeArrival arrival) {
-  final direction = arrival.direction.trim();
-  if (direction.isNotEmpty) {
-    return direction;
-  }
-  final destination = arrival.destination.trim();
-  return destination.isEmpty ? '' : '$destination 방면';
-}
-
-/// 주변역 패널의 실시간 도착 정보. 열차 정보가 없어도(전체 또는 한쪽) 인접역에서
-/// "○○ 방면" 제목을 유도해 두 열 + 구분선 스켈레톤을 유지하고, 데이터 없는 열에는
-/// 대시('-')를 그린다(오너 스펙 #2200 QA). 인접역 정보도 없고 데이터도 없으면
-/// 기존 대시 폴백([NearbyDataUnavailable])으로 수렴한다.
-class _SubwayArrivalPanel extends StatelessWidget {
-  const _SubwayArrivalPanel({
-    required this.snapshot,
-    required this.lineColor,
-    required this.leftName,
-    required this.rightName,
-  });
-
-  final RealtimeSnapshot snapshot;
-  final Color lineColor;
-  final String? leftName;
-  final String? rightName;
-
-  @override
-  Widget build(BuildContext context) {
-    // loading이어도 스피너 대신 인접역 방면·대시 골격을 즉시 그린다(#2453).
-    final hasData =
-        (snapshot.status == RealtimeSnapshotStatus.fresh ||
-            snapshot.status == RealtimeSnapshotStatus.stale) &&
-        snapshot.arrivals.isNotEmpty;
-    final dataGroups = <List<RealtimeArrival>>[];
-    if (hasData) {
-      final groups = <String, List<RealtimeArrival>>{};
-      for (final arrival in snapshot.arrivals) {
-        groups.putIfAbsent(arrival.direction, () => []).add(arrival);
-      }
-      for (final key in groups.keys) {
-        dataGroups.add(groups[key]!);
-      }
-    }
-    final dataTitles = [
-      for (final group in dataGroups) _arrivalDirectionLabel(group.first),
-    ];
-    final slots = resolveNearbyColumnSlots(
-      dataTitles: dataTitles,
-      leftName: leftName,
-      rightName: rightName,
-    );
-    if (slots.isEmpty) {
-      return const NearbyDataUnavailable();
-    }
-
-    final columns = <NearbyPanelColumn>[];
-    final semanticParts = <String>[];
-    for (final slot in slots) {
-      final dataIndex = slot.dataIndex;
-      if (dataIndex == null) {
-        // 대시 열 의미는 NearbyPanelColumns 열 단위 Semantics가 담당한다.
-        columns.add(NearbyPanelColumn(title: slot.title));
-        continue;
-      }
-      final visible = dataGroups[dataIndex].take(2).toList(growable: false);
-      columns.add(
-        NearbyPanelColumn(
-          title: slot.title,
-          rows: [
-            for (final arrival in visible)
-              NearbyArrivalRow(
-                destination: arrival.destination.trim(),
-                eta: _formatArrivalEta(arrival),
-              ),
-          ],
-        ),
-      );
-      for (final arrival in visible) {
-        final part = [
-          _arrivalDirectionLabel(arrival),
-          arrival.destination.trim().isEmpty
-              ? ''
-              : '${arrival.destination.trim()}행',
-          _formatArrivalEta(arrival),
-        ].where((part) => part.isNotEmpty).join(' ');
-        if (part.isNotEmpty) {
-          semanticParts.add(part);
-        }
-      }
-    }
-
-    final isStale = snapshot.status == RealtimeSnapshotStatus.stale && hasData;
-    final columnsView = NearbyPanelColumns(
-      columns: columns,
-      lineColor: lineColor,
-    );
-    final body = Column(
-      key: hasData ? null : const Key('networkMapNearbyArrivalSkeleton'),
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (isStale) ...[
-          Text(
-            snapshot.receivedAt.trim().isEmpty
-                ? '최근 도착 정보'
-                : '최근 도착 정보 · ${snapshot.receivedAt.trim()}',
-            style: const TextStyle(
-              color: EasySubwayAccessibleColors.mutedText,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 6),
-        ],
-        columnsView,
-      ],
-    );
-    // 골격↔데이터 갱신 시 liveRegion 재발화를 피한다.
-    // 순수 골격은 열 단위 Semantics, 데이터 혼재 시 부모 라벨에 대시 열도 합친다.
-    if (semanticParts.isEmpty) {
-      return body;
-    }
-    final dashLabels = [
-      for (final slot in slots)
-        if (slot.dataIndex == null)
-          slot.title.isEmpty ? '정보 없음' : '${slot.title} 정보 없음',
-    ];
-    return Semantics(
-      excludeSemantics: true,
-      label: [...semanticParts, ...dashLabels].join(', '),
-      child: body,
     );
   }
 }
