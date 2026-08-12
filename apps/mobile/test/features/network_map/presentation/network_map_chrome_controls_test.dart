@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/ad_slot.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
 import 'package:easysubway_mobile/search_field.dart';
 import 'package:flutter/material.dart';
@@ -153,6 +154,25 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('bottom-ad banner는 공용 슬롯의 안전영역·identity를 보존한다', (tester) async {
+    await tester.pumpWidget(
+      _host(
+        const NetworkMapBottomAdBanner(
+          slot: AdBannerSlot(slotKey: Key('networkMapBottomAdBanner')),
+        ),
+      ),
+    );
+
+    final safeArea = tester.widget<SafeArea>(find.byType(SafeArea));
+    expect(safeArea.top, isFalse);
+
+    final slot = tester.widget<AdBannerSlot>(find.byType(AdBannerSlot));
+    expect(slot.slotKey, const Key('networkMapBottomAdBanner'));
+    expect(slot.height, kAdBannerSlotStandardHeight);
+    expect(slot.showTopDivider, isTrue);
+    expect(slot.child, isNull);
+  });
+
   test('root는 direct owner만 소비하고 private compatibility surface가 없다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
     expect(
@@ -164,9 +184,12 @@ void main() {
     expect(root, contains('NetworkMapLookupToast('));
     expect(root, contains('NetworkMapCurrentLocationButton('));
     expect(root, contains('NetworkMapSearchEntryButton('));
+    expect(root, contains('NetworkMapBottomAdBanner('));
+    expect(root, contains('slot: AdBannerSlot('));
     expect(root, isNot(contains('class _NetworkMapLookupToast')));
     expect(root, isNot(contains('class _NetworkMapCurrentLocationButton')));
     expect(root, isNot(contains('class _NetworkMapSearchField')));
+    expect(root, isNot(contains('class _NetworkMapBottomAdBanner')));
   });
 }
 

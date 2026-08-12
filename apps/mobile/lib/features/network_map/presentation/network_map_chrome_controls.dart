@@ -3,6 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../search_field.dart';
 
+class NetworkMapBottomAdBanner extends StatelessWidget {
+  const NetworkMapBottomAdBanner({required this.slot, super.key});
+
+  final Widget slot;
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(top: false, child: slot);
+  }
+}
+
 class NetworkMapLookupToast extends StatelessWidget {
   const NetworkMapLookupToast({required this.message, super.key});
 
