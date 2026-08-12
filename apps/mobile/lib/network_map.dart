@@ -953,7 +953,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         ),
         bottomNavigationBar: _searchMode || _nearbyPanelVisible
             ? null
-            : const NetworkMapBottomAdBanner(),
+            : const NetworkMapBottomAdBanner(
+                // 실광고 미연동: release에서는 placeholder 없이 슬롯이 collapse된다.
+                slot: AdBannerSlot(slotKey: Key('networkMapBottomAdBanner')),
+              ),
       ),
     );
   }

@@ -155,7 +155,13 @@ void main() {
   });
 
   testWidgets('bottom-ad banner는 공용 슬롯의 안전영역·identity를 보존한다', (tester) async {
-    await tester.pumpWidget(_host(const NetworkMapBottomAdBanner()));
+    await tester.pumpWidget(
+      _host(
+        const NetworkMapBottomAdBanner(
+          slot: AdBannerSlot(slotKey: Key('networkMapBottomAdBanner')),
+        ),
+      ),
+    );
 
     final safeArea = tester.widget<SafeArea>(find.byType(SafeArea));
     expect(safeArea.top, isFalse);
@@ -179,6 +185,7 @@ void main() {
     expect(root, contains('NetworkMapCurrentLocationButton('));
     expect(root, contains('NetworkMapSearchEntryButton('));
     expect(root, contains('NetworkMapBottomAdBanner('));
+    expect(root, contains('slot: AdBannerSlot('));
     expect(root, isNot(contains('class _NetworkMapLookupToast')));
     expect(root, isNot(contains('class _NetworkMapCurrentLocationButton')));
     expect(root, isNot(contains('class _NetworkMapSearchField')));
