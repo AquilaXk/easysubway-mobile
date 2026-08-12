@@ -162,6 +162,14 @@ class JourneyApiRepository implements JourneyRepository {
           'Journey success identity or source mismatch',
         );
       }
+      if (policy.constraintMode == ConstraintMode.requireStepFree &&
+          (journey.accessibility.result !=
+                  JourneyAccessibilityResult.verified ||
+              !journey.accessibility.stairFree)) {
+        throw const FormatException(
+          'Journey success accessibility constraint mismatch',
+        );
+      }
     }
   }
 }
