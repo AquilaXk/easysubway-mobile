@@ -75,12 +75,12 @@ void main() {
     var requestCount = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
       request.response
         ..statusCode = HttpStatus.ok
-        ..write('{}')
-        ..close();
+        ..write('{}');
+      await request.response.close();
     });
 
     final client = DataPackClient(
@@ -112,7 +112,7 @@ void main() {
     String? ifNoneMatch;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       ifNoneMatch = request.headers.value(HttpHeaders.ifNoneMatchHeader);
       request.response
         ..statusCode = HttpStatus.ok
@@ -176,8 +176,8 @@ void main() {
               },
             ],
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final client = DataPackClient(
@@ -212,7 +212,7 @@ void main() {
     );
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.set(HttpHeaders.etagHeader, 'etag-v19')
@@ -225,8 +225,8 @@ void main() {
               expiresAt: '2026-06-26T00:00:00.000Z',
             ),
           ),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final client = DataPackClient(
@@ -262,14 +262,14 @@ void main() {
       var requestCount = 0;
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
-      server.listen((request) {
+      server.listen((request) async {
         requestCount++;
         request.response
           ..statusCode = HttpStatus.ok
           ..headers.set(HttpHeaders.etagHeader, 'etag-v19')
           ..headers.contentType = ContentType.json
-          ..write(jsonEncode(_v2ManifestJson(sequence: 43, version: '19')))
-          ..close();
+          ..write(jsonEncode(_v2ManifestJson(sequence: 43, version: '19')));
+        await request.response.close();
       });
 
       final client = DataPackClient(
@@ -426,10 +426,9 @@ void main() {
     );
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
-      request.response
-        ..statusCode = HttpStatus.notModified
-        ..close();
+    server.listen((request) async {
+      request.response.statusCode = HttpStatus.notModified;
+      await request.response.close();
     });
     final client = DataPackClient(
       manifestUri: Uri.parse(

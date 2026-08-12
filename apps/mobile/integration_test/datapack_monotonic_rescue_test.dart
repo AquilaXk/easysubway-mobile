@@ -140,33 +140,32 @@ void main() {
       var now = knownGoodManifest.publishedAt!.add(const Duration(seconds: 1));
       var manifestJson = knownGoodManifestJson;
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      server.listen((request) {
+      server.listen((request) async {
         if (request.uri.path == '/datapacks/catalog/current.json') {
           request.response
             ..statusCode = HttpStatus.ok
             ..headers.contentType = ContentType.json
-            ..write(jsonEncode(manifestJson))
-            ..close();
+            ..write(jsonEncode(manifestJson));
+          await request.response.close();
         } else if (request.uri.path == knownGoodPack.url.path) {
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(rcArtifactBytes)
-            ..close();
+            ..add(rcArtifactBytes);
+          await request.response.close();
         } else if (request.uri.path == failedPack.url.path) {
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(failedArtifactBytes)
-            ..close();
+            ..add(failedArtifactBytes);
+          await request.response.close();
         } else if (request.uri.path ==
             '/datapacks/catalog/capital-v20.sqlite.gz') {
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(corruptBytes)
-            ..close();
+            ..add(corruptBytes);
+          await request.response.close();
         } else {
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
         }
       });
       final stateRepository = DataPackUpdateStateRepository(

@@ -257,7 +257,7 @@ void main() {
     addTearDown(userDatabase.close);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedUri = request.uri;
       request.response
         ..statusCode = HttpStatus.ok
@@ -271,8 +271,8 @@ void main() {
               'arrivals': <Object?>[],
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final dependencies = AppDependencies.resolve(

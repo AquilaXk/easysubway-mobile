@@ -83,7 +83,7 @@ void main() {
     final corruptBytes = [1, 2, 3, 4];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       if (request.uri.path == '/manifest.json') {
         request.response
           ..statusCode = HttpStatus.ok
@@ -110,14 +110,14 @@ void main() {
                 },
               ],
             }),
-          )
-          ..close();
+          );
+        await request.response.close();
         return;
       }
       request.response
         ..statusCode = HttpStatus.ok
-        ..add(corruptBytes)
-        ..close();
+        ..add(corruptBytes);
+      await request.response.close();
     });
     final stateRepository = DataPackUpdateStateRepository(
       userDatabase: userDatabase,
@@ -167,7 +167,7 @@ void main() {
     final compressedBytes = gzip.encode(sqliteBytes);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -185,17 +185,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -239,12 +238,12 @@ void main() {
     );
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'ttlSeconds': 60, 'packs': <Object?>[]}))
-        ..close();
+        ..write(jsonEncode({'ttlSeconds': 60, 'packs': <Object?>[]}));
+      await request.response.close();
     });
     final stateRepository = DataPackUpdateStateRepository(
       userDatabase: userDatabase,
@@ -283,7 +282,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -302,17 +301,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final updater = DataPackUpdater(
@@ -353,7 +351,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -372,17 +370,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -429,7 +426,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -448,17 +445,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -513,7 +509,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -532,17 +528,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -609,11 +604,10 @@ void main() {
     var requestCount = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..close();
+      request.response.statusCode = HttpStatus.ok;
+      await request.response.close();
     });
     final updater = DataPackUpdater(
       client: DataPackClient(
@@ -652,7 +646,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -671,17 +665,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -729,11 +722,10 @@ void main() {
     var requestCount = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..close();
+      request.response.statusCode = HttpStatus.ok;
+      await request.response.close();
     });
     final updater = DataPackUpdater(
       client: DataPackClient(
@@ -774,11 +766,10 @@ void main() {
     var requestCount = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..close();
+      request.response.statusCode = HttpStatus.ok;
+      await request.response.close();
     });
     final updater = DataPackUpdater(
       client: DataPackClient(
@@ -816,7 +807,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -835,17 +826,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -912,13 +902,13 @@ void main() {
     var requestCount = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'ttlSeconds': 60, 'packs': <Object?>[]}))
-        ..close();
+        ..write(jsonEncode({'ttlSeconds': 60, 'packs': <Object?>[]}));
+      await request.response.close();
     });
     final updater = DataPackUpdater(
       client: DataPackClient(
@@ -954,11 +944,10 @@ void main() {
     var requestCount = 0;
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
-      request.response
-        ..statusCode = HttpStatus.internalServerError
-        ..close();
+      request.response.statusCode = HttpStatus.internalServerError;
+      await request.response.close();
     });
     final updater = DataPackUpdater(
       client: DataPackClient(
@@ -1110,7 +1099,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -1148,26 +1137,24 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(activeCompressedBytes)
-            ..close();
+            ..add(activeCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/common-v1.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(dependencyCompressedBytes)
-            ..close();
+            ..add(dependencyCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/busan-v9.sqlite.gz':
-          request.response
-            ..statusCode = HttpStatus.internalServerError
-            ..close();
+          request.response.statusCode = HttpStatus.internalServerError;
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final updater = DataPackUpdater(
@@ -1229,7 +1216,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -1272,27 +1259,26 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(activeCompressedBytes)
-            ..close();
+            ..add(activeCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/capital-emergency-v7.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(overrideCompressedBytes)
-            ..close();
+            ..add(overrideCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/common-emergency-v1.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(dependencyCompressedBytes)
-            ..close();
+            ..add(dependencyCompressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final installer = DataPackInstaller(
@@ -1345,7 +1331,7 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
@@ -1375,22 +1361,21 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(activeCompressedBytes)
-            ..close();
+            ..add(activeCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/common-v1.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(dependencyCompressedBytes)
-            ..close();
+            ..add(dependencyCompressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final updater = DataPackUpdater(
@@ -1446,7 +1431,7 @@ void main() {
     final newCompressedBytes = gzip.encode(newSqliteBytes);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -1466,17 +1451,16 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v20.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(newCompressedBytes)
-            ..close();
+            ..add(newCompressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final updater = DataPackUpdater(
@@ -1527,7 +1511,7 @@ void main() {
     final corruptBytes = gzip.encode(<int>[]);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -1557,27 +1541,26 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(validCompressedBytes)
-            ..close();
+            ..add(validCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/capital-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(secondCompressedBytes)
-            ..close();
+            ..add(secondCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/capital-v20.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(corruptBytes)
-            ..close();
+            ..add(corruptBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -1630,7 +1613,7 @@ void main() {
     final newerCompressedBytes = gzip.encode(newerSqliteBytes);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -1654,22 +1637,21 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(olderCompressedBytes)
-            ..close();
+            ..add(olderCompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/capital-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(newerCompressedBytes)
-            ..close();
+            ..add(newerCompressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final installer = DataPackInstaller(
@@ -1735,29 +1717,28 @@ void main() {
     final requestedPaths = <String>[];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       requestedPaths.add(request.uri.path);
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
             ..statusCode = HttpStatus.ok
             ..headers.contentType = ContentType.json
-            ..write(jsonEncode(manifestJson))
-            ..close();
+            ..write(jsonEncode(manifestJson));
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(v18CompressedBytes)
-            ..close();
+            ..add(v18CompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/capital-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(v19CompressedBytes)
-            ..close();
+            ..add(v19CompressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final stateRepository = DataPackUpdateStateRepository(
@@ -1847,33 +1828,32 @@ void main() {
       );
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
-      server.listen((request) {
+      server.listen((request) async {
         switch (request.uri.path) {
           case '/datapacks/catalog/current.json':
             request.response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
-              ..write(jsonEncode(manifestJson))
-              ..close();
+              ..write(jsonEncode(manifestJson));
+            await request.response.close();
           case '/datapacks/catalog/capital-v18.sqlite.gz':
             request.response
               ..statusCode = HttpStatus.ok
-              ..add(knownGoodCompressedBytes)
-              ..close();
+              ..add(knownGoodCompressedBytes);
+            await request.response.close();
           case '/datapacks/catalog/capital-v19.sqlite.gz':
             request.response
               ..statusCode = HttpStatus.ok
-              ..add(failedCompressedBytes)
-              ..close();
+              ..add(failedCompressedBytes);
+            await request.response.close();
           case '/datapacks/catalog/capital-v20.sqlite.gz':
             request.response
               ..statusCode = HttpStatus.ok
-              ..add(corruptBytes)
-              ..close();
+              ..add(corruptBytes);
+            await request.response.close();
           default:
-            request.response
-              ..statusCode = HttpStatus.notFound
-              ..close();
+            request.response.statusCode = HttpStatus.notFound;
+            await request.response.close();
         }
       });
       final stateRepository = DataPackUpdateStateRepository(
@@ -2025,28 +2005,27 @@ void main() {
       };
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
-      server.listen((request) {
+      server.listen((request) async {
         switch (request.uri.path) {
           case '/datapacks/catalog/current.json':
             request.response
               ..statusCode = HttpStatus.ok
               ..headers.contentType = ContentType.json
-              ..write(jsonEncode(manifestJson))
-              ..close();
+              ..write(jsonEncode(manifestJson));
+            await request.response.close();
           case '/datapacks/catalog/capital-v017.sqlite.gz':
             request.response
               ..statusCode = HttpStatus.ok
-              ..add(v017CompressedBytes)
-              ..close();
+              ..add(v017CompressedBytes);
+            await request.response.close();
           case '/datapacks/catalog/capital-v19.sqlite.gz':
             request.response
               ..statusCode = HttpStatus.ok
-              ..add(v19CompressedBytes)
-              ..close();
+              ..add(v19CompressedBytes);
+            await request.response.close();
           default:
-            request.response
-              ..statusCode = HttpStatus.notFound
-              ..close();
+            request.response.statusCode = HttpStatus.notFound;
+            await request.response.close();
         }
       });
       final stateRepository = DataPackUpdateStateRepository(
@@ -2100,7 +2079,7 @@ void main() {
     final v19CompressedBytes = gzip.encode(v19SqliteBytes);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -2131,27 +2110,26 @@ void main() {
                   ),
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v017.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(v017CompressedBytes)
-            ..close();
+            ..add(v017CompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(v18CompressedBytes)
-            ..close();
+            ..add(v18CompressedBytes);
+          await request.response.close();
         case '/datapacks/catalog/capital-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(v19CompressedBytes)
-            ..close();
+            ..add(v19CompressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final installer = DataPackInstaller(
@@ -2215,7 +2193,7 @@ void main() {
     final corruptBytes = [1, 2, 3, 4];
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -2243,17 +2221,16 @@ void main() {
                   },
                 ],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(corruptBytes)
-            ..close();
+            ..add(corruptBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final updater = DataPackUpdater(
@@ -2292,7 +2269,7 @@ void main() {
     addTearDown(userDatabase.close);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       if (request.uri.path.endsWith('/current.json')) {
         request.response
           ..statusCode = HttpStatus.ok
@@ -2322,14 +2299,13 @@ void main() {
                 'rollout': {'percentage': 0, 'seed': 'held-out-seed'},
               }),
             ),
-          )
-          ..close();
+          );
+        await request.response.close();
         return;
       }
       // 팩 다운로드 요청이 오면 안 됨
-      request.response
-        ..statusCode = HttpStatus.internalServerError
-        ..close();
+      request.response.statusCode = HttpStatus.internalServerError;
+      await request.response.close();
     });
     final updater = DataPackUpdater(
       client: DataPackClient(
@@ -2371,7 +2347,7 @@ void main() {
     );
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -2419,18 +2395,17 @@ void main() {
                   'rollout': {'percentage': 0, 'seed': 'held-out-seed'},
                 }),
               ),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(overrideCompressedBytes)
-            ..close();
+            ..add(overrideCompressedBytes);
+          await request.response.close();
         default:
           // v19 다운로드 요청이 오면 안 됨
-          request.response
-            ..statusCode = HttpStatus.internalServerError
-            ..close();
+          request.response.statusCode = HttpStatus.internalServerError;
+          await request.response.close();
       }
     });
     final catalogDirectory = Directory('${directory.path}/catalog');
@@ -2476,7 +2451,7 @@ void main() {
     final compressedBytes = gzip.encode(sqliteBytes);
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -2495,17 +2470,16 @@ void main() {
                 ],
                 // rollout 없음 → 항상 채택
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         case '/datapacks/catalog/capital-v18.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
-            ..add(compressedBytes)
-            ..close();
+            ..add(compressedBytes);
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final updater = DataPackUpdater(
@@ -2556,7 +2530,7 @@ void main() {
     );
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       if (request.uri.path.endsWith('/current.json')) {
         request.response
           ..statusCode = HttpStatus.ok
@@ -2589,14 +2563,13 @@ void main() {
                 'rollout': {'percentage': 0, 'seed': 'held-out-seed'},
               }),
             ),
-          )
-          ..close();
+          );
+        await request.response.close();
         return;
       }
       // v19 다운로드 요청이 오면 안 됨
-      request.response
-        ..statusCode = HttpStatus.internalServerError
-        ..close();
+      request.response.statusCode = HttpStatus.internalServerError;
+      await request.response.close();
     });
     final installer = DataPackInstaller(
       catalogDirectory: catalogDirectory,
@@ -2653,7 +2626,7 @@ void main() {
     );
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       switch (request.uri.path) {
         case '/datapacks/catalog/current.json':
           request.response
@@ -2665,12 +2638,11 @@ void main() {
                 'activePack': {'id': 'capital', 'version': '18'},
                 'packs': const <Object?>[],
               }),
-            )
-            ..close();
+            );
+          await request.response.close();
         default:
-          request.response
-            ..statusCode = HttpStatus.notFound
-            ..close();
+          request.response.statusCode = HttpStatus.notFound;
+          await request.response.close();
       }
     });
     final installer = DataPackInstaller(
@@ -2749,7 +2721,7 @@ void main() {
           .toString();
       final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
       addTearDown(server.close);
-      server.listen((request) {
+      server.listen((request) async {
         switch (request.uri.path) {
           case '/datapacks/catalog/current.json':
             request.response
@@ -2800,18 +2772,17 @@ void main() {
                     'rollout': {'percentage': 0, 'seed': 'held-out-seed'},
                   }),
                 ),
-              )
-              ..close();
+              );
+            await request.response.close();
           case '/datapacks/catalog/capital-v18.sqlite.gz':
             request.response
               ..statusCode = HttpStatus.ok
-              ..add(overrideCompressedBytes)
-              ..close();
+              ..add(overrideCompressedBytes);
+            await request.response.close();
           default:
             // v19 다운로드 요청이 오면 안 됨
-            request.response
-              ..statusCode = HttpStatus.internalServerError
-              ..close();
+            request.response.statusCode = HttpStatus.internalServerError;
+            await request.response.close();
         }
       });
       final catalogDirectory = Directory('${directory.path}/catalog');
@@ -2889,7 +2860,7 @@ Future<_OverrideIntegrityFixture> _overrideIntegrityFixture(
   final activeCompressedBytes = gzip.encode(sqliteBytes);
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
   addTearDown(server.close);
-  server.listen((request) {
+  server.listen((request) async {
     switch (request.uri.path) {
       case '/datapacks/catalog/current.json':
         request.response
@@ -2913,17 +2884,16 @@ Future<_OverrideIntegrityFixture> _overrideIntegrityFixture(
                 ),
               ],
             }),
-          )
-          ..close();
+          );
+        await request.response.close();
       case '/datapacks/catalog/capital-v19.sqlite.gz':
         request.response
           ..statusCode = HttpStatus.ok
-          ..add(activeCompressedBytes)
-          ..close();
+          ..add(activeCompressedBytes);
+        await request.response.close();
       default:
-        request.response
-          ..statusCode = HttpStatus.notFound
-          ..close();
+        request.response.statusCode = HttpStatus.notFound;
+        await request.response.close();
     }
   });
   return _OverrideIntegrityFixture(
