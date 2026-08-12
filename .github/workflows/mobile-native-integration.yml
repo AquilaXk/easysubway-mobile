@@ -63,6 +63,14 @@ jobs:
         run: flutter pub get
       - name: Verify native workflow contract
         run: node --test tools/ci/mobile-native-integration-workflow.test.mjs
+      - name: Prepare Android native evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/mobile-native-android"
+          printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"
+          : > "${RUNNER_TEMP}/mobile-native-android/flutter-test.jsonl"
+          : > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log"
       - name: Enable KVM
         shell: bash
         run: |
@@ -82,7 +90,18 @@ jobs:
           script: |
             dart format --output=none --set-exit-if-changed integration_test/native_test.dart
             flutter analyze integration_test/native_test.dart
-            timeout 12m flutter test integration_test/native_test.dart -d emulator-5554 || { adb logcat -d -b crash; exit 1; }
+            if timeout 12m flutter test integration_test/native_test.dart -d emulator-5554 --file-reporter "json:${RUNNER_TEMP}/mobile-native-android/flutter-test.jsonl"; then printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PASS"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"; else adb logcat -d -b crash > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log" 2>&1 || true; printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"FAIL"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"; exit 1; fi
+      - name: Upload Android native evidence
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-native-android-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/mobile-native-android/receipt.json
+            ${{ runner.temp }}/mobile-native-android/flutter-test.jsonl
+            ${{ runner.temp }}/mobile-native-android/adb-crash.log
+          if-no-files-found: error
+          retention-days: 5
 
   ios-compile:
     name: iOS simulator compile
@@ -102,8 +121,32 @@ jobs:
       - name: Install Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
+      - name: Prepare iOS compile evidence
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/mobile-native-ios"
+          printf '%s\n' '{"schemaVersion":1,"lane":"ios-compile","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-ios/receipt.json"
+          : > "${RUNNER_TEMP}/mobile-native-ios/flutter-build-ios.log"
       - name: Compile iOS simulator debug app
         working-directory: apps/mobile
         env:
           DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
-        run: flutter build ios --simulator --debug
+        run: |
+          set -euo pipefail
+          if flutter build ios --simulator --debug 2>&1 | tee "${RUNNER_TEMP}/mobile-native-ios/flutter-build-ios.log"; then
+            printf '%s\n' '{"schemaVersion":1,"lane":"ios-compile","status":"PASS"}' > "${RUNNER_TEMP}/mobile-native-ios/receipt.json"
+          else
+            printf '%s\n' '{"schemaVersion":1,"lane":"ios-compile","status":"FAIL"}' > "${RUNNER_TEMP}/mobile-native-ios/receipt.json"
+            exit 1
+          fi
+      - name: Upload iOS compile evidence
+        if: always()
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-native-ios-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/mobile-native-ios/receipt.json
+            ${{ runner.temp }}/mobile-native-ios/flutter-build-ios.log
+          if-no-files-found: error
+          retention-days: 5
