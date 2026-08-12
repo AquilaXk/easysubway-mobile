@@ -201,10 +201,12 @@ class StationDetailController extends ChangeNotifier {
 
   StationDetailState _state = const StationDetailState.loading();
   bool _isDisposed = false;
+  int _loadGeneration = 0;
 
   StationDetailState get state => _state;
 
   Future<void> load(String stationId) async {
+    final generation = ++_loadGeneration;
     _state = const StationDetailState.loading();
     notifyListeners();
 
@@ -215,7 +217,7 @@ class StationDetailController extends ChangeNotifier {
         repository.listStationExits(stationId),
         repository.listStationFacilities(stationId),
       ]);
-      if (_isDisposed) {
+      if (!_isCurrentLoad(generation)) {
         return;
       }
       final detail = responses[0] as StationDetail;
@@ -227,10 +229,10 @@ class StationDetailController extends ChangeNotifier {
         realtimeSnapshot: const RealtimeSnapshot.loading(),
       );
       notifyListeners();
-      await _refreshRealtimeSnapshot(detail);
+      await _refreshRealtimeSnapshot(detail, generation);
       return;
     } on StationSearchException {
-      if (_isDisposed) {
+      if (!_isCurrentLoad(generation)) {
         return;
       }
       _state = const StationDetailState(
@@ -239,7 +241,7 @@ class StationDetailController extends ChangeNotifier {
       );
     } catch (error, stackTrace) {
       reportMobileError(error, stackTrace, context: '역 상세 화면 로드 중 예외가 발생했습니다.');
-      if (_isDisposed) {
+      if (!_isCurrentLoad(generation)) {
         return;
       }
       _state = const StationDetailState(
@@ -267,12 +269,15 @@ class StationDetailController extends ChangeNotifier {
       message: _state.message,
     );
     notifyListeners();
-    await _refreshRealtimeSnapshot(detail);
+    await _refreshRealtimeSnapshot(detail, _loadGeneration);
   }
 
-  Future<void> _refreshRealtimeSnapshot(StationDetail detail) async {
+  Future<void> _refreshRealtimeSnapshot(
+    StationDetail detail,
+    int generation,
+  ) async {
     final realtimeSnapshot = await _loadRealtimeSnapshot(detail);
-    if (_isDisposed || _state.detail?.id != detail.id) {
+    if (!_isCurrentLoad(generation) || _state.detail?.id != detail.id) {
       return;
     }
     _state = StationDetailState(
@@ -284,6 +289,10 @@ class StationDetailController extends ChangeNotifier {
       message: _state.message,
     );
     notifyListeners();
+  }
+
+  bool _isCurrentLoad(int generation) {
+    return !_isDisposed && generation == _loadGeneration;
   }
 
   Future<RealtimeSnapshot> _loadRealtimeSnapshot(StationDetail detail) async {

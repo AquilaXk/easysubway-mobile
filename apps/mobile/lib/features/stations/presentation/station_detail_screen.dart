@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -121,11 +123,13 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
         repository: internalRouteRepository,
       );
       if (internalRouteRequest != null) {
-        _internalRouteController!.load(internalRouteRequest);
+        unawaited(_internalRouteController!.load(internalRouteRequest));
       } else {
-        _internalRouteController!.loadDefault(
-          stationId: widget.stationId,
-          mobilityType: widget.internalRouteMobilityType,
+        unawaited(
+          _internalRouteController!.loadDefault(
+            stationId: widget.stationId,
+            mobilityType: widget.internalRouteMobilityType,
+          ),
         );
       }
     }
@@ -139,10 +143,10 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
         initiallyChecking: initiallyFavorite == null,
       );
       if (initiallyFavorite == null) {
-        _favoriteController!.load();
+        unawaited(_favoriteController!.load());
       }
     }
-    _controller.load(widget.stationId);
+    unawaited(_controller.load(widget.stationId));
   }
 
   @override
@@ -308,7 +312,7 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
     );
     _bindInternalRoute(widget.stationId);
     _bindFavorite(widget.stationId, widget.initiallyFavorite);
-    _controller.load(widget.stationId);
+    unawaited(_controller.load(widget.stationId));
   }
 
   @override
@@ -317,27 +321,27 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
     if (oldWidget.stationId != widget.stationId) {
       _bindInternalRoute(widget.stationId);
       _bindFavorite(widget.stationId, widget.initiallyFavorite);
-      _controller.load(widget.stationId);
+      unawaited(_controller.load(widget.stationId));
     }
   }
 
   void _bindInternalRoute(String stationId) {
+    _internalRouteController?.dispose();
+    _internalRouteController = null;
     final repository = widget.internalRouteRepository;
     if (repository == null) {
-      _internalRouteController?.dispose();
-      _internalRouteController = null;
       return;
     }
-    _internalRouteController ??= InternalRouteController(
-      repository: repository,
-    );
+    _internalRouteController = InternalRouteController(repository: repository);
     final request = widget.internalRouteRequest;
     if (request != null) {
-      _internalRouteController!.load(request);
+      unawaited(_internalRouteController!.load(request));
     } else {
-      _internalRouteController!.loadDefault(
-        stationId: stationId,
-        mobilityType: widget.internalRouteMobilityType,
+      unawaited(
+        _internalRouteController!.loadDefault(
+          stationId: stationId,
+          mobilityType: widget.internalRouteMobilityType,
+        ),
       );
     }
   }
@@ -356,7 +360,7 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
       initiallyChecking: initiallyFavorite == null,
     );
     if (initiallyFavorite == null) {
-      _favoriteController!.load();
+      unawaited(_favoriteController!.load());
     }
   }
 
