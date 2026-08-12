@@ -30,8 +30,8 @@ import 'features/network_map/domain/structured_route_map.dart';
 import 'features/network_map/infrastructure/cached_route_map_path.dart';
 import 'features/network_map/presentation/nearby_arrival_panel.dart';
 import 'features/network_map/presentation/nearby_data_source_toggle.dart';
-import 'features/network_map/presentation/nearby_direction_columns.dart';
 import 'features/network_map/presentation/nearby_station_line_bar.dart';
+import 'features/network_map/presentation/nearby_timetable_panel.dart';
 import 'features/network_map/presentation/network_map_camera_policy.dart';
 import 'features/network_map/presentation/network_map_chrome_controls.dart';
 import 'features/network_map/presentation/network_map_menu_panel.dart';
@@ -3104,11 +3104,13 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
                   leftName: adjacentStations.leftName,
                   rightName: adjacentStations.rightName,
                 )
-              : _SubwayTimetablePanel(
-                  timetable: timetable,
+              : NearbyTimetablePanel(
+                  data: _nearbyTimetablePanelData(timetable),
                   lineColor: lineColor,
                   leftName: adjacentStations.leftName,
                   rightName: adjacentStations.rightName,
+                  expressBadgeBuilder: () =>
+                      const ServicePatternBadge.express(),
                 ),
         ),
       ],
@@ -3116,169 +3118,30 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
   }
 }
 
-class _SubwayTimetablePanel extends StatelessWidget {
-  const _SubwayTimetablePanel({
-    required this.timetable,
-    required this.lineColor,
-    required this.leftName,
-    required this.rightName,
-  });
-
-  final StationTimetable? timetable;
-  final Color lineColor;
-  final String? leftName;
-  final String? rightName;
-
-  @override
-  Widget build(BuildContext context) {
-    // 로컬 조회 중이어도 스피너 대신 인접역 방면·대시 골격을 즉시 그린다(#2453).
-    final departures = _nextTimetableDepartures(timetable, DateTime.now());
-    // 방면별로 그룹핑(실시간과 동일한 열 구성 원칙 적용).
-    final dataGroups = <List<_NextTimetableDeparture>>[];
-    for (final departure in departures) {
-      if (dataGroups.isEmpty ||
-          dataGroups.last.first.directionLabel != departure.directionLabel) {
-        dataGroups.add([departure]);
-      } else {
-        dataGroups.last.add(departure);
-      }
-    }
-    final dataTitles = [
-      for (final group in dataGroups) group.first.directionLabel,
-    ];
-    final slots = resolveNearbyColumnSlots(
-      dataTitles: dataTitles,
-      leftName: leftName,
-      rightName: rightName,
-    );
-    if (slots.isEmpty) {
-      return const NearbyDataUnavailable();
-    }
-
-    final columns = <NearbyPanelColumn>[];
-    final semanticParts = <String>[];
-    for (final slot in slots) {
-      final dataIndex = slot.dataIndex;
-      if (dataIndex == null) {
-        // 대시 열 의미는 NearbyPanelColumns 열 단위 Semantics가 담당한다.
-        columns.add(NearbyPanelColumn(title: slot.title));
-        continue;
-      }
-      final group = dataGroups[dataIndex];
-      final rows = <Widget>[];
-      for (var row = 0; row < group.length; row++) {
-        if (row > 0) {
-          rows.add(const SizedBox(height: 4));
-        }
-        rows.add(_SubwayTimetableDepartureView(data: group[row]));
-        semanticParts.add(group[row].departure.semanticLabel);
-      }
-      columns.add(NearbyPanelColumn(title: slot.title, rows: rows));
-    }
-
-    final hasData = departures.isNotEmpty;
-    final columnsView = KeyedSubtree(
-      key: hasData ? null : const Key('networkMapNearbyTimetableSkeleton'),
-      child: NearbyPanelColumns(columns: columns, lineColor: lineColor),
-    );
-    // 골격↔데이터 갱신 시 liveRegion 재발화를 피한다.
-    // 순수 골격은 열 단위 Semantics, 데이터 혼재 시 부모 라벨에 대시 열도 합친다.
-    if (semanticParts.isEmpty) {
-      return columnsView;
-    }
-    final dashLabels = [
-      for (final slot in slots)
-        if (slot.dataIndex == null)
-          slot.title.isEmpty ? '정보 없음' : '${slot.title} 정보 없음',
-    ];
-    return Semantics(
-      excludeSemantics: true,
-      label: [...semanticParts, ...dashLabels].join(', '),
-      child: columnsView,
-    );
-  }
-}
-
-class _NextTimetableDeparture {
-  const _NextTimetableDeparture({
-    required this.directionLabel,
-    required this.departure,
-  });
-
-  final String directionLabel;
-  final StationTimetableDeparture departure;
-}
-
-List<_NextTimetableDeparture> _nextTimetableDepartures(
+NearbyTimetablePanelData? _nearbyTimetablePanelData(
   StationTimetable? timetable,
-  DateTime now,
 ) {
   if (timetable == null) {
-    return const [];
+    return null;
   }
-  final currentSeconds =
-      now.hour * Duration.secondsPerHour +
-      now.minute * Duration.secondsPerMinute +
-      now.second;
-  final result = <_NextTimetableDeparture>[];
-  var visibleDirectionCount = 0;
-  for (final direction in timetable.directions) {
-    final departures = direction.departures
-        .where((candidate) => candidate.seconds >= currentSeconds)
-        .take(2)
-        .toList(growable: false);
-    if (departures.isEmpty) {
-      continue;
-    }
-    final rawDirection = direction.name.trim().isEmpty
-        ? departures.first.directionName.trim()
-        : direction.name.trim();
-    final label = rawDirection.endsWith('방면')
-        ? rawDirection
-        : '$rawDirection 방면';
-    for (final departure in departures) {
-      result.add(
-        _NextTimetableDeparture(directionLabel: label, departure: departure),
-      );
-    }
-    visibleDirectionCount++;
-    if (visibleDirectionCount == 2) {
-      break;
-    }
-  }
-  return result;
-}
-
-class _SubwayTimetableDepartureView extends StatelessWidget {
-  const _SubwayTimetableDepartureView({required this.data});
-
-  final _NextTimetableDeparture data;
-
-  @override
-  Widget build(BuildContext context) {
-    final time = Text(
-      data.departure.timeLabel,
-      style: const TextStyle(
-        color: EasySubwayAccessibleColors.statusDangerContent,
-        fontSize: 15,
-        fontWeight: FontWeight.w800,
-      ),
-    );
-    if (!data.departure.isExpress) {
-      return time;
-    }
-    // 급행 출발은 시각 옆에 배지를 붙인다. text scale·좁은 폭·landscape에서
-    // 시각과 배지가 겹치지 않게 Wrap으로 다음 줄 배치한다(clipping 금지).
-    return Wrap(
-      spacing: 4,
-      runSpacing: 2,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        time,
-        ServicePatternBadge(departure: data.departure),
-      ],
-    );
-  }
+  return NearbyTimetablePanelData(
+    directions: [
+      for (final direction in timetable.directions)
+        NearbyTimetableDirectionData(
+          name: direction.name,
+          departures: [
+            for (final departure in direction.departures)
+              NearbyTimetableDepartureData(
+                directionName: departure.directionName,
+                seconds: departure.seconds,
+                timeLabel: departure.timeLabel,
+                semanticLabel: departure.semanticLabel,
+                isExpress: departure.isExpress,
+              ),
+          ],
+        ),
+    ],
+  );
 }
 
 class _NetworkMapBottomAdBanner extends StatelessWidget {
