@@ -270,6 +270,14 @@ test("environment identity is exact and excludes absolute values", () => {
   );
 });
 
+test("verifier source remains text-reviewable", () => {
+  const sourceBytes = readFileSync(
+    path.join(repositoryRoot, "tools/ci/mobile-golden-execution.mjs"),
+  );
+  assert.equal(sourceBytes.includes(0), false);
+  assert.match(sourceBytes.toString("utf8"), /\\u0000-\\u001f\\u007f/u);
+});
+
 test("workflow pins comparison, mutation, evidence, and no baseline writes", () => {
   const workflow = readFileSync(
     path.join(repositoryRoot, ".github/workflows/mobile-golden.yml"),
