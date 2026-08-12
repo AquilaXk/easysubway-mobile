@@ -21,6 +21,7 @@ import 'features/network_map/data/network_map_owner_labels_cache.dart';
 import 'features/network_map/domain/map_camera.dart';
 import 'features/network_map/domain/network_map_edge_topology.dart';
 import 'features/network_map/domain/network_map_models.dart';
+import 'features/network_map/domain/network_map_station_selection.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
 import 'features/network_map/domain/route_map_label_polygon.dart';
 import 'features/network_map/domain/route_map_min_scale.dart';
@@ -3633,7 +3634,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
         if (!mounted || widget.selectedStationId != selectedId) {
           return;
         }
-        final station = _stationById(widget.data.stations, selectedId);
+        final station = networkMapStationById(widget.data.stations, selectedId);
         if (station != null) {
           _panCameraToRevealFanMenu(station);
         }
@@ -3729,23 +3730,32 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
           // 같은 build에서 새 layoutKey의 카메라를 항상 초기화한다.
           var camera = _camera!;
           final selectedStation =
-              _stationByIdentity(widget.data.stations, _selectedStation) ??
-              _stationById(widget.data.stations, widget.selectedStationId);
-          final originStation = _stationById(
+              networkMapStationByIdentity(
+                widget.data.stations,
+                _selectedStation,
+              ) ??
+              networkMapStationById(
+                widget.data.stations,
+                widget.selectedStationId,
+              );
+          final originStation = networkMapStationById(
             widget.data.stations,
             widget.originStationId,
           );
-          final waypointStation = _stationById(
+          final waypointStation = networkMapStationById(
             widget.data.stations,
             widget.waypointStationId,
           );
-          final destinationStation = _stationById(
+          final destinationStation = networkMapStationById(
             widget.data.stations,
             widget.destinationStationId,
           );
           final focusedStation = widget.focusedStationId == null
               ? null
-              : _stationById(widget.data.stations, widget.focusedStationId);
+              : networkMapStationById(
+                  widget.data.stations,
+                  widget.focusedStationId,
+                );
           final focusedStationKey = focusedStation == null
               ? null
               : (focusedStation.id, widget.preserveFocusedStationScale);
@@ -4000,7 +4010,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
     if (_stationLinesByIdCacheKey == key && cached != null) {
       return cached;
     }
-    final computed = _stationLinesById(data);
+    final computed = networkMapStationLinesById(data);
     _stationLinesByIdCacheKey = key;
     _stationLinesByIdCache = computed;
     return computed;
@@ -5994,33 +6004,6 @@ class _NetworkMapDraftPin extends StatelessWidget {
   }
 }
 
-Map<String, List<NetworkMapLine>> _stationLinesById(NetworkMapData data) {
-  final linesById = {for (final line in data.lines) line.id: line};
-  final stationLinesById = <String, List<NetworkMapLine>>{};
-
-  void addLine(String stationId, String lineId) {
-    final line = linesById[lineId];
-    if (line == null) {
-      return;
-    }
-    final stationLines = stationLinesById.putIfAbsent(stationId, () => []);
-    if (!stationLines.any((existing) => existing.id == line.id)) {
-      stationLines.add(line);
-    }
-  }
-
-  if (data.stationLineMemberships.isNotEmpty) {
-    for (final membership in data.stationLineMemberships) {
-      addLine(membership.stationId, membership.lineId);
-    }
-  } else {
-    for (final station in data.stations) {
-      addLine(station.id, station.lineId);
-    }
-  }
-  return stationLinesById;
-}
-
 RouteDraftStation _routeDraftStationFromMapStation(
   NetworkMapStation station,
   NetworkMapData? data,
@@ -6043,35 +6026,4 @@ RouteDraftStation _routeDraftStationFromMapStation(
     lineColor: line?.color ?? '',
     stationCode: station.stationCode,
   );
-}
-
-NetworkMapStation? _stationById(
-  List<NetworkMapStation> stations,
-  String? stationId,
-) {
-  if (stationId == null) {
-    return null;
-  }
-  for (final station in stations) {
-    if (station.id == stationId) {
-      return station;
-    }
-  }
-  return null;
-}
-
-NetworkMapStation? _stationByIdentity(
-  List<NetworkMapStation> stations,
-  NetworkMapStation? selectedStation,
-) {
-  if (selectedStation == null) {
-    return null;
-  }
-  for (final station in stations) {
-    if (station.id == selectedStation.id &&
-        station.lineId == selectedStation.lineId) {
-      return station;
-    }
-  }
-  return null;
 }
