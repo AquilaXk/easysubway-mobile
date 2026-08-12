@@ -11,6 +11,11 @@ import 'package:flutter_test/flutter_test.dart';
 const _goldenFontFamily = 'NanumGothicGolden';
 const _menuBoundaryKey = ValueKey('station-fan-menu-golden-boundary');
 const _menuWidth = 220.0;
+const _injectVisualMutation = bool.fromEnvironment(
+  'EASYSUBWAY_GOLDEN_MUTATION',
+);
+const _goldenBackground = Color(0xFFF4F7F7);
+const _mutationBackground = Color(0xFF004D40);
 
 Future<void> _pumpMenu(
   WidgetTester tester, {
@@ -21,12 +26,16 @@ Future<void> _pumpMenu(
   await tester.pumpWidget(
     MaterialApp(
       home: Scaffold(
-        backgroundColor: const Color(0xFFF4F7F7),
+        backgroundColor: _goldenBackground,
         body: Center(
           child: RepaintBoundary(
             key: _menuBoundaryKey,
             child: ColoredBox(
-              color: const Color(0xFFF4F7F7),
+              // CI의 mutation probe만 known pixel delta를 주입한다. Normal golden
+              // comparison에는 define을 전달하지 않아 baseline rendering은 동일하다.
+              color: _injectVisualMutation
+                  ? _mutationBackground
+                  : _goldenBackground,
               child: StationFanMenu(
                 width: width,
                 selectedSlots: selected,
