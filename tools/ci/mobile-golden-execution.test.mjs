@@ -283,7 +283,8 @@ test("workflow pins comparison, mutation, evidence, and no baseline writes", () 
   assert.match(workflow, /mobile-golden-execution\.mjs verify/u);
   assert.match(workflow, /mobile-golden-execution\.mjs verify-mutation/u);
   assert.match(workflow, /EASYSUBWAY_GOLDEN_MUTATION=true/u);
-  assert.match(workflow, /--plain-name "\^기본 상태\$"/u);
+  assert.match(workflow, /--name "\^기본 상태\$"/u);
+  assert.equal(workflow.includes("--plain-name"), false);
   assert.match(workflow, /--file-reporter "json:\$mutation_report" \\\n\s+> \/dev\/null 2>&1/u);
   assert.match(
     workflow,
