@@ -61,6 +61,30 @@ final _stepFreeSearchRequest = JourneySearchRequest(
   alternativeCount: 2,
 );
 
+final _singleAlternativeSearchRequest = JourneySearchRequest(
+  requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+  originStationId: 'station-origin',
+  destinationStationId: 'station-destination',
+  departure: const JourneyDepartureNow(),
+  timePolicy: TimePolicy.timetableRequired,
+  mobilityProfile: MobilityProfile.standard,
+  constraintMode: ConstraintMode.none,
+  maxTransfers: 2,
+  alternativeCount: 1,
+);
+
+final _realtimeSearchRequest = JourneySearchRequest(
+  requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+  originStationId: 'station-origin',
+  destinationStationId: 'station-destination',
+  departure: const JourneyDepartureNow(),
+  timePolicy: TimePolicy.realtimeRequired,
+  mobilityProfile: MobilityProfile.standard,
+  constraintMode: ConstraintMode.none,
+  maxTransfers: 2,
+  alternativeCount: 2,
+);
+
 Map<String, Object?> _sessionJson() => JourneySessionResponse(
   token: 'session-token',
   scope: JourneySessionScope.journeyV3,
@@ -75,6 +99,7 @@ Map<String, Object?> _successJson({
   List<bool>? stairFreeByJourney,
 }) {
   final effectiveRequest = request ?? _searchRequest;
+  final realtime = effectiveRequest.timePolicy == TimePolicy.realtimeRequired;
   final policy = JourneyRequestPolicy(
     timePolicy: effectiveRequest.timePolicy,
     mobilityProfile: effectiveRequest.mobilityProfile,
@@ -92,23 +117,47 @@ Map<String, Object?> _successJson({
           planSource: JourneyPlanSource.serverTimetableRaptor,
           plannedDepartureTime: DateTime.parse('2026-08-11T00:00:00Z'),
           plannedArrivalTime: DateTime.parse('2026-08-11T00:05:00Z'),
-          realtimeDepartureTime: null,
-          realtimeArrivalTime: null,
+          realtimeDepartureTime: realtime
+              ? DateTime.parse('2026-08-11T00:01:00Z')
+              : null,
+          realtimeArrivalTime: realtime
+              ? DateTime.parse('2026-08-11T00:06:00Z')
+              : null,
           durationSeconds: 300,
           transferCount: 0,
           walkingDistanceMeters: 0,
-          timeSource: JourneyTimeSource.timetable,
+          timeSource: realtime
+              ? JourneyTimeSource.realtime
+              : JourneyTimeSource.timetable,
           accessibility: JourneyAccessibility(
             result: JourneyAccessibilityResult.verified,
             stairFree: stairFreeByJourney?[entry.key] ?? false,
             reasonCodes: const [],
           ),
-          legs: const [
-            JourneyEntryLeg(
-              fromStationId: 'station-origin',
-              durationSeconds: 0,
-            ),
-          ],
+          legs: realtime
+              ? [
+                  JourneyRideLeg(
+                    lineId: 'line-1',
+                    tripId: 'trip-1',
+                    directionStationId: 'station-destination',
+                    fromStationId: 'station-origin',
+                    toStationId: 'station-destination',
+                    plannedDepartureTime: DateTime.parse(
+                      '2026-08-11T00:00:00Z',
+                    ),
+                    plannedArrivalTime: DateTime.parse('2026-08-11T00:05:00Z'),
+                    realtimeDepartureTime: DateTime.parse(
+                      '2026-08-11T00:01:00Z',
+                    ),
+                    realtimeArrivalTime: DateTime.parse('2026-08-11T00:06:00Z'),
+                  ),
+                ]
+              : const [
+                  JourneyEntryLeg(
+                    fromStationId: 'station-origin',
+                    durationSeconds: 0,
+                  ),
+                ],
         ),
       )
       .toList(growable: false);
@@ -126,12 +175,38 @@ Map<String, Object?> _successJson({
       routeBundleSha256: 'a' * 64,
       timetableSnapshotId: 'timetable-1',
       accessibilitySnapshotId: 'accessibility-1',
-      realtimeSnapshotId: null,
+      realtimeSnapshotId: realtime ? 'realtime-1' : null,
     ),
     requestPolicy: policy,
     journeys: journeys,
   ).toJson();
 }
+
+Map<String, Object?> _mutateFirstJourney(
+  Map<String, Object?> body,
+  void Function(Map<String, Object?> journey) mutate,
+) {
+  final result = Map<String, Object?>.of(body);
+  final journeys = List<Object?>.of(result['journeys']! as List<Object?>);
+  final first = Map<String, Object?>.of(
+    journeys.first! as Map<String, Object?>,
+  );
+  mutate(first);
+  journeys[0] = first;
+  result['journeys'] = journeys;
+  return result;
+}
+
+Map<String, Object?> _mutateFirstRide(
+  Map<String, Object?> body,
+  void Function(Map<String, Object?> ride) mutate,
+) => _mutateFirstJourney(body, (journey) {
+  final legs = List<Object?>.of(journey['legs']! as List<Object?>);
+  final ride = Map<String, Object?>.of(legs.first! as Map<String, Object?>);
+  mutate(ride);
+  legs[0] = ride;
+  journey['legs'] = legs;
+});
 
 Map<String, Object?> _errorJson(String code) => {
   'contractVersion': 'JOURNEY_ERROR_V1',
@@ -234,6 +309,72 @@ void main() {
       success.journeys.every((journey) => journey.accessibility.stairFree),
       isTrue,
     );
+  });
+
+  test('Backend-domain response 교차필드 invariant 위반은 전체 실패다', () async {
+    final expired = Map<String, Object?>.of(_successJson())
+      ..['validUntil'] = '2026-08-11T00:00:00.000Z';
+    final wrongServiceDate = Map<String, Object?>.of(_successJson())
+      ..['serviceDate'] = '2026-08-12';
+    final excessCandidates = _successJson(
+      request: _singleAlternativeSearchRequest,
+      journeyIds: const ['journey-1', 'journey-2'],
+    );
+    final reversedCandidatePlanned = _mutateFirstJourney(_successJson(), (
+      journey,
+    ) {
+      journey['plannedArrivalTime'] = '2026-08-10T23:59:00.000Z';
+    });
+    final reversedCandidateRealtime = _mutateFirstJourney(
+      _successJson(request: _realtimeSearchRequest),
+      (journey) {
+        journey['realtimeArrivalTime'] = '2026-08-11T00:00:30.000Z';
+      },
+    );
+    final reversedRidePlanned = _mutateFirstRide(
+      _successJson(request: _realtimeSearchRequest),
+      (ride) {
+        ride['plannedArrivalTime'] = '2026-08-10T23:59:00.000Z';
+      },
+    );
+    final reversedRideRealtime = _mutateFirstRide(
+      _successJson(request: _realtimeSearchRequest),
+      (ride) {
+        ride['realtimeArrivalTime'] = '2026-08-11T00:00:30.000Z';
+      },
+    );
+    final blankAccessibilityReason = _mutateFirstJourney(_successJson(), (
+      journey,
+    ) {
+      final accessibility = Map<String, Object?>.of(
+        journey['accessibility']! as Map<String, Object?>,
+      )..['reasonCodes'] = const ['   '];
+      journey['accessibility'] = accessibility;
+    });
+    final cases = <(JourneySearchRequest, Map<String, Object?>)>[
+      (_searchRequest, expired),
+      (_searchRequest, wrongServiceDate),
+      (_singleAlternativeSearchRequest, excessCandidates),
+      (_searchRequest, reversedCandidatePlanned),
+      (_realtimeSearchRequest, reversedCandidateRealtime),
+      (_realtimeSearchRequest, reversedRidePlanned),
+      (_realtimeSearchRequest, reversedRideRealtime),
+      (_searchRequest, blankAccessibilityReason),
+    ];
+
+    for (final (request, body) in cases) {
+      final client = _StubApiClient([
+        ApiResponse(statusCode: 200, jsonBody: body),
+      ]);
+
+      await expectLater(
+        JourneyApiRepository(
+          client,
+        ).searchJourneys(request, sessionToken: 'session-token'),
+        throwsA(isA<JourneyProtocolFailure>()),
+      );
+      expect(client.posts, hasLength(1));
+    }
   });
 
   test(

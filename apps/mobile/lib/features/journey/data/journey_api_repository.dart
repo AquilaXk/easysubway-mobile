@@ -154,6 +154,16 @@ class JourneyApiRepository implements JourneyRepository {
         policy.alternativeCount != request.alternativeCount) {
       throw const FormatException('Journey success request policy mismatch');
     }
+    if (!success.validUntil.isAfter(success.calculatedAt)) {
+      throw const FormatException('Journey success validity window mismatch');
+    }
+    if (success.serviceDate.toString() !=
+        _seoulServiceDate(success.effectiveDepartureTime)) {
+      throw const FormatException('Journey success service date mismatch');
+    }
+    if (success.journeys.length > policy.alternativeCount) {
+      throw const FormatException('Journey success candidate count mismatch');
+    }
     final journeyIds = <String>{};
     for (final journey in success.journeys) {
       if (journey.planSource != JourneyPlanSource.serverTimetableRaptor ||
@@ -170,6 +180,57 @@ class JourneyApiRepository implements JourneyRepository {
           'Journey success accessibility constraint mismatch',
         );
       }
+      _validateJourneySemantics(journey);
     }
+  }
+
+  void _validateJourneySemantics(Journey journey) {
+    _requireOrdered(
+      journey.plannedDepartureTime,
+      journey.plannedArrivalTime,
+      'Journey candidate planned times',
+    );
+    if (journey.realtimeDepartureTime case final realtimeDeparture?) {
+      _requireOrdered(
+        realtimeDeparture,
+        journey.realtimeArrivalTime!,
+        'Journey candidate realtime times',
+      );
+    }
+    if (journey.accessibility.reasonCodes.any(
+      (reasonCode) => reasonCode.trim().isEmpty,
+    )) {
+      throw const FormatException(
+        'Journey accessibility reason code must be nonblank',
+      );
+    }
+    for (final leg in journey.legs) {
+      if (leg is! JourneyRideLeg) continue;
+      _requireOrdered(
+        leg.plannedDepartureTime,
+        leg.plannedArrivalTime,
+        'Journey ride planned times',
+      );
+      if (leg.realtimeDepartureTime case final realtimeDeparture?) {
+        _requireOrdered(
+          realtimeDeparture,
+          leg.realtimeArrivalTime!,
+          'Journey ride realtime times',
+        );
+      }
+    }
+  }
+
+  void _requireOrdered(DateTime departure, DateTime arrival, String label) {
+    if (departure.isAfter(arrival)) {
+      throw FormatException('$label must be ordered');
+    }
+  }
+
+  String _seoulServiceDate(DateTime instant) {
+    final seoul = instant.toUtc().add(const Duration(hours: 9));
+    return '${seoul.year.toString().padLeft(4, '0')}-'
+        '${seoul.month.toString().padLeft(2, '0')}-'
+        '${seoul.day.toString().padLeft(2, '0')}';
   }
 }
