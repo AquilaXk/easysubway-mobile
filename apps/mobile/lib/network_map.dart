@@ -2103,7 +2103,7 @@ class _NetworkMapTopBar extends StatelessWidget {
                       onSubmitted: onSearchSubmitted,
                       onClear: onSearchClear,
                     )
-                  : _NetworkMapSearchField(onSearchTap: onSearchTap),
+                  : NetworkMapSearchEntryButton(onTap: onSearchTap),
             ),
             const SizedBox(width: 8),
             Builder(
@@ -2193,78 +2193,6 @@ class _NetworkMapTopBar extends StatelessWidget {
       ],
       selectedRegion: selectedRegion,
       onRegionSelected: onRegionSelected,
-    );
-  }
-}
-
-class _NetworkMapSearchField extends StatelessWidget {
-  const _NetworkMapSearchField({required this.onSearchTap});
-
-  final VoidCallback onSearchTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: '지하철역 검색',
-      onTap: onSearchTap,
-      child: ExcludeSemantics(
-        // 입력 필드처럼 보이되 탭 시 어떤 ink 하이라이트/사각형도 뜨지 않게
-        // GestureDetector로 처리한다(InkWell의 transparent color로는 상위
-        // Material에 사각형이 남을 수 있음). 탭하면 조용히 검색 화면으로 전환. #1933
-        child: GestureDetector(
-          key: const Key('stationSearchButton'),
-          behavior: HitTestBehavior.opaque,
-          onTap: onSearchTap,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              final compact = constraints.maxWidth < 72;
-              return SizedBox(
-                height: EasySubwayTouchTarget.general,
-                child: Center(
-                  child: Container(
-                    key: const Key('heroStationSearchButton'),
-                    height: easySubwaySearchFieldVisualHeight,
-                    decoration: BoxDecoration(
-                      color: EasySubwayAccessibleColors.searchFieldSurface,
-                      border: Border.all(
-                        color: easySubwaySearchFieldBorderColor,
-                        width: easySubwaySearchFieldBorderWidth,
-                      ),
-                      borderRadius: easySubwaySearchFieldRadius,
-                    ),
-                    padding: EdgeInsets.symmetric(
-                      horizontal: compact
-                          ? 0
-                          : easySubwaySearchFieldHorizontalPadding,
-                    ),
-                    child: compact
-                        ? const SizedBox.shrink()
-                        : const Row(
-                            children: [
-                              Icon(
-                                Icons.search,
-                                size: easySubwaySearchFieldIconSize,
-                                color: EasySubwayAccessibleColors.iconMuted,
-                              ),
-                              SizedBox(width: easySubwaySearchFieldIconGap),
-                              Expanded(
-                                child: Text(
-                                  '지하철역 검색',
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: easySubwaySearchFieldHintStyle,
-                                ),
-                              ),
-                            ],
-                          ),
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ),
     );
   }
 }

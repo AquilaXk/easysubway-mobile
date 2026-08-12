@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
+import 'package:easysubway_mobile/search_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -83,6 +84,75 @@ void main() {
     },
   );
 
+  testWidgets('search-entry button은 visual·Semantics·callback을 보존한다', (
+    tester,
+  ) async {
+    var tapCount = 0;
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 200,
+          child: NetworkMapSearchEntryButton(onTap: () => tapCount += 1),
+        ),
+      ),
+    );
+
+    final button = find.byKey(const Key('stationSearchButton'));
+    final surface = find.byKey(const Key('heroStationSearchButton'));
+    expect(button, findsOneWidget);
+    expect(surface, findsOneWidget);
+    expect(tester.getSize(button).height, EasySubwayTouchTarget.general);
+    expect(tester.getSize(surface).height, easySubwaySearchFieldVisualHeight);
+    expect(find.byIcon(Icons.search), findsOneWidget);
+    expect(find.text('지하철역 검색'), findsOneWidget);
+
+    final container = tester.widget<Container>(surface);
+    expect(
+      container.padding,
+      const EdgeInsets.symmetric(
+        horizontal: easySubwaySearchFieldHorizontalPadding,
+      ),
+    );
+    expect(
+      container.decoration,
+      BoxDecoration(
+        color: EasySubwayAccessibleColors.searchFieldSurface,
+        border: Border.all(
+          color: easySubwaySearchFieldBorderColor,
+          width: easySubwaySearchFieldBorderWidth,
+        ),
+        borderRadius: easySubwaySearchFieldRadius,
+      ),
+    );
+
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('지하철역 검색'), findsOneWidget);
+    await tester.tap(button);
+    expect(tapCount, 1);
+    semantics.dispose();
+  });
+
+  testWidgets('search-entry button은 72px 미만에서 visual만 compact하다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        const SizedBox(
+          width: 71,
+          child: NetworkMapSearchEntryButton(onTap: _noop),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('stationSearchButton')), findsOneWidget);
+    expect(find.byKey(const Key('heroStationSearchButton')), findsOneWidget);
+    expect(find.byIcon(Icons.search), findsNothing);
+    expect(find.text('지하철역 검색'), findsNothing);
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('지하철역 검색'), findsOneWidget);
+    semantics.dispose();
+  });
+
   test('root는 direct owner만 소비하고 private compatibility surface가 없다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
     expect(
@@ -93,8 +163,11 @@ void main() {
     );
     expect(root, contains('NetworkMapLookupToast('));
     expect(root, contains('NetworkMapCurrentLocationButton('));
+    expect(root, contains('NetworkMapSearchEntryButton('));
     expect(root, isNot(contains('class _NetworkMapLookupToast')));
     expect(root, isNot(contains('class _NetworkMapCurrentLocationButton')));
-    expect(root, contains('class _NetworkMapSearchField'));
+    expect(root, isNot(contains('class _NetworkMapSearchField')));
   });
 }
+
+void _noop() {}
