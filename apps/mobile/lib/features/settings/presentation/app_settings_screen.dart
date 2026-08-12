@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -136,8 +138,10 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                     subtitle: '필수 행동과 상태 안내를 먼저 보여줘요',
                     enabled: _viewPreferences.simpleViewEnabled,
                     onChanged: (value) {
-                      _updateViewPreferences(
-                        _viewPreferences.copyWith(simpleViewEnabled: value),
+                      unawaited(
+                        _updateViewPreferences(
+                          _viewPreferences.copyWith(simpleViewEnabled: value),
+                        ),
                       );
                     },
                   ),
@@ -147,8 +151,10 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                     subtitle: '버튼과 상태 문구의 대비를 더 강하게 보여줘요',
                     enabled: _viewPreferences.highContrastEnabled,
                     onChanged: (value) {
-                      _updateViewPreferences(
-                        _viewPreferences.copyWith(highContrastEnabled: value),
+                      unawaited(
+                        _updateViewPreferences(
+                          _viewPreferences.copyWith(highContrastEnabled: value),
+                        ),
                       );
                     },
                   ),
@@ -165,12 +171,14 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
                       key: const Key('notificationSettingsButton'),
                       title: '알림 설정',
                       onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute<void>(
-                            builder: (_) => NotificationSettingsScreen(
-                              repository: widget.notificationRepository!,
-                              notificationPermissionProvider:
-                                  widget.notificationPermissionProvider,
+                        unawaited(
+                          Navigator.of(context).push(
+                            MaterialPageRoute<void>(
+                              builder: (_) => NotificationSettingsScreen(
+                                repository: widget.notificationRepository!,
+                                notificationPermissionProvider:
+                                    widget.notificationPermissionProvider,
+                              ),
                             ),
                           ),
                         );
