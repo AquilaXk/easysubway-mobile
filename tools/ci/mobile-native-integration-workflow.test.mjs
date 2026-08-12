@@ -25,10 +25,17 @@ test("native workflow runs one bounded Android Journey smoke and iOS simulator c
   assert.match(workflow, /^          target: google_apis$/m);
   assert.match(workflow, /^          arch: x86_64$/m);
   assert.match(workflow, /^          emulator-port: 5554$/m);
-  assert.match(workflow, /flutter test integration_test\/native_test\.dart -d emulator-5554/u);
+  assert.match(
+    workflow,
+    /if ! timeout 12m flutter test integration_test\/native_test\.dart -d emulator-5554; then\n              adb logcat -d -b crash\n              exit 1\n            fi/u,
+  );
 
   assert.match(workflow, /^  ios-compile:\n    name: iOS simulator compile\n    runs-on: macos-15\n    timeout-minutes: 25$/m);
   assert.equal((workflow.match(/flutter-version: "3\.44\.0"/gu) ?? []).length, 2);
+  assert.match(
+    workflow,
+    /^        env:\n          DEVELOPER_DIR: \/Applications\/Xcode_26\.3\.app\/Contents\/Developer\n        run: flutter build ios --simulator --debug$/m,
+  );
   assert.match(workflow, /flutter build ios --simulator --debug/u);
   assert.doesNotMatch(workflow, /secrets\.|EASYSUBWAY_API_BASE_URL|release|upload|store/iu);
 });

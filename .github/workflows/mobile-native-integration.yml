@@ -80,7 +80,10 @@ jobs:
           script: |
             dart format --output=none --set-exit-if-changed integration_test/native_test.dart
             flutter analyze integration_test/native_test.dart
-            flutter test integration_test/native_test.dart -d emulator-5554
+            if ! timeout 12m flutter test integration_test/native_test.dart -d emulator-5554; then
+              adb logcat -d -b crash
+              exit 1
+            fi
 
   ios-compile:
     name: iOS simulator compile
@@ -102,4 +105,6 @@ jobs:
         run: flutter pub get
       - name: Compile iOS simulator debug app
         working-directory: apps/mobile
+        env:
+          DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
         run: flutter build ios --simulator --debug
