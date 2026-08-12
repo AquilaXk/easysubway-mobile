@@ -198,6 +198,30 @@ void main() {
     expect(controller.enableCalls, 0);
   });
 
+  testWidgets('enable 완료 전에 선택이 바뀌면 이전 Journey alarm을 보상 해제한다', (tester) async {
+    controller.enableBarrier = Completer<void>();
+    controller.enableStarted = Completer<void>();
+    Widget toggle(String journeyId) => JourneyGetOffAlarmToggle(
+      snapshot: _snapshot(journeyId: journeyId),
+      controller: controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+      now: () => now,
+    );
+    await tester.pumpWidget(_host(toggle('journey-1')));
+    await tester.tap(find.byType(Switch));
+    while (!controller.enableStarted!.isCompleted) {
+      await tester.pump();
+    }
+
+    await tester.pumpWidget(_host(toggle('journey-2')));
+    controller.enableBarrier!.complete();
+    await tester.pumpAndSettle();
+
+    expect(controller.conditionalDisableCalls, 1);
+    expect(controller.events, ['enable', 'disable-if-active']);
+    expect(controller.state.enabled, isFalse);
+  });
+
   testWidgets('controller 교체는 listener를 옮기고 새 controller state를 반영한다', (
     tester,
   ) async {
@@ -310,6 +334,45 @@ void main() {
     expect(controller.events, ['enable']);
     expect(find.text('하차 알림을 켜지 못했어요. 다시 시도해 주세요.'), findsOneWidget);
   });
+
+  testWidgets('권한 거부와 부정확 예약 안내를 live region으로 표시한다', (tester) async {
+    final snapshot = _snapshot();
+    Widget toggle() => JourneyGetOffAlarmToggle(
+      snapshot: snapshot,
+      controller: controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+      now: () => now,
+    );
+    controller.setTestState(
+      const GetOffAlarmState(permissionNotice: '휴대전화 알림 권한을 허용해 주세요.'),
+    );
+    await tester.pumpWidget(_host(toggle()));
+
+    expect(find.text('휴대전화 알림 권한을 허용해 주세요.'), findsOneWidget);
+    expect(
+      tester
+          .widget<Semantics>(
+            find.byKey(const Key('journey-get-off-alarm-notice')),
+          )
+          .properties
+          .liveRegion,
+      isTrue,
+    );
+
+    controller.setTestState(
+      GetOffAlarmState(
+        enabled: true,
+        activeRouteId: 'journey-1',
+        activeJourneyIdentity: journeyAlarmIdentityForSnapshot(snapshot),
+        inexactNotice: '정확 알람 권한이 없어 ±수 분 오차가 있을 수 있어요.',
+        scheduledCount: 2,
+      ),
+    );
+    await tester.pump();
+
+    expect(find.text('정확 알람 권한이 없어 ±수 분 오차가 있을 수 있어요.'), findsOneWidget);
+    expect(find.text('휴대전화 알림 권한을 허용해 주세요.'), findsNothing);
+  });
 }
 
 Widget _host(Widget child) => MaterialApp(home: Scaffold(body: child));
@@ -419,10 +482,13 @@ class _Controller extends GetOffAlarmController {
   GetOffAlarmState _testState = GetOffAlarmState.off;
   int enableCalls = 0;
   int disableCalls = 0;
+  int conditionalDisableCalls = 0;
   int addListenerCalls = 0;
   int removeListenerCalls = 0;
   Object? enableError;
   Object? disableError;
+  Completer<void>? enableBarrier;
+  Completer<void>? enableStarted;
   JourneyAlarmSubscriptionIdentity? identity;
   List<GetOffAlarmStop> stops = const [];
   final events = <String>[];
@@ -455,6 +521,9 @@ class _Controller extends GetOffAlarmController {
   }) async {
     enableCalls++;
     events.add('enable');
+    final started = enableStarted;
+    if (started != null && !started.isCompleted) started.complete();
+    await enableBarrier?.future;
     final error = enableError;
     if (error != null) throw error;
     this.identity = identity;
@@ -474,6 +543,17 @@ class _Controller extends GetOffAlarmController {
     events.add('disable');
     final error = disableError;
     if (error != null) throw error;
+    _testState = GetOffAlarmState.off;
+    notifyListeners();
+  }
+
+  @override
+  Future<void> disableJourneyIfActive(
+    JourneyAlarmSubscriptionIdentity identity,
+  ) async {
+    conditionalDisableCalls++;
+    events.add('disable-if-active');
+    if (_testState.activeJourneyIdentity != identity) return;
     _testState = GetOffAlarmState.off;
     notifyListeners();
   }

@@ -903,6 +903,63 @@ void main() {
     expect(c.state.activeJourneyIdentity, identity);
   });
 
+  for (final recovery in [
+    (
+      name: '0건',
+      result: const ScheduleDeliveryResult(scheduledCount: 0, failedCount: 2),
+    ),
+    (
+      name: '부분',
+      result: const ScheduleDeliveryResult(scheduledCount: 1, failedCount: 1),
+    ),
+  ]) {
+    test('disable clear 실패 뒤 ${recovery.name} 예약은 enabled로 복원하지 않는다', () async {
+      final clearError = StateError('clear failed');
+      final stateRepository = _RecordingStateRepository();
+      final c = GetOffAlarmController(
+        notifier: notifier,
+        permissionGate: _StubExactAlarmGate(true),
+        notificationPermissionProvider: _StubNotificationPermissionProvider(
+          NotificationPermissionStatus.granted,
+        ),
+        repository: stateRepository,
+        now: () => now,
+      );
+      addTearDown(c.dispose);
+      await c.enableJourney(
+        identity: _journeyIdentity(),
+        stops: stops(),
+        transferAlarmEnabled: true,
+      );
+      stateRepository.clearError = clearError;
+      notifier.result = recovery.result;
+
+      await expectLater(c.disable(), throwsA(same(clearError)));
+
+      expect(c.state.enabled, isFalse);
+      expect(c.state.scheduledCount, 0);
+      expect(c.state.activeJourneyIdentity, isNull);
+      expect(notifier.cancelAllCount, greaterThanOrEqualTo(2));
+    });
+  }
+
+  test('conditional Journey disable은 exact active identity에만 적용한다', () async {
+    final c = controller(exactPermitted: true);
+    final activeIdentity = _journeyIdentity();
+    await c.enableJourney(
+      identity: activeIdentity,
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
+
+    await c.disableJourneyIfActive(_journeyIdentity('other'));
+    expect(c.state.activeJourneyIdentity, activeIdentity);
+
+    await c.disableJourneyIfActive(activeIdentity);
+    expect(c.state.enabled, isFalse);
+    expect(await repository.loadActive(), isNull);
+  });
+
   test('disable 복구 예약도 실패하면 복구 오류를 보고하고 원래 clear 오류를 보존한다', () async {
     final clearError = StateError('clear failed');
     final compensationError = StateError('reschedule failed');

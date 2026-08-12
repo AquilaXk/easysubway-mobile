@@ -395,6 +395,16 @@ class GetOffAlarmController extends ChangeNotifier {
   /// 경로 탐색 시 호출한다.
   Future<void> disable() => _enqueueMutation(_disable);
 
+  /// 비동기 Journey enable이 낡아진 뒤 해당 identity가 여전히 active일 때만
+  /// 보상 해제한다. 뒤이어 활성화된 다른 Journey는 건드리지 않는다.
+  Future<void> disableJourneyIfActive(
+    JourneyAlarmSubscriptionIdentity identity,
+  ) => _enqueueMutation(() async {
+    final subscription = await repository.loadActive();
+    if (subscription?.journeyIdentity != identity) return;
+    await _disable(subscription: subscription);
+  });
+
   Future<T> _enqueueMutation<T>(Future<T> Function() mutation) {
     final result = _mutationTail.then((_) => mutation());
     _mutationTail = result.then<void>(
@@ -411,8 +421,8 @@ class GetOffAlarmController extends ChangeNotifier {
     _emit(GetOffAlarmState(permissionNotice: permissionNotice));
   }
 
-  Future<void> _disable() async {
-    final subscription = await repository.loadActive();
+  Future<void> _disable({GetOffAlarmSubscription? subscription}) async {
+    subscription ??= await repository.loadActive();
     try {
       await notifier.cancelAll();
       await repository.clearActive();
@@ -426,14 +436,33 @@ class GetOffAlarmController extends ChangeNotifier {
             ),
             now: now(),
           );
-          if (alarms.isNotEmpty) {
-            await notifier.scheduleAlarms(
+          if (alarms.isEmpty) {
+            _emit(GetOffAlarmState.off);
+          } else {
+            final delivery = await notifier.scheduleAlarms(
               alarms,
               mode: subscription.scheduleMode,
             );
+            if (delivery.scheduledCount == alarms.length &&
+                delivery.failedCount == 0) {
+              _emitSubscription(
+                _subscriptionFrom(
+                  routeId: subscription.routeId,
+                  journeyIdentity: subscription.journeyIdentity,
+                  stops: _stopsFrom(subscription),
+                  transferAlarmEnabled: subscription.transferAlarmEnabled,
+                  scheduledCount: delivery.scheduledCount,
+                  scheduleMode: subscription.scheduleMode,
+                  inexactNotice: subscription.inexactNotice,
+                ),
+              );
+            } else {
+              _emit(GetOffAlarmState.off);
+              await notifier.cancelAll();
+            }
           }
-          _emitSubscription(subscription);
         } catch (compensationError, compensationStackTrace) {
+          _emit(GetOffAlarmState.off);
           reportMobileError(
             compensationError,
             compensationStackTrace,

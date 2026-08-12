@@ -68,11 +68,13 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
   @override
   void didUpdateWidget(covariant JourneyGetOffAlarmToggle oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.controller != widget.controller) {
+    final controllerChanged = oldWidget.controller != widget.controller;
+    if (controllerChanged) {
       oldWidget.controller.removeListener(_controllerChanged);
       widget.controller.addListener(_controllerChanged);
     }
-    if (journeyAlarmIdentityForSnapshot(oldWidget.snapshot) != _identity) {
+    if (controllerChanged ||
+        journeyAlarmIdentityForSnapshot(oldWidget.snapshot) != _identity) {
       _generation++;
       _busy = false;
       _error = null;
@@ -92,6 +94,10 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
 
   Future<void> _toggle(bool enabled) async {
     if (_busy) return;
+    final snapshot = widget.snapshot;
+    final controller = widget.controller;
+    final stationNameResolver = widget.stationNameResolver;
+    final currentTime = widget.now();
     final generation = ++_generation;
     setState(() {
       _busy = true;
@@ -99,7 +105,7 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
     });
     if (!enabled) {
       try {
-        await widget.controller.disable();
+        await controller.disable();
         _finish(generation);
       } on Object {
         _finish(generation, error: '알림을 끄지 못했어요. 다시 시도해 주세요.');
@@ -110,8 +116,8 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
     final JourneyGetOffAlarmBinding binding;
     try {
       binding = JourneyGetOffAlarmBinding.fromSnapshot(
-        widget.snapshot,
-        now: widget.now(),
+        snapshot,
+        now: currentTime,
       );
     } on JourneyAlarmBindingException {
       _finish(generation, error: '이 경로로 하차 알림을 켤 수 없어요.');
@@ -121,9 +127,7 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
     final stops = <GetOffAlarmStop>[];
     try {
       for (final input in binding.stops) {
-        final stationName = (await widget.stationNameResolver(
-          input.stationId,
-        )).trim();
+        final stationName = (await stationNameResolver(input.stationId)).trim();
         if (!_isCurrent(generation)) return;
         if (stationName.isEmpty || stationName == input.stationId) {
           _finish(generation, error: '역 이름을 확인하지 못해 알림을 켜지 않았어요.');
@@ -148,17 +152,21 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
     if (!_isCurrent(generation)) return;
 
     try {
-      final identity = journeyAlarmIdentityForSnapshot(widget.snapshot);
-      final activeIdentity = widget.controller.state.activeJourneyIdentity;
+      final identity = journeyAlarmIdentityForSnapshot(snapshot);
+      final activeIdentity = controller.state.activeJourneyIdentity;
       if (activeIdentity != null && activeIdentity != identity) {
-        await widget.controller.disable();
+        await controller.disable();
         if (!_isCurrent(generation)) return;
       }
-      await widget.controller.enableJourney(
+      await controller.enableJourney(
         identity: identity,
         stops: stops,
         transferAlarmEnabled: true,
       );
+      if (!_isCurrent(generation)) {
+        await controller.disableJourneyIfActive(identity);
+        return;
+      }
       _finish(generation);
     } on Object {
       _finish(generation, error: '하차 알림을 켜지 못했어요. 다시 시도해 주세요.');
@@ -178,6 +186,8 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
   @override
   Widget build(BuildContext context) {
     final enabled = _enabled;
+    final state = widget.controller.state;
+    final notice = enabled ? state.inexactNotice : state.permissionNotice;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -206,6 +216,16 @@ class _JourneyGetOffAlarmToggleState extends State<JourneyGetOffAlarmToggle> {
               error,
               key: const Key('journey-get-off-alarm-error'),
               style: TextStyle(color: Theme.of(context).colorScheme.error),
+            ),
+          ),
+        if (notice case final notice?)
+          Semantics(
+            key: const Key('journey-get-off-alarm-notice'),
+            container: true,
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(notice),
             ),
           ),
       ],
