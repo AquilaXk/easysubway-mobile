@@ -1275,6 +1275,47 @@ void main() {
     expect(controller.state.facilities.single.name, '1번 출구 엘리베이터');
   });
 
+  test('역 상세 컨트롤러는 늦은 이전 역 응답으로 현재 역을 덮지 않는다', () async {
+    final repository = MultiStationDetailRepository();
+    final controller = StationDetailController(repository: repository);
+    addTearDown(controller.dispose);
+
+    final oldLoad = controller.load('station-sangnoksu');
+    final currentLoad = controller.load('station-sadang');
+
+    repository.complete('station-sadang', name: '사당');
+    await currentLoad;
+    expect(controller.state.detail?.id, 'station-sadang');
+
+    repository.complete('station-sangnoksu', name: '상록수');
+    await oldLoad;
+
+    expect(controller.state.detail?.id, 'station-sadang');
+    expect(controller.state.detail?.nameKo, '사당');
+  });
+
+  test('역 상세 컨트롤러는 늦은 이전 역 예기치 않은 실패로 현재 역을 덮지 않는다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final repository = MultiStationDetailRepository();
+    final controller = StationDetailController(repository: repository);
+    addTearDown(controller.dispose);
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      final oldLoad = controller.load('station-sangnoksu');
+      final currentLoad = controller.load('station-sadang');
+
+      repository.complete('station-sadang', name: '사당');
+      await currentLoad;
+
+      repository.failUnexpected('station-sangnoksu');
+      await oldLoad;
+    });
+
+    expect(reportedErrors, hasLength(1));
+    expect(controller.state.detail?.id, 'station-sadang');
+    expect(controller.state.detail?.nameKo, '사당');
+  });
+
   test('역 상세 컨트롤러는 실시간 도착 실패와 정적 역 정보를 분리한다', () async {
     final repository = ControlledStationDetailRepository();
     final controller = StationDetailController(
@@ -2013,6 +2054,62 @@ class ControlledStationDetailRepository implements StationSearchRepository {
     );
     _exitsCompleter.complete([_stationExit()]);
     _facilitiesCompleter.complete([_stationFacility()]);
+  }
+}
+
+class MultiStationDetailRepository implements StationSearchRepository {
+  final _details = <String, Completer<StationDetail>>{};
+  final _exits = <String, Completer<List<StationExitInfo>>>{};
+  final _facilities = <String, Completer<List<StationFacilityInfo>>>{};
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<List<StationSearchResult>> searchNearbyStations(
+    CurrentLocation location, {
+    int radiusMeters = 2000,
+    int limit = 10,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) {
+    return _details.putIfAbsent(stationId, Completer<StationDetail>.new).future;
+  }
+
+  @override
+  Future<List<StationExitInfo>> listStationExits(String stationId) {
+    return _exits
+        .putIfAbsent(stationId, Completer<List<StationExitInfo>>.new)
+        .future;
+  }
+
+  @override
+  Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
+    return _facilities
+        .putIfAbsent(stationId, Completer<List<StationFacilityInfo>>.new)
+        .future;
+  }
+
+  void complete(String stationId, {required String name}) {
+    _details[stationId]!.complete(_stationDetail(id: stationId, name: name));
+    _exits[stationId]!.complete(const []);
+    _facilities[stationId]!.complete(const []);
+  }
+
+  void failUnexpected(String stationId) {
+    _details[stationId]!.completeError(
+      StateError('unexpected station detail failure'),
+    );
+    _exits[stationId]!.complete(const []);
+    _facilities[stationId]!.complete(const []);
   }
 }
 

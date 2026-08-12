@@ -13829,6 +13829,80 @@ void main() {
     }
   });
 
+  testWidgets('확장 역 상세는 늦은 이전 역 내부 이동 응답을 현재 역에 적용하지 않는다', (tester) async {
+    final internalRouteRepository = ControlledStationInternalRouteRepository();
+    final stationRepository = FakeStationSearchRepository(
+      stationDetails: {
+        'station-sangnoksu': _stationDetail(
+          id: 'station-sangnoksu',
+          name: '상록수',
+        ),
+        'station-sadang': _stationDetail(id: 'station-sadang', name: '사당'),
+      },
+    );
+
+    Widget host(String stationId) {
+      return MaterialApp(
+        home: StationDetailExpandHost(
+          repository: stationRepository,
+          reportRepository: FakeFacilityReportRepository(),
+          stationId: stationId,
+          internalRouteRepository: internalRouteRepository,
+          internalRouteMobilityType: 'WHEELCHAIR',
+        ),
+      );
+    }
+
+    await tester.pumpWidget(host('station-sangnoksu'));
+    await tester.pumpWidget(host('station-sadang'));
+
+    internalRouteRepository.completeNodes('station-sadang');
+    await tester.pump();
+    await tester.pump();
+    expect(
+      internalRouteRepository.requests.map((request) => request.stationId),
+      ['station-sadang'],
+    );
+
+    internalRouteRepository.completeNodes('station-sangnoksu');
+    await tester.pump();
+    await tester.pump();
+
+    expect(
+      internalRouteRepository.requests.map((request) => request.stationId),
+      ['station-sadang'],
+    );
+  });
+
+  testWidgets('확장 역 상세는 주입된 내부 이동 요청을 즉시 전달한다', (tester) async {
+    const request = InternalRouteRequest(
+      stationId: 'station-sangnoksu',
+      fromNodeId: 'node-sangnoksu-elevator-1',
+      toNodeId: 'node-sangnoksu-faregate',
+      mobilityType: 'WHEELCHAIR',
+    );
+    final internalRouteRepository = FakeInternalRouteRepository(
+      result: _internalRouteResult(),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationDetailExpandHost(
+          repository: FakeStationSearchRepository(
+            stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          ),
+          reportRepository: FakeFacilityReportRepository(),
+          stationId: 'station-sangnoksu',
+          internalRouteRepository: internalRouteRepository,
+          internalRouteRequest: request,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(internalRouteRepository.requests, [request]);
+  });
+
   testWidgets('역 상세 광고는 성공 content 최하단에 station placement로 배선된다', (
     tester,
   ) async {
@@ -21961,6 +22035,50 @@ class FakeInternalRouteRepository implements InternalRouteRepository {
       throw routeError;
     }
     return result;
+  }
+}
+
+class ControlledStationInternalRouteRepository
+    implements InternalRouteRepository {
+  final _nodeCompleters = <String, Completer<List<InternalRouteNode>>>{};
+  final nodeStationIds = <String>[];
+  final requests = <InternalRouteRequest>[];
+
+  @override
+  Future<List<InternalRouteNode>> listRouteNodes(String stationId) {
+    nodeStationIds.add(stationId);
+    return _nodeCompleters
+        .putIfAbsent(stationId, Completer<List<InternalRouteNode>>.new)
+        .future;
+  }
+
+  @override
+  Future<InternalRouteResult> searchInternalRoute(
+    InternalRouteRequest request,
+  ) async {
+    requests.add(request);
+    return _internalRouteResult();
+  }
+
+  void completeNodes(String stationId) {
+    _nodeCompleters[stationId]!.complete([
+      InternalRouteNode(
+        id: '$stationId-elevator',
+        stationId: stationId,
+        type: 'ELEVATOR',
+        name: '엘리베이터',
+        facilityId: '$stationId-facility',
+        displayLabel: '엘리베이터',
+      ),
+      InternalRouteNode(
+        id: '$stationId-faregate',
+        stationId: stationId,
+        type: 'FAREGATE',
+        name: '개찰구',
+        facilityId: '',
+        displayLabel: '개찰구',
+      ),
+    ]);
   }
 }
 
