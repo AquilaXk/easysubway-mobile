@@ -243,6 +243,33 @@ void main() {
     expect(find.text('경로 후보 2개'), findsOneWidget);
   });
 
+  testWidgets('validUntil 만료는 후보·선택 상세·공유 claim을 함께 제거한다', (tester) async {
+    var current = DateTime.now().toUtc();
+    final repository = _Repository()..responseNow = current;
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      journeyNow: () => current,
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+    await tester.pump();
+
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+    expect(find.text('선택 경로 상세'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, '공유'), findsOneWidget);
+
+    current = current.add(const Duration(minutes: 5));
+    await tester.pump(const Duration(minutes: 5));
+
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(find.text('선택 경로 상세'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, '공유'), findsNothing);
+    expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
+  });
+
   testWidgets('incomplete 또는 waypoint draft는 request를 만들지 않는다', (tester) async {
     final incomplete = _Repository();
     await _pumpScreen(
@@ -350,6 +377,7 @@ Future<void> _pumpScreen(
   GetOffAlarmController? getOffAlarmController,
   Future<String> Function(String stationId)? stationNameResolver,
   DateTime Function()? getOffAlarmNow,
+  DateTime Function()? journeyNow,
 }) {
   return tester.pumpWidget(
     MaterialApp(
@@ -363,6 +391,7 @@ Future<void> _pumpScreen(
         getOffAlarmController: getOffAlarmController,
         stationNameResolver: stationNameResolver,
         getOffAlarmNow: getOffAlarmNow,
+        journeyNow: journeyNow ?? () => DateTime.utc(2026, 8, 12),
       ),
     ),
   );
@@ -389,6 +418,7 @@ class _Repository implements JourneyRepository {
   int sessionRequests = 0;
   int failuresRemaining = 0;
   Completer<JourneySessionResponse>? sessionCompleter;
+  DateTime? responseNow;
   List<String> journeyIds = <String>['journey-2', 'journey-1'];
   final List<JourneySearchRequest> requests = <JourneySearchRequest>[];
 
@@ -397,7 +427,7 @@ class _Repository implements JourneyRepository {
     JourneySessionRequest request,
   ) async {
     sessionRequests++;
-    return sessionCompleter?.future ?? _sessionResponse();
+    return sessionCompleter?.future ?? _sessionResponse(responseNow);
   }
 
   @override
@@ -413,12 +443,12 @@ class _Repository implements JourneyRepository {
         'private transport detail',
       );
     }
-    return _success(request, journeyIds);
+    return _success(request, journeyIds, now: responseNow);
   }
 }
 
-JourneySessionResponse _sessionResponse() {
-  final now = DateTime.now().toUtc();
+JourneySessionResponse _sessionResponse([DateTime? issuedAt]) {
+  final now = issuedAt ?? DateTime.utc(2026, 8, 12);
   return JourneySessionResponse(
     token: 'session-token',
     scope: JourneySessionScope.journeyV3,
@@ -429,16 +459,17 @@ JourneySessionResponse _sessionResponse() {
 
 JourneySearchSuccess _success(
   JourneySearchRequest request,
-  List<String> journeyIds,
-) {
-  final now = DateTime.utc(2026, 8, 12);
+  List<String> journeyIds, {
+  DateTime? now,
+}) {
+  final responseNow = now ?? DateTime.utc(2026, 8, 12);
   return JourneySearchSuccess(
     contractVersion: JourneyContractVersion.journeySearchV3,
     requestId: request.requestId,
     queryId: 'query-1',
-    calculatedAt: now,
-    validUntil: now.add(const Duration(minutes: 5)),
-    effectiveDepartureTime: now,
+    calculatedAt: responseNow,
+    validUntil: responseNow.add(const Duration(minutes: 5)),
+    effectiveDepartureTime: responseNow,
     serviceDate: JourneyDate.parse('2026-08-12'),
     serviceTimezone: 'Asia/Seoul',
     sourceIdentity: JourneySourceIdentity(
@@ -455,7 +486,9 @@ JourneySearchSuccess _success(
       maxTransfers: request.maxTransfers,
       alternativeCount: request.alternativeCount,
     ),
-    journeys: journeyIds.map((id) => _journey(id, now)).toList(growable: false),
+    journeys: journeyIds
+        .map((id) => _journey(id, responseNow))
+        .toList(growable: false),
   );
 }
 

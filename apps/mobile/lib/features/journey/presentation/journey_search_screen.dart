@@ -26,6 +26,7 @@ class JourneySearchScreen extends StatefulWidget {
     this.getOffAlarmController,
     this.stationNameResolver,
     this.getOffAlarmNow,
+    this.journeyNow,
     super.key,
   }) : assert((getOffAlarmController == null) == (stationNameResolver == null));
 
@@ -38,6 +39,7 @@ class JourneySearchScreen extends StatefulWidget {
   final GetOffAlarmController? getOffAlarmController;
   final JourneyStationNameResolver? stationNameResolver;
   final DateTime Function()? getOffAlarmNow;
+  final DateTime Function()? journeyNow;
 
   @override
   State<JourneySearchScreen> createState() => _JourneySearchScreenState();
@@ -56,6 +58,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen> {
     _controller = JourneySearchController(
       repository: widget.repository,
       attestor: widget.attestor,
+      now: widget.journeyNow,
     )..addListener(_changed);
   }
 
