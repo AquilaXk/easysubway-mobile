@@ -23,7 +23,7 @@ void main() {
     expect(find.text('corr-ui-1'), findsOneWidget);
   });
 
-  testWidgets('showAnnouncedErrorSnackBar shows snackbar message', (
+  testWidgets('showAnnouncedErrorSnackBar opens correlation reference sheet', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -33,7 +33,11 @@ void main() {
             builder: (context) {
               return TextButton(
                 onPressed: () {
-                  showAnnouncedErrorSnackBar(context, '공지 테스트 오류');
+                  showAnnouncedErrorSnackBar(
+                    context,
+                    '공지 테스트 오류',
+                    correlationId: 'corr-snackbar-1',
+                  );
                 },
                 child: const Text('trigger'),
               );
@@ -44,7 +48,13 @@ void main() {
     );
 
     await tester.tap(find.text('trigger'));
-    await tester.pump();
+    await tester.pumpAndSettle();
     expect(find.text('공지 테스트 오류'), findsOneWidget);
+
+    await tester.tap(find.text('참조 번호'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('errorReferenceId')), findsOneWidget);
+    expect(find.text('corr-snackbar-1'), findsOneWidget);
   });
 }
