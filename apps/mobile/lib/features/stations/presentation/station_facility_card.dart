@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -120,12 +122,14 @@ class StationFacilityCard extends StatelessWidget {
   }
 
   void _openFacilityDetail(BuildContext context) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => FacilityDetailScreen(
-          station: station,
-          facility: facility,
-          onReportTap: onReportTap,
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => FacilityDetailScreen(
+            station: station,
+            facility: facility,
+            onReportTap: onReportTap,
+          ),
         ),
       ),
     );
