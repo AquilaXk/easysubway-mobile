@@ -267,10 +267,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         setState(() {});
       }
       // 자동 전환을 화면 낭독기에 알린다(포커스는 옮기지 않는다).
-      SemanticsService.sendAnnouncement(
-        View.of(context),
-        '출발과 도착이 정해져 경로 결과를 보여드려요.',
-        Directionality.of(context),
+      unawaited(
+        SemanticsService.sendAnnouncement(
+          View.of(context),
+          '출발과 도착이 정해져 경로 결과를 보여드려요.',
+          Directionality.of(context),
+        ),
       );
     });
   }
@@ -326,54 +328,64 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         mobilityPresetFromRepresentativeMobilityType(_mobilityType) ??
         MobilityPreset.standard;
     void openSupportAccess() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => SupportAccessScreen(
-            accessInfo: supportAccessInfo,
-            launcher: supportAccessLauncher,
-            userDataDeletionRepository: userDataDeletionRepository,
-            onUserDataDeleted: onUserDataDeleted,
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => SupportAccessScreen(
+              accessInfo: supportAccessInfo,
+              launcher: supportAccessLauncher,
+              userDataDeletionRepository: userDataDeletionRepository,
+              onUserDataDeleted: onUserDataDeleted,
+            ),
           ),
         ),
       );
     }
 
     void openInquiry() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => InquiryScreen(
-            accessInfo: supportAccessInfo,
-            launcher: supportAccessLauncher,
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => InquiryScreen(
+              accessInfo: supportAccessInfo,
+              launcher: supportAccessLauncher,
+            ),
           ),
         ),
       );
     }
 
     void openServiceInfo() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ServiceInfoScreen(accessInfo: supportAccessInfo),
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => ServiceInfoScreen(accessInfo: supportAccessInfo),
+          ),
         ),
       );
     }
 
     void openMyReports() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) =>
-              MyFacilityReportListScreen(repository: reportRepository),
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                MyFacilityReportListScreen(repository: reportRepository),
+          ),
         ),
       );
     }
 
     void openNotificationInbox() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => NotificationInboxScreen(
-            favoriteFacilityRepository: favoriteFacilityRepository,
-            reportRepository: reportRepository,
-            notificationRepository: notificationRepository,
-            notificationPermissionProvider: notificationPermissionProvider,
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => NotificationInboxScreen(
+              favoriteFacilityRepository: favoriteFacilityRepository,
+              reportRepository: reportRepository,
+              notificationRepository: notificationRepository,
+              notificationPermissionProvider: notificationPermissionProvider,
+            ),
           ),
         ),
       );
@@ -533,18 +545,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       if (noticeController == null) {
         return;
       }
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => ServiceNoticeListScreen(controller: noticeController),
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                ServiceNoticeListScreen(controller: noticeController),
+          ),
         ),
       );
     }
 
     void openTrainSearch() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) =>
-              TrainSearchScreen(repository: widget.trainSearchRepository),
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) =>
+                TrainSearchScreen(repository: widget.trainSearchRepository),
+          ),
         ),
       );
     }

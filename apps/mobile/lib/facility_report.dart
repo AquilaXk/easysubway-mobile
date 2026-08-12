@@ -780,9 +780,11 @@ class _MyReportListItem extends StatelessWidget {
         : report.description;
     final createdAtLabel = report.createdDateLabel;
     void openReportDetail() {
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => MyFacilityReportDetailScreen(report: report),
+      unawaited(
+        Navigator.of(context).push(
+          MaterialPageRoute<void>(
+            builder: (_) => MyFacilityReportDetailScreen(report: report),
+          ),
         ),
       );
     }

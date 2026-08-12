@@ -95,10 +95,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       JourneySearchStatus.failure: () => '경로를 찾지 못했어요.',
     }[state.status]?.call();
     if (message != null) {
-      SemanticsService.sendAnnouncement(
-        View.of(context),
-        message,
-        TextDirection.ltr,
+      unawaited(
+        SemanticsService.sendAnnouncement(
+          View.of(context),
+          message,
+          TextDirection.ltr,
+        ),
       );
     }
   }
