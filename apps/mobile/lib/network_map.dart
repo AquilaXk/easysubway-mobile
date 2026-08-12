@@ -19,6 +19,7 @@ import 'features/network_map/application/network_map_region_bridge.dart';
 import 'features/network_map/data/network_map_attribution_cache.dart';
 import 'features/network_map/data/network_map_owner_labels_cache.dart';
 import 'features/network_map/domain/map_camera.dart';
+import 'features/network_map/domain/nearby_adjacent_stations.dart';
 import 'features/network_map/domain/network_map_edge_topology.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/network_map_station_selection.dart';
@@ -759,7 +760,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                 nearbyDataSource: _nearbyDataSource,
                 nearbyTimetable: _nearbyTimetableForDisplay,
                 nearbyLookupMessage: _nearbyLookupMessage,
-                adjacentStations: const _NetworkMapAdjacentStations(),
+                adjacentStations: const NearbyAdjacentStations(),
                 onCurrentLocationTap: _showNearestStationFanMenu,
                 onCloseNearbyPanel: _hideNearbyPanel,
                 onNearbyLineSelected: _selectNearbyLine,
@@ -817,7 +818,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                 nearbyDataSource: _nearbyDataSource,
                 nearbyTimetable: _nearbyTimetableForDisplay,
                 nearbyLookupMessage: _nearbyLookupMessage,
-                adjacentStations: const _NetworkMapAdjacentStations(),
+                adjacentStations: const NearbyAdjacentStations(),
                 onCurrentLocationTap: _showNearestStationFanMenu,
                 onCloseNearbyPanel: _hideNearbyPanel,
                 onNearbyLineSelected: _selectNearbyLine,
@@ -1703,10 +1704,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     );
   }
 
-  _NetworkMapAdjacentStations _adjacentStationsFor(NetworkMapData data) {
+  NearbyAdjacentStations _adjacentStationsFor(NetworkMapData data) {
     final selectedStationId = _nearbySelectedStationId;
     if (selectedStationId == null) {
-      return const _NetworkMapAdjacentStations();
+      return const NearbyAdjacentStations();
     }
     final pair = networkMapAdjacentStationPair(
       stations: data.stations,
@@ -1714,7 +1715,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       stationId: selectedStationId,
       lineId: _nearbySelectedLineId,
     );
-    return _NetworkMapAdjacentStations(
+    return NearbyAdjacentStations(
       leftName: pair.leftName,
       rightName: pair.rightName,
       leftStationId: pair.leftStationId,
@@ -1795,7 +1796,7 @@ class _NetworkMapChrome extends StatelessWidget {
   final _NearbyPanelDataSource nearbyDataSource;
   final StationTimetable? nearbyTimetable;
   final String? nearbyLookupMessage;
-  final _NetworkMapAdjacentStations adjacentStations;
+  final NearbyAdjacentStations adjacentStations;
   final VoidCallback onCurrentLocationTap;
   final VoidCallback onCloseNearbyPanel;
   final ValueChanged<StationSearchLine> onNearbyLineSelected;
@@ -2725,36 +2726,16 @@ class _NetworkMapNearbyPanelData {
   final List<StationSearchResult> results;
 }
 
-class _NetworkMapAdjacentStations {
-  const _NetworkMapAdjacentStations({
-    this.leftName,
-    this.rightName,
-    this.leftStationId,
-    this.rightStationId,
-  });
-
-  final String? leftName;
-  final String? rightName;
-  final String? leftStationId;
-  final String? rightStationId;
-
-  StationDetailNeighbor? get previousNeighbor {
-    final id = leftStationId;
-    final name = leftName;
-    if (id == null || name == null || name.isEmpty) {
-      return null;
-    }
-    return StationDetailNeighbor(stationId: id, nameKo: name);
+StationDetailNeighbor? _stationDetailNeighbor(
+  NearbyAdjacentStationIdentity? identity,
+) {
+  if (identity == null) {
+    return null;
   }
-
-  StationDetailNeighbor? get nextNeighbor {
-    final id = rightStationId;
-    final name = rightName;
-    if (id == null || name == null || name.isEmpty) {
-      return null;
-    }
-    return StationDetailNeighbor(stationId: id, nameKo: name);
-  }
+  return StationDetailNeighbor(
+    stationId: identity.stationId,
+    nameKo: identity.nameKo,
+  );
 }
 
 class _NetworkMapNearbyStationPanel extends StatelessWidget {
@@ -2789,7 +2770,7 @@ class _NetworkMapNearbyStationPanel extends StatelessWidget {
   final String? selectedLineId;
   final _NearbyPanelDataSource dataSource;
   final StationTimetable? timetable;
-  final _NetworkMapAdjacentStations adjacentStations;
+  final NearbyAdjacentStations adjacentStations;
   final VoidCallback onClose;
   final ValueChanged<StationSearchLine> onLineSelected;
   final VoidCallback onDataSourceToggle;
@@ -2931,8 +2912,12 @@ class _NetworkMapNearbyStationPanel extends StatelessWidget {
                   showContextChrome: false,
                   showRealtimeSection: false,
                   onClose: null,
-                  previousStation: adjacentStations.previousNeighbor,
-                  nextStation: adjacentStations.nextNeighbor,
+                  previousStation: _stationDetailNeighbor(
+                    adjacentStations.previousNeighbor,
+                  ),
+                  nextStation: _stationDetailNeighbor(
+                    adjacentStations.nextNeighbor,
+                  ),
                   onSelectNeighbor: onSelectNeighbor,
                   lineForChrome: selectedLine,
                 ),
@@ -2974,7 +2959,7 @@ class _NetworkMapNearbyPanelBody extends StatelessWidget {
   final String? selectedLineId;
   final _NearbyPanelDataSource dataSource;
   final StationTimetable? timetable;
-  final _NetworkMapAdjacentStations adjacentStations;
+  final NearbyAdjacentStations adjacentStations;
   final VoidCallback? onOpenStationDetail;
   final ValueChanged<StationDetailNeighbor>? onSelectNeighbor;
 
@@ -3047,7 +3032,7 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
   final String? selectedLineId;
   final _NearbyPanelDataSource dataSource;
   final StationTimetable? timetable;
-  final _NetworkMapAdjacentStations adjacentStations;
+  final NearbyAdjacentStations adjacentStations;
   final VoidCallback? onOpenStationDetail;
   final ValueChanged<StationDetailNeighbor>? onSelectNeighbor;
 
@@ -3057,8 +3042,8 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
     final selectedLine = _nearbySelectedLine(primary, selectedLineId);
     final lineColor = _nearbySelectedLineColor(selectedLine);
     final selectNeighbor = onSelectNeighbor;
-    final previous = adjacentStations.previousNeighbor;
-    final next = adjacentStations.nextNeighbor;
+    final previous = _stationDetailNeighbor(adjacentStations.previousNeighbor);
+    final next = _stationDetailNeighbor(adjacentStations.nextNeighbor);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
