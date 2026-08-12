@@ -1,7 +1,21 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../ad_slot.dart';
 import '../../../search_field.dart';
+
+class NetworkMapBottomAdBanner extends StatelessWidget {
+  const NetworkMapBottomAdBanner({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    // 실광고 미연동: release에서는 "광고" 플레이스홀더를 노출하지 않고 슬롯을 숨긴다.
+    return const SafeArea(
+      top: false,
+      child: AdBannerSlot(slotKey: Key('networkMapBottomAdBanner')),
+    );
+  }
+}
 
 class NetworkMapLookupToast extends StatelessWidget {
   const NetworkMapLookupToast({required this.message, super.key});

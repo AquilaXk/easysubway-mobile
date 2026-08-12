@@ -953,7 +953,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         ),
         bottomNavigationBar: _searchMode || _nearbyPanelVisible
             ? null
-            : const _NetworkMapBottomAdBanner(),
+            : const NetworkMapBottomAdBanner(),
       ),
     );
   }
@@ -3055,19 +3055,6 @@ NearbyTimetablePanelData? _nearbyTimetablePanelData(
         ),
     ],
   );
-}
-
-class _NetworkMapBottomAdBanner extends StatelessWidget {
-  const _NetworkMapBottomAdBanner();
-
-  @override
-  Widget build(BuildContext context) {
-    // 실광고 미연동: release에서는 "광고" 플레이스홀더를 노출하지 않고 슬롯을 숨긴다.
-    return const SafeArea(
-      top: false,
-      child: AdBannerSlot(slotKey: Key('networkMapBottomAdBanner')),
-    );
-  }
 }
 
 class _NetworkMapCanvas extends StatefulWidget {
