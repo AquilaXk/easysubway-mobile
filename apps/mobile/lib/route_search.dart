@@ -4536,7 +4536,7 @@ class _RouteStationPickerState extends State<_RouteStationPicker> {
 
   void _search() {
     // 진행 중 검색은 requestId로 무효화되므로 loading이어도 막지 않는다.
-    _controller.search(_textController.text);
+    unawaited(_controller.search(_textController.text));
   }
 
   void _selectStation(StationSearchResult station) {
