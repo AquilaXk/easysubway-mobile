@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -46,9 +48,11 @@ class ServiceInfoScreen extends StatelessWidget {
         key: const Key('dataSourceAttributionItem'),
         title: '정보제공처',
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => const DataSourceAttributionScreen(),
+          unawaited(
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => const DataSourceAttributionScreen(),
+              ),
             ),
           );
         },
@@ -57,10 +61,12 @@ class ServiceInfoScreen extends StatelessWidget {
         key: const Key('openSourceLicensesItem'),
         title: '오픈 소스 라이선스',
         onTap: () {
-          Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => OpenSourceLicensesScreen(
-                licenseEntriesLoader: licenseEntriesLoader,
+          unawaited(
+            Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => OpenSourceLicensesScreen(
+                  licenseEntriesLoader: licenseEntriesLoader,
+                ),
               ),
             ),
           );
