@@ -45,6 +45,7 @@ jobs:
         run: |
           set -euo pipefail
           evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
+          flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
           node --test \
             tools/ci/mobile-golden-execution.test.mjs \
             tools/ci/mobile-golden-parity.test.mjs
@@ -53,7 +54,7 @@ jobs:
           node tools/ci/mobile-golden-parity.mjs \
             > "$evidence_root/golden-parity.json"
           flutter --version --machine \
-            > "$evidence_root/flutter-version.json"
+            > "$flutter_identity"
       - name: Install Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
@@ -63,21 +64,23 @@ jobs:
         run: |
           set -euo pipefail
           evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
+          actual_report="$RUNNER_TEMP/mobile-golden-actual-events.json"
+          flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
           set +e
           flutter test "$GOLDEN_TEST" \
-            --file-reporter "json:$evidence_root/actual-events.json"
+            --file-reporter "json:$actual_report"
           test_exit_code=$?
           set -e
           cd "$GITHUB_WORKSPACE"
           node tools/ci/mobile-golden-execution.mjs verify \
             --inventory "$evidence_root/golden-parity.json" \
-            --report "$evidence_root/actual-events.json" \
+            --report "$actual_report" \
             --test-exit-code "$test_exit_code" \
             --receipt "$evidence_root/actual-receipt.json" \
             --runner-os "$RUNNER_OS" \
             --image-os "$ImageOS" \
             --image-version "$ImageVersion" \
-            --flutter-version-file "$evidence_root/flutter-version.json" \
+            --flutter-version-file "$flutter_identity" \
             --head-sha "$GOLDEN_HEAD_SHA"
       - name: Prove visual mutation is red
         shell: bash
@@ -85,23 +88,26 @@ jobs:
         run: |
           set -euo pipefail
           evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
+          mutation_report="$RUNNER_TEMP/mobile-golden-mutation-events.json"
+          flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
           set +e
           flutter test "$GOLDEN_TEST" \
-            --plain-name "기본 상태" \
+            --plain-name "^기본 상태$" \
             --dart-define=EASYSUBWAY_GOLDEN_MUTATION=true \
-            --file-reporter "json:$evidence_root/mutation-events.json"
+            --file-reporter "json:$mutation_report" \
+            > /dev/null 2>&1
           test_exit_code=$?
           set -e
           cd "$GITHUB_WORKSPACE"
           node tools/ci/mobile-golden-execution.mjs verify-mutation \
             --inventory "$evidence_root/golden-parity.json" \
-            --report "$evidence_root/mutation-events.json" \
+            --report "$mutation_report" \
             --test-exit-code "$test_exit_code" \
             --receipt "$evidence_root/mutation-receipt.json" \
             --runner-os "$RUNNER_OS" \
             --image-os "$ImageOS" \
             --image-version "$ImageVersion" \
-            --flutter-version-file "$evidence_root/flutter-version.json" \
+            --flutter-version-file "$flutter_identity" \
             --head-sha "$GOLDEN_HEAD_SHA" \
             --failures-root "$GOLDEN_FAILURES_ROOT"
       - name: Upload golden comparison evidence
