@@ -422,106 +422,20 @@ Future<void> _openStationSearchScreenViaMenu(WidgetTester tester) async {
 }
 
 Future<void> _openSettingsScreen(WidgetTester tester) async {
-  final homeContext = tester.element(find.byType(HomeScreen));
-  final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
-  final currentPreset =
-      mobilityPresetFromRepresentativeMobilityType(home.initialMobilityType) ??
-      MobilityPreset.standard;
-  unawaited(
-    Navigator.of(homeContext).push(
-      MaterialPageRoute<void>(
-        builder: (_) => AppSettingsScreen(
-          currentPreset: currentPreset,
-          viewPreferences: home.viewPreferences,
-          notificationRepository: home.notificationRepository,
-          notificationPermissionProvider: home.notificationPermissionProvider,
-          onViewPreferencesChanged: home.onViewPreferencesChanged,
-          onOpenMobilityProfile: () async {
-            final selected = await showMobilityPresetSheet(
-              homeContext,
-              current: currentPreset,
-            );
-            if (selected != null) {
-              try {
-                await home.onMobilityProfileChanged?.call(selected);
-              } catch (_) {
-                if (homeContext.mounted) {
-                  ScaffoldMessenger.of(homeContext).showSnackBar(
-                    const SnackBar(
-                      content: Text('이동 조건을 저장하지 못했어요. 이전 조건으로 되돌렸어요.'),
-                    ),
-                  );
-                }
-                return null;
-              }
-            }
-            return selected;
-          },
-          onOpenSupportAccess: () {
-            unawaited(
-              Navigator.of(homeContext).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => SupportAccessScreen(
-                    accessInfo: home.supportAccessInfo,
-                    launcher: home.supportAccessLauncher,
-                    userDataDeletionRepository: home.userDataDeletionRepository,
-                    onUserDataDeleted: home.onUserDataDeleted,
-                  ),
-                ),
-              ),
-            );
-          },
-          onOpenInquiry: () {
-            unawaited(
-              Navigator.of(homeContext).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => InquiryScreen(
-                    accessInfo: home.supportAccessInfo,
-                    launcher: home.supportAccessLauncher,
-                  ),
-                ),
-              ),
-            );
-          },
-          onOpenServiceInfo: () {
-            unawaited(
-              Navigator.of(homeContext).push(
-                MaterialPageRoute<void>(
-                  builder: (_) =>
-                      ServiceInfoScreen(accessInfo: home.supportAccessInfo),
-                ),
-              ),
-            );
-          },
-          onOpenMyReports: () {
-            unawaited(
-              Navigator.of(homeContext).push(
-                MaterialPageRoute<void>(
-                  builder: (_) => MyFacilityReportListScreen(
-                    repository: home.reportRepository,
-                  ),
-                ),
-              ),
-            );
-          },
-        ),
-      ),
-    ),
-  );
+  await tester.tap(find.byKey(const Key('networkMapMenuButton')));
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('networkMapMenuSettingsButton')));
   await tester.pumpAndSettle();
 }
 
 Future<void> _openMyReportsScreen(WidgetTester tester) async {
-  final homeContext = tester.element(find.byType(HomeScreen));
-  final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
-  unawaited(
-    Navigator.of(homeContext).push(
-      MaterialPageRoute<void>(
-        builder: (_) =>
-            MyFacilityReportListScreen(repository: home.reportRepository),
-      ),
-    ),
+  await _openSettingsScreen(tester);
+  await tester.scrollUntilVisible(
+    find.byKey(const Key('myReportsSettingsButton')),
+    160,
   );
+  await tester.pumpAndSettle();
+  await tester.tap(find.byKey(const Key('myReportsSettingsButton')));
   await tester.pumpAndSettle();
 }
 
@@ -1404,6 +1318,26 @@ void main() {
       find.descendant(of: panel, matching: find.byType(Divider)),
       findsNWidgets(2),
     );
+  });
+
+  testWidgets('노선도 메뉴에서 기차 검색 화면으로 이동한다', (tester) async {
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        routeRepository: FakeRouteSearchRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('networkMapMenuButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('networkMapMenuTrainSearchButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('trainSearchScrollView')), findsOneWidget);
+    expect(find.text('기차 검색'), findsOneWidget);
   });
 
   testWidgets('노선도 첫 화면은 태블릿 landscape에서도 지도와 overlay를 유지한다', (tester) async {
@@ -18840,7 +18774,11 @@ void main() {
       },
     );
     final routeRepository = FakeRouteSearchRepository(
-      error: const RouteSearchException('경로 정보를 불러오지 못했어요.'),
+      errorForRequest: (request) => RouteSearchException(
+        request.objective == RouteObjective.fastest
+            ? '경로 정보를 불러오지 못했어요.'
+            : '최소환승 경로를 불러오지 못했어요.',
+      ),
     );
 
     try {
@@ -18877,6 +18815,15 @@ void main() {
           isLiveRegion: true,
         ),
       );
+
+      await tester.tap(
+        find.byKey(const Key('routeObjectiveFewestTransfersChip')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(routeRepository.requests, hasLength(2));
+      expect(find.text('경로 정보를 불러오지 못했어요.'), findsNothing);
+      expect(find.text('최소환승 경로를 불러오지 못했어요.'), findsOneWidget);
     } finally {
       semanticsHandle.dispose();
     }
