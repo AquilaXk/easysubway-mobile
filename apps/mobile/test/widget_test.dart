@@ -1925,14 +1925,15 @@ void main() {
     expect(find.text('미확인 · 엘리베이터 설치 확인 · 운행상태 미확인'), findsOneWidget);
     expect(find.text('자세히 보기'), findsOneWidget);
     final reportTitle = find.text('제보 반영됨');
+    final reportRow = find.ancestor(
+      of: reportTitle,
+      matching: find.byType(InkWell),
+    );
     expect(
       find.ancestor(of: reportTitle, matching: find.byType(Ink)),
       findsOneWidget,
     );
-    expect(
-      find.ancestor(of: reportTitle, matching: find.byType(InkWell)),
-      findsOneWidget,
-    );
+    expect(reportRow, findsOneWidget);
     final notificationRow = find
         .ancestor(of: find.text('상록수역 1번 출구 엘리베이터'), matching: find.byType(Ink))
         .first;
@@ -1973,6 +1974,19 @@ void main() {
       findsOneWidget,
     );
     expectNoForbiddenUserCopy(tester);
+
+    await tester.tap(reportRow);
+    await tester.pumpAndSettle();
+    expect(find.text('제보 상세'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('myReportDetailBackButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('알림 설정'));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('notificationSettingsSaveButton')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('홈 노선도 버튼은 v3 노선도 화면을 연다', (tester) async {
