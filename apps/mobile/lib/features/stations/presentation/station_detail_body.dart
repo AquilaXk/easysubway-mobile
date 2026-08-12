@@ -377,21 +377,23 @@ class _StationDetailContent extends StatelessWidget {
   }
 
   void _openFacilityReport(BuildContext context, StationFacilityInfo facility) {
-    Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => FacilityReportScreen(
-          repository: reportRepository,
-          locationLoader: _locationLoader(),
-          needsLocationPermissionRequest: _locationPermissionRequestChecker(),
-          openLocationSettings: _locationSettingsOpener(),
-          draftTargetStore: facilityReportDraftTargetStore,
-          target: FacilityReportTarget(
-            stationId: detail.id,
-            stationName: detail.nameKo,
-            facilityId: facility.id,
-            facilityName: facility.name,
-            facilityTypeLabel: facility.typeLabel,
-            facilityStatusLabel: facility.statusLabel,
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => FacilityReportScreen(
+            repository: reportRepository,
+            locationLoader: _locationLoader(),
+            needsLocationPermissionRequest: _locationPermissionRequestChecker(),
+            openLocationSettings: _locationSettingsOpener(),
+            draftTargetStore: facilityReportDraftTargetStore,
+            target: FacilityReportTarget(
+              stationId: detail.id,
+              stationName: detail.nameKo,
+              facilityId: facility.id,
+              facilityName: facility.name,
+              facilityTypeLabel: facility.typeLabel,
+              facilityStatusLabel: facility.statusLabel,
+            ),
           ),
         ),
       ),
