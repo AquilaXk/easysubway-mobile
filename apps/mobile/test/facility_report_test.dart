@@ -1003,7 +1003,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.created
         ..headers.contentType = ContentType.json
@@ -1012,8 +1012,8 @@ void main() {
             'success': true,
             'data': {'id': 'report-1'},
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = FacilityReportApiRepository(
@@ -1048,12 +1048,12 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.created
         ..headers.contentType = ContentType.json
-        ..write('{broken-json')
-        ..close();
+        ..write('{broken-json');
+      await request.response.close();
     });
 
     final repository = FacilityReportApiRepository(
@@ -1097,7 +1097,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestMethod = request.method;
       requestPath = request.uri.path;
       receiptTokenHeader = request.headers.value(
@@ -1120,8 +1120,8 @@ void main() {
               'publicReceiptCode': 'ES-1001',
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = FacilityReportApiRepository(
@@ -1147,7 +1147,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestPaths.add(request.uri.path);
       receiptTokens.add(
         request.headers.value('X-Easysubway-Report-Receipt-Token'),
@@ -1178,8 +1178,8 @@ void main() {
                   : 'ES-1001',
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final receiptStore = FakeFacilityReportReceiptStore({
@@ -1217,7 +1217,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
@@ -1235,8 +1235,8 @@ void main() {
               'publicReceiptCode': ' ',
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final receiptStore = FakeFacilityReportReceiptStore({
@@ -1261,11 +1261,10 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
-      request.response
-        ..statusCode = HttpStatus.internalServerError
-        ..close();
+      request.response.statusCode = HttpStatus.internalServerError;
+      await request.response.close();
     });
 
     final repository = FacilityReportApiRepository(
@@ -1283,12 +1282,12 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.internalServerError
         ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'success': false}))
-        ..close();
+        ..write(jsonEncode({'success': false}));
+      await request.response.close();
     });
 
     final repository = FacilityReportApiRepository(

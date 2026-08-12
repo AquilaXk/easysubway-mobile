@@ -15,7 +15,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestedMethod = request.method;
       requestedUri = request.uri;
       authorizationHeader = request.headers.value(
@@ -40,8 +40,8 @@ void main() {
               'anonymizedReportCount': 7,
             },
           }),
-        )
-        ..close();
+        );
+      await request.response.close();
     });
 
     final repository = UserDataDeletionApiRepository(
@@ -74,7 +74,7 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
       authorizationHeaders.add(
         request.headers.value(HttpHeaders.authorizationHeader),
@@ -82,15 +82,15 @@ void main() {
       if (requestCount == 1) {
         request.response
           ..statusCode = HttpStatus.unauthorized
-          ..write('expired')
-          ..close();
+          ..write('expired');
+        await request.response.close();
         return;
       }
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write(_successfulDeletionBody())
-        ..close();
+        ..write(_successfulDeletionBody());
+      await request.response.close();
     });
 
     final authProvider = RefreshingAuthorizationHeaderProvider(
@@ -124,12 +124,12 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       requestCount++;
       request.response
         ..statusCode = HttpStatus.unauthorized
-        ..write('expired')
-        ..close();
+        ..write('expired');
+      await request.response.close();
     });
 
     final authProvider = RefreshingAuthorizationHeaderProvider(
@@ -159,11 +159,11 @@ void main() {
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
 
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.internalServerError
-        ..write('server error')
-        ..close();
+        ..write('server error');
+      await request.response.close();
     });
 
     final repository = UserDataDeletionApiRepository(

@@ -458,40 +458,48 @@ Future<void> _openSettingsScreen(WidgetTester tester) async {
             return selected;
           },
           onOpenSupportAccess: () {
-            Navigator.of(homeContext).push(
-              MaterialPageRoute<void>(
-                builder: (_) => SupportAccessScreen(
-                  accessInfo: home.supportAccessInfo,
-                  launcher: home.supportAccessLauncher,
-                  userDataDeletionRepository: home.userDataDeletionRepository,
-                  onUserDataDeleted: home.onUserDataDeleted,
+            unawaited(
+              Navigator.of(homeContext).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => SupportAccessScreen(
+                    accessInfo: home.supportAccessInfo,
+                    launcher: home.supportAccessLauncher,
+                    userDataDeletionRepository: home.userDataDeletionRepository,
+                    onUserDataDeleted: home.onUserDataDeleted,
+                  ),
                 ),
               ),
             );
           },
           onOpenInquiry: () {
-            Navigator.of(homeContext).push(
-              MaterialPageRoute<void>(
-                builder: (_) => InquiryScreen(
-                  accessInfo: home.supportAccessInfo,
-                  launcher: home.supportAccessLauncher,
+            unawaited(
+              Navigator.of(homeContext).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => InquiryScreen(
+                    accessInfo: home.supportAccessInfo,
+                    launcher: home.supportAccessLauncher,
+                  ),
                 ),
               ),
             );
           },
           onOpenServiceInfo: () {
-            Navigator.of(homeContext).push(
-              MaterialPageRoute<void>(
-                builder: (_) =>
-                    ServiceInfoScreen(accessInfo: home.supportAccessInfo),
+            unawaited(
+              Navigator.of(homeContext).push(
+                MaterialPageRoute<void>(
+                  builder: (_) =>
+                      ServiceInfoScreen(accessInfo: home.supportAccessInfo),
+                ),
               ),
             );
           },
           onOpenMyReports: () {
-            Navigator.of(homeContext).push(
-              MaterialPageRoute<void>(
-                builder: (_) => MyFacilityReportListScreen(
-                  repository: home.reportRepository,
+            unawaited(
+              Navigator.of(homeContext).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => MyFacilityReportListScreen(
+                    repository: home.reportRepository,
+                  ),
                 ),
               ),
             );

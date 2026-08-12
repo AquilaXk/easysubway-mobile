@@ -13,7 +13,7 @@ void main() {
 
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       if (request.uri.path == '/manifest.json') {
         capturedCacheControl.add(
           request.headers.value(HttpHeaders.cacheControlHeader),
@@ -21,13 +21,12 @@ void main() {
         request.response
           ..statusCode = HttpStatus.ok
           ..headers.contentType = ContentType.json
-          ..write(jsonEncode({'ttlSeconds': 60, 'packs': <Object?>[]}))
-          ..close();
+          ..write(jsonEncode({'ttlSeconds': 60, 'packs': <Object?>[]}));
+        await request.response.close();
         return;
       }
-      request.response
-        ..statusCode = HttpStatus.notFound
-        ..close();
+      request.response.statusCode = HttpStatus.notFound;
+      await request.response.close();
     });
 
     final userDatabase = user_db.UserDatabase.memory();
@@ -61,12 +60,12 @@ void main() {
 
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
     addTearDown(server.close);
-    server.listen((request) {
+    server.listen((request) async {
       request.response
         ..statusCode = HttpStatus.ok
         ..headers.contentType = ContentType.json
-        ..write(body)
-        ..close();
+        ..write(body);
+      await request.response.close();
     });
 
     final userDatabase = user_db.UserDatabase.memory();
