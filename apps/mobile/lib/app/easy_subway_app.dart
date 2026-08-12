@@ -492,7 +492,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
     _initializeBundledFreshness();
     unawaited(_clearLegacyCredentialsOnStartup());
     if (_loadingOnboardingState) {
-      _restoreOnboardingState();
+      unawaited(_restoreOnboardingState());
     }
     _schedulePendingFacilityReportPhotoRecovery();
   }
