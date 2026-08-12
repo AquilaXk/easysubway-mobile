@@ -903,6 +903,37 @@ void main() {
     expect(c.state.activeJourneyIdentity, identity);
   });
 
+  test('disable clear 실패 뒤 예약 시각이 모두 지났으면 off로 남는다', () async {
+    final clearError = StateError('clear failed');
+    final stateRepository = _RecordingStateRepository();
+    var currentTime = now;
+    final c = GetOffAlarmController(
+      notifier: notifier,
+      permissionGate: _StubExactAlarmGate(true),
+      notificationPermissionProvider: _StubNotificationPermissionProvider(
+        NotificationPermissionStatus.granted,
+      ),
+      repository: stateRepository,
+      now: () => currentTime,
+    );
+    addTearDown(c.dispose);
+    await c.enableJourney(
+      identity: _journeyIdentity(),
+      stops: stops(),
+      transferAlarmEnabled: true,
+    );
+    stateRepository.clearError = clearError;
+    currentTime = DateTime(2026, 7, 6, 10);
+    final scheduleCallsBefore = notifier.scheduleCalls;
+
+    await expectLater(c.disable(), throwsA(same(clearError)));
+
+    expect(notifier.scheduleCalls, scheduleCallsBefore);
+    expect(c.state.enabled, isFalse);
+    expect(c.state.scheduledCount, 0);
+    expect(c.state.activeJourneyIdentity, isNull);
+  });
+
   for (final recovery in [
     (
       name: '0건',
