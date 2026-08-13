@@ -291,7 +291,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       return;
     }
     // 이미 같은 표시 지역이면 불필요한 지도 재로드를 피한다.
-    if (_displayRegionName(next) == _displayRegionName(_selectedRegion ?? '')) {
+    if (routeMapDisplayRegionName(next) ==
+        routeMapDisplayRegionName(_selectedRegion ?? '')) {
       return;
     }
     _reload(region: next);
@@ -400,7 +401,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     try {
       await repository.recordSearch(
         result.nameKo,
-        region: _displayRegionName(_selectedRegion ?? result.region),
+        region: routeMapDisplayRegionName(_selectedRegion ?? result.region),
         stationId: result.id,
         line: selected,
       );
@@ -576,7 +577,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       searchHistoryRepository: widget.searchHistoryRepository,
       favoriteRepository: widget.favoriteRepository,
       routeDraftController: widget.routeDraftController,
-      regionLabel: _displayRegionName(_selectedRegion ?? '수도권'),
+      regionLabel: routeMapDisplayRegionName(_selectedRegion ?? '수도권'),
     );
   }
 
@@ -614,7 +615,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (restoringSavedRegion &&
         !data.regions.any(
           (region) =>
-              region.displayName == _displayRegionName(data.selectedRegion),
+              region.displayName ==
+              routeMapDisplayRegionName(data.selectedRegion),
         )) {
       data = await widget.repository.getNetworkMap();
     }
@@ -664,7 +666,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   Future<Rect?> _loadSavedViewport(String region) async {
     try {
       return await widget.viewportRepository?.loadViewport(
-        _displayRegionName(region),
+        routeMapDisplayRegionName(region),
       );
     } catch (error, stackTrace) {
       reportMobileError(
@@ -849,7 +851,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         return;
       }
 
-      if (_displayRegionName(targetMap.data.selectedRegion) !=
+      if (routeMapDisplayRegionName(targetMap.data.selectedRegion) !=
           pendingResult.region) {
         // 경로 칸이 하나라도 있으면 지역을 바꾸지 않는다.
         if (!widget.routeDraftController.draft.isEmpty) {
@@ -981,7 +983,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       final result = results.first;
       var targetMap = await mapFuture;
       var regionChanged = false;
-      if (_displayRegionName(targetMap.data.selectedRegion) != result.region) {
+      if (routeMapDisplayRegionName(targetMap.data.selectedRegion) !=
+          result.region) {
         if (!widget.routeDraftController.draft.isEmpty) {
           return;
         }
@@ -1038,7 +1041,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     }
     unawaited(
       repository
-          .saveViewport(region: _displayRegionName(region), viewport: viewport)
+          .saveViewport(
+            region: routeMapDisplayRegionName(region),
+            viewport: viewport,
+          )
           .catchError((Object error, StackTrace stackTrace) {
             reportMobileError(
               error,
@@ -1412,7 +1418,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   /// 현재 선택 지역의 표시명(예: '수도권', '부산'). 역 검색 화면을 열 때
   /// [StationSearchScreen.regionLabel]로 그대로 넘긴다(#2090 배선).
   String get _currentRegionDisplayName =>
-      _displayRegionName(_selectedRegion ?? '수도권');
+      routeMapDisplayRegionName(_selectedRegion ?? '수도권');
 
   Future<void> _openMapMenu() {
     return showGeneralDialog<void>(
@@ -2464,8 +2470,3 @@ NearbyTimetablePanelData? _nearbyTimetablePanelData(
     ],
   );
 }
-
-/// 저장형 권역명('부산권')을 표시형('부산')으로 정규화한다. 규칙의 단일 원본은
-/// [routeMapDisplayRegionName]이다 — 사본을 두면 한쪽만 갱신돼 조회가 조용히
-/// 어긋난다(#2068).
-String _displayRegionName(String region) => routeMapDisplayRegionName(region);
