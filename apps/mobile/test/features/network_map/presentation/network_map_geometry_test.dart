@@ -60,6 +60,7 @@ void main() {
     expect(geometry.height, 560);
     expect(geometry.initialBounds, const Rect.fromLTWH(0, 0, 860, 560));
     expect(geometry.stationIndex.query(Rect.zero), isEmpty);
+    expect(geometry.copyWith().stationIndex, same(geometry.stationIndex));
   });
 
   test('station path·label polygon·owner label extents와 index를 결속한다', () {
