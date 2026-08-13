@@ -148,6 +148,35 @@ void main() {
     expect(viewports, hasLength(1));
   });
 
+  testWidgets('dispose 뒤 cached pointer cancel은 setState 예외를 내지 않는다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(_host(data: _data));
+    await tester.pumpAndSettle();
+
+    final mapListener = tester
+        .widgetList<Listener>(find.byType(Listener))
+        .singleWhere(
+          (listener) =>
+              listener.onPointerCancel != null &&
+              listener.child is GestureDetector,
+        );
+    final mapGesture = mapListener.child! as GestureDetector;
+    mapGesture.onScaleStart!(
+      ScaleStartDetails(
+        focalPoint: Offset(160, 160),
+        localFocalPoint: Offset(160, 160),
+      ),
+    );
+    await tester.pump();
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    mapListener.onPointerCancel!(const PointerCancelEvent(pointer: 2));
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
+
   for (final slot in [RouteDraftSlot.waypoint, RouteDraftSlot.destination]) {
     testWidgets('선택된 ${slot.name} 재탭은 exact clear callback만 실행한다', (
       tester,
