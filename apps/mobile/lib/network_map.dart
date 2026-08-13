@@ -27,6 +27,7 @@ import 'features/network_map/presentation/nearby_timetable_panel.dart';
 import 'features/network_map/presentation/network_map_chrome_controls.dart';
 import 'features/network_map/presentation/network_map_canvas.dart';
 import 'features/network_map/presentation/network_map_menu_panel.dart';
+import 'features/network_map/presentation/network_map_nearby_panel_shell.dart';
 import 'features/network_map/presentation/network_map_unavailable_states.dart';
 import 'features/realtime/realtime_repository.dart';
 import 'features/route_draft/application/route_draft_controller.dart';
@@ -1608,33 +1609,90 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       searchBody: searchBody,
       nearbyPanelVisible: _nearbyPanelVisible,
       nearbyPanelExpanded: _nearbyPanelExpanded,
-      nearbyPanel: _NetworkMapNearbyStationPanel(
-        data: _nearbyPanelData,
-        expanded: _nearbyPanelExpanded,
+      nearbyPanel: _buildNetworkMapNearbyStationPanel(adjacentStations),
+      nearbyLookupMessage: _nearbyLookupMessage,
+      onCurrentLocationTap: _showNearestStationFanMenu,
+      child: child,
+    );
+  }
+
+  Widget _buildNetworkMapNearbyStationPanel(
+    NearbyAdjacentStations adjacentStations,
+  ) {
+    final data = _nearbyPanelData;
+    final primary = data.results.firstOrNull;
+    final dataSourceToggleEnabled = !(primary?.lines.isEmpty ?? true);
+    final selectedLine = primary == null
+        ? null
+        : _nearbySelectedLine(primary, _nearbySelectedLineId);
+    final canExpandDetail =
+        _nearbyPanelExpanded &&
+        primary != null &&
+        widget.stationSearchRepository != null &&
+        widget.reportRepository != null;
+    final Widget? expandedDetail;
+    if (canExpandDetail) {
+      expandedDetail = StationDetailExpandHost(
+        key: ValueKey('nearbyStationDetailHost-${primary.id}'),
+        repository: widget.stationSearchRepository!,
+        reportRepository: widget.reportRepository!,
+        favoriteRepository: widget.favoriteRepository,
+        adRepository: widget.adRepository,
+        realtimeRepository: widget.realtimeRepository,
+        locationProvider: widget.locationProvider,
+        stationId: primary.id,
+        facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
+        internalRouteRepository: widget.internalRouteRepository,
+        internalRouteMobilityType: widget.internalRouteMobilityType,
+        routeDraftController: widget.routeDraftController,
+        // 상단 호선바·실시간/시간표가 맥락·열차를 담당한다.
+        showContextChrome: false,
+        showRealtimeSection: false,
+        onClose: null,
+        previousStation: _stationDetailNeighbor(
+          adjacentStations.previousNeighbor,
+        ),
+        nextStation: _stationDetailNeighbor(adjacentStations.nextNeighbor),
+        onSelectNeighbor: _selectNearbyNeighborStation,
+        lineForChrome: selectedLine,
+      );
+    } else {
+      expandedDetail = null;
+    }
+
+    return NetworkMapNearbyPanelShell(
+      expanded: _nearbyPanelExpanded,
+      lineTabs: [
+        for (final line in primary?.lines ?? const <StationSearchLine>[])
+          StationLineBadgeTab(
+            line: line,
+            selected: line.id == _nearbySelectedLineId,
+            onTap: () => _selectNearbyLine(line),
+          ),
+      ],
+      dataSourceToggle: NearbyDataSourceToggle(
+        isRealtime:
+            _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime,
+        enabled: dataSourceToggleEnabled,
+        onToggle: _toggleNearbyDataSource,
+      ),
+      onClose: _hideNearbyPanel,
+      surfaceColor: EasySubwayAccessibleColors.surfaceDefault,
+      borderColor: EasySubwayAccessibleColors.borderSubtle,
+      contentPrimaryColor: EasySubwayAccessibleColors.contentPrimary,
+      body: _NetworkMapNearbyPanelBody(
+        data: data,
         realtime: _nearbyRealtimeForDisplay,
         selectedLineId: _nearbySelectedLineId,
         dataSource: _nearbyDataSource,
         timetable: _nearbyTimetableForDisplay,
         adjacentStations: adjacentStations,
-        onClose: _hideNearbyPanel,
-        onLineSelected: _selectNearbyLine,
-        onDataSourceToggle: _toggleNearbyDataSource,
-        onOpenStationDetail: _nearbyStationDetailAction,
+        onOpenStationDetail: canExpandDetail
+            ? null
+            : _nearbyStationDetailAction,
         onSelectNeighbor: _selectNearbyNeighborStation,
-        stationSearchRepository: widget.stationSearchRepository,
-        reportRepository: widget.reportRepository,
-        favoriteRepository: widget.favoriteRepository,
-        adRepository: widget.adRepository,
-        realtimeRepository: widget.realtimeRepository,
-        locationProvider: widget.locationProvider,
-        facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
-        internalRouteRepository: widget.internalRouteRepository,
-        internalRouteMobilityType: widget.internalRouteMobilityType,
-        routeDraftController: widget.routeDraftController,
       ),
-      nearbyLookupMessage: _nearbyLookupMessage,
-      onCurrentLocationTap: _showNearestStationFanMenu,
-      child: child,
+      expandedDetail: expandedDetail,
     );
   }
 
@@ -2076,212 +2134,6 @@ StationDetailNeighbor? _stationDetailNeighbor(
     stationId: identity.stationId,
     nameKo: identity.nameKo,
   );
-}
-
-class _NetworkMapNearbyStationPanel extends StatelessWidget {
-  const _NetworkMapNearbyStationPanel({
-    required this.data,
-    required this.expanded,
-    required this.realtime,
-    required this.selectedLineId,
-    required this.dataSource,
-    required this.timetable,
-    required this.adjacentStations,
-    required this.onClose,
-    required this.onLineSelected,
-    required this.onDataSourceToggle,
-    this.onOpenStationDetail,
-    this.onSelectNeighbor,
-    this.stationSearchRepository,
-    this.reportRepository,
-    this.favoriteRepository,
-    this.adRepository,
-    this.realtimeRepository,
-    this.locationProvider,
-    this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteMobilityType = 'SENIOR',
-    this.routeDraftController,
-  });
-
-  final NetworkMapNearbyPanelData<StationSearchResult> data;
-  final bool expanded;
-  final RealtimeSnapshot realtime;
-  final String? selectedLineId;
-  final NetworkMapNearbyPanelDataSource dataSource;
-  final StationTimetable? timetable;
-  final NearbyAdjacentStations adjacentStations;
-  final VoidCallback onClose;
-  final ValueChanged<StationSearchLine> onLineSelected;
-  final VoidCallback onDataSourceToggle;
-  final VoidCallback? onOpenStationDetail;
-  final ValueChanged<StationDetailNeighbor>? onSelectNeighbor;
-  final StationSearchRepository? stationSearchRepository;
-  final FacilityReportRepository? reportRepository;
-  final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
-  final RealtimeRepository? realtimeRepository;
-  final CurrentLocationProvider? locationProvider;
-  final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final String internalRouteMobilityType;
-  final RouteDraftController? routeDraftController;
-
-  @override
-  Widget build(BuildContext context) {
-    final primary = data.results.isEmpty ? null : data.results.first;
-    final dataSourceToggleEnabled = !(primary?.lines.isEmpty ?? true);
-    final selectedLine = primary == null
-        ? null
-        : _nearbySelectedLine(primary, selectedLineId);
-    final canExpandDetail =
-        expanded &&
-        primary != null &&
-        stationSearchRepository != null &&
-        reportRepository != null;
-
-    final panel = SafeArea(
-      top: expanded,
-      bottom: true,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: EasySubwayAccessibleColors.surfaceDefault,
-          border: expanded
-              ? null
-              : const Border(
-                  top: BorderSide(
-                    color: EasySubwayAccessibleColors.borderSubtle,
-                  ),
-                ),
-        ),
-        child: Column(
-          mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
-          children: [
-            SizedBox(
-              height: 52,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  const SizedBox(width: 14),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: [
-                          for (final line
-                              in primary?.lines ?? const <StationSearchLine>[])
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 2),
-                              child: StationLineBadgeTab(
-                                line: line,
-                                selected: line.id == selectedLineId,
-                                onTap: () => onLineSelected(line),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: NearbyDataSourceToggle(
-                      isRealtime:
-                          dataSource ==
-                          NetworkMapNearbyPanelDataSource.realtime,
-                      enabled: dataSourceToggleEnabled,
-                      onToggle: onDataSourceToggle,
-                    ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: IconButton(
-                      key: const Key('networkMapNearbyPanelCloseButton'),
-                      tooltip: '닫기',
-                      onPressed: onClose,
-                      constraints: const BoxConstraints.tightFor(
-                        width: 48,
-                        height: 48,
-                      ),
-                      padding: EdgeInsets.zero,
-                      icon: const Icon(
-                        Icons.close,
-                        color: EasySubwayAccessibleColors.contentPrimary,
-                        size: 27,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                ],
-              ),
-            ),
-            const Divider(
-              height: 1,
-              color: EasySubwayAccessibleColors.borderSubtle,
-            ),
-            // 접힘·확장 모두 실시간/시간표 요약을 유지한다. 확장에서 Body로
-            // 갈아끼우면 이미 뜬 열차 정보가 실패 카드로 사라진다.
-            _NetworkMapNearbyPanelBody(
-              data: data,
-              realtime: realtime,
-              selectedLineId: selectedLineId,
-              dataSource: dataSource,
-              timetable: timetable,
-              adjacentStations: adjacentStations,
-              onOpenStationDetail: canExpandDetail ? null : onOpenStationDetail,
-              onSelectNeighbor: onSelectNeighbor,
-            ),
-            if (canExpandDetail) ...[
-              const Divider(
-                height: 1,
-                color: EasySubwayAccessibleColors.borderSubtle,
-              ),
-              Expanded(
-                child: StationDetailExpandHost(
-                  key: ValueKey('nearbyStationDetailHost-${primary.id}'),
-                  repository: stationSearchRepository!,
-                  reportRepository: reportRepository!,
-                  favoriteRepository: favoriteRepository,
-                  adRepository: adRepository,
-                  realtimeRepository: realtimeRepository,
-                  locationProvider: locationProvider,
-                  stationId: primary.id,
-                  facilityReportDraftTargetStore:
-                      facilityReportDraftTargetStore,
-                  internalRouteRepository: internalRouteRepository,
-                  internalRouteMobilityType: internalRouteMobilityType,
-                  routeDraftController: routeDraftController,
-                  // 상단 호선바·실시간/시간표가 맥락·열차를 담당한다.
-                  showContextChrome: false,
-                  showRealtimeSection: false,
-                  onClose: null,
-                  previousStation: _stationDetailNeighbor(
-                    adjacentStations.previousNeighbor,
-                  ),
-                  nextStation: _stationDetailNeighbor(
-                    adjacentStations.nextNeighbor,
-                  ),
-                  onSelectNeighbor: onSelectNeighbor,
-                  lineForChrome: selectedLine,
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-
-    return Material(
-      key: const Key('networkMapNearbyStationPanel'),
-      color: EasySubwayAccessibleColors.surfaceDefault,
-      elevation: 0,
-      child: expanded
-          ? SizedBox.expand(
-              key: const Key('networkMapNearbyStationPanelExpanded'),
-              child: panel,
-            )
-          : panel,
-    );
-  }
 }
 
 class _NetworkMapNearbyPanelBody extends StatelessWidget {
