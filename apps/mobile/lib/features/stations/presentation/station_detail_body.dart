@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
-import '../../../facility_report.dart';
+import '../../facility_report/presentation/facility_report_screen.dart';
 import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../ads/active_ad_banner.dart';

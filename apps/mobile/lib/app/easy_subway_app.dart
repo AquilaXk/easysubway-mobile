@@ -9,7 +9,7 @@ import '../core/error/error_feedback.dart';
 import '../core/datapack/data_pack_metered_consent_gate.dart';
 import '../core/datapack/data_pack_update_state.dart';
 import '../design_tokens.dart';
-import '../facility_report.dart';
+import '../features/facility_report/presentation/facility_report_screen.dart';
 import '../favorite_facility.dart';
 import '../features/account/presentation/user_data_deletion_screen.dart';
 import '../features/ads/ad_repository.dart';

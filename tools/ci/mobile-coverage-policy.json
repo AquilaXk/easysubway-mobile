@@ -132,6 +132,7 @@
       "core/network/api_error.dart",
       "features/account/presentation/",
       "features/attribution/presentation/",
+      "features/facility_report/",
       "features/favorites/presentation/",
       "features/home/presentation/",
       "features/home_widget/next_train_widget_configuration_screen.dart",
@@ -142,7 +143,6 @@
       "features/stations/presentation/",
       "features/support/presentation/",
       "features/train_search/presentation/",
-      "facility_report.dart",
       "facility_status.dart",
       "network_map.dart",
       "onboarding.dart",
@@ -151,6 +151,7 @@
       "station_search.dart"
     ],
     "ALARM_WIDGET_REPORT_IO": [
+      "features/facility_report/",
       "features/get_off_alarm/",
       "features/home_widget/",
       "features/stations/data/current_location_provider.dart",
@@ -159,7 +160,6 @@
       "features/preferences/data/drift_notification_settings_repository.dart",
       "features/search_history/data/drift_search_history_repository.dart",
       "features/service_notice/data/drift_notice_cache_store.dart",
-      "facility_report.dart",
       "facility_status.dart",
       "notification_settings.dart",
       "secure_key_value_storage.dart",
@@ -170,8 +170,8 @@
       "core/logging/app_logger.dart",
       "app/app_bootstrap.dart",
       "mobile_error_reporter.dart",
-      "facility_report.dart",
       "features/account/presentation/user_data_deletion_screen.dart",
+      "features/facility_report/",
       "user_data_deletion.dart"
     ],
     "CONTRACT_ARTIFACT_IDENTITY": [

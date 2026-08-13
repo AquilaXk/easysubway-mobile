@@ -1,19 +1,19 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'accessible_design.dart';
-import 'app/easy_subway_family_app_bar.dart';
-import 'features/facility_report/application/facility_report_controller.dart';
-import 'features/facility_report/application/facility_report_state.dart';
-import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
-import 'features/facility_report/domain/facility_report_location.dart';
-import 'features/facility_report/domain/facility_report_photo.dart';
-import 'features/facility_report/domain/facility_report_repository.dart';
-import 'features/facility_report/domain/facility_report_target.dart';
-import 'features/facility_report/domain/facility_report_type.dart';
-import 'features/facility_report/presentation/facility_report_form_components.dart';
-import 'features/facility_report/presentation/facility_report_type_options.dart';
-import 'mobile_error_reporter.dart';
+import '../../../accessible_design.dart';
+import '../../../app/easy_subway_family_app_bar.dart';
+import '../../../mobile_error_reporter.dart';
+import '../application/facility_report_controller.dart';
+import '../application/facility_report_state.dart';
+import '../data/image_picker_facility_report_photo_picker.dart';
+import '../domain/facility_report_location.dart';
+import '../domain/facility_report_photo.dart';
+import '../domain/facility_report_repository.dart';
+import '../domain/facility_report_target.dart';
+import '../domain/facility_report_type.dart';
+import 'facility_report_form_components.dart';
+import 'facility_report_type_options.dart';
 
 const _facilityReportLocationDisabledMessage =
     '휴대전화의 위치 기능을 켜 주세요. 가까운 역을 찾는 데 필요합니다.';

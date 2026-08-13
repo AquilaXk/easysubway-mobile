@@ -57,6 +57,26 @@ test("Phase 2 canonical policy와 reviewed line-oriented baseline을 닫힌 계�
   ]);
 });
 
+test("Facility Report root 삭제는 critical boundaries를 feature owner에 보존한다", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  for (const boundary of [
+    "ACCESSIBILITY_ERROR_TRUTHFULNESS",
+    "ALARM_WIDGET_REPORT_IO",
+    "CRASHLYTICS_PRIVACY",
+  ]) {
+    assert.ok(
+      policy.criticalBoundaryRules[boundary].includes(
+        "features/facility_report/",
+      ),
+      `${boundary} must retain the Facility Report feature owner`,
+    );
+    assert.ok(
+      !policy.criticalBoundaryRules[boundary].includes("facility_report.dart"),
+      `${boundary} must not retain the deleted root path`,
+    );
+  }
+});
+
 test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거부한다", () => {
   const policy = JSON.parse(readFileSync(policyFile, "utf8"));
   assert.throws(() => parsePolicyBytes(Buffer.from(JSON.stringify(policy))));
