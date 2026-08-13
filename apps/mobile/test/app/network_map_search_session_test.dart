@@ -40,14 +40,10 @@ void main() {
     key.currentState!.submitSearch('강남');
     await tester.pump();
 
-    expect(repository.requests, [
-      (query: '강남', region: '수도권'),
-    ]);
+    expect(repository.requests, [(query: '강남', region: '수도권')]);
   });
 
-  testWidgets('active query의 region 변경을 새 지역 검색으로 넘긴다', (
-    tester,
-  ) async {
+  testWidgets('active query의 region 변경을 새 지역 검색으로 넘긴다', (tester) async {
     final key = GlobalKey<NetworkMapSearchSessionState>();
     final queryController = TextEditingController();
     final routeDraftController = RouteDraftController();
@@ -84,10 +80,7 @@ void main() {
 
   test('root는 public app owner를 쓰고 private session 선언을 갖지 않는다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
-    expect(
-      root,
-      contains("import 'app/network_map_search_session.dart';"),
-    );
+    expect(root, contains("import 'app/network_map_search_session.dart';"));
     expect(root, contains('GlobalKey<NetworkMapSearchSessionState>'));
     expect(root, contains('return NetworkMapSearchSession('));
     expect(root, isNot(contains('class _NetworkMapSearchSession')));
