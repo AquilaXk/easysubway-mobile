@@ -5939,6 +5939,7 @@ void main() {
         ],
       },
     );
+    final searchHistoryRepository = FakeSearchHistoryRepository(const []);
 
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -5950,6 +5951,7 @@ void main() {
           location: _freshCurrentLocation(),
           needsPermissionRequest: false,
         ),
+        searchHistoryRepository: searchHistoryRepository,
         realtimeRepository: _HangingRealtimeRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -5967,6 +5969,10 @@ void main() {
     );
     // 조회 완료 전 첫 프레임: settle 없이 패널·시간표 골격이 보여야 한다.
     await tester.pump();
+
+    expect(searchHistoryRepository.recordedQueries, isNotEmpty);
+    expect(searchHistoryRepository.recordedQueries, everyElement('상록수'));
+    expect(searchHistoryRepository.recordedRegions, contains('수도권'));
 
     final panel = find.byKey(const Key('networkMapNearbyStationPanel'));
     expect(panel, findsOneWidget);
@@ -21958,6 +21964,7 @@ class FakeSearchHistoryRepository implements SearchHistoryRepository {
 
   final List<String> queries;
   final recordedQueries = <String>[];
+  final recordedRegions = <String?>[];
   final removedQueries = <String>[];
   int clearCount = 0;
   int listRequestCount = 0;
@@ -21974,6 +21981,7 @@ class FakeSearchHistoryRepository implements SearchHistoryRepository {
       return;
     }
     recordedQueries.add(trimmed);
+    recordedRegions.add(region);
     queries
       ..remove(trimmed)
       ..insert(0, trimmed);

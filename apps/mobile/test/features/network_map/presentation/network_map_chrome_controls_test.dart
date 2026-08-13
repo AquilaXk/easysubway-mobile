@@ -528,6 +528,7 @@ void main() {
     expect(root, isNot(contains('class _NetworkMapRouteDraftField')));
     expect(root, isNot(contains('class _NetworkMapTopBar')));
     expect(root, isNot(contains('class _NetworkMapChrome')));
+    expect(root, isNot(contains('String _displayRegionName(')));
     expect(root, isNot(contains('NetworkMapSearchEntryButton(')));
     expect(root, isNot(contains('NetworkMapTopBarRouteDraft(')));
     expect(owner, contains('class NetworkMapChrome'));
