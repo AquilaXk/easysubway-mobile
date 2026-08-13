@@ -39,8 +39,6 @@ import 'internal_route.dart';
 import 'mobile_error_reporter.dart';
 import 'station_search.dart';
 
-const _networkMapTopBarHeight = easySubwayTopBarContentHeight;
-
 class NetworkMapScreen extends StatefulWidget {
   const NetworkMapScreen({
     required this.repository,
@@ -721,118 +719,18 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
           future: _future,
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
-              return _NetworkMapChrome(
+              return _buildNetworkMapChrome(
                 regions: const [NetworkMapRegion(name: '수도권')],
                 selectedRegion: _selectedRegion ?? '수도권',
-                notificationAction: widget.notificationAction,
-                disruptionBanner: widget.disruptionBanner,
-                onMenuTap: _openMapMenu,
-                onSearchTap: _enterSearchMode,
-                searchMode: _searchMode,
-                searchBody: _buildSearchBody(),
-                onSearchBack: _exitSearchMode,
-                searchQueryController: _searchQueryController,
-                searchFocusNode: _searchFocusNode,
-                onSearchSubmitted: _submitSearch,
-                onSearchClear: _searchQueryController.clear,
-                onRegionSelected: (region) => _reload(region: region),
-                nearbyPanelVisible: _nearbyPanelVisible,
-                nearbyPanelExpanded: _nearbyPanelExpanded,
-                nearbyPanelData: _nearbyPanelData,
-                realtime: _nearbyRealtimeForDisplay,
-                nearbySelectedLineId: _nearbySelectedLineId,
-                nearbyDataSource: _nearbyDataSource,
-                nearbyTimetable: _nearbyTimetableForDisplay,
-                nearbyLookupMessage: _nearbyLookupMessage,
                 adjacentStations: const NearbyAdjacentStations(),
-                onCurrentLocationTap: _showNearestStationFanMenu,
-                onCloseNearbyPanel: _hideNearbyPanel,
-                onNearbyLineSelected: _selectNearbyLine,
-                onNearbyDataSourceToggle: _toggleNearbyDataSource,
-                onOpenNearbyStationDetail: _nearbyStationDetailAction,
-                onSelectNearbyNeighbor: _selectNearbyNeighborStation,
-                stationSearchRepository: widget.stationSearchRepository,
-                reportRepository: widget.reportRepository,
-                favoriteRepository: widget.favoriteRepository,
-                adRepository: widget.adRepository,
-                realtimeRepository: widget.realtimeRepository,
-                locationProvider: widget.locationProvider,
-                facilityReportDraftTargetStore:
-                    widget.facilityReportDraftTargetStore,
-                internalRouteRepository: widget.internalRouteRepository,
-                internalRouteMobilityType: widget.internalRouteMobilityType,
-                routeDraftController: widget.routeDraftController,
-                onClearOrigin: _clearOriginStation,
-                onClearDestination: _clearDestinationStation,
-                onClearWaypoint: _clearWaypointStation,
-                onReorderDraft: _reorderDraftStations,
-                onPickOrigin: widget.onPickStationForSlot == null
-                    ? null
-                    : _pickOriginStation,
-                onPickDestination: widget.onPickStationForSlot == null
-                    ? null
-                    : _pickDestinationStation,
-                onPickWaypoint: widget.onPickStationForSlot == null
-                    ? null
-                    : _pickWaypointStation,
                 child: const Center(child: CircularProgressIndicator()),
               );
             }
             if (snapshot.hasError || !snapshot.hasData) {
-              return _NetworkMapChrome(
+              return _buildNetworkMapChrome(
                 regions: const [NetworkMapRegion(name: '수도권')],
                 selectedRegion: _selectedRegion ?? '수도권',
-                notificationAction: widget.notificationAction,
-                disruptionBanner: widget.disruptionBanner,
-                onMenuTap: _openMapMenu,
-                onSearchTap: _enterSearchMode,
-                searchMode: _searchMode,
-                searchBody: _buildSearchBody(),
-                onSearchBack: _exitSearchMode,
-                searchQueryController: _searchQueryController,
-                searchFocusNode: _searchFocusNode,
-                onSearchSubmitted: _submitSearch,
-                onSearchClear: _searchQueryController.clear,
-                onRegionSelected: (region) => _reload(region: region),
-                nearbyPanelVisible: _nearbyPanelVisible,
-                nearbyPanelExpanded: _nearbyPanelExpanded,
-                nearbyPanelData: _nearbyPanelData,
-                realtime: _nearbyRealtimeForDisplay,
-                nearbySelectedLineId: _nearbySelectedLineId,
-                nearbyDataSource: _nearbyDataSource,
-                nearbyTimetable: _nearbyTimetableForDisplay,
-                nearbyLookupMessage: _nearbyLookupMessage,
                 adjacentStations: const NearbyAdjacentStations(),
-                onCurrentLocationTap: _showNearestStationFanMenu,
-                onCloseNearbyPanel: _hideNearbyPanel,
-                onNearbyLineSelected: _selectNearbyLine,
-                onNearbyDataSourceToggle: _toggleNearbyDataSource,
-                onOpenNearbyStationDetail: _nearbyStationDetailAction,
-                onSelectNearbyNeighbor: _selectNearbyNeighborStation,
-                stationSearchRepository: widget.stationSearchRepository,
-                reportRepository: widget.reportRepository,
-                favoriteRepository: widget.favoriteRepository,
-                adRepository: widget.adRepository,
-                realtimeRepository: widget.realtimeRepository,
-                locationProvider: widget.locationProvider,
-                facilityReportDraftTargetStore:
-                    widget.facilityReportDraftTargetStore,
-                internalRouteRepository: widget.internalRouteRepository,
-                internalRouteMobilityType: widget.internalRouteMobilityType,
-                routeDraftController: widget.routeDraftController,
-                onClearOrigin: _clearOriginStation,
-                onClearDestination: _clearDestinationStation,
-                onClearWaypoint: _clearWaypointStation,
-                onReorderDraft: _reorderDraftStations,
-                onPickOrigin: widget.onPickStationForSlot == null
-                    ? null
-                    : _pickOriginStation,
-                onPickDestination: widget.onPickStationForSlot == null
-                    ? null
-                    : _pickDestinationStation,
-                onPickWaypoint: widget.onPickStationForSlot == null
-                    ? null
-                    : _pickWaypointStation,
                 child: NetworkMapLoadFailure(onRetry: () => _reload()),
               );
             }
@@ -843,60 +741,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             // 렌더한다(운행종별 필터 없음).
             _startInitialNearbyFocus();
             _latestMapData = data;
-            return _NetworkMapChrome(
+            return _buildNetworkMapChrome(
               regions: data.regions,
               selectedRegion: data.selectedRegion,
-              notificationAction: widget.notificationAction,
-              disruptionBanner: widget.disruptionBanner,
-              onMenuTap: _openMapMenu,
-              onSearchTap: _enterSearchMode,
-              searchMode: _searchMode,
-              searchBody: _buildSearchBody(),
-              onSearchBack: _exitSearchMode,
-              searchQueryController: _searchQueryController,
-              searchFocusNode: _searchFocusNode,
-              onSearchSubmitted: _submitSearch,
-              onSearchClear: _searchQueryController.clear,
-              onRegionSelected: (region) => _reload(region: region),
-              nearbyPanelVisible: _nearbyPanelVisible,
-              nearbyPanelExpanded: _nearbyPanelExpanded,
-              nearbyPanelData: _nearbyPanelData,
-              realtime: _nearbyRealtimeForDisplay,
-              nearbySelectedLineId: _nearbySelectedLineId,
-              nearbyDataSource: _nearbyDataSource,
-              nearbyTimetable: _nearbyTimetableForDisplay,
-              nearbyLookupMessage: _nearbyLookupMessage,
               adjacentStations: _adjacentStationsFor(data),
-              onCurrentLocationTap: _showNearestStationFanMenu,
-              onCloseNearbyPanel: _hideNearbyPanel,
-              onNearbyLineSelected: _selectNearbyLine,
-              onNearbyDataSourceToggle: _toggleNearbyDataSource,
-              onOpenNearbyStationDetail: _nearbyStationDetailAction,
-              onSelectNearbyNeighbor: _selectNearbyNeighborStation,
-              stationSearchRepository: widget.stationSearchRepository,
-              reportRepository: widget.reportRepository,
-              favoriteRepository: widget.favoriteRepository,
-              adRepository: widget.adRepository,
-              realtimeRepository: widget.realtimeRepository,
-              locationProvider: widget.locationProvider,
-              facilityReportDraftTargetStore:
-                  widget.facilityReportDraftTargetStore,
-              internalRouteRepository: widget.internalRouteRepository,
-              internalRouteMobilityType: widget.internalRouteMobilityType,
-              routeDraftController: widget.routeDraftController,
-              onClearOrigin: _clearOriginStation,
-              onClearDestination: _clearDestinationStation,
-              onClearWaypoint: _clearWaypointStation,
-              onReorderDraft: _reorderDraftStations,
-              onPickOrigin: widget.onPickStationForSlot == null
-                  ? null
-                  : _pickOriginStation,
-              onPickDestination: widget.onPickStationForSlot == null
-                  ? null
-                  : _pickDestinationStation,
-              onPickWaypoint: widget.onPickStationForSlot == null
-                  ? null
-                  : _pickWaypointStation,
               // #1933: _setOriginStation은 routeDraftController만 갱신하고 이
               // State에서 setState를 호출하지 않으므로, canvas를 좁게
               // ListenableBuilder로 감싸 draft 변경 시 하위 트리가 다시
@@ -1693,6 +1541,97 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     );
   }
 
+  Widget _buildNetworkMapChrome({
+    required List<NetworkMapRegion> regions,
+    required String selectedRegion,
+    required NearbyAdjacentStations adjacentStations,
+    required Widget child,
+  }) {
+    final searchBody = _buildSearchBody();
+    final inSearchMode = _searchMode && searchBody != null;
+    return NetworkMapChrome(
+      topBar: NetworkMapTopBar(
+        regions: regions,
+        selectedRegion: selectedRegion,
+        notificationAction: widget.notificationAction,
+        onMenuTap: _openMapMenu,
+        onSearchTap: _enterSearchMode,
+        searchMode: inSearchMode,
+        onSearchBack: _exitSearchMode,
+        searchQueryController: _searchQueryController,
+        searchFocusNode: _searchFocusNode,
+        onSearchSubmitted: _submitSearch,
+        onSearchClear: _searchQueryController.clear,
+        onRegionSelected: (region) => _reload(region: region),
+        routeDraftListenable: widget.routeDraftController,
+        routeDraft: () => widget.routeDraftController.draft,
+        isWaypointRowVisible: () =>
+            widget.routeDraftController.isWaypointRowVisible,
+        onClearDraft: widget.routeDraftController.clear,
+        onOpenWaypointSlot: widget.routeDraftController.openWaypointSlot,
+        onClearOrigin: _clearOriginStation,
+        onClearDestination: _clearDestinationStation,
+        onClearWaypoint: _clearWaypointStation,
+        onReorderDraft: _reorderDraftStations,
+        onPickOrigin: widget.onPickStationForSlot == null
+            ? null
+            : _pickOriginStation,
+        onPickDestination: widget.onPickStationForSlot == null
+            ? null
+            : _pickDestinationStation,
+        onPickWaypoint: widget.onPickStationForSlot == null
+            ? null
+            : _pickWaypointStation,
+        roleColorForSlot: (slot) => switch (slot) {
+          RouteDraftSlot.origin => EasySubwayFanMenuColors.departure,
+          RouteDraftSlot.waypoint => EasySubwayFanMenuColors.waypoint,
+          RouteDraftSlot.destination => EasySubwayFanMenuColors.arrival,
+        },
+        lineBadgeBuilder: (station, size) => StationLineBadge(
+          line: StationSearchLine(
+            id: station.lineId,
+            name: station.lineName,
+            color: station.lineColor,
+            stationCode: station.stationCode,
+          ),
+          size: size,
+        ),
+      ),
+      disruptionBanner: widget.disruptionBanner,
+      searchMode: inSearchMode,
+      searchBody: searchBody,
+      nearbyPanelVisible: _nearbyPanelVisible,
+      nearbyPanelExpanded: _nearbyPanelExpanded,
+      nearbyPanel: _NetworkMapNearbyStationPanel(
+        data: _nearbyPanelData,
+        expanded: _nearbyPanelExpanded,
+        realtime: _nearbyRealtimeForDisplay,
+        selectedLineId: _nearbySelectedLineId,
+        dataSource: _nearbyDataSource,
+        timetable: _nearbyTimetableForDisplay,
+        adjacentStations: adjacentStations,
+        onClose: _hideNearbyPanel,
+        onLineSelected: _selectNearbyLine,
+        onDataSourceToggle: _toggleNearbyDataSource,
+        onOpenStationDetail: _nearbyStationDetailAction,
+        onSelectNeighbor: _selectNearbyNeighborStation,
+        stationSearchRepository: widget.stationSearchRepository,
+        reportRepository: widget.reportRepository,
+        favoriteRepository: widget.favoriteRepository,
+        adRepository: widget.adRepository,
+        realtimeRepository: widget.realtimeRepository,
+        locationProvider: widget.locationProvider,
+        facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
+        internalRouteRepository: widget.internalRouteRepository,
+        internalRouteMobilityType: widget.internalRouteMobilityType,
+        routeDraftController: widget.routeDraftController,
+      ),
+      nearbyLookupMessage: _nearbyLookupMessage,
+      onCurrentLocationTap: _showNearestStationFanMenu,
+      child: child,
+    );
+  }
+
   NearbyAdjacentStations _adjacentStationsFor(NetworkMapData data) {
     final selectedStationId = _nearbySelectedStationId;
     if (selectedStationId == null) {
@@ -1713,246 +1652,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 }
 
-/// 테스트 전용: [_NetworkMapChrome]가 build될 때마다 증가한다. 검색 중 키
-/// 입력이 지도 chrome(상단바+지도 canvas를 감싸는 서브트리) 전체를 재빌드하지
-/// 않는지(입력 지연 회귀 방지 #1915) 검증하는 회귀 테스트에서만 읽는다.
-@visibleForTesting
-int debugNetworkMapChromeBuildCount = 0;
-
-class _NetworkMapChrome extends StatelessWidget {
-  const _NetworkMapChrome({
-    required this.regions,
-    required this.selectedRegion,
-    required this.notificationAction,
-    required this.disruptionBanner,
-    required this.onMenuTap,
-    required this.onSearchTap,
-    required this.onRegionSelected,
-    required this.nearbyPanelVisible,
-    required this.nearbyPanelExpanded,
-    required this.nearbyPanelData,
-    required this.realtime,
-    required this.nearbySelectedLineId,
-    required this.nearbyDataSource,
-    required this.nearbyTimetable,
-    required this.nearbyLookupMessage,
-    required this.adjacentStations,
-    required this.onCurrentLocationTap,
-    required this.onCloseNearbyPanel,
-    required this.onNearbyLineSelected,
-    required this.onNearbyDataSourceToggle,
-    this.onOpenNearbyStationDetail,
-    this.onSelectNearbyNeighbor,
-    this.stationSearchRepository,
-    this.reportRepository,
-    this.favoriteRepository,
-    this.adRepository,
-    this.realtimeRepository,
-    this.locationProvider,
-    this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteMobilityType = 'SENIOR',
-    required this.routeDraftController,
-    required this.onClearOrigin,
-    required this.onClearDestination,
-    required this.onClearWaypoint,
-    required this.onReorderDraft,
-    this.onPickOrigin,
-    this.onPickDestination,
-    this.onPickWaypoint,
-    this.searchMode = false,
-    this.searchBody,
-    this.onSearchBack,
-    this.searchQueryController,
-    this.searchFocusNode,
-    this.onSearchSubmitted,
-    this.onSearchClear,
-    required this.child,
-  });
-
-  final List<NetworkMapRegion> regions;
-  final String selectedRegion;
-  final Widget? notificationAction;
-  final Widget? disruptionBanner;
-  final VoidCallback onMenuTap;
-  final VoidCallback onSearchTap;
-  final ValueChanged<String> onRegionSelected;
-  final bool nearbyPanelVisible;
-  final bool nearbyPanelExpanded;
-  final NetworkMapNearbyPanelData<StationSearchResult> nearbyPanelData;
-  final RealtimeSnapshot realtime;
-  final String? nearbySelectedLineId;
-  final NetworkMapNearbyPanelDataSource nearbyDataSource;
-  final StationTimetable? nearbyTimetable;
-  final String? nearbyLookupMessage;
-  final NearbyAdjacentStations adjacentStations;
-  final VoidCallback onCurrentLocationTap;
-  final VoidCallback onCloseNearbyPanel;
-  final ValueChanged<StationSearchLine> onNearbyLineSelected;
-  final VoidCallback onNearbyDataSourceToggle;
-  final VoidCallback? onOpenNearbyStationDetail;
-  final ValueChanged<StationDetailNeighbor>? onSelectNearbyNeighbor;
-  final StationSearchRepository? stationSearchRepository;
-  final FacilityReportRepository? reportRepository;
-  final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
-  final RealtimeRepository? realtimeRepository;
-  final CurrentLocationProvider? locationProvider;
-  final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final String internalRouteMobilityType;
-  final RouteDraftController routeDraftController;
-  final VoidCallback onClearOrigin;
-  final VoidCallback onClearDestination;
-  final VoidCallback onClearWaypoint;
-
-  /// #1985: draft 행 드래그 재배열 콜백. (from, to) 슬롯을 받아 swap/move를 분기한다.
-  final void Function(RouteDraftSlot from, RouteDraftSlot to) onReorderDraft;
-
-  /// 상단바 출발/도착/경유 칸 탭 → 역 검색 열기. null이면 칸을 탭할 수 없다.
-  final VoidCallback? onPickOrigin;
-  final VoidCallback? onPickDestination;
-  final VoidCallback? onPickWaypoint;
-
-  /// #1933 홈 노선도 in-place 역 검색 모드. true면 body를 [searchBody]로 바꾸고
-  /// 상단바 좌측 ≡를 ←로, 검색 필드를 실제 TextField로 전환한다. 지역 선택기는
-  /// 두 모드에서 모두 유지된다.
-  final bool searchMode;
-  final Widget? searchBody;
-  final VoidCallback? onSearchBack;
-  final TextEditingController? searchQueryController;
-  final FocusNode? searchFocusNode;
-  final ValueChanged<String>? onSearchSubmitted;
-  final VoidCallback? onSearchClear;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    debugNetworkMapChromeBuildCount++;
-    final topPadding = MediaQuery.paddingOf(context).top;
-    final inSearchMode = searchMode && searchBody != null;
-    // 지도를 상단바 아래로 약간 겹쳐 그리면, 구분선·짧은 드롭이 흰 배경이 아니라
-    // 노선 색 위에 앉아 카카오처럼 닿는 부위가 하얗게 끊기지 않는다.
-    const mapUnderTopBarPx = 10.0;
-    final mapTop = topPadding + _networkMapTopBarHeight - mapUnderTopBarPx;
-    // 상단바 mapChrome 드롭이 지도 위로 그려지려면 이 Stack이 자식을 잘라내면
-    // 안 된다(기본 Clip.hardEdge면 그림자만 사라짐).
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        Positioned.fill(
-          top: mapTop,
-          // ClipRect를 쓰면 가장자리 draft 핀의 soft drop·✕가 잘린다.
-          child: inSearchMode ? searchBody! : child,
-        ),
-        Positioned(
-          left: 0,
-          top: 0,
-          right: 0,
-          child: NetworkMapTopBar(
-            regions: regions,
-            selectedRegion: selectedRegion,
-            notificationAction: notificationAction,
-            onMenuTap: onMenuTap,
-            onSearchTap: onSearchTap,
-            searchMode: inSearchMode,
-            onSearchBack: onSearchBack,
-            searchQueryController: searchQueryController,
-            searchFocusNode: searchFocusNode,
-            onSearchSubmitted: onSearchSubmitted,
-            onSearchClear: onSearchClear,
-            onRegionSelected: onRegionSelected,
-            // #1933 요구 2: 출발/도착이 하나라도 차면 상단바 자체가 출발/도착
-            // 2줄 입력으로 "변신"한다(아래 별도 카드 없음). 지도 탭·검색 어느
-            // 경로든 같은 [routeDraftController]로 수렴한다.
-            routeDraftListenable: routeDraftController,
-            routeDraft: () => routeDraftController.draft,
-            isWaypointRowVisible: () =>
-                routeDraftController.isWaypointRowVisible,
-            onClearDraft: routeDraftController.clear,
-            onOpenWaypointSlot: routeDraftController.openWaypointSlot,
-            onClearOrigin: onClearOrigin,
-            onClearDestination: onClearDestination,
-            onClearWaypoint: onClearWaypoint,
-            onReorderDraft: onReorderDraft,
-            onPickOrigin: onPickOrigin,
-            onPickDestination: onPickDestination,
-            onPickWaypoint: onPickWaypoint,
-            roleColorForSlot: (slot) => switch (slot) {
-              RouteDraftSlot.origin => EasySubwayFanMenuColors.departure,
-              RouteDraftSlot.waypoint => EasySubwayFanMenuColors.waypoint,
-              RouteDraftSlot.destination => EasySubwayFanMenuColors.arrival,
-            },
-            lineBadgeBuilder: (station, size) => StationLineBadge(
-              line: StationSearchLine(
-                id: station.lineId,
-                name: station.lineName,
-                color: station.lineColor,
-                stationCode: station.stationCode,
-              ),
-              size: size,
-            ),
-          ),
-        ),
-        if (disruptionBanner != null && !inSearchMode)
-          Positioned(
-            left: 0,
-            right: 0,
-            top: topPadding + _networkMapTopBarHeight,
-            child: disruptionBanner!,
-          ),
-        if (nearbyPanelVisible && !inSearchMode)
-          Positioned(
-            // 확장 시 상단 검색바까지 덮어 반쯤 열린 슬롭 시트를 막는다.
-            left: 0,
-            right: 0,
-            top: nearbyPanelExpanded ? 0 : null,
-            bottom: 0,
-            child: _NetworkMapNearbyStationPanel(
-              data: nearbyPanelData,
-              expanded: nearbyPanelExpanded,
-              realtime: realtime,
-              selectedLineId: nearbySelectedLineId,
-              dataSource: nearbyDataSource,
-              timetable: nearbyTimetable,
-              adjacentStations: adjacentStations,
-              onClose: onCloseNearbyPanel,
-              onLineSelected: onNearbyLineSelected,
-              onDataSourceToggle: onNearbyDataSourceToggle,
-              onOpenStationDetail: onOpenNearbyStationDetail,
-              onSelectNeighbor: onSelectNearbyNeighbor,
-              stationSearchRepository: stationSearchRepository,
-              reportRepository: reportRepository,
-              favoriteRepository: favoriteRepository,
-              adRepository: adRepository,
-              realtimeRepository: realtimeRepository,
-              locationProvider: locationProvider,
-              facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-              internalRouteRepository: internalRouteRepository,
-              internalRouteMobilityType: internalRouteMobilityType,
-              routeDraftController: routeDraftController,
-            ),
-          ),
-        if (nearbyLookupMessage != null &&
-            !inSearchMode &&
-            !nearbyPanelExpanded)
-          Positioned(
-            left: 24,
-            right: 24,
-            bottom: nearbyPanelVisible ? 318 : 132,
-            child: NetworkMapLookupToast(message: nearbyLookupMessage!),
-          ),
-        if (!inSearchMode && !nearbyPanelExpanded)
-          Positioned(
-            right: 16,
-            bottom: nearbyPanelVisible ? 280 : 26,
-            child: NetworkMapCurrentLocationButton(onTap: onCurrentLocationTap),
-          ),
-      ],
-    );
-  }
-}
-
 /// #1915 홈 노선도 in-place 역 검색의 "세션" — 검색 컨트롤러·디바운스·최근
 /// 검색어·결과 본문 등 키 입력마다 바뀌는 상태를 이 서브트리로 격리한다.
 /// 검색 모드로 진입/이탈하는 모드 플래그만 상위 [_NetworkMapScreenState]에
@@ -1960,7 +1659,7 @@ class _NetworkMapChrome extends StatelessWidget {
 /// 국한된다. 그래야 지도 canvas·chrome 서브트리가 키 입력마다 재빌드되지
 /// 않아 입력 지연이 사라진다.
 ///
-/// 상단바의 편집 필드는 [_NetworkMapChrome]의 별도 Stack 자식이라 이 세션이
+/// 상단바의 편집 필드는 [NetworkMapChrome]의 별도 Stack 자식이라 이 세션이
 /// 직접 렌더하지 않는다. 대신 필드의 컨트롤러([searchQueryController])를 상위와
 /// 공유하고, 세션은 그 컨트롤러를 구독해 디바운스 검색을 돌린다. 필드의 지우기
 /// 버튼과 결과 본문은 각각 컨트롤러를 직접 구독(ListenableBuilder/

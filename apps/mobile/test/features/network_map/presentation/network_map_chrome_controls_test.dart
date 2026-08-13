@@ -241,6 +241,92 @@ void main() {
     draftChanges.dispose();
   });
 
+  testWidgets('outer chrome shell은 map/search와 overlay 가시성을 보존한다', (
+    tester,
+  ) async {
+    var locationTapCount = 0;
+
+    Widget shell({bool searchMode = false, bool nearbyExpanded = false}) {
+      return MediaQuery(
+        data: const MediaQueryData(padding: EdgeInsets.only(top: 24)),
+        child: SizedBox(
+          width: 400,
+          height: 560,
+          child: NetworkMapChrome(
+            topBar: const SizedBox(
+              key: Key('networkMapOuterChromeTopBar'),
+              height: easySubwayTopBarContentHeight,
+            ),
+            disruptionBanner: const SizedBox(
+              key: Key('networkMapOuterChromeDisruption'),
+            ),
+            searchMode: searchMode,
+            searchBody: const SizedBox(
+              key: Key('networkMapOuterChromeSearchBody'),
+            ),
+            nearbyPanelVisible: true,
+            nearbyPanelExpanded: nearbyExpanded,
+            nearbyPanel: const SizedBox(
+              key: Key('networkMapOuterChromeNearbyPanel'),
+            ),
+            nearbyLookupMessage: '가까운 역을 찾았어요',
+            onCurrentLocationTap: () => locationTapCount += 1,
+            child: const SizedBox(key: Key('networkMapOuterChromeMapBody')),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(_host(shell()));
+
+    expect(
+      find.byKey(const Key('networkMapOuterChromeMapBody')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('networkMapOuterChromeSearchBody')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('networkMapOuterChromeDisruption')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('networkMapOuterChromeNearbyPanel')),
+      findsOneWidget,
+    );
+    expect(find.text('가까운 역을 찾았어요'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('nearbyStationButton')));
+    expect(locationTapCount, 1);
+
+    await tester.pumpWidget(_host(shell(searchMode: true)));
+
+    expect(find.byKey(const Key('networkMapOuterChromeMapBody')), findsNothing);
+    expect(
+      find.byKey(const Key('networkMapOuterChromeSearchBody')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('networkMapOuterChromeDisruption')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const Key('networkMapOuterChromeNearbyPanel')),
+      findsNothing,
+    );
+    expect(find.text('가까운 역을 찾았어요'), findsNothing);
+    expect(find.byKey(const Key('nearbyStationButton')), findsNothing);
+
+    await tester.pumpWidget(_host(shell(nearbyExpanded: true)));
+
+    expect(
+      find.byKey(const Key('networkMapOuterChromeNearbyPanel')),
+      findsOneWidget,
+    );
+    expect(find.text('가까운 역을 찾았어요'), findsNothing);
+    expect(find.byKey(const Key('nearbyStationButton')), findsNothing);
+  });
+
   testWidgets('top-bar route draft는 one-sided chrome·callback·잠긴 지역을 보존한다', (
     tester,
   ) async {
@@ -429,8 +515,7 @@ void main() {
         "import 'features/network_map/presentation/network_map_chrome_controls.dart';",
       ),
     );
-    expect(root, contains('NetworkMapLookupToast('));
-    expect(root, contains('NetworkMapCurrentLocationButton('));
+    expect(root, contains('NetworkMapChrome('));
     expect(root, contains('NetworkMapBottomAdBanner('));
     expect(root, contains('NetworkMapTopBar('));
     expect(root, contains('slot: AdBannerSlot('));
@@ -442,8 +527,12 @@ void main() {
     expect(root, isNot(contains('class _NetworkMapTopBarRouteDraft')));
     expect(root, isNot(contains('class _NetworkMapRouteDraftField')));
     expect(root, isNot(contains('class _NetworkMapTopBar')));
+    expect(root, isNot(contains('class _NetworkMapChrome')));
     expect(root, isNot(contains('NetworkMapSearchEntryButton(')));
     expect(root, isNot(contains('NetworkMapTopBarRouteDraft(')));
+    expect(owner, contains('class NetworkMapChrome'));
+    expect(owner, contains('NetworkMapLookupToast('));
+    expect(owner, contains('NetworkMapCurrentLocationButton('));
     expect(owner, contains('class NetworkMapTopBar'));
     expect(owner, contains('NetworkMapSearchEntryButton('));
     expect(owner, contains('class NetworkMapTopBarRouteDraft'));

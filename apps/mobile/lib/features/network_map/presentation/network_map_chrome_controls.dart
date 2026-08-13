@@ -8,6 +8,92 @@ import '../domain/network_map_models.dart';
 import '../domain/route_map_min_scale.dart';
 import 'region_menu.dart';
 
+/// 테스트 전용: [NetworkMapChrome]가 build될 때마다 증가한다. 검색 중 키
+/// 입력이 지도 chrome 전체를 재빌드하지 않는지 검증할 때만 읽는다.
+@visibleForTesting
+int debugNetworkMapChromeBuildCount = 0;
+
+class NetworkMapChrome extends StatelessWidget {
+  const NetworkMapChrome({
+    required this.topBar,
+    required this.disruptionBanner,
+    required this.searchMode,
+    required this.searchBody,
+    required this.nearbyPanelVisible,
+    required this.nearbyPanelExpanded,
+    required this.nearbyPanel,
+    required this.nearbyLookupMessage,
+    required this.onCurrentLocationTap,
+    required this.child,
+    super.key,
+  });
+
+  final Widget topBar;
+  final Widget? disruptionBanner;
+  final bool searchMode;
+  final Widget? searchBody;
+  final bool nearbyPanelVisible;
+  final bool nearbyPanelExpanded;
+  final Widget nearbyPanel;
+  final String? nearbyLookupMessage;
+  final VoidCallback onCurrentLocationTap;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    debugNetworkMapChromeBuildCount++;
+    final topPadding = MediaQuery.paddingOf(context).top;
+    final inSearchMode = searchMode && searchBody != null;
+    // 지도를 상단바 아래로 약간 겹쳐 그리면, 구분선·짧은 드롭이 흰 배경이 아니라
+    // 노선 색 위에 앉아 카카오처럼 닿는 부위가 하얗게 끊기지 않는다.
+    const mapUnderTopBarPx = 10.0;
+    final mapTop =
+        topPadding + easySubwayTopBarContentHeight - mapUnderTopBarPx;
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        Positioned.fill(
+          top: mapTop,
+          // ClipRect를 쓰면 가장자리 draft 핀의 soft drop·✕가 잘린다.
+          child: inSearchMode ? searchBody! : child,
+        ),
+        Positioned(left: 0, top: 0, right: 0, child: topBar),
+        if (disruptionBanner != null && !inSearchMode)
+          Positioned(
+            left: 0,
+            right: 0,
+            top: topPadding + easySubwayTopBarContentHeight,
+            child: disruptionBanner!,
+          ),
+        if (nearbyPanelVisible && !inSearchMode)
+          Positioned(
+            // 확장 시 상단 검색바까지 덮어 반쯤 열린 슬롭 시트를 막는다.
+            left: 0,
+            right: 0,
+            top: nearbyPanelExpanded ? 0 : null,
+            bottom: 0,
+            child: nearbyPanel,
+          ),
+        if (nearbyLookupMessage != null &&
+            !inSearchMode &&
+            !nearbyPanelExpanded)
+          Positioned(
+            left: 24,
+            right: 24,
+            bottom: nearbyPanelVisible ? 318 : 132,
+            child: NetworkMapLookupToast(message: nearbyLookupMessage!),
+          ),
+        if (!inSearchMode && !nearbyPanelExpanded)
+          Positioned(
+            right: 16,
+            bottom: nearbyPanelVisible ? 280 : 26,
+            child: NetworkMapCurrentLocationButton(onTap: onCurrentLocationTap),
+          ),
+      ],
+    );
+  }
+}
+
 class NetworkMapTopBar extends StatelessWidget {
   const NetworkMapTopBar({
     required this.regions,
