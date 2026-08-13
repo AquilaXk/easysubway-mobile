@@ -111,18 +111,22 @@ void main() {
     semantics.dispose();
   });
 
-  test('root와 existing helper는 public owner만 직접 참조한다', () {
+  test('canvas와 existing helper는 public hit owner만 직접 참조한다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
+    final canvas = File(
+      'lib/features/network_map/presentation/network_map_canvas.dart',
+    ).readAsStringSync();
     final existingTest = File('test/widget_test.dart').readAsStringSync();
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/station_hit_target.dart';",
+        "import 'features/network_map/presentation/network_map_canvas.dart';",
       ),
     );
-    expect(root, contains('NetworkMapStationHitTarget('));
+    expect(canvas, contains("import 'station_hit_target.dart';"));
+    expect(canvas, contains('NetworkMapStationHitTarget('));
     expect(root, isNot(contains('class _StationHitTarget')));
-    expect(root, contains('NetworkMapStationHitGeometry('));
+    expect(canvas, contains('NetworkMapStationHitGeometry('));
     expect(root, isNot(contains('Rect _stationHitRect(')));
     expect(root, isNot(contains('_stationAtViewportPosition(')));
     expect(root, isNot(contains('_visibleCanonicalStations(')));

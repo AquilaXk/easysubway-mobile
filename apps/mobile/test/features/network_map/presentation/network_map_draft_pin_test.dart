@@ -163,21 +163,18 @@ void main() {
     expect(clearCount, 0);
   });
 
-  test('root는 public pin owner만 세 번 조합한다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+  test('canvas는 public pin owner만 세 번 조합한다', () {
+    final canvas = File(
+      'lib/features/network_map/presentation/network_map_canvas.dart',
+    ).readAsStringSync();
     final owner = File(
       'lib/features/network_map/presentation/network_map_draft_pin.dart',
     ).readAsStringSync();
 
-    expect(
-      root,
-      contains(
-        "import 'features/network_map/presentation/network_map_draft_pin.dart';",
-      ),
-    );
-    expect('NetworkMapDraftPin('.allMatches(root), hasLength(3));
-    expect(root, isNot(contains('_NetworkMapDraftPin')));
-    expect(root, isNot(contains("import 'dart:ui' show ImageFilter;")));
+    expect(canvas, contains("import 'network_map_draft_pin.dart';"));
+    expect('NetworkMapDraftPin('.allMatches(canvas), hasLength(3));
+    expect(canvas, isNot(contains('_NetworkMapDraftPin')));
+    expect(canvas, isNot(contains("import 'dart:ui' show ImageFilter;")));
     expect(owner, contains('class NetworkMapDraftPin extends StatelessWidget'));
     expect(owner, isNot(contains("import '../../../network_map.dart';")));
   });

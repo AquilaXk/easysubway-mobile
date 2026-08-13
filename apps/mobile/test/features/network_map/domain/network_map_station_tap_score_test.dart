@@ -38,12 +38,16 @@ void main() {
     'network map hit-testing owner consumes the public station tap score',
     () {
       final root = File('lib/network_map.dart').readAsStringSync();
+      final canvas = File(
+        'lib/features/network_map/presentation/network_map_canvas.dart',
+      ).readAsStringSync();
       final hitTestingOwner = File(
         'lib/features/network_map/presentation/station_hit_target.dart',
       ).readAsStringSync();
 
-      expect(root, contains('NetworkMapStationHitGeometry'));
-      expect(root, isNot(contains('NetworkMapStationTapScore')));
+      expect(root, contains('NetworkMapCanvas('));
+      expect(canvas, contains('NetworkMapStationHitGeometry'));
+      expect(canvas, isNot(contains('NetworkMapStationTapScore')));
       expect(hitTestingOwner, contains('NetworkMapStationTapScore'));
       expect(root, isNot(contains('class _StationTapScore')));
     },

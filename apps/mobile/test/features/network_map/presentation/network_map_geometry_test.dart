@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_geometry.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -114,7 +115,8 @@ void main() {
     expect(geometry.initialBounds, isNot(const Rect.fromLTWH(0, 0, 860, 560)));
   });
 
-  test('polygon bounds와 root public owner 결속을 단일 source로 유지한다', () {
+  test('polygon bounds와 canvas public owner 결속을 단일 source로 유지한다', () {
+    expect(NetworkMapCanvas, isNotNull);
     expect(
       networkMapPolygonBounds(const [
         Offset(10, 20),
@@ -125,13 +127,17 @@ void main() {
     );
 
     final root = File('lib/network_map.dart').readAsStringSync();
+    final canvas = File(
+      'lib/features/network_map/presentation/network_map_canvas.dart',
+    ).readAsStringSync();
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_geometry.dart';",
+        "import 'features/network_map/presentation/network_map_canvas.dart';",
       ),
     );
-    expect(root, contains('NetworkMapGeometry.fromStations('));
+    expect(canvas, contains("import 'network_map_geometry.dart';"));
+    expect(canvas, contains('NetworkMapGeometry.fromStations('));
     expect(root, isNot(contains('class _MapGeometry')));
     expect(root, isNot(contains('Rect _boundsForPolygon(')));
   });
