@@ -38,13 +38,7 @@ class NetworkMapNearbyPanelShell extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: surfaceColor,
-          border: expanded
-              ? null
-              : Border(
-                  top: BorderSide(
-                    color: borderColor,
-                  ),
-                ),
+          border: expanded ? null : Border(top: BorderSide(color: borderColor)),
         ),
         child: Column(
           mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
@@ -95,16 +89,10 @@ class NetworkMapNearbyPanelShell extends StatelessWidget {
                 ],
               ),
             ),
-            Divider(
-              height: 1,
-              color: borderColor,
-            ),
+            Divider(height: 1, color: borderColor),
             body,
             if (detail != null) ...[
-              Divider(
-                height: 1,
-                color: borderColor,
-              ),
+              Divider(height: 1, color: borderColor),
               Expanded(child: detail),
             ],
           ],
