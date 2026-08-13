@@ -6,7 +6,6 @@ import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../facility_report.dart';
 import '../favorite_facility.dart';
 import '../internal_route.dart';
 import '../mobile_error_reporter.dart';
@@ -20,6 +19,7 @@ import '../core/datapack/data_pack_update_state.dart';
 import '../core/datapack/data_pack_updater.dart';
 import '../core/datapack/emergency_override_repository.dart';
 import '../core/datapack/network_condition_source.dart';
+import '../features/facility_report/domain/facility_report_repository.dart';
 import '../user_data_deletion.dart';
 import '../core/database/catalog/catalog_database.dart';
 import '../core/database/catalog/catalog_database_opener.dart';

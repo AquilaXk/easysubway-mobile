@@ -18,6 +18,7 @@ import 'features/facility_report/domain/facility_report_exception.dart';
 import 'features/facility_report/domain/facility_report_location.dart';
 import 'features/facility_report/domain/facility_report_photo.dart';
 import 'features/facility_report/domain/facility_report_receipt.dart';
+import 'features/facility_report/domain/facility_report_repository.dart';
 import 'features/facility_report/domain/facility_report_request.dart';
 import 'features/facility_report/domain/facility_report_result.dart';
 import 'features/facility_report/domain/facility_report_target.dart';
@@ -46,14 +47,6 @@ const _facilityReportUploadDisclosureScope =
     '제보 내용은 접수 담당자에게 전달되며 앱 사용자에게 공개되지 않습니다.';
 const _facilityReportPagePadding = EdgeInsets.only(bottom: 32);
 const _facilityReportContentPadding = EdgeInsets.symmetric(horizontal: 20);
-
-abstract class FacilityReportRepository {
-  Future<FacilityReportResult> createReport(FacilityReportRequest request);
-
-  Future<FacilityReportResult> getReport(String reportId);
-
-  Future<List<FacilityReportResult>> listMyReports();
-}
 
 class UnavailableFacilityReportRepository implements FacilityReportRepository {
   const UnavailableFacilityReportRepository();

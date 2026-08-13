@@ -9,6 +9,7 @@ import '../../../facility_status.dart';
 import '../../../favorite_facility.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../notification_settings.dart';
+import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_result.dart';
 import '../../facility_report/presentation/facility_report_result_labels.dart';
 

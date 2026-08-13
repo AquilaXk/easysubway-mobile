@@ -17,6 +17,7 @@ import '../../../route_search.dart';
 import '../../../station_search.dart';
 import '../../../user_data_deletion.dart';
 import '../../ads/ad_repository.dart';
+import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../favorites/presentation/favorite_home_screen.dart';
 import '../../get_off_alarm/get_off_alarm_controller.dart';

@@ -11,6 +11,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../features/favorites/data/drift_favorite_repositories.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
+import '../features/facility_report/domain/facility_report_repository.dart';
 import '../features/facility_report/domain/facility_report_request.dart';
 import '../features/facility_report/domain/facility_report_result.dart';
 import '../features/get_off_alarm/data/get_off_alarm_recovery_notice_store.dart';
