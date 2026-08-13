@@ -12,14 +12,14 @@ class NetworkMapStationSpatialIndex {
   static final empty = NetworkMapStationSpatialIndex._(
     buckets: const {},
     stationOrder: const {},
-    stationKeyFor: (station) => station.id,
+    stationKeyFor: null,
   );
 
   static const _cellSize = 256.0;
 
   final Map<_NetworkMapStationSpatialCell, List<NetworkMapStation>> _buckets;
   final Map<String, int> _stationOrder;
-  final String Function(NetworkMapStation station) _stationKeyFor;
+  final String Function(NetworkMapStation station)? _stationKeyFor;
 
   factory NetworkMapStationSpatialIndex.fromStations(
     List<NetworkMapStation> stations, {
@@ -46,16 +46,17 @@ class NetworkMapStationSpatialIndex {
     if (_buckets.isEmpty || sourceBounds.isEmpty) {
       return const [];
     }
+    final stationKeyFor = _stationKeyFor!;
     final byKey = <String, NetworkMapStation>{};
     for (final cell in _cellsFor(sourceBounds)) {
       for (final station in _buckets[cell] ?? const <NetworkMapStation>[]) {
-        byKey[_stationKeyFor(station)] = station;
+        byKey[stationKeyFor(station)] = station;
       }
     }
     final result = byKey.values.toList(growable: false);
     result.sort((a, b) {
-      final aOrder = _stationOrder[_stationKeyFor(a)] ?? 0;
-      final bOrder = _stationOrder[_stationKeyFor(b)] ?? 0;
+      final aOrder = _stationOrder[stationKeyFor(a)] ?? 0;
+      final bOrder = _stationOrder[stationKeyFor(b)] ?? 0;
       return aOrder.compareTo(bOrder);
     });
     return result;
