@@ -64,7 +64,7 @@ import 'package:easysubway_mobile/features/network_map/data/network_map_attribut
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:easysubway_mobile/search_field.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
@@ -2779,7 +2779,7 @@ void main() {
   });
 
   testWidgets('#2068 팬 메뉴 꼬리 팁은 노드 바닥에서 높이 2/3 위에 닿는다', (tester) async {
-    // 배선 가드: network_map.dart의 팬 메뉴 호출부를 _fanMenuTailAnchorSource에서
+    // 배선 가드: app/network_map_screen.dart의 팬 메뉴 호출부를 _fanMenuTailAnchorSource에서
     // _fanMenuAnchorSource(정중앙)로 되돌리면 이 delta가 0이 되어 red가 된다.
     // 기준점은 같은 역의 draft pin이다 — pin은 정중앙 앵커를 그대로 쓰고
     // (_NetworkMapDraftPin: pinTop = anchor.dy - 52, hitPadTop 10 · hitPadBottom 0)

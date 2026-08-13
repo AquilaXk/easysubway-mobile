@@ -77,6 +77,14 @@ test("Facility Report root 삭제는 critical boundaries를 feature owner에 보
   }
 });
 
+test("Network Map root 삭제는 accessibility critical boundary를 app owner에 보존한다", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;
+
+  assert.ok(boundary.includes("app/network_map_screen.dart"));
+  assert.ok(!boundary.includes("network_map.dart"));
+});
+
 test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거부한다", () => {
   const policy = JSON.parse(readFileSync(policyFile, "utf8"));
   assert.throws(() => parsePolicyBytes(Buffer.from(JSON.stringify(policy))));

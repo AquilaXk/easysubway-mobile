@@ -31,7 +31,7 @@ void main() {
   });
 
   test('network map root no longer declares private nearby display caches', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
 
     expect(root, contains('NetworkMapNearbyRealtimeDisplay'));
     expect(root, contains('NetworkMapNearbyTimetableDisplay'));

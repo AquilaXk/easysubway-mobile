@@ -200,7 +200,7 @@ void main() {
             '0xFF8D8D8D',
             '0xCCFFFFFF',
           },
-      'lib/network_map.dart': {'0x99000000', '0xFF000000'},
+      'lib/app/network_map_screen.dart': {'0x99000000', '0xFF000000'},
       'lib/features/network_map/presentation/network_map_chrome_controls.dart':
           {'0xE62F3437'},
       'lib/features/network_map/presentation/region_menu.dart': {'0x99000000'},
@@ -276,7 +276,7 @@ void main() {
       // 의도 잔존: 노선도 홈 화면 타이틀 1건 — 룩 불변 원칙.
       // 좌측 메뉴와 lookup toast는 feature owner로 이동해 5→1로 하향.
       // — #122, #124
-      'lib/network_map.dart': 1,
+      'lib/app/network_map_screen.dart': 1,
       // 의도 잔존: nearby lookup toast 1건 — #124 owner 이전.
       'lib/features/network_map/presentation/network_map_chrome_controls.dart':
           1,
@@ -309,7 +309,7 @@ void main() {
 
   test('노선도 그림자/elevation 재유입 금지 가드 (#1933)', () {
     final filesToCheck = [
-      'lib/network_map.dart',
+      'lib/app/network_map_screen.dart',
       'lib/route_search.dart',
       'lib/features/network_map/presentation/network_map_chrome_controls.dart',
     ];

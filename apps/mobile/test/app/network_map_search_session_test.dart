@@ -457,8 +457,8 @@ void main() {
   }
 
   test('root는 public app owner를 쓰고 private session 선언을 갖지 않는다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
-    expect(root, contains("import 'app/network_map_search_session.dart';"));
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
+    expect(root, contains("import 'network_map_search_session.dart';"));
     expect(root, contains('GlobalKey<NetworkMapSearchSessionState>'));
     expect(root, contains('return NetworkMapSearchSession('));
     expect(root, isNot(contains('class _NetworkMapSearchSession')));

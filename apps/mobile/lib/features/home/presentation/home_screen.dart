@@ -8,7 +8,7 @@ import '../../../app/app_components.dart';
 import '../../../favorite_facility.dart';
 import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../../network_map.dart';
+import '../../../app/network_map_screen.dart';
 import '../../network_map/domain/network_map_models.dart';
 import '../../../notification_settings.dart';
 import '../../../onboarding.dart';

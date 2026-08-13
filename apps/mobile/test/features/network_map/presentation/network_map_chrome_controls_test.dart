@@ -505,14 +505,14 @@ void main() {
   });
 
   test('root는 direct owner만 소비하고 private compatibility surface가 없다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     final owner = File(
       'lib/features/network_map/presentation/network_map_chrome_controls.dart',
     ).readAsStringSync();
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_chrome_controls.dart';",
+        "import '../features/network_map/presentation/network_map_chrome_controls.dart';",
       ),
     );
     expect(root, contains('NetworkMapChrome('));

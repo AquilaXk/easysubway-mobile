@@ -9,7 +9,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/route_map_ba
 import 'package:easysubway_mobile/features/network_map/presentation/station_hit_target.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -45,7 +45,7 @@ import 'package:sqlite3/sqlite3.dart';
 // 아이솔레이트)로 디코드하는데, 이 sidecar가 170KB대라 그 경로를 타고, 이 실행
 // 샌드박스에서는 그 isolate spawn이 응답 없이 멈춘다(실기기·CI에는 없는 테스트
 // 환경 한계 — 프로덕션 코드가 loadString을 쓰는 것 자체는 정상이며 바꾸지
-// 않는다). 파싱된 결과는 network_map.dart의
+// 않는다). 파싱된 결과는 app/network_map_screen.dart의
 // primeNetworkMapOwnerLabelsCacheForTest로 프로덕션이 쓰는 것과 동일한 공유
 // 캐시 슬롯에 주입해, 마운트된 위젯의 _loadOwnerLabels()가 실제 loadString 호출
 // 없이 이 값을 즉시 받는다 — region 키 정규화 로직 자체는 실제 코드 경로 그대로

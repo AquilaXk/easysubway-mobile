@@ -112,7 +112,7 @@ void main() {
   });
 
   test('canvas와 existing helper는 public hit owner만 직접 참조한다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     final canvas = File(
       'lib/features/network_map/presentation/network_map_canvas.dart',
     ).readAsStringSync();
@@ -120,7 +120,7 @@ void main() {
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_canvas.dart';",
+        "import '../features/network_map/presentation/network_map_canvas.dart';",
       ),
     );
     expect(canvas, contains("import 'station_hit_target.dart';"));

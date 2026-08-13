@@ -12,7 +12,7 @@ import 'package:easysubway_mobile/features/route_draft/application/route_draft_c
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_hit_target.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';

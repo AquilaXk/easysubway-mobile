@@ -144,7 +144,7 @@
       "features/support/presentation/",
       "features/train_search/presentation/",
       "facility_status.dart",
-      "network_map.dart",
+      "app/network_map_screen.dart",
       "onboarding.dart",
       "route_search.dart",
       "search_field.dart",

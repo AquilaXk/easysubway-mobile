@@ -7,7 +7,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/route_map_ba
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -18,7 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 //        kRouteMapMinScaleByRegion의 부산을 0.05로 되돌리면 조회 그룹과 위젯
 //        그룹이 함께 red다(표 사본 비교 하나에만 의존하지 않는다).
 //   (배선) '프로덕션 배선' 그룹은 NetworkMapScreen을 끝까지 마운트해 **커밋된**
-//        카메라를 읽는다. network_map.dart의 build가 `_cameraForBounds`에
+//        카메라를 읽는다. app/network_map_screen.dart의 build가 `_cameraForBounds`에
 //        `minScale:`을 안 넘기면 폴백 하한(0.08)으로 조용히 되돌아가는데, 그때
 //        red다. 핀치 테스트는 `_updateCameraForGesture`(startCamera.minScale로
 //        clamp)까지 실제 포인터로 태운다.

@@ -176,6 +176,9 @@ void main() {
     expect(canvas, isNot(contains('_NetworkMapDraftPin')));
     expect(canvas, isNot(contains("import 'dart:ui' show ImageFilter;")));
     expect(owner, contains('class NetworkMapDraftPin extends StatelessWidget'));
-    expect(owner, isNot(contains("import '../../../network_map.dart';")));
+    expect(
+      owner,
+      isNot(contains("import '../../../app/network_map_screen.dart';")),
+    );
   });
 }
