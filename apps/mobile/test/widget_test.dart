@@ -685,6 +685,61 @@ void main() {
     expect(find.text('접수한 제보가 없습니다.'), findsOneWidget);
   });
 
+  testWidgets('내 제보 목록·상세는 빈 설명과 뒤로가기를 보존한다', (tester) async {
+    final repository = FakeFacilityReportRepository(
+      reports: const [
+        FacilityReportResult(
+          id: 'report-empty-description',
+          publicReceiptCode: 'ES-1004',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'CLOSED',
+          description: '',
+          status: 'SUBMITTED',
+          createdAt: '2026-06-16T09:00:00',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            key: const Key('openMyReportsForBoundaryTest'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    MyFacilityReportListScreen(repository: repository),
+              ),
+            ),
+            child: const Text('내 제보 열기'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('openMyReportsForBoundaryTest')));
+    await tester.pumpAndSettle();
+    expect(find.text('폐쇄'), findsNWidgets(2));
+
+    await tester.tap(find.byKey(const Key('myReportsBackButton')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('openMyReportsForBoundaryTest')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('openMyReportsForBoundaryTest')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('myReport-report-empty-description')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('제보 상세'), findsOneWidget);
+    expect(find.text('폐쇄'), findsNWidgets(2));
+  });
+
   testWidgets('내 제보 화면은 접수한 제보가 없으면 짧은 빈 상태를 보여준다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
