@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_geometry.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -115,6 +116,7 @@ void main() {
   });
 
   test('polygon bounds와 root public owner 결속을 단일 source로 유지한다', () {
+    expect(NetworkMapCanvas, isNotNull);
     expect(
       networkMapPolygonBounds(const [
         Offset(10, 20),
