@@ -57,8 +57,11 @@ void main() {
     expect(message.style?.fontWeight, FontWeight.w700);
   });
 
-  test('root는 unavailable-state owner만 직접 소비하고 private duplicate가 없다', () {
+  test('screen과 canvas는 unavailable-state owner만 소비하고 private duplicate가 없다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
+    final canvas = File(
+      'lib/features/network_map/presentation/network_map_canvas.dart',
+    ).readAsStringSync();
     expect(
       root,
       contains(
@@ -66,8 +69,11 @@ void main() {
       ),
     );
     expect(root, contains('NetworkMapLoadFailure('));
-    expect(root, contains('OriginalRouteMapUnavailable('));
+    expect(canvas, contains("import 'network_map_unavailable_states.dart';"));
+    expect(canvas, contains('OriginalRouteMapUnavailable('));
     expect(root, isNot(contains('class _NetworkMapLoadFailure')));
     expect(root, isNot(contains('class _OriginalRouteMapUnavailable')));
+    expect(canvas, isNot(contains('class _NetworkMapLoadFailure')));
+    expect(canvas, isNot(contains('class _OriginalRouteMapUnavailable')));
   });
 }
