@@ -13,7 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 //   충실도, 2026-07-26 오너 결정). 남은 소비처는 둘뿐이다:
 //     (1) [networkMapOwnerLabelSourceRects] — 라벨 extents를 지도 geometry
 //         bounds에 더해 초기 fit·팬 한계·탭 히트 소스 경계를 넓힌다
-//         (network_map.dart `_geometryFor`).
+//         (app/network_map_screen.dart `_geometryFor`).
 //     (2) 초기 카메라 가독 배율 — 라벨 fontSizePx 중앙값
 //         ([networkMapReadableInitialMapScale], 별도 게이트
 //         route_map_initial_camera_zoom_test.dart가 계산식을 고정한다).

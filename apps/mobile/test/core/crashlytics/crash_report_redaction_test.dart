@@ -436,7 +436,7 @@ void main() {
         '#0      main (package:easysubway_mobile/main.dart:12:3)',
         '#1      _rootRun (dart:async/zone.dart:1354:13)',
         '#2      main.<anonymous closure> '
-            '(package:easysubway_mobile/network_map.dart:20:5)',
+            '(package:easysubway_mobile/app/network_map_screen.dart:20:5)',
         'package:easysubway_mobile/main.dart 20:5 main',
         'dart:async/zone.dart 1354:13 _rootRun',
       ]) {

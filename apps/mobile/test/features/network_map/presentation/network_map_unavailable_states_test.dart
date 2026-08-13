@@ -58,7 +58,7 @@ void main() {
   });
 
   test('screen과 canvas는 unavailable-state owner만 소비하고 private duplicate가 없다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     final canvas = File(
       'lib/features/network_map/presentation/network_map_canvas.dart',
     ).readAsStringSync();

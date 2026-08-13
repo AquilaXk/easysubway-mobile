@@ -200,7 +200,7 @@ void main() {
   });
 
   test('root는 app composition owner만 쓰고 private helper cluster가 없다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     expect(
       root,
       contains("import 'app/network_map_nearby_panel_composition.dart';"),

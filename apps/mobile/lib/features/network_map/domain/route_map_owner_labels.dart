@@ -4,7 +4,7 @@
 // <text data-label-role="ordinary|transfer|terminal">에서 뽑은 실측 위치·
 // text-anchor·font-size를 담은 sidecar
 // (assets/datapacks/metro_map_pack/basemap/labels.json)를 파싱한다. 순수
-// 파싱만 담당 — asset 로드(rootBundle)는 network_map.dart가 한다(#1951
+// 파싱만 담당 — asset 로드(rootBundle)는 app/network_map_screen.dart가 한다(#1951
 // attribution 로더와 같은 관례).
 //
 // 좌표계: sidecar의 x/y는 SVG viewBox 좌표(=route_map_positions와 같은 source

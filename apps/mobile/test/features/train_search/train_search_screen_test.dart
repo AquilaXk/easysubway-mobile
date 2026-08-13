@@ -5,7 +5,7 @@ import 'package:easysubway_mobile/features/train_search/domain/train_search_mode
 import 'package:easysubway_mobile/features/train_search/domain/train_search_scope_policy.dart';
 import 'package:easysubway_mobile/features/train_search/presentation/train_search_screen.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

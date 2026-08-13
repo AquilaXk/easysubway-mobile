@@ -24,7 +24,7 @@ void main() {
   });
 
   test('network map root는 nearby panel state를 다시 선언하지 않는다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
 
     expect(root, contains('NetworkMapNearbyPanelData'));
     expect(root, contains('NetworkMapNearbyPanelDataSource'));

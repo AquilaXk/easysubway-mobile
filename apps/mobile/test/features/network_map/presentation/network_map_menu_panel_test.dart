@@ -189,7 +189,7 @@ void main() {
   test(
     'root consumes the direct owner without a private compatibility surface',
     () {
-      final root = File('lib/network_map.dart').readAsStringSync();
+      final root = File('lib/app/network_map_screen.dart').readAsStringSync();
       expect(
         root,
         contains(

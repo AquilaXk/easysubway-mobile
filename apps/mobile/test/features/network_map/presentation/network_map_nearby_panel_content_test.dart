@@ -6,7 +6,7 @@ import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_
 import 'package:easysubway_mobile/features/network_map/application/network_map_nearby_panel_state.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_nearby_panel_content.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:easysubway_mobile/station_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -200,7 +200,7 @@ void main() {
   });
 
   test('root는 public content owner를 쓰고 private content class가 없다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     expect(
       root,
       contains(

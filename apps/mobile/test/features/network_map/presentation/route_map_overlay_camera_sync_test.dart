@@ -15,7 +15,7 @@ import 'package:flutter_test/flutter_test.dart';
 //   즉 "캔버스가 실제로 그 픽셀에 노드를 그린다"를 painter 단일 수식으로 표현.
 // - 오버레이 기준 좌표: 히트 rect 중심/팝오버 앵커/핀 앵커가 실제로 쓰는 값인
 //   `camera.sourceToViewportPoint(station.position - origin)`.
-//   (network_map.dart의 `geometry.x/y` = `station.position - origin`을
+//   (app/network_map_screen.dart의 `geometry.x/y` = `station.position - origin`을
 //    `camera.sourceToViewportPoint`에 넣는 것과 동일 수식)
 //
 // origin이 (0,0)이 아니어야 버그가 재현된다.
@@ -70,7 +70,7 @@ void main() {
 
   // 비영점 origin: 모든 역이 (1000,700) 부근 → origin≈(946,646) 유형.
   final base = const Offset(1000, 700);
-  // 콘텐츠 bounds 기반 origin(network_map.dart _MapGeometry: minXY - 54)을 모사.
+  // 콘텐츠 bounds 기반 origin(app/network_map_screen.dart _MapGeometry: minXY - 54)을 모사.
   // 이 값은 오버레이의 geometry.x/y = position - origin과 동일 벡터다.
   final origin = base - const Offset(54, 54);
 

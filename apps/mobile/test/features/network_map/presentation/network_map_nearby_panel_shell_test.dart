@@ -138,7 +138,7 @@ void main() {
   });
 
   test('root는 public nearby panel shell을 사용하고 private shell이 없다', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+    final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     expect(
       root,
       contains(
