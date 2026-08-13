@@ -32,6 +32,8 @@ NetworkMapStation _positionedStation(
   int y, {
   String lineId = '1',
   String labelPolygon = '',
+  String upPath = '',
+  String downPath = '',
 }) {
   return NetworkMapStation(
     id: id,
@@ -46,8 +48,8 @@ NetworkMapStation _positionedStation(
       y: y,
       labelDx: 0,
       labelDy: 0,
-      upPath: '',
-      downPath: '',
+      upPath: upPath,
+      downPath: downPath,
       sourceId: 'test',
       labelPolygon: labelPolygon,
     ),
@@ -192,6 +194,92 @@ void main() {
         camera: camera,
       ),
       same(node),
+    );
+  });
+
+  test('public hit geometry는 label·polygon·vertical path edge를 보존한다', () {
+    const camera = MapCameraState(
+      sourceBounds: Rect.fromLTWH(0, 0, 860, 560),
+      viewportSize: Size(860, 560),
+      center: Offset(430, 280),
+      scale: 1,
+      minScale: 1,
+      maxScale: 4,
+      revision: 0,
+    );
+    final labelStation = _positionedStation('label', 100, 100);
+    final labelHitGeometry = _hitGeometry([labelStation]);
+    final labelNodeCenter = camera.sourceToViewportPoint(
+      Offset(
+        labelHitGeometry.geometry.x(labelStation),
+        labelHitGeometry.geometry.y(labelStation),
+      ),
+    );
+
+    expect(
+      labelHitGeometry.stationAtViewportPosition(
+        labelNodeCenter + const Offset(0, -17.5),
+        camera: camera,
+      ),
+      same(labelStation),
+    );
+    expect(
+      labelHitGeometry.stationAtViewportPosition(
+        labelNodeCenter + const Offset(0, 23.5),
+        camera: camera,
+      ),
+      same(labelStation),
+    );
+
+    final duplicatePolygonStation = _positionedStation(
+      'polygon',
+      100,
+      100,
+      labelPolygon:
+          '[{"x":100,"y":100},{"x":100,"y":100},{"x":110,"y":100},'
+          '{"x":110,"y":110},{"x":100,"y":110}]',
+    );
+    final polygonHitGeometry = _hitGeometry([duplicatePolygonStation]);
+    final polygonNodeCenter = camera.sourceToViewportPoint(
+      Offset(
+        polygonHitGeometry.geometry.x(duplicatePolygonStation),
+        polygonHitGeometry.geometry.y(duplicatePolygonStation),
+      ),
+    );
+    expect(
+      polygonHitGeometry.stationAtViewportPosition(
+        polygonNodeCenter + const Offset(-10, 0),
+        camera: camera,
+      ),
+      same(duplicatePolygonStation),
+    );
+
+    final verticalPathStation = _positionedStation(
+      'v',
+      100,
+      100,
+      downPath: 'M 0 0 L 0 40',
+    );
+    final verticalHitGeometry = _hitGeometry([verticalPathStation]);
+    final verticalNodeCenter = Offset(
+      verticalHitGeometry.geometry.x(verticalPathStation),
+      verticalHitGeometry.geometry.y(verticalPathStation),
+    );
+    final expectedVerticalBounds =
+        Rect.fromCenter(
+          center: verticalNodeCenter,
+          width: 48,
+          height: 48,
+        ).expandToInclude(
+          Rect.fromCenter(
+            center: verticalNodeCenter + const Offset(9, 3),
+            width: 64,
+            height: 40,
+          ),
+        );
+    expect(
+      verticalHitGeometry.sourceBoundsFor(verticalPathStation),
+      expectedVerticalBounds,
     );
   });
 }
