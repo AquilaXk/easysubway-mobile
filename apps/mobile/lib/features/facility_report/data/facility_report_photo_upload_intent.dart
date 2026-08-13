@@ -1,7 +1,5 @@
 import '../domain/facility_report_exception.dart';
 
-const _facilityReportErrorMessage = '제보를 보내지 못했어요.';
-
 class FacilityReportPhotoUploadIntent {
   const FacilityReportPhotoUploadIntent({
     required this.objectKey,
@@ -60,11 +58,11 @@ Map<String, String> _optionalStringMap(
     return const {};
   }
   if (value is! Map<String, Object?>) {
-    throw const FacilityReportException(_facilityReportErrorMessage);
+    throw const FacilityReportException(facilityReportSubmitFailureMessage);
   }
   return value.map((key, mapValue) {
     if (mapValue is! String) {
-      throw const FacilityReportException(_facilityReportErrorMessage);
+      throw const FacilityReportException(facilityReportSubmitFailureMessage);
     }
     return MapEntry(key, mapValue);
   });
