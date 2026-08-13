@@ -1,6 +1,6 @@
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/app/easy_subway_app.dart';
-import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';

@@ -7,7 +7,7 @@ import 'package:drift/native.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
-import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/routes/application/network_graph.dart'
     as graph;
 import 'package:easysubway_mobile/features/routes/data/local_route_repository.dart';

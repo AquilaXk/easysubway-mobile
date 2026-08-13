@@ -15,6 +15,7 @@ import '../features/account/presentation/user_data_deletion_screen.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/domain/facility_report_location.dart';
 import '../features/facility_report/domain/facility_report_photo.dart';
+import '../features/facility_report/domain/facility_report_repository.dart';
 import '../features/facility_report/domain/facility_report_target.dart';
 import '../features/get_off_alarm/get_off_alarm_controller.dart';
 import '../features/home/presentation/home_screen.dart';
