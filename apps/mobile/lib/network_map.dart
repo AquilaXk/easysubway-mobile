@@ -14,6 +14,7 @@ import 'features/facility_report/domain/facility_report_target.dart';
 import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
+import 'features/network_map/application/network_map_nearby_panel_state.dart';
 import 'features/network_map/data/network_map_attribution_cache.dart';
 import 'features/network_map/data/network_map_owner_labels_cache.dart';
 import 'features/network_map/domain/map_camera.dart';
@@ -178,8 +179,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   List<String> _availableRegionLabels = const ['수도권'];
   bool _nearbyPanelVisible = false;
   bool _nearbyPanelExpanded = false;
-  _NetworkMapNearbyPanelData _nearbyPanelData =
-      const _NetworkMapNearbyPanelData.idle();
+  NetworkMapNearbyPanelData<StationSearchResult> _nearbyPanelData =
+      const NetworkMapNearbyPanelData<StationSearchResult>.idle();
   String? _nearbySelectedStationId;
   String? _nearbySelectedLineId;
   // #2109: 인플레이스 검색 결과 탭으로 연 팬 메뉴의 대상 역 id. 캔버스의
@@ -207,7 +208,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
 
   /// 성공한 시간표만 stationId+lineId 키로 보관. 실패로 성공 캐시를 지우지 않는다.
   _NearbyTimetableDisplay? _nearbyTimetableDisplay;
-  _NearbyPanelDataSource _nearbyDataSource = _NearbyPanelDataSource.realtime;
+  NetworkMapNearbyPanelDataSource _nearbyDataSource =
+      NetworkMapNearbyPanelDataSource.realtime;
 
   /// 요청 중복 방지용 in-flight. UI 렌더 분기에는 쓰지 않는다(#2453).
   /// 채널별 generation을 함께 두어, stale 완료도 자기 generation의 플래그만 내린다
@@ -451,10 +453,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       _nearbyPanelVisible = true;
       _nearbySelectedStationId = station.id;
       _nearbySelectedLineId = selectedLine?.id;
-      _nearbyPanelData = _NetworkMapNearbyPanelData.success([station]);
+      _nearbyPanelData = NetworkMapNearbyPanelData.success([station]);
       // 모든 오픈 경로 기본 탭은 시간표. 실시간은 백그라운드 prefetch.
       // keyed display는 지우지 않는다 — 키 불일치면 미표시, 일치하면 즉시 재사용.
-      _nearbyDataSource = _NearbyPanelDataSource.timetable;
+      _nearbyDataSource = NetworkMapNearbyPanelDataSource.timetable;
       if (request != null) {
         _markNearbyRealtimeInFlight(request);
         _markNearbyTimetableInFlight(request);
@@ -969,7 +971,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       _searchFanMenuStationId = null;
       _selectionClearRevision++;
       _resetNearbyPanelState();
-      _nearbyPanelData = const _NetworkMapNearbyPanelData.loading();
+      _nearbyPanelData =
+          const NetworkMapNearbyPanelData<StationSearchResult>.loading();
       // 이 setState로 rebuild되는 동안 자동 초기 위치 조회가 중복 실행되지 않게
       // 한다. GPS 요청이 다른 지역을 로드한 뒤에도 이 값은 유지한다.
       _initialNearbyFocusStarted = true;
@@ -1224,9 +1227,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     _nearbySelectedStationId = null;
     _preserveFocusedStationScale = false;
     _nearbySelectedLineId = null;
-    _nearbyPanelData = const _NetworkMapNearbyPanelData.idle();
+    _nearbyPanelData =
+        const NetworkMapNearbyPanelData<StationSearchResult>.idle();
     _nearbyRealtimeDisplay = null;
-    _nearbyDataSource = _NearbyPanelDataSource.realtime;
+    _nearbyDataSource = NetworkMapNearbyPanelDataSource.realtime;
     _nearbyTimetableDisplay = null;
     _nearbyRealtimeRequestInFlight = false;
     _nearbyTimetableRequestInFlight = false;
@@ -1355,13 +1359,13 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     final shouldFallbackToTimetable =
         mounted &&
         _isCurrentNearbyRequest(request) &&
-        _nearbyDataSource == _NearbyPanelDataSource.realtime;
+        _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime;
     if (!shouldFallbackToTimetable) {
       return;
     }
     final hasTimetable = _nearbyTimetableDisplayMatchesCurrent();
     setState(() {
-      _nearbyDataSource = _NearbyPanelDataSource.timetable;
+      _nearbyDataSource = NetworkMapNearbyPanelDataSource.timetable;
       if (!hasTimetable) {
         _markNearbyTimetableInFlight(request);
       }
@@ -1457,13 +1461,13 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (line == null) {
       return;
     }
-    final next = _nearbyDataSource == _NearbyPanelDataSource.realtime
-        ? _NearbyPanelDataSource.timetable
-        : _NearbyPanelDataSource.realtime;
+    final next = _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime
+        ? NetworkMapNearbyPanelDataSource.timetable
+        : NetworkMapNearbyPanelDataSource.realtime;
     setState(() {
       _nearbyDataSource = next;
     });
-    if (next == _NearbyPanelDataSource.realtime) {
+    if (next == NetworkMapNearbyPanelDataSource.realtime) {
       // 현재 키 캐시가 있으면 즉시 표시만 하고 재요청하지 않는다.
       if (_nearbyRealtimeDisplayMatchesCurrent()) {
         return;
@@ -1792,10 +1796,10 @@ class _NetworkMapChrome extends StatelessWidget {
   final ValueChanged<String> onRegionSelected;
   final bool nearbyPanelVisible;
   final bool nearbyPanelExpanded;
-  final _NetworkMapNearbyPanelData nearbyPanelData;
+  final NetworkMapNearbyPanelData<StationSearchResult> nearbyPanelData;
   final RealtimeSnapshot realtime;
   final String? nearbySelectedLineId;
-  final _NearbyPanelDataSource nearbyDataSource;
+  final NetworkMapNearbyPanelDataSource nearbyDataSource;
   final StationTimetable? nearbyTimetable;
   final String? nearbyLookupMessage;
   final NearbyAdjacentStations adjacentStations;
@@ -2622,10 +2626,6 @@ class _NetworkMapSearchSessionState extends State<_NetworkMapSearchSession> {
   }
 }
 
-enum _NetworkMapNearbyPanelStatus { idle, loading, success }
-
-enum _NearbyPanelDataSource { realtime, timetable }
-
 /// 성공한 실시간 스냅샷의 keyed display cache(#2453 Task 4).
 class _NearbyRealtimeDisplay {
   const _NearbyRealtimeDisplay({
@@ -2650,25 +2650,6 @@ class _NearbyTimetableDisplay {
   final String stationId;
   final String lineId;
   final StationTimetable timetable;
-}
-
-class _NetworkMapNearbyPanelData {
-  const _NetworkMapNearbyPanelData._({
-    required this.status,
-    this.results = const [],
-  });
-
-  const _NetworkMapNearbyPanelData.idle()
-    : this._(status: _NetworkMapNearbyPanelStatus.idle);
-
-  const _NetworkMapNearbyPanelData.loading()
-    : this._(status: _NetworkMapNearbyPanelStatus.loading);
-
-  const _NetworkMapNearbyPanelData.success(List<StationSearchResult> results)
-    : this._(status: _NetworkMapNearbyPanelStatus.success, results: results);
-
-  final _NetworkMapNearbyPanelStatus status;
-  final List<StationSearchResult> results;
 }
 
 StationDetailNeighbor? _stationDetailNeighbor(
@@ -2709,11 +2690,11 @@ class _NetworkMapNearbyStationPanel extends StatelessWidget {
     this.routeDraftController,
   });
 
-  final _NetworkMapNearbyPanelData data;
+  final NetworkMapNearbyPanelData<StationSearchResult> data;
   final bool expanded;
   final RealtimeSnapshot realtime;
   final String? selectedLineId;
-  final _NearbyPanelDataSource dataSource;
+  final NetworkMapNearbyPanelDataSource dataSource;
   final StationTimetable? timetable;
   final NearbyAdjacentStations adjacentStations;
   final VoidCallback onClose;
@@ -2790,7 +2771,9 @@ class _NetworkMapNearbyStationPanel extends StatelessWidget {
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),
                     child: NearbyDataSourceToggle(
-                      isRealtime: dataSource == _NearbyPanelDataSource.realtime,
+                      isRealtime:
+                          dataSource ==
+                          NetworkMapNearbyPanelDataSource.realtime,
                       enabled: dataSourceToggleEnabled,
                       onToggle: onDataSourceToggle,
                     ),
@@ -2899,10 +2882,10 @@ class _NetworkMapNearbyPanelBody extends StatelessWidget {
     this.onSelectNeighbor,
   });
 
-  final _NetworkMapNearbyPanelData data;
+  final NetworkMapNearbyPanelData<StationSearchResult> data;
   final RealtimeSnapshot realtime;
   final String? selectedLineId;
-  final _NearbyPanelDataSource dataSource;
+  final NetworkMapNearbyPanelDataSource dataSource;
   final StationTimetable? timetable;
   final NearbyAdjacentStations adjacentStations;
   final VoidCallback? onOpenStationDetail;
@@ -2911,12 +2894,12 @@ class _NetworkMapNearbyPanelBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return switch (data.status) {
-      _NetworkMapNearbyPanelStatus.idle ||
-      _NetworkMapNearbyPanelStatus.loading => const SizedBox(
+      NetworkMapNearbyPanelStatus.idle ||
+      NetworkMapNearbyPanelStatus.loading => const SizedBox(
         height: 132,
         child: Center(child: CircularProgressIndicator()),
       ),
-      _NetworkMapNearbyPanelStatus.success => _NetworkMapNearbySuccessList(
+      NetworkMapNearbyPanelStatus.success => _NetworkMapNearbySuccessList(
         results: data.results,
         realtime: realtime,
         selectedLineId: selectedLineId,
@@ -2975,7 +2958,7 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
   final List<StationSearchResult> results;
   final RealtimeSnapshot realtime;
   final String? selectedLineId;
-  final _NearbyPanelDataSource dataSource;
+  final NetworkMapNearbyPanelDataSource dataSource;
   final StationTimetable? timetable;
   final NearbyAdjacentStations adjacentStations;
   final VoidCallback? onOpenStationDetail;
@@ -3009,7 +2992,7 @@ class _NetworkMapNearbySuccessList extends StatelessWidget {
         const SizedBox(height: 17),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-          child: dataSource == _NearbyPanelDataSource.realtime
+          child: dataSource == NetworkMapNearbyPanelDataSource.realtime
               ? NearbyArrivalPanel(
                   data: NearbyArrivalPanelData(
                     status: switch (realtime.status) {

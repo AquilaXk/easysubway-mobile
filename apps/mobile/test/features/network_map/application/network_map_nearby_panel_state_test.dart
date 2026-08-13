@@ -6,8 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('nearby panel state는 idle loading success를 closed state로 보존한다', () {
-    const idle = NetworkMapNearbyPanelData.idle();
-    const loading = NetworkMapNearbyPanelData.loading();
+    const idle = NetworkMapNearbyPanelData<StationSearchResult>.idle();
+    const loading = NetworkMapNearbyPanelData<StationSearchResult>.loading();
     final results = <StationSearchResult>[];
     final success = NetworkMapNearbyPanelData.success(results);
 
