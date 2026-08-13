@@ -13,6 +13,7 @@ import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
 import 'features/network_map/application/network_map_nearby_panel_state.dart';
+import 'features/network_map/application/network_map_route_draft_station_projection.dart';
 import 'features/network_map/data/network_map_owner_labels_cache.dart';
 import 'features/network_map/domain/nearby_adjacent_stations.dart';
 import 'features/network_map/domain/network_map_edge_topology.dart';
@@ -1603,21 +1604,21 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
 
   void _setOriginStation(NetworkMapStation station) {
     widget.routeDraftController.setOrigin(
-      _routeDraftStationFromMapStation(station, _latestMapData),
+      networkMapRouteDraftStation(station, _latestMapData),
     );
     _dismissNearbyPanelForDraft();
   }
 
   void _setDestinationStation(NetworkMapStation station) {
     widget.routeDraftController.setDestination(
-      _routeDraftStationFromMapStation(station, _latestMapData),
+      networkMapRouteDraftStation(station, _latestMapData),
     );
     _dismissNearbyPanelForDraft();
   }
 
   void _setWaypointStation(NetworkMapStation station) {
     widget.routeDraftController.setWaypoint(
-      _routeDraftStationFromMapStation(station, _latestMapData),
+      networkMapRouteDraftStation(station, _latestMapData),
     );
     _dismissNearbyPanelForDraft();
   }
@@ -3019,27 +3020,3 @@ NearbyTimetablePanelData? _nearbyTimetablePanelData(
 /// [routeMapDisplayRegionName]이다 — 사본을 두면 한쪽만 갱신돼 조회가 조용히
 /// 어긋난다(#2068).
 String _displayRegionName(String region) => routeMapDisplayRegionName(region);
-
-RouteDraftStation _routeDraftStationFromMapStation(
-  NetworkMapStation station,
-  NetworkMapData? data,
-) {
-  NetworkMapLine? line;
-  final lineId = station.lineId.trim();
-  if (data != null && lineId.isNotEmpty) {
-    for (final candidate in data.lines) {
-      if (candidate.id == lineId) {
-        line = candidate;
-        break;
-      }
-    }
-  }
-  return RouteDraftStation(
-    id: station.id,
-    nameKo: station.nameKo,
-    lineId: lineId,
-    lineName: line?.name ?? '',
-    lineColor: line?.color ?? '',
-    stationCode: station.stationCode,
-  );
-}
