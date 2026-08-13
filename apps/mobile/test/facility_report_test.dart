@@ -1350,6 +1350,150 @@ void main() {
     );
   });
 
+  test('시설 신고 API 저장소는 upload intent 거부 시 사진 전송을 중단한다', () async {
+    final apiClient = _UploadIntentFailureApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+    );
+
+    await expectLater(
+      repository.createReport(
+        const FacilityReportRequest(
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'BROKEN',
+          description: '문이 열리지 않습니다.',
+          photoFileName: 'elevator-door.jpg',
+          photoContentType: 'image/jpeg',
+          photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+        ),
+      ),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          facilityReportSubmitFailureMessage,
+        ),
+      ),
+    );
+    expect(apiClient.putCount, 0);
+  });
+
+  test('시설 신고 API 저장소는 사진 transport 재시도 실패를 그대로 닫는다', () async {
+    final apiClient = _PhotoTransportFailureApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+    );
+
+    await expectLater(
+      repository.createReport(
+        const FacilityReportRequest(
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'BROKEN',
+          description: '문이 열리지 않습니다.',
+          photoFileName: 'elevator-door.jpg',
+          photoContentType: 'image/jpeg',
+          photoDataBase64: 'aW1hZ2UtYnl0ZXM=',
+        ),
+      ),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          facilityReportSubmitFailureMessage,
+        ),
+      ),
+    );
+    expect(apiClient.putCount, 2);
+  });
+
+  test('시설 신고 API 저장소는 상태 transport 오류를 기록하고 쉬운 실패로 바꾼다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final apiClient = _GetFailureApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        repository.getReport('report-1'),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            facilityReportStatusFailureMessage,
+          ),
+        ),
+      );
+    });
+    expect(reportedErrors.single.exception, isA<StateError>());
+  });
+
+  test('내 신고 API 저장소는 receipt 목록 오류 종류를 보존하거나 쉬운 실패로 바꾼다', () async {
+    const typedFailure = FacilityReportException('receipt 목록 실패');
+    final typedRepository = FacilityReportApiRepository(
+      baseUri: Uri.parse('https://example.invalid'),
+      receiptStore: _ThrowingListFacilityReportReceiptStore(typedFailure),
+    );
+
+    await expectLater(
+      typedRepository.listMyReports(),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          typedFailure.message,
+        ),
+      ),
+    );
+
+    final reportedErrors = _captureReportedErrors();
+    final unexpectedRepository = FacilityReportApiRepository(
+      baseUri: Uri.parse('https://example.invalid'),
+      receiptStore: _ThrowingListFacilityReportReceiptStore(
+        StateError('receipt list failed'),
+      ),
+    );
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await expectLater(
+        unexpectedRepository.listMyReports(),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => error.message,
+            'message',
+            facilityReportListFailureMessage,
+          ),
+        ),
+      );
+    });
+    expect(reportedErrors.single.exception, isA<StateError>());
+  });
+
+  test('내 신고 API 저장소는 receipt refresh 저장 실패에도 조회 결과를 유지한다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final apiClient = _SuccessfulReportApiClient();
+    final repository = FacilityReportApiRepository(
+      baseUri: apiClient.baseUri,
+      apiClient: apiClient,
+      receiptStore: FakeFacilityReportReceiptStore({
+        'report-1': 'receipt-token-1',
+      }, true),
+    );
+
+    late List<FacilityReportResult> reports;
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      reports = await repository.listMyReports();
+    });
+
+    expect(reports.single.id, 'report-1');
+    expect(reports.single.status, 'ACCEPTED');
+    expect(reportedErrors.single.exception, isA<StateError>());
+  });
+
   test('시설 신고 컨트롤러는 전송 중 중복 제출을 막고 성공 상태를 알린다', () async {
     final repository = PendingFacilityReportRepository();
     final controller = FacilityReportController(repository: repository);
@@ -1586,6 +1730,128 @@ class FailingRefreshFacilityReportRepository
   Future<List<FacilityReportResult>> listMyReports() {
     throw UnimplementedError();
   }
+}
+
+class _UploadIntentFailureApiClient extends ApiClient {
+  _UploadIntentFailureApiClient()
+    : super(baseUri: Uri.parse('https://example.invalid'));
+
+  int putCount = 0;
+
+  @override
+  Future<ApiResponse> postJson(
+    String path, {
+    required Map<String, Object?> body,
+    Map<String, String> headers = const {},
+  }) async {
+    return const ApiResponse(statusCode: HttpStatus.badRequest, jsonBody: null);
+  }
+
+  @override
+  Future<ApiResponse> putBytes(
+    Uri uri, {
+    required List<int> body,
+    required ContentType contentType,
+    Map<String, String> headers = const {},
+  }) async {
+    putCount++;
+    return const ApiResponse(statusCode: HttpStatus.ok, jsonBody: null);
+  }
+}
+
+class _PhotoTransportFailureApiClient extends ApiClient {
+  _PhotoTransportFailureApiClient()
+    : super(baseUri: Uri.parse('https://example.invalid'));
+
+  int putCount = 0;
+
+  @override
+  Future<ApiResponse> postJson(
+    String path, {
+    required Map<String, Object?> body,
+    Map<String, String> headers = const {},
+  }) async {
+    return const ApiResponse(
+      statusCode: HttpStatus.created,
+      jsonBody: {
+        'success': true,
+        'data': {
+          'objectKey': 'facility-reports/uploads/report-1.jpg',
+          'uploadUrl': '/api/v1/report-uploads/report-1.jpg',
+          'uploadMethod': 'PUT',
+        },
+      },
+    );
+  }
+
+  @override
+  Future<ApiResponse> putBytes(
+    Uri uri, {
+    required List<int> body,
+    required ContentType contentType,
+    Map<String, String> headers = const {},
+  }) async {
+    putCount++;
+    throw const ApiException('사진 전송 실패');
+  }
+}
+
+class _GetFailureApiClient extends ApiClient {
+  _GetFailureApiClient() : super(baseUri: Uri.parse('https://example.invalid'));
+
+  @override
+  Future<ApiResponse> getJson(
+    String path, {
+    Map<String, String> headers = const {},
+  }) async {
+    throw StateError('status transport failed');
+  }
+}
+
+class _SuccessfulReportApiClient extends ApiClient {
+  _SuccessfulReportApiClient()
+    : super(baseUri: Uri.parse('https://example.invalid'));
+
+  @override
+  Future<ApiResponse> getJson(
+    String path, {
+    Map<String, String> headers = const {},
+  }) async {
+    return const ApiResponse(
+      statusCode: HttpStatus.ok,
+      jsonBody: {
+        'success': true,
+        'data': {
+          'id': 'report-1',
+          'stationId': 'station-sangnoksu',
+          'facilityId': 'facility-sangnoksu-elevator-1',
+          'reportType': 'BROKEN',
+          'description': '문이 열리지 않습니다.',
+          'status': 'ACCEPTED',
+          'createdAt': '2026-06-13T10:00:00',
+          'publicReceiptCode': 'ES-1001',
+        },
+      },
+    );
+  }
+}
+
+class _ThrowingListFacilityReportReceiptStore
+    implements FacilityReportReceiptStore {
+  const _ThrowingListFacilityReportReceiptStore(this.error);
+
+  final Object error;
+
+  @override
+  Future<List<FacilityReportReceipt>> listReceipts() async {
+    throw error;
+  }
+
+  @override
+  Future<String?> receiptTokenForReport(String reportId) async => null;
+
+  @override
+  Future<void> saveReceipt(FacilityReportReceipt receipt) async {}
 }
 
 class FakeFacilityReportReceiptStore implements FacilityReportReceiptStore {
