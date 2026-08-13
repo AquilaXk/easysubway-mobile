@@ -14,6 +14,31 @@ import 'package:easysubway_mobile/features/network_map/domain/route_map_design_s
 
 void main() {
   group('fanMenuPlacement 배치 규칙(build·카메라 패닝 공유)', () {
+    test('viewport reveal offset은 four-edge overflow와 inside를 모두 닫는다', () {
+      const viewport = Size(400, 800);
+      expect(
+        fanMenuRevealOffset(
+          menuRect: const Rect.fromLTWH(-10, -20, 220, 120),
+          viewport: viewport,
+        ),
+        const Offset(22, 32),
+      );
+      expect(
+        fanMenuRevealOffset(
+          menuRect: const Rect.fromLTWH(250, 700, 220, 120),
+          viewport: viewport,
+        ),
+        const Offset(-82, -32),
+      );
+      expect(
+        fanMenuRevealOffset(
+          menuRect: const Rect.fromLTWH(90, 200, 220, 120),
+          viewport: viewport,
+        ),
+        Offset.zero,
+      );
+    });
+
     test('항상 노드 위에 배치하고 꼬리 팁이 앵커 노드에 닿는다(#2192)', () {
       // 상단 경계에서 충분히 떨어진 역: 꼬리 팁(y=375/380)이 노드에 오도록 배치.
       final placement = fanMenuPlacement(

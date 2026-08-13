@@ -4053,6 +4053,21 @@ void main() {
         await tester.pump();
         expect(find.bySemanticsLabel('광주송정역'), findsOneWidget);
 
+        final pan = await tester.startGesture(center, pointer: 3);
+        await pan.moveBy(const Offset(240, 0));
+        await tester.pump();
+        final cameraCallsAfterForwardPan = nativeCalls
+            .where((call) => call.method == 'setCamera')
+            .length;
+        await pan.moveBy(const Offset(-220, 0));
+        await tester.pump();
+        expect(
+          nativeCalls.where((call) => call.method == 'setCamera').length,
+          greaterThan(cameraCallsAfterForwardPan),
+        );
+        await pan.cancel();
+        await tester.pump();
+
         tester.semantics.tap(find.semantics.byLabel('광주송정역'));
         await tester.pumpAndSettle();
         expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
