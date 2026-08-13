@@ -171,10 +171,7 @@ void main() {
       'lib/features/network_map/presentation/network_map_draft_pin.dart',
     ).readAsStringSync();
 
-    expect(
-      canvas,
-      contains("import 'network_map_draft_pin.dart';"),
-    );
+    expect(canvas, contains("import 'network_map_draft_pin.dart';"));
     expect('NetworkMapDraftPin('.allMatches(canvas), hasLength(3));
     expect(canvas, isNot(contains('_NetworkMapDraftPin')));
     expect(canvas, isNot(contains("import 'dart:ui' show ImageFilter;")));
