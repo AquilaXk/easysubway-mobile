@@ -34,10 +34,18 @@ void main() {
     );
   });
 
-  test('network map root no longer declares its private station tap score', () {
-    final root = File('lib/network_map.dart').readAsStringSync();
+  test(
+    'network map hit-testing owner consumes the public station tap score',
+    () {
+      final root = File('lib/network_map.dart').readAsStringSync();
+      final hitTestingOwner = File(
+        'lib/features/network_map/presentation/station_hit_target.dart',
+      ).readAsStringSync();
 
-    expect(root, contains('NetworkMapStationTapScore'));
-    expect(root, isNot(contains('class _StationTapScore')));
-  });
+      expect(root, contains('NetworkMapStationHitGeometry'));
+      expect(root, isNot(contains('NetworkMapStationTapScore')));
+      expect(hitTestingOwner, contains('NetworkMapStationTapScore'));
+      expect(root, isNot(contains('class _StationTapScore')));
+    },
+  );
 }

@@ -1,7 +1,7 @@
 import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_owner_label_bounds.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/station_hit_target.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // #2068: basemap 오너 라벨(sidecar)의 실제 렌더 extents를 지도 geometry bounds에

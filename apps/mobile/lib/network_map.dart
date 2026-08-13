@@ -23,13 +23,10 @@ import 'features/network_map/domain/nearby_adjacent_stations.dart';
 import 'features/network_map/domain/network_map_edge_topology.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/network_map_station_selection.dart';
-import 'features/network_map/domain/network_map_station_tap_score.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
-import 'features/network_map/domain/route_map_label_polygon.dart';
 import 'features/network_map/domain/route_map_min_scale.dart';
 import 'features/network_map/domain/route_map_owner_labels.dart';
 import 'features/network_map/domain/structured_route_map.dart';
-import 'features/network_map/infrastructure/cached_route_map_path.dart';
 import 'features/network_map/presentation/nearby_arrival_panel.dart';
 import 'features/network_map/presentation/nearby_data_source_toggle.dart';
 import 'features/network_map/presentation/nearby_station_line_bar.dart';
@@ -3158,8 +3155,6 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
   String? _readableInitialMapScaleCacheKey;
   // onTapUp 경로에서만 쓰는 stationLinesById를 매 build(팬 프레임)마다 재계산하지 않도록
   // region·stations identity로 캐시한다(#1973). 800역/24노선 재계산이 build 스파이크 원인.
-  Map<String, List<NetworkMapLine>>? _stationLinesByIdCache;
-  String? _stationLinesByIdCacheKey;
 
   @override
   void initState() {
@@ -3267,6 +3262,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
       child: LayoutBuilder(
         builder: (context, constraints) {
           final geometry = _geometryFor(widget.data);
+          final hitGeometry = NetworkMapStationHitGeometry(geometry: geometry);
           final fullBounds = Rect.fromLTWH(
             0,
             0,
@@ -3459,8 +3455,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
                             : (details) {
                                 _openNearestStation(
                                   details.localPosition,
-                                  _stationLinesByIdCached(widget.data),
-                                  geometry,
+                                  hitGeometry,
                                   interactionCamera,
                                 );
                               },
@@ -3469,19 +3464,15 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
                   ),
                 ),
               if (interactionCamera != null && !_gestureActive)
-                for (final station in _visibleCanonicalStations(
-                  geometry: geometry,
+                for (final station in hitGeometry.visibleCanonicalStations(
                   camera: interactionCamera,
                 ))
                   Positioned.fromRect(
-                    rect: _sourceRectToViewport(
-                      _stationHitRect(
-                        station,
-                        geometry,
-                        nodeRadius: 24 / interactionCamera.scale,
-                        labelHeight: 40 / interactionCamera.scale,
-                      ),
-                      interactionCamera,
+                    rect: hitGeometry.viewportBoundsFor(
+                      station,
+                      camera: interactionCamera,
+                      nodeRadius: 24 / interactionCamera.scale,
+                      labelHeight: 40 / interactionCamera.scale,
                     ),
                     child: NetworkMapStationHitTarget(
                       key: Key(
@@ -3616,21 +3607,6 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
     );
   }
 
-  Map<String, List<NetworkMapLine>> _stationLinesByIdCached(
-    NetworkMapData data,
-  ) {
-    final key =
-        '${data.selectedRegion}:${identityHashCode(data.stations)}:${data.stations.length}';
-    final cached = _stationLinesByIdCache;
-    if (_stationLinesByIdCacheKey == key && cached != null) {
-      return cached;
-    }
-    final computed = networkMapStationLinesById(data);
-    _stationLinesByIdCacheKey = key;
-    _stationLinesByIdCache = computed;
-    return computed;
-  }
-
   NetworkMapGeometry _geometryFor(NetworkMapData data) {
     // basemap 오너 라벨 sidecar(로드는 async)를 geometry bounds에 반영한다(#2068).
     // 로드 전엔 null → 라벨 rect 없이 계산되지만, 로드가 끝나면 setState로 rebuild
@@ -3664,9 +3640,9 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
     final geometry = NetworkMapGeometry.fromStations(
       data.stations,
       ownerLabelSourceRects: ownerLabelSourceRects,
-      stationSourceBoundsFor: (station, geometry) =>
-          _stationHitRect(station, geometry),
-      stationKeyFor: _stationGeometryKey,
+      stationSourceBoundsFor:
+          NetworkMapStationHitGeometry.sourceBoundsForStation,
+      stationKeyFor: NetworkMapStationHitGeometry.stationKeyFor,
     );
     _geometryCacheKey = cacheKey;
     _geometryCache = geometry;
@@ -3853,13 +3829,11 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
 
   void _openNearestStation(
     Offset viewportPosition,
-    Map<String, List<NetworkMapLine>> stationLinesById,
-    NetworkMapGeometry geometry,
+    NetworkMapStationHitGeometry hitGeometry,
     MapCameraState camera,
   ) {
-    final station = _stationAtViewportPosition(
+    final station = hitGeometry.stationAtViewportPosition(
       viewportPosition,
-      geometry,
       camera: camera,
     );
     if (station == null) {
@@ -4094,17 +4068,6 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
 /// 어긋난다(#2068).
 String _displayRegionName(String region) => routeMapDisplayRegionName(region);
 
-Rect _sourceRectToViewport(Rect sourceRect, MapCameraState camera) {
-  final topLeft = camera.sourceToViewportPoint(sourceRect.topLeft);
-  final bottomRight = camera.sourceToViewportPoint(sourceRect.bottomRight);
-  return Rect.fromLTRB(
-    math.min(topLeft.dx, bottomRight.dx),
-    math.min(topLeft.dy, bottomRight.dy),
-    math.max(topLeft.dx, bottomRight.dx),
-    math.max(topLeft.dy, bottomRight.dy),
-  );
-}
-
 /// [initialBounds]는 이 지역이 실제로 쓰는 초기 카메라 bounds다(#2068 트랙 QA
 /// 후속으로 [networkMapInitialCameraBounds]가 확대해 준 값). geometry의 원
 /// initialBounds를 쓰면 초기 화면이 확대된 만큼 focus가 오히려 축소돼 #2062
@@ -4121,355 +4084,6 @@ Rect _stationFocusBoundsFor(
     sourceWidth: geometry.width,
     sourceHeight: geometry.height,
   );
-}
-
-const _maximumStationHitDistance = 24.0;
-
-/// 역 tap hit target 한 변 길이(logical px). 노드 중심에서 사방
-/// [_maximumStationHitDistance]까지 tap을 받으므로 hit rect 한 변은 그 2배다.
-/// AGENTS.md 큰 터치 영역 hard rule + WCAG 2.5.5(target size 최소 48×48)를
-/// 노선도 역 선택에 보장한다 — #1642 접근성 회귀 가드.
-@visibleForTesting
-const double networkMapStationHitTargetLogicalSize =
-    _maximumStationHitDistance * 2;
-
-List<NetworkMapStation> _canonicalStations(
-  Iterable<NetworkMapStation> stations,
-  NetworkMapGeometry geometry,
-) {
-  final canonicalStations = <NetworkMapStation>[];
-  for (final station in stations) {
-    final existingIndex = canonicalStations.indexWhere((existing) {
-      return existing.id == station.id &&
-          _isOverlappingStationGeometry(existing, station, geometry);
-    });
-    if (existingIndex == -1) {
-      canonicalStations.add(station);
-      continue;
-    }
-    final existing = canonicalStations[existingIndex];
-    if (_stationGeometryPriority(station) >
-        _stationGeometryPriority(existing)) {
-      canonicalStations[existingIndex] = station;
-    }
-  }
-  return canonicalStations;
-}
-
-bool _isOverlappingStationGeometry(
-  NetworkMapStation a,
-  NetworkMapStation b,
-  NetworkMapGeometry geometry,
-) {
-  return _stationHitRect(
-    a,
-    geometry,
-  ).inflate(8).overlaps(_stationHitRect(b, geometry).inflate(8));
-}
-
-List<NetworkMapStation> _visibleCanonicalStations({
-  required NetworkMapGeometry geometry,
-  required MapCameraState camera,
-}) {
-  final visibleSourceRect = camera.visibleSourceRect.inflate(96 / camera.scale);
-  return _canonicalStations(
-    geometry.stationIndex.query(visibleSourceRect).where((station) {
-      return _stationHitRect(station, geometry).overlaps(visibleSourceRect);
-    }),
-    geometry,
-  );
-}
-
-int _stationGeometryPriority(NetworkMapStation station) {
-  if (station.position.labelPolygon.isNotEmpty) {
-    return 3;
-  }
-  if (station.position.upPath.isNotEmpty ||
-      station.position.downPath.isNotEmpty) {
-    return 2;
-  }
-  return 1;
-}
-
-Rect _stationHitRect(
-  NetworkMapStation station,
-  NetworkMapGeometry geometry, {
-  double nodeRadius = 24,
-  double labelHeight = 40,
-}) {
-  final node = Rect.fromCenter(
-    center: Offset(geometry.x(station), geometry.y(station)),
-    width: nodeRadius * 2,
-    height: nodeRadius * 2,
-  );
-  final labelOffset = _labelOffsetFor(station);
-  final labelPolygon = _labelPolygonFor(station, geometry);
-  if (labelPolygon != null) {
-    return node.expandToInclude(networkMapPolygonBounds(labelPolygon));
-  }
-  final labelCenter = Offset(
-    geometry.x(station) + labelOffset.dx,
-    geometry.y(station) + labelOffset.dy,
-  );
-  final label = Rect.fromCenter(
-    center: labelCenter,
-    width: math.max(64, station.nameKo.characters.length * 18 + 32),
-    height: labelHeight,
-  );
-  return node.expandToInclude(label);
-}
-
-NetworkMapStation? _stationAtViewportPosition(
-  Offset viewportPosition,
-  NetworkMapGeometry geometry, {
-  required MapCameraState camera,
-}) {
-  final safeScale = camera.scale > 0 ? camera.scale : 1.0;
-  final sourcePosition = camera.viewportToSourcePoint(viewportPosition);
-  final sourceQuery = Rect.fromCircle(
-    center: sourcePosition,
-    radius: _maximumStationHitDistance / safeScale,
-  );
-  NetworkMapStation? bestStation;
-  NetworkMapStationTapScore? bestScore;
-  for (final station in geometry.stationIndex.query(sourceQuery)) {
-    final score = _stationTapScore(viewportPosition, station, geometry, camera);
-    if (score == null) {
-      continue;
-    }
-    if (bestScore == null || score.compareTo(bestScore) < 0) {
-      bestScore = score;
-      bestStation = station;
-    }
-  }
-  return bestStation;
-}
-
-NetworkMapStationTapScore? _stationTapScore(
-  Offset viewportPosition,
-  NetworkMapStation station,
-  NetworkMapGeometry geometry,
-  MapCameraState camera,
-) {
-  final safeScale = camera.scale > 0 ? camera.scale : 1.0;
-  final nodeCenter = camera.sourceToViewportPoint(
-    Offset(geometry.x(station), geometry.y(station)),
-  );
-  final nodeHitRect = Rect.fromCenter(
-    center: nodeCenter,
-    // 노출 상수를 단일 소스로 써서, 48dp 접근성 회귀 가드 테스트가 실제 hit
-    // rect를 지키게 한다(상수와 rect의 독립 재유도 드리프트 방지).
-    width: networkMapStationHitTargetLogicalSize,
-    height: networkMapStationHitTargetLogicalSize,
-  );
-  final containsNode = nodeHitRect.contains(viewportPosition);
-  final nodeDistance = (viewportPosition - nodeCenter).distance;
-  var bestHitDistance = containsNode ? 0.0 : double.infinity;
-  var bestSelectionDistance = containsNode ? nodeDistance : double.infinity;
-  var containsShape = containsNode;
-  final labelPolygon = _labelPolygonFor(station, geometry);
-  if (labelPolygon != null) {
-    final viewportPolygon = [
-      for (final point in labelPolygon) camera.sourceToViewportPoint(point),
-    ];
-    final polygonDistance = math.sqrt(
-      _distanceSquaredToPolygon(viewportPosition, viewportPolygon),
-    );
-    bestHitDistance = math.min(bestHitDistance, polygonDistance);
-    if (polygonDistance <= _maximumStationHitDistance) {
-      bestSelectionDistance = math.min(bestSelectionDistance, polygonDistance);
-    }
-    containsShape = containsShape || polygonDistance == 0;
-  } else {
-    final labelRect = _sourceRectToViewport(
-      _stationLabelRect(station, geometry, labelHeight: 40 / safeScale),
-      camera,
-    );
-    final labelDistance = _distanceToRect(viewportPosition, labelRect);
-    bestHitDistance = math.min(bestHitDistance, labelDistance);
-    if (labelDistance <= _maximumStationHitDistance) {
-      bestSelectionDistance = math.min(
-        bestSelectionDistance,
-        (viewportPosition - labelRect.center).distance,
-      );
-    }
-    containsShape = containsShape || labelDistance == 0;
-  }
-  if (bestHitDistance > _maximumStationHitDistance) {
-    return null;
-  }
-  return NetworkMapStationTapScore(
-    containsNode: containsNode,
-    containsShape: containsShape,
-    screenDistance: bestSelectionDistance.isFinite
-        ? bestSelectionDistance
-        : bestHitDistance,
-    stableKey: _stationGeometryKey(station),
-  );
-}
-
-Rect _stationLabelRect(
-  NetworkMapStation station,
-  NetworkMapGeometry geometry, {
-  double labelHeight = 40,
-}) {
-  final labelOffset = _labelOffsetFor(station);
-  final labelCenter = Offset(
-    geometry.x(station) + labelOffset.dx,
-    geometry.y(station) + labelOffset.dy,
-  );
-  return Rect.fromCenter(
-    center: labelCenter,
-    width: math.max(64, station.nameKo.characters.length * 18 + 32),
-    height: labelHeight,
-  );
-}
-
-double _distanceToRect(Offset point, Rect rect) {
-  if (rect.contains(point)) {
-    return 0;
-  }
-  final dx = point.dx < rect.left
-      ? rect.left - point.dx
-      : point.dx > rect.right
-      ? point.dx - rect.right
-      : 0.0;
-  final dy = point.dy < rect.top
-      ? rect.top - point.dy
-      : point.dy > rect.bottom
-      ? point.dy - rect.bottom
-      : 0.0;
-  return math.sqrt(dx * dx + dy * dy);
-}
-
-String _stationGeometryKey(NetworkMapStation station) {
-  return '${station.id}:${station.lineId}';
-}
-
-/// 테스트용: 주어진 역·오너 라벨 rect로 산출한 지도 geometry의 전체 source
-/// bounds(팬 한계·초기 fit의 근거). #2068 오너 라벨 extents 포함 회귀 가드.
-@visibleForTesting
-Rect networkMapGeometrySourceBoundsFor(
-  List<NetworkMapStation> stations, {
-  List<Rect> ownerLabelSourceRects = const [],
-}) {
-  final geometry = NetworkMapGeometry.fromStations(
-    stations,
-    ownerLabelSourceRects: ownerLabelSourceRects,
-    stationSourceBoundsFor: (station, geometry) =>
-        _stationHitRect(station, geometry),
-    stationKeyFor: _stationGeometryKey,
-  );
-  return Rect.fromLTWH(
-    geometry.origin.dx,
-    geometry.origin.dy,
-    geometry.width,
-    geometry.height,
-  );
-}
-
-List<Offset>? _labelPolygonFor(
-  NetworkMapStation station,
-  NetworkMapGeometry geometry,
-) {
-  final polygon = parseRouteMapLabelPolygon(station.position.labelPolygon);
-  if (polygon == null) {
-    return null;
-  }
-  return [
-    for (final point in polygon)
-      Offset(point.dx - geometry.origin.dx, point.dy - geometry.origin.dy),
-  ];
-}
-
-double _distanceSquaredToPolygon(Offset point, List<Offset> polygon) {
-  if (_pointInPolygon(point, polygon)) {
-    return 0;
-  }
-  var best = double.infinity;
-  for (var index = 0; index < polygon.length; index += 1) {
-    best = math.min(
-      best,
-      _distanceSquaredToSegment(
-        point,
-        polygon[index],
-        polygon[(index + 1) % polygon.length],
-      ),
-    );
-  }
-  return best;
-}
-
-bool _pointInPolygon(Offset point, List<Offset> polygon) {
-  var inside = false;
-  for (
-    var index = 0, previous = polygon.length - 1;
-    index < polygon.length;
-    previous = index, index += 1
-  ) {
-    final currentPoint = polygon[index];
-    final previousPoint = polygon[previous];
-    final crossesY =
-        (currentPoint.dy > point.dy) != (previousPoint.dy > point.dy);
-    if (!crossesY) {
-      continue;
-    }
-    final intersectionX =
-        (previousPoint.dx - currentPoint.dx) *
-            (point.dy - currentPoint.dy) /
-            (previousPoint.dy - currentPoint.dy) +
-        currentPoint.dx;
-    if (point.dx < intersectionX) {
-      inside = !inside;
-    }
-  }
-  return inside;
-}
-
-double _distanceSquaredToSegment(Offset point, Offset start, Offset end) {
-  final segment = end - start;
-  final lengthSquared = segment.distanceSquared;
-  if (lengthSquared == 0) {
-    return (point - start).distanceSquared;
-  }
-  final t =
-      (((point.dx - start.dx) * segment.dx) +
-          ((point.dy - start.dy) * segment.dy)) /
-      lengthSquared;
-  final clampedT = t.clamp(0.0, 1.0).toDouble();
-  final projection = Offset(
-    start.dx + segment.dx * clampedT,
-    start.dy + segment.dy * clampedT,
-  );
-  return (point - projection).distanceSquared;
-}
-
-bool _usesOfficialRouteMapSource(NetworkMapStation station) {
-  return station.position.sourceId.endsWith('-cyberstation') ||
-      station.position.sourceId == 'qa-wikimedia-seoul-svg-coordinate';
-}
-
-Offset _labelOffsetFor(NetworkMapStation station) {
-  if (_usesOfficialRouteMapSource(station)) {
-    return Offset(
-      station.position.labelDx.toDouble(),
-      station.position.labelDy.toDouble(),
-    );
-  }
-  final pathData = station.position.downPath.isNotEmpty
-      ? station.position.downPath
-      : station.position.upPath;
-  if (pathData.isEmpty) {
-    return const Offset(8, 3);
-  }
-  final bounds = cachedRouteMapPath(pathData, Offset.zero).bounds;
-  if (bounds.width > bounds.height * 1.2) {
-    return const Offset(0, 12);
-  }
-  if (bounds.height > bounds.width * 1.2) {
-    return const Offset(9, 3);
-  }
-  return const Offset(8, -8);
 }
 
 RouteDraftStation _routeDraftStationFromMapStation(
