@@ -1,5 +1,5 @@
 {
-  "$schema": "./documentation-fragment.schema.json",
+  "$schema": "https://raw.githubusercontent.com/AquilaXk/easysubway/32ce139789b97ce1f0c9bb059966cfc19f497480/contracts/documentation/documentation-fragment.schema.json",
   "schemaVersion": 1,
   "repository": "AquilaXk/easysubway-mobile",
   "sourceSha": "106bd9fb3085d36735f0bc38a540cfdd7916d488",
