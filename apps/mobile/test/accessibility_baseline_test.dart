@@ -7,7 +7,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
-import 'package:easysubway_mobile/network_map.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/station_hit_target.dart';
 import 'package:easysubway_mobile/onboarding.dart';
 import 'package:easysubway_mobile/route_search.dart';
 import 'package:easysubway_mobile/station_search.dart';
