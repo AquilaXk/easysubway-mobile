@@ -23,6 +23,7 @@ import 'features/network_map/domain/nearby_adjacent_stations.dart';
 import 'features/network_map/domain/network_map_edge_topology.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/network_map_station_selection.dart';
+import 'features/network_map/domain/network_map_station_tap_score.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
 import 'features/network_map/domain/route_map_label_polygon.dart';
 import 'features/network_map/domain/route_map_min_scale.dart';
@@ -4463,7 +4464,7 @@ NetworkMapStation? _stationAtViewportPosition(
     radius: _maximumStationHitDistance / safeScale,
   );
   NetworkMapStation? bestStation;
-  _StationTapScore? bestScore;
+  NetworkMapStationTapScore? bestScore;
   for (final station in geometry.stationIndex.query(sourceQuery)) {
     final score = _stationTapScore(viewportPosition, station, geometry, camera);
     if (score == null) {
@@ -4477,7 +4478,7 @@ NetworkMapStation? _stationAtViewportPosition(
   return bestStation;
 }
 
-_StationTapScore? _stationTapScore(
+NetworkMapStationTapScore? _stationTapScore(
   Offset viewportPosition,
   NetworkMapStation station,
   _MapGeometry geometry,
@@ -4530,7 +4531,7 @@ _StationTapScore? _stationTapScore(
   if (bestHitDistance > _maximumStationHitDistance) {
     return null;
   }
-  return _StationTapScore(
+  return NetworkMapStationTapScore(
     containsNode: containsNode,
     containsShape: containsShape,
     screenDistance: bestSelectionDistance.isFinite
@@ -4572,43 +4573,6 @@ double _distanceToRect(Offset point, Rect rect) {
       ? point.dy - rect.bottom
       : 0.0;
   return math.sqrt(dx * dx + dy * dy);
-}
-
-class _StationTapScore implements Comparable<_StationTapScore> {
-  const _StationTapScore({
-    required this.containsNode,
-    required this.containsShape,
-    required this.screenDistance,
-    required this.stableKey,
-  });
-
-  final bool containsNode;
-  final bool containsShape;
-  final double screenDistance;
-  final String stableKey;
-
-  @override
-  int compareTo(_StationTapScore other) {
-    final nodeComparison = _scoreBool(
-      containsNode,
-    ).compareTo(_scoreBool(other.containsNode));
-    if (nodeComparison != 0) {
-      return nodeComparison;
-    }
-    final containsComparison = _scoreBool(
-      containsShape,
-    ).compareTo(_scoreBool(other.containsShape));
-    if (containsComparison != 0) {
-      return containsComparison;
-    }
-    final distanceComparison = screenDistance.compareTo(other.screenDistance);
-    if (distanceComparison != 0) {
-      return distanceComparison;
-    }
-    return stableKey.compareTo(other.stableKey);
-  }
-
-  static int _scoreBool(bool value) => value ? 0 : 1;
 }
 
 String _stationGeometryKey(NetworkMapStation station) {
