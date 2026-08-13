@@ -11,6 +11,7 @@ import 'design_tokens.dart';
 import 'facility_report.dart';
 import 'features/ads/ad_repository.dart';
 import 'features/facility_report/domain/facility_report_target.dart';
+import 'features/network_map/application/network_map_nearby_display_cache.dart';
 import 'features/network_map/application/network_map_load_result.dart';
 import 'features/network_map/application/nearby_panel_request_key.dart';
 import 'features/network_map/application/network_map_region_bridge.dart';
@@ -204,10 +205,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   int _neighborSelectPanelToken = 0;
 
   /// 성공한 실시간만 stationId+lineId 키로 보관. unavailable/loading/empty로 덮지 않는다.
-  _NearbyRealtimeDisplay? _nearbyRealtimeDisplay;
+  NetworkMapNearbyRealtimeDisplay<RealtimeSnapshot>? _nearbyRealtimeDisplay;
 
   /// 성공한 시간표만 stationId+lineId 키로 보관. 실패로 성공 캐시를 지우지 않는다.
-  _NearbyTimetableDisplay? _nearbyTimetableDisplay;
+  NetworkMapNearbyTimetableDisplay<StationTimetable>? _nearbyTimetableDisplay;
   NetworkMapNearbyPanelDataSource _nearbyDataSource =
       NetworkMapNearbyPanelDataSource.realtime;
 
@@ -1294,7 +1295,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       }
       if (_isCacheableNearbyRealtime(snapshot)) {
         setState(() {
-          _nearbyRealtimeDisplay = _NearbyRealtimeDisplay(
+          _nearbyRealtimeDisplay = NetworkMapNearbyRealtimeDisplay(
             stationId: request.stationId,
             lineId: request.lineId,
             snapshot: snapshot,
@@ -1405,7 +1406,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         return;
       }
       setState(() {
-        _nearbyTimetableDisplay = _NearbyTimetableDisplay(
+        _nearbyTimetableDisplay = NetworkMapNearbyTimetableDisplay(
           stationId: request.stationId,
           lineId: request.lineId,
           timetable: timetable,
@@ -2624,32 +2625,6 @@ class _NetworkMapSearchSessionState extends State<_NetworkMapSearchSession> {
       ),
     );
   }
-}
-
-/// 성공한 실시간 스냅샷의 keyed display cache(#2453 Task 4).
-class _NearbyRealtimeDisplay {
-  const _NearbyRealtimeDisplay({
-    required this.stationId,
-    required this.lineId,
-    required this.snapshot,
-  });
-
-  final String stationId;
-  final String lineId;
-  final RealtimeSnapshot snapshot;
-}
-
-/// 성공한 시간표의 keyed display cache(#2453 Task 4).
-class _NearbyTimetableDisplay {
-  const _NearbyTimetableDisplay({
-    required this.stationId,
-    required this.lineId,
-    required this.timetable,
-  });
-
-  final String stationId;
-  final String lineId;
-  final StationTimetable timetable;
 }
 
 StationDetailNeighbor? _stationDetailNeighbor(
