@@ -383,6 +383,34 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  testWidgets('disposed session은 history repository 없는 late search 완료를 무시한다', (
+    tester,
+  ) async {
+    final queryController = TextEditingController();
+    final routeDraftController = RouteDraftController();
+    final searchCompleter = Completer<List<StationSearchResult>>();
+    final key = GlobalKey<NetworkMapSearchSessionState>();
+    addTearDown(queryController.dispose);
+    addTearDown(routeDraftController.dispose);
+
+    await tester.pumpWidget(
+      _session(
+        key: key,
+        queryController: queryController,
+        routeDraftController: routeDraftController,
+        stationRepository: _RecordingStationSearchRepository(
+          searchCompleter: searchCompleter,
+        ),
+      ),
+    );
+    key.currentState!.submitSearch('서울');
+    await tester.pumpWidget(const SizedBox.shrink());
+    searchCompleter.complete(const []);
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+  });
+
   for (final failAfterDispose in [false, true]) {
     testWidgets(
       'disposed session은 late favorite ${failAfterDispose ? 'error' : 'success'}를 무시한다',
