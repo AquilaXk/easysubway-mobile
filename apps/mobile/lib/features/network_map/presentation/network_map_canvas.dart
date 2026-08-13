@@ -717,6 +717,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     if (!_gestureActive) {
       return;
     }
+    if (!mounted) {
+      _gestureActive = false;
+      return;
+    }
     setState(() {
       _gestureActive = false;
     });
