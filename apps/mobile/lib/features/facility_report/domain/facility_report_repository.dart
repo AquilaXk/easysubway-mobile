@@ -17,16 +17,16 @@ class UnavailableFacilityReportRepository implements FacilityReportRepository {
   Future<FacilityReportResult> createReport(
     FacilityReportRequest request,
   ) async {
-    throw const FacilityReportException('제보를 보내지 못했어요.');
+    throw const FacilityReportException(facilityReportSubmitFailureMessage);
   }
 
   @override
   Future<FacilityReportResult> getReport(String reportId) async {
-    throw const FacilityReportException('제보 진행 상황을 확인하지 못했어요.');
+    throw const FacilityReportException(facilityReportStatusFailureMessage);
   }
 
   @override
   Future<List<FacilityReportResult>> listMyReports() async {
-    throw const FacilityReportException('제보 내역을 불러오지 못했어요.');
+    throw const FacilityReportException(facilityReportListFailureMessage);
   }
 }

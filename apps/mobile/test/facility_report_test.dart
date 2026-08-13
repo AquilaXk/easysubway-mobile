@@ -9,8 +9,7 @@ import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/facility_report/application/facility_report_state.dart';
 import 'package:easysubway_mobile/features/facility_report/data/drift_facility_report_receipt_store.dart';
-import 'package:easysubway_mobile/features/facility_report/data/facility_report_api_repository.dart'
-    as api_repository_owner;
+import 'package:easysubway_mobile/features/facility_report/data/facility_report_api_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'package:easysubway_mobile/features/facility_report/data/secure_facility_report_draft_target_store.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';

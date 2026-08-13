@@ -4,13 +4,13 @@ import '../auth_headers.dart';
 import '../core/database/catalog/catalog_database.dart';
 import '../core/database/user/user_database.dart';
 import '../core/network/api_client.dart';
-import '../facility_report.dart';
 import '../favorite_facility.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../features/favorites/data/drift_favorite_repositories.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
+import '../features/facility_report/data/facility_report_api_repository.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
 import '../features/facility_report/domain/facility_report_request.dart';
 import '../features/facility_report/domain/facility_report_result.dart';
