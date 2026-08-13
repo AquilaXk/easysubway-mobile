@@ -190,6 +190,9 @@ class NetworkMapTopBar extends StatelessWidget {
                 // 검색 행은 draft가 비었을 때만 렌더되지만, 경로 칸이 생기면
                 // 지역 변경을 막고 ▾도 숨긴다(표시명만 유지).
                 final canChangeRegion = routeDraft().isEmpty;
+                final onRegionTap = canChangeRegion
+                    ? () => _showRegionMenu(regionContext, availableRegions)
+                    : null;
                 return Semantics(
                   key: const Key('mapRegionTabs'),
                   container: true,
@@ -197,20 +200,13 @@ class NetworkMapTopBar extends StatelessWidget {
                   label: canChangeRegion
                       ? '지역: $currentRegion, 지역 변경'
                       : '지역: $currentRegion',
-                  onTap: canChangeRegion
-                      ? () => _showRegionMenu(regionContext, availableRegions)
-                      : null,
+                  onTap: onRegionTap,
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 148),
                     child: ExcludeSemantics(
                       child: InkWell(
                         key: const Key('networkMapRegionDropdown'),
-                        onTap: canChangeRegion
-                            ? () => _showRegionMenu(
-                                regionContext,
-                                availableRegions,
-                              )
-                            : null,
+                        onTap: onRegionTap,
                         splashFactory: NoSplash.splashFactory,
                         splashColor: Colors.transparent,
                         highlightColor: Colors.transparent,
