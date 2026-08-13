@@ -28,8 +28,8 @@ import 'package:sqlite3/sqlite3.dart';
 // rect가 geometry bounds에 절대 반영되지 않았다(로드 타이밍·designScale과
 // 무관하게 애초에 라벨 목록 자체가 비어 있었음).
 //
-// 수정: _geometryFor·_buildStructuredRouteMapCanvas 양쪽 조회를
-// kRouteMapBasemapRegionToId[_displayRegionName(selectedRegion)]로 정규화.
+// 수정: canvas owner의 _geometryFor·_buildStructuredRouteMapCanvas 양쪽 조회를
+// kRouteMapBasemapRegionToId[routeMapDisplayRegionName(selectedRegion)]로 정규화.
 //
 // 이 테스트는 실제 capital.sqlite.gz의 광주권(route_map_positions.region=
 // '광주권') 실데이터로 NetworkMapScreen을 프로덕션과 동일한 저장형 region으로
@@ -234,7 +234,7 @@ void main() {
 
       // 프로덕션이 쓰는 것과 동일한 공유 캐시 슬롯에 파싱 결과를 주입한다 — 마운트된
       // 위젯의 _loadOwnerLabels()가 실제 rootBundle.loadString 호출 없이 이 값을
-      // 즉시 받는다(테스트 인프라 메모 참고). region 키 정규화(_displayRegionName)
+      // 즉시 받는다(테스트 인프라 메모 참고). region 키 정규화(routeMapDisplayRegionName)
       // 로직 자체는 실제 프로덕션 코드 경로 그대로 실행된다.
       primeNetworkMapOwnerLabelsCacheForTest(byRegion);
 

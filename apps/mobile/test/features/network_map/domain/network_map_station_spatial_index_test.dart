@@ -69,8 +69,11 @@ void main() {
     expect(NetworkMapStationSpatialIndex.empty.query(Rect.zero), isEmpty);
   });
 
-  test('geometry owner가 public spatial-index를 조립하고 root private 사본을 제거한다', () {
+  test('canvas는 geometry owner를 조립하고 root private spatial-index를 두지 않는다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
+    final canvas = File(
+      'lib/features/network_map/presentation/network_map_canvas.dart',
+    ).readAsStringSync();
     final geometry = File(
       'lib/features/network_map/presentation/network_map_geometry.dart',
     ).readAsStringSync();
@@ -78,18 +81,19 @@ void main() {
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_geometry.dart';",
+        "import 'features/network_map/presentation/network_map_canvas.dart';",
       ),
     );
     expect(
-      root,
+      canvas,
       isNot(
         contains(
           "import 'features/network_map/domain/network_map_station_spatial_index.dart';",
         ),
       ),
     );
-    expect(root, contains('NetworkMapGeometry.fromStations('));
+    expect(canvas, contains("import 'network_map_geometry.dart';"));
+    expect(canvas, contains('NetworkMapGeometry.fromStations('));
     expect(
       geometry,
       contains("import '../domain/network_map_station_spatial_index.dart';"),
