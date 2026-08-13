@@ -12,6 +12,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:easysubway_mobile/features/facility_report/presentation/my_facility_reports_screens.dart';
 import 'package:easysubway_mobile/favorite_facility.dart';
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart'
@@ -660,6 +661,83 @@ void main() {
       find.bySemanticsLabel('내 제보 상세, 폐쇄, 현재 상태 반영됨, 제보 번호 ES-1002'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('내 제보 화면은 loading과 오류 뒤 재시도를 구분한다', (tester) async {
+    final repository = FakeFacilityReportRepository()
+      ..error = StateError('list failed');
+
+    await tester.pumpWidget(
+      MaterialApp(home: MyFacilityReportListScreen(repository: repository)),
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text(facilityReportListFailureMessage), findsOneWidget);
+
+    repository.error = null;
+    await tester.tap(find.byKey(const Key('myReportsRetryButton')));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    expect(repository.listMyReportsCount, 2);
+    expect(find.text('접수한 제보가 없습니다.'), findsOneWidget);
+  });
+
+  testWidgets('내 제보 목록·상세는 빈 설명과 뒤로가기를 보존한다', (tester) async {
+    final repository = FakeFacilityReportRepository(
+      reports: const [
+        FacilityReportResult(
+          id: 'report-empty-description',
+          publicReceiptCode: 'ES-1004',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'CLOSED',
+          description: '',
+          status: 'SUBMITTED',
+          createdAt: '2026-06-16T09:00:00',
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            key: const Key('openMyReportsForBoundaryTest'),
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) =>
+                    MyFacilityReportListScreen(repository: repository),
+              ),
+            ),
+            child: const Text('내 제보 열기'),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('openMyReportsForBoundaryTest')));
+    await tester.pumpAndSettle();
+    expect(find.text('폐쇄'), findsNWidgets(2));
+
+    await tester.tap(find.byKey(const Key('myReportsBackButton')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const Key('openMyReportsForBoundaryTest')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('openMyReportsForBoundaryTest')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('myReport-report-empty-description')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('제보 상세'), findsOneWidget);
+    expect(find.text('폐쇄'), findsNWidgets(2));
   });
 
   testWidgets('내 제보 화면은 접수한 제보가 없으면 짧은 빈 상태를 보여준다', (tester) async {
