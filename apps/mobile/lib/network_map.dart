@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'accessible_design.dart';
 import 'ad_slot.dart';
+import 'app/network_map_nearby_panel_composition.dart';
 import 'design_tokens.dart';
 import 'features/ads/ad_repository.dart';
 import 'features/facility_report/domain/facility_report_repository.dart';
@@ -20,10 +21,7 @@ import 'features/network_map/domain/network_map_edge_topology.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/route_map_min_scale.dart';
 import 'features/network_map/domain/route_map_owner_labels.dart';
-import 'features/network_map/presentation/nearby_arrival_panel.dart';
 import 'features/network_map/presentation/nearby_data_source_toggle.dart';
-import 'features/network_map/presentation/nearby_station_line_bar.dart';
-import 'features/network_map/presentation/nearby_timetable_panel.dart';
 import 'features/network_map/presentation/network_map_chrome_controls.dart';
 import 'features/network_map/presentation/network_map_canvas.dart';
 import 'features/network_map/presentation/network_map_menu_panel.dart';
@@ -33,7 +31,6 @@ import 'features/network_map/presentation/network_map_unavailable_states.dart';
 import 'features/realtime/realtime_repository.dart';
 import 'features/route_draft/application/route_draft_controller.dart';
 import 'features/route_draft/domain/route_draft.dart';
-import 'features/stations/presentation/service_pattern_badge.dart';
 import 'features/stations/presentation/station_detail_body.dart';
 import 'features/stations/presentation/station_detail_screen.dart';
 import 'features/stations/presentation/station_line_badges.dart';
@@ -1625,7 +1622,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     final dataSourceToggleEnabled = !(primary?.lines.isEmpty ?? true);
     final selectedLine = primary == null
         ? null
-        : _nearbySelectedLine(primary, _nearbySelectedLineId);
+        : networkMapNearbySelectedLine(primary, _nearbySelectedLineId);
     final canExpandDetail =
         _nearbyPanelExpanded &&
         primary != null &&
@@ -1650,10 +1647,12 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         showContextChrome: false,
         showRealtimeSection: false,
         onClose: null,
-        previousStation: _stationDetailNeighbor(
+        previousStation: networkMapStationDetailNeighbor(
           adjacentStations.previousNeighbor,
         ),
-        nextStation: _stationDetailNeighbor(adjacentStations.nextNeighbor),
+        nextStation: networkMapStationDetailNeighbor(
+          adjacentStations.nextNeighbor,
+        ),
         onSelectNeighbor: _selectNearbyNeighborStation,
         lineForChrome: selectedLine,
       );
@@ -1683,7 +1682,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       contentPrimaryColor: EasySubwayAccessibleColors.contentPrimary,
       body: NetworkMapNearbyPanelContent(
         status: data.status,
-        successBuilder: (context) => _networkMapNearbySuccessContent(
+        successBuilder: (context) => buildNetworkMapNearbyPanelSuccessContent(
           results: data.results,
           realtime: _nearbyRealtimeForDisplay,
           selectedLineId: _nearbySelectedLineId,
@@ -2126,136 +2125,4 @@ class _NetworkMapSearchSessionState extends State<_NetworkMapSearchSession> {
       ),
     );
   }
-}
-
-StationDetailNeighbor? _stationDetailNeighbor(
-  NearbyAdjacentStationIdentity? identity,
-) {
-  if (identity == null) {
-    return null;
-  }
-  return StationDetailNeighbor(
-    stationId: identity.stationId,
-    nameKo: identity.nameKo,
-  );
-}
-
-/// 주변역 패널의 선택 노선색 단일 소스. 카탈로그 색을 우선하고 값이 없으면
-/// 노선 이름·식별자 폴백을 쓴다(2호선 = #00A84D).
-Color _nearbySelectedLineColor(StationSearchLine? line) {
-  if (line == null) {
-    return stationLineColor(stationLineFallbackBrandHex);
-  }
-  final raw = line.color.trim();
-  if (raw.isEmpty) {
-    return stationLineColor(
-      fallbackLineColorHex(lineId: line.id, lineName: line.name),
-    );
-  }
-  return stationLineColor(raw);
-}
-
-StationSearchLine? _nearbySelectedLine(
-  StationSearchResult primary,
-  String? selectedLineId,
-) {
-  if (primary.lines.isEmpty) {
-    return null;
-  }
-  for (final line in primary.lines) {
-    if (line.id == selectedLineId) {
-      return line;
-    }
-  }
-  return primary.lines.first;
-}
-
-NetworkMapNearbyPanelSuccessContent _networkMapNearbySuccessContent({
-  required List<StationSearchResult> results,
-  required RealtimeSnapshot realtime,
-  required String? selectedLineId,
-  required NetworkMapNearbyPanelDataSource dataSource,
-  required StationTimetable? timetable,
-  required NearbyAdjacentStations adjacentStations,
-  VoidCallback? onOpenStationDetail,
-  ValueChanged<StationDetailNeighbor>? onSelectNeighbor,
-}) {
-  final primary = results.first;
-  final selectedLine = _nearbySelectedLine(primary, selectedLineId);
-  final lineColor = _nearbySelectedLineColor(selectedLine);
-  final selectNeighbor = onSelectNeighbor;
-  final previous = _stationDetailNeighbor(adjacentStations.previousNeighbor);
-  final next = _stationDetailNeighbor(adjacentStations.nextNeighbor);
-  return (
-    stationBar: NearbyStationLineBar(
-      leftName: adjacentStations.leftName,
-      rightName: adjacentStations.rightName,
-      stationName: primary.nameKo,
-      badgeText: selectedLine?.badgeText ?? '',
-      lineColor: lineColor,
-      onStationNameTap: onOpenStationDetail,
-      onLeftNameTap: selectNeighbor == null || previous == null
-          ? null
-          : () => selectNeighbor(previous),
-      onRightNameTap: selectNeighbor == null || next == null
-          ? null
-          : () => selectNeighbor(next),
-    ),
-    dataPanel: dataSource == NetworkMapNearbyPanelDataSource.realtime
-        ? NearbyArrivalPanel(
-            data: NearbyArrivalPanelData(
-              status: switch (realtime.status) {
-                RealtimeSnapshotStatus.fresh => NearbyArrivalPanelStatus.fresh,
-                RealtimeSnapshotStatus.stale => NearbyArrivalPanelStatus.stale,
-                _ => NearbyArrivalPanelStatus.unavailable,
-              },
-              receivedAt: realtime.receivedAt,
-              arrivals: [
-                for (final arrival in realtime.arrivals)
-                  NearbyArrivalData(
-                    direction: arrival.direction,
-                    destination: arrival.destination,
-                    etaSeconds: arrival.etaSeconds,
-                    message: arrival.message,
-                  ),
-              ],
-            ),
-            lineColor: lineColor,
-            leftName: adjacentStations.leftName,
-            rightName: adjacentStations.rightName,
-          )
-        : NearbyTimetablePanel(
-            data: _nearbyTimetablePanelData(timetable),
-            lineColor: lineColor,
-            leftName: adjacentStations.leftName,
-            rightName: adjacentStations.rightName,
-            expressBadgeBuilder: () => const ServicePatternBadge.express(),
-          ),
-  );
-}
-
-NearbyTimetablePanelData? _nearbyTimetablePanelData(
-  StationTimetable? timetable,
-) {
-  if (timetable == null) {
-    return null;
-  }
-  return NearbyTimetablePanelData(
-    directions: [
-      for (final direction in timetable.directions)
-        NearbyTimetableDirectionData(
-          name: direction.name,
-          departures: [
-            for (final departure in direction.departures)
-              NearbyTimetableDepartureData(
-                directionName: departure.directionName,
-                seconds: departure.seconds,
-                timeLabel: departure.timeLabel,
-                semanticLabel: departure.semanticLabel,
-                isExpress: departure.isExpress,
-              ),
-          ],
-        ),
-    ],
-  );
 }
