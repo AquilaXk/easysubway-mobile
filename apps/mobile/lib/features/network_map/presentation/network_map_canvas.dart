@@ -118,7 +118,6 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   MapCameraState? _requestedRendererCamera;
   MapCameraState? _presentedRendererCamera;
   final _requestedRendererCamerasByRevision = <int, MapCameraState>{};
-  bool _routeMapRendererActive = false;
   bool _routeMapBasemapFailed = false;
   DateTime? _lastRendererCameraRequestAt;
   bool _cameraFrameCallbackScheduled = false;
@@ -315,7 +314,6 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
             _requestedRendererCamera = null;
             _presentedRendererCamera = null;
             _requestedRendererCamerasByRevision.clear();
-            _routeMapRendererActive = widget.data.stations.isNotEmpty;
             _gestureActive = false;
             _cameraFocusedStationKey = null;
             _camera = preserveCamera
@@ -408,7 +406,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           } else if (focusedStation == null) {
             _cameraFocusedStationKey = null;
           }
-          if (_routeMapBasemapFailed || !_routeMapRendererActive) {
+          if (_routeMapBasemapFailed || widget.data.stations.isEmpty) {
             return const OriginalRouteMapUnavailable();
           }
           final presentedRendererCamera = _presentedRendererCamera;
@@ -719,10 +717,6 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     if (!_gestureActive) {
       return;
     }
-    if (!mounted) {
-      _gestureActive = false;
-      return;
-    }
     setState(() {
       _gestureActive = false;
     });
@@ -759,15 +753,6 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       _pendingCamera = null;
       _forceRendererCameraCommit = false;
       if (!mounted || pendingCamera == null) {
-        return;
-      }
-      if (!_routeMapRendererActive) {
-        setState(() {
-          _camera = pendingCamera;
-          _requestedRendererCamera = null;
-          _presentedRendererCamera = null;
-          _requestedRendererCamerasByRevision.clear();
-        });
         return;
       }
       final rendererCamera = _requestedRendererCameraFor(
@@ -821,9 +806,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         candidateCamera: requestedCamera,
         visualCamera: pendingCamera,
       );
-      if (!identical(skippedCommitCamera, _requestedRendererCamera)) {
-        _lastRendererCameraRequestAt = now;
-      }
+      _lastRendererCameraRequestAt =
+          identical(skippedCommitCamera, _requestedRendererCamera)
+          ? _lastRendererCameraRequestAt
+          : now;
       return skippedCommitCamera;
     }
     _lastRendererCameraRequestAt = now;
@@ -890,28 +876,19 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       clampPosition: false,
     );
     final menuRect = placement.revealBounds;
-    final viewport = Offset.zero & camera.viewportSize;
-    var dx = 0.0;
-    var dy = 0.0;
-    if (menuRect.left < viewport.left + margin) {
-      dx = (viewport.left + margin) - menuRect.left;
-    } else if (menuRect.right > viewport.right - margin) {
-      dx = (viewport.right - margin) - menuRect.right;
-    }
-    if (menuRect.top < viewport.top + margin) {
-      dy = (viewport.top + margin) - menuRect.top;
-    } else if (menuRect.bottom > viewport.bottom - margin) {
-      dy = (viewport.bottom - margin) - menuRect.bottom;
-    }
-    if (dx == 0 && dy == 0) {
+    final revealOffset = fanMenuRevealOffset(
+      menuRect: menuRect,
+      viewport: camera.viewportSize,
+    );
+    if (revealOffset == Offset.zero) {
       return;
     }
     // 뷰포트 픽셀 이동 → source 좌표 center 이동(반대 방향).
-    final nextCenter = camera.center - Offset(dx, dy) / camera.scale;
+    final nextCenter = camera.center - revealOffset / camera.scale;
     // #2192: v3는 flip을 제거하고 항상 노드 위에 배치하므로, 지도 최상단(경계)
     // 역에서도 꼬리 팁이 노드에 닿은 채 메뉴 전체가 드러나려면 카메라가 source
     // 경계를 메뉴 높이만큼 넘겨 패닝할 수 있어야 한다. clamped 헤드룸을 메뉴
-    // 높이+여백으로 열어 상단 여유를 준다(dx·dy는 필요한 방향으로만 이동하므로
+    // 높이+여백으로 열어 상단 여유를 준다(reveal offset은 필요한 방향으로만 이동하므로
     // 다른 역 배치에는 영향 없음). 잔여는 build 경로의 viewport 클램프가 처리한다.
     final headroom = placement.menuHeight + margin;
     _setCamera(

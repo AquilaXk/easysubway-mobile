@@ -37,6 +37,26 @@ class FanMenuPlacement {
   final Rect revealBounds;
 }
 
+/// 팬 메뉴의 이상적 배치가 viewport를 벗어났을 때 화면 안으로 옮길 최소 offset.
+/// Canvas camera는 이 값을 반대 방향의 source 이동으로 변환한다.
+Offset fanMenuRevealOffset({required Rect menuRect, required Size viewport}) {
+  final viewportRect = Offset.zero & viewport;
+  const margin = kFanMenuViewportMargin;
+  var dx = 0.0;
+  var dy = 0.0;
+  if (menuRect.left < viewportRect.left + margin) {
+    dx = (viewportRect.left + margin) - menuRect.left;
+  } else if (menuRect.right > viewportRect.right - margin) {
+    dx = (viewportRect.right - margin) - menuRect.right;
+  }
+  if (menuRect.top < viewportRect.top + margin) {
+    dy = (viewportRect.top + margin) - menuRect.top;
+  } else if (menuRect.bottom > viewportRect.bottom - margin) {
+    dy = (viewportRect.bottom - margin) - menuRect.bottom;
+  }
+  return Offset(dx, dy);
+}
+
 /// 역 노드 앵커의 뷰포트 좌표([stationPoint])로 팬 메뉴 배치를 계산한다(#2192 v3).
 /// 항상 노드 위쪽에 배치하되, 말풍선 꼬리 팁([kFanMenuTailTip])이 넘겨받은
 /// 앵커점에 닿도록 정렬한다(노드 위 8px 갭·flip 제거). 앵커점 자체는

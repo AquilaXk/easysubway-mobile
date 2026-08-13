@@ -5,7 +5,6 @@ import 'package:easysubway_mobile/features/network_map/presentation/network_map_
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
