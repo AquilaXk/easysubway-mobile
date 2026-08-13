@@ -6,7 +6,6 @@ import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
 import 'package:easysubway_mobile/core/network/api_client.dart';
-import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/facility_report/application/facility_report_controller.dart';
 import 'package:easysubway_mobile/features/facility_report/application/facility_report_state.dart';
 import 'package:easysubway_mobile/features/facility_report/data/drift_facility_report_receipt_store.dart';
@@ -1588,6 +1587,92 @@ void main() {
     expect(controller.state.message, '제보를 보냈어요.');
     expect(controller.state.message, isNot(contains('알려주기')));
   });
+
+  test('시설 신고 컨트롤러는 사진·좌표 요청과 typed 제출 실패를 보존한다', () async {
+    final repository = PendingFacilityReportRepository();
+    final controller = FacilityReportController(repository: repository);
+    addTearDown(controller.dispose);
+
+    final submit = controller.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+      photoAttachment: const FacilityReportPhotoAttachment(
+        fileName: 'elevator.jpg',
+        contentType: 'image/jpeg',
+        dataBase64: 'cGhvdG8=',
+      ),
+      latitude: 37.3,
+      longitude: 126.8,
+    );
+
+    expect(repository.requests.single.photoFileName, 'elevator.jpg');
+    expect(repository.requests.single.photoContentType, 'image/jpeg');
+    expect(repository.requests.single.photoDataBase64, 'cGhvdG8=');
+    expect(repository.requests.single.latitude, 37.3);
+    expect(repository.requests.single.longitude, 126.8);
+    repository.complete();
+    await submit;
+
+    final failureController = FacilityReportController(
+      repository: _ControllerBoundaryRepository(
+        createError: const FacilityReportException('사진을 다시 확인해 주세요.'),
+      ),
+    );
+    addTearDown(failureController.dispose);
+    await failureController.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+
+    expect(failureController.state.status, FacilityReportViewStatus.failure);
+    expect(failureController.state.message, '사진을 다시 확인해 주세요.');
+  });
+
+  test('시설 신고 컨트롤러는 예상 밖 제출·새로고침 오류를 기록한다', () async {
+    final reportedErrors = _captureReportedErrors();
+    final submitController = FacilityReportController(
+      repository: _ControllerBoundaryRepository(
+        createError: StateError('submit failed'),
+      ),
+    );
+    addTearDown(submitController.dispose);
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await submitController.submit(
+        target: _reportTarget(),
+        selectedType: FacilityReportTypeOption.broken,
+        description: '문이 열리지 않습니다.',
+      );
+    });
+
+    expect(submitController.state.status, FacilityReportViewStatus.failure);
+    expect(submitController.state.message, facilityReportSubmitFailureMessage);
+
+    final refreshController = FacilityReportController(
+      repository: _ControllerBoundaryRepository(
+        getError: StateError('refresh failed'),
+      ),
+    );
+    addTearDown(refreshController.dispose);
+    await refreshController.submit(
+      target: _reportTarget(),
+      selectedType: FacilityReportTypeOption.broken,
+      description: '문이 열리지 않습니다.',
+    );
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await refreshController.refreshCurrentReport();
+    });
+
+    expect(refreshController.state.status, FacilityReportViewStatus.failure);
+    expect(refreshController.state.message, '제보 진행 상황을 확인하지 못했어요.');
+    expect(refreshController.state.result?.id, 'report-1');
+    expect(reportedErrors.map((details) => details.exception), [
+      isA<StateError>(),
+      isA<StateError>(),
+    ]);
+  });
 }
 
 class FakeLostDataImagePicker extends ImagePicker {
@@ -1732,6 +1817,44 @@ class FailingRefreshFacilityReportRepository
     throw UnimplementedError();
   }
 }
+
+class _ControllerBoundaryRepository
+    implements repository_owner.FacilityReportRepository {
+  _ControllerBoundaryRepository({this.createError, this.getError});
+
+  final Object? createError;
+  final Object? getError;
+
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) {
+    final error = createError;
+    if (error != null) return Future.error(error);
+    return Future.value(_controllerReportResult);
+  }
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) {
+    final error = getError;
+    if (error != null) return Future.error(error);
+    return Future.value(_controllerReportResult);
+  }
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() {
+    throw UnimplementedError();
+  }
+}
+
+const _controllerReportResult = FacilityReportResult(
+  id: 'report-1',
+  publicReceiptCode: 'ES-1001',
+  stationId: 'station-sangnoksu',
+  facilityId: 'facility-sangnoksu-elevator-1',
+  reportType: 'BROKEN',
+  description: '문이 열리지 않습니다.',
+  status: 'SUBMITTED',
+  createdAt: '2026-06-13T10:00:00',
+);
 
 class _UploadIntentFailureApiClient extends ApiClient {
   _UploadIntentFailureApiClient()
