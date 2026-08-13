@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/nearby_data_source_toggle.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_nearby_panel_shell.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,11 +23,16 @@ void main() {
           lineTabs: const [
             SizedBox(key: Key('lineTab1'), width: 48, height: 48),
           ],
-          isRealtime: true,
-          dataSourceToggleEnabled: true,
-          onDataSourceToggle: () => toggleCount += 1,
+          dataSourceToggle: NearbyDataSourceToggle(
+            isRealtime: true,
+            enabled: true,
+            onToggle: () => toggleCount += 1,
+          ),
           onClose: () => closeCount += 1,
           body: const SizedBox(key: Key('nearbyBody'), height: 132),
+          surfaceColor: EasySubwayAccessibleColors.surfaceDefault,
+          borderColor: EasySubwayAccessibleColors.borderSubtle,
+          contentPrimaryColor: EasySubwayAccessibleColors.contentPrimary,
         ),
       ),
     );
@@ -42,11 +48,18 @@ void main() {
     );
     expect(safeArea.top, isFalse);
     expect(safeArea.bottom, isTrue);
-    final decoration = tester
-        .widget<DecoratedBox>(
-          find.descendant(of: panel, matching: find.byType(DecoratedBox)).first,
-        )
-        .decoration as BoxDecoration;
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .descendant(
+                        of: panel,
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
     expect(
       decoration.border,
       const Border(
@@ -58,9 +71,7 @@ void main() {
     expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
 
     await tester.tap(find.bySemanticsLabel('시간표로 전환'));
-    await tester.tap(
-      find.byKey(const Key('networkMapNearbyPanelCloseButton')),
-    );
+    await tester.tap(find.byKey(const Key('networkMapNearbyPanelCloseButton')));
     expect(toggleCount, 1);
     expect(closeCount, 1);
   });
@@ -76,11 +87,16 @@ void main() {
             SizedBox(key: Key('lineTab1'), width: 48, height: 48),
             SizedBox(key: Key('lineTab2'), width: 48, height: 48),
           ],
-          isRealtime: false,
-          dataSourceToggleEnabled: false,
-          onDataSourceToggle: () {},
+          dataSourceToggle: NearbyDataSourceToggle(
+            isRealtime: false,
+            enabled: false,
+            onToggle: () {},
+          ),
           onClose: () {},
           body: const SizedBox(key: Key('nearbyBody'), height: 132),
+          surfaceColor: EasySubwayAccessibleColors.surfaceDefault,
+          borderColor: EasySubwayAccessibleColors.borderSubtle,
+          contentPrimaryColor: EasySubwayAccessibleColors.contentPrimary,
           expandedDetail: const SizedBox(key: Key('nearbyDetail')),
         ),
       ),
@@ -95,13 +111,18 @@ void main() {
     );
     expect(safeArea.top, isTrue);
     expect(safeArea.bottom, isTrue);
-    final decoration = tester
-        .widget<DecoratedBox>(
-          find
-              .descendant(of: expanded, matching: find.byType(DecoratedBox))
-              .first,
-        )
-        .decoration as BoxDecoration;
+    final decoration =
+        tester
+                .widget<DecoratedBox>(
+                  find
+                      .descendant(
+                        of: expanded,
+                        matching: find.byType(DecoratedBox),
+                      )
+                      .first,
+                )
+                .decoration
+            as BoxDecoration;
     expect(decoration.border, isNull);
     expect(find.byKey(const Key('lineTab1')), findsOneWidget);
     expect(find.byKey(const Key('lineTab2')), findsOneWidget);
