@@ -663,6 +663,28 @@ void main() {
     );
   });
 
+  testWidgets('내 제보 화면은 loading과 오류 뒤 재시도를 구분한다', (tester) async {
+    final repository = FakeFacilityReportRepository()
+      ..error = StateError('list failed');
+
+    await tester.pumpWidget(
+      MaterialApp(home: MyFacilityReportListScreen(repository: repository)),
+    );
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpAndSettle();
+    expect(find.text(facilityReportListFailureMessage), findsOneWidget);
+
+    repository.error = null;
+    await tester.tap(find.byKey(const Key('myReportsRetryButton')));
+    await tester.pump();
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    await tester.pumpAndSettle();
+
+    expect(repository.listMyReportsCount, 2);
+    expect(find.text('접수한 제보가 없습니다.'), findsOneWidget);
+  });
+
   testWidgets('내 제보 화면은 접수한 제보가 없으면 짧은 빈 상태를 보여준다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
