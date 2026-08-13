@@ -4,6 +4,277 @@ import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import '../../../accessible_design.dart';
 import '../../../search_field.dart';
 import '../../route_draft/domain/route_draft.dart';
+import '../domain/network_map_models.dart';
+import '../domain/route_map_min_scale.dart';
+import 'region_menu.dart';
+
+class NetworkMapTopBar extends StatelessWidget {
+  const NetworkMapTopBar({
+    required this.regions,
+    required this.selectedRegion,
+    required this.notificationAction,
+    required this.onMenuTap,
+    required this.onSearchTap,
+    this.searchMode = false,
+    this.onSearchBack,
+    this.searchQueryController,
+    this.searchFocusNode,
+    this.onSearchSubmitted,
+    this.onSearchClear,
+    required this.onRegionSelected,
+    required this.routeDraftListenable,
+    required this.routeDraft,
+    required this.isWaypointRowVisible,
+    required this.onClearDraft,
+    required this.onOpenWaypointSlot,
+    required this.onClearOrigin,
+    required this.onClearDestination,
+    required this.onClearWaypoint,
+    required this.onReorderDraft,
+    required this.roleColorForSlot,
+    required this.lineBadgeBuilder,
+    this.onPickOrigin,
+    this.onPickDestination,
+    this.onPickWaypoint,
+    super.key,
+  });
+
+  final List<NetworkMapRegion> regions;
+  final String selectedRegion;
+  final Widget? notificationAction;
+  final VoidCallback onMenuTap;
+  final VoidCallback onSearchTap;
+  final bool searchMode;
+  final VoidCallback? onSearchBack;
+  final TextEditingController? searchQueryController;
+  final FocusNode? searchFocusNode;
+  final ValueChanged<String>? onSearchSubmitted;
+  final VoidCallback? onSearchClear;
+  final ValueChanged<String> onRegionSelected;
+  final Listenable routeDraftListenable;
+  final RouteDraft Function() routeDraft;
+  final bool Function() isWaypointRowVisible;
+  final VoidCallback onClearDraft;
+  final VoidCallback onOpenWaypointSlot;
+  final VoidCallback onClearOrigin;
+  final VoidCallback onClearDestination;
+  final VoidCallback onClearWaypoint;
+  final void Function(RouteDraftSlot from, RouteDraftSlot to) onReorderDraft;
+  final Color Function(RouteDraftSlot slot) roleColorForSlot;
+  final Widget Function(RouteDraftStation station, double size)
+  lineBadgeBuilder;
+  final VoidCallback? onPickOrigin;
+  final VoidCallback? onPickDestination;
+  final VoidCallback? onPickWaypoint;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      key: const Key('networkMapTopBar'),
+      color: EasySubwayAccessibleColors.topBarSurface,
+      elevation: 0,
+      // mapChrome 짧은 드롭이 지도 위로 그려지도록 클립하지 않는다.
+      clipBehavior: Clip.none,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          SafeArea(
+            bottom: false,
+            // #1933 요구 2: draft가 비면 검색바, 하나라도 차면 출발/도착 2줄 입력으로
+            // 상단바 자체가 변신한다. 별도 카드를 아래에 띄우지 않는다.
+            child: ListenableBuilder(
+              listenable: routeDraftListenable,
+              builder: (context, _) {
+                final draft = routeDraft();
+                if (draft.isEmpty) {
+                  return _buildSearchRow(context);
+                }
+                return NetworkMapTopBarRouteDraft(
+                  key: const Key('networkMapRouteDraftOverlay'),
+                  draft: draft,
+                  showWaypointRow: isWaypointRowVisible(),
+                  regionLabel: routeMapDisplayRegionName(selectedRegion),
+                  onClearDraft: onClearDraft,
+                  onOpenWaypointSlot: onOpenWaypointSlot,
+                  onClearOrigin: onClearOrigin,
+                  onClearDestination: onClearDestination,
+                  onClearWaypoint: onClearWaypoint,
+                  onReorderDraft: onReorderDraft,
+                  onPickOrigin: onPickOrigin,
+                  onPickDestination: onPickDestination,
+                  onPickWaypoint: onPickWaypoint,
+                  roleColorForSlot: roleColorForSlot,
+                  lineBadgeBuilder: lineBadgeBuilder,
+                );
+              },
+            ),
+          ),
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            // 노선도 idle/draft만 mapChrome 드롭. 검색 모드(흰 검색 본문)는
+            // 역 검색 화면과 같이 선만 둔다.
+            child: searchMode
+                ? const EasySubwayHeaderDivider(
+                    key: Key('networkMapTopBarDivider'),
+                  )
+                : const EasySubwayHeaderDivider.mapChrome(
+                    key: Key('networkMapTopBarDivider'),
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchRow(BuildContext context) {
+    final currentRegion = routeMapDisplayRegionName(selectedRegion);
+    final availableRegions = regions.isEmpty
+        ? const [NetworkMapRegion(name: '수도권')]
+        : regions;
+    return SizedBox(
+      height: easySubwayTopBarContentHeight,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
+        child: Row(
+          children: [
+            if (searchMode)
+              IconButton(
+                key: const Key('networkMapSearchBackButton'),
+                tooltip: '뒤로',
+                onPressed: onSearchBack,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(EasySubwayTouchTarget.general),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: EdgeInsets.zero,
+                ),
+                icon: const Icon(
+                  Icons.arrow_back,
+                  size: 26,
+                  color: EasySubwayAccessibleColors.contentPrimary,
+                ),
+              )
+            else
+              IconButton(
+                key: const Key('networkMapMenuButton'),
+                tooltip: '메뉴',
+                onPressed: onMenuTap,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(EasySubwayTouchTarget.general),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: EdgeInsets.zero,
+                ),
+                icon: const Icon(
+                  Icons.menu,
+                  size: 26,
+                  color: EasySubwayAccessibleColors.contentPrimary,
+                ),
+              ),
+            const SizedBox(width: 4),
+            Expanded(
+              child: searchMode
+                  ? EasySubwaySearchField(
+                      controller: searchQueryController,
+                      focusNode: searchFocusNode,
+                      hintText: '역 이름을 입력해 주세요',
+                      autofocus: true,
+                      onSubmitted: onSearchSubmitted,
+                      onClear: onSearchClear,
+                    )
+                  : NetworkMapSearchEntryButton(onTap: onSearchTap),
+            ),
+            const SizedBox(width: 8),
+            Builder(
+              builder: (regionContext) {
+                // 검색 행은 draft가 비었을 때만 렌더되지만, 경로 칸이 생기면
+                // 지역 변경을 막고 ▾도 숨긴다(표시명만 유지).
+                final canChangeRegion = routeDraft().isEmpty;
+                return Semantics(
+                  key: const Key('mapRegionTabs'),
+                  container: true,
+                  button: canChangeRegion,
+                  label: canChangeRegion
+                      ? '지역: $currentRegion, 지역 변경'
+                      : '지역: $currentRegion',
+                  onTap: canChangeRegion
+                      ? () => _showRegionMenu(regionContext, availableRegions)
+                      : null,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 148),
+                    child: ExcludeSemantics(
+                      child: InkWell(
+                        key: const Key('networkMapRegionDropdown'),
+                        onTap: canChangeRegion
+                            ? () => _showRegionMenu(
+                                regionContext,
+                                availableRegions,
+                              )
+                            : null,
+                        splashFactory: NoSplash.splashFactory,
+                        splashColor: Colors.transparent,
+                        highlightColor: Colors.transparent,
+                        child: SizedBox(
+                          height: EasySubwayTouchTarget.general,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  currentRegion,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: EasySubwayAccessibleColors
+                                        .contentSecondary,
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              if (canChangeRegion) ...[
+                                const SizedBox(width: 2),
+                                const Icon(
+                                  Icons.keyboard_arrow_down,
+                                  color: EasySubwayAccessibleColors
+                                      .contentSecondary,
+                                  size: 22,
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            if (notificationAction != null) ...[
+              const SizedBox(width: 8),
+              notificationAction!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showRegionMenu(
+    BuildContext triggerContext,
+    List<NetworkMapRegion> availableRegions,
+  ) {
+    return showEasySubwayRegionMenu(
+      triggerContext: triggerContext,
+      regions: [
+        for (final region in availableRegions)
+          EasySubwayRegionMenuItem(id: region.name, label: region.displayName),
+      ],
+      selectedRegion: selectedRegion,
+      onRegionSelected: onRegionSelected,
+    );
+  }
+}
 
 enum _RouteDraftFieldKind { origin, waypoint, destination }
 

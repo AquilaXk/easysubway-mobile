@@ -156,9 +156,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('top-bar shell은 idle 지역 chrome과 draft 전환을 보존한다', (
-    tester,
-  ) async {
+  testWidgets('top-bar shell은 idle 지역 chrome과 draft 전환을 보존한다', (tester) async {
     final draftChanges = ValueNotifier<int>(0);
     var draft = const RouteDraft.empty();
     var menuTapCount = 0;
@@ -190,6 +188,7 @@ void main() {
             onClearDestination: _noop,
             onClearWaypoint: _noop,
             onReorderDraft: (_, _) {},
+            roleColorForSlot: (_) => Colors.black,
             lineBadgeBuilder: (_, size) => SizedBox.square(
               key: const Key('networkMapTopBarLineBadge'),
               dimension: size,
@@ -201,16 +200,17 @@ void main() {
 
     expect(find.byKey(const Key('networkMapTopBar')), findsOneWidget);
     expect(find.text('부산'), findsOneWidget);
-    expect(find.byKey(const Key('networkMapNotificationAction')), findsOneWidget);
+    expect(
+      find.byKey(const Key('networkMapNotificationAction')),
+      findsOneWidget,
+    );
     final semantics = tester.ensureSemantics();
     expect(find.bySemanticsLabel('지역: 부산, 지역 변경'), findsOneWidget);
     await tester.tap(find.byKey(const Key('networkMapMenuButton')));
     await tester.tap(find.byKey(const Key('stationSearchButton')));
     await tester.tap(find.byKey(const Key('networkMapRegionDropdown')));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const ValueKey('networkMapRegionMenuRow_수도권')),
-    );
+    await tester.tap(find.byKey(const ValueKey('networkMapRegionMenuRow_수도권')));
     await tester.pumpAndSettle();
     expect(menuTapCount, 1);
     expect(searchTapCount, 1);
@@ -431,10 +431,8 @@ void main() {
     );
     expect(root, contains('NetworkMapLookupToast('));
     expect(root, contains('NetworkMapCurrentLocationButton('));
-    expect(root, contains('NetworkMapSearchEntryButton('));
     expect(root, contains('NetworkMapBottomAdBanner('));
     expect(root, contains('NetworkMapTopBar('));
-    expect(root, contains('NetworkMapTopBarRouteDraft('));
     expect(root, contains('slot: AdBannerSlot('));
     expect(root, isNot(contains('class _NetworkMapLookupToast')));
     expect(root, isNot(contains('class _NetworkMapCurrentLocationButton')));
@@ -444,7 +442,10 @@ void main() {
     expect(root, isNot(contains('class _NetworkMapTopBarRouteDraft')));
     expect(root, isNot(contains('class _NetworkMapRouteDraftField')));
     expect(root, isNot(contains('class _NetworkMapTopBar')));
+    expect(root, isNot(contains('NetworkMapSearchEntryButton(')));
+    expect(root, isNot(contains('NetworkMapTopBarRouteDraft(')));
     expect(owner, contains('class NetworkMapTopBar'));
+    expect(owner, contains('NetworkMapSearchEntryButton('));
     expect(owner, contains('class NetworkMapTopBarRouteDraft'));
     expect(
       owner,
