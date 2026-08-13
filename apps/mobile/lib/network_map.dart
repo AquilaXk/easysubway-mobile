@@ -23,7 +23,6 @@ import 'features/network_map/domain/nearby_adjacent_stations.dart';
 import 'features/network_map/domain/network_map_edge_topology.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/network_map_station_selection.dart';
-import 'features/network_map/domain/network_map_station_spatial_index.dart';
 import 'features/network_map/domain/network_map_station_tap_score.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
 import 'features/network_map/domain/route_map_label_polygon.dart';
@@ -38,6 +37,7 @@ import 'features/network_map/presentation/nearby_timetable_panel.dart';
 import 'features/network_map/presentation/network_map_camera_policy.dart';
 import 'features/network_map/presentation/network_map_chrome_controls.dart';
 import 'features/network_map/presentation/network_map_draft_pin.dart';
+import 'features/network_map/presentation/network_map_geometry.dart';
 import 'features/network_map/presentation/network_map_menu_panel.dart';
 import 'features/network_map/presentation/network_map_unavailable_states.dart';
 import 'features/network_map/presentation/region_menu.dart';
@@ -3132,7 +3132,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
   MapCameraState? _gestureStartCamera;
   Offset? _gestureStartFocalPoint;
   String? _geometryCacheKey;
-  _MapGeometry? _geometryCache;
+  NetworkMapGeometry? _geometryCache;
   // 구조화 canvas 렌더러(#1641) 파생 데이터 캐시 — region 단위로 재계산.
   String? _structuredCacheKey;
   StructuredRouteMap? _structuredRouteMapCache;
@@ -3631,7 +3631,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
     return computed;
   }
 
-  _MapGeometry _geometryFor(NetworkMapData data) {
+  NetworkMapGeometry _geometryFor(NetworkMapData data) {
     // basemap 오너 라벨 sidecar(로드는 async)를 geometry bounds에 반영한다(#2068).
     // 로드 전엔 null → 라벨 rect 없이 계산되지만, 로드가 끝나면 setState로 rebuild
     // 되며 ownerKey가 바뀌어 캐시가 무효화되고 라벨 extents를 포함해 재계산된다
@@ -3661,9 +3661,12 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
         : networkMapOwnerLabelSourceRects(
             ownerLabels: ownerEntries.values.expand((entries) => entries),
           );
-    final geometry = _MapGeometry.fromStations(
+    final geometry = NetworkMapGeometry.fromStations(
       data.stations,
       ownerLabelSourceRects: ownerLabelSourceRects,
+      stationSourceBoundsFor: (station, geometry) =>
+          _stationHitRect(station, geometry),
+      stationKeyFor: _stationGeometryKey,
     );
     _geometryCacheKey = cacheKey;
     _geometryCache = geometry;
@@ -3851,7 +3854,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
   void _openNearestStation(
     Offset viewportPosition,
     Map<String, List<NetworkMapLine>> stationLinesById,
-    _MapGeometry geometry,
+    NetworkMapGeometry geometry,
     MapCameraState camera,
   ) {
     final station = _stationAtViewportPosition(
@@ -4044,7 +4047,7 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
   /// [_fanMenuAnchorSource](정중앙)를 그대로 쓴다.
   Offset _fanMenuTailAnchorSource(
     NetworkMapStation station,
-    _MapGeometry geometry,
+    NetworkMapGeometry geometry,
   ) {
     final center = _fanMenuAnchorSource(station, geometry);
     final group = _structuredTransferGroupCache?[station.id];
@@ -4058,13 +4061,13 @@ class _NetworkMapCanvasState extends State<_NetworkMapCanvas>
   }
 
   /// 노드 **정중앙**의 source 좌표(#2192). 환승역은 렌더 캡슐의 시각 중심으로,
-  /// 일반역은 노드 좌표 그대로 유도한 뒤 [_MapGeometry] 원점을 빼
+  /// 일반역은 노드 좌표 그대로 유도한 뒤 [NetworkMapGeometry] 원점을 빼
   /// [MapCameraState.sourceToViewportPoint] 입력 좌표계로 맞춘다.
   /// 드래프트 핀(출발·경유·도착)이 이 좌표를 그대로 앵커로 쓴다. 팬 메뉴는
   /// 여기서 한 번 더 올린 [_fanMenuTailAnchorSource]를 쓴다(#2068 QA).
   Offset _fanMenuAnchorSource(
     NetworkMapStation station,
-    _MapGeometry geometry,
+    NetworkMapGeometry geometry,
   ) {
     _ensureStructuredRouteMap();
     final tapped = Offset(
@@ -4102,30 +4105,6 @@ Rect _sourceRectToViewport(Rect sourceRect, MapCameraState camera) {
   );
 }
 
-/// 초기 카메라 bounds의 **기준선**(하한 배율)을 만든다. 최종 초기 카메라는
-/// [networkMapInitialCameraBounds]가 여기에 가독 배율을 얹어 정한다.
-Rect _readableBoundsFor(_MapGeometry geometry, {required int stationCount}) {
-  // 소규모 지역은 38% 도심 확대 대신 지역 전체를 기준선으로 둬 과확대를
-  // 막는다(#1764 E). 판정은 networkMapUsesWholeRegionInitialView 단일 소스를
-  // 쓴다(테스트가 실제 렌더 분기를 가드하도록).
-  if (networkMapUsesWholeRegionInitialView(stationCount)) {
-    return Rect.fromLTWH(0, 0, geometry.width, geometry.height);
-  }
-  final width = math.min(
-    geometry.width,
-    math.max(320.0, geometry.width * 0.38),
-  );
-  final height = math.min(
-    geometry.height,
-    math.max(320.0, geometry.height * 0.38),
-  );
-  final maxLeft = math.max(0.0, geometry.width - width);
-  final maxTop = math.max(0.0, geometry.height - height);
-  final left = (geometry.focus.dx - width / 2).clamp(0.0, maxLeft).toDouble();
-  final top = (geometry.focus.dy - height / 2).clamp(0.0, maxTop).toDouble();
-  return Rect.fromLTWH(left, top, width, height);
-}
-
 /// [initialBounds]는 이 지역이 실제로 쓰는 초기 카메라 bounds다(#2068 트랙 QA
 /// 후속으로 [networkMapInitialCameraBounds]가 확대해 준 값). geometry의 원
 /// initialBounds를 쓰면 초기 화면이 확대된 만큼 focus가 오히려 축소돼 #2062
@@ -4133,7 +4112,7 @@ Rect _readableBoundsFor(_MapGeometry geometry, {required int stationCount}) {
 /// 공유해야 focus 배율이 항상 동일한 feature policy로 계산된다.
 Rect _stationFocusBoundsFor(
   NetworkMapStation station,
-  _MapGeometry geometry, {
+  NetworkMapGeometry geometry, {
   required Rect initialBounds,
 }) {
   return networkMapStationFocusBounds(
@@ -4142,137 +4121,6 @@ Rect _stationFocusBoundsFor(
     sourceWidth: geometry.width,
     sourceHeight: geometry.height,
   );
-}
-
-class _MapGeometry {
-  _MapGeometry({
-    required this.origin,
-    required this.focus,
-    required this.width,
-    required this.height,
-    Rect? initialBounds,
-    this.overlayStyleScale = 1.0,
-    NetworkMapStationSpatialIndex? stationIndex,
-  }) : initialBounds = initialBounds ?? Rect.fromLTWH(0, 0, width, height),
-       stationIndex = stationIndex ?? NetworkMapStationSpatialIndex.empty;
-
-  final Offset origin;
-  final Offset focus;
-  final double width;
-  final double height;
-  final Rect initialBounds;
-  final double overlayStyleScale;
-  final NetworkMapStationSpatialIndex stationIndex;
-
-  factory _MapGeometry.fromStations(
-    List<NetworkMapStation> stations, {
-    // basemap 오너 라벨(sidecar)의 실제 렌더 extents(source 단위). 오너 라벨은
-    // route_map_positions의 합성 label_polygon보다 훨씬 넓게 그려지므로(예: 광주
-    // '학동·증심사입구'가 anchor에서 오른쪽으로 수백 source px 확장), 이 rect들을
-    // bounds에 union하지 않으면 초기 fit·팬 한계가 라벨을 잘라낸다(#2068 실기기
-    // 반려). 미매치/무sidecar 지역은 빈 리스트라 기존 동작(label_polygon) 그대로.
-    List<Rect> ownerLabelSourceRects = const [],
-  }) {
-    var minX = double.infinity;
-    var minY = double.infinity;
-    var maxX = 0.0;
-    var maxY = 0.0;
-    final stationXs = <double>[];
-    final stationYs = <double>[];
-    for (final station in stations) {
-      stationXs.add(station.position.x.toDouble());
-      stationYs.add(station.position.y.toDouble());
-      final point = Rect.fromCircle(
-        center: Offset(
-          station.position.x.toDouble(),
-          station.position.y.toDouble(),
-        ),
-        radius: 18,
-      );
-      minX = math.min(minX, point.left);
-      minY = math.min(minY, point.top);
-      maxX = math.max(maxX, point.right);
-      maxY = math.max(maxY, point.bottom);
-      for (final pathData in [
-        station.position.upPath,
-        station.position.downPath,
-      ]) {
-        if (pathData.isEmpty) {
-          continue;
-        }
-        final bounds = cachedRouteMapPath(pathData, Offset.zero).bounds;
-        minX = math.min(minX, bounds.left);
-        minY = math.min(minY, bounds.top);
-        maxX = math.max(maxX, bounds.right);
-        maxY = math.max(maxY, bounds.bottom);
-      }
-      final labelPolygonBounds = _labelPolygonBoundsFor(station);
-      if (labelPolygonBounds != null) {
-        minX = math.min(minX, labelPolygonBounds.left);
-        minY = math.min(minY, labelPolygonBounds.top);
-        maxX = math.max(maxX, labelPolygonBounds.right);
-        maxY = math.max(maxY, labelPolygonBounds.bottom);
-      }
-    }
-    for (final rect in ownerLabelSourceRects) {
-      minX = math.min(minX, rect.left);
-      minY = math.min(minY, rect.top);
-      maxX = math.max(maxX, rect.right);
-      maxY = math.max(maxY, rect.bottom);
-    }
-    if (!minX.isFinite || !minY.isFinite) {
-      return _MapGeometry(
-        origin: Offset.zero,
-        focus: Offset(430, 280),
-        width: 860,
-        height: 560,
-      );
-    }
-    const margin = 54.0;
-    final origin = Offset(minX - margin, minY - margin);
-    final geometry = _MapGeometry(
-      origin: origin,
-      focus: Offset(
-        _median(stationXs) - origin.dx,
-        _median(stationYs) - origin.dy,
-      ),
-      width: math.max(860, maxX - minX + margin * 2),
-      height: math.max(560, maxY - minY + margin * 2),
-    );
-    final result = _MapGeometry(
-      origin: geometry.origin,
-      focus: geometry.focus,
-      width: geometry.width,
-      height: geometry.height,
-      initialBounds: _readableBoundsFor(
-        geometry,
-        stationCount: stations.length,
-      ),
-    );
-    return result.copyWith(
-      stationIndex: NetworkMapStationSpatialIndex.fromStations(
-        stations,
-        sourceBoundsForStation: (station) => _stationHitRect(station, result),
-        stationKeyFor: _stationGeometryKey,
-      ),
-    );
-  }
-
-  double x(NetworkMapStation station) => station.position.x - origin.dx;
-
-  double y(NetworkMapStation station) => station.position.y - origin.dy;
-
-  _MapGeometry copyWith({NetworkMapStationSpatialIndex? stationIndex}) {
-    return _MapGeometry(
-      origin: origin,
-      focus: focus,
-      width: width,
-      height: height,
-      initialBounds: initialBounds,
-      overlayStyleScale: overlayStyleScale,
-      stationIndex: stationIndex ?? this.stationIndex,
-    );
-  }
 }
 
 const _maximumStationHitDistance = 24.0;
@@ -4287,7 +4135,7 @@ const double networkMapStationHitTargetLogicalSize =
 
 List<NetworkMapStation> _canonicalStations(
   Iterable<NetworkMapStation> stations,
-  _MapGeometry geometry,
+  NetworkMapGeometry geometry,
 ) {
   final canonicalStations = <NetworkMapStation>[];
   for (final station in stations) {
@@ -4311,7 +4159,7 @@ List<NetworkMapStation> _canonicalStations(
 bool _isOverlappingStationGeometry(
   NetworkMapStation a,
   NetworkMapStation b,
-  _MapGeometry geometry,
+  NetworkMapGeometry geometry,
 ) {
   return _stationHitRect(
     a,
@@ -4320,7 +4168,7 @@ bool _isOverlappingStationGeometry(
 }
 
 List<NetworkMapStation> _visibleCanonicalStations({
-  required _MapGeometry geometry,
+  required NetworkMapGeometry geometry,
   required MapCameraState camera,
 }) {
   final visibleSourceRect = camera.visibleSourceRect.inflate(96 / camera.scale);
@@ -4345,7 +4193,7 @@ int _stationGeometryPriority(NetworkMapStation station) {
 
 Rect _stationHitRect(
   NetworkMapStation station,
-  _MapGeometry geometry, {
+  NetworkMapGeometry geometry, {
   double nodeRadius = 24,
   double labelHeight = 40,
 }) {
@@ -4357,7 +4205,7 @@ Rect _stationHitRect(
   final labelOffset = _labelOffsetFor(station);
   final labelPolygon = _labelPolygonFor(station, geometry);
   if (labelPolygon != null) {
-    return node.expandToInclude(_boundsForPolygon(labelPolygon));
+    return node.expandToInclude(networkMapPolygonBounds(labelPolygon));
   }
   final labelCenter = Offset(
     geometry.x(station) + labelOffset.dx,
@@ -4373,7 +4221,7 @@ Rect _stationHitRect(
 
 NetworkMapStation? _stationAtViewportPosition(
   Offset viewportPosition,
-  _MapGeometry geometry, {
+  NetworkMapGeometry geometry, {
   required MapCameraState camera,
 }) {
   final safeScale = camera.scale > 0 ? camera.scale : 1.0;
@@ -4400,7 +4248,7 @@ NetworkMapStation? _stationAtViewportPosition(
 NetworkMapStationTapScore? _stationTapScore(
   Offset viewportPosition,
   NetworkMapStation station,
-  _MapGeometry geometry,
+  NetworkMapGeometry geometry,
   MapCameraState camera,
 ) {
   final safeScale = camera.scale > 0 ? camera.scale : 1.0;
@@ -4462,7 +4310,7 @@ NetworkMapStationTapScore? _stationTapScore(
 
 Rect _stationLabelRect(
   NetworkMapStation station,
-  _MapGeometry geometry, {
+  NetworkMapGeometry geometry, {
   double labelHeight = 40,
 }) {
   final labelOffset = _labelOffsetFor(station);
@@ -4498,11 +4346,6 @@ String _stationGeometryKey(NetworkMapStation station) {
   return '${station.id}:${station.lineId}';
 }
 
-Rect? _labelPolygonBoundsFor(NetworkMapStation station) {
-  final polygon = parseRouteMapLabelPolygon(station.position.labelPolygon);
-  return polygon == null ? null : _boundsForPolygon(polygon);
-}
-
 /// 테스트용: 주어진 역·오너 라벨 rect로 산출한 지도 geometry의 전체 source
 /// bounds(팬 한계·초기 fit의 근거). #2068 오너 라벨 extents 포함 회귀 가드.
 @visibleForTesting
@@ -4510,9 +4353,12 @@ Rect networkMapGeometrySourceBoundsFor(
   List<NetworkMapStation> stations, {
   List<Rect> ownerLabelSourceRects = const [],
 }) {
-  final geometry = _MapGeometry.fromStations(
+  final geometry = NetworkMapGeometry.fromStations(
     stations,
     ownerLabelSourceRects: ownerLabelSourceRects,
+    stationSourceBoundsFor: (station, geometry) =>
+        _stationHitRect(station, geometry),
+    stationKeyFor: _stationGeometryKey,
   );
   return Rect.fromLTWH(
     geometry.origin.dx,
@@ -4524,7 +4370,7 @@ Rect networkMapGeometrySourceBoundsFor(
 
 List<Offset>? _labelPolygonFor(
   NetworkMapStation station,
-  _MapGeometry geometry,
+  NetworkMapGeometry geometry,
 ) {
   final polygon = parseRouteMapLabelPolygon(station.position.labelPolygon);
   if (polygon == null) {
@@ -4534,20 +4380,6 @@ List<Offset>? _labelPolygonFor(
     for (final point in polygon)
       Offset(point.dx - geometry.origin.dx, point.dy - geometry.origin.dy),
   ];
-}
-
-Rect _boundsForPolygon(List<Offset> polygon) {
-  var minX = double.infinity;
-  var minY = double.infinity;
-  var maxX = -double.infinity;
-  var maxY = -double.infinity;
-  for (final point in polygon) {
-    minX = math.min(minX, point.dx);
-    minY = math.min(minY, point.dy);
-    maxX = math.max(maxX, point.dx);
-    maxY = math.max(maxY, point.dy);
-  }
-  return Rect.fromLTRB(minX, minY, maxX, maxY);
 }
 
 double _distanceSquaredToPolygon(Offset point, List<Offset> polygon) {
@@ -4610,14 +4442,6 @@ double _distanceSquaredToSegment(Offset point, Offset start, Offset end) {
     start.dy + segment.dy * clampedT,
   );
   return (point - projection).distanceSquared;
-}
-
-double _median(List<double> values) {
-  if (values.isEmpty) {
-    return 0;
-  }
-  values.sort();
-  return values[values.length ~/ 2];
 }
 
 bool _usesOfficialRouteMapSource(NetworkMapStation station) {

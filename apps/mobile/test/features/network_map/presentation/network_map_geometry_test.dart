@@ -68,8 +68,7 @@ void main() {
       100,
       200,
       upPath: 'M 10 20 L 300 420',
-      labelPolygon:
-          '[{"x":5,"y":10},{"x":80,"y":10},{"x":80,"y":90}]',
+      labelPolygon: '[{"x":5,"y":10},{"x":80,"y":10},{"x":80,"y":90}]',
     );
     final geometry = _geometry(
       [station],
@@ -81,10 +80,9 @@ void main() {
     expect(geometry.width, 1308);
     expect(geometry.height, 1108);
     expect(geometry.initialBounds, const Rect.fromLTWH(0, 0, 1308, 1108));
-    expect(
-      geometry.stationIndex.query(const Rect.fromLTWH(0, 0, 1308, 1108)),
-      [same(station)],
-    );
+    expect(geometry.stationIndex.query(const Rect.fromLTWH(0, 0, 1308, 1108)), [
+      same(station),
+    ]);
   });
 
   test('large region은 38% readable bounds를 적용한다', () {
