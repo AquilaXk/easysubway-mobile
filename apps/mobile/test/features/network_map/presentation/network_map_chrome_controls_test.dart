@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/ad_slot.dart';
+import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/search_field.dart';
@@ -153,6 +154,91 @@ void main() {
     final semantics = tester.ensureSemantics();
     expect(find.bySemanticsLabel('지하철역 검색'), findsOneWidget);
     semantics.dispose();
+  });
+
+  testWidgets('top-bar shell은 idle 지역 chrome과 draft 전환을 보존한다', (
+    tester,
+  ) async {
+    final draftChanges = ValueNotifier<int>(0);
+    var draft = const RouteDraft.empty();
+    var menuTapCount = 0;
+    var searchTapCount = 0;
+    String? selectedRegion;
+
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 520,
+          child: NetworkMapTopBar(
+            regions: const [
+              NetworkMapRegion(name: '수도권'),
+              NetworkMapRegion(name: '부산권'),
+            ],
+            selectedRegion: '부산권',
+            notificationAction: const SizedBox(
+              key: Key('networkMapNotificationAction'),
+            ),
+            onMenuTap: () => menuTapCount += 1,
+            onSearchTap: () => searchTapCount += 1,
+            onRegionSelected: (region) => selectedRegion = region,
+            routeDraftListenable: draftChanges,
+            routeDraft: () => draft,
+            isWaypointRowVisible: () => false,
+            onClearDraft: _noop,
+            onOpenWaypointSlot: _noop,
+            onClearOrigin: _noop,
+            onClearDestination: _noop,
+            onClearWaypoint: _noop,
+            onReorderDraft: (_, _) {},
+            lineBadgeBuilder: (_, size) => SizedBox.square(
+              key: const Key('networkMapTopBarLineBadge'),
+              dimension: size,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('networkMapTopBar')), findsOneWidget);
+    expect(find.text('부산'), findsOneWidget);
+    expect(find.byKey(const Key('networkMapNotificationAction')), findsOneWidget);
+    final semantics = tester.ensureSemantics();
+    expect(find.bySemanticsLabel('지역: 부산, 지역 변경'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('networkMapMenuButton')));
+    await tester.tap(find.byKey(const Key('stationSearchButton')));
+    await tester.tap(find.byKey(const Key('networkMapRegionDropdown')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('networkMapRegionMenuRow_수도권')),
+    );
+    await tester.pumpAndSettle();
+    expect(menuTapCount, 1);
+    expect(searchTapCount, 1);
+    expect(selectedRegion, '수도권');
+
+    draft = const RouteDraft(
+      origin: RouteDraftStation(
+        id: 'station-201',
+        nameKo: '시청',
+        lineId: 'line-2',
+        lineName: '2호선',
+        lineColor: '#00A84D',
+        stationCode: '201',
+      ),
+      destination: null,
+      lastModifiedAt: null,
+    );
+    draftChanges.value += 1;
+    await tester.pump();
+
+    expect(
+      find.byKey(const Key('networkMapRouteDraftOverlay')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('networkMapTopBarLineBadge')), findsWidgets);
+    expect(find.byKey(const Key('stationSearchButton')), findsNothing);
+    semantics.dispose();
+    draftChanges.dispose();
   });
 
   testWidgets('top-bar route draft는 one-sided chrome·callback·잠긴 지역을 보존한다', (
@@ -347,6 +433,7 @@ void main() {
     expect(root, contains('NetworkMapCurrentLocationButton('));
     expect(root, contains('NetworkMapSearchEntryButton('));
     expect(root, contains('NetworkMapBottomAdBanner('));
+    expect(root, contains('NetworkMapTopBar('));
     expect(root, contains('NetworkMapTopBarRouteDraft('));
     expect(root, contains('slot: AdBannerSlot('));
     expect(root, isNot(contains('class _NetworkMapLookupToast')));
@@ -356,12 +443,15 @@ void main() {
     expect(root, isNot(contains('enum _RouteDraftFieldKind')));
     expect(root, isNot(contains('class _NetworkMapTopBarRouteDraft')));
     expect(root, isNot(contains('class _NetworkMapRouteDraftField')));
+    expect(root, isNot(contains('class _NetworkMapTopBar')));
+    expect(owner, contains('class NetworkMapTopBar'));
     expect(owner, contains('class NetworkMapTopBarRouteDraft'));
     expect(
       owner,
       contains("import '../../route_draft/domain/route_draft.dart';"),
     );
     expect(owner, isNot(contains('station_line_badges.dart')));
+    expect(owner, isNot(contains('route_draft_controller.dart')));
     expect(owner, isNot(contains("import '../../../design_tokens.dart';")));
   });
 }
