@@ -12,6 +12,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:easysubway_mobile/features/facility_report/presentation/my_facility_reports_screens.dart';
 import 'package:easysubway_mobile/favorite_facility.dart';
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart'
