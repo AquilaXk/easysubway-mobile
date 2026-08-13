@@ -184,6 +184,9 @@ Rect networkMapPolygonBounds(List<Offset> polygon) {
 }
 
 double _median(List<double> values) {
+  if (values.isEmpty) {
+    return 0;
+  }
   values.sort();
   return values[values.length ~/ 2];
 }

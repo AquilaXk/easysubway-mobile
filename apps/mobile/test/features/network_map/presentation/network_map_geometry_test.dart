@@ -63,6 +63,19 @@ void main() {
     expect(geometry.copyWith().stationIndex, same(geometry.stationIndex));
   });
 
+  test('owner label만 있는 geometry도 empty median fallback을 보존한다', () {
+    final geometry = _geometry(
+      const [],
+      ownerLabelSourceRects: const [Rect.fromLTRB(100, 200, 300, 400)],
+    );
+
+    expect(geometry.origin, const Offset(46, 146));
+    expect(geometry.focus, const Offset(-46, -146));
+    expect(geometry.width, 860);
+    expect(geometry.height, 560);
+    expect(geometry.stationIndex.query(Rect.zero), isEmpty);
+  });
+
   test('station path·label polygon·owner label extents와 index를 결속한다', () {
     final station = _station(
       'station-a',
