@@ -515,8 +515,7 @@ void main() {
         "import 'features/network_map/presentation/network_map_chrome_controls.dart';",
       ),
     );
-    expect(root, contains('NetworkMapLookupToast('));
-    expect(root, contains('NetworkMapCurrentLocationButton('));
+    expect(root, contains('NetworkMapChrome('));
     expect(root, contains('NetworkMapBottomAdBanner('));
     expect(root, contains('NetworkMapTopBar('));
     expect(root, contains('slot: AdBannerSlot('));
@@ -528,8 +527,12 @@ void main() {
     expect(root, isNot(contains('class _NetworkMapTopBarRouteDraft')));
     expect(root, isNot(contains('class _NetworkMapRouteDraftField')));
     expect(root, isNot(contains('class _NetworkMapTopBar')));
+    expect(root, isNot(contains('class _NetworkMapChrome')));
     expect(root, isNot(contains('NetworkMapSearchEntryButton(')));
     expect(root, isNot(contains('NetworkMapTopBarRouteDraft(')));
+    expect(owner, contains('class NetworkMapChrome'));
+    expect(owner, contains('NetworkMapLookupToast('));
+    expect(owner, contains('NetworkMapCurrentLocationButton('));
     expect(owner, contains('class NetworkMapTopBar'));
     expect(owner, contains('NetworkMapSearchEntryButton('));
     expect(owner, contains('class NetworkMapTopBarRouteDraft'));
