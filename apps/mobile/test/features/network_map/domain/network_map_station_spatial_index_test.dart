@@ -69,16 +69,32 @@ void main() {
     expect(NetworkMapStationSpatialIndex.empty.query(Rect.zero), isEmpty);
   });
 
-  test('root는 public spatial-index owner를 사용하고 private 사본을 제거한다', () {
+  test('geometry owner가 public spatial-index를 조립하고 root private 사본을 제거한다', () {
     final root = File('lib/network_map.dart').readAsStringSync();
+    final geometry = File(
+      'lib/features/network_map/presentation/network_map_geometry.dart',
+    ).readAsStringSync();
 
     expect(
       root,
       contains(
-        "import 'features/network_map/domain/network_map_station_spatial_index.dart';",
+        "import 'features/network_map/presentation/network_map_geometry.dart';",
       ),
     );
-    expect(root, contains('NetworkMapStationSpatialIndex.fromStations('));
+    expect(
+      root,
+      isNot(
+        contains(
+          "import 'features/network_map/domain/network_map_station_spatial_index.dart';",
+        ),
+      ),
+    );
+    expect(root, contains('NetworkMapGeometry.fromStations('));
+    expect(
+      geometry,
+      contains("import '../domain/network_map_station_spatial_index.dart';"),
+    );
+    expect(geometry, contains('NetworkMapStationSpatialIndex.fromStations('));
     expect(root, isNot(contains('class _StationSpatialIndex')));
     expect(root, isNot(contains('class _StationSpatialCell')));
   });
