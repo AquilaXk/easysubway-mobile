@@ -1,5 +1,5 @@
 import 'package:easysubway_mobile/accessible_design.dart';
-import 'package:easysubway_mobile/facility_report.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';

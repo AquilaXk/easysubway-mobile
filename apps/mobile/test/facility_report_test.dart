@@ -15,7 +15,8 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_receipt.dart';
-import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart'
+    as repository_owner;
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
@@ -30,6 +31,47 @@ import 'package:image_picker/image_picker.dart';
 import 'fake_secure_key_value_storage.dart';
 
 void main() {
+  test('시설 신고 repository owner는 API 주소 부재를 operation별 쉬운 실패로 닫는다', () async {
+    const repository = repository_owner.UnavailableFacilityReportRepository();
+    const request = FacilityReportRequest(
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-elevator-sangnoksu-1',
+      reportType: 'BROKEN',
+      description: '승강기 고장',
+    );
+
+    await expectLater(
+      repository.createReport(request),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          '제보를 보내지 못했어요.',
+        ),
+      ),
+    );
+    await expectLater(
+      repository.getReport('report-1'),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          '제보 진행 상황을 확인하지 못했어요.',
+        ),
+      ),
+    );
+    await expectLater(
+      repository.listMyReports(),
+      throwsA(
+        isA<FacilityReportException>().having(
+          (error) => error.message,
+          'message',
+          '제보 내역을 불러오지 못했어요.',
+        ),
+      ),
+    );
+  });
+
   test('시설 신고 사진 선택기는 복구된 사진을 첨부 데이터로 바꾼다', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'facility-report-photo-',
@@ -1426,7 +1468,8 @@ FacilityReportTarget _reportTarget() {
   );
 }
 
-class PendingFacilityReportRepository implements FacilityReportRepository {
+class PendingFacilityReportRepository
+    implements repository_owner.FacilityReportRepository {
   final requests = <FacilityReportRequest>[];
   final _completer = Completer<FacilityReportResult>();
 
@@ -1462,7 +1505,8 @@ class PendingFacilityReportRepository implements FacilityReportRepository {
   }
 }
 
-class RefreshableFacilityReportRepository implements FacilityReportRepository {
+class RefreshableFacilityReportRepository
+    implements repository_owner.FacilityReportRepository {
   final requests = <FacilityReportRequest>[];
   final loadedReportIds = <String>[];
   Completer<FacilityReportResult>? _refreshCompleter;
@@ -1513,7 +1557,7 @@ class RefreshableFacilityReportRepository implements FacilityReportRepository {
 }
 
 class FailingRefreshFacilityReportRepository
-    implements FacilityReportRepository {
+    implements repository_owner.FacilityReportRepository {
   final loadedReportIds = <String>[];
 
   @override

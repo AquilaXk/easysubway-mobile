@@ -48,27 +48,6 @@ const _facilityReportUploadDisclosureScope =
 const _facilityReportPagePadding = EdgeInsets.only(bottom: 32);
 const _facilityReportContentPadding = EdgeInsets.symmetric(horizontal: 20);
 
-class UnavailableFacilityReportRepository implements FacilityReportRepository {
-  const UnavailableFacilityReportRepository();
-
-  @override
-  Future<FacilityReportResult> createReport(
-    FacilityReportRequest request,
-  ) async {
-    throw const FacilityReportException(_facilityReportErrorMessage);
-  }
-
-  @override
-  Future<FacilityReportResult> getReport(String reportId) async {
-    throw const FacilityReportException(_facilityReportStatusErrorMessage);
-  }
-
-  @override
-  Future<List<FacilityReportResult>> listMyReports() async {
-    throw const FacilityReportException(_facilityReportListErrorMessage);
-  }
-}
-
 class FacilityReportApiRepository implements FacilityReportRepository {
   FacilityReportApiRepository({
     required this.baseUri,

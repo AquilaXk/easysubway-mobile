@@ -6,8 +6,8 @@ import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
 import 'package:easysubway_mobile/core/network/api_client.dart';
-import 'package:easysubway_mobile/facility_report.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_exception.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/journey/data/journey_api_repository.dart';
