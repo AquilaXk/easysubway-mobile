@@ -348,7 +348,12 @@ void main() {
     final queryController = TextEditingController();
     final routeDraftController = RouteDraftController();
     final searchCompleter = Completer<List<StationSearchResult>>();
+    final historyCompleter = Completer<List<RecentSearchEntry>>();
     final favoriteCompleter = Completer<List<FavoriteStation>>();
+    final history = _SearchHistoryRepository(
+      entries: const [],
+      listCompleter: historyCompleter,
+    );
     final favorite = _FavoriteStationRepository(
       listCompleter: favoriteCompleter,
     );
@@ -364,12 +369,14 @@ void main() {
         stationRepository: _RecordingStationSearchRepository(
           searchCompleter: searchCompleter,
         ),
+        historyRepository: history,
         favoriteRepository: favorite,
       ),
     );
     key.currentState!.submitSearch('서울');
     await tester.pumpWidget(const SizedBox.shrink());
     searchCompleter.complete(const []);
+    historyCompleter.complete([_recentStation]);
     favoriteCompleter.complete([_favoriteStation]);
     await tester.pump();
 
@@ -549,10 +556,15 @@ final _favoriteStation = FavoriteStation(
 );
 
 class _SearchHistoryRepository implements SearchHistoryRepository {
-  _SearchHistoryRepository({required this.entries, this.listError});
+  _SearchHistoryRepository({
+    required this.entries,
+    this.listError,
+    this.listCompleter,
+  });
 
   List<RecentSearchEntry> entries;
   Object? listError;
+  final Completer<List<RecentSearchEntry>>? listCompleter;
   Object? removeError;
   int? failListAfterCalls;
   int listCalls = 0;
@@ -572,7 +584,9 @@ class _SearchHistoryRepository implements SearchHistoryRepository {
         (failListAfterCalls != null && call >= failListAfterCalls!)) {
       throw error ?? StateError('list failed');
     }
-    return entries.take(limit).toList(growable: false);
+    final completedEntries =
+        await (listCompleter?.future ?? Future.value(entries));
+    return completedEntries.take(limit).toList(growable: false);
   }
 
   @override
