@@ -57,12 +57,8 @@ void main() {
     final last = _station('same', 20);
     final index = NetworkMapStationSpatialIndex.fromStations(
       [first, last],
-      sourceBoundsForStation: (station) => Rect.fromLTWH(
-        station.position.x.toDouble(),
-        0,
-        48,
-        48,
-      ),
+      sourceBoundsForStation: (station) =>
+          Rect.fromLTWH(station.position.x.toDouble(), 0, 48, 48),
       stationKeyFor: (station) => station.id,
     );
 

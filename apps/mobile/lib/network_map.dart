@@ -23,6 +23,7 @@ import 'features/network_map/domain/nearby_adjacent_stations.dart';
 import 'features/network_map/domain/network_map_edge_topology.dart';
 import 'features/network_map/domain/network_map_models.dart';
 import 'features/network_map/domain/network_map_station_selection.dart';
+import 'features/network_map/domain/network_map_station_spatial_index.dart';
 import 'features/network_map/domain/network_map_station_tap_score.dart';
 import 'features/network_map/domain/route_map_design_space.dart';
 import 'features/network_map/domain/route_map_label_polygon.dart';
@@ -4151,9 +4152,9 @@ class _MapGeometry {
     required this.height,
     Rect? initialBounds,
     this.overlayStyleScale = 1.0,
-    _StationSpatialIndex? stationIndex,
+    NetworkMapStationSpatialIndex? stationIndex,
   }) : initialBounds = initialBounds ?? Rect.fromLTWH(0, 0, width, height),
-       stationIndex = stationIndex ?? _StationSpatialIndex.empty;
+       stationIndex = stationIndex ?? NetworkMapStationSpatialIndex.empty;
 
   final Offset origin;
   final Offset focus;
@@ -4161,7 +4162,7 @@ class _MapGeometry {
   final double height;
   final Rect initialBounds;
   final double overlayStyleScale;
-  final _StationSpatialIndex stationIndex;
+  final NetworkMapStationSpatialIndex stationIndex;
 
   factory _MapGeometry.fromStations(
     List<NetworkMapStation> stations, {
@@ -4249,7 +4250,11 @@ class _MapGeometry {
       ),
     );
     return result.copyWith(
-      stationIndex: _StationSpatialIndex.fromStations(stations, result),
+      stationIndex: NetworkMapStationSpatialIndex.fromStations(
+        stations,
+        sourceBoundsForStation: (station) => _stationHitRect(station, result),
+        stationKeyFor: _stationGeometryKey,
+      ),
     );
   }
 
@@ -4257,7 +4262,7 @@ class _MapGeometry {
 
   double y(NetworkMapStation station) => station.position.y - origin.dy;
 
-  _MapGeometry copyWith({_StationSpatialIndex? stationIndex}) {
+  _MapGeometry copyWith({NetworkMapStationSpatialIndex? stationIndex}) {
     return _MapGeometry(
       origin: origin,
       focus: focus,
@@ -4268,92 +4273,6 @@ class _MapGeometry {
       stationIndex: stationIndex ?? this.stationIndex,
     );
   }
-}
-
-class _StationSpatialIndex {
-  _StationSpatialIndex._({
-    required Map<_StationSpatialCell, List<NetworkMapStation>> buckets,
-    required Map<String, int> stationOrder,
-  }) : _buckets = buckets, // ignore: prefer_initializing_formals
-       // ignore: prefer_initializing_formals
-       _stationOrder = stationOrder;
-
-  static final empty = _StationSpatialIndex._(
-    buckets: const {},
-    stationOrder: const {},
-  );
-
-  static const _cellSize = 256.0;
-
-  final Map<_StationSpatialCell, List<NetworkMapStation>> _buckets;
-  final Map<String, int> _stationOrder;
-
-  factory _StationSpatialIndex.fromStations(
-    List<NetworkMapStation> stations,
-    _MapGeometry geometry,
-  ) {
-    final buckets = <_StationSpatialCell, List<NetworkMapStation>>{};
-    final stationOrder = <String, int>{};
-    for (var index = 0; index < stations.length; index += 1) {
-      final station = stations[index];
-      final key = _stationGeometryKey(station);
-      stationOrder[key] = index;
-      final bounds = _stationHitRect(station, geometry);
-      for (final cell in _cellsFor(bounds)) {
-        buckets.putIfAbsent(cell, () => []).add(station);
-      }
-    }
-    return _StationSpatialIndex._(buckets: buckets, stationOrder: stationOrder);
-  }
-
-  List<NetworkMapStation> query(Rect sourceBounds) {
-    if (_buckets.isEmpty || sourceBounds.isEmpty) {
-      return const [];
-    }
-    final byKey = <String, NetworkMapStation>{};
-    for (final cell in _cellsFor(sourceBounds)) {
-      for (final station in _buckets[cell] ?? const <NetworkMapStation>[]) {
-        byKey[_stationGeometryKey(station)] = station;
-      }
-    }
-    final result = byKey.values.toList(growable: false);
-    result.sort((a, b) {
-      final aOrder = _stationOrder[_stationGeometryKey(a)] ?? 0;
-      final bOrder = _stationOrder[_stationGeometryKey(b)] ?? 0;
-      return aOrder.compareTo(bOrder);
-    });
-    return result;
-  }
-
-  static Iterable<_StationSpatialCell> _cellsFor(Rect bounds) sync* {
-    final left = _cellFor(bounds.left);
-    final right = _cellFor(bounds.right);
-    final top = _cellFor(bounds.top);
-    final bottom = _cellFor(bounds.bottom);
-    for (var x = left; x <= right; x += 1) {
-      for (var y = top; y <= bottom; y += 1) {
-        yield _StationSpatialCell(x, y);
-      }
-    }
-  }
-
-  static int _cellFor(double value) => (value / _cellSize).floor();
-}
-
-@immutable
-class _StationSpatialCell {
-  const _StationSpatialCell(this.x, this.y);
-
-  final int x;
-  final int y;
-
-  @override
-  bool operator ==(Object other) {
-    return other is _StationSpatialCell && other.x == x && other.y == y;
-  }
-
-  @override
-  int get hashCode => Object.hash(x, y);
 }
 
 const _maximumStationHitDistance = 24.0;
