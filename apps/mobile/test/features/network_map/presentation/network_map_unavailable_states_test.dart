@@ -65,7 +65,7 @@ void main() {
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_unavailable_states.dart';",
+        "import '../features/network_map/presentation/network_map_unavailable_states.dart';",
       ),
     );
     expect(root, contains('NetworkMapLoadFailure('));

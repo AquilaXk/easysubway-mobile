@@ -204,7 +204,7 @@ void main() {
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_nearby_panel_content.dart';",
+        "import '../features/network_map/presentation/network_map_nearby_panel_content.dart';",
       ),
     );
     expect(root, contains('NetworkMapNearbyPanelContent('));

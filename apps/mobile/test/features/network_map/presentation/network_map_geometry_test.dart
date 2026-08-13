@@ -133,7 +133,7 @@ void main() {
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_canvas.dart';",
+        "import '../features/network_map/presentation/network_map_canvas.dart';",
       ),
     );
     expect(canvas, contains("import 'network_map_geometry.dart';"));

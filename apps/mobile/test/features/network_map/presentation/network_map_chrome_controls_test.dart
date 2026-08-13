@@ -512,7 +512,7 @@ void main() {
     expect(
       root,
       contains(
-        "import 'features/network_map/presentation/network_map_chrome_controls.dart';",
+        "import '../features/network_map/presentation/network_map_chrome_controls.dart';",
       ),
     );
     expect(root, contains('NetworkMapChrome('));

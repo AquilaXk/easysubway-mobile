@@ -203,7 +203,7 @@ void main() {
     final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     expect(
       root,
-      contains("import 'app/network_map_nearby_panel_composition.dart';"),
+      contains("import 'network_map_nearby_panel_composition.dart';"),
     );
     expect(root, contains('buildNetworkMapNearbyPanelSuccessContent('));
     for (final privateHelper in [

@@ -193,7 +193,7 @@ void main() {
       expect(
         root,
         contains(
-          "import 'features/network_map/presentation/network_map_menu_panel.dart';",
+          "import '../features/network_map/presentation/network_map_menu_panel.dart';",
         ),
       );
       expect(root, contains('return NetworkMapMenuPanel('));
