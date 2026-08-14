@@ -1416,6 +1416,10 @@ void main() {
       baseUri: Uri.parse('http://127.0.0.1'),
       authProvider: const _ThrowingAuthorizationHeaderProvider(),
     );
+    final malformedAuthorizationRepository = RouteFeedbackApiRepository(
+      baseUri: Uri.parse('http://127.0.0.1'),
+      authProvider: const _MalformedAuthorizationHeaderProvider(),
+    );
     const request = RouteFeedbackRequest(
       routeSearchId: 'route-1',
       rating: RouteFeedbackRating.helpful,
@@ -1429,6 +1433,20 @@ void main() {
     await expectLater(
       throwingAuthorizationRepository.submitRouteFeedback(request),
       throwsA(isA<RouteFeedbackException>()),
+    );
+    await expectLater(
+      malformedAuthorizationRepository.submitRouteFeedback(request),
+      throwsA(
+        isA<RouteFeedbackException>().having(
+          (error) => error.toString(),
+          'safe message',
+          '의견을 보내지 못했어요.',
+        ),
+      ),
+    );
+    expect(
+      const FavoriteRouteException('즐겨찾기를 불러오지 못했어요.').toString(),
+      '즐겨찾기를 불러오지 못했어요.',
     );
 
     var requestCount = 0;
@@ -2684,6 +2702,17 @@ class _ThrowingAuthorizationHeaderProvider
   Future<String?> authorizationHeader() async {
     throw StateError('authorization unavailable');
   }
+
+  @override
+  Future<void> invalidateAuthorization() async {}
+}
+
+class _MalformedAuthorizationHeaderProvider
+    implements AuthorizationHeaderProvider {
+  const _MalformedAuthorizationHeaderProvider();
+
+  @override
+  Future<String?> authorizationHeader() async => 'Basic not-base64';
 
   @override
   Future<void> invalidateAuthorization() async {}
