@@ -112,7 +112,7 @@ jobs:
             --failures-root "$GOLDEN_FAILURES_ROOT"
       - name: Upload golden comparison evidence
         if: always()
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: mobile-golden-${{ env.GOLDEN_HEAD_SHA }}
           path: |

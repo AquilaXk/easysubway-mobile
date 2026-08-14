@@ -78,7 +78,7 @@ jobs:
       - name: Append verified summary
         run: cat "$RUNNER_TEMP/mobile-changed-path-classification/mobile-changed-path-classification-summary.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Upload classification artifact
-        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: ${{ steps.classify.outputs['artifact-name'] }}
           path: |
