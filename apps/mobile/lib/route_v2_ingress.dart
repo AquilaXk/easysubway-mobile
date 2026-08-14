@@ -154,31 +154,3 @@ class _RouteV2Session {
   final String token;
   final DateTime expiresAt;
 }
-
-class TransportScopedRouteSearchRepository implements RouteSearchRepository {
-  TransportScopedRouteSearchRepository({
-    required this.localRepository,
-    required this.itxOnlineRepository,
-  });
-
-  final RouteSearchRepository localRepository;
-  final RouteSearchRepository itxOnlineRepository;
-  final Set<String> _onlineRouteIds = {};
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) async {
-    if (request.transportScope == RouteTransportScope.subway) {
-      return localRepository.searchRoute(request);
-    }
-    final result = await itxOnlineRepository.searchRoute(request);
-    _onlineRouteIds.add(result.routeSearchId);
-    return result;
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    return _onlineRouteIds.contains(routeSearchId)
-        ? itxOnlineRepository.refreshRoute(routeSearchId)
-        : localRepository.refreshRoute(routeSearchId);
-  }
-}

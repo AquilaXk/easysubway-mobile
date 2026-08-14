@@ -7028,19 +7028,14 @@ RouteSearchRepository _legacyV2Repository(
     apiClient: ApiClient(baseUri: baseUri),
     attestor: const _FakePlayIntegrityAttestor(),
   );
-  return TransportScopedRouteSearchRepository(
-    localRepository: LocalFirstRouteSearchRepository(
-      localRepository: localRepository,
+  return OnlineFirstRouteSearchRepository(
+    onlineRepository: RouteSearchV2ApiRepository(
+      baseUri: baseUri,
+      bearerTokenProvider: sessionProvider.issueToken,
+      bearerTokenInvalidator: sessionProvider.invalidateSession,
     ),
-    itxOnlineRepository: OnlineFirstRouteSearchRepository(
-      onlineRepository: RouteSearchV2ApiRepository(
-        baseUri: baseUri,
-        bearerTokenProvider: sessionProvider.issueToken,
-        bearerTokenInvalidator: sessionProvider.invalidateSession,
-      ),
-      localRepository: localRepository,
-      metrics: metrics,
-    ),
+    localRepository: localRepository,
+    metrics: metrics,
   );
 }
 
