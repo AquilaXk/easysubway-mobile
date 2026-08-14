@@ -1407,6 +1407,53 @@ void main() {
     });
   });
 
+  test('경로 피드백 API 저장소는 인증 실패를 성공으로 바꾸지 않는다', () async {
+    final noAuthorizationRepository = RouteFeedbackApiRepository(
+      baseUri: Uri.parse('http://127.0.0.1'),
+      authProvider: const NoAuthorizationHeaderProvider(),
+    );
+    final throwingAuthorizationRepository = RouteFeedbackApiRepository(
+      baseUri: Uri.parse('http://127.0.0.1'),
+      authProvider: const _ThrowingAuthorizationHeaderProvider(),
+    );
+    const request = RouteFeedbackRequest(
+      routeSearchId: 'route-1',
+      rating: RouteFeedbackRating.helpful,
+      comment: '',
+    );
+
+    await expectLater(
+      noAuthorizationRepository.submitRouteFeedback(request),
+      throwsA(isA<RouteFeedbackException>()),
+    );
+    await expectLater(
+      throwingAuthorizationRepository.submitRouteFeedback(request),
+      throwsA(isA<RouteFeedbackException>()),
+    );
+
+    var requestCount = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((httpRequest) async {
+      requestCount += 1;
+      httpRequest.response.statusCode = HttpStatus.unauthorized;
+      await httpRequest.response.close();
+    });
+    final expiredAuthorizationRepository = RouteFeedbackApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: const BasicAuthorizationHeaderProvider(
+        username: 'anonymous-user-1',
+        password: 'expired-password',
+      ),
+    );
+
+    await expectLater(
+      expiredAuthorizationRepository.submitRouteFeedback(request),
+      throwsA(isA<RouteFeedbackException>()),
+    );
+    expect(requestCount, 2);
+  });
+
   group('#2099 V2 leg 운행 정보 파싱·급행 배지 파생', () {
     test('RIDE SUBWAY/EXPRESS leg은 급행으로 파생된다', () {
       final leg = RouteSearchV2Leg.fromJson(
@@ -2627,6 +2674,19 @@ class FakeRouteSearchRepository implements RouteSearchRepository {
           sourceLabel: '계획 시간 기준',
         );
   }
+}
+
+class _ThrowingAuthorizationHeaderProvider
+    implements AuthorizationHeaderProvider {
+  const _ThrowingAuthorizationHeaderProvider();
+
+  @override
+  Future<String?> authorizationHeader() async {
+    throw StateError('authorization unavailable');
+  }
+
+  @override
+  Future<void> invalidateAuthorization() async {}
 }
 
 class PendingRouteSearchRepository implements RouteSearchRepository {
