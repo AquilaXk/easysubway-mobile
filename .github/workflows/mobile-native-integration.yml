@@ -90,7 +90,7 @@ jobs:
           script: |
             dart format --output=none --set-exit-if-changed integration_test/native_test.dart
             flutter analyze integration_test/native_test.dart
-            if timeout 12m flutter test integration_test/native_test.dart -d emulator-5554 --file-reporter "json:${RUNNER_TEMP}/mobile-native-android/flutter-test.jsonl"; then printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PASS"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"; else adb logcat -d -b crash > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log" 2>&1 || true; printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"FAIL"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"; exit 1; fi
+            if timeout 12m flutter test integration_test/native_test.dart -d emulator-5554 --no-dds --file-reporter "json:${RUNNER_TEMP}/mobile-native-android/flutter-test.jsonl"; then printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PASS"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"; else adb logcat -d -b crash > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log" 2>&1 || true; printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"FAIL"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"; exit 1; fi
       - name: Upload Android native evidence
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
