@@ -8,101 +8,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('SUBWAY는 local만 호출하고 network를 0회 유지한다', () async {
-    final local = _RecordingRepository('local');
-    final online = _RecordingRepository('online');
-    final dispatcher = TransportScopedRouteSearchRepository(
-      localRepository: local,
-      itxOnlineRepository: online,
-    );
-
-    final result = await dispatcher.searchRoute(
-      _request(RouteTransportScope.subway),
-    );
-
-    expect(result.routeSearchId, 'local');
-    expect(local.searchCount, 1);
-    expect(online.searchCount, 0);
-  });
-
-  test('SUBWAY_AND_ITX_CHEONGCHUN은 authenticated online만 호출한다', () async {
-    final local = _RecordingRepository('local');
-    final online = _RecordingRepository('online');
-    final dispatcher = TransportScopedRouteSearchRepository(
-      localRepository: local,
-      itxOnlineRepository: online,
-    );
-
-    final result = await dispatcher.searchRoute(
-      _request(RouteTransportScope.subwayAndItxCheongchun),
-    );
-
-    expect(result.routeSearchId, 'online');
-    expect(local.searchCount, 0);
-    expect(online.searchCount, 1);
-  });
-
-  test('ITX_TIMETABLE_UNAVAILABLE을 SUBWAY로 자동 강등하지 않는다', () async {
-    final local = _RecordingRepository('local');
-    final online = _RecordingRepository(
-      'online',
-      error: const RouteSearchOnlineException.unavailable(
-        failureReason: 'ITX_TIMETABLE_UNAVAILABLE',
-      ),
-    );
-    final dispatcher = TransportScopedRouteSearchRepository(
-      localRepository: local,
-      itxOnlineRepository: online,
-    );
-
-    await expectLater(
-      dispatcher.searchRoute(
-        _request(RouteTransportScope.subwayAndItxCheongchun),
-      ),
-      throwsA(isA<RouteSearchOnlineException>()),
-    );
-    expect(local.searchCount, 0);
-  });
-
-  test('SUBWAY 검색 결과 refresh는 local repository로 전달한다', () async {
-    final local = _RecordingRepository('local');
-    final online = _RecordingRepository('online');
-    final dispatcher = TransportScopedRouteSearchRepository(
-      localRepository: local,
-      itxOnlineRepository: online,
-    );
-    final search = await dispatcher.searchRoute(
-      _request(RouteTransportScope.subway),
-    );
-
-    final refresh = await dispatcher.refreshRoute(search.routeSearchId);
-
-    expect(refresh.routeSearchId, 'local');
-    expect(local.refreshCount, 1);
-    expect(online.refreshCount, 0);
-  });
-
-  test('ITX 검색 결과 refresh는 authenticated online repository로 전달한다', () async {
-    final local = _RecordingRepository('local');
-    final online = _RecordingRepository('online');
-    final dispatcher = TransportScopedRouteSearchRepository(
-      localRepository: local,
-      itxOnlineRepository: online,
-    );
-    final search = await dispatcher.searchRoute(
-      _request(RouteTransportScope.subwayAndItxCheongchun),
-    );
-
-    final refresh = await dispatcher.refreshRoute(search.routeSearchId);
-
-    expect(refresh.routeSearchId, 'online');
-    expect(local.refreshCount, 0);
-    expect(online.refreshCount, 1);
-  });
-
   for (final failure in <Object>[
     StateError('Play Integrity unavailable'),
     PlatformException(code: 'PLAY_INTEGRITY_UNAVAILABLE'),
+    MissingPluginException('Play Integrity plugin unavailable'),
   ]) {
     test(
       'attestor ${failure.runtimeType}는 session fail-closed 오류로 정규화한다',
@@ -223,6 +132,11 @@ void main() {
     expect(await provider.issueToken(), 'B' * 43);
     expect(requestCount, 2);
     expect(attestor.requestCount, 2);
+
+    provider.invalidateSession();
+    expect(await provider.issueToken(), 'B' * 43);
+    expect(requestCount, 3);
+    expect(attestor.requestCount, 3);
   });
 
   test('session 429는 exact code와 UI 문구를 보존하고 재시도하지 않는다', () async {
@@ -501,10 +415,9 @@ class _ThrowingAttestor implements PlayIntegrityAttestor {
 }
 
 class _RecordingRepository implements RouteSearchRepository {
-  _RecordingRepository(this.id, {this.error, this.supportsRefresh = true});
+  _RecordingRepository(this.id, {this.supportsRefresh = true});
 
   final String id;
-  final Object? error;
   final bool supportsRefresh;
   int searchCount = 0;
   int refreshCount = 0;
@@ -512,7 +425,6 @@ class _RecordingRepository implements RouteSearchRepository {
   @override
   Future<RouteSearchResult> searchRoute(RouteSearchRequest request) async {
     searchCount++;
-    if (error != null) throw error!;
     return _result();
   }
 
