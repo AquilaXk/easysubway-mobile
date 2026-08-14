@@ -11,6 +11,7 @@ void main() {
   for (final failure in <Object>[
     StateError('Play Integrity unavailable'),
     PlatformException(code: 'PLAY_INTEGRITY_UNAVAILABLE'),
+    MissingPluginException('Play Integrity plugin unavailable'),
   ]) {
     test(
       'attestor ${failure.runtimeType}는 session fail-closed 오류로 정규화한다',
@@ -131,6 +132,11 @@ void main() {
     expect(await provider.issueToken(), 'B' * 43);
     expect(requestCount, 2);
     expect(attestor.requestCount, 2);
+
+    provider.invalidateSession();
+    expect(await provider.issueToken(), 'B' * 43);
+    expect(requestCount, 3);
+    expect(attestor.requestCount, 3);
   });
 
   test('session 429는 exact code와 UI 문구를 보존하고 재시도하지 않는다', () async {
