@@ -40,7 +40,7 @@ test("native workflow runs one bounded Android Journey smoke and iOS simulator c
   );
   assert.doesNotMatch(
     workflow,
-    /flutter test integration_test\/native_test\.dart/u,
+    /\bflutter test\b/u,
   );
   assert.match(workflow, /adb logcat -d -b crash > "\$\{RUNNER_TEMP\}\/mobile-native-android\/adb-crash\.log" 2>&1/u);
   assert.match(workflow, /\{"schemaVersion":1,"lane":"android-native","status":"PENDING"\}/u);
