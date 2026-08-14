@@ -36,7 +36,11 @@ test("native workflow runs one bounded Android Journey smoke and iOS simulator c
   );
   assert.match(
     workflow,
-    /timeout 12m flutter test integration_test\/native_test\.dart -d emulator-5554 --file-reporter "json:\$\{RUNNER_TEMP\}\/mobile-native-android\/flutter-test\.jsonl"/u,
+    /timeout 12m flutter drive --driver=test_driver\/integration_test\.dart --target=integration_test\/native_test\.dart -d emulator-5554 --no-dds > "\$\{RUNNER_TEMP\}\/mobile-native-android\/flutter-drive\.log" 2>&1/u,
+  );
+  assert.doesNotMatch(
+    workflow,
+    /\bflutter test\b/u,
   );
   assert.match(workflow, /adb logcat -d -b crash > "\$\{RUNNER_TEMP\}\/mobile-native-android\/adb-crash\.log" 2>&1/u);
   assert.match(workflow, /\{"schemaVersion":1,"lane":"android-native","status":"PENDING"\}/u);
