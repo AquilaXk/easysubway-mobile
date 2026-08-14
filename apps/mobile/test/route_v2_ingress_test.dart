@@ -409,10 +409,9 @@ class _ThrowingAttestor implements PlayIntegrityAttestor {
 }
 
 class _RecordingRepository implements RouteSearchRepository {
-  _RecordingRepository(this.id, {this.error, this.supportsRefresh = true});
+  _RecordingRepository(this.id, {this.supportsRefresh = true});
 
   final String id;
-  final Object? error;
   final bool supportsRefresh;
   int searchCount = 0;
   int refreshCount = 0;
@@ -420,7 +419,6 @@ class _RecordingRepository implements RouteSearchRepository {
   @override
   Future<RouteSearchResult> searchRoute(RouteSearchRequest request) async {
     searchCount++;
-    if (error != null) throw error!;
     return _result();
   }
 
