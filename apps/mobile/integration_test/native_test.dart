@@ -152,6 +152,7 @@ final class _NativeJourneyRepository implements JourneyRepository {
       ),
       requestPolicy: JourneyRequestPolicy(
         timePolicy: request.timePolicy,
+        walkingPace: request.walkingPace,
         mobilityProfile: request.mobilityProfile,
         constraintMode: request.constraintMode,
         maxTransfers: request.maxTransfers,

@@ -12,7 +12,7 @@ const resourcePaths = [
   'contracts/api/journey-v3-session-integrity.json',
   'contracts/api/journey-v3.openapi.yaml',
 ];
-const publishedPublicationReceiptSha256 = 'dcb93a99c86f9a7790e33ceebc8c9392bb65178db1c0d2b6c0eeea5b8e75a6cd';
+const publishedPublicationReceiptSha256 = 'f514dc7a3f5374133682b29457c82bf51dba1a05991a35af29081848d2fb2b20';
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`stage-journey-v3-contract: ${message}`); };
 

@@ -44,6 +44,7 @@ void main() {
       timePolicy: realtime
           ? TimePolicy.realtimeRequired
           : TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 3,

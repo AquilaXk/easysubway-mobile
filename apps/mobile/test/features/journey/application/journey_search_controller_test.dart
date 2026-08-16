@@ -20,6 +20,7 @@ void main() {
       destinationStationId: 'destination',
       departure: const JourneyDepartureNow(),
       timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 1,
@@ -59,6 +60,7 @@ void main() {
       destinationStationId: 'destination',
       departure: const JourneyDepartureNow(),
       timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.slow,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 1,
@@ -73,6 +75,10 @@ void main() {
       '01J9VV0K000000000000000000',
       '01J9VV0K000000000000000001',
     ]);
+    expect(repository.walkingPaces, <WalkingPace>[
+      WalkingPace.slow,
+      WalkingPace.slow,
+    ]);
   });
 
   test('동일 command는 값 동등성과 hash를 보존한다', () {
@@ -84,10 +90,27 @@ void main() {
       equal,
       isNot(
         JourneySearchCommand(
+          originStationId: 'origin',
+          destinationStationId: 'destination',
+          departure: const JourneyDepartureNow(),
+          timePolicy: TimePolicy.timetableRequired,
+          walkingPace: WalkingPace.fast,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 1,
+          alternativeCount: 1,
+        ),
+      ),
+    );
+    expect(
+      equal,
+      isNot(
+        JourneySearchCommand(
           originStationId: 'other',
           destinationStationId: 'destination',
           departure: const JourneyDepartureNow(),
           timePolicy: TimePolicy.timetableRequired,
+          walkingPace: WalkingPace.standard,
           mobilityProfile: MobilityProfile.standard,
           constraintMode: ConstraintMode.none,
           maxTransfers: 1,
@@ -134,6 +157,7 @@ void main() {
         destinationStationId: 'destination',
         departure: const JourneyDepartureNow(),
         timePolicy: TimePolicy.timetableRequired,
+        walkingPace: WalkingPace.standard,
         mobilityProfile: MobilityProfile.standard,
         constraintMode: ConstraintMode.none,
         maxTransfers: 1,
@@ -205,6 +229,7 @@ void main() {
       destinationStationId: 'destination',
       departure: const JourneyDepartureNow(),
       timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 1,
@@ -331,6 +356,7 @@ void main() {
       destinationStationId: 'destination',
       departure: const JourneyDepartureNow(),
       timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 1,
@@ -389,6 +415,7 @@ void main() {
       destinationStationId: 'destination',
       departure: const JourneyDepartureNow(),
       timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 1,
@@ -552,6 +579,7 @@ void main() {
         destinationStationId: 'destination',
         departure: const JourneyDepartureNow(),
         timePolicy: TimePolicy.timetableRequired,
+        walkingPace: WalkingPace.standard,
         mobilityProfile: MobilityProfile.standard,
         constraintMode: ConstraintMode.none,
         maxTransfers: 1,
@@ -607,6 +635,10 @@ void main() {
       response.requestPolicy.timePolicy,
     );
     expect(
+      snapshot.requestPolicy.walkingPace,
+      response.requestPolicy.walkingPace,
+    );
+    expect(
       snapshot.requestPolicy.mobilityProfile,
       response.requestPolicy.mobilityProfile,
     );
@@ -651,6 +683,7 @@ JourneySearchCommand _command() => JourneySearchCommand(
   destinationStationId: 'destination',
   departure: const JourneyDepartureNow(),
   timePolicy: TimePolicy.timetableRequired,
+  walkingPace: WalkingPace.standard,
   mobilityProfile: MobilityProfile.standard,
   constraintMode: ConstraintMode.none,
   maxTransfers: 1,
@@ -678,6 +711,7 @@ JourneySearchSuccess _success({
   ),
   requestPolicy: const JourneyRequestPolicy(
     timePolicy: TimePolicy.timetableRequired,
+    walkingPace: WalkingPace.standard,
     mobilityProfile: MobilityProfile.standard,
     constraintMode: ConstraintMode.none,
     maxTransfers: 1,
@@ -740,6 +774,7 @@ class _Repository implements JourneyRepository {
   int searchRequests = 0;
   final List<String> requestIds = <String>[];
   final List<String> originIds = <String>[];
+  final List<WalkingPace> walkingPaces = <WalkingPace>[];
   bool pendingSession = false;
   JourneySearchSuccess? success;
   Object? searchFailure;
@@ -777,6 +812,7 @@ class _Repository implements JourneyRepository {
     searchRequests++;
     requestIds.add(request.requestId);
     originIds.add(request.originStationId);
+    walkingPaces.add(request.walkingPace);
     if (pendingSearch) return _pendingSearch.future;
     final successful = success;
     if (successful != null) return successful;

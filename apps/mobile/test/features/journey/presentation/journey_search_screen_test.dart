@@ -60,6 +60,7 @@ void main() {
     expect(request.destinationStationId, 'station-destination');
     expect(request.departure, isA<JourneyDepartureNow>());
     expect(request.timePolicy, TimePolicy.timetableRequired);
+    expect(request.walkingPace, WalkingPace.standard);
     expect(request.mobilityProfile, MobilityProfile.standard);
     expect(request.constraintMode, ConstraintMode.none);
     expect(request.maxTransfers, 3);
@@ -138,6 +139,43 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('걷는 속도는 표준으로 시작하고 선택마다 exact pace로 다시 검색한다', (tester) async {
+    final semantics = tester.ensureSemantics();
+    final repository = _Repository();
+    await _pumpScreen(tester, repository: repository);
+
+    expect(find.text('느린 걸음'), findsOneWidget);
+    expect(find.text('표준 걸음'), findsOneWidget);
+    expect(find.text('빠른 걸음'), findsOneWidget);
+    final standard = find.byKey(const Key('walking-pace-standard'));
+    expect(
+      tester.getSemantics(standard).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    for (final pace in <String>['slow', 'standard', 'fast']) {
+      expect(
+        tester.getSize(find.byKey(Key('walking-pace-$pace'))).height,
+        greaterThanOrEqualTo(60),
+      );
+    }
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(repository.requests.single.walkingPace, WalkingPace.standard);
+
+    await tester.tap(find.byKey(const Key('walking-pace-slow')));
+    await tester.pumpAndSettle();
+    expect(repository.requests.last.walkingPace, WalkingPace.slow);
+    expect(repository.requests.last.mobilityProfile, MobilityProfile.standard);
+    expect(repository.requests.last.constraintMode, ConstraintMode.none);
+
+    await tester.tap(find.byKey(const Key('walking-pace-fast')));
+    await tester.pumpAndSettle();
+    expect(repository.requests.last.walkingPace, WalkingPace.fast);
+    expect(repository.requests, hasLength(3));
+    semantics.dispose();
+  });
+
   testWidgets('계단 회피 profile은 REQUIRE_STEP_FREE로 전송한다', (tester) async {
     final repository = _Repository();
     await _pumpScreen(tester, repository: repository, mobilityType: 'LUGGAGE');
@@ -179,7 +217,11 @@ void main() {
     );
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+    final selectedCandidate = find.byKey(
+      const Key('journey-candidate-journey-1'),
+    );
+    await tester.ensureVisible(selectedCandidate);
+    await tester.tap(selectedCandidate);
     await tester.pump();
     final alarmToggle = find.byKey(const Key('journey-get-off-alarm-toggle'));
     await tester.ensureVisible(alarmToggle);
@@ -199,7 +241,26 @@ void main() {
     expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
     expect(find.text('기존 하차 알림을 끄지 못해 경로를 바꾸지 않았어요.'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+    final requestsBeforePace = repository.requests.length;
+    alarm.notifier.cancelErrorOnce = StateError('cancel failed');
+    final slowPace = find.byKey(const Key('walking-pace-slow'));
+    await tester.ensureVisible(slowPace);
+    await tester.tap(slowPace);
+    await tester.pumpAndSettle();
+    expect(repository.requests, hasLength(requestsBeforePace));
+    expect(
+      tester
+          .getSemantics(find.byKey(const Key('walking-pace-standard')))
+          .flagsCollection
+          .isSelected,
+      Tristate.isTrue,
+    );
+
+    final currentCandidate = find.byKey(
+      const Key('journey-candidate-journey-1'),
+    );
+    await tester.ensureVisible(currentCandidate);
+    await tester.tap(currentCandidate);
     await tester.pumpAndSettle();
     expect(
       find.byKey(const Key('journey-alarm-transition-error')),
@@ -376,8 +437,13 @@ void main() {
     expect(alarm.notifier.cancelAllCount, 1);
     expect(repository.sessionRequests, 1);
     expect(repository.requests, hasLength(2));
+    expect(
+      repository.requests.map((request) => request.walkingPace),
+      everyElement(WalkingPace.standard),
+    );
     expect(find.text('경로 후보 2개'), findsOneWidget);
     final candidate = find.byKey(const Key('journey-candidate-journey-1'));
+    await tester.ensureVisible(candidate);
     await tester.tap(candidate);
     await tester.pump();
     final shareButton = find.widgetWithText(OutlinedButton, '공유');
@@ -505,6 +571,7 @@ JourneySearchSuccess _success(
     ),
     requestPolicy: JourneyRequestPolicy(
       timePolicy: request.timePolicy,
+      walkingPace: request.walkingPace,
       mobilityProfile: request.mobilityProfile,
       constraintMode: request.constraintMode,
       maxTransfers: request.maxTransfers,

@@ -28,6 +28,7 @@ void main() {
       binding.identity.requestPolicy.timePolicy,
       TimePolicy.timetableRequired,
     );
+    expect(binding.identity.requestPolicy.walkingPace, WalkingPace.standard);
     expect(binding.identity.journeyId, 'journey-1');
     expect(
       binding.stops
@@ -143,6 +144,7 @@ JourneySelectedSnapshot _snapshot({
       timePolicy: realtime
           ? TimePolicy.realtimeRequired
           : TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 1,

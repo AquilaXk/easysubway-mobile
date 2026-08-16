@@ -49,6 +49,7 @@ class JourneySelectedSnapshot {
       ),
       requestPolicy = JourneyRequestPolicy(
         timePolicy: response.requestPolicy.timePolicy,
+        walkingPace: response.requestPolicy.walkingPace,
         mobilityProfile: response.requestPolicy.mobilityProfile,
         constraintMode: response.requestPolicy.constraintMode,
         maxTransfers: response.requestPolicy.maxTransfers,
@@ -96,6 +97,7 @@ class JourneySearchCommand {
     required this.destinationStationId,
     required this.departure,
     required this.timePolicy,
+    required this.walkingPace,
     required this.mobilityProfile,
     required this.constraintMode,
     required this.maxTransfers,
@@ -106,6 +108,7 @@ class JourneySearchCommand {
   final String destinationStationId;
   final JourneyDeparture departure;
   final TimePolicy timePolicy;
+  final WalkingPace walkingPace;
   final MobilityProfile mobilityProfile;
   final ConstraintMode constraintMode;
   final int maxTransfers;
@@ -118,6 +121,7 @@ class JourneySearchCommand {
       destinationStationId == other.destinationStationId &&
       departure.toJson().toString() == other.departure.toJson().toString() &&
       timePolicy == other.timePolicy &&
+      walkingPace == other.walkingPace &&
       mobilityProfile == other.mobilityProfile &&
       constraintMode == other.constraintMode &&
       maxTransfers == other.maxTransfers &&
@@ -129,6 +133,7 @@ class JourneySearchCommand {
     destinationStationId,
     departure.toJson().toString(),
     timePolicy,
+    walkingPace,
     mobilityProfile,
     constraintMode,
     maxTransfers,
@@ -290,6 +295,7 @@ class JourneySearchController extends ChangeNotifier {
         destinationStationId: command.destinationStationId,
         departure: command.departure,
         timePolicy: command.timePolicy,
+        walkingPace: command.walkingPace,
         mobilityProfile: command.mobilityProfile,
         constraintMode: command.constraintMode,
         maxTransfers: command.maxTransfers,

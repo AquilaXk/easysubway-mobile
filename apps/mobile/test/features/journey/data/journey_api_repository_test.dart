@@ -43,6 +43,7 @@ final _searchRequest = JourneySearchRequest(
   destinationStationId: 'station-destination',
   departure: const JourneyDepartureNow(),
   timePolicy: TimePolicy.timetableRequired,
+  walkingPace: WalkingPace.standard,
   mobilityProfile: MobilityProfile.standard,
   constraintMode: ConstraintMode.none,
   maxTransfers: 2,
@@ -55,6 +56,7 @@ final _stepFreeSearchRequest = JourneySearchRequest(
   destinationStationId: 'station-destination',
   departure: const JourneyDepartureNow(),
   timePolicy: TimePolicy.timetableRequired,
+  walkingPace: WalkingPace.standard,
   mobilityProfile: MobilityProfile.stepFree,
   constraintMode: ConstraintMode.requireStepFree,
   maxTransfers: 2,
@@ -67,6 +69,7 @@ final _singleAlternativeSearchRequest = JourneySearchRequest(
   destinationStationId: 'station-destination',
   departure: const JourneyDepartureNow(),
   timePolicy: TimePolicy.timetableRequired,
+  walkingPace: WalkingPace.standard,
   mobilityProfile: MobilityProfile.standard,
   constraintMode: ConstraintMode.none,
   maxTransfers: 2,
@@ -79,6 +82,7 @@ final _realtimeSearchRequest = JourneySearchRequest(
   destinationStationId: 'station-destination',
   departure: const JourneyDepartureNow(),
   timePolicy: TimePolicy.realtimeRequired,
+  walkingPace: WalkingPace.standard,
   mobilityProfile: MobilityProfile.standard,
   constraintMode: ConstraintMode.none,
   maxTransfers: 2,
@@ -102,6 +106,7 @@ Map<String, Object?> _successJson({
   final realtime = effectiveRequest.timePolicy == TimePolicy.realtimeRequired;
   final policy = JourneyRequestPolicy(
     timePolicy: effectiveRequest.timePolicy,
+    walkingPace: effectiveRequest.walkingPace,
     mobilityProfile: effectiveRequest.mobilityProfile,
     constraintMode: effectiveRequest.constraintMode,
     maxTransfers: effectiveRequest.maxTransfers,
@@ -236,6 +241,7 @@ void main() {
     expect(client.posts[0].headers, isEmpty);
     expect(client.posts[1].path, '/api/v3/journeys/search');
     expect(client.posts[1].body, _searchRequest.toJson());
+    expect(client.posts[1].body['walkingPace'], 'STANDARD');
     expect(client.posts[1].headers, {'Authorization': 'Bearer session-token'});
   });
 
@@ -267,6 +273,7 @@ void main() {
     expect(success.sourceIdentity.timetableSnapshotId, 'timetable-1');
     expect(success.sourceIdentity.accessibilitySnapshotId, 'accessibility-1');
     expect(success.sourceIdentity.realtimeSnapshotId, isNull);
+    expect(success.requestPolicy.walkingPace, WalkingPace.standard);
     expect(
       success.journeys.every((journey) => !journey.accessibility.stairFree),
       isTrue,
@@ -503,7 +510,7 @@ void main() {
     final policy = Map<String, Object?>.of(_successJson());
     final policyBody = Map<String, Object?>.of(
       policy['requestPolicy']! as Map<String, Object?>,
-    )..['maxTransfers'] = 1;
+    )..['walkingPace'] = 'FAST';
     policy['requestPolicy'] = policyBody;
     final policyMismatch = JourneyApiRepository(
       _StubApiClient([ApiResponse(statusCode: 200, jsonBody: policy)]),
