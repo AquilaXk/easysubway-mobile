@@ -80,6 +80,7 @@ class JourneySearchRequest {
   final String destinationStationId;
   final JourneyDeparture departure;
   final TimePolicy timePolicy;
+  final WalkingPace walkingPace;
   final MobilityProfile mobilityProfile;
   final ConstraintMode constraintMode;
   final int maxTransfers;
@@ -90,6 +91,7 @@ class JourneySearchRequest {
     required this.destinationStationId,
     required this.departure,
     required this.timePolicy,
+    required this.walkingPace,
     required this.mobilityProfile,
     required this.constraintMode,
     required this.maxTransfers,
@@ -101,6 +103,7 @@ class JourneySearchRequest {
     required String destinationStationId,
     required JourneyDeparture departure,
     required TimePolicy timePolicy,
+    required WalkingPace walkingPace,
     required MobilityProfile mobilityProfile,
     required ConstraintMode constraintMode,
     required int maxTransfers,
@@ -113,6 +116,7 @@ class JourneySearchRequest {
       destinationStationId: JourneyV3Validation.nonBlank(destinationStationId, 'destinationStationId'),
       departure: departure,
       timePolicy: timePolicy,
+      walkingPace: walkingPace,
       mobilityProfile: mobilityProfile,
       constraintMode: constraintMode,
       maxTransfers: JourneyV3Validation.integer(maxTransfers, 'maxTransfers', 0, 3),
@@ -120,7 +124,18 @@ class JourneySearchRequest {
     );
   }
   factory JourneySearchRequest.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {'requestId', 'originStationId', 'destinationStationId', 'departure', 'timePolicy', 'mobilityProfile', 'constraintMode', 'maxTransfers', 'alternativeCount'});
+    JourneyV3Validation.exactKeys(json, {
+      'requestId',
+      'originStationId',
+      'destinationStationId',
+      'departure',
+      'timePolicy',
+      'walkingPace',
+      'mobilityProfile',
+      'constraintMode',
+      'maxTransfers',
+      'alternativeCount',
+    });
     final mobilityProfile = MobilityProfileWire.fromWire(json['mobilityProfile']);
     final constraintMode = ConstraintModeWire.fromWire(json['constraintMode']);
     if (mobilityProfile == MobilityProfile.noStairs && constraintMode == ConstraintMode.none) throw const FormatException('NO_STAIRS plus NONE is forbidden');
@@ -132,6 +147,7 @@ class JourneySearchRequest {
       destinationStationId: JourneyV3Validation.nonBlank(json['destinationStationId'], 'destinationStationId'),
       departure: JourneyDeparture.fromJson(departureValue),
       timePolicy: TimePolicyWire.fromWire(json['timePolicy']),
+      walkingPace: WalkingPaceWire.fromWire(json['walkingPace']),
       mobilityProfile: mobilityProfile,
       constraintMode: constraintMode,
       maxTransfers: JourneyV3Validation.integer(json['maxTransfers'], 'maxTransfers', 0, 3),
@@ -144,6 +160,7 @@ class JourneySearchRequest {
     'destinationStationId': destinationStationId,
     'departure': departure.toJson(),
     'timePolicy': timePolicy.wire,
+    'walkingPace': walkingPace.wire,
     'mobilityProfile': mobilityProfile.wire,
     'constraintMode': constraintMode.wire,
     'maxTransfers': maxTransfers,
@@ -311,18 +328,27 @@ class JourneySourceIdentity {
 
 class JourneyRequestPolicy {
   final TimePolicy timePolicy;
+  final WalkingPace walkingPace;
   final MobilityProfile mobilityProfile;
   final ConstraintMode constraintMode;
   final int maxTransfers;
   final int alternativeCount;
-  const JourneyRequestPolicy({required this.timePolicy, required this.mobilityProfile, required this.constraintMode, required this.maxTransfers, required this.alternativeCount});
+  const JourneyRequestPolicy({
+    required this.timePolicy,
+    required this.walkingPace,
+    required this.mobilityProfile,
+    required this.constraintMode,
+    required this.maxTransfers,
+    required this.alternativeCount,
+  });
   factory JourneyRequestPolicy.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {'timePolicy', 'mobilityProfile', 'constraintMode', 'maxTransfers', 'alternativeCount'});
+    JourneyV3Validation.exactKeys(json, {'timePolicy', 'walkingPace', 'mobilityProfile', 'constraintMode', 'maxTransfers', 'alternativeCount'});
     final mobilityProfile = MobilityProfileWire.fromWire(json['mobilityProfile']);
     final constraintMode = ConstraintModeWire.fromWire(json['constraintMode']);
     if (mobilityProfile == MobilityProfile.noStairs && constraintMode == ConstraintMode.none) throw const FormatException('NO_STAIRS plus NONE is forbidden');
     return JourneyRequestPolicy(
       timePolicy: TimePolicyWire.fromWire(json['timePolicy']),
+      walkingPace: WalkingPaceWire.fromWire(json['walkingPace']),
       mobilityProfile: mobilityProfile,
       constraintMode: constraintMode,
       maxTransfers: JourneyV3Validation.integer(json['maxTransfers'], 'maxTransfers', 0, 3),
@@ -331,6 +357,7 @@ class JourneyRequestPolicy {
   }
   Map<String, Object?> toJson() => {
     'timePolicy': timePolicy.wire,
+    'walkingPace': walkingPace.wire,
     'mobilityProfile': mobilityProfile.wire,
     'constraintMode': constraintMode.wire,
     'maxTransfers': maxTransfers,

@@ -52,6 +52,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   bool _isSharing = false;
   bool _isAlarmTransitioning = false;
   String? _alarmTransitionError;
+  WalkingPace _walkingPace = WalkingPace.standard;
 
   @override
   void initState() {
@@ -338,6 +339,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       destinationStationId: destination.id,
       departure: const JourneyDepartureNow(),
       timePolicy: TimePolicy.timetableRequired,
+      walkingPace: _walkingPace,
       mobilityProfile: profile,
       constraintMode: constraint,
       maxTransfers: 3,
@@ -373,6 +375,60 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       return;
     }
     await _controller.search(command);
+  }
+
+  Widget _walkingPaceControl(bool enabled) {
+    const labels = <WalkingPace, String>{
+      WalkingPace.slow: '느린 걸음',
+      WalkingPace.standard: '표준 걸음',
+      WalkingPace.fast: '빠른 걸음',
+    };
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('걷는 속도'),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            for (final pace in WalkingPace.values) ...[
+              if (pace != WalkingPace.slow) const SizedBox(width: 8),
+              Expanded(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 60),
+                  child: ChoiceChip(
+                    key: Key('walking-pace-${pace.name}'),
+                    label: SizedBox(
+                      width: double.infinity,
+                      child: Text(labels[pace]!, textAlign: TextAlign.center),
+                    ),
+                    selected: _walkingPace == pace,
+                    onSelected: !enabled
+                        ? null
+                        : (selected) {
+                            if (!selected || pace == _walkingPace) return;
+                            unawaited(_selectWalkingPace(pace));
+                          },
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _selectWalkingPace(WalkingPace pace) async {
+    if (pace == _walkingPace || _isAlarmTransitioning) return;
+    final alarmController = widget.getOffAlarmController;
+    if (alarmController != null &&
+        alarmController.state.enabled &&
+        !await _disableAlarmBeforeTransition(alarmController)) {
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _walkingPace = pace);
+    await _search();
   }
 
   Future<void> _retry() async {
@@ -429,6 +485,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               Text(widget.draft.originLabel),
               Text(widget.draft.destinationLabel),
               if (!valid) const Text('출발역과 도착역을 다시 확인해 주세요.'),
+              const SizedBox(height: 12),
+              _walkingPaceControl(
+                valid &&
+                    state.status != JourneySearchStatus.searching &&
+                    !_isAlarmTransitioning,
+              ),
+              const SizedBox(height: 12),
               FilledButton(
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),

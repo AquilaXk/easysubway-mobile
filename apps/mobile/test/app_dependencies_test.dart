@@ -237,6 +237,7 @@ void main() {
           destinationStationId: 'station-destination',
           departure: const JourneyDepartureNow(),
           timePolicy: TimePolicy.timetableRequired,
+          walkingPace: WalkingPace.standard,
           mobilityProfile: MobilityProfile.standard,
           constraintMode: ConstraintMode.none,
           maxTransfers: 3,

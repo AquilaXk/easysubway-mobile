@@ -52,6 +52,7 @@ class JourneySelectedIdentity {
       ),
       requestPolicy = JourneyRequestPolicy(
         timePolicy: snapshot.requestPolicy.timePolicy,
+        walkingPace: snapshot.requestPolicy.walkingPace,
         mobilityProfile: snapshot.requestPolicy.mobilityProfile,
         constraintMode: snapshot.requestPolicy.constraintMode,
         maxTransfers: snapshot.requestPolicy.maxTransfers,

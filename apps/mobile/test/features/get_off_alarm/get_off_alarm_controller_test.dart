@@ -134,6 +134,7 @@ JourneyAlarmSubscriptionIdentity _journeyIdentity([String journeyId = 'r1']) =>
       ),
       requestPolicy: const JourneyRequestPolicy(
         timePolicy: TimePolicy.timetableRequired,
+        walkingPace: WalkingPace.standard,
         mobilityProfile: MobilityProfile.standard,
         constraintMode: ConstraintMode.none,
         maxTransfers: 3,

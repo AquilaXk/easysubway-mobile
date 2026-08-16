@@ -101,7 +101,9 @@ class JourneyAlarmSubscriptionIdentity {
           },
         ),
         sourceIdentity: JourneySourceIdentity.fromJson(source),
-        requestPolicy: JourneyRequestPolicy.fromJson(policy),
+        requestPolicy: JourneyRequestPolicy.fromJson(
+          _migrateLegacyRequestPolicy(policy),
+        ),
       );
       if (identity.validUntil.isBefore(identity.calculatedAt) ||
           !_sourceMatchesPolicy(identity)) {
@@ -111,6 +113,23 @@ class JourneyAlarmSubscriptionIdentity {
     } on FormatException {
       return null;
     }
+  }
+
+  static Map<String, Object?> _migrateLegacyRequestPolicy(
+    Map<String, Object?> policy,
+  ) {
+    const legacyKeys = {
+      'timePolicy',
+      'mobilityProfile',
+      'constraintMode',
+      'maxTransfers',
+      'alternativeCount',
+    };
+    if (policy.length != legacyKeys.length ||
+        !legacyKeys.every(policy.containsKey)) {
+      return policy;
+    }
+    return {...policy, 'walkingPace': WalkingPace.standard.wire};
   }
 
   static bool _sourceMatchesPolicy(JourneyAlarmSubscriptionIdentity identity) {
@@ -143,6 +162,7 @@ class JourneyAlarmSubscriptionIdentity {
       sourceIdentity.realtimeSnapshotId ==
           other.sourceIdentity.realtimeSnapshotId &&
       requestPolicy.timePolicy == other.requestPolicy.timePolicy &&
+      requestPolicy.walkingPace == other.requestPolicy.walkingPace &&
       requestPolicy.mobilityProfile == other.requestPolicy.mobilityProfile &&
       requestPolicy.constraintMode == other.requestPolicy.constraintMode &&
       requestPolicy.maxTransfers == other.requestPolicy.maxTransfers &&
@@ -165,6 +185,7 @@ class JourneyAlarmSubscriptionIdentity {
     sourceIdentity.accessibilitySnapshotId,
     sourceIdentity.realtimeSnapshotId,
     requestPolicy.timePolicy,
+    requestPolicy.walkingPace,
     requestPolicy.mobilityProfile,
     requestPolicy.constraintMode,
     requestPolicy.maxTransfers,

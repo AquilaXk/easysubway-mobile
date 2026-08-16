@@ -247,6 +247,25 @@ extension TimePolicyWire on TimePolicy {
   }
 }
 
+enum WalkingPace { slow, standard, fast }
+
+extension WalkingPaceWire on WalkingPace {
+  String get wire => switch (this) {
+    WalkingPace.slow => "SLOW",
+    WalkingPace.standard => "STANDARD",
+    WalkingPace.fast => "FAST",
+  };
+  static WalkingPace fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "SLOW" => WalkingPace.slow,
+      "STANDARD" => WalkingPace.standard,
+      "FAST" => WalkingPace.fast,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
 enum MobilityProfile { standard, slow, noStairs, stepFree }
 
 extension MobilityProfileWire on MobilityProfile {

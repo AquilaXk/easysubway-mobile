@@ -23,6 +23,7 @@ void main() {
   JourneyAlarmSubscriptionIdentity identity(
     String journeyId, {
     bool realtime = false,
+    WalkingPace walkingPace = WalkingPace.standard,
   }) => JourneyAlarmSubscriptionIdentity(
     contractVersion: JourneyContractVersion.journeySearchV3,
     requestId: '01J9VV0K000000000000000000',
@@ -44,6 +45,7 @@ void main() {
       timePolicy: realtime
           ? TimePolicy.realtimeRequired
           : TimePolicy.timetableRequired,
+      walkingPace: walkingPace,
       mobilityProfile: MobilityProfile.standard,
       constraintMode: ConstraintMode.none,
       maxTransfers: 3,
@@ -74,6 +76,18 @@ void main() {
       );
 
   final subscription = subscriptionFor('journey-1');
+
+  Future<void> writeRaw(Map<String, Object?> value) async {
+    await db
+        .into(db.appPreferences)
+        .insertOnConflictUpdate(
+          AppPreferencesCompanion.insert(
+            key: 'get_off_alarm_active',
+            value: jsonEncode(value),
+            updatedAt: DateTime.utc(2026, 7, 10),
+          ),
+        );
+  }
 
   test('활성 구독이 없으면 null을 돌려준다', () async {
     expect(await repository.loadActive(), isNull);
@@ -111,6 +125,56 @@ void main() {
     expect(restored.hashCode, expected.hashCode);
   });
 
+  test('기존 five-key V1 alarm policy는 STANDARD로 migration한다', () async {
+    final legacy =
+        jsonDecode(jsonEncode(subscription.toJson())) as Map<String, Object?>;
+    final journeyIdentity = legacy['journeyIdentity']! as Map<String, Object?>;
+    final requestPolicy =
+        journeyIdentity['requestPolicy']! as Map<String, Object?>;
+    requestPolicy.remove('walkingPace');
+    await writeRaw(legacy);
+
+    final loaded = await repository.loadActive();
+
+    expect(loaded, isNotNull);
+    expect(
+      loaded!.journeyIdentity!.requestPolicy.walkingPace,
+      WalkingPace.standard,
+    );
+    expect(
+      (loaded.journeyIdentity!.toJson()['requestPolicy']!
+          as Map<String, Object?>)['walkingPace'],
+      'STANDARD',
+    );
+    expect(
+      loaded.journeyIdentity,
+      isNot(identity('journey-1', walkingPace: WalkingPace.fast)),
+    );
+  });
+
+  test('legacy migration은 exact five-key policy에만 허용한다', () {
+    Map<String, Object?> legacyPolicy() {
+      final encoded =
+          jsonDecode(jsonEncode(identity('journey-1').toJson()))
+              as Map<String, Object?>;
+      final policy = encoded['requestPolicy']! as Map<String, Object?>;
+      policy.remove('walkingPace');
+      return encoded;
+    }
+
+    final extra = legacyPolicy();
+    (extra['requestPolicy']! as Map<String, Object?>)['unexpected'] = true;
+    final missing = legacyPolicy();
+    (missing['requestPolicy']! as Map<String, Object?>).remove('timePolicy');
+    final unknown = identity('journey-1').toJson();
+    (unknown['requestPolicy']! as Map<String, Object?>)['walkingPace'] =
+        'UNKNOWN';
+
+    expect(JourneyAlarmSubscriptionIdentity.fromJson(extra), isNull);
+    expect(JourneyAlarmSubscriptionIdentity.fromJson(missing), isNull);
+    expect(JourneyAlarmSubscriptionIdentity.fromJson(unknown), isNull);
+  });
+
   test('단일 활성 구독 — 새로 저장하면 이전 것을 대체한다', () async {
     await repository.saveActive(subscription);
     await repository.saveActive(
@@ -136,18 +200,6 @@ void main() {
     expect(loaded.scheduledCount, 1);
     expect(loaded.transfers, isEmpty);
   });
-
-  Future<void> writeRaw(Map<String, Object?> value) async {
-    await db
-        .into(db.appPreferences)
-        .insertOnConflictUpdate(
-          AppPreferencesCompanion.insert(
-            key: 'get_off_alarm_active',
-            value: jsonEncode(value),
-            updatedAt: DateTime.utc(2026, 7, 10),
-          ),
-        );
-  }
 
   test('scheduleMode와 inexactNotice를 복원한다', () async {
     await writeRaw({

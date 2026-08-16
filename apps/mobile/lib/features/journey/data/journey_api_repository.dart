@@ -148,6 +148,7 @@ class JourneyApiRepository implements JourneyRepository {
     }
     final policy = success.requestPolicy;
     if (policy.timePolicy != request.timePolicy ||
+        policy.walkingPace != request.walkingPace ||
         policy.mobilityProfile != request.mobilityProfile ||
         policy.constraintMode != request.constraintMode ||
         policy.maxTransfers != request.maxTransfers ||
