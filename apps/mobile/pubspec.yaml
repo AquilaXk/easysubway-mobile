@@ -38,7 +38,8 @@ dependencies:
   drift: ^2.34.3
   path_provider: ^2.1.6
   crypto: ^3.0.7
-  meta: ^1.18.0
+  # Flutter 3.44.0의 flutter_test SDK package와 같은 exact pin이다(#260).
+  meta: 1.18.0
   path: ^1.9.1
   collection: ^1.19.1
   sqlite3: ^3.5.1
@@ -72,7 +73,8 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   drift_dev: ^2.34.5
-  build_runner: ^2.15.1
+  # 2.16.0은 analyzer/meta 요구사항이 Flutter 3.44.0과 해석되지 않는다(#260).
+  build_runner: 2.15.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
