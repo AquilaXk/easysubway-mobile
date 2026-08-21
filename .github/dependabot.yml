@@ -29,9 +29,9 @@ updates:
       day: "tuesday"
       time: "06:23"
       timezone: "Asia/Seoul"
-    # 그룹 PR 1건 + major 개별 PR 최대 2건을 상정한 상한이다(최대 ~31.5 runner-분/주).
-    # hub 기준선과 같은 값이다.
-    open-pull-requests-limit: 3
+    # 일반·codegen·Workmanager 그룹 PR 3건 + major 개별 PR 최대 2건을 상정한 상한이다.
+    # lane 하나가 실패해도 다른 보안·호환 업데이트를 막지 않고, 주간 스케줄로 churn을 제한한다.
+    open-pull-requests-limit: 5
     commit-message:
       # 이 레포의 PR 제목 규약은 `[Type] 한국어 요약` 이다.
       # 2026-08-02 실측상 .github/workflows/** 에 PR 제목 lint job 이 없고(`pr-title` 0건)
@@ -46,18 +46,59 @@ updates:
       # 쓰지 않는다.
       prefix: "[CI] 의존성 업데이트"
     groups:
-      # Flutter 패키지는 직접 의존만 27건이라 개별 PR 로 두면 주간 PR 이 쉽게 늘고,
-      # PR 1건마다 Android CI(~6분)가 붙어 비용이 선형으로 커진다. minor/patch 는 한 PR 로
-      # 묶어 주간 PR 을 1건으로 낮춘다. major 는 플랫폼 채널·API 파괴 변경을 동반하는
-      # 경우가 많아 묶지 않고 개별 PR 로 남겨 검토를 강제한다.
-      # major 를 ignore 로 숨기지는 않는다 — 보안 패치가 major 에만 실리는 경우를 놓친다.
+      # build_runner·drift_dev·meta는 analyzer와 Flutter SDK pin을 공유한다. 일반 패키지와
+      # 섞지 않아 solver 실패가 호환 가능한 업데이트를 막지 않게 한다.
+      pub-codegen:
+        applies-to: version-updates
+        patterns:
+          - "build_runner"
+          - "drift_dev"
+          - "meta"
+        update-types:
+          - "minor"
+          - "patch"
+
+      # Workmanager federated package는 Android plugin과 platform interface를 함께 검증해야
+      # 한다. AGP 9·builtInKotlin 경계의 native compile 실패를 일반 pub 갱신과 분리한다.
+      pub-workmanager:
+        applies-to: version-updates
+        patterns:
+          - "workmanager*"
+        update-types:
+          - "major"
+          - "minor"
+          - "patch"
+
+      # 나머지 직접 의존 22건은 runner 비용을 줄이기 위해 minor/patch 한 PR로 묶는다.
+      # major는 플랫폼·API 파괴 변경 가능성이 있어 그룹 밖 개별 PR로 남긴다.
       pub-minor-patch:
         applies-to: version-updates
         patterns:
           - "*"
+        exclude-patterns:
+          - "build_runner"
+          - "drift_dev"
+          - "meta"
+          - "workmanager*"
         update-types:
           - "minor"
           - "patch"
+
+    # #257/#258 및 #259 current-head CI에서 실패가 확인된 정확한 버전만 보류한다.
+    # 패키지 전체나 update type을 숨기지 않아 이후 호환·보안 릴리스는 다시 제안된다.
+    ignore:
+      - dependency-name: "build_runner"
+        versions:
+          - "2.16.0"
+      - dependency-name: "meta"
+        versions:
+          - "1.19.0"
+      - dependency-name: "workmanager_android"
+        versions:
+          - "0.9.3"
+      - dependency-name: "workmanager_platform_interface"
+        versions:
+          - "0.9.4"
 
   # (2) github-actions — 워크플로 5개(automerge-queue / ci / osv-scheduled /
   # release-artifacts / store-distribution-evidence)의 action 핀이 대상이다.
