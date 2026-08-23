@@ -85,8 +85,7 @@
   ],
   "criticalBoundaryRules": {
     "JOURNEY_ROUTE_INGRESS": [
-      "route_v2_ingress.dart",
-      "route_search.dart",
+      "features/journey/",
       "internal_route.dart",
       "features/routes/application/accessibility_cost_calculator.dart",
       "features/routes/application/network_graph.dart",
@@ -99,8 +98,7 @@
       "app/app_bootstrap.dart",
       "app/app_dependencies.dart",
       "app/app_endpoints.dart",
-      "route_v2_ingress.dart",
-      "route_search.dart",
+      "features/journey/",
       "features/route_draft/",
       "features/mobility_profile/",
       "features/routes/data/local_route_repository.dart",
