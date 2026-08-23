@@ -1862,6 +1862,41 @@ void main() {
   });
 
   group('#2590 계단 접근성 판정 원천 통일', () {
+    test('경로 단계 JSON 계단 판정은 명시값과 미확인값을 보존한다', () {
+      const stepJson = <String, Object?>{
+        'sequence': 1,
+        'title': '역 안 이동',
+        'description': '승강장으로 이동합니다.',
+        'estimatedMinutes': 1,
+        'distanceMeters': 20,
+        'includesStairs': false,
+        'requiresAccessibilityCheck': false,
+      };
+
+      expect(
+        RouteSearchStep.fromJson({
+          ...stepJson,
+          'stairAccessState': 'STEP_FREE',
+        }).stairAccessState,
+        'stepFree',
+      );
+      expect(RouteSearchStep.fromJson(stepJson).stairAccessState, 'unknown');
+      expect(
+        RouteSearchStep.fromJson({
+          ...stepJson,
+          'stairAccessState': '',
+        }).stairAccessState,
+        'unknown',
+      );
+      expect(
+        RouteSearchStep.fromJson({
+          ...stepJson,
+          'includesStairs': true,
+        }).stairAccessState,
+        'stairOnly',
+      );
+    });
+
     test('승차 leg만 미확인인 경로는 백엔드 판정대로 계단 없는 길로 표시한다', () {
       final display = _judgedDisplay(
         stairAccess: 'STEP_FREE',

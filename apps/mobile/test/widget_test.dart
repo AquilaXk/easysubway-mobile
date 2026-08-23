@@ -383,7 +383,7 @@ class _FocusRequestHostState extends State<_FocusRequestHost> {
 /// #1933 요구 3: 별도 길찾기 폼 페이지를 없앴다. 노선도 홈에서 결과 화면에 이르는
 /// 정당한 흐름은 "역 탭 팝오버로 출발·도착 지정 → 자동 결과"뿐이다. 이 헬퍼는 기본
 /// 노선도(상록수/사당)에서 그 흐름을 그대로 태워 결과 탭까지 데려간다.
-Future<void> _openRouteSearchScreen(
+Future<void> _openJourneySearchScreen(
   WidgetTester tester, {
   String originStationKey = 'networkMapStation-sangnoksu-seoul-4',
   String destinationStationKey = 'networkMapStation-sadang-seoul-2',
@@ -854,7 +854,7 @@ void main() {
       ),
     );
 
-    await _openRouteSearchScreen(tester);
+    await _openJourneySearchScreen(tester);
 
     expect(find.byType(JourneySearchScreen), findsOneWidget);
     expect(find.byKey(const Key('bundledDataPackStaleBanner')), findsOneWidget);
@@ -909,7 +909,7 @@ void main() {
       ),
     );
 
-    await _openRouteSearchScreen(tester);
+    await _openJourneySearchScreen(tester);
 
     expect(find.byType(JourneySearchScreen), findsOneWidget);
     expect(find.byType(RouteSearchScreen), findsNothing);
@@ -1072,7 +1072,7 @@ void main() {
 
     // #1933 요구 3: 노선도 팝오버로 출발·도착을 정하면 온보딩에서 고른 이동 조건
     // (휠체어)이 자동 검색에 그대로 반영된다.
-    await _openRouteSearchScreen(tester);
+    await _openJourneySearchScreen(tester);
 
     expect(
       tester
@@ -2121,11 +2121,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await _openRouteSearchScreen(tester);
+    await _openJourneySearchScreen(tester);
 
     expect(find.byType(JourneySearchScreen), findsOneWidget);
     expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
     expect(find.byType(BackButton), findsOneWidget);
+    final screen = tester.widget<JourneySearchScreen>(
+      find.byType(JourneySearchScreen),
+    );
+    final backButton = tester.widget<BackButton>(find.byType(BackButton));
+    expect(identical(backButton.onPressed, screen.onShellBackToHome), isTrue);
 
     await tester.tap(find.byType(BackButton));
     await tester.pumpAndSettle();
@@ -2147,7 +2152,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await _openRouteSearchScreen(tester);
+    await _openJourneySearchScreen(tester);
     expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
     expect(
       find.descendant(of: find.byType(AppBar), matching: find.text('경로 찾기')),
@@ -8638,7 +8643,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await _openRouteSearchScreen(tester);
+    await _openJourneySearchScreen(tester);
     expect(find.byType(JourneySearchScreen), findsOneWidget);
 
     await tester.binding.handlePopRoute();
@@ -14858,7 +14863,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // 앱 셸은 재시작 뒤에도 저장된 이동 조건을 Journey V3에 전달한다.
-    await _openRouteSearchScreen(tester);
+    await _openJourneySearchScreen(tester);
 
     expect(
       tester
