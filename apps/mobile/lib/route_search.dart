@@ -2679,6 +2679,78 @@ class RouteSearchWarning {
   String get userMessage => routeWarningLabel(code);
 }
 
+String _routeStepStairAccessStateFromJson(
+  Map<String, Object?> json,
+  bool includesStairs,
+) {
+  final raw = _optionalRouteString(json, 'stairAccessState');
+  if (raw.isEmpty) {
+    return includesStairs ? 'stairOnly' : 'unknown';
+  }
+  return _normalizeRouteStairState(raw);
+}
+
+String _routeStepStairState(RouteSearchStep step) {
+  if (step.includesStairs) {
+    return 'stairOnly';
+  }
+  return _normalizeRouteStairState(step.stairAccessState);
+}
+
+String _normalizeRouteStairState(String value) {
+  return switch (value.trim().toUpperCase()) {
+    'STEP_FREE' || 'STEPFREE' => 'stepFree',
+    'STAIR_ONLY' || 'STAIRONLY' => 'stairOnly',
+    'NOT_APPLICABLE' || 'NOTAPPLICABLE' => 'notApplicable',
+    _ => 'unknown',
+  };
+}
+
+String _routeStairAccessLabel(String stairAccess) {
+  return switch (stairAccess) {
+    'stairOnly' => '계단 포함',
+    'stepFree' => '계단 없는 길이에요',
+    _ => '계단 여부를 확인하고 있어요',
+  };
+}
+
+/// 판정 필드가 없는 응답(레거시 백엔드·기기 내 로컬 경로)에서 쓰는 유일한 폴백 판정.
+///
+/// 판정 규칙이 여러 벌로 갈리지 않도록 두 경로가 이 함수 하나만 쓴다. 격자는 백엔드
+/// `StairAccess`와 같다: 계단 구간이 하나라도 있으면 `stairOnly`, 미확인이 있으면
+/// `unknown`, 계단 개념이 적용되지 않는 구간(`notApplicable`)은 판정에 기여하지
+/// 않는다. 스텝이 전부 `notApplicable`이면 계단 장벽이 놓인 구간이 하나도 없다는
+/// 뜻이라 `stepFree`이고, 스텝이 아예 없으면 판정 근거 자체가 없어 `unknown`이다
+/// (백엔드 `StairAccess.ofItineraryDisplay`도 같은 규칙으로 fail closed다).
+///
+/// **이 폴백은 백엔드 경로 판정의 복원이 아니다.** 경로 판정은 어느 구간에도 매달 수
+/// 없는 경로 단위 경고까지 반영하는데 스텝에는 그 신호가 없다. 판정 필드가 실린
+/// 응답에서 이 함수를 타면 표시가 실제 근거보다 강해질 수 있으므로, 호출은 판정
+/// 필드가 비었을 때로만 제한한다. 레거시 응답에서는 승차 leg의 미확인 원자료가
+/// 폴백을 `unknown`으로 떨어뜨려 그 방향으로는 새지 않는다.
+String _routeStairAccessFromSteps(List<RouteSearchStep> steps) {
+  if (steps.isEmpty) {
+    return 'unknown';
+  }
+  var merged = 'notApplicable';
+  for (final step in steps) {
+    final state = _routeStepStairState(step);
+    if (_routeStairAccessRank(state) > _routeStairAccessRank(merged)) {
+      merged = state;
+    }
+  }
+  return merged == 'notApplicable' ? 'stepFree' : merged;
+}
+
+int _routeStairAccessRank(String stairAccess) {
+  return switch (stairAccess) {
+    'stairOnly' => 3,
+    'unknown' => 2,
+    'stepFree' => 1,
+    _ => 0,
+  };
+}
+
 enum RouteSearchViewStatus { idle, loading, success, failure }
 
 class RouteSearchState {
@@ -6592,78 +6664,6 @@ IconData _routeStairAccessIcon(RouteSearchResult result) {
     '계단 없는 길이에요' => Icons.check,
     '계단 포함' => Icons.stairs_outlined,
     _ => Icons.help_outline,
-  };
-}
-
-String _routeStepStairAccessStateFromJson(
-  Map<String, Object?> json,
-  bool includesStairs,
-) {
-  final raw = _optionalRouteString(json, 'stairAccessState');
-  if (raw.isEmpty) {
-    return includesStairs ? 'stairOnly' : 'unknown';
-  }
-  return _normalizeRouteStairState(raw);
-}
-
-String _routeStepStairState(RouteSearchStep step) {
-  if (step.includesStairs) {
-    return 'stairOnly';
-  }
-  return _normalizeRouteStairState(step.stairAccessState);
-}
-
-String _normalizeRouteStairState(String value) {
-  return switch (value.trim().toUpperCase()) {
-    'STEP_FREE' || 'STEPFREE' => 'stepFree',
-    'STAIR_ONLY' || 'STAIRONLY' => 'stairOnly',
-    'NOT_APPLICABLE' || 'NOTAPPLICABLE' => 'notApplicable',
-    _ => 'unknown',
-  };
-}
-
-String _routeStairAccessLabel(String stairAccess) {
-  return switch (stairAccess) {
-    'stairOnly' => '계단 포함',
-    'stepFree' => '계단 없는 길이에요',
-    _ => '계단 여부를 확인하고 있어요',
-  };
-}
-
-/// 판정 필드가 없는 응답(레거시 백엔드·기기 내 로컬 경로)에서 쓰는 유일한 폴백 판정.
-///
-/// 판정 규칙이 여러 벌로 갈리지 않도록 두 경로가 이 함수 하나만 쓴다. 격자는 백엔드
-/// `StairAccess`와 같다: 계단 구간이 하나라도 있으면 `stairOnly`, 미확인이 있으면
-/// `unknown`, 계단 개념이 적용되지 않는 구간(`notApplicable`)은 판정에 기여하지
-/// 않는다. 스텝이 전부 `notApplicable`이면 계단 장벽이 놓인 구간이 하나도 없다는
-/// 뜻이라 `stepFree`이고, 스텝이 아예 없으면 판정 근거 자체가 없어 `unknown`이다
-/// (백엔드 `StairAccess.ofItineraryDisplay`도 같은 규칙으로 fail closed다).
-///
-/// **이 폴백은 백엔드 경로 판정의 복원이 아니다.** 경로 판정은 어느 구간에도 매달 수
-/// 없는 경로 단위 경고까지 반영하는데 스텝에는 그 신호가 없다. 판정 필드가 실린
-/// 응답에서 이 함수를 타면 표시가 실제 근거보다 강해질 수 있으므로, 호출은 판정
-/// 필드가 비었을 때로만 제한한다. 레거시 응답에서는 승차 leg의 미확인 원자료가
-/// 폴백을 `unknown`으로 떨어뜨려 그 방향으로는 새지 않는다.
-String _routeStairAccessFromSteps(List<RouteSearchStep> steps) {
-  if (steps.isEmpty) {
-    return 'unknown';
-  }
-  var merged = 'notApplicable';
-  for (final step in steps) {
-    final state = _routeStepStairState(step);
-    if (_routeStairAccessRank(state) > _routeStairAccessRank(merged)) {
-      merged = state;
-    }
-  }
-  return merged == 'notApplicable' ? 'stepFree' : merged;
-}
-
-int _routeStairAccessRank(String stairAccess) {
-  return switch (stairAccess) {
-    'stairOnly' => 3,
-    'unknown' => 2,
-    'stepFree' => 1,
-    _ => 0,
   };
 }
 
