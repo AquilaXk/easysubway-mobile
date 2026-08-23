@@ -155,6 +155,30 @@ test("deleted tests require an exact owner disposition while renames remain expl
     /deleted test has no exact disposition/i,
   );
 
+  const deletionPolicy = structuredClone(POLICY);
+  deletionPolicy.deletionDispositions.push({
+    path: "apps/mobile/test/removed_test.dart",
+    classification: "OBSOLETE_DELETE",
+    owner: "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+    reason: "The direct test owner was removed with its consumer-zero production declaration.",
+    reviewTrigger: "Mobile #18 terminal deletion",
+  });
+  const deleted = buildInventory({
+    trackedPaths: trackedFixture("apps/mobile/test/new_test.dart"),
+    changedEntries: [
+      { status: "DELETED", path: "apps/mobile/test/removed_test.dart" },
+    ],
+    changeIdentity: {
+      base: "a".repeat(40),
+      head: "b".repeat(40),
+      event: "pull_request",
+    },
+    policy: deletionPolicy,
+  });
+  assert.deepEqual(deleted.testChanges, [
+    { status: "DELETED", path: "apps/mobile/test/removed_test.dart" },
+  ]);
+
   const renamed = buildInventory({
     trackedPaths: trackedFixture("apps/mobile/test/new_test.dart"),
     changedEntries: [
