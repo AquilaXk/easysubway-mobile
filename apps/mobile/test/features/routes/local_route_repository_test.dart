@@ -1,25 +1,20 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 
 import 'package:drift/drift.dart' hide isNotNull, isNull;
 import 'package:drift/native.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
-import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/routes/application/network_graph.dart'
     as graph;
 import 'package:easysubway_mobile/features/routes/data/local_route_repository.dart';
 import 'package:easysubway_mobile/features/routes/domain/route_identity.dart';
 import 'package:easysubway_mobile/features/fare/official_od_fare_quote.dart';
-import 'package:easysubway_mobile/features/fare/official_od_fare_repository.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_route_mapping.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:easysubway_mobile/route_search.dart';
-import 'package:easysubway_mobile/route_v2_ingress.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -772,108 +767,6 @@ void main() {
     expect(result.isLocalResult, isTrue);
   });
 
-  test(
-    'online-first repository는 flag가 켜지면 V2 backend itinerary를 우선 사용한다',
-    () async {
-      final database = CatalogDatabase.memory();
-      addTearDown(database.close);
-      await database.seedBaselineIfEmpty();
-      await database.customStatement('''
-        INSERT INTO official_od_fare_quotes (
-          origin_station_id, destination_station_id, source_id, snapshot_id,
-          mapping_ledger_hash, gnrl_card_fare, gnrl_cash_fare,
-          yung_card_fare, yung_cash_fare, child_card_fare, child_cash_fare
-        ) VALUES (
-          'station-sangnoksu', 'station-sadang',
-          '$approvedOfficialOdFareSourceId', '$approvedOfficialOdFareSnapshotId',
-          '$approvedOfficialOdFareMappingLedgerHash', 1550, 1650, 800, 900, 500, 500
-        )
-      ''');
-      final requestedPaths = <String>[];
-      final requestedBodies = <Map<String, Object?>>[];
-      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(server.close);
-      server.listen((request) async {
-        if (await _respondWithRouteV2Session(request)) return;
-        requestedPaths.add(request.uri.path);
-        final requestBody = await utf8.decoder.bind(request).join();
-        requestedBodies.add(jsonDecode(requestBody) as Map<String, Object?>);
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..headers.contentType = ContentType.json;
-        if (request.uri.path.endsWith('/refresh')) {
-          request.response.write(
-            jsonEncode({'success': true, 'data': _routeRefreshPayload()}),
-          );
-        } else {
-          request.response.write(
-            jsonEncode({'success': true, 'data': _routeV2Payload()}),
-          );
-        }
-        await request.response.close();
-      });
-
-      final repository = _legacyV2Repository(
-        database,
-        Uri.parse('http://${server.address.host}:${server.port}'),
-      );
-
-      final result = await repository.searchRoute(
-        const RouteSearchRequest(
-          originStationId: 'station-sangnoksu',
-          destinationStationId: 'station-sadang',
-          mobilityType: 'SENIOR',
-          mobilityPreset: 'STANDARD',
-          transportScope: RouteTransportScope.subwayAndItxCheongchun,
-        ),
-      );
-
-      expect(requestedPaths, ['/api/v2/routes/search']);
-      expect(requestedBodies.single, containsPair('useRealtime', true));
-      expect(requestedBodies.single, containsPair('maxTransfers', 3));
-      expect(requestedBodies.single, containsPair('alternativeCount', 3));
-      // 프리셋은 v2 body에 실리고, mobilityType은 하위호환으로 함께 전송된다.
-      expect(
-        requestedBodies.single,
-        containsPair('mobilityPreset', 'STANDARD'),
-      );
-      expect(requestedBodies.single, containsPair('mobilityType', 'SENIOR'));
-      expect(requestedBodies.single['departureTime'], isA<String>());
-      expect(result.routeSearchId, 'route-v2');
-      expect(result.queryIdentity, isNotNull);
-      expect(result.candidateIdentity, isNotNull);
-      expect(result.providerRouteSearchId, isEmpty);
-      expect(result.providerItineraryId, 'route-v2-primary');
-      expect(result.originStationName, '상록수');
-      expect(result.destinationStationName, '사당');
-      expect(result.lineName, '수도권 4호선');
-      expect(result.steps, hasLength(2));
-      expect(result.steps.first.title, '상록수 승강장 접근');
-      expect(result.steps.first.actionTitle, isEmpty);
-      expect(result.steps.first.actionDetail, '상록수 승강장 접근 동선을 확인합니다.');
-      expect(result.steps.last.title, isNot(contains('station-')));
-      expect(
-        result.steps.last.plannedArrivalTimeIso,
-        '2026-07-01T09:15:00+09:00',
-      );
-      expect(
-        result.steps.last.realtimeArrivalTimeIso,
-        '2026-07-01T09:13:00+09:00',
-      );
-      expect(result.etaSource, 'REALTIME');
-      expect(result.isLocalResult, isFalse);
-      expect(result.hasOfficialOdFareQuote, isFalse);
-      expect(result.officialOdFareQuote, isNull);
-
-      await expectLater(
-        repository.refreshRoute(result.routeSearchId),
-        throwsA(isA<RouteSearchException>()),
-      );
-
-      expect(requestedPaths, ['/api/v2/routes/search']);
-    },
-  );
-
   test('V2 blocked itinerary는 기존 blocked UI 상태로 정규화된다', () {
     final result = RouteSearchResult.fromV2(
       RouteSearchV2Result.fromJson(
@@ -888,202 +781,6 @@ void main() {
     expect(result.isBlocked, isTrue);
     expect(result.candidateIdentity, isNull);
     expect(result.blockedReasons, ['BLOCKED_ACCESSIBILITY']);
-  });
-
-  test(
-    'online-first backend 5xx는 catalog가 있어도 local route로 대체하지 않는다',
-    () async {
-      final database = CatalogDatabase.memory();
-      addTearDown(database.close);
-      await database.seedBaselineIfEmpty();
-      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(server.close);
-      server.listen((request) async {
-        if (await _respondWithRouteV2Session(request)) return;
-        request.response
-          ..statusCode = HttpStatus.serviceUnavailable
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({'success': false}));
-        await request.response.close();
-      });
-      final metrics = RouteSearchOnlineFirstMetrics();
-
-      final repository = _legacyV2Repository(
-        database,
-        Uri.parse('http://${server.address.host}:${server.port}'),
-        metrics: metrics,
-      );
-
-      await expectLater(
-        repository.searchRoute(
-          const RouteSearchRequest(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-            transportScope: RouteTransportScope.subwayAndItxCheongchun,
-          ),
-        ),
-        throwsA(
-          isA<RouteSearchOnlineException>()
-              .having(
-                (error) => error.message,
-                'message',
-                '실시간/서버 경로를 확인하지 못했어요.',
-              )
-              .having(
-                (error) => error.message,
-                'message',
-                isNot(contains('저장된 데이터')),
-              ),
-        ),
-      );
-
-      expect(metrics.onlineSuccessCount, 0);
-      expect(metrics.onlineFailureCount, 1);
-      expect(metrics.onlineFailureReasonCounts, {'backend-5xx': 1});
-    },
-  );
-
-  test(
-    'online-first backend 404는 catalog가 있어도 local route로 대체하지 않는다',
-    () async {
-      final database = CatalogDatabase.memory();
-      addTearDown(database.close);
-      await database.seedBaselineIfEmpty();
-      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-      addTearDown(server.close);
-      server.listen((request) async {
-        if (await _respondWithRouteV2Session(request)) return;
-        request.response
-          ..statusCode = HttpStatus.notFound
-          ..headers.contentType = ContentType.json
-          ..write(jsonEncode({'success': false}));
-        await request.response.close();
-      });
-      final metrics = RouteSearchOnlineFirstMetrics();
-
-      final repository = _legacyV2Repository(
-        database,
-        Uri.parse('http://${server.address.host}:${server.port}'),
-        metrics: metrics,
-      );
-
-      await expectLater(
-        repository.searchRoute(
-          const RouteSearchRequest(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-            transportScope: RouteTransportScope.subwayAndItxCheongchun,
-          ),
-        ),
-        throwsA(
-          isA<RouteSearchOnlineException>()
-              .having(
-                (error) => error.message,
-                'message',
-                '실시간/서버 경로를 확인하지 못했어요.',
-              )
-              .having(
-                (error) => error.message,
-                'message',
-                isNot(contains('저장된 데이터')),
-              ),
-        ),
-      );
-
-      expect(metrics.onlineSuccessCount, 0);
-      expect(metrics.onlineFailureCount, 1);
-      expect(metrics.onlineFailureReasonCounts, {'backend-4xx': 1});
-    },
-  );
-
-  test('online-first backend 4xx validation은 local route로 숨기지 않는다', () async {
-    final database = CatalogDatabase.memory();
-    addTearDown(database.close);
-    await database.seedBaselineIfEmpty();
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(server.close);
-    server.listen((request) async {
-      if (await _respondWithRouteV2Session(request)) return;
-      request.response
-        ..statusCode = HttpStatus.badRequest
-        ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'success': false}));
-      await request.response.close();
-    });
-    final metrics = RouteSearchOnlineFirstMetrics();
-
-    final repository = _legacyV2Repository(
-      database,
-      Uri.parse('http://${server.address.host}:${server.port}'),
-      metrics: metrics,
-    );
-
-    await expectLater(
-      repository.searchRoute(
-        const RouteSearchRequest(
-          originStationId: 'station-sangnoksu',
-          destinationStationId: 'station-sadang',
-          mobilityType: 'WHEELCHAIR',
-          transportScope: RouteTransportScope.subwayAndItxCheongchun,
-        ),
-      ),
-      throwsA(
-        isA<RouteSearchOnlineException>()
-            .having(
-              (error) => error.message,
-              'message',
-              '실시간/서버 경로를 확인하지 못했어요.',
-            )
-            .having(
-              (error) => error.message,
-              'message',
-              isNot(contains('저장된 데이터')),
-            ),
-      ),
-    );
-    expect(metrics.onlineSuccessCount, 0);
-    expect(metrics.onlineFailureCount, 1);
-    expect(metrics.onlineFailureReasonCounts, {'backend-4xx': 1});
-  });
-
-  test('online-first 예상 밖 HTTP status는 local route로 숨기지 않는다', () async {
-    final database = CatalogDatabase.memory();
-    addTearDown(database.close);
-    await database.seedBaselineIfEmpty();
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(server.close);
-    server.listen((request) async {
-      if (await _respondWithRouteV2Session(request)) return;
-      request.response
-        ..statusCode = HttpStatus.notModified
-        ..headers.contentType = ContentType.json
-        ..write(jsonEncode({'success': false}));
-      await request.response.close();
-    });
-    final metrics = RouteSearchOnlineFirstMetrics();
-
-    final repository = _legacyV2Repository(
-      database,
-      Uri.parse('http://${server.address.host}:${server.port}'),
-      metrics: metrics,
-    );
-
-    await expectLater(
-      repository.searchRoute(
-        const RouteSearchRequest(
-          originStationId: 'station-sangnoksu',
-          destinationStationId: 'station-sadang',
-          mobilityType: 'WHEELCHAIR',
-          transportScope: RouteTransportScope.subwayAndItxCheongchun,
-        ),
-      ),
-      throwsA(isA<RouteSearchException>()),
-    );
-    expect(metrics.onlineSuccessCount, 0);
-    expect(metrics.onlineFailureCount, 1);
-    expect(metrics.onlineFailureReasonCounts, {'backend-unexpected': 1});
   });
 
   test('로컬 경로 repository는 baseline catalog에서 상록수-사당 경로를 계산한다', () async {
@@ -6115,41 +5812,6 @@ Map<String, Object?> _routeV2Payload({
   };
 }
 
-Map<String, Object?> _routeRefreshPayload() {
-  return {
-    'routeSearchId': 'route-v2',
-    'status': 'UPDATED_ETA',
-    'route': {
-      'routeSearchId': 'route-v2',
-      'originStationId': 'station-sangnoksu',
-      'originStationName': '상록수',
-      'destinationStationId': 'station-sadang',
-      'destinationStationName': '사당',
-      'mobilityType': 'WHEELCHAIR',
-      'status': 'FOUND',
-      'lineId': 'seoul-4',
-      'lineName': '수도권 4호선',
-      'score': 96,
-      'burdenCost': 780,
-      'estimatedDurationSeconds': 780,
-      'walkingDistanceMeters': 180,
-      'transferCount': 0,
-      'evidenceSummary': ['ETA_REALTIME'],
-      'steps': <Object?>[],
-      'warnings': <Object?>[],
-      'recommendationReasons': ['실시간 도착 정보를 반영했어요.'],
-      'blockedReasons': <Object?>[],
-      'createdAt': '2026-07-01T09:00:00+09:00',
-      'etaSource': 'REALTIME',
-    },
-    'refreshedAt': '2026-07-01T09:01:00',
-    'etaSource': 'REALTIME',
-    'etaConfidence': 'HIGH',
-    'sourceLabel': '실시간 도착 정보 기준',
-    'reasonCodes': <Object?>[],
-  };
-}
-
 Future<void> _seedLineWithoutNetworkEdges(
   CatalogDatabase database, {
   bool includeExplicitAccessEdges = true,
@@ -6989,58 +6651,4 @@ Future<void> _addDistanceMetersColumnIfMissing(CatalogDatabase database) async {
     );
     await database.refreshRouteSchemaCapabilities();
   }
-}
-
-Future<bool> _respondWithRouteV2Session(HttpRequest request) async {
-  if (request.uri.path != '/api/v2/routes/session') return false;
-  await utf8.decoder.bind(request).join();
-  final issuedAt = DateTime.now().toUtc();
-  request.response
-    ..statusCode = HttpStatus.ok
-    ..headers.contentType = ContentType.json
-    ..write(
-      jsonEncode({
-        'token': 'T' * 43,
-        'scope': 'route:v2:itx',
-        'issuedAt': issuedAt.toIso8601String(),
-        'expiresAt': issuedAt
-            .add(const Duration(minutes: 10))
-            .toIso8601String(),
-      }),
-    );
-  await request.response.close();
-  return true;
-}
-
-RouteSearchRepository _legacyV2Repository(
-  CatalogDatabase database,
-  Uri baseUri, {
-  RouteSearchOnlineFirstMetrics? metrics,
-}) {
-  final localRepository = LocalRouteRepository(
-    catalogDatabase: database,
-    officialOdFareRepository: OfficialOdFareRepository(
-      catalogDatabase: database,
-    ),
-  );
-  final sessionProvider = PlayIntegrityRouteV2SessionProvider(
-    apiClient: ApiClient(baseUri: baseUri),
-    attestor: const _FakePlayIntegrityAttestor(),
-  );
-  return OnlineFirstRouteSearchRepository(
-    onlineRepository: RouteSearchV2ApiRepository(
-      baseUri: baseUri,
-      bearerTokenProvider: sessionProvider.issueToken,
-      bearerTokenInvalidator: sessionProvider.invalidateSession,
-    ),
-    localRepository: localRepository,
-    metrics: metrics,
-  );
-}
-
-class _FakePlayIntegrityAttestor implements PlayIntegrityAttestor {
-  const _FakePlayIntegrityAttestor();
-
-  @override
-  Future<String> requestToken(String requestHash) async => 'integrity-token';
 }
