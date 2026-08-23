@@ -15,7 +15,6 @@ import 'route_hedge_labels.dart';
 
 const _routeSearchTimeout = Duration(seconds: 8);
 const _routeOnlineSearchErrorMessage = '실시간/서버 경로를 확인하지 못했어요.';
-const _routeRefreshErrorMessage = '도착 시간을 새로 확인하지 못했어요.';
 const _routeFeedbackErrorMessage = '의견을 보내지 못했어요.';
 const _favoriteRouteErrorMessage = '즐겨찾기 경로를 바꾸지 못했어요.';
 const _favoriteRouteLoadErrorMessage = '즐겨찾기 경로를 불러오지 못했어요.';
@@ -146,80 +145,6 @@ class RouteFeedbackRequest {
       });
     }
     return payload;
-  }
-}
-
-class RouteSearchV2ApiRepository implements RouteSearchRepository {
-  RouteSearchV2ApiRepository({
-    required this.baseUri,
-    ApiClient? apiClient,
-    HttpClient? httpClient,
-    this.bearerTokenProvider,
-    this.bearerTokenInvalidator,
-  }) : _apiClient =
-           apiClient ?? ApiClient(baseUri: baseUri, httpClient: httpClient);
-
-  final Uri baseUri;
-  final ApiClient _apiClient;
-  final Future<String> Function()? bearerTokenProvider;
-  final void Function()? bearerTokenInvalidator;
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest routeRequest) async {
-    try {
-      final bearerToken = await bearerTokenProvider?.call();
-      final response = await _apiClient.postJson(
-        '/api/v2/routes/search',
-        body: routeRequest.toV2Json(),
-        headers: {
-          if (bearerToken != null)
-            HttpHeaders.authorizationHeader: 'Bearer $bearerToken',
-        },
-      );
-      if (!response.isSuccess) {
-        if (response.statusCode == HttpStatus.unauthorized) {
-          bearerTokenInvalidator?.call();
-        }
-        throw RouteSearchOnlineException.response(response);
-      }
-      final decoded = response.jsonBody;
-      if (decoded is! Map<String, Object?> || decoded['success'] != true) {
-        throw const RouteSearchOnlineException.unavailable();
-      }
-      final data = decoded['data'];
-      if (data is! Map<String, Object?>) {
-        throw const RouteSearchOnlineException.unavailable();
-      }
-      return RouteSearchResult.fromV2(
-        RouteSearchV2Result.fromJson(data),
-        objective: routeRequest.objective,
-        queryIdentity: routeRequest.queryIdentity,
-      );
-    } on RouteSearchOnlineException {
-      rethrow;
-    } on ApiException catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '경로 V2 API 요청 처리 중 예외가 발생했습니다.',
-      );
-      throw const RouteSearchOnlineException.unavailable(
-        failureReason: 'network-unavailable',
-      );
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '경로 V2 API 응답 처리 중 예외가 발생했습니다.',
-      );
-      throw const RouteSearchOnlineException.unavailable();
-    }
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    // #2153 production ingress는 session/search 두 경로만 열고 legacy refresh는 계속 닫는다.
-    return Future.error(const RouteSearchException(_routeRefreshErrorMessage));
   }
 }
 
