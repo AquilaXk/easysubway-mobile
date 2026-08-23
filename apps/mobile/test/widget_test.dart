@@ -856,7 +856,7 @@ void main() {
 
     await _openRouteSearchScreen(tester);
 
-    expect(find.byType(RouteSearchScreen), findsOneWidget);
+    expect(find.byType(JourneySearchScreen), findsOneWidget);
     expect(find.byKey(const Key('bundledDataPackStaleBanner')), findsOneWidget);
   });
 
@@ -1058,8 +1058,6 @@ void main() {
         '사당': [_stationResult(id: 'station-sadang', name: '사당')],
       },
     );
-    final routeRepository = FakeRouteSearchRepository();
-
     await tester.pumpWidget(
       buildEasySubwayTestApp(
         repository: stationRepository,
@@ -1076,7 +1074,12 @@ void main() {
     // (휠체어)이 자동 검색에 그대로 반영된다.
     await _openRouteSearchScreen(tester);
 
-    expect(routeRepository.requests.single.mobilityType, 'WHEELCHAIR');
+    expect(
+      tester
+          .widget<JourneySearchScreen>(find.byType(JourneySearchScreen))
+          .mobilityType,
+      'WHEELCHAIR',
+    );
   });
 
   testWidgets('온보딩 기본 시작 저장 실패는 안내 화면에 머문다', (tester) async {
@@ -2031,7 +2034,7 @@ void main() {
     expect(find.byType(RouteMapBasemapView), findsOneWidget);
   });
 
-  testWidgets('홈 shell 경로 상세 뒤로가기는 결과 목록으로 돌아간다', (tester) async {
+  testWidgets('경로 상세 뒤로가기는 결과 목록으로 돌아간다', (tester) async {
     final stationRepository = FakeStationSearchRepository(
       queryResults: {
         '상록수': [_stationResult(id: 'station-sangnoksu', name: '상록수')],
@@ -2040,20 +2043,27 @@ void main() {
     );
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        favoriteRepository: FakeFavoriteStationRepository(),
-        favoriteRouteRepository: FakeFavoriteRouteRepository(),
-        notificationRepository: FakeNotificationSettingsRepository(),
-        initialOnboardingState: _completedOnboardingState(),
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: FakeRouteSearchRepository(),
+          stationRepository: stationRepository,
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 8, 23),
+          ),
+        ),
       ),
     );
     await tester.pumpAndSettle();
 
-    // #1933 요구 3: 노선도 역 탭(팝오버 출발/도착)으로 출발·도착을 정하면 자동으로
-    // 결과 타임라인 화면에 도달한다(별도 폼·제출 버튼 없음).
-    await _openRouteSearchScreen(tester);
+    await tester.pumpAndSettle();
     await _openFirstRouteResultDetail(tester);
     expect(find.text('이동 순서'), findsOneWidget);
 
@@ -2063,7 +2073,6 @@ void main() {
     expect(find.byKey(const Key('routeResultListItem')), findsOneWidget);
     // #1933 D: 결과 목록은 이동 순서 타임라인을 인라인으로 유지한다.
     expect(find.text('이동 순서'), findsOneWidget);
-    expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
   });
 
   testWidgets('홈 shell 즐겨찾기 경로 다시 찾기는 저장된 이동 조건을 유지한다', (tester) async {
@@ -8630,10 +8639,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await _openRouteSearchScreen(tester);
-    expect(
-      find.descendant(of: find.byType(AppBar), matching: find.text('길찾기')),
-      findsOneWidget,
-    );
+    expect(find.byType(JourneySearchScreen), findsOneWidget);
 
     await tester.binding.handlePopRoute();
     await tester.pumpAndSettle();
@@ -14819,7 +14825,6 @@ void main() {
         '사당': [_stationResult(id: 'station-sadang', name: '사당')],
       },
     );
-    final routeRepository = FakeRouteSearchRepository();
     final onboardingStore = MemoryOnboardingResultStore(
       initialResult: _completedOnboardingState().result,
     );
@@ -14852,11 +14857,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // #1933 요구 3: 노선도 팝오버로 출발·도착을 정하면 현재 이동 프로필(휠체어)로
-    // 자동 검색이 돌아 결과가 온다. 폼·제출 버튼 경로는 제거됐다.
+    // 앱 셸은 재시작 뒤에도 저장된 이동 조건을 Journey V3에 전달한다.
     await _openRouteSearchScreen(tester);
 
-    expect(routeRepository.requests.single.mobilityType, 'WHEELCHAIR');
+    expect(
+      tester
+          .widget<JourneySearchScreen>(find.byType(JourneySearchScreen))
+          .mobilityType,
+      'WHEELCHAIR',
+    );
   });
 
   testWidgets('경로 검색 화면은 쉬운 경로 결과와 경고를 보여준다', (tester) async {
@@ -14871,17 +14880,26 @@ void main() {
 
     try {
       await tester.pumpWidget(
-        buildEasySubwayTestApp(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          favoriteRepository: FakeFavoriteStationRepository(),
-          initialOnboardingState: _completedOnboardingState(),
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: routeRepository,
+            stationRepository: stationRepository,
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 23),
+            ),
+          ),
         ),
       );
-
-      // #1933 요구 3: 노선도 팝오버로 출발·도착을 정하면 자동 검색이 돌아 결과-우선
-      // 화면에 도달한다(폼·제출 버튼 없음).
-      await _openRouteSearchScreen(tester);
+      await tester.pumpAndSettle();
 
       expect(
         find.descendant(of: find.byType(AppBar), matching: find.text('길찾기')),
@@ -15656,15 +15674,22 @@ void main() {
     final routeRepository = FakeRouteSearchRepository();
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        favoriteRepository: FakeFavoriteStationRepository(),
-        initialOnboardingState: _completedOnboardingStateWithPreferences(
-          preferences: const OnboardingViewPreferences(
-            largeTextEnabled: false,
-            highContrastEnabled: false,
-            simpleViewEnabled: false,
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: routeRepository,
+          stationRepository: stationRepository,
+          simpleViewEnabled: false,
+          initialMobilityType: 'SENIOR',
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 8, 23),
           ),
         ),
       ),
@@ -15673,7 +15698,7 @@ void main() {
     // #1933 요구 3: 별도 폼(이동 조건 드롭다운)을 없앴다. 노선도 팝오버로 출발·도착을
     // 정해 결과에 도달한 뒤, 결과-우선 화면의 조용한 프리셋 칩으로 프리셋을 바꾸면
     // 그 자리에서 바로 재검색한다.
-    await _openRouteSearchScreen(tester);
+    await tester.pumpAndSettle();
 
     expect(find.byType(DropdownButton<String>), findsNothing);
     expect(find.byKey(const Key('routeConditionMobilityChip')), findsOneWidget);
@@ -15696,17 +15721,29 @@ void main() {
     final routeRepository = FakeRouteSearchRepository();
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        favoriteRepository: FakeFavoriteStationRepository(),
-        initialOnboardingState: _completedOnboardingState(),
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: routeRepository,
+          stationRepository: stationRepository,
+          initialMobilityType: 'SENIOR',
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 8, 23),
+          ),
+        ),
       ),
     );
 
     // #1933 요구 3: 노선도 팝오버로 출발·도착을 정해 결과에 도달한 뒤, 결과-우선
     // 화면의 프리셋 칩(→ 프리셋 시트)으로 프리셋을 바꾼다. 폼·제출 버튼은 없다.
-    await _openRouteSearchScreen(tester);
+    await tester.pumpAndSettle();
 
     expect(find.byType(DropdownButton<String>), findsNothing);
     expect(find.byKey(const Key('routeConditionMobilityChip')), findsOneWidget);
@@ -15732,17 +15769,29 @@ void main() {
 
     try {
       await tester.pumpWidget(
-        buildEasySubwayTestApp(
-          repository: FakeStationSearchRepository(),
-          reportRepository: FakeFacilityReportRepository(),
-          favoriteRepository: FakeFavoriteStationRepository(),
-          initialOnboardingState: _completedOnboardingState(),
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: FakeRouteSearchRepository(),
+            stationRepository: FakeStationSearchRepository(),
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 23),
+            ),
+          ),
         ),
       );
 
       // #1933 요구 3: 폼의 이동 조건 요약 대신, 결과-우선 화면의 조용한 프리셋 칩이
       // 스크린리더에서 "경로 시간 기준, <표시명>" 버튼으로 남는다.
-      await _openRouteSearchScreen(tester);
+      await tester.pumpAndSettle();
 
       expect(
         tester.getSemantics(find.bySemanticsLabel('경로 시간 기준, 천천히')),
@@ -15763,18 +15812,27 @@ void main() {
     final favoriteRouteRepository = FakeFavoriteRouteRepository();
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        favoriteRepository: FakeFavoriteStationRepository(),
-        favoriteRouteRepository: favoriteRouteRepository,
-        initialOnboardingState: _completedOnboardingState(),
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: FakeRouteSearchRepository(),
+          stationRepository: stationRepository,
+          favoriteRouteRepository: favoriteRouteRepository,
+          initialMobilityType: 'SENIOR',
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 8, 23),
+          ),
+        ),
       ),
     );
-
-    await _openRouteSearchScreen(tester);
-    // #1933 요구 3: 출발·도착은 노선도 팝오버로 이미 정해졌고 자동 검색이 결과를
-    // 만들었다(폼·제출 버튼 없음).
+    await tester.pumpAndSettle();
 
     await _openFirstRouteResultDetail(tester);
 
@@ -16008,18 +16066,27 @@ void main() {
 
     try {
       await tester.pumpWidget(
-        buildEasySubwayTestApp(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          favoriteRepository: FakeFavoriteStationRepository(),
-          favoriteRouteRepository: favoriteRouteRepository,
-          initialOnboardingState: _completedOnboardingState(),
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: FakeRouteSearchRepository(),
+            stationRepository: stationRepository,
+            favoriteRouteRepository: favoriteRouteRepository,
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 23),
+            ),
+          ),
         ),
       );
-
-      await _openRouteSearchScreen(tester);
-      // #1933 요구 3: 출발·도착은 노선도 팝오버로 이미 정해졌고 자동 검색이 결과를
-      // 만들었다(폼·제출 버튼 없음).
+      await tester.pumpAndSettle();
 
       await _openFirstRouteResultDetail(tester);
 
@@ -16065,18 +16132,27 @@ void main() {
     final routeFeedbackRepository = FakeRouteFeedbackRepository();
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        routeFeedbackRepository: routeFeedbackRepository,
-        favoriteRepository: FakeFavoriteStationRepository(),
-        initialOnboardingState: _completedOnboardingState(),
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: FakeRouteSearchRepository(),
+          stationRepository: stationRepository,
+          routeFeedbackRepository: routeFeedbackRepository,
+          initialMobilityType: 'SENIOR',
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 8, 23),
+          ),
+        ),
       ),
     );
-
-    await _openRouteSearchScreen(tester);
-    // #1933 요구 3: 출발·도착은 노선도 팝오버로 이미 정해졌고 자동 검색이 결과를
-    // 만들었다(폼·제출 버튼 없음).
+    await tester.pumpAndSettle();
 
     await _openFirstRouteResultDetail(tester);
     await tester.ensureVisible(
@@ -18555,18 +18631,27 @@ void main() {
     );
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        routeFeedbackRepository: FakeRouteFeedbackRepository(),
-        favoriteRepository: FakeFavoriteStationRepository(),
-        initialOnboardingState: _completedOnboardingState(),
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: FakeRouteSearchRepository(),
+          stationRepository: stationRepository,
+          routeFeedbackRepository: FakeRouteFeedbackRepository(),
+          initialMobilityType: 'SENIOR',
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 8, 23),
+          ),
+        ),
       ),
     );
-
-    await _openRouteSearchScreen(tester);
-    // #1933 요구 3: 출발·도착은 노선도 팝오버로 이미 정해졌고 자동 검색이 결과를
-    // 만들었다(폼·제출 버튼 없음).
+    await tester.pumpAndSettle();
 
     await _openFirstRouteResultDetail(tester);
     await tester.ensureVisible(
@@ -18598,18 +18683,27 @@ void main() {
 
     try {
       await tester.pumpWidget(
-        buildEasySubwayTestApp(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          routeFeedbackRepository: routeFeedbackRepository,
-          favoriteRepository: FakeFavoriteStationRepository(),
-          initialOnboardingState: _completedOnboardingState(),
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: FakeRouteSearchRepository(),
+            stationRepository: stationRepository,
+            routeFeedbackRepository: routeFeedbackRepository,
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 23),
+            ),
+          ),
         ),
       );
-
-      await _openRouteSearchScreen(tester);
-      // #1933 요구 3: 출발·도착은 노선도 팝오버로 이미 정해졌고 자동 검색이 결과를
-      // 만들었다(폼·제출 버튼 없음).
+      await tester.pumpAndSettle();
 
       await _openFirstRouteResultDetail(tester);
       await tester.ensureVisible(
@@ -18730,17 +18824,26 @@ void main() {
 
     try {
       await tester.pumpWidget(
-        buildEasySubwayTestApp(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          favoriteRepository: FakeFavoriteStationRepository(),
-          initialOnboardingState: _completedOnboardingState(),
+        MaterialApp(
+          home: RouteSearchScreen(
+            repository: routeRepository,
+            stationRepository: stationRepository,
+            initialMobilityType: 'SENIOR',
+            initialDraft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-sangnoksu',
+                nameKo: '상록수',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-sadang',
+                nameKo: '사당',
+              ),
+              lastModifiedAt: DateTime(2026, 8, 23),
+            ),
+          ),
         ),
       );
-
-      await _openRouteSearchScreen(tester);
-      // #1933 요구 3: 출발·도착은 노선도 팝오버로 이미 정해졌고 자동 검색이 결과를
-      // 만들었다(폼·제출 버튼 없음).
+      await tester.pumpAndSettle();
 
       expect(routeRepository.requests, hasLength(1));
       expect(find.text('경로 정보를 불러오지 못했어요.'), findsOneWidget);
@@ -18785,16 +18888,28 @@ void main() {
     final routeRepository = FakeRouteSearchRepository();
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        favoriteRepository: FakeFavoriteStationRepository(),
-        initialOnboardingState: _completedOnboardingState(),
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: routeRepository,
+          stationRepository: stationRepository,
+          initialMobilityType: 'SENIOR',
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 8, 23),
+          ),
+        ),
       ),
     );
 
     // #1933 요구 3: 노선도 팝오버로 출발·도착을 정하면 자동 검색이 결과를 만든다.
-    await _openRouteSearchScreen(tester);
+    await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('routeResultListItem')), findsOneWidget);
 
