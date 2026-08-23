@@ -497,7 +497,6 @@
       "deletionKo": "서버의 세션·nonce 해시는 논리 만료 뒤 5분 이내 물리 삭제하며 backend 데이터는 사용자·기기·계정 식별자와 연결하지 않음",
       "deletionImplementation": "RouteV2AccessStore.purgeExpired가 논리 만료된 nonce replay와 세션 레코드를 RouteV2StatePurgeScheduler의 기본 5분 주기마다 삭제한다.",
       "evidence": [
-        "apps/mobile/lib/route_v2_ingress.dart",
         "apps/mobile/android/app/src/main/kotlin/com/easysubway/easysubway_mobile/MainActivity.kt",
         "backend/src/main/java/com/easysubway/route/application/service/RouteV2SessionService.java",
         "backend/src/main/java/com/easysubway/route/adapter/out/integrity/GooglePlayIntegrityDecoder.java",

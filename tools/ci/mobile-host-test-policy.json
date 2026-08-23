@@ -27,5 +27,13 @@
       "reviewTrigger": "Mobile #23 terminal golden execution lane"
     }
   ],
-  "deletionDispositions": []
+  "deletionDispositions": [
+    {
+      "path": "apps/mobile/test/route_v2_method_channel_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Route V2 session/attestation ingress has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 Route V2 ingress terminal deletion"
+    }
+  ]
 }

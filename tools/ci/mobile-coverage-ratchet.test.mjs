@@ -91,6 +91,7 @@ test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey 
   for (const boundary of [
     "JOURNEY_ROUTE_INGRESS",
     "JOURNEY_REPOSITORY_DI_STATE_IDENTITY",
+    "CONTRACT_ARTIFACT_IDENTITY",
   ]) {
     assert.ok(policy.criticalBoundaryRules[boundary].includes("features/journey/"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_search.dart"));
