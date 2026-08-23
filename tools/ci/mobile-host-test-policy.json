@@ -41,6 +41,41 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
       "reason": "Route V2 API repository has no production consumer and was physically removed.",
       "reviewTrigger": "Mobile #18 Route V2 API repository terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/local_route_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_engine_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_result_merge_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/canonical_station_pack_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/integration_test/route_search_snapshot_cache_benchmark_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
     }
   ]
 }

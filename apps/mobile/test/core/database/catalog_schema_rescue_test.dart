@@ -8,8 +8,6 @@ import 'package:easysubway_mobile/core/database/catalog/catalog_database_opener.
 import 'package:easysubway_mobile/core/database/catalog/catalog_schema_diagnostics.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_installer.dart';
-import 'package:easysubway_mobile/features/routes/data/local_route_repository.dart';
-import 'package:easysubway_mobile/route_search.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
@@ -359,39 +357,6 @@ void main() {
       'station_facility_evidence': 5,
       'facility_status_snapshots': 1,
     });
-  });
-
-  test('결측 테이블 가드가 걸리면 경로 조회가 진단 신호를 남긴다', () async {
-    final logged = <String>[];
-    CatalogSchemaDiagnostics.replaceForTest(logged.add);
-    addTearDown(CatalogSchemaDiagnostics.reset);
-    final directory = await _temporaryDirectory('rescue-diagnostics-');
-    final pack = File('${directory.path}/capital.sqlite');
-    await _buildInstalledPack(pack, activePack: 'capital');
-    _dropTables(pack, [
-      'station_facility_evidence',
-      'facility_status_snapshots',
-    ]);
-
-    final database = CatalogDatabase.file(pack);
-    addTearDown(database.close);
-    final route = await LocalRouteRepository(catalogDatabase: database)
-        .searchRoute(
-          const RouteSearchRequest(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-          ),
-        );
-    final counts = CatalogSchemaDiagnostics.instance.missingTableReadCounts;
-
-    expect(route.steps, isNotEmpty);
-    expect(counts['station_facility_evidence'], greaterThanOrEqualTo(1));
-    expect(counts['facility_status_snapshots'], greaterThanOrEqualTo(1));
-    expect(
-      logged.where((line) => line.contains('station_facility_evidence')),
-      hasLength(1),
-    );
   });
 
   test('구제 DDL이 팩 파일을 바꾸면 무결성 기준선을 함께 갱신한다', () async {
