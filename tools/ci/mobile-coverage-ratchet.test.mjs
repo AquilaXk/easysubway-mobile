@@ -87,6 +87,12 @@ test("Network Map root 삭제는 accessibility critical boundary를 app owner에
 
 test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey owner로 교체한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
+  const removedLocalRouteStackPaths = [
+    "features/routes/application/accessibility_cost_calculator.dart",
+    "features/routes/application/network_graph.dart",
+    "features/routes/application/route_engine.dart",
+    "features/routes/data/local_route_repository.dart",
+  ];
 
   for (const boundary of [
     "JOURNEY_ROUTE_INGRESS",
@@ -96,6 +102,12 @@ test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey 
     assert.ok(policy.criticalBoundaryRules[boundary].includes("features/journey/"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_search.dart"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_v2_ingress.dart"));
+    for (const removedPath of removedLocalRouteStackPaths) {
+      assert.ok(
+        !policy.criticalBoundaryRules[boundary].includes(removedPath),
+        `${boundary} must not retain the deleted local route stack path ${removedPath}`,
+      );
+    }
   }
 });
 
