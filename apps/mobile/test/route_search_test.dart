@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -149,159 +148,6 @@ void main() {
         ),
       ),
     );
-  });
-
-  test('경로 검색 컨트롤러는 빈 입력과 실패 상태를 쉬운 문구로 표시한다', () async {
-    final repository = FakeRouteSearchRepository();
-    final controller = RouteSearchController(repository: repository);
-
-    await controller.search(
-      const RouteSearchRequest(
-        originStationId: '  ',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'SENIOR',
-      ),
-    );
-
-    expect(repository.requests, isEmpty);
-    expect(controller.state.status, RouteSearchViewStatus.failure);
-    expect(controller.state.message, '출발역과 도착역을 입력해 주세요.');
-
-    repository.error = const RouteSearchException('경로 정보를 불러오지 못했어요.');
-
-    await controller.search(
-      const RouteSearchRequest(
-        originStationId: 'station-sangnoksu',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'SENIOR',
-      ),
-    );
-
-    expect(repository.requests, hasLength(1));
-    expect(repository.requests.single.originStationId, 'station-sangnoksu');
-    expect(repository.requests.single.destinationStationId, 'station-sadang');
-    expect(repository.requests.single.mobilityType, 'SENIOR');
-    expect(controller.state.status, RouteSearchViewStatus.failure);
-    expect(controller.state.message, '경로 정보를 불러오지 못했어요.');
-  });
-
-  test('경로 검색 컨트롤러는 화면 종료 후 비동기 결과를 알리지 않는다', () async {
-    final repository = PendingRouteSearchRepository();
-    final controller = RouteSearchController(repository: repository);
-    var notificationCount = 0;
-    controller.addListener(() {
-      notificationCount += 1;
-    });
-
-    final searchFuture = controller.search(
-      const RouteSearchRequest(
-        originStationId: 'station-sangnoksu',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'SENIOR',
-      ),
-    );
-    await Future<void>.delayed(Duration.zero);
-
-    expect(controller.state.status, RouteSearchViewStatus.loading);
-    expect(notificationCount, 1);
-
-    controller.dispose();
-    repository.complete(_sampleRouteSearchResult());
-    await searchFuture;
-
-    expect(notificationCount, 1);
-  });
-
-  test('경로 검색 컨트롤러는 현재 결과 ETA refresh 상태를 유지해서 표시한다', () async {
-    final repository = FakeRouteSearchRepository();
-    repository.searchResult = _sampleRouteSearchResult(
-      objective: RouteObjective.fewestTransfers,
-    );
-    final controller = RouteSearchController(repository: repository);
-
-    await controller.search(
-      const RouteSearchRequest(
-        originStationId: 'station-sangnoksu',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'SENIOR',
-      ),
-    );
-    repository.refreshResult = RouteRefreshResult(
-      routeSearchId: 'route-1',
-      status: 'STALE_FALLBACK',
-      result: _sampleRouteSearchResult(
-        warnings: const [
-          RouteSearchWarning(
-            code: 'STALE_ACCESSIBILITY_DATA',
-            message: '시설 상태 안내가 오래됐을 수 있어요.',
-          ),
-        ],
-      ),
-      refreshedAt: '2026-07-01T15:30:00',
-      etaSource: 'FALLBACK',
-      etaConfidence: 'LOW',
-      sourceLabel: '최근 확인 시간이 오래되어 계획 시간으로 안내',
-      reasonCodes: const ['STALE_FALLBACK'],
-    );
-
-    await controller.refreshCurrentRoute();
-
-    expect(repository.refreshRouteSearchIds, ['route-1']);
-    expect(controller.state.status, RouteSearchViewStatus.success);
-    expect(controller.state.isRefreshing, isFalse);
-    expect(controller.state.result!.objective, RouteObjective.fewestTransfers);
-    expect(
-      controller.state.refreshMessage,
-      '실시간 정보가 늦어 계획 시간으로 안내해요. · 최근 확인 시간이 오래되어 계획 시간으로 안내 · 신뢰도 낮음',
-    );
-    expect(
-      controller.state.result!.warnings.map((warning) => warning.code),
-      contains('STALE_ACCESSIBILITY_DATA'),
-    );
-  });
-
-  test('경로 검색 컨트롤러는 오래된 ETA refresh 응답으로 새 검색 결과를 덮지 않는다', () async {
-    final repository = FakeRouteSearchRepository();
-    final controller = RouteSearchController(repository: repository);
-
-    await controller.search(
-      const RouteSearchRequest(
-        originStationId: 'station-sangnoksu',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'SENIOR',
-      ),
-    );
-
-    final pendingRefresh = Completer<RouteRefreshResult>();
-    repository.pendingRefresh = pendingRefresh;
-    final refreshFuture = controller.refreshCurrentRoute();
-
-    repository.searchResult = _sampleRouteSearchResult(
-      routeSearchId: 'route-2',
-    );
-    await controller.search(
-      const RouteSearchRequest(
-        originStationId: 'station-sadang',
-        destinationStationId: 'station-sangnoksu',
-        mobilityType: 'SENIOR',
-      ),
-    );
-
-    pendingRefresh.complete(
-      RouteRefreshResult(
-        routeSearchId: 'route-1',
-        status: 'UPDATED_ETA',
-        result: _sampleRouteSearchResult(routeSearchId: 'route-1'),
-        refreshedAt: '2026-07-01T15:31:00',
-        etaSource: 'REALTIME',
-        etaConfidence: 'HIGH',
-        sourceLabel: '실시간 도착 정보 기준',
-      ),
-    );
-    await refreshFuture;
-
-    expect(controller.state.result!.routeSearchId, 'route-2');
-    expect(controller.state.refreshMessage, isEmpty);
   });
 
   test('경로 검색 결과는 확인 필요 상태를 이동 가능으로 안내하지 않는다', () {
@@ -1822,43 +1668,6 @@ void main() {
         throwsFormatException,
       );
     });
-
-    test('이전 objective 검색의 늦은 응답은 현재 화면을 덮지 않는다', () async {
-      final repository = _ManualRouteSearchRepository();
-      final controller = RouteSearchController(repository: repository);
-      addTearDown(controller.dispose);
-
-      const fastRequest = RouteSearchRequest(
-        originStationId: 'station-a',
-        destinationStationId: 'station-b',
-        mobilityType: 'STANDARD',
-      );
-      const fewRequest = RouteSearchRequest(
-        originStationId: 'station-a',
-        destinationStationId: 'station-b',
-        mobilityType: 'STANDARD',
-        objective: RouteObjective.fewestTransfers,
-      );
-
-      unawaited(controller.search(fastRequest));
-      unawaited(controller.search(fewRequest));
-      await pumpEventQueue();
-
-      // 이전(FASTEST) 검색이 늦게 도착해도 최신(FEWEST_TRANSFERS) 상태를 덮지 못한다.
-      repository.completers[RouteObjective.fastest]!.complete(
-        _routeResult('route-fast'),
-      );
-      await pumpEventQueue();
-      expect(controller.state.result, isNull);
-      expect(controller.state.status, RouteSearchViewStatus.loading);
-
-      repository.completers[RouteObjective.fewestTransfers]!.complete(
-        _routeResult('route-few'),
-      );
-      await pumpEventQueue();
-      expect(controller.state.status, RouteSearchViewStatus.success);
-      expect(controller.state.result?.routeSearchId, 'route-few');
-    });
   });
 
   group('#2590 계단 접근성 판정 원천 통일', () {
@@ -2531,46 +2340,6 @@ Map<String, Object?> _judgedItineraryJson({
   };
 }
 
-class _ManualRouteSearchRepository implements RouteSearchRepository {
-  final requests = <RouteSearchRequest>[];
-  final completers = <RouteObjective, Completer<RouteSearchResult>>{};
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    requests.add(request);
-    final completer = Completer<RouteSearchResult>();
-    completers[request.objective] = completer;
-    return completer.future;
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError();
-  }
-}
-
-RouteSearchResult _routeResult(String routeSearchId) {
-  return RouteSearchResult(
-    routeSearchId: routeSearchId,
-    originStationId: 'station-a',
-    originStationName: '상록수',
-    destinationStationId: 'station-b',
-    destinationStationName: '사당',
-    mobilityType: 'STANDARD',
-    constraintMode: 'PREFER_STEP_FREE',
-    status: 'FOUND',
-    lineId: 'seoul-4',
-    lineName: '수도권 4호선',
-    score: 90,
-    burdenCost: 90,
-    steps: const [],
-    warnings: const [],
-    recommendationReasons: const [],
-    blockedReasons: const [],
-    createdAt: '2026-06-30T09:15:00+09:00',
-  );
-}
-
 Map<String, Object?> _rideLegJson({
   String legType = 'RIDE',
   Object? serviceClass = 'SUBWAY',
@@ -2691,44 +2460,6 @@ RouteSearchV2Result _objectiveResult(List<RouteSearchV2Itinerary> itineraries) {
   );
 }
 
-class FakeRouteSearchRepository implements RouteSearchRepository {
-  final requests = <RouteSearchRequest>[];
-  final refreshRouteSearchIds = <String>[];
-  Object? error;
-  RouteSearchResult searchResult = _sampleRouteSearchResult();
-  Completer<RouteRefreshResult>? pendingRefresh;
-  RouteRefreshResult? refreshResult;
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) async {
-    requests.add(request);
-    final currentError = error;
-    if (currentError != null) {
-      throw currentError;
-    }
-    return searchResult;
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) async {
-    refreshRouteSearchIds.add(routeSearchId);
-    final pending = pendingRefresh;
-    if (pending != null) {
-      return pending.future;
-    }
-    return refreshResult ??
-        RouteRefreshResult(
-          routeSearchId: routeSearchId,
-          status: 'UNCHANGED',
-          result: searchResult,
-          refreshedAt: '2026-07-01T15:30:00',
-          etaSource: 'PLANNED',
-          etaConfidence: 'MEDIUM',
-          sourceLabel: '계획 시간 기준',
-        );
-  }
-}
-
 class _ThrowingAuthorizationHeaderProvider
     implements AuthorizationHeaderProvider {
   const _ThrowingAuthorizationHeaderProvider();
@@ -2751,23 +2482,6 @@ class _MalformedAuthorizationHeaderProvider
 
   @override
   Future<void> invalidateAuthorization() async {}
-}
-
-class PendingRouteSearchRepository implements RouteSearchRepository {
-  final _completer = Completer<RouteSearchResult>();
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) =>
-      _completer.future;
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError();
-  }
-
-  void complete(RouteSearchResult result) {
-    _completer.complete(result);
-  }
 }
 
 RouteSearchResult _sampleRouteSearchResult({

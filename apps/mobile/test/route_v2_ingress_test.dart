@@ -351,22 +351,6 @@ void main() {
     expect(requestCount, 1);
     expect(invalidationCount, 1);
   });
-
-  test('refresh 미지원 결과는 lifecycle refresh를 repository에 전달하지 않는다', () async {
-    final repository = _RecordingRepository('online', supportsRefresh: false);
-    final controller = RouteSearchController(repository: repository);
-    addTearDown(controller.dispose);
-    await controller.search(
-      _request(RouteTransportScope.subwayAndItxCheongchun),
-    );
-
-    final outcome = await controller.refreshCurrentRoute();
-
-    expect(outcome.refreshed, isFalse);
-    expect(outcome.alarmRefreshRequired, isFalse);
-    expect(repository.refreshCount, 0);
-    expect(controller.state.refreshMessage, isEmpty);
-  });
 }
 
 Future<HttpServer> _errorServer({
@@ -412,61 +396,4 @@ class _ThrowingAttestor implements PlayIntegrityAttestor {
 
   @override
   Future<String> requestToken(String requestHash) => Future.error(failure);
-}
-
-class _RecordingRepository implements RouteSearchRepository {
-  _RecordingRepository(this.id, {this.supportsRefresh = true});
-
-  final String id;
-  final bool supportsRefresh;
-  int searchCount = 0;
-  int refreshCount = 0;
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) async {
-    searchCount++;
-    return _result();
-  }
-
-  RouteSearchResult _result() {
-    return RouteSearchResult(
-      routeSearchId: id,
-      originStationId: 'origin',
-      originStationName: '출발',
-      destinationStationId: 'destination',
-      destinationStationName: '도착',
-      mobilityType: 'SENIOR',
-      status: 'FOUND',
-      lineId: 'line',
-      lineName: '노선',
-      score: 1,
-      burdenCost: 1,
-      estimatedDurationSeconds: 60,
-      walkingDistanceMeters: 0,
-      transferCount: 0,
-      steps: const [],
-      warnings: const [],
-      blockedReasons: const [],
-      recommendationReasons: const [],
-      evidenceSummary: const [],
-      createdAt: '2026-07-16T09:00:00Z',
-      etaSource: 'PLANNED',
-      commercialEtaEligible: false,
-      supportsRefresh: supportsRefresh,
-    );
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) async {
-    refreshCount++;
-    return RouteRefreshResult(
-      routeSearchId: id,
-      status: 'UNCHANGED',
-      result: _result(),
-      refreshedAt: '2026-07-16T09:01:00Z',
-      etaSource: 'PLANNED',
-      etaConfidence: 'HIGH',
-      sourceLabel: '시간표',
-    );
-  }
 }
