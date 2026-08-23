@@ -63,7 +63,6 @@ class EasySubwayApp extends StatelessWidget {
     Future<void>? dataPackUpdate,
     BundledDataPackFreshness? bundledDataPackFreshness,
     OnboardingState initialOnboardingState = const OnboardingState.initial(),
-    @visibleForTesting bool legacyRouteSearchFixtureEnabled = false,
     GlobalKey<NavigatorState>? navigatorKey,
     Key? key,
   }) : this._(
@@ -81,8 +80,6 @@ class EasySubwayApp extends StatelessWidget {
          onDataPackMeteredConsent: onDataPackMeteredConsent,
          dataPackUpdate: dataPackUpdate,
          bundledDataPackFreshness: bundledDataPackFreshness,
-         legacyRouteSearchFixtureEnabled:
-             !kReleaseMode && legacyRouteSearchFixtureEnabled,
          recentRoutesFuture:
              recentRoutesFuture ??
              (defaultDemoHomeDataEnabled
@@ -105,13 +102,11 @@ class EasySubwayApp extends StatelessWidget {
     required this.onDataPackMeteredConsent,
     required this.dataPackUpdate,
     required this.bundledDataPackFreshness,
-    required this.legacyRouteSearchFixtureEnabled,
     required this.recentRoutesFuture,
     this.navigatorKey,
     super.key,
   }) : repository = dependencies.repository,
        reportRepository = dependencies.reportRepository,
-       routeRepository = dependencies.routeRepository,
        routeFeedbackRepository = dependencies.routeFeedbackRepository,
        favoriteRepository = dependencies.favoriteRepository,
        favoriteFacilityRepository = dependencies.favoriteFacilityRepository,
@@ -135,7 +130,6 @@ class EasySubwayApp extends StatelessWidget {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository? routeRepository;
   final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
@@ -166,8 +160,6 @@ class EasySubwayApp extends StatelessWidget {
   final Future<void> Function()? onDataPackMeteredConsent;
   final Future<void>? dataPackUpdate;
   final BundledDataPackFreshness? bundledDataPackFreshness;
-  @visibleForTesting
-  final bool legacyRouteSearchFixtureEnabled;
   final Future<List<FavoriteRoute>>? recentRoutesFuture;
   final GlobalKey<NavigatorState>? navigatorKey;
 
@@ -270,7 +262,6 @@ class EasySubwayApp extends StatelessWidget {
         child: _EasySubwayHome(
           repository: repository,
           reportRepository: reportRepository,
-          routeRepository: routeRepository,
           journeyRepository: journeyRepository,
           journeyAttestor: journeyAttestor,
           routeFeedbackRepository: routeFeedbackRepository,
@@ -299,7 +290,6 @@ class EasySubwayApp extends StatelessWidget {
           noticeRepository: noticeRepository,
           recentRoutesFuture: recentRoutesFuture,
           bundledDataPackFreshness: bundledDataPackFreshness,
-          legacyRouteSearchFixtureEnabled: legacyRouteSearchFixtureEnabled,
         ),
       ),
     );
@@ -400,7 +390,6 @@ class _EasySubwayHome extends StatefulWidget {
   const _EasySubwayHome({
     required this.repository,
     required this.reportRepository,
-    required this.routeRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
     required this.routeFeedbackRepository,
@@ -429,12 +418,10 @@ class _EasySubwayHome extends StatefulWidget {
     required this.noticeRepository,
     required this.recentRoutesFuture,
     required this.bundledDataPackFreshness,
-    required this.legacyRouteSearchFixtureEnabled,
   });
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository? routeRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
   final RouteFeedbackRepository? routeFeedbackRepository;
@@ -463,7 +450,6 @@ class _EasySubwayHome extends StatefulWidget {
   final NoticeRepository? noticeRepository;
   final Future<List<FavoriteRoute>>? recentRoutesFuture;
   final BundledDataPackFreshness? bundledDataPackFreshness;
-  final bool legacyRouteSearchFixtureEnabled;
 
   @override
   State<_EasySubwayHome> createState() => _EasySubwayHomeState();
@@ -548,7 +534,6 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
       child: HomeScreen(
         repository: widget.repository,
         reportRepository: widget.reportRepository,
-        routeRepository: widget.routeRepository,
         journeyRepository: widget.journeyRepository,
         journeyAttestor: widget.journeyAttestor,
         routeFeedbackRepository: widget.routeFeedbackRepository,
@@ -578,7 +563,6 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         bundledDataPackStaleLabel: _bundledDataPackStale
             ? BundledDataPackFreshness.staleLabelKo
             : null,
-        legacyRouteSearchFixtureEnabled: widget.legacyRouteSearchFixtureEnabled,
         onUserDataDeleted: _handleUserDataDeleted,
         onMobilityProfileChanged: _saveMobilityProfile,
         onViewPreferencesChanged: _saveViewPreferences,

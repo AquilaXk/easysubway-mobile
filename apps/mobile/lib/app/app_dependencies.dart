@@ -50,7 +50,6 @@ class AppDependencies {
   const AppDependencies({
     required this.repository,
     required this.reportRepository,
-    required this.routeRepository,
     required this.routeFeedbackRepository,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
@@ -75,7 +74,6 @@ class AppDependencies {
   factory AppDependencies.resolve({
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
-    RouteSearchRepository? routeRepository,
     RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
@@ -161,7 +159,6 @@ class AppDependencies {
             baseUri: optionalBaseUri,
             userDatabase: userDatabase,
           ),
-      routeRepository: routeRepository,
       journeyRepositoryFactory: () {
         final injected = journeyRepository;
         if (injected != null) return injected;
@@ -262,7 +259,6 @@ class AppDependencies {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository? routeRepository;
   final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;

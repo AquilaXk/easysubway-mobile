@@ -85,6 +85,19 @@ test("Network Map root 삭제는 accessibility critical boundary를 app owner에
   assert.ok(!boundary.includes("network_map.dart"));
 });
 
+test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey owner로 교체한다", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+
+  for (const boundary of [
+    "JOURNEY_ROUTE_INGRESS",
+    "JOURNEY_REPOSITORY_DI_STATE_IDENTITY",
+  ]) {
+    assert.ok(policy.criticalBoundaryRules[boundary].includes("features/journey/"));
+    assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_search.dart"));
+    assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_v2_ingress.dart"));
+  }
+});
+
 test("비정규 policy/baseline과 mixed Phase 2 transition·floor drift를 거부한다", () => {
   const policy = JSON.parse(readFileSync(policyFile, "utf8"));
   assert.throws(() => parsePolicyBytes(Buffer.from(JSON.stringify(policy))));

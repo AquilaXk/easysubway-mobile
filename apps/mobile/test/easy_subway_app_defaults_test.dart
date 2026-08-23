@@ -3,7 +3,6 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
 import 'package:easysubway_mobile/station_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -22,14 +21,12 @@ void main() {
     expect(app.favoriteRouteRepository, isNull);
     expect(app.notificationRepository, isNull);
     expect(app.notificationPermissionProvider, isNull);
-    expect(app.legacyRouteSearchFixtureEnabled, isFalse);
   });
 
   test('푸시 알림을 명시적으로 켜도 인증 없는 원격 저장소는 만들지 않는다', () {
     final app = buildEasySubwayTestApp(
       repository: _UnusedStationSearchRepository(),
       reportRepository: _UnusedFacilityReportRepository(),
-      routeRepository: _UnusedRouteSearchRepository(),
       enablePushNotifications: true,
     );
 
@@ -43,7 +40,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: _UnusedStationSearchRepository(),
         reportRepository: _UnusedFacilityReportRepository(),
-        routeRepository: _UnusedRouteSearchRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
     );
@@ -111,18 +107,6 @@ class _UnusedFacilityReportRepository implements FacilityReportRepository {
 
   @override
   Future<List<FacilityReportResult>> listMyReports() {
-    throw UnimplementedError();
-  }
-}
-
-class _UnusedRouteSearchRepository implements RouteSearchRepository {
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
     throw UnimplementedError();
   }
 }
