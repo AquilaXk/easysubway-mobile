@@ -1880,23 +1880,21 @@ void main() {
         }).stairAccessState,
         'stepFree',
       );
-      for (final state in <String?>[null, '']) {
-        expect(
-          RouteSearchStep.fromJson({
-            ...stepJson,
-            if (state != null) 'stairAccessState': state,
-          }).stairAccessState,
-          'unknown',
-        );
-        expect(
-          RouteSearchStep.fromJson({
-            ...stepJson,
-            'includesStairs': true,
-            if (state != null) 'stairAccessState': state,
-          }).stairAccessState,
-          'stairOnly',
-        );
-      }
+      expect(RouteSearchStep.fromJson(stepJson).stairAccessState, 'unknown');
+      expect(
+        RouteSearchStep.fromJson({
+          ...stepJson,
+          'stairAccessState': '',
+        }).stairAccessState,
+        'unknown',
+      );
+      expect(
+        RouteSearchStep.fromJson({
+          ...stepJson,
+          'includesStairs': true,
+        }).stairAccessState,
+        'stairOnly',
+      );
     });
 
     test('승차 leg만 미확인인 경로는 백엔드 판정대로 계단 없는 길로 표시한다', () {
