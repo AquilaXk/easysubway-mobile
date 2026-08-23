@@ -206,6 +206,25 @@ void main() {
     expect(calls, ['widget', 'reconcile']);
   });
 
+  test('0.10 stop·progress callback은 task handler를 재실행하지 않는다', () async {
+    var runCount = 0;
+    final worker = NextTrainWidgetWorkmanagerApi(
+      runWidgetRefresh: () async {
+        runCount += 1;
+        return true;
+      },
+      runGetOffAlarmReconcile: () async {
+        runCount += 1;
+        return true;
+      },
+    );
+
+    await worker.onTaskStopped(nextTrainWidgetRefreshTask, 0);
+    await worker.onProgressUpdate(nextTrainWidgetRefreshUniqueName, const {});
+
+    expect(runCount, 0);
+  });
+
   test('configure는 widget id별 시간표 snapshot을 저장하고 provider를 갱신한다', () async {
     final stored = <String, Object?>{};
     var updateCount = 0;
