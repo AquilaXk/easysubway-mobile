@@ -18,7 +18,6 @@ import 'package:easysubway_mobile/features/service_notice/data/notice_repository
 import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
 import 'package:easysubway_mobile/features/train_search/domain/train_search_models.dart';
 import 'package:easysubway_mobile/main.dart' as app;
-import 'package:easysubway_mobile/route_search.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -140,8 +139,6 @@ void main() {
       isA<UnavailableFacilityReportRepository>(),
     );
 
-    expect(dependencies.routeRepository, isNull);
-
     final internalNodes = await dependencies.internalRouteRepository
         .listRouteNodes('station-sangnoksu');
 
@@ -170,33 +167,6 @@ void main() {
     expect(dependencies.repository, isA<DriftStationRepository>());
   });
 
-  test('주입 routeRepository는 online-first flag가 켜져도 API 주소를 읽지 않는다', () async {
-    final catalogDatabase = CatalogDatabase.memory();
-    final userDatabase = user_db.UserDatabase.memory();
-    final injectedRouteRepository = _InjectedRouteSearchRepository();
-    var apiBaseReads = 0;
-    addTearDown(catalogDatabase.close);
-    addTearDown(userDatabase.close);
-    await catalogDatabase.seedBaselineIfEmpty();
-
-    final dependencies = AppDependencies.resolve(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-      reportRepository: const UnavailableFacilityReportRepository(),
-      routeRepository: injectedRouteRepository,
-      apiBaseUri: () {
-        apiBaseReads++;
-        throw StateError(
-          'Injected route repository must not read API base URL.',
-        );
-      },
-      enablePushNotifications: false,
-    );
-
-    expect(apiBaseReads, 0);
-    expect(dependencies.routeRepository, same(injectedRouteRepository));
-  });
-
   test('API 주소가 있으면 Journey V3 repository만 release route로 만든다', () {
     final dependencies = AppDependencies.resolve(
       reportRepository: const UnavailableFacilityReportRepository(),
@@ -204,7 +174,6 @@ void main() {
       enablePushNotifications: false,
     );
 
-    expect(dependencies.routeRepository, isNull);
     expect(dependencies.journeyRepository, isA<JourneyApiRepository>());
   });
 
@@ -219,7 +188,6 @@ void main() {
       enablePushNotifications: false,
     );
 
-    expect(dependencies.routeRepository, isNull);
     await expectLater(
       dependencies.journeyRepository.issueSession(
         JourneySessionRequest(
@@ -429,7 +397,6 @@ void main() {
       final stationOnlyDependencies = AppDependencies.resolve(
         repository: dualInterfaceStationRepository,
         reportRepository: const UnavailableFacilityReportRepository(),
-        routeRepository: _InjectedRouteSearchRepository(),
         apiBaseUri: () => Uri.parse('https://api.example.com'),
         enablePushNotifications: false,
       );
@@ -447,7 +414,6 @@ void main() {
         repository: dualInterfaceStationRepository,
         networkMapRepository: explicitNetworkMapRepository,
         reportRepository: const UnavailableFacilityReportRepository(),
-        routeRepository: _InjectedRouteSearchRepository(),
         apiBaseUri: () => Uri.parse('https://api.example.com'),
         enablePushNotifications: false,
       );
@@ -460,7 +426,6 @@ void main() {
       final defaultCatalogDependencies = AppDependencies.resolve(
         catalogDatabase: catalogDatabase,
         reportRepository: const UnavailableFacilityReportRepository(),
-        routeRepository: _InjectedRouteSearchRepository(),
         apiBaseUri: () => Uri.parse('https://api.example.com'),
         enablePushNotifications: false,
       );
@@ -471,18 +436,6 @@ void main() {
       );
     },
   );
-}
-
-class _InjectedRouteSearchRepository implements RouteSearchRepository {
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError();
-  }
 }
 
 class _InjectedNetworkMapRepository implements NetworkMapRepository {

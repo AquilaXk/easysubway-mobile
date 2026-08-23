@@ -296,7 +296,6 @@ Future<void> _pumpNetworkMapForGpsTest(
     buildEasySubwayTestApp(
       repository: repository,
       reportRepository: FakeFacilityReportRepository(),
-      routeRepository: FakeRouteSearchRepository(),
       favoriteRepository: FakeFavoriteStationRepository(),
       locationProvider: locationProvider,
       networkMapViewportRepository: viewportRepository,
@@ -514,7 +513,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
     );
@@ -582,7 +580,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: reportRepository,
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -627,7 +624,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: reportRepository,
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -760,7 +756,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -777,7 +772,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         bundledDataPackFreshness: BundledDataPackFreshness(
@@ -817,7 +811,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         bundledDataPackFreshness: BundledDataPackFreshness(
@@ -848,7 +841,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         bundledDataPackFreshness: BundledDataPackFreshness(
           status: 'STALE',
@@ -888,7 +880,6 @@ void main() {
     final dependencies = AppDependencies(
       repository: baseDependencies.repository,
       reportRepository: baseDependencies.reportRepository,
-      routeRepository: baseDependencies.routeRepository,
       routeFeedbackRepository: baseDependencies.routeFeedbackRepository,
       favoriteRepository: baseDependencies.favoriteRepository,
       favoriteFacilityRepository: baseDependencies.favoriteFacilityRepository,
@@ -938,7 +929,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
@@ -975,7 +965,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: favoriteRouteRepository,
@@ -1005,7 +994,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: favoriteRouteRepository,
@@ -1034,7 +1022,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -1077,7 +1064,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(
@@ -1109,7 +1095,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         onboardingStore: onboardingStore,
       ),
     );
@@ -1136,7 +1121,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingStateWithPreferences(
@@ -1210,7 +1194,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -1310,7 +1293,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         noticeRepository: _FakeNoticeRepository(
           const ActiveNoticesResult(notices: [], stale: false),
@@ -1403,7 +1385,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
     );
@@ -1428,7 +1409,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(
@@ -1468,7 +1448,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -1514,7 +1493,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: reportRepository,
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
@@ -1557,7 +1535,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: favoriteFacilityRepository,
         notificationRepository: FakeNotificationSettingsRepository(),
@@ -1585,7 +1562,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: reportRepository,
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -1608,7 +1584,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -1776,7 +1751,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -1864,7 +1838,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -1919,7 +1892,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: reportRepository,
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(
           favorites: [_favoriteFacility(status: 'UNKNOWN')],
@@ -2008,7 +1980,6 @@ void main() {
           networkMapRegionNames: const ['수도권'],
         ),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -2072,7 +2043,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
@@ -2192,7 +2162,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -2217,7 +2186,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -2247,7 +2215,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -2443,7 +2410,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -2480,7 +2446,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -2518,7 +2483,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -3288,7 +3252,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -3310,7 +3273,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         noticeRepository: _FakeNoticeRepository(
           ActiveNoticesResult(
@@ -3358,7 +3320,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         noticeRepository: _FakeNoticeRepository(
           ActiveNoticesResult(
@@ -3725,7 +3686,6 @@ void main() {
           networkMapRegionNames: const ['수도권'],
         ),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -3769,7 +3729,6 @@ void main() {
             networkMapRegionNames: const ['수도권'],
           ),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -3844,7 +3803,6 @@ void main() {
             networkMapRegionNames: const ['수도권'],
           ),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -3945,7 +3903,6 @@ void main() {
               ),
             ),
             reportRepository: FakeFacilityReportRepository(),
-            routeRepository: FakeRouteSearchRepository(),
             notificationRepository: FakeNotificationSettingsRepository(),
             initialOnboardingState: _completedOnboardingState(),
           ),
@@ -4083,7 +4040,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(networkMapData: fixture),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -4316,7 +4272,6 @@ void main() {
             networkMapData: map,
           ),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -4399,7 +4354,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -4473,7 +4427,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -4585,7 +4538,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -4660,7 +4612,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -4736,7 +4687,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -4809,7 +4759,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -4888,7 +4837,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -5000,7 +4948,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -5093,7 +5040,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -5204,7 +5150,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: repository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -5339,7 +5284,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: repository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -5373,7 +5317,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(
           favorites: [
@@ -5420,7 +5363,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(
           favorites: [
@@ -5459,7 +5401,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(
           favorites: [_favoriteFacility()],
         ),
@@ -5487,7 +5428,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteFacilityRepository: facilityRepository,
         favoriteRouteRepository: routeRepository,
         initialOnboardingState: _completedOnboardingState(),
@@ -5945,7 +5885,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         locationProvider: FakeCurrentLocationProvider(
           location: _freshCurrentLocation(),
@@ -7956,7 +7895,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -7995,7 +7933,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8024,7 +7961,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8075,7 +8011,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8313,7 +8248,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         networkMapViewportRepository: viewportRepository,
         initialOnboardingState: _completedOnboardingState(),
@@ -8392,7 +8326,6 @@ void main() {
             networkMapRegionNames: const ['수도권'],
           ),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           networkMapViewportRepository: viewportRepository,
           initialOnboardingState: _completedOnboardingState(),
@@ -8411,7 +8344,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8440,7 +8372,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8468,7 +8399,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -8493,7 +8423,6 @@ void main() {
           key: ValueKey('home-preset-${preset.name}'),
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8523,7 +8452,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8555,7 +8483,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8587,7 +8514,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8630,7 +8556,6 @@ void main() {
         child: buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -8668,7 +8593,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(
@@ -8698,7 +8622,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteRouteRepository: favoriteRouteRepository,
         initialOnboardingState: _completedOnboardingState(),
@@ -8727,7 +8650,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           initialOnboardingState: _completedOnboardingStateWithPreferences(
@@ -9047,7 +8969,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9089,7 +9010,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9133,7 +9053,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9177,7 +9096,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9214,7 +9132,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9278,7 +9195,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9342,7 +9258,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9408,7 +9323,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9461,7 +9375,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -9510,7 +9423,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingStateWithPreferences(
           preferences: const OnboardingViewPreferences(
@@ -9544,7 +9456,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -9584,7 +9495,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: favoriteRepository,
         favoriteFacilityRepository: favoriteFacilityRepository,
         favoriteRouteRepository: favoriteRouteRepository,
@@ -9713,7 +9623,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           supportAccessInfo: const SupportAccessInfo(
@@ -9773,7 +9682,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           supportAccessInfo: const SupportAccessInfo(
@@ -9804,7 +9712,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           supportAccessInfo: const SupportAccessInfo(
@@ -9851,7 +9758,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           supportAccessLauncher: launcher,
@@ -9925,7 +9831,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         supportAccessInfo: const SupportAccessInfo(
@@ -9965,7 +9870,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         userDataDeletionRepository: deletionRepository,
@@ -10088,7 +9992,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           userDataDeletionRepository: deletionRepository,
@@ -10151,7 +10054,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         userDataDeletionRepository: deletionRepository,
@@ -10187,7 +10089,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         supportAccessLauncher: launcher,
@@ -10216,7 +10117,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         supportAccessInfo: const SupportAccessInfo(
@@ -10259,7 +10159,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         supportAccessLauncher: launcher,
@@ -10296,7 +10195,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: notificationRepository,
           initialOnboardingState: _completedOnboardingState(),
@@ -10352,7 +10250,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         notificationPermissionProvider: notificationPermissionProvider,
@@ -10392,7 +10289,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         notificationPermissionProvider: notificationPermissionProvider,
@@ -10425,7 +10321,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           notificationPermissionProvider: notificationPermissionProvider,
@@ -10475,7 +10370,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: favoriteRepository,
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
           initialOnboardingState: _completedOnboardingState(),
@@ -10527,7 +10421,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -10574,7 +10467,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: favoriteFacilityRepository,
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
@@ -10621,7 +10513,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: favoriteRouteRepository,
@@ -10693,7 +10584,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: favoriteRouteRepository,
@@ -10740,7 +10630,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
         favoriteRouteRepository: favoriteRouteRepository,
@@ -10777,7 +10666,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -10837,7 +10725,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: repository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -11035,7 +10922,6 @@ void main() {
         child: buildEasySubwayTestApp(
           repository: repository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -11085,7 +10971,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         locationProvider: FakeCurrentLocationProvider(
           location: _freshCurrentLocation(),
@@ -11153,7 +11038,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         locationProvider: FakeCurrentLocationProvider(
           location: _freshCurrentLocation(),
@@ -11251,7 +11135,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -11293,7 +11176,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         locationProvider: FakeCurrentLocationProvider(
           location: _freshCurrentLocation(),
@@ -11331,7 +11213,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -11386,7 +11267,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         locationProvider: locationProvider,
         initialOnboardingState: _completedOnboardingState(),
@@ -11454,7 +11334,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         locationProvider: locationProvider,
         initialOnboardingState: _completedOnboardingState(),
@@ -11507,7 +11386,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         locationProvider: FakeCurrentLocationProvider(
           location: _freshCurrentLocation(),
@@ -12695,7 +12573,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -12736,7 +12613,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -12770,7 +12646,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -12816,7 +12691,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -12888,7 +12762,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -12924,7 +12797,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: repository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -12970,7 +12842,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: favoriteRepository,
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -13060,7 +12931,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: favoriteRepository,
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -14828,7 +14698,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: favoriteRepository,
         favoriteRouteRepository: FakeFavoriteRouteRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -14867,7 +14736,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -14922,7 +14790,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(
             preset: MobilityPreset.stepFree,
@@ -14961,7 +14828,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
         initialOnboardingState: _completedOnboardingState(),
@@ -14980,7 +14846,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         onboardingStore: onboardingStore,
       ),
@@ -15009,7 +14874,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: routeRepository,
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -15795,7 +15659,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingStateWithPreferences(
           preferences: const OnboardingViewPreferences(
@@ -15836,7 +15699,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -15873,7 +15735,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -15905,7 +15766,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteRouteRepository: favoriteRouteRepository,
         initialOnboardingState: _completedOnboardingState(),
@@ -16052,7 +15912,7 @@ void main() {
     addTearDown(catalogDatabase.close);
     await catalogDatabase.seedBaselineIfEmpty();
     var apiBaseReads = 0;
-    final dependencies = AppDependencies.resolve(
+    AppDependencies.resolve(
       catalogDatabase: catalogDatabase,
       apiBaseUri: () {
         apiBaseReads += 1;
@@ -16060,7 +15920,6 @@ void main() {
       },
       enablePushNotifications: false,
     );
-    expect(dependencies.routeRepository, isNull);
     expect(apiBaseReads, 0);
   });
 
@@ -16152,7 +16011,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           favoriteRouteRepository: favoriteRouteRepository,
           initialOnboardingState: _completedOnboardingState(),
@@ -16210,7 +16068,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         routeFeedbackRepository: routeFeedbackRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -16314,19 +16171,27 @@ void main() {
     );
 
     await tester.pumpWidget(
-      buildEasySubwayTestApp(
-        repository: stationRepository,
-        reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
-        routeFeedbackRepository: FakeRouteFeedbackRepository(),
-        favoriteRepository: FakeFavoriteStationRepository(),
-        initialOnboardingState: _completedOnboardingState(),
+      MaterialApp(
+        home: RouteSearchScreen(
+          repository: routeRepository,
+          stationRepository: stationRepository,
+          routeFeedbackRepository: FakeRouteFeedbackRepository(),
+          initialMobilityType: 'SENIOR',
+          initialDraft: RouteDraft(
+            origin: const RouteDraftStation(
+              id: 'station-sangnoksu',
+              nameKo: '상록수',
+            ),
+            destination: const RouteDraftStation(
+              id: 'station-sadang',
+              nameKo: '사당',
+            ),
+            lastModifiedAt: DateTime(2026, 6, 23),
+          ),
+        ),
       ),
     );
-
-    await _openRouteSearchScreen(tester);
-    // #1933 요구 3: 출발·도착은 노선도 팝오버로 이미 정해졌고 자동 검색이 결과를
-    // 만들었다(폼·제출 버튼 없음).
+    await tester.pumpAndSettle();
 
     await _openFirstRouteResultDetail(tester);
 
@@ -18693,7 +18558,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         routeFeedbackRepository: FakeRouteFeedbackRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -18737,7 +18601,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           routeFeedbackRepository: routeFeedbackRepository,
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
@@ -18870,7 +18733,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: routeRepository,
           favoriteRepository: FakeFavoriteStationRepository(),
           initialOnboardingState: _completedOnboardingState(),
         ),
@@ -18926,7 +18788,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: stationRepository,
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: routeRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
@@ -19850,7 +19711,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: reportRepository,
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         locationProvider: FakeCurrentLocationProvider(
@@ -19939,7 +19799,6 @@ void main() {
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
         reportRepository: FakeFacilityReportRepository(),
-        routeRepository: FakeRouteSearchRepository(),
         favoriteRepository: FakeFavoriteStationRepository(),
         notificationRepository: FakeNotificationSettingsRepository(),
         locationProvider: FakeCurrentLocationProvider(
@@ -20005,7 +19864,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(),
           reportRepository: FakeFacilityReportRepository(),
-          routeRepository: FakeRouteSearchRepository(),
           favoriteRepository: FakeFavoriteStationRepository(),
           notificationRepository: FakeNotificationSettingsRepository(),
           locationProvider: FakeCurrentLocationProvider(

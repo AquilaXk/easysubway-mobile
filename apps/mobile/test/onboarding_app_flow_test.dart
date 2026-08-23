@@ -8,7 +8,6 @@ import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_pol
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
 import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
 import 'package:easysubway_mobile/station_search.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
@@ -248,7 +247,6 @@ EasySubwayApp _testApp({
   return buildEasySubwayTestApp(
     repository: FakeStationSearchRepository(),
     reportRepository: FakeFacilityReportRepository(),
-    routeRepository: FakeRouteSearchRepository(),
     favoriteRepository: FakeFavoriteStationRepository(),
     notificationRepository: notificationRepository,
     notificationPermissionProvider: notificationPermissionProvider,
@@ -327,18 +325,6 @@ class FakeFacilityReportRepository implements FacilityReportRepository {
   @override
   Future<List<FacilityReportResult>> listMyReports() async {
     return const [];
-  }
-}
-
-class FakeRouteSearchRepository implements RouteSearchRepository {
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    throw UnimplementedError();
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError();
   }
 }
 

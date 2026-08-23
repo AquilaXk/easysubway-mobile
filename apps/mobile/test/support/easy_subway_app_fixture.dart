@@ -24,7 +24,6 @@ EasySubwayApp buildEasySubwayTestApp({
   AppDependencies? dependencies,
   StationSearchRepository? repository,
   FacilityReportRepository? reportRepository,
-  RouteSearchRepository? routeRepository,
   RouteFeedbackRepository? routeFeedbackRepository,
   FavoriteStationRepository? favoriteRepository,
   FavoriteFacilityRepository? favoriteFacilityRepository,
@@ -73,7 +72,6 @@ EasySubwayApp buildEasySubwayTestApp({
         AppDependencies.resolve(
           repository: repository,
           reportRepository: reportRepository,
-          routeRepository: routeRepository,
           routeFeedbackRepository: routeFeedbackRepository,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
@@ -103,7 +101,6 @@ EasySubwayApp buildEasySubwayTestApp({
     dataPackUpdate: dataPackUpdate,
     bundledDataPackFreshness: bundledDataPackFreshness,
     initialOnboardingState: initialOnboardingState,
-    legacyRouteSearchFixtureEnabled: routeRepository != null,
     navigatorKey: navigatorKey,
     key: key,
   );

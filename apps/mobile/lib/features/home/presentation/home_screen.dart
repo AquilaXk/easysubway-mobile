@@ -82,7 +82,6 @@ class HomeScreen extends StatefulWidget {
   HomeScreen({
     required this.repository,
     required this.reportRepository,
-    required this.routeRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
     required this.routeFeedbackRepository,
@@ -112,7 +111,6 @@ class HomeScreen extends StatefulWidget {
     this.simpleViewEnabled = true,
     this.facilityReportDraftTargetStore,
     this.bundledDataPackStaleLabel,
-    this.legacyRouteSearchFixtureEnabled = false,
     String? initialMobilityType,
     super.key,
   }) : initialMobilityType =
@@ -121,7 +119,6 @@ class HomeScreen extends StatefulWidget {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteSearchRepository? routeRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
   final RouteFeedbackRepository? routeFeedbackRepository;
@@ -153,7 +150,6 @@ class HomeScreen extends StatefulWidget {
   final bool simpleViewEnabled;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final String? bundledDataPackStaleLabel;
-  final bool legacyRouteSearchFixtureEnabled;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -257,7 +253,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         return;
       }
       // 이미 결과 탭이면 setState만으로도 화면이 최신 draft로 다시 빌드되며
-      // RouteSearchScreen이 자동 검색을 이어간다.
+      // JourneySearchScreen이 자동 검색을 이어간다.
       if (_selectedTabIndex != 2) {
         setState(() {
           _routeTabMobilityType = _mobilityType;
@@ -723,26 +719,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     if (_selectedTabIndex == 2) {
-      if (widget.legacyRouteSearchFixtureEnabled &&
-          widget.routeRepository != null) {
-        return rootTab(
-          RouteSearchScreen(
-            repository: widget.routeRepository!,
-            stationRepository: repository,
-            searchHistoryRepository: searchHistoryRepository,
-            routeFeedbackRepository: widget.routeFeedbackRepository,
-            getOffAlarmController: widget.getOffAlarmController,
-            favoriteRouteRepository: favoriteRouteRepository,
-            adRepository: adRepository,
-            initialMobilityType: _routeTabMobilityType ?? initialMobilityType,
-            initialTransportScope: _routeTabTransportScope,
-            initialDraft: _routeDraftController.draft,
-            regionLabel: _currentRegionLabel,
-            simpleViewEnabled: widget.simpleViewEnabled,
-            onShellBackToHome: closeRouteTab,
-          ),
-        );
-      }
       return rootTab(
         JourneySearchScreen(
           repository: widget.journeyRepository,

@@ -749,7 +749,6 @@ void main() {
       final internalNodes = await dependencies.internalRouteRepository
           .listRouteNodes('station-sangnoksu');
 
-      expect(dependencies.routeRepository, isNull);
       expect(internalNodes, isEmpty);
     },
   );

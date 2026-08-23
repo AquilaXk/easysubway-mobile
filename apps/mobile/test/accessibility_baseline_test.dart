@@ -9,7 +9,6 @@ import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_hit_target.dart';
 import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
 import 'package:easysubway_mobile/station_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,7 +53,6 @@ void main() {
         buildEasySubwayTestApp(
           repository: _AccessibilityStationSearchRepository(),
           reportRepository: _AccessibilityFacilityReportRepository(),
-          routeRepository: _AccessibilityRouteSearchRepository(),
           locationProvider: _AccessibilityCurrentLocationProvider(),
           initialOnboardingState: _completedOnboardingState(
             preferences: const OnboardingViewPreferences(
@@ -186,18 +184,6 @@ class _AccessibilityStationSearchRepository implements StationSearchRepository {
   @override
   Future<List<StationFacilityInfo>> listStationFacilities(String stationId) {
     throw UnimplementedError('접근성 기준선 테스트는 시설 API를 호출하지 않는다.');
-  }
-}
-
-class _AccessibilityRouteSearchRepository implements RouteSearchRepository {
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    throw UnimplementedError('접근성 기준선 테스트는 경로 검색 API를 호출하지 않는다.');
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError('접근성 기준선 테스트는 경로 refresh API를 호출하지 않는다.');
   }
 }
 
