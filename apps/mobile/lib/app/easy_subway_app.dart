@@ -106,7 +106,6 @@ class EasySubwayApp extends StatelessWidget {
     super.key,
   }) : repository = dependencies.repository,
        reportRepository = dependencies.reportRepository,
-       routeFeedbackRepository = dependencies.routeFeedbackRepository,
        favoriteRepository = dependencies.favoriteRepository,
        favoriteFacilityRepository = dependencies.favoriteFacilityRepository,
        favoriteRouteRepository = dependencies.favoriteRouteRepository,
@@ -128,7 +127,6 @@ class EasySubwayApp extends StatelessWidget {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
@@ -261,7 +259,6 @@ class EasySubwayApp extends StatelessWidget {
           reportRepository: reportRepository,
           journeyRepository: journeyRepository,
           journeyAttestor: journeyAttestor,
-          routeFeedbackRepository: routeFeedbackRepository,
           getOffAlarmController: getOffAlarmController,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
@@ -388,7 +385,6 @@ class _EasySubwayHome extends StatefulWidget {
     required this.reportRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
-    required this.routeFeedbackRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
@@ -419,7 +415,6 @@ class _EasySubwayHome extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
@@ -530,7 +525,6 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         reportRepository: widget.reportRepository,
         journeyRepository: widget.journeyRepository,
         journeyAttestor: widget.journeyAttestor,
-        routeFeedbackRepository: widget.routeFeedbackRepository,
         getOffAlarmController: widget.getOffAlarmController,
         favoriteRepository: widget.favoriteRepository,
         favoriteFacilityRepository: widget.favoriteFacilityRepository,

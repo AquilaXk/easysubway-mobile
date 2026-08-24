@@ -23,7 +23,6 @@ EasySubwayApp buildEasySubwayTestApp({
   AppDependencies? dependencies,
   StationSearchRepository? repository,
   FacilityReportRepository? reportRepository,
-  RouteFeedbackRepository? routeFeedbackRepository,
   FavoriteStationRepository? favoriteRepository,
   FavoriteFacilityRepository? favoriteFacilityRepository,
   FavoriteRouteRepository? favoriteRouteRepository,
@@ -70,7 +69,6 @@ EasySubwayApp buildEasySubwayTestApp({
         AppDependencies.resolve(
           repository: repository,
           reportRepository: reportRepository,
-          routeFeedbackRepository: routeFeedbackRepository,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: favoriteRouteRepository,

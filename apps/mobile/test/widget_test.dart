@@ -845,7 +845,6 @@ void main() {
     final dependencies = AppDependencies(
       repository: baseDependencies.repository,
       reportRepository: baseDependencies.reportRepository,
-      routeFeedbackRepository: baseDependencies.routeFeedbackRepository,
       favoriteRepository: baseDependencies.favoriteRepository,
       favoriteFacilityRepository: baseDependencies.favoriteFacilityRepository,
       favoriteRouteRepository: baseDependencies.favoriteRouteRepository,
@@ -16067,20 +16066,6 @@ class _MemoryGetOffAlarmStateRepository implements GetOffAlarmStateRepository {
   @override
   Future<void> saveActive(GetOffAlarmSubscription subscription) async {
     _active = subscription;
-  }
-}
-
-class FakeRouteFeedbackRepository implements RouteFeedbackRepository {
-  final requests = <RouteFeedbackRequest>[];
-  Object? error;
-
-  @override
-  Future<void> submitRouteFeedback(RouteFeedbackRequest request) async {
-    requests.add(request);
-    final currentError = error;
-    if (currentError != null) {
-      throw currentError;
-    }
   }
 }
 

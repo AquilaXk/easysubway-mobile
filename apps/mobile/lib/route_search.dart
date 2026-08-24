@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -12,7 +11,6 @@ import 'features/mobility_profile/mobility_preset_labels.dart';
 import 'route_hedge_labels.dart';
 
 const _routeSearchTimeout = Duration(seconds: 8);
-const _routeFeedbackErrorMessage = '의견을 보내지 못했어요.';
 const _favoriteRouteErrorMessage = '즐겨찾기 경로를 바꾸지 못했어요.';
 const _favoriteRouteLoadErrorMessage = '즐겨찾기 경로를 불러오지 못했어요.';
 const _routeSafetyGuidanceNotice = '이동 전 현장 안내와 역무원 안내를 확인해 주세요.';
@@ -54,91 +52,6 @@ String routeEtaSourceLabel(String value) {
   return routeEtaSourceLabels[trimmed] ?? '도착 정보를 확인하고 있어요';
 }
 
-abstract class RouteFeedbackRepository {
-  Future<void> submitRouteFeedback(RouteFeedbackRequest request);
-}
-
-enum RouteFeedbackRating {
-  helpful('HELPFUL'),
-  notHelpful('NOT_HELPFUL'),
-  blockedByRealWorld('BLOCKED_BY_REAL_WORLD');
-
-  const RouteFeedbackRating(this.serverValue);
-
-  final String serverValue;
-}
-
-enum RouteEtaOffsetBucket {
-  earlyOver3Minutes('EARLY_OVER_3_MINUTES'),
-  early1To3Minutes('EARLY_1_TO_3_MINUTES'),
-  onTime('ON_TIME'),
-  late1To3Minutes('LATE_1_TO_3_MINUTES'),
-  lateOver3Minutes('LATE_OVER_3_MINUTES'),
-  notProvided('NOT_PROVIDED');
-
-  const RouteEtaOffsetBucket(this.serverValue);
-
-  final String serverValue;
-}
-
-class RouteFeedbackRequest {
-  const RouteFeedbackRequest({
-    required this.routeSearchId,
-    required this.rating,
-    required this.comment,
-    this.itineraryId = '',
-    this.mobilityType = '',
-    this.constraintMode = '',
-    this.etaSource = '',
-    this.etaOffsetBucket = RouteEtaOffsetBucket.notProvided,
-    this.etaFeedbackOptedIn = false,
-  });
-
-  final String routeSearchId;
-  final RouteFeedbackRating rating;
-  final String comment;
-  final String itineraryId;
-  final String mobilityType;
-  final String constraintMode;
-  final String etaSource;
-  final RouteEtaOffsetBucket etaOffsetBucket;
-  final bool etaFeedbackOptedIn;
-
-  RouteFeedbackRequest trimmed() {
-    return RouteFeedbackRequest(
-      routeSearchId: routeSearchId.trim(),
-      rating: rating,
-      comment: comment.trim(),
-      itineraryId: itineraryId.trim(),
-      mobilityType: mobilityType.trim(),
-      constraintMode: constraintMode.trim(),
-      etaSource: etaSource.trim(),
-      etaOffsetBucket: etaOffsetBucket,
-      etaFeedbackOptedIn: etaFeedbackOptedIn,
-    );
-  }
-
-  Map<String, Object?> toJson({required String userId}) {
-    final trimmedRequest = trimmed();
-    final payload = <String, Object?>{
-      'userId': userId.trim(),
-      'rating': trimmedRequest.rating.serverValue,
-      'comment': trimmedRequest.comment,
-    };
-    if (trimmedRequest.etaFeedbackOptedIn) {
-      payload.addAll({
-        'itineraryId': trimmedRequest.itineraryId,
-        'mobilityType': trimmedRequest.mobilityType,
-        'constraintMode': trimmedRequest.constraintMode,
-        'etaSource': trimmedRequest.etaSource,
-        'etaOffsetBucket': trimmedRequest.etaOffsetBucket.serverValue,
-        'etaFeedbackOptedIn': true,
-      });
-    }
-    return payload;
-  }
-}
-
 enum RouteTransportScope {
   subway('SUBWAY'),
   subwayAndItxCheongchun('SUBWAY_AND_ITX_CHEONGCHUN');
@@ -153,114 +66,6 @@ RouteTransportScope _routeTransportScopeFromValue(Object? value) {
     'SUBWAY_AND_ITX_CHEONGCHUN' => RouteTransportScope.subwayAndItxCheongchun,
     _ => RouteTransportScope.subway,
   };
-}
-
-class RouteFeedbackApiRepository implements RouteFeedbackRepository {
-  RouteFeedbackApiRepository({
-    required this.baseUri,
-    required this.authProvider,
-    ApiClient? apiClient,
-    HttpClient? httpClient,
-  }) : _apiClient =
-           apiClient ?? ApiClient(baseUri: baseUri, httpClient: httpClient);
-
-  final Uri baseUri;
-  final AuthorizationHeaderProvider authProvider;
-  final ApiClient _apiClient;
-
-  @override
-  Future<void> submitRouteFeedback(RouteFeedbackRequest feedbackRequest) async {
-    final trimmedRequest = feedbackRequest.trimmed();
-    if (trimmedRequest.routeSearchId.isEmpty) {
-      throw const RouteFeedbackException(_routeFeedbackErrorMessage);
-    }
-
-    final path =
-        '/api/v1/routes/${Uri.encodeComponent(trimmedRequest.routeSearchId)}/feedback';
-
-    for (var attempt = 0; attempt < 2; attempt++) {
-      try {
-        final authorizationHeader = await authProvider
-            .authorizationHeader()
-            .timeout(_routeSearchTimeout);
-        // Basic 인증의 username을 사용자 식별자로 사용한다.
-        final userId = _userIdFromAuthorizationHeader(authorizationHeader);
-        if (userId == null) {
-          throw const RouteFeedbackException(_routeFeedbackErrorMessage);
-        }
-
-        final response = await _apiClient.postJson(
-          path,
-          body: trimmedRequest.toJson(userId: userId),
-          headers: {HttpHeaders.authorizationHeader: authorizationHeader!},
-        );
-
-        // 저장된 인증이 만료된 경우 한 번만 재시도한다.
-        if (response.isUnauthorized && attempt == 0) {
-          await authProvider.invalidateAuthorization().timeout(
-            _routeSearchTimeout,
-          );
-          continue;
-        }
-
-        if (!response.isOk) {
-          throw const RouteFeedbackException(_routeFeedbackErrorMessage);
-        }
-
-        final decoded = response.jsonBody;
-        if (decoded is! Map<String, Object?> || decoded['success'] != true) {
-          throw const RouteFeedbackException(_routeFeedbackErrorMessage);
-        }
-        return;
-      } on RouteFeedbackException {
-        rethrow;
-      } catch (error, stackTrace) {
-        reportMobileError(
-          error,
-          stackTrace,
-          context: '경로 피드백 API 요청 처리 중 예외가 발생했습니다.',
-        );
-        throw const RouteFeedbackException(_routeFeedbackErrorMessage);
-      }
-    }
-    throw const RouteFeedbackException(_routeFeedbackErrorMessage);
-  }
-
-  String? _userIdFromAuthorizationHeader(String? authorizationHeader) {
-    const prefix = 'Basic ';
-    if (authorizationHeader == null ||
-        !authorizationHeader.startsWith(prefix)) {
-      return null;
-    }
-
-    try {
-      final decoded = utf8.decode(
-        base64Decode(authorizationHeader.substring(prefix.length)),
-      );
-      final separatorIndex = decoded.indexOf(':');
-      if (separatorIndex <= 0) {
-        return null;
-      }
-      final userId = decoded.substring(0, separatorIndex).trim();
-      return userId.isEmpty ? null : userId;
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '경로 피드백 사용자 식별자 처리 중 예외가 발생했습니다.',
-      );
-      return null;
-    }
-  }
-}
-
-class RouteFeedbackException implements Exception {
-  const RouteFeedbackException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
 }
 
 abstract class FavoriteRouteRepository {
