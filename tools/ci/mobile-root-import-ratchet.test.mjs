@@ -160,6 +160,19 @@ test("Journey domain and data fixtures are classified as feature production", ()
   assert.deepEqual(after.uncertainty, []);
 });
 
+test("Onboarding feature paths are classified as feature production", () => {
+  const files = {
+    "apps/mobile/lib/features/onboarding/presentation/onboarding_screen.dart": "final class OnboardingScreen {}\n",
+  };
+  const graph = buildImmutableDartSourceGraph({ files });
+  const decision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE });
+
+  assert.deepEqual(decision.importers.map(({ path: importerPath, importerClass }) => [importerPath, importerClass]), [
+    ["apps/mobile/lib/features/onboarding/presentation/onboarding_screen.dart", "FEATURE_PRODUCTION"],
+  ]);
+  assert.deepEqual(decision.uncertainty, []);
+});
+
 test("immutable pubspec package identity binds self-package imports", async () => {
   const module = await import("./mobile-root-import-ratchet.mjs");
   assert.equal(typeof module.loadImmutableMobileTree, "function");
