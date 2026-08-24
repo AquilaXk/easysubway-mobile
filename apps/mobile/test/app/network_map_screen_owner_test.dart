@@ -10,7 +10,7 @@ void main() {
     expect(File('lib/network_map.dart').existsSync(), isFalse);
 
     final home = File('lib/app/home_screen.dart').readAsStringSync();
-    expect(home, contains("import '../../../app/network_map_screen.dart';"));
-    expect(home, isNot(contains("import '../../../network_map.dart';")));
+    expect(home, contains("import 'network_map_screen.dart';"));
+    expect(home, isNot(contains("import '../network_map.dart';")));
   });
 }
