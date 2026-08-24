@@ -29,6 +29,7 @@ Future<T?> showStationDetailSheet<T>({
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
   RouteDraftPort? routeDraftController,
+  Future<void> Function(FacilityReportTarget target)? onOpenFacilityReport,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
 }) {
   return showModalBottomSheet<T>(
@@ -52,6 +53,7 @@ Future<T?> showStationDetailSheet<T>({
           initiallyFavorite: initiallyFavorite,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
           routeDraftController: routeDraftController,
+          onOpenFacilityReport: onOpenFacilityReport,
           mapLauncher: mapLauncher,
         ),
       );
@@ -71,6 +73,7 @@ class StationDetailScreen extends StatefulWidget {
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
     this.routeDraftController,
+    this.onOpenFacilityReport,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     super.key,
   });
@@ -85,6 +88,8 @@ class StationDetailScreen extends StatefulWidget {
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final RouteDraftPort? routeDraftController;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
   final KakaoMapLauncher mapLauncher;
 
   @override
@@ -144,14 +149,14 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
               child: StationDetailBody(
                 state: _controller.state,
                 onRetryRealtime: _controller.retryRealtime,
-                reportRepository: widget.reportRepository,
+                onOpenFacilityReport:
+                    widget.onOpenFacilityReport ??
+                    (target) => _showFacilityReportUnavailable(context),
                 favoriteController: _favoriteController,
                 adRepository: widget.adRepository,
                 routeDraftController: widget.routeDraftController,
                 locationProvider: widget.locationProvider,
                 mapLauncher: widget.mapLauncher,
-                facilityReportDraftTargetStore:
-                    widget.facilityReportDraftTargetStore,
                 timetableRepository:
                     widget.repository is StationTimetableRepository
                     ? widget.repository as StationTimetableRepository
@@ -224,6 +229,7 @@ class StationDetailExpandHost extends StatefulWidget {
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
     this.routeDraftController,
+    this.onOpenFacilityReport,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     this.showContextChrome = true,
     this.showRealtimeSection = true,
@@ -245,6 +251,8 @@ class StationDetailExpandHost extends StatefulWidget {
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final RouteDraftPort? routeDraftController;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
   final KakaoMapLauncher mapLauncher;
   final bool showContextChrome;
   final bool showRealtimeSection;
@@ -318,14 +326,14 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
           child: StationDetailBody(
             state: _controller.state,
             onRetryRealtime: _controller.retryRealtime,
-            reportRepository: widget.reportRepository,
+            onOpenFacilityReport:
+                widget.onOpenFacilityReport ??
+                (target) => _showFacilityReportUnavailable(context),
             favoriteController: _favoriteController,
             adRepository: widget.adRepository,
             routeDraftController: widget.routeDraftController,
             locationProvider: widget.locationProvider,
             mapLauncher: widget.mapLauncher,
-            facilityReportDraftTargetStore:
-                widget.facilityReportDraftTargetStore,
             timetableRepository: widget.repository is StationTimetableRepository
                 ? widget.repository as StationTimetableRepository
                 : null,
@@ -341,4 +349,13 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
       },
     );
   }
+}
+
+Future<void> _showFacilityReportUnavailable(BuildContext context) async {
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('시설 제보 화면을 열 수 없어요. 잠시 후 다시 시도해 주세요.')),
+  );
 }

@@ -290,23 +290,59 @@ Future<void> _pumpStationDetailForTest(
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
   RouteDraftController? routeDraftController,
+  Future<void> Function(FacilityReportTarget target)? onOpenFacilityReport,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
   bool settle = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: StationDetailScreen(
-        repository: repository,
-        reportRepository: reportRepository,
-        stationId: stationId,
-        favoriteRepository: favoriteRepository,
-        adRepository: adRepository,
-        realtimeRepository: realtimeRepository,
-        locationProvider: locationProvider,
-        initiallyFavorite: initiallyFavorite,
-        facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-        routeDraftController: routeDraftController,
-        mapLauncher: mapLauncher,
+      home: Builder(
+        builder: (context) => StationDetailScreen(
+          repository: repository,
+          reportRepository: reportRepository,
+          stationId: stationId,
+          favoriteRepository: favoriteRepository,
+          adRepository: adRepository,
+          realtimeRepository: realtimeRepository,
+          locationProvider: locationProvider,
+          initiallyFavorite: initiallyFavorite,
+          facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+          routeDraftController: routeDraftController,
+          onOpenFacilityReport:
+              onOpenFacilityReport ??
+              (target) {
+                return Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => FacilityReportScreen(
+                      repository: reportRepository,
+                      locationLoader: locationProvider == null
+                          ? null
+                          : () async {
+                              try {
+                                final location = await locationProvider
+                                    .currentLocation();
+                                return FacilityReportLocation(
+                                  latitude: location.latitude,
+                                  longitude: location.longitude,
+                                );
+                              } on CurrentLocationException catch (error) {
+                                throw FacilityReportLocationException(
+                                  error.message,
+                                );
+                              }
+                            },
+                      needsLocationPermissionRequest:
+                          locationProvider?.needsLocationPermissionRequest,
+                      openLocationSettings:
+                          locationProvider?.openLocationSettings,
+                      draftTargetStore: facilityReportDraftTargetStore,
+                      target: target,
+                    ),
+                  ),
+                );
+              },
+          mapLauncher: mapLauncher,
+        ),
       ),
     ),
   );

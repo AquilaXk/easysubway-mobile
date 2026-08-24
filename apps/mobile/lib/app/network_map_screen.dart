@@ -53,6 +53,7 @@ class NetworkMapScreen extends StatefulWidget {
     this.adRepository,
     this.searchHistoryRepository,
     this.facilityReportDraftTargetStore,
+    this.onOpenFacilityReport,
     this.locationProvider,
     this.viewportRepository,
     this.realtimeRepository,
@@ -113,6 +114,8 @@ class NetworkMapScreen extends StatefulWidget {
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
   final CurrentLocationProvider? locationProvider;
   final NetworkMapViewportRepository? viewportRepository;
   final RealtimeRepository? realtimeRepository;
@@ -1638,6 +1641,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         locationProvider: widget.locationProvider,
         stationId: primary.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
+        onOpenFacilityReport: widget.onOpenFacilityReport,
         routeDraftController: widget.routeDraftController,
         // 상단 호선바·실시간/시간표가 맥락·열차를 담당한다.
         showContextChrome: false,

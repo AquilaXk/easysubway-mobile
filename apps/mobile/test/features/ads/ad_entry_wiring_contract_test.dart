@@ -11,10 +11,11 @@ String _between(String source, String start, String end) {
 }
 
 void main() {
-  test('두 station detail 진입점이 같은 광고 repository를 전달한다', () {
+  test('세 station detail 앱 조합 진입점이 같은 광고 repository를 전달한다', () {
     final main = File('lib/main.dart').readAsStringSync();
-    final favorites = File(
-      'lib/features/favorites/presentation/favorite_home_screen.dart',
+    final home = File('lib/app/home_screen.dart').readAsStringSync();
+    final networkMap = File(
+      'lib/app/network_map_screen.dart',
     ).readAsStringSync();
 
     expect(
@@ -23,9 +24,17 @@ void main() {
     );
     expect(
       _between(
-        favorites,
-        'Future<void> _openStationDetailFromFavorite',
-        'Future<void> _openFacilityReportFromFavorite',
+        home,
+        'onOpenStationDetail: (favorite)',
+        'onOpenFacilityReport: openFacilityReport',
+      ),
+      contains('adRepository: adRepository'),
+    );
+    expect(
+      _between(
+        networkMap,
+        'expandedDetail = StationDetailExpandHost(',
+        '} else {',
       ),
       contains('adRepository: widget.adRepository'),
     );

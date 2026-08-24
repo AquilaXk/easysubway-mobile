@@ -15,6 +15,9 @@ import 'features/home_widget/next_train_widget_runtime.dart'
     as next_train_widget_runtime;
 import 'features/facility_report/data/image_picker_facility_report_photo_picker.dart';
 import 'features/facility_report/data/secure_facility_report_draft_target_store.dart';
+import 'features/facility_report/domain/facility_report_location.dart';
+import 'features/facility_report/presentation/facility_report_screen.dart';
+import 'features/stations/domain/station_repositories.dart';
 import 'features/stations/presentation/station_detail_screen.dart';
 import 'legacy_credential_cleanup.dart';
 import 'mobile_error_reporter.dart';
@@ -119,6 +122,39 @@ Future<void> main() async {
           locationProvider: bootstrap.dependencies.locationProvider,
           stationId: stationId,
           facilityReportDraftTargetStore: draftTargetStore,
+          onOpenFacilityReport: (target) {
+            return navigatorKey.currentState!.push(
+              MaterialPageRoute<void>(
+                builder: (_) => FacilityReportScreen(
+                  repository: bootstrap.dependencies.reportRepository,
+                  locationLoader: () async {
+                    try {
+                      final location = await bootstrap
+                          .dependencies
+                          .locationProvider
+                          .currentLocation();
+                      return FacilityReportLocation(
+                        latitude: location.latitude,
+                        longitude: location.longitude,
+                      );
+                    } on CurrentLocationException catch (error) {
+                      throw FacilityReportLocationException(error.message);
+                    }
+                  },
+                  needsLocationPermissionRequest: bootstrap
+                      .dependencies
+                      .locationProvider
+                      .needsLocationPermissionRequest,
+                  openLocationSettings: bootstrap
+                      .dependencies
+                      .locationProvider
+                      .openLocationSettings,
+                  draftTargetStore: draftTargetStore,
+                  target: target,
+                ),
+              ),
+            );
+          },
         ),
         child: EasySubwayApp(
           navigatorKey: navigatorKey,

@@ -70,7 +70,7 @@ test("current policy is byte-bound to the reviewed repository inventory", () => 
   const reviewedInventory = verifyInventoryBinding(policy, reviewedInventoryBytes);
   assert.equal(reviewedInventory.featureRoots.length, 24);
   assert.equal(reviewedInventory.publicApis.length, 22);
-  assert.equal(reviewedInventory.migrationExceptions.length, 9);
+  assert.equal(reviewedInventory.migrationExceptions.length, 8);
 });
 
 test("policy is byte-bound to a normalized explicit inventory", () => {

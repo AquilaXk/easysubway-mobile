@@ -261,14 +261,6 @@
       "ownerIssue": 37,
       "reason": "Station presentation constructs an Ads presentation widget.",
       "removalTrigger": "App composition supplies the optional ad slot widget."
-    },
-    {
-      "source": "apps/mobile/lib/features/stations/presentation/station_detail_body.dart",
-      "target": "apps/mobile/lib/features/facility_report/presentation/facility_report_screen.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 20,
-      "reason": "Station presentation constructs Facility Report presentation directly.",
-      "removalTrigger": "App composition handles a typed facility-report intent."
     }
   ]
 }

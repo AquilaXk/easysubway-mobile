@@ -433,6 +433,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
+    Future<void> openFacilityReport(FacilityReportTarget target) {
+      return Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => FacilityReportScreen(
+            repository: reportRepository,
+            locationLoader: _facilityReportLocationLoader(locationProvider),
+            needsLocationPermissionRequest:
+                locationProvider.needsLocationPermissionRequest,
+            openLocationSettings: locationProvider.openLocationSettings,
+            draftTargetStore: facilityReportDraftTargetStore,
+            target: target,
+          ),
+        ),
+      );
+    }
+
     void openHomeTab() {
       if (_selectedTabIndex == 0) {
         return;
@@ -534,6 +550,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             adRepository: adRepository,
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+            onOpenFacilityReport: openFacilityReport,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             regionLabel: regionLabel,
@@ -563,6 +580,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             favoriteRepository: favoriteRepository,
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+            onOpenFacilityReport: openFacilityReport,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             pickSlot: slot,
@@ -688,6 +706,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+          onOpenFacilityReport: openFacilityReport,
           locationProvider: locationProvider,
           viewportRepository: widget.networkMapViewportRepository,
           realtimeRepository: widget.realtimeRepository,
@@ -751,6 +770,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+          onOpenFacilityReport: openFacilityReport,
           realtimeRepository: realtimeRepository,
           routeDraftController: _routeDraftController,
           regionLabel: '수도권',
@@ -792,26 +812,11 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               stationId: favorite.stationId,
               facilityReportDraftTargetStore: facilityReportDraftTargetStore,
               routeDraftController: _routeDraftController,
+              onOpenFacilityReport: openFacilityReport,
               initiallyFavorite: true,
             );
           },
-          onOpenFacilityReport: (target) async {
-            await Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => FacilityReportScreen(
-                  repository: reportRepository,
-                  locationLoader: _facilityReportLocationLoader(
-                    locationProvider,
-                  ),
-                  needsLocationPermissionRequest:
-                      locationProvider.needsLocationPermissionRequest,
-                  openLocationSettings: locationProvider.openLocationSettings,
-                  draftTargetStore: facilityReportDraftTargetStore,
-                  target: target,
-                ),
-              ),
-            );
-          },
+          onOpenFacilityReport: openFacilityReport,
           onOpenFavoriteRoute: (favorite) async {
             _routeDraftController.clear();
             _routeDraftController.setOrigin(
