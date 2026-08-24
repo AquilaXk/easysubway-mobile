@@ -8,6 +8,7 @@ import '../../facility_report/presentation/facility_report_screen.dart';
 import '../../../favorite_facility.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../route_search.dart';
+import '../domain/favorite_route.dart';
 import '../../../station_search.dart';
 import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_location.dart';

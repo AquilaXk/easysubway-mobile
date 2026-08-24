@@ -1,4 +1,5 @@
 import '../favorite_facility.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../route_search.dart';
 import '../station_search.dart';
 

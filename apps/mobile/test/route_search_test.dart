@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easysubway_mobile/auth_headers.dart';
+import 'package:easysubway_mobile/features/favorites/data/favorite_route_api_repository.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/route_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -551,6 +553,89 @@ void main() {
     expect(saved.semanticLabel, isNot(contains('92점')));
     expect(saved.semanticLabel, isNot(contains('아직 알 수 없어요')));
   });
+
+  test('즐겨찾기 경로 API는 인증된 401만 한 번 무효화하고 재시도한다', () async {
+    final requests = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      requests.add(request.headers.value(HttpHeaders.authorizationHeader));
+      request.response
+        ..statusCode = requests.length == 1
+            ? HttpStatus.unauthorized
+            : HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [_favoriteRouteJson()],
+          }),
+        );
+      await request.response.close();
+    });
+    final auth = _CountingAuthorizationProvider('Basic first');
+    final repository = FavoriteRouteApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: auth,
+    );
+
+    await repository.listFavoriteRoutes();
+
+    expect(requests, ['Basic first', 'Basic first']);
+    expect(auth.invalidateCount, 1);
+  });
+
+  test('즐겨찾기 경로 API는 두 번째 인증 401 또는 익명 401에서 추가 재시도하지 않는다', () async {
+    final requests = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      requests.add(request.headers.value(HttpHeaders.authorizationHeader));
+      request.response
+        ..statusCode = HttpStatus.unauthorized
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({'success': false}));
+      await request.response.close();
+    });
+    final auth = _CountingAuthorizationProvider('Basic expired');
+    final authenticatedRepository = FavoriteRouteApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: auth,
+    );
+    await expectLater(
+      authenticatedRepository.listFavoriteRoutes(),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    expect(requests, ['Basic expired', 'Basic expired']);
+    expect(auth.invalidateCount, 1);
+
+    requests.clear();
+    final anonymousRepository = FavoriteRouteApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: const NoAuthorizationHeaderProvider(),
+    );
+    await expectLater(
+      anonymousRepository.listFavoriteRoutes(),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    expect(requests, hasLength(1));
+    expect(requests.single, isNull);
+  });
+}
+
+class _CountingAuthorizationProvider implements AuthorizationHeaderProvider {
+  _CountingAuthorizationProvider(this.value);
+
+  final String value;
+  int invalidateCount = 0;
+
+  @override
+  Future<String?> authorizationHeader() async => value;
+
+  @override
+  Future<void> invalidateAuthorization() async {
+    invalidateCount += 1;
+  }
 }
 
 RouteSearchResult _sampleRouteSearchResult({

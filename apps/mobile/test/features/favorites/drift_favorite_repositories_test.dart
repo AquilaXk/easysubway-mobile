@@ -352,6 +352,60 @@ void main() {
     expect(await repository.listFavoriteRoutes(), isEmpty);
   });
 
+  test(
+    'legacy 즐겨찾기 경로 snapshot의 raw bytes와 canonical ID를 읽기만 해도 바꾸지 않는다',
+    () async {
+      final catalogDatabase = CatalogDatabase.memory();
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(catalogDatabase.close);
+      addTearDown(userDatabase.close);
+      await catalogDatabase.seedBaselineIfEmpty();
+      const routeId = 'server-route-1';
+      const rawSnapshot =
+          '{"routeSearchId":"server-route-1","originStationId":"station-sangnoksu","originStationName":"상록수","destinationStationId":"station-sadang","destinationStationName":"사당","mobilityType":"SENIOR","status":"FOUND","lineId":"seoul-4","lineName":"수도권 4호선","score":92,"createdAt":"2026-06-19T09:00:00.000Z","transportScope":"SUBWAY"}';
+      await userDatabase.transaction(() async {
+        await userDatabase
+            .into(userDatabase.favoriteRoutes)
+            .insert(
+              user_db.FavoriteRoutesCompanion.insert(
+                routeId: routeId,
+                originStationId: 'station-sangnoksu',
+                destinationStationId: 'station-sadang',
+                mobilityProfile: 'SENIOR',
+                addedAt: DateTime.utc(2026, 6, 19, 9),
+              ),
+            );
+        await userDatabase
+            .into(userDatabase.appPreferences)
+            .insert(
+              user_db.AppPreferencesCompanion.insert(
+                key: 'favorite_route_snapshot:$routeId',
+                value: rawSnapshot,
+                updatedAt: DateTime.utc(2026, 6, 19, 9),
+              ),
+            );
+      });
+      final repository = DriftFavoriteRouteRepository(
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+      );
+
+      final favorites = await repository.listFavoriteRoutes();
+      final stored = await userDatabase
+          .customSelect(
+            'SELECT value FROM app_preferences WHERE key = ?',
+            variables: [
+              Variable.withString('favorite_route_snapshot:$routeId'),
+            ],
+          )
+          .getSingle();
+
+      expect(favorites.single.favoriteRouteId, routeId);
+      expect(favorites.single.routeSearchId, routeId);
+      expect(stored.read<String>('value'), rawSnapshot);
+    },
+  );
+
   test('로컬 경로 즐겨찾기는 같은 구간도 이동 조건별로 분리해 저장한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();

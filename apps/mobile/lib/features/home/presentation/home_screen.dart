@@ -19,6 +19,7 @@ import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../facility_report/presentation/my_facility_reports_screens.dart';
 import '../../favorites/presentation/favorite_home_screen.dart';
+import '../../favorites/domain/favorite_route.dart';
 import '../../get_off_alarm/get_off_alarm_controller.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_preset_picker.dart';

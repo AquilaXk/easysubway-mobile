@@ -22,6 +22,7 @@ import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/account/presentation/user_data_deletion_screen.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/features/favorites/presentation/favorite_home_screen.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';

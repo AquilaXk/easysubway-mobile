@@ -8,6 +8,8 @@ import '../favorite_facility.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../features/favorites/data/drift_favorite_repositories.dart';
+import '../features/favorites/data/favorite_route_api_repository.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
 import '../features/facility_report/data/facility_report_api_repository.dart';
@@ -40,7 +42,6 @@ import '../features/journey/domain/journey_repository.dart';
 import '../generated/journey_v3/journey_v3_contract.dart';
 import '../features/network_map/domain/network_map_models.dart';
 import '../notification_settings.dart';
-import '../route_search.dart';
 import '../station_search.dart' show defaultOptionalStationApiBaseUri;
 import '../user_data_deletion.dart';
 
