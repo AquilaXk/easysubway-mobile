@@ -86,7 +86,6 @@
   "criticalBoundaryRules": {
     "JOURNEY_ROUTE_INGRESS": [
       "features/journey/",
-      "internal_route.dart",
       "features/routes/domain/",
       "features/internal_route/"
     ],
@@ -98,8 +97,7 @@
       "features/route_draft/",
       "features/mobility_profile/",
       "features/routes/domain/",
-      "features/internal_route/",
-      "internal_route.dart"
+      "features/internal_route/"
     ],
     "DATAPACK_CATALOG_LIFECYCLE": [
       "app/app_endpoints.dart",
