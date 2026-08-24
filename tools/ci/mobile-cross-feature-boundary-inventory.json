@@ -219,14 +219,6 @@
       "ownerIssue": 22,
       "reason": "The widget runtime imports a concrete alarm worker dispatcher.",
       "removalTrigger": "Root composition supplies the exact worker task handler."
-    },
-    {
-      "source": "apps/mobile/lib/features/onboarding/onboarding.dart",
-      "target": "apps/mobile/lib/features/mobility_profile/mobility_preset_picker.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 22,
-      "reason": "Onboarding imports a concrete Mobility Profile widget.",
-      "removalTrigger": "Root composition owns the shared preset-picker presentation."
     }
   ]
 }

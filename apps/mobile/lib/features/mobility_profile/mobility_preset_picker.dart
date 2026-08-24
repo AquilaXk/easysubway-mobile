@@ -8,17 +8,10 @@ library;
 import 'package:flutter/material.dart';
 
 import '../../accessible_design.dart';
+import '../../core/ui/selectable_option_row.dart';
 import '../../design_tokens.dart';
 import 'mobility_preset_labels.dart';
 import 'mobility_profile_policy.dart';
-
-/// 바텀시트에 노출하는 프리셋 순서(표준 → 천천히 → 계단 없이 → 휠체어).
-const List<MobilityPreset> mobilityPresetSheetOrder = <MobilityPreset>[
-  MobilityPreset.standard,
-  MobilityPreset.slow,
-  MobilityPreset.noStairs,
-  MobilityPreset.stepFree,
-];
 
 /// 프리셋 선택 바텀시트. 다른 프리셋을 고르면 그 프리셋을 반환하고, 취소·재선택이
 /// 없으면 null을 반환한다.
@@ -66,7 +59,7 @@ Future<MobilityPreset?> showMobilityPresetSheet(
                     children: [
                       for (
                         var i = 0;
-                        i < mobilityPresetSheetOrder.length;
+                        i < mobilityPresetDisplayOrder.length;
                         i++
                       ) ...[
                         if (i != 0)
@@ -80,12 +73,12 @@ Future<MobilityPreset?> showMobilityPresetSheet(
                             horizontal: EasySubwaySpacing.xl,
                           ),
                           child: MobilityPresetRow(
-                            preset: mobilityPresetSheetOrder[i],
-                            selected: mobilityPresetSheetOrder[i] == current,
+                            preset: mobilityPresetDisplayOrder[i],
+                            selected: mobilityPresetDisplayOrder[i] == current,
                             showDescription: true,
                             onTap: () => Navigator.of(
                               sheetContext,
-                            ).pop(mobilityPresetSheetOrder[i]),
+                            ).pop(mobilityPresetDisplayOrder[i]),
                           ),
                         ),
                       ],
@@ -125,132 +118,17 @@ class MobilityPresetRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final title = mobilityPresetDisplayName(preset);
-    final description = mobilityPresetDescription(preset);
-    final semanticsLabel = '$title, $description';
-    return Semantics(
-      label: semanticsLabel,
+    return AccessibleSelectableOptionRow(
+      controlKey: Key('mobilityPresetRow-${preset.name}'),
+      icon: mobilityPresetIcon(preset),
+      title: mobilityPresetDisplayName(preset),
+      description: mobilityPresetDescription(preset),
       selected: selected,
-      button: true,
       onTap: onTap,
-      child: ExcludeSemantics(
-        child: GestureDetector(
-          key: Key('mobilityPresetRow-${preset.name}'),
-          behavior: HitTestBehavior.opaque,
-          onTap: onTap,
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 60),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              child: Row(
-                children: [
-                  Icon(
-                    mobilityPresetIcon(preset),
-                    size: 24,
-                    color: selected
-                        ? EasySubwayAccessibleColors.text
-                        : EasySubwayAccessibleColors.mutedText,
-                  ),
-                  const SizedBox(width: EasySubwaySpacing.lg),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Text(
-                          title,
-                          style: textTheme.bodyLarge?.copyWith(
-                            color: EasySubwayAccessibleColors.text,
-                            fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w600,
-                            fontSize: 18,
-                            height: 1.25,
-                          ),
-                        ),
-                        if (showDescription) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            description,
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: EasySubwayAccessibleColors.mutedText,
-                              fontWeight: FontWeight.w600,
-                              height: 1.3,
-                            ),
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                  SizedBox(
-                    width: showBrandRadio
-                        ? EasySubwaySpacing.xs
-                        : EasySubwaySpacing.md,
-                  ),
-                  if (showBrandRadio)
-                    Container(
-                      key: Key('mobilityPresetRadio-${preset.name}'),
-                      width: 22,
-                      height: 22,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: selected
-                            ? EasySubwayAccessibleColors.brandSignature
-                                  .withValues(alpha: 0.12)
-                            : Colors.transparent,
-                        border: Border.all(
-                          color: selected
-                              ? EasySubwayAccessibleColors.brandSignature
-                              : EasySubwayAccessibleColors.mutedText,
-                          width: 1.5,
-                        ),
-                      ),
-                      alignment: Alignment.center,
-                      child: selected
-                          ? CustomPaint(
-                              key: Key('mobilityPresetCheck-${preset.name}'),
-                              size: const Size.square(12),
-                              painter: const _BrandCheckPainter(),
-                            )
-                          : null,
-                    )
-                  else if (selected)
-                    const Icon(
-                      Icons.check,
-                      size: 22,
-                      color: EasySubwayAccessibleColors.primary,
-                    )
-                  else
-                    const SizedBox(width: 22),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
+      showDescription: showDescription,
+      showBrandRadio: showBrandRadio,
+      radioKey: Key('mobilityPresetRadio-${preset.name}'),
+      checkKey: Key('mobilityPresetCheck-${preset.name}'),
     );
   }
-}
-
-class _BrandCheckPainter extends CustomPainter {
-  const _BrandCheckPainter();
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = EasySubwayAccessibleColors.brandSignature
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 2.6
-      ..strokeCap = StrokeCap.round
-      ..strokeJoin = StrokeJoin.round;
-    final path = Path()
-      ..moveTo(size.width * 0.1, size.height * 0.5)
-      ..lineTo(size.width * 0.4, size.height * 0.8)
-      ..lineTo(size.width * 0.9, size.height * 0.2);
-    canvas.drawPath(path, paint);
-  }
-
-  @override
-  bool shouldRepaint(_BrandCheckPainter oldDelegate) => false;
 }

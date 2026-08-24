@@ -3,10 +3,9 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../accessible_design.dart';
+import '../../core/ui/selectable_option_row.dart';
 import '../../design_tokens.dart';
 import '../mobility_profile/mobility_preset_labels.dart';
-import '../mobility_profile/mobility_preset_picker.dart'
-    show MobilityPresetRow, mobilityPresetSheetOrder;
 import '../mobility_profile/mobility_profile_policy.dart';
 import '../../mobile_error_reporter.dart';
 import '../notifications/notification_settings.dart';
@@ -532,7 +531,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       const SizedBox(height: EasySubwaySpacing.xl),
                       for (
                         var i = 0;
-                        i < mobilityPresetSheetOrder.length;
+                        i < mobilityPresetDisplayOrder.length;
                         i++
                       ) ...[
                         if (i != 0)
@@ -541,16 +540,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             thickness: 1,
                             color: EasySubwayAccessibleColors.line,
                           ),
-                        MobilityPresetRow(
-                          preset: mobilityPresetSheetOrder[i],
+                        AccessibleSelectableOptionRow(
+                          controlKey: Key(
+                            'mobilityPresetRow-${mobilityPresetDisplayOrder[i].name}',
+                          ),
+                          icon: mobilityPresetIcon(
+                            mobilityPresetDisplayOrder[i],
+                          ),
+                          title: mobilityPresetDisplayName(
+                            mobilityPresetDisplayOrder[i],
+                          ),
+                          description: mobilityPresetDescription(
+                            mobilityPresetDisplayOrder[i],
+                          ),
                           selected:
-                              mobilityPresetSheetOrder[i] == _selectedPreset,
+                              mobilityPresetDisplayOrder[i] == _selectedPreset,
                           // 온보딩 step0은 각 행 아래 부가설명도 노출한다(#1703).
                           showDescription: true,
                           showBrandRadio: true,
+                          radioKey: Key(
+                            'mobilityPresetRadio-${mobilityPresetDisplayOrder[i].name}',
+                          ),
+                          checkKey: Key(
+                            'mobilityPresetCheck-${mobilityPresetDisplayOrder[i].name}',
+                          ),
                           onTap: () {
                             setState(() {
-                              _selectedPreset = mobilityPresetSheetOrder[i];
+                              _selectedPreset = mobilityPresetDisplayOrder[i];
                             });
                           },
                         ),
