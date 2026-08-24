@@ -132,7 +132,7 @@
       "features/stations/presentation/",
       "features/support/presentation/",
       "features/train_search/presentation/",
-      "facility_status.dart",
+      "features/stations/domain/facility_status.dart",
       "app/network_map_screen.dart",
       "onboarding.dart",
       "features/routes/domain/route_search.dart",
@@ -149,7 +149,7 @@
       "features/preferences/data/drift_notification_settings_repository.dart",
       "features/search_history/data/drift_search_history_repository.dart",
       "features/service_notice/data/drift_notice_cache_store.dart",
-      "facility_status.dart",
+      "features/stations/domain/facility_status.dart",
       "notification_settings.dart",
       "secure_key_value_storage.dart",
       "mobile_error_reporter.dart"
