@@ -7,7 +7,6 @@ import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../search_field.dart';
-import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../../core/ui/region_menu.dart';
@@ -42,7 +41,7 @@ class StationSearchScreen extends StatefulWidget {
     required this.repository,
     required this.reportRepository,
     this.favoriteRepository,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.searchHistoryRepository,
     this.realtimeRepository,
     this.facilityReportDraftTargetStore,
@@ -59,7 +58,7 @@ class StationSearchScreen extends StatefulWidget {
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
   final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final SearchHistoryRepository? searchHistoryRepository;
   final RealtimeRepository? realtimeRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
@@ -702,7 +701,7 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         repository: widget.repository,
         reportRepository: widget.reportRepository,
         favoriteRepository: widget.favoriteRepository,
-        adRepository: widget.adRepository,
+        bottomAdBuilder: widget.bottomAdBuilder,
         realtimeRepository: widget.realtimeRepository,
         stationId: result.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,

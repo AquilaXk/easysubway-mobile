@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
+import '../features/ads/active_ad_banner.dart';
 import '../features/ads/ad_slot.dart';
 import '../design_tokens.dart';
 import '../features/ads/ad_repository.dart';
@@ -39,6 +40,15 @@ import '../features/stations/domain/station_line.dart';
 import '../features/stations/domain/station_repositories.dart';
 import 'network_map_nearby_panel_composition.dart';
 import 'network_map_search_session.dart';
+
+WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
+  if (repository == null) return null;
+  return (_) => ActiveAdBanner(
+    key: const Key('stationDetailBottomAdBanner'),
+    repository: repository,
+    placement: AdPlacement.stationDetailBottom,
+  );
+}
 
 class NetworkMapScreen extends StatefulWidget {
   const NetworkMapScreen({
@@ -1636,7 +1646,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         repository: widget.stationSearchRepository!,
         reportRepository: widget.reportRepository!,
         favoriteRepository: widget.favoriteRepository,
-        adRepository: widget.adRepository,
+        bottomAdBuilder: _stationDetailBottomAdBuilder(widget.adRepository),
         realtimeRepository: widget.realtimeRepository,
         locationProvider: widget.locationProvider,
         stationId: primary.id,

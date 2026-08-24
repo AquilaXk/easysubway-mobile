@@ -6,6 +6,7 @@ import 'package:flutter/semantics.dart';
 import '../accessible_design.dart';
 import '../features/account/user_data_deletion.dart';
 import '../features/account/presentation/user_data_deletion_screen.dart';
+import '../features/ads/active_ad_banner.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/attribution/presentation/data_source_attribution_screen.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
@@ -52,6 +53,15 @@ import '../features/train_search/presentation/train_search_screen.dart';
 import '../mobile_error_reporter.dart';
 import 'app_components.dart';
 import 'network_map_screen.dart';
+
+WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
+  if (repository == null) return null;
+  return (_) => ActiveAdBanner(
+    key: const Key('stationDetailBottomAdBanner'),
+    repository: repository,
+    placement: AdPlacement.stationDetailBottom,
+  );
+}
 
 const _mainIconControlRadius = BorderRadius.all(Radius.circular(12));
 
@@ -547,7 +557,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             repository: repository,
             reportRepository: reportRepository,
             favoriteRepository: favoriteRepository,
-            adRepository: adRepository,
+            bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
             onOpenFacilityReport: openFacilityReport,
@@ -767,7 +777,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           repository: repository,
           reportRepository: reportRepository,
           favoriteRepository: favoriteRepository,
-          adRepository: adRepository,
+          bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
           onOpenFacilityReport: openFacilityReport,
@@ -806,7 +816,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               repository: repository,
               reportRepository: reportRepository,
               favoriteRepository: favoriteRepository,
-              adRepository: adRepository,
+              bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
               locationProvider: locationProvider,
               realtimeRepository: realtimeRepository,
               stationId: favorite.stationId,

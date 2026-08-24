@@ -11,7 +11,7 @@ String _between(String source, String start, String end) {
 }
 
 void main() {
-  test('세 station detail 앱 조합 진입점이 같은 광고 repository를 전달한다', () {
+  test('세 station detail 앱 조합 진입점이 광고 widget builder를 전달한다', () {
     final main = File('lib/main.dart').readAsStringSync();
     final home = File('lib/app/home_screen.dart').readAsStringSync();
     final networkMap = File(
@@ -20,7 +20,7 @@ void main() {
 
     expect(
       _between(main, 'stationDetailBuilder:', 'child: EasySubwayApp'),
-      contains('adRepository: bootstrap.dependencies.adRepository'),
+      contains('_stationDetailBottomAdBuilder('),
     );
     expect(
       _between(
@@ -28,7 +28,7 @@ void main() {
         'onOpenStationDetail: (favorite)',
         'onOpenFacilityReport: openFacilityReport',
       ),
-      contains('adRepository: adRepository'),
+      contains('bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository)'),
     );
     expect(
       _between(
@@ -36,7 +36,9 @@ void main() {
         'expandedDetail = StationDetailExpandHost(',
         '} else {',
       ),
-      contains('adRepository: widget.adRepository'),
+      contains(
+        'bottomAdBuilder: _stationDetailBottomAdBuilder(widget.adRepository)',
+      ),
     );
   });
 }

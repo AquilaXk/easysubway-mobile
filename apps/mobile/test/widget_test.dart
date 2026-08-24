@@ -88,6 +88,15 @@ import 'support/easy_subway_app_fixture.dart';
 import 'fake_secure_key_value_storage.dart';
 import 'user_copy_guard.dart';
 
+WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
+  if (repository == null) return null;
+  return (_) => ActiveAdBanner(
+    key: const Key('stationDetailBottomAdBanner'),
+    repository: repository,
+    placement: AdPlacement.stationDetailBottom,
+  );
+}
+
 OnboardingState _completedOnboardingState({
   MobilityPreset preset = MobilityPreset.slow,
 }) {
@@ -207,7 +216,7 @@ Future<void> _openFavoriteList(
               repository: home.repository,
               reportRepository: home.reportRepository,
               favoriteRepository: home.favoriteRepository,
-              adRepository: home.adRepository,
+              bottomAdBuilder: _stationDetailBottomAdBuilder(home.adRepository),
               locationProvider: home.locationProvider,
               realtimeRepository: home.realtimeRepository,
               stationId: favorite.stationId,
@@ -302,7 +311,7 @@ Future<void> _pumpStationDetailForTest(
           reportRepository: reportRepository,
           stationId: stationId,
           favoriteRepository: favoriteRepository,
-          adRepository: adRepository,
+          bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
           realtimeRepository: realtimeRepository,
           locationProvider: locationProvider,
           initiallyFavorite: initiallyFavorite,
@@ -12404,7 +12413,7 @@ void main() {
             stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
           ),
           reportRepository: FakeFacilityReportRepository(),
-          adRepository: adRepository,
+          bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
           stationId: 'station-sangnoksu',
         ),
       ),

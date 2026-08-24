@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../app/easy_subway_family_app_bar.dart';
 import '../../../core/external/kakao_map_launcher.dart';
-import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
@@ -23,7 +22,7 @@ Future<T?> showStationDetailSheet<T>({
   required FacilityReportRepository reportRepository,
   required String stationId,
   FavoriteStationRepository? favoriteRepository,
-  AdRepository? adRepository,
+  WidgetBuilder? bottomAdBuilder,
   RealtimeRepository? realtimeRepository,
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
@@ -46,7 +45,7 @@ Future<T?> showStationDetailSheet<T>({
           repository: repository,
           reportRepository: reportRepository,
           favoriteRepository: favoriteRepository,
-          adRepository: adRepository,
+          bottomAdBuilder: bottomAdBuilder,
           realtimeRepository: realtimeRepository,
           locationProvider: locationProvider,
           stationId: stationId,
@@ -67,7 +66,7 @@ class StationDetailScreen extends StatefulWidget {
     required this.reportRepository,
     required this.stationId,
     this.favoriteRepository,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.realtimeRepository,
     this.locationProvider,
     this.initiallyFavorite,
@@ -81,7 +80,7 @@ class StationDetailScreen extends StatefulWidget {
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
   final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
   final CurrentLocationProvider? locationProvider;
   final String stationId;
@@ -153,7 +152,7 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
                     widget.onOpenFacilityReport ??
                     (target) => _showFacilityReportUnavailable(context),
                 favoriteController: _favoriteController,
-                adRepository: widget.adRepository,
+                bottomAdBuilder: widget.bottomAdBuilder,
                 routeDraftController: widget.routeDraftController,
                 locationProvider: widget.locationProvider,
                 mapLauncher: widget.mapLauncher,
@@ -223,7 +222,7 @@ class StationDetailExpandHost extends StatefulWidget {
     required this.reportRepository,
     required this.stationId,
     this.favoriteRepository,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.realtimeRepository,
     this.locationProvider,
     this.initiallyFavorite,
@@ -244,7 +243,7 @@ class StationDetailExpandHost extends StatefulWidget {
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
   final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
   final CurrentLocationProvider? locationProvider;
   final String stationId;
@@ -330,7 +329,7 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
                 widget.onOpenFacilityReport ??
                 (target) => _showFacilityReportUnavailable(context),
             favoriteController: _favoriteController,
-            adRepository: widget.adRepository,
+            bottomAdBuilder: widget.bottomAdBuilder,
             routeDraftController: widget.routeDraftController,
             locationProvider: widget.locationProvider,
             mapLauncher: widget.mapLauncher,

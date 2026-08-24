@@ -8,6 +8,8 @@ import 'app/demo_dependencies.dart';
 import 'app/easy_subway_app.dart';
 import 'core/crashlytics/mobile_crash_reporting.dart';
 import 'core/external/kakao_map_configuration.dart';
+import 'features/ads/active_ad_banner.dart';
+import 'features/ads/ad_repository.dart';
 import 'features/get_off_alarm/get_off_alarm_controller.dart';
 import 'features/home_widget/home_widget_link_handler.dart';
 import 'features/home_widget/next_train_widget_repository.dart';
@@ -27,6 +29,15 @@ const defaultPushNotificationsEnabled = bool.fromEnvironment(
   'EASYSUBWAY_ENABLE_PUSH_NOTIFICATIONS',
   defaultValue: false,
 );
+
+WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
+  if (repository == null) return null;
+  return (_) => ActiveAdBanner(
+    key: const Key('stationDetailBottomAdBanner'),
+    repository: repository,
+    placement: AdPlacement.stationDetailBottom,
+  );
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -117,7 +128,9 @@ Future<void> main() async {
           repository: bootstrap.dependencies.repository,
           reportRepository: bootstrap.dependencies.reportRepository,
           favoriteRepository: bootstrap.dependencies.favoriteRepository,
-          adRepository: bootstrap.dependencies.adRepository,
+          bottomAdBuilder: _stationDetailBottomAdBuilder(
+            bootstrap.dependencies.adRepository,
+          ),
           realtimeRepository: bootstrap.dependencies.realtimeRepository,
           locationProvider: bootstrap.dependencies.locationProvider,
           stationId: stationId,

@@ -6,8 +6,6 @@ import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../ads/active_ad_banner.dart';
-import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/route_draft_port.dart';
@@ -48,7 +46,7 @@ class StationDetailBody extends StatelessWidget {
     required this.onRetryRealtime,
     required this.onOpenFacilityReport,
     this.favoriteController,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.routeDraftController,
     this.locationProvider,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
@@ -67,7 +65,7 @@ class StationDetailBody extends StatelessWidget {
   final VoidCallback onRetryRealtime;
   final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
   final StationFavoriteToggleController? favoriteController;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
@@ -107,7 +105,7 @@ class StationDetailBody extends StatelessWidget {
         onRetryRealtime: onRetryRealtime,
         onOpenFacilityReport: onOpenFacilityReport,
         favoriteController: favoriteController,
-        adRepository: adRepository,
+        bottomAdBuilder: bottomAdBuilder,
         routeDraftController: routeDraftController,
         locationProvider: locationProvider,
         mapLauncher: mapLauncher,
@@ -160,7 +158,7 @@ class _StationDetailContent extends StatelessWidget {
     required this.onRetryRealtime,
     required this.onOpenFacilityReport,
     required this.favoriteController,
-    required this.adRepository,
+    required this.bottomAdBuilder,
     required this.routeDraftController,
     required this.locationProvider,
     required this.mapLauncher,
@@ -185,7 +183,7 @@ class _StationDetailContent extends StatelessWidget {
   final VoidCallback onRetryRealtime;
   final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
   final StationFavoriteToggleController? favoriteController;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
@@ -316,13 +314,9 @@ class _StationDetailContent extends StatelessWidget {
           '마지막 확인 ${stationVerifiedRelativeLabel(detail.lastVerifiedAt)}',
         ],
       ),
-      if (adRepository case final repository?) ...[
+      if (bottomAdBuilder case final builder?) ...[
         const SizedBox(height: 24),
-        ActiveAdBanner(
-          key: const Key('stationDetailBottomAdBanner'),
-          repository: repository,
-          placement: AdPlacement.stationDetailBottom,
-        ),
+        builder(context),
       ],
     ];
 
