@@ -85,6 +85,14 @@ test("Network Map root 삭제는 accessibility critical boundary를 app owner에
   assert.ok(!boundary.includes("network_map.dart"));
 });
 
+test("Route Search root 삭제는 accessibility critical boundary를 routes domain owner에 보존한다", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;
+
+  assert.ok(boundary.includes("features/routes/domain/route_search.dart"));
+  assert.ok(!boundary.includes("route_search.dart"));
+});
+
 test("Journey 전환은 삭제된 internal route ingress를 active Journey V3 owner로 교체한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const removedLocalRouteStackPaths = [

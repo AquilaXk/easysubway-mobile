@@ -135,7 +135,7 @@
       "facility_status.dart",
       "app/network_map_screen.dart",
       "onboarding.dart",
-      "route_search.dart",
+      "features/routes/domain/route_search.dart",
       "search_field.dart",
       "station_search.dart"
     ],
