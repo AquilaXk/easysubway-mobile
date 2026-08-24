@@ -87,10 +87,6 @@
     "JOURNEY_ROUTE_INGRESS": [
       "features/journey/",
       "internal_route.dart",
-      "features/routes/application/accessibility_cost_calculator.dart",
-      "features/routes/application/network_graph.dart",
-      "features/routes/application/route_engine.dart",
-      "features/routes/data/local_route_repository.dart",
       "features/routes/domain/",
       "features/internal_route/"
     ],
@@ -101,7 +97,6 @@
       "features/journey/",
       "features/route_draft/",
       "features/mobility_profile/",
-      "features/routes/data/local_route_repository.dart",
       "features/routes/domain/",
       "features/internal_route/",
       "internal_route.dart"

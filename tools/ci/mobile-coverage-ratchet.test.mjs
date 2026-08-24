@@ -87,6 +87,12 @@ test("Network Map root 삭제는 accessibility critical boundary를 app owner에
 
 test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey owner로 교체한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
+  const removedLocalRouteStackPaths = [
+    "features/routes/application/accessibility_cost_calculator.dart",
+    "features/routes/application/network_graph.dart",
+    "features/routes/application/route_engine.dart",
+    "features/routes/data/local_route_repository.dart",
+  ];
 
   for (const boundary of [
     "JOURNEY_ROUTE_INGRESS",
@@ -96,6 +102,12 @@ test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey 
     assert.ok(policy.criticalBoundaryRules[boundary].includes("features/journey/"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_search.dart"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_v2_ingress.dart"));
+    for (const removedPath of removedLocalRouteStackPaths) {
+      assert.ok(
+        !policy.criticalBoundaryRules[boundary].includes(removedPath),
+        `${boundary} must not retain the deleted local route stack path ${removedPath}`,
+      );
+    }
   }
 });
 
@@ -290,6 +302,35 @@ test("Phase 1 analyzer는 manual artifact를 exact DISCOVERY_REMOTE_RED로 결�
     const inventory = JSON.parse(readFileSync(path.join(dir, "manual", "mobile-coverage-source-inventory.json"), "utf8"));
     assert.equal(inventory.sources.some((source) => source.path === "apps/mobile/lib/accessible_design.dart"), true);
     assert.equal(inventory.sources.every((source) => source.owners.length >= 1 && source.owners.length <= 4 && !source.owners.includes("UNKNOWN")), true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("Phase 2 missing-source failure는 안전한 repository-relative 경로를 포함한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  try {
+    const testedMergeSha = "f".repeat(40);
+    const gitApi = {
+      text(args) {
+        if (args[0] === "rev-parse" && args[1] === "HEAD") return testedMergeSha;
+        if (args[0] === "merge-base" && args.includes("--all")) return head;
+        if (args[0] === "merge-base" && args.includes("--is-ancestor")) return "";
+        return execFileSync("git", ["-C", repositoryRoot, ...args], { encoding: "utf8" }).trim();
+      },
+      bytes(args) {
+        return execFileSync("git", ["-C", repositoryRoot, ...args.map((arg) => arg === testedMergeSha ? head : arg)]);
+      },
+    };
+    const options = discoveryInput(dir, "pull_request");
+    options.testedMergeSha = testedMergeSha;
+    assert.throws(
+      () => analyze(options, {
+        repositoryRoot,
+        reportDirectory: path.join(dir, "phase2"),
+        phase2: true,
+        gitApi,
+      }),
+      /missing source has no reviewed disposition: apps\/mobile\/lib\/ad_slot\.dart/,
+    );
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 

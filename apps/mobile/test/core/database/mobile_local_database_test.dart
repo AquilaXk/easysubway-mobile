@@ -15,10 +15,8 @@ import 'package:easysubway_mobile/core/datapack/bundled_data_pack_freshness.dart
 import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_updater.dart';
 import 'package:easysubway_mobile/core/datapack/emergency_override_repository.dart';
-import 'package:easysubway_mobile/features/routes/data/local_route_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
-import 'package:easysubway_mobile/route_search.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -875,17 +873,8 @@ void main() {
         'exit-sadang-seoul-4'
       )
     ''').getSingle();
-    final route = await LocalRouteRepository(catalogDatabase: database)
-        .searchRoute(
-          const RouteSearchRequest(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-          ),
-        );
 
     expect(accessEdgeCount.read<int>('count'), 0);
-    expect(route.status, 'UNKNOWN');
   });
 
   test('catalog opener는 부분 적용된 current pack access edge를 보존한다', () async {
@@ -1005,18 +994,9 @@ void main() {
         SELECT COUNT(*) AS count
         FROM fare_rules
       ''').getSingle();
-      final route = await LocalRouteRepository(catalogDatabase: database)
-          .searchRoute(
-            const RouteSearchRequest(
-              originStationId: 'station-sangnoksu',
-              destinationStationId: 'station-sadang',
-              mobilityType: 'WHEELCHAIR',
-            ),
-          );
 
       expect(accessEdgeCount.read<int>('count'), 0);
       expect(fareRuleCount.read<int>('count'), 0);
-      expect(route.status, 'UNKNOWN');
     },
   );
 
@@ -1144,17 +1124,8 @@ void main() {
             'exit-sadang-seoul-4'
           )
           ''').getSingle();
-    final route = await LocalRouteRepository(catalogDatabase: database)
-        .searchRoute(
-          const RouteSearchRequest(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-          ),
-        );
 
     expect(accessEdgeCount.read<int>('count'), 0);
-    expect(route.status, 'UNKNOWN');
   });
 
   test('catalog opener는 current pointer가 없어도 emergency override를 연다', () async {
