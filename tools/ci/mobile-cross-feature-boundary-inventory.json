@@ -181,6 +181,13 @@
       "classification": "PUBLIC_API",
       "contractKind": "TYPED_APPLICATION_PORT",
       "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/support/support_access.dart",
+      "ownerFeature": "support",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
     }
   ],
   "migrationExceptions": [
@@ -249,30 +256,6 @@
       "removalTrigger": "The notification permission port moves to an exact typed contract."
     },
     {
-      "source": "apps/mobile/lib/features/notifications/presentation/new_notification_bar.dart",
-      "target": "apps/mobile/lib/features/service_notice/presentation/notice_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Notification presentation reads a concrete service notice controller.",
-      "removalTrigger": "App composition passes a typed disruption projection."
-    },
-    {
-      "source": "apps/mobile/lib/features/notifications/presentation/notification_inbox_screen.dart",
-      "target": "apps/mobile/lib/features/facility_report/presentation/facility_report_result_labels.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 20,
-      "reason": "Notification presentation imports Facility Report presentation labels.",
-      "removalTrigger": "Facility Report exposes typed domain status labels."
-    },
-    {
-      "source": "apps/mobile/lib/features/notifications/presentation/notification_inbox_screen.dart",
-      "target": "apps/mobile/lib/features/facility_report/presentation/my_facility_reports_screens.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 20,
-      "reason": "Notification presentation constructs Facility Report detail UI.",
-      "removalTrigger": "App composition supplies a typed report-detail callback."
-    },
-    {
       "source": "apps/mobile/lib/features/onboarding/onboarding.dart",
       "target": "apps/mobile/lib/features/mobility_profile/mobility_preset_picker.dart",
       "kind": "IMPORT",
@@ -287,22 +270,6 @@
       "ownerIssue": 22,
       "reason": "Settings imports a mixed Onboarding domain and presentation monolith.",
       "removalTrigger": "View preferences move to an exact typed public contract."
-    },
-    {
-      "source": "apps/mobile/lib/features/settings/presentation/service_info_screen.dart",
-      "target": "apps/mobile/lib/features/attribution/presentation/data_source_attribution_screen.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Settings constructs Attribution presentation directly.",
-      "removalTrigger": "App composition supplies an attribution-opening callback."
-    },
-    {
-      "source": "apps/mobile/lib/features/settings/presentation/service_info_screen.dart",
-      "target": "apps/mobile/lib/features/support/presentation/support_access_screen.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Settings constructs Support presentation directly.",
-      "removalTrigger": "App composition supplies a support-opening callback."
     },
     {
       "source": "apps/mobile/lib/features/stations/presentation/station_detail_body.dart",
@@ -359,14 +326,6 @@
       "ownerIssue": 37,
       "reason": "Station search mutates the concrete route draft controller.",
       "removalTrigger": "Station search returns a typed station intent to app composition."
-    },
-    {
-      "source": "apps/mobile/lib/features/support/presentation/support_access_screen.dart",
-      "target": "apps/mobile/lib/features/account/presentation/user_data_deletion_screen.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Support constructs Account presentation directly.",
-      "removalTrigger": "App composition supplies a user-data-deletion callback."
     }
   ]
 }

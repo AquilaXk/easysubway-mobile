@@ -1,44 +1,18 @@
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/features/notifications/presentation/new_notification_bar.dart';
-import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
-import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
-import 'package:easysubway_mobile/features/service_notice/presentation/notice_controller.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-ServiceNotice _disruption(String id) {
-  return ServiceNotice(
-    id: id,
-    scope: NoticeScope.all,
-    title: '제목 $id',
-    body: '본문 $id',
-    severity: NoticeSeverity.disruption,
-    publishedAt: DateTime(2026, 7, 16, 9, 0, 0),
-  );
-}
-
-class _FakeRepository implements NoticeRepository {
-  _FakeRepository(this.result);
-  final ActiveNoticesResult result;
-  @override
-  Future<ActiveNoticesResult> activeNotices() async => result;
-}
-
-Future<NoticeController> _seed(ActiveNoticesResult result) async {
-  final controller = NoticeController(repository: _FakeRepository(result));
-  await controller.refresh();
-  return controller;
-}
-
 Widget _host({
-  NoticeController? noticeController,
+  ValueNotifier<bool>? disruption,
   required bool hasNotificationItems,
   VoidCallback? onOpenInbox,
 }) {
   return MaterialApp(
     home: Scaffold(
       body: NewNotificationBar(
-        noticeController: noticeController,
+        disruptionChanges: disruption,
+        hasDisruption: disruption == null ? null : () => disruption.value,
         hasNotificationItems: hasNotificationItems,
         onOpenInbox: onOpenInbox ?? () {},
       ),
@@ -48,12 +22,11 @@ Widget _host({
 
 void main() {
   testWidgets('운행 공지 disruption만 있어도 바를 표시한다', (tester) async {
-    final controller = await _seed(
-      ActiveNoticesResult(notices: [_disruption('n1')], stale: false),
-    );
+    final disruption = ValueNotifier(true);
+    addTearDown(disruption.dispose);
 
     await tester.pumpWidget(
-      _host(noticeController: controller, hasNotificationItems: false),
+      _host(disruption: disruption, hasNotificationItems: false),
     );
 
     expect(find.byKey(const Key('newNotificationBar')), findsOneWidget);
@@ -68,24 +41,11 @@ void main() {
   });
 
   testWidgets('알림이 없으면 바도 여백도 그리지 않는다', (tester) async {
-    final controller = await _seed(
-      ActiveNoticesResult(
-        notices: [
-          ServiceNotice(
-            id: 'i1',
-            scope: NoticeScope.all,
-            title: '정보',
-            body: '본문',
-            severity: NoticeSeverity.info,
-            publishedAt: DateTime(2026, 7, 16, 9, 0, 0),
-          ),
-        ],
-        stale: false,
-      ),
-    );
+    final disruption = ValueNotifier(false);
+    addTearDown(disruption.dispose);
 
     await tester.pumpWidget(
-      _host(noticeController: controller, hasNotificationItems: false),
+      _host(disruption: disruption, hasNotificationItems: false),
     );
 
     expect(find.byKey(const Key('newNotificationBar')), findsNothing);
@@ -99,6 +59,19 @@ void main() {
     );
     expect(shrink.height, 0);
     expect(shrink.width, 0);
+  });
+
+  testWidgets('운행 공지 projection 변경을 즉시 반영한다', (tester) async {
+    final disruption = ValueNotifier(false);
+    addTearDown(disruption.dispose);
+    await tester.pumpWidget(
+      _host(disruption: disruption, hasNotificationItems: false),
+    );
+
+    expect(find.byKey(const Key('newNotificationBar')), findsNothing);
+    disruption.value = true;
+    await tester.pump();
+    expect(find.byKey(const Key('newNotificationBar')), findsOneWidget);
   });
 
   testWidgets('바를 한 번 탭하면 onOpenInbox가 정확히 1회만 호출된다 (이중 실행 회귀)', (

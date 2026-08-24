@@ -1,4 +1,4 @@
-import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
+import 'package:easysubway_mobile/features/support/support_access.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

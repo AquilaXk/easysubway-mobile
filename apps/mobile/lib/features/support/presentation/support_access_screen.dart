@@ -5,12 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../accessible_design.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../account/user_data_deletion.dart';
-import '../../account/presentation/user_data_deletion_screen.dart';
-
-abstract interface class SupportAccessLauncher {
-  Future<bool> open(Uri uri);
-}
+import '../support_access.dart';
 
 class UrlLauncherSupportAccessLauncher implements SupportAccessLauncher {
   const UrlLauncherSupportAccessLauncher();
@@ -21,105 +16,23 @@ class UrlLauncherSupportAccessLauncher implements SupportAccessLauncher {
   }
 }
 
-class SupportAccessInfo {
-  const SupportAccessInfo({
-    this.termsOfServiceUrl = '',
-    required this.privacyPolicyUrl,
-    this.locationTermsUrl = '',
-    required this.supportEmail,
-    required this.dataDeletionEmail,
-    this.securityEmail = '',
-  });
-
-  const SupportAccessInfo.fromEnvironment()
-    : termsOfServiceUrl = const String.fromEnvironment(
-        'EASYSUBWAY_TERMS_OF_SERVICE_URL',
-      ),
-      privacyPolicyUrl = const String.fromEnvironment(
-        'EASYSUBWAY_PRIVACY_POLICY_URL',
-      ),
-      locationTermsUrl = const String.fromEnvironment(
-        'EASYSUBWAY_LOCATION_TERMS_URL',
-      ),
-      supportEmail = const String.fromEnvironment('EASYSUBWAY_SUPPORT_EMAIL'),
-      dataDeletionEmail = const String.fromEnvironment(
-        'EASYSUBWAY_DATA_DELETION_EMAIL',
-      ),
-      securityEmail = const String.fromEnvironment('EASYSUBWAY_SECURITY_EMAIL');
-
-  final String termsOfServiceUrl;
-  final String privacyPolicyUrl;
-  final String locationTermsUrl;
-  final String supportEmail;
-  final String dataDeletionEmail;
-  final String securityEmail;
-
-  SupportAccessInfo validatedForBuild({required bool isReleaseMode}) {
-    if (!isReleaseMode) {
-      return this;
-    }
-    _validateHttpsUrl(label: 'terms of service URL', value: termsOfServiceUrl);
-    _validateHttpsUrl(label: 'privacy policy URL', value: privacyPolicyUrl);
-    _validateHttpsUrl(label: 'location terms URL', value: locationTermsUrl);
-    _validateEmail(label: 'support email', value: supportEmail);
-    _validateEmail(label: 'data deletion email', value: dataDeletionEmail);
-    _validateEmail(label: 'security email', value: securityEmail);
-    return this;
-  }
-
-  static void _validateHttpsUrl({
-    required String label,
-    required String value,
-  }) {
-    final normalizedValue = value.trim();
-    if (normalizedValue.isEmpty) {
-      throw StateError('Release $label must be configured.');
-    }
-    final uri = Uri.tryParse(normalizedValue);
-    if (uri == null || uri.scheme != 'https') {
-      throw StateError('Release $label must use HTTPS.');
-    }
-    if (uri.host.isEmpty) {
-      throw StateError('Release $label must include a host.');
-    }
-  }
-
-  static void _validateEmail({required String label, required String value}) {
-    final normalizedValue = value.trim();
-    if (normalizedValue.isEmpty) {
-      throw StateError('Release $label must be configured.');
-    }
-    final emailPattern = RegExp(
-      r'^[^\s@]+@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,63}$',
-    );
-    if (!emailPattern.hasMatch(normalizedValue)) {
-      throw StateError('Release $label must be a valid email address.');
-    }
-  }
-}
-
 class SupportAccessScreen extends StatelessWidget {
   const SupportAccessScreen({
     required this.accessInfo,
     required this.launcher,
-    required this.userDataDeletionRepository,
-    required this.onUserDataDeleted,
+    required this.userDataDeletionAccessItem,
     super.key,
   });
 
   final SupportAccessInfo accessInfo;
   final SupportAccessLauncher launcher;
-  final UserDataDeletionRepository? userDataDeletionRepository;
-  final Future<void> Function(UserDataDeletionResult result)? onUserDataDeleted;
+  final Widget? userDataDeletionAccessItem;
 
   @override
   Widget build(BuildContext context) {
     final deletionChildren = <Widget>[
-      if (userDataDeletionRepository != null)
-        UserDataDeletionAccessItem(
-          repository: userDataDeletionRepository!,
-          onDeleted: onUserDataDeleted,
-        )
+      if (userDataDeletionAccessItem != null)
+        userDataDeletionAccessItem!
       else if (buildSupportMailtoUri(
             email: accessInfo.dataDeletionEmail,
             subject: '쉬운 지하철 내 정보 삭제 요청',
@@ -408,22 +321,4 @@ class _SupportAccessItem extends StatelessWidget {
       SnackBar(content: Text('연결할 수 없습니다. 직접 확인해 주세요: $targetText')),
     );
   }
-}
-
-/// 지원·문의 mailto URI. [body]가 있으면 메일 초안 본문으로 넣는다.
-Uri? buildSupportMailtoUri({
-  required String email,
-  required String subject,
-  String? body,
-}) {
-  final normalizedEmail = email.trim();
-  if (normalizedEmail.isEmpty) {
-    return null;
-  }
-  final query = <String, String>{'subject': subject};
-  final normalizedBody = body?.trim();
-  if (normalizedBody != null && normalizedBody.isNotEmpty) {
-    query['body'] = normalizedBody;
-  }
-  return Uri(scheme: 'mailto', path: normalizedEmail, queryParameters: query);
 }

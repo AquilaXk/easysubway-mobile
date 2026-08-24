@@ -23,6 +23,7 @@ import 'home_screen.dart';
 import '../features/mobility_profile/mobility_profile_policy.dart';
 import '../features/realtime/realtime_repository.dart';
 import '../features/service_notice/data/notice_repository.dart';
+import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/journey/application/journey_search_controller.dart';

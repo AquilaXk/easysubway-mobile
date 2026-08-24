@@ -5,8 +5,11 @@ import 'package:flutter/semantics.dart';
 
 import '../accessible_design.dart';
 import '../features/account/user_data_deletion.dart';
+import '../features/account/presentation/user_data_deletion_screen.dart';
 import '../features/ads/ad_repository.dart';
+import '../features/attribution/presentation/data_source_attribution_screen.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
+import '../features/facility_report/domain/facility_report_result.dart';
 import '../features/facility_report/domain/facility_report_target.dart';
 import '../features/facility_report/presentation/my_facility_reports_screens.dart';
 import '../features/favorites/domain/favorite_route.dart';
@@ -39,6 +42,7 @@ import '../features/stations/domain/station_models.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/stations/presentation/station_search_screen.dart';
 import '../features/support/presentation/inquiry_screen.dart';
+import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/train_search/presentation/train_search_screen.dart';
@@ -327,8 +331,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             builder: (_) => SupportAccessScreen(
               accessInfo: supportAccessInfo,
               launcher: supportAccessLauncher,
-              userDataDeletionRepository: userDataDeletionRepository,
-              onUserDataDeleted: onUserDataDeleted,
+              userDataDeletionAccessItem: userDataDeletionRepository == null
+                  ? null
+                  : UserDataDeletionAccessItem(
+                      repository: userDataDeletionRepository,
+                      onDeleted: onUserDataDeleted,
+                    ),
             ),
           ),
         ),
@@ -352,7 +360,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       unawaited(
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => ServiceInfoScreen(accessInfo: supportAccessInfo),
+            builder: (serviceInfoContext) => ServiceInfoScreen(
+              accessInfo: supportAccessInfo,
+              onOpenDataSourceAttribution: () {
+                unawaited(
+                  Navigator.of(serviceInfoContext).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const DataSourceAttributionScreen(),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       );
@@ -378,6 +397,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               reportRepository: reportRepository,
               notificationRepository: notificationRepository,
               notificationPermissionProvider: notificationPermissionProvider,
+              onOpenReport: (FacilityReportResult report) {
+                unawaited(
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          MyFacilityReportDetailScreen(report: report),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ),
@@ -655,7 +684,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   future: _hasNotificationItemsFuture,
                   builder: (context, snapshot) {
                     return NewNotificationBar(
-                      noticeController: noticeController,
+                      disruptionChanges: noticeController,
+                      hasDisruption: noticeController == null
+                          ? null
+                          : () => noticeController.topDisruption != null,
                       hasNotificationItems: snapshot.data ?? false,
                       onOpenInbox: openNotificationInbox,
                     );

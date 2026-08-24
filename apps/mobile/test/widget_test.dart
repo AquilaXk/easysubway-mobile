@@ -29,7 +29,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_type.dart';
 import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_type_options.dart';
 import 'package:easysubway_mobile/features/support/presentation/inquiry_screen.dart';
-import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
+import 'package:easysubway_mobile/features/support/support_access.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/data/get_off_alarm_state_repository.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/exact_alarm_permission.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_controller.dart';
@@ -1935,7 +1935,9 @@ void main() {
 
     await tester.tap(reportRow);
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('myReportDetailScreen')), findsOneWidget);
     expect(find.text('제보 상세'), findsOneWidget);
+    expect(find.text('ES-1002'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('myReportDetailBackButton')));
     await tester.pumpAndSettle();
