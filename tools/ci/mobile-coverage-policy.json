@@ -86,8 +86,7 @@
   "criticalBoundaryRules": {
     "JOURNEY_ROUTE_INGRESS": [
       "features/journey/",
-      "features/routes/domain/",
-      "features/internal_route/"
+      "features/routes/domain/"
     ],
     "JOURNEY_REPOSITORY_DI_STATE_IDENTITY": [
       "app/app_bootstrap.dart",
@@ -96,8 +95,7 @@
       "features/journey/",
       "features/route_draft/",
       "features/mobility_profile/",
-      "features/routes/domain/",
-      "features/internal_route/"
+      "features/routes/domain/"
     ],
     "DATAPACK_CATALOG_LIFECYCLE": [
       "app/app_endpoints.dart",

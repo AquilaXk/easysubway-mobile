@@ -93,6 +93,10 @@ test("Journey 전환은 삭제된 internal route ingress를 active Journey V3 ow
     "features/routes/application/route_engine.dart",
     "features/routes/data/local_route_repository.dart",
   ];
+  const removedInternalRouteBoundaryPaths = [
+    "internal_route.dart",
+    "features/internal_route/",
+  ];
 
   for (const boundary of [
     "JOURNEY_ROUTE_INGRESS",
@@ -100,7 +104,9 @@ test("Journey 전환은 삭제된 internal route ingress를 active Journey V3 ow
     "CONTRACT_ARTIFACT_IDENTITY",
   ]) {
     assert.ok(policy.criticalBoundaryRules[boundary].includes("features/journey/"));
-    assert.ok(!policy.criticalBoundaryRules[boundary].includes("internal_route.dart"));
+    for (const removedPath of removedInternalRouteBoundaryPaths) {
+      assert.ok(!policy.criticalBoundaryRules[boundary].includes(removedPath));
+    }
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_search.dart"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_v2_ingress.dart"));
     for (const removedPath of removedLocalRouteStackPaths) {
