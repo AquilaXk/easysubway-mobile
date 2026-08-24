@@ -76,6 +76,20 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
       "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
       "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/internal_route/internal_route_engine_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Internal-route local calculation has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 internal route calculation terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/internal_route/local_internal_route_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Internal-route local repository has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 internal route calculation terminal deletion"
     }
   ]
 }

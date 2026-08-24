@@ -6,7 +6,6 @@ import 'package:flutter/semantics.dart';
 import '../../../accessible_design.dart';
 import '../../../app/app_components.dart';
 import '../../../favorite_facility.dart';
-import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../app/network_map_screen.dart';
 import '../../network_map/domain/network_map_models.dart';
@@ -91,7 +90,6 @@ class HomeScreen extends StatefulWidget {
     required this.favoriteRouteRepository,
     this.adRepository,
     required this.searchHistoryRepository,
-    required this.internalRouteRepository,
     required this.networkMapRepository,
     required this.networkMapViewportRepository,
     required this.realtimeRepository,
@@ -128,7 +126,6 @@ class HomeScreen extends StatefulWidget {
   final FavoriteRouteRepository? favoriteRouteRepository;
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;
@@ -307,7 +304,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final favoriteRouteRepository = widget.favoriteRouteRepository;
     final adRepository = widget.adRepository;
     final searchHistoryRepository = widget.searchHistoryRepository;
-    final internalRouteRepository = widget.internalRouteRepository;
     final networkMapRepository = widget.networkMapRepository;
     final realtimeRepository = widget.realtimeRepository;
     final notificationRepository = widget.notificationRepository;
@@ -489,8 +485,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             adRepository: adRepository,
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-            internalRouteRepository: internalRouteRepository,
-            internalRouteMobilityType: initialMobilityType,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             regionLabel: regionLabel,
@@ -520,8 +514,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             favoriteRepository: favoriteRepository,
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-            internalRouteRepository: internalRouteRepository,
-            internalRouteMobilityType: initialMobilityType,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             pickSlot: slot,
@@ -647,8 +639,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: initialMobilityType,
           locationProvider: locationProvider,
           viewportRepository: widget.networkMapViewportRepository,
           realtimeRepository: widget.realtimeRepository,
@@ -709,8 +699,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: initialMobilityType,
           realtimeRepository: realtimeRepository,
           routeDraftController: _routeDraftController,
           regionLabel: '수도권',
@@ -745,7 +733,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           reportRepository: reportRepository,
           locationProvider: locationProvider,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
           realtimeRepository: realtimeRepository,
           routeDraftController: _routeDraftController,
           initialMobilityType: initialMobilityType,
