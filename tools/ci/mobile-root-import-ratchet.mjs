@@ -20,9 +20,9 @@ import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mj
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[^\u0000-\u001f\u007f]+$/u;
-const POLICY_SHA256 = "20f9e414cca16af87f4b701c328172444fc08912f77aff98ec752b045a4f8da1";
-const BASELINE_SHA256 = "c45e943828f9d16c10e6a97e7e4693d3320852b34e6f56830646c69502104de3";
-const PHASE = "NO_INCREASE";
+const POLICY_SHA256 = "b10e7261bc00e4ff6660edf4da79fdbf4249e1dceab5486c661f5bddc06bbe1a";
+const BASELINE_SHA256 = "c91a7fa6f0daa6e652cf115d6bf6a7fd264c518075583cb6890f8f20681f5783";
+const PHASE = "ZERO";
 const REPOSITORY = "AquilaXk/easysubway-mobile";
 const POLICY_KEYS = ["schemaVersion", "artifactKind", "repository", "phase", "featureRoots", "rootClassifications", "importerRules", "forbiddenMatrix", "owners", "artifactContract"];
 const BASELINE_KEYS = ["schemaVersion", "artifactKind", "repository", "phase", "reviewedHeadSha", "edges"];
@@ -141,7 +141,7 @@ export function validatePolicy(value) {
   exactKeys(value, POLICY_KEYS, "policy");
   if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-policy-v1" || value.repository !== REPOSITORY || value.phase !== PHASE) fail("policy identity is invalid");
   if (JSON.stringify(value.featureRoots) !== JSON.stringify(FEATURE_ROOTS)) fail("policy feature roots changed");
-  if (!Array.isArray(value.rootClassifications) || value.rootClassifications.length !== 13) fail("policy root classification count changed");
+  if (!Array.isArray(value.rootClassifications) || value.rootClassifications.length !== 9) fail("zero mode root classification count changed");
   let previous = "";
   for (const entry of value.rootClassifications) {
     exactKeys(entry, ROOT_ENTRY_KEYS, "root classification");
@@ -149,25 +149,16 @@ export function validatePolicy(value) {
     if (!/^apps\/mobile\/lib\/[^/]+\.dart$/u.test(entry.path) || entry.path <= previous || !ROOT_CLASSES.includes(entry.classification)) fail("root classifications must be exact and ordered");
     previous = entry.path;
     const approved = ["APPROVED_APP_ENTRYPOINT_OR_COMPOSITION", "APPROVED_NEUTRAL_FOUNDATION"].includes(entry.classification);
-    if (approved ? entry.ownerIssue !== null || entry.removalTrigger !== null : !Number.isInteger(entry.ownerIssue) || typeof entry.removalTrigger !== "string") fail("root classification ownership is invalid");
+    if (!approved || entry.ownerIssue !== null || entry.removalTrigger !== null) fail("zero mode root classifications must be approved and ownerless");
   }
   exactKeys(value.importerRules, ["appExactPaths", "appPrefixes", "sharedExactPaths", "sharedPrefixes", "testPrefixes", "generatedPrefixes", "generatedSuffixes", "generatedHeaders"], "importer rules");
   for (const [key, values] of Object.entries(value.importerRules)) stableUnique(values, `importerRules.${key}`);
   if (JSON.stringify(value.importerRules.appExactPaths) !== JSON.stringify(["apps/mobile/lib/legacy_credential_cleanup.dart", "apps/mobile/lib/main.dart"]) || JSON.stringify(value.importerRules.appPrefixes) !== JSON.stringify(["apps/mobile/lib/app/"]) || JSON.stringify(value.importerRules.sharedPrefixes) !== JSON.stringify(["apps/mobile/lib/core/"]) || JSON.stringify(value.importerRules.testPrefixes) !== JSON.stringify(["apps/mobile/integration_test/", "apps/mobile/test/", "apps/mobile/test_driver/"]) || JSON.stringify(value.importerRules.generatedPrefixes) !== JSON.stringify(["apps/mobile/lib/generated/"]) || JSON.stringify(value.importerRules.generatedSuffixes) !== JSON.stringify([".freezed.dart", ".g.dart"]) || JSON.stringify(value.importerRules.generatedHeaders) !== JSON.stringify(["// GENERATED CODE - DO NOT MODIFY BY HAND"])) fail("importer rules changed");
   exactKeys(value.forbiddenMatrix, ["featureAllowedTargets", "neutralAllowedTargets"], "forbidden matrix");
   if (JSON.stringify(value.forbiddenMatrix) !== JSON.stringify({ featureAllowedTargets: ["APPROVED_NEUTRAL_FOUNDATION", "GENERATED_OR_PLATFORM_OWNER"], neutralAllowedTargets: ["APPROVED_NEUTRAL_FOUNDATION", "GENERATED_OR_PLATFORM_OWNER"] })) fail("forbidden matrix changed");
-  if (!Array.isArray(value.owners) || value.owners.length !== 4) fail("policy owner count changed");
-  for (const [index, owner] of value.owners.entries()) {
-    exactKeys(owner, OWNER_KEYS, "policy owner");
-    if (owner.number !== [18, 19, 20, 22][index] || owner.url !== `https://github.com/AquilaXk/easysubway-mobile/issues/${owner.number}` || owner.requiredState !== "OPEN" || typeof owner.title !== "string" || !owner.title || typeof owner.removalTrigger !== "string") fail("policy owner identity changed");
-  }
+  if (!Array.isArray(value.owners) || value.owners.length !== 0) fail("zero mode policy must not contain owners");
   exactKeys(value.artifactContract, ["directory", "files", "nameTemplate"], "artifact contract");
   if (value.artifactContract.directory !== "mobile-root-import-ratchet" || JSON.stringify(value.artifactContract.files) !== JSON.stringify(ARTIFACT_FILES) || value.artifactContract.nameTemplate !== "mobile-root-import-ratchet-${headSha}") fail("artifact contract changed");
-  const ownerMap = new Map(value.owners.map((owner) => [owner.number, owner]));
-  for (const root of value.rootClassifications.filter((entry) => entry.ownerIssue !== null)) {
-    const owner = ownerMap.get(root.ownerIssue);
-    if (!owner || owner.removalTrigger !== root.removalTrigger) fail("root owner projection changed");
-  }
   return value;
 }
 
@@ -178,7 +169,8 @@ export function parsePolicyBytes(bytes) {
 
 export function validateBaseline(value, policy) {
   exactKeys(value, BASELINE_KEYS, "baseline");
-  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "7eca592cc6e669764008c7eb8556b116cb88dcf5" || !Array.isArray(value.edges) || value.edges.length !== 0) fail("baseline identity or count changed");
+  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "2385848316822df4672e4d70f3cbf4010b257a65") fail("zero mode baseline identity changed");
+  if (!Array.isArray(value.edges) || value.edges.length !== 0) fail("zero mode baseline must be empty");
   const rootMap = new Map(policy.rootClassifications.map((entry) => [entry.path, entry]));
   let previous = "";
   const seen = new Set();
@@ -339,7 +331,7 @@ export function classifyRootImportGraph({ graph, files = {}, policy, baseline, b
   const reasons = [];
   if (newEdges.length) reasons.push("NEW_FORBIDDEN_EDGE");
   if (rootTargets.some((root) => root.exists && root.classification === "FORBIDDEN_OR_UNKNOWN")) reasons.push("UNREVIEWED_ROOT_TARGET");
-  if (newWrapperFindings.length) reasons.push("FORBIDDEN_WRAPPER_OR_BARREL");
+  if ((PHASE === "ZERO" ? wrapperFindings : newWrapperFindings).length) reasons.push("FORBIDDEN_WRAPPER_OR_BARREL");
   if (!ownerOpen) reasons.push("OWNER_ISSUE_NOT_OPEN");
   if (uncertainty.length) reasons.push("GRAPH_UNCERTAINTY");
   reasons.sort((left, right) => REASONS.indexOf(left) - REASONS.indexOf(right));
