@@ -4,7 +4,7 @@ import { lstat, mkdir, mkdtemp, readFile, symlink, writeFile } from "node:fs/pro
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { stageMapCatalogRelease, validateMapCatalogReleaseLock } from "./stage-map-catalog-release.mjs";
+import { parseJsonWithoutDuplicateKeys, stageMapCatalogRelease, validateMapCatalogReleaseLock } from "./stage-map-catalog-release.mjs";
 
 const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const canonical = (value) => Array.isArray(value) ? `[${value.map(canonical).join(",")}]` : value && typeof value === "object" ? `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}` : JSON.stringify(value);
@@ -55,6 +55,23 @@ test("lock is closed and fixes Data release raw identities plus ordered current 
   const { lock } = fixture();
   assert.equal(validateMapCatalogReleaseLock(lock).artifacts[0].payload.length, 4);
   assert.equal(validateMapCatalogReleaseLock(lock).artifacts[1].payload.length, 1);
+});
+
+test("JSON parser rejects malformed UTF-8 and non-JSON whitespace, and retains __proto__ as an own unknown key", () => {
+  assert.throws(() => parseJsonWithoutDuplicateKeys(Buffer.from([0x7b, 0x22, 0x78, 0x22, 0x3a, 0x22, 0xc3, 0x28, 0x22, 0x7d])), /UTF-8 JSON/);
+  assert.throws(() => parseJsonWithoutDuplicateKeys('{\u000b"x":1}'), /invalid JSON/);
+  const parsed = parseJsonWithoutDuplicateKeys('{"__proto__":true}');
+  assert.equal(Object.getPrototypeOf(parsed), null);
+  assert.deepEqual(Object.keys(parsed), ["__proto__"]);
+  assert.throws(() => validateMapCatalogReleaseLock(parsed), /unknown or missing/);
+});
+
+test("lock runtime validator matches schema non-whitespace ID boundaries", () => {
+  for (const id of [" map-1", "map-1 ", "\tmap-1", "map-1\n"]) {
+    const { lock } = fixture();
+    lock.artifacts[0].manifest.mapPackId = id;
+    assert.throws(() => validateMapCatalogReleaseLock(lock), /component semantics/);
+  }
 });
 
 test("stager accepts only exact manifest semantics and payload bytes into a create-only lock version", async () => {
