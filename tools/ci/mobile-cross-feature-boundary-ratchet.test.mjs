@@ -216,6 +216,67 @@ test("generated code is reachable only from exact reviewed adapter paths", () =>
   );
 });
 
+test("shared neutral sources cannot import feature internals", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  const journeyScreen = "apps/mobile/lib/features/journey/presentation/journey_screen.dart";
+
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files: {
+        "apps/mobile/lib/core/bridge.dart":
+          "import '../features/journey/presentation/journey_screen.dart';\n",
+        [journeyScreen]: "final class JourneyScreen {}\n",
+      },
+      policy: explicitPolicy,
+      inventory: explicitInventory,
+    }).violations.map((entry) => entry.code),
+    ["SHARED_NEUTRAL_IMPORTS_FEATURE"],
+  );
+});
+
+test("cross-feature part directives cannot bypass the terminal boundary", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  const journeyScreen = "apps/mobile/lib/features/journey/presentation/journey_screen.dart";
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files: {
+        "apps/mobile/lib/features/favorites/domain/favorite.dart":
+          "part '../../journey/presentation/journey_screen.dart';\n",
+        [journeyScreen]: "part of '../../favorites/domain/favorite.dart';\n",
+      },
+      policy: explicitPolicy,
+      inventory: explicitInventory,
+    }).violations.map((entry) => [entry.code, entry.kind]),
+    [
+      ["CROSS_FEATURE_PART_DIRECTIVE", "PART"],
+      ["CROSS_FEATURE_PART_DIRECTIVE", "PART_OF"],
+    ],
+  );
+});
+
+test("non-feature generated consumers require an exact adapter allowlist entry", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files: {
+        "apps/mobile/lib/app/composition.dart":
+          "import '../generated/journey_v3/client.dart';\n",
+        "apps/mobile/lib/generated/journey_v3/client.dart":
+          "final class GeneratedJourney {}\n",
+      },
+      policy: explicitPolicy,
+      inventory: explicitInventory,
+    }).violations.map((entry) => entry.code),
+    ["UNREVIEWED_GENERATED_CONSUMER"],
+  );
+});
+
 test("feature composition cannot move into locator, event bus, static singleton, or ambient registry", () => {
   const bytes = inventoryBytes();
   const explicitInventory = parseInventory(bytes);
@@ -230,12 +291,18 @@ test("feature composition cannot move into locator, event bus, static singleton,
       "class WorkflowOwner { static final Map<Type, Object> registry = <Type, Object>{}; }\n",
     "apps/mobile/lib/features/favorites/presentation/registry.dart":
       "final Map<Type, Object> registry = <Type, Object>{};\n",
+    "apps/mobile/lib/features/favorites/presentation/typed_registry.dart":
+      "Map<Type, Object> registry = <Type, Object>{};\n",
+    "apps/mobile/lib/features/favorites/presentation/const_services.dart":
+      "const Map<Type, Object> services = <Type, Object>{};\n",
     "apps/mobile/lib/features/favorites/presentation/navigator.dart":
       "final navigatorKey = GlobalKey<NavigatorState>();\n",
     "apps/mobile/lib/features/favorites/presentation/allowed.dart": [
       "// GetIt.instance and EventBus() are documentation only.",
       "const description = 'static final instance = registry';",
       "class Parser { static Parser fromJson(Object? value) => Parser(); }",
+      "void configure([Map<Type, Object> services = const <Type, Object>{}]) {}",
+      "class Owner { final Map<Type, Object> registry = <Type, Object>{}; }",
     ].join("\n"),
     "apps/mobile/lib/app/composition.dart":
       "final Map<Type, Object> registry = <Type, Object>{};\n",
@@ -253,7 +320,9 @@ test("feature composition cannot move into locator, event bus, static singleton,
       ["GLOBAL_SERVICE_LOCATOR", "apps/mobile/lib/features/favorites/presentation/locator.dart"],
       ["STATIC_REGISTRY", "apps/mobile/lib/features/favorites/presentation/static_registry.dart"],
       ["STATIC_SINGLETON", "apps/mobile/lib/features/favorites/presentation/singleton.dart"],
+      ["TOP_LEVEL_REGISTRY", "apps/mobile/lib/features/favorites/presentation/const_services.dart"],
       ["TOP_LEVEL_REGISTRY", "apps/mobile/lib/features/favorites/presentation/registry.dart"],
+      ["TOP_LEVEL_REGISTRY", "apps/mobile/lib/features/favorites/presentation/typed_registry.dart"],
     ],
   );
 });

@@ -250,6 +250,8 @@ export function exactGlobalCompositionViolations(files, policy) {
     const values = tokens.map((token) => token.value);
     const codes = new Set();
     let braceDepth = 0;
+    let parenthesisDepth = 0;
+    let bracketDepth = 0;
 
     for (let index = 0; index < values.length; index += 1) {
       const value = values[index];
@@ -295,22 +297,25 @@ export function exactGlobalCompositionViolations(files, policy) {
         }
       }
 
-      if (braceDepth === 0 && ["final", "late", "var"].includes(value)) {
-        const statementEnd = values.indexOf(";", index + 1);
-        if (statementEnd !== -1) {
-          const assignment = values.indexOf("=", index + 1);
-          if (assignment !== -1 && assignment < statementEnd) {
-            const declaredName = tokens
-              .slice(index + 1, assignment)
-              .filter((token) => token.type === "identifier")
-              .at(-1)?.value;
-            if (registryName(declaredName)) codes.add("TOP_LEVEL_REGISTRY");
-          }
-        }
+      if (
+        braceDepth === 0
+        && parenthesisDepth === 0
+        && bracketDepth === 0
+        && value === "="
+      ) {
+        const declaredName = tokens
+          .slice(0, index)
+          .filter((token) => token.type === "identifier")
+          .at(-1)?.value;
+        if (registryName(declaredName)) codes.add("TOP_LEVEL_REGISTRY");
       }
 
       if (value === "{") braceDepth += 1;
       if (value === "}") braceDepth = Math.max(0, braceDepth - 1);
+      if (value === "(") parenthesisDepth += 1;
+      if (value === ")") parenthesisDepth = Math.max(0, parenthesisDepth - 1);
+      if (value === "[") bracketDepth += 1;
+      if (value === "]") bracketDepth = Math.max(0, bracketDepth - 1);
     }
 
     for (const code of codes) {
@@ -340,10 +345,24 @@ export function auditCrossFeatureBoundaries({ files, policy, inventory, packageN
     }
   }
   for (const edge of graph.edges) {
-    if (!edge.target || !["IMPORT", "EXPORT"].includes(edge.kind)) continue;
+    if (!edge.target) continue;
     const source = featurePath(edge.source, policy);
     const target = featurePath(edge.target, policy);
-    if (source && edge.target.startsWith(inventory.generatedOwnerPrefix) && !generatedAdapters.has(edge.source)) {
+    if (
+      ["PART", "PART_OF"].includes(edge.kind)
+      && source
+      && target
+      && source[1] !== target[1]
+    ) {
+      violations.push(violation("CROSS_FEATURE_PART_DIRECTIVE", edge));
+      continue;
+    }
+    if (!["IMPORT", "EXPORT"].includes(edge.kind)) continue;
+    if (
+      !edge.source.startsWith(inventory.generatedOwnerPrefix)
+      && edge.target.startsWith(inventory.generatedOwnerPrefix)
+      && !generatedAdapters.has(edge.source)
+    ) {
       violations.push(violation("UNREVIEWED_GENERATED_CONSUMER", edge));
       continue;
     }
@@ -356,6 +375,13 @@ export function auditCrossFeatureBoundaries({ files, policy, inventory, packageN
       && policy.forbiddenTargetSegments.includes(target[2].split("/")[0])
     ) {
       violations.push(violation("PUBLIC_API_REEXPORTS_INTERNAL", edge));
+      continue;
+    }
+    if (
+      inventory.sharedNeutralPrefixes.some((prefix) => edge.source.startsWith(prefix))
+      && target
+    ) {
+      violations.push(violation("SHARED_NEUTRAL_IMPORTS_FEATURE", edge));
       continue;
     }
     if (!source || !target || source[1] === target[1]) continue;

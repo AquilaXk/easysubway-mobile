@@ -34,6 +34,7 @@
   ],
   "generatedOwnerPrefix": "apps/mobile/lib/generated/",
   "generatedAdapterPaths": [
+    "apps/mobile/lib/app/app_dependencies.dart",
     "apps/mobile/lib/features/get_off_alarm/get_off_alarm_subscription.dart",
     "apps/mobile/lib/features/journey/application/journey_get_off_alarm_binding.dart",
     "apps/mobile/lib/features/journey/application/journey_search_controller.dart",
