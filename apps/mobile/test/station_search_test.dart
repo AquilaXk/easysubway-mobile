@@ -1644,7 +1644,6 @@ void main() {
     expect(stationVerifiedRelativeLabel('  '), '');
   });
 }
-
 List<FlutterErrorDetails> _captureReportedErrors() {
   return <FlutterErrorDetails>[];
 }
@@ -2318,4 +2317,3 @@ class RetryFavoriteStationAuthProvider implements FavoriteStationAuthProvider {
     _invalidated = true;
   }
 }
-
