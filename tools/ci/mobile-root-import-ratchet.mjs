@@ -20,8 +20,8 @@ import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mj
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[^\u0000-\u001f\u007f]+$/u;
-const POLICY_SHA256 = "9f6b1d38bde18b5d513a8f30d40d8eba5735284211307196bedf8bb753094523";
-const BASELINE_SHA256 = "698d02f3f39e2045669e91a40d9e246d4e2045dc72c649170570d24f5aeb4272";
+const POLICY_SHA256 = "096a4445cdeada1fb3841a4087fe664c6d86c2b34712db098ce59c8f79e4ce74";
+const BASELINE_SHA256 = "0c8db5b6a98f9705e1ad2659895ded79e3d184286c462dc5874e5eca02fa67e7";
 const PHASE = "NO_INCREASE";
 const REPOSITORY = "AquilaXk/easysubway-mobile";
 const POLICY_KEYS = ["schemaVersion", "artifactKind", "repository", "phase", "featureRoots", "rootClassifications", "importerRules", "forbiddenMatrix", "owners", "artifactContract"];
@@ -141,7 +141,7 @@ export function validatePolicy(value) {
   exactKeys(value, POLICY_KEYS, "policy");
   if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-policy-v1" || value.repository !== REPOSITORY || value.phase !== PHASE) fail("policy identity is invalid");
   if (JSON.stringify(value.featureRoots) !== JSON.stringify(FEATURE_ROOTS)) fail("policy feature roots changed");
-  if (!Array.isArray(value.rootClassifications) || value.rootClassifications.length !== 21) fail("policy root classification count changed");
+  if (!Array.isArray(value.rootClassifications) || value.rootClassifications.length !== 20) fail("policy root classification count changed");
   let previous = "";
   for (const entry of value.rootClassifications) {
     exactKeys(entry, ROOT_ENTRY_KEYS, "root classification");
@@ -178,7 +178,7 @@ export function parsePolicyBytes(bytes) {
 
 export function validateBaseline(value, policy) {
   exactKeys(value, BASELINE_KEYS, "baseline");
-  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "cf66cf8fc6598a60d8e2adb0afcd3d1a9871adcd" || !Array.isArray(value.edges) || value.edges.length !== 19) fail("baseline identity or count changed");
+  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "144f7b5db06e512dc8831e835096c11cec6a595d" || !Array.isArray(value.edges) || value.edges.length !== 15) fail("baseline identity or count changed");
   const rootMap = new Map(policy.rootClassifications.map((entry) => [entry.path, entry]));
   let previous = "";
   const seen = new Set();
@@ -194,7 +194,7 @@ export function validateBaseline(value, policy) {
     seen.add(key);
     ownerCounts.set(edge.ownerIssue, (ownerCounts.get(edge.ownerIssue) ?? 0) + 1);
   }
-  if (JSON.stringify([...ownerCounts.entries()].sort(([left], [right]) => left - right)) !== JSON.stringify([[22, 19]])) fail("baseline owner partition changed");
+  if (JSON.stringify([...ownerCounts.entries()].sort(([left], [right]) => left - right)) !== JSON.stringify([[22, 15]])) fail("baseline owner partition changed");
   return value;
 }
 
