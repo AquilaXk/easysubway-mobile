@@ -20,7 +20,7 @@ import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mj
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[^\u0000-\u001f\u007f]+$/u;
-const POLICY_SHA256 = "096a4445cdeada1fb3841a4087fe664c6d86c2b34712db098ce59c8f79e4ce74";
+const POLICY_SHA256 = "9234d8a0e5c8aa0aea433d276fe4421bad057dcb52aa0ee1a50c8de1bcd41219";
 const BASELINE_SHA256 = "0c8db5b6a98f9705e1ad2659895ded79e3d184286c462dc5874e5eca02fa67e7";
 const PHASE = "NO_INCREASE";
 const REPOSITORY = "AquilaXk/easysubway-mobile";
@@ -41,7 +41,7 @@ const OWNER_STATUS_KEYS = ["number", "title", "url", "state"];
 const ROOT_CLASSES = ["APPROVED_APP_ENTRYPOINT_OR_COMPOSITION", "APPROVED_NEUTRAL_FOUNDATION", "TEMPORARY_ROOT_IMPLEMENTATION_TO_MOVE", "LEGACY_ROUTE_DELETE", "GENERATED_OR_PLATFORM_OWNER", "TEST_OR_FIXTURE_ONLY", "FORBIDDEN_OR_UNKNOWN"];
 const IMPORTER_CLASSES = ["FEATURE_PRODUCTION", "APP_COMPOSITION", "SHARED_NEUTRAL", "ROOT_PRODUCTION", "TEST_OR_FIXTURE", "GENERATED"];
 const URI_KINDS = ["RELATIVE", "OWN_PACKAGE", "DART_EXTERNAL", "OTHER_PACKAGE_EXTERNAL", "NAMED_PART"];
-const FEATURE_ROOTS = ["account", "ads", "attribution", "fare", "facility_report", "favorites", "get_off_alarm", "home", "home_widget", "internal_route", "journey", "mobility_profile", "network_map", "notifications", "preferences", "realtime", "route_draft", "routes", "search_history", "service_notice", "settings", "stations", "support", "train_search"];
+const FEATURE_ROOTS = ["account", "ads", "attribution", "fare", "facility_report", "favorites", "get_off_alarm", "home", "home_widget", "internal_route", "journey", "mobility_profile", "network_map", "notifications", "onboarding", "preferences", "realtime", "route_draft", "routes", "search_history", "service_notice", "settings", "stations", "support", "train_search"];
 const POLICY_URL = new URL("./mobile-root-import-policy.json", import.meta.url);
 const BASELINE_URL = new URL("./mobile-root-import-baseline.json", import.meta.url);
 const HELPER_URL = new URL("./lib/mobile-dart-source-graph.mjs", import.meta.url);
