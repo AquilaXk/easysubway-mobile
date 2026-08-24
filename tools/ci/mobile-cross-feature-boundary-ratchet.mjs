@@ -201,6 +201,40 @@ export function compareGraphs({ baseFiles, currentFiles, policy, packageName = "
   return { baseline, current, newEdges: current.filter((edge) => !known.has(edgeKey(edge))) };
 }
 
+export function classifyDartSourceSets({
+  productionFiles,
+  testFixtureFiles,
+  packageName = "easysubway_mobile",
+}) {
+  const productionPaths = Object.keys(productionFiles).sort(compare);
+  const testFixturePaths = Object.keys(testFixtureFiles).sort(compare);
+  for (const sourcePath of productionPaths) {
+    if (!sourcePath.startsWith("apps/mobile/lib/") || !sourcePath.endsWith(".dart")) {
+      throw new Error(`production source is outside apps/mobile/lib: ${sourcePath}`);
+    }
+  }
+  for (const sourcePath of testFixturePaths) {
+    if (!sourcePath.startsWith("apps/mobile/test/") || !sourcePath.endsWith(".dart")) {
+      throw new Error(`test/fixture source is outside apps/mobile/test: ${sourcePath}`);
+    }
+    if (Object.hasOwn(productionFiles, sourcePath)) {
+      throw new Error(`production and test/fixture source sets overlap: ${sourcePath}`);
+    }
+  }
+  const graph = buildImmutableDartSourceGraph({
+    files: { ...productionFiles, ...testFixtureFiles },
+    packageName,
+  });
+  if (graph.uncertainty.length) throw new Error("source-set import classification uncertainty");
+  const production = new Set(productionPaths);
+  const testFixture = new Set(testFixturePaths);
+  const classifiedEdges = graph.edges.filter((edge) => ["IMPORT", "EXPORT"].includes(edge.kind));
+  return {
+    productionEdges: classifiedEdges.filter((edge) => production.has(edge.source)),
+    testFixtureEdges: classifiedEdges.filter((edge) => testFixture.has(edge.source)),
+  };
+}
+
 function violation(code, edge) {
   return { code, source: edge.source, target: edge.target, kind: edge.kind };
 }
@@ -292,7 +326,8 @@ export function auditCrossFeatureBoundaries({ files, policy, inventory, packageN
   }
   const graph = buildImmutableDartSourceGraph({ files, packageName });
   if (graph.uncertainty.length) throw new Error("cross-feature graph uncertainty");
-  const publicPaths = new Set(inventory.publicApis.map((entry) => entry.path));
+  const publicApiByPath = new Map(inventory.publicApis.map((entry) => [entry.path, entry]));
+  const publicPaths = new Set(publicApiByPath.keys());
   const generatedAdapters = new Set(inventory.generatedAdapterPaths);
   const exceptions = new Map(inventory.migrationExceptions.map((entry) => [edgeKey(entry), entry]));
   const matchedExceptions = new Set();
@@ -346,14 +381,29 @@ export function auditCrossFeatureBoundaries({ files, policy, inventory, packageN
     if (!matchedExceptions.has(key)) violations.push(violation("STALE_MIGRATION_EXCEPTION", entry));
   }
   violations.sort((left, right) => compare([left.code, left.source, left.target ?? "", left.kind].join("\0"), [right.code, right.source, right.target ?? "", right.kind].join("\0")));
+  const crossFeatureEdges = graph.edges.filter((edge) => {
+    if (!edge.target || !["IMPORT", "EXPORT"].includes(edge.kind)) return false;
+    const source = featurePath(edge.source, policy);
+    const target = featurePath(edge.target, policy);
+    return source && target && source[1] !== target[1];
+  });
+  const classifiedEdges = crossFeatureEdges.map((edge) => {
+    const source = featurePath(edge.source, policy);
+    const target = featurePath(edge.target, policy);
+    const publicApi = publicApiByPath.get(edge.target);
+    return {
+      source: edge.source,
+      target: edge.target,
+      kind: edge.kind,
+      sourceOwner: source[1],
+      targetOwner: target[1],
+      terminalDisposition: publicApi?.terminalDisposition ?? (exceptions.has(edgeKey(edge)) ? "MIGRATION_EXCEPTION" : null),
+    };
+  });
   return {
     graph,
-    crossFeatureEdges: graph.edges.filter((edge) => {
-      if (!edge.target || !["IMPORT", "EXPORT"].includes(edge.kind)) return false;
-      const source = featurePath(edge.source, policy);
-      const target = featurePath(edge.target, policy);
-      return source && target && source[1] !== target[1];
-    }),
+    crossFeatureEdges,
+    classifiedEdges,
     forbiddenEdges: forbiddenConcreteEdges(graph, policy),
     violations,
   };
@@ -379,11 +429,14 @@ export function runCli() {
   const policy = parsePolicy(readFileSync(POLICY_PATH));
   const inventoryBytes = readFileSync(policy.inventoryPath);
   const inventory = verifyInventoryBinding(policy, inventoryBytes);
-  const result = auditCrossFeatureBoundaries({ files: readTree("apps/mobile/lib"), policy, inventory });
+  const productionFiles = readTree("apps/mobile/lib");
+  const testFixtureFiles = readTree("apps/mobile/test");
+  const sourceSets = classifyDartSourceSets({ productionFiles, testFixtureFiles });
+  const result = auditCrossFeatureBoundaries({ files: productionFiles, policy, inventory });
   if (result.violations.length > 0) {
     throw new Error(`cross-feature boundary violation(s): ${result.violations.map((entry) => `${entry.code} ${entry.kind} ${entry.source} -> ${entry.target ?? "<none>"}`).join(", ")}`);
   }
-  process.stdout.write(`mobile cross-feature boundary ratchet: PASS (crossFeature=${result.crossFeatureEdges.length}, concrete=${result.forbiddenEdges.length}, exceptions=${inventory.migrationExceptions.length}, terminalZero=${policy.terminalZeroRequired})\n`);
+  process.stdout.write(`mobile cross-feature boundary ratchet: PASS (crossFeature=${result.crossFeatureEdges.length}, classified=${result.classifiedEdges.length}, concrete=${result.forbiddenEdges.length}, exceptions=${inventory.migrationExceptions.length}, terminalZero=${policy.terminalZeroRequired}, productionImports=${sourceSets.productionEdges.length}, testFixtureImports=${sourceSets.testFixtureEdges.length})\n`);
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) runCli();

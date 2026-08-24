@@ -99,6 +99,13 @@
       "terminalDisposition": "RETAIN_TYPED_CONTRACT"
     },
     {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_reconcile_worker.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
       "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_scheduler.dart",
       "ownerFeature": "get_off_alarm",
       "classification": "PUBLIC_API",
@@ -211,14 +218,5 @@
       "terminalDisposition": "RETAIN_TYPED_CONTRACT"
     }
   ],
-  "migrationExceptions": [
-    {
-      "source": "apps/mobile/lib/features/home_widget/next_train_widget_runtime.dart",
-      "target": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_reconcile_worker.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 22,
-      "reason": "The widget runtime imports a concrete alarm worker dispatcher.",
-      "removalTrigger": "Root composition supplies the exact worker task handler."
-    }
-  ]
+  "migrationExceptions": []
 }

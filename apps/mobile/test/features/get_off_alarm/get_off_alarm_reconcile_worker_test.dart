@@ -1,10 +1,14 @@
+import 'dart:io';
+
 import 'package:drift/native.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart';
+import 'package:easysubway_mobile/features/get_off_alarm/application/get_off_alarm_reconcile_runtime.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/data/get_off_alarm_state_repository.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/exact_alarm_permission.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_controller.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_reconcile_worker.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 컨트롤러 조립에 필요한 협력자들의 no-op 대역. reconcile을 오버라이드한
@@ -20,6 +24,8 @@ class _NoopDeps
 }
 
 final _noopDeps = _NoopDeps();
+
+Future<void> _noOpReconcileWork() async {}
 
 /// reconcile 동작을 주입받고 dispose 호출을 기록하는 테스트 컨트롤러.
 class _RecordingReconcileController extends GetOffAlarmController {
@@ -58,6 +64,8 @@ class _RecordingUserDatabase extends UserDatabase {
 }
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('reconcile 성공은 true를 돌려주고 finally에서 리소스를 닫는다', () async {
     var reconcileCount = 0;
     var closeCount = 0;
@@ -114,8 +122,10 @@ void main() {
       UserDatabase? passedToFactory;
       final errors = <Object>[];
 
-      final result = await runGetOffAlarmReconcileTask(
+      final result = await runGetOffAlarmReconcileRuntime(
         reportError: (error, _) => errors.add(error),
+        onActivateReconcileWork: _noOpReconcileWork,
+        onDeactivateReconcileWork: _noOpReconcileWork,
         openUserDatabase: () async => db,
         createController: (userDatabase) {
           passedToFactory = userDatabase;
@@ -143,8 +153,10 @@ void main() {
       );
       final errors = <Object>[];
 
-      final result = await runGetOffAlarmReconcileTask(
+      final result = await runGetOffAlarmReconcileRuntime(
         reportError: (error, _) => errors.add(error),
+        onActivateReconcileWork: _noOpReconcileWork,
+        onDeactivateReconcileWork: _noOpReconcileWork,
         openUserDatabase: () async => db,
         createController: (_) => controller,
       );
@@ -155,6 +167,35 @@ void main() {
       expect(errors.single, same(failure));
     },
   );
+
+  test('public reconcile command는 실제 내부 조립으로 빈 구독을 fail-closed 정리한다', () async {
+    const pathProviderChannel = MethodChannel(
+      'plugins.flutter.io/path_provider',
+    );
+    final supportDirectory = await Directory.systemTemp.createTemp(
+      'get-off-alarm-reconcile-',
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          pathProviderChannel,
+          (call) async => call.method == 'getApplicationSupportDirectory'
+              ? supportDirectory.path
+              : null,
+        );
+    addTearDown(() async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(pathProviderChannel, null);
+      await supportDirectory.delete(recursive: true);
+    });
+    final errors = <Object>[];
+
+    final result = await runGetOffAlarmReconcileTask(
+      reportError: (error, _) => errors.add(error),
+    );
+
+    expect(result, isTrue);
+    expect(errors, isEmpty);
+  });
 
   test('reconcile work 예약 계약 상수는 15분·전용 unique·task 이름을 고정한다', () {
     expect(getOffAlarmReconcileFrequency, const Duration(minutes: 15));

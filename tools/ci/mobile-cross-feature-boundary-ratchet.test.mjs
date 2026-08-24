@@ -6,6 +6,7 @@ import test from "node:test";
 import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mjs";
 import {
   auditCrossFeatureBoundaries,
+  classifyDartSourceSets,
   compareGraphs,
   forbiddenConcreteEdges,
   parseInventory,
@@ -69,8 +70,46 @@ test("same-feature and other-feature domain imports are not concrete-boundary vi
 test("current policy is byte-bound to the reviewed repository inventory", () => {
   const reviewedInventory = verifyInventoryBinding(policy, reviewedInventoryBytes);
   assert.equal(reviewedInventory.featureRoots.length, 24);
-  assert.equal(reviewedInventory.publicApis.length, 24);
-  assert.equal(reviewedInventory.migrationExceptions.length, 1);
+  assert.equal(reviewedInventory.publicApis.length, 25);
+  assert.equal(reviewedInventory.migrationExceptions.length, 0);
+  assert.equal(policy.terminalZeroRequired, true);
+  assert.deepEqual(
+    reviewedInventory.publicApis.find((entry) => entry.path.endsWith("/get_off_alarm_reconcile_worker.dart")),
+    {
+      path: "apps/mobile/lib/features/get_off_alarm/get_off_alarm_reconcile_worker.dart",
+      ownerFeature: "get_off_alarm",
+      classification: "PUBLIC_API",
+      contractKind: "TYPED_APPLICATION_PORT",
+      terminalDisposition: "RETAIN_TYPED_CONTRACT",
+    },
+  );
+});
+
+test("production과 test/fixture imports는 disjoint source set으로 분리 분류한다", () => {
+  const productionFiles = {
+    "apps/mobile/lib/features/journey/domain/journey.dart": "final class Journey {}\n",
+    "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart":
+      "import '../../journey/domain/journey.dart';\n",
+  };
+  const testFixtureFiles = {
+    "apps/mobile/test/features/favorites/favorite_screen_test.dart":
+      "import 'package:easysubway_mobile/features/journey/domain/journey.dart';\n",
+  };
+  const classified = classifyDartSourceSets({ productionFiles, testFixtureFiles });
+
+  assert.deepEqual(classified.productionEdges.map((edge) => edge.source), [
+    "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart",
+  ]);
+  assert.deepEqual(classified.testFixtureEdges.map((edge) => edge.source), [
+    "apps/mobile/test/features/favorites/favorite_screen_test.dart",
+  ]);
+  assert.throws(
+    () => classifyDartSourceSets({
+      productionFiles: { ...productionFiles, ...testFixtureFiles },
+      testFixtureFiles: {},
+    }),
+    /production source is outside apps\/mobile\/lib/u,
+  );
 });
 
 test("policy is byte-bound to a normalized explicit inventory", () => {
@@ -96,10 +135,20 @@ test("only exact typed public API targets are retained across features", () => {
     "apps/mobile/lib/features/journey/domain/internal.dart": "final class InternalJourney {}\n",
     "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart": "import '../../journey/domain/journey.dart';\n",
   };
-  assert.deepEqual(
-    auditCrossFeatureBoundaries({ files, policy: explicitPolicy, inventory: explicitInventory }).violations,
-    [],
-  );
+  const retained = auditCrossFeatureBoundaries({
+    files,
+    policy: explicitPolicy,
+    inventory: explicitInventory,
+  });
+  assert.deepEqual(retained.violations, []);
+  assert.deepEqual(retained.classifiedEdges, [{
+    source: "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart",
+    target: "apps/mobile/lib/features/journey/domain/journey.dart",
+    kind: "IMPORT",
+    sourceOwner: "favorites",
+    targetOwner: "journey",
+    terminalDisposition: "RETAIN_TYPED_CONTRACT",
+  }]);
   files["apps/mobile/lib/features/favorites/presentation/favorite_screen.dart"] = "import '../../journey/domain/internal.dart';\n";
   assert.deepEqual(
     auditCrossFeatureBoundaries({ files, policy: explicitPolicy, inventory: explicitInventory }).violations.map((entry) => entry.code),
