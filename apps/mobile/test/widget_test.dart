@@ -16545,26 +16545,6 @@ class RecordingSupportAccessLauncher implements SupportAccessLauncher {
   }
 }
 
-class ControlledRouteSearchRepository implements RouteSearchRepository {
-  final requests = <RouteSearchRequest>[];
-  final _completer = Completer<RouteSearchResult>();
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    requests.add(request);
-    return _completer.future;
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError();
-  }
-
-  void complete(RouteSearchResult result) {
-    _completer.complete(result);
-  }
-}
-
 NetworkMapData _gpsNetworkMapData({
   required String selectedRegion,
   required List<String> regions,
