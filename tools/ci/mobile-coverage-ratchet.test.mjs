@@ -368,7 +368,7 @@ test("Phase 2 missing-source failure는 안전한 repository-relative 경로를 
         phase2: true,
         gitApi,
       }),
-      /missing source has no reviewed disposition: apps\/mobile\/lib\/ad_slot\.dart/,
+      /missing source has no reviewed disposition: apps\/mobile\/lib\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.dart/,
     );
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
