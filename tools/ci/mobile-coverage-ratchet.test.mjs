@@ -99,6 +99,14 @@ test("Network Map root 삭제는 accessibility critical boundary를 app owner에
   assert.ok(!boundary.includes("network_map.dart"));
 });
 
+test("Home feature presentation 이동은 accessibility critical boundary를 app owner에 보존한다", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;
+
+  assert.ok(boundary.includes("app/home_screen.dart"));
+  assert.ok(!boundary.includes("features/home/presentation/"));
+});
+
 test("Route Search root 삭제는 accessibility critical boundary를 routes domain owner에 보존한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;

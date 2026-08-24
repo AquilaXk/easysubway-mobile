@@ -123,7 +123,7 @@
       "features/attribution/presentation/",
       "features/facility_report/",
       "features/favorites/presentation/",
-      "features/home/presentation/",
+      "app/home_screen.dart",
       "features/home_widget/next_train_widget_configuration_screen.dart",
       "features/network_map/presentation/",
       "features/notifications/presentation/",
