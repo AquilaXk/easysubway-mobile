@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
-import 'package:drift/native.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
@@ -247,7 +246,7 @@ void main() {
     expect(await repository.listFavoriteFacilities(), isEmpty);
   });
 
-  test('로컬 경로 즐겨찾기는 검색 결과 요약을 user DB에 저장하고 삭제한다', () async {
+  test('Journey 후보 경로 즐겨찾기는 검색 결과 요약을 user DB에 저장하고 삭제한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -258,7 +257,7 @@ void main() {
       userDatabase: userDatabase,
     );
     final result = RouteSearchResult(
-      routeSearchId: 'local-station-sangnoksu-station-sadang',
+      routeSearchId: 'journey-search-sangnoksu-sadang',
       originStationId: 'station-sangnoksu',
       originStationName: '상록수',
       destinationStationId: 'station-sadang',
@@ -406,7 +405,7 @@ void main() {
     },
   );
 
-  test('로컬 경로 즐겨찾기는 같은 구간도 이동 조건별로 분리해 저장한다', () async {
+  test('Journey 후보 경로 즐겨찾기는 같은 구간도 이동 조건별로 분리해 저장한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -417,7 +416,7 @@ void main() {
       userDatabase: userDatabase,
     );
     final seniorResult = RouteSearchResult(
-      routeSearchId: 'local-station-sangnoksu-station-sadang',
+      routeSearchId: 'journey-search-sangnoksu-sadang',
       originStationId: 'station-sangnoksu',
       originStationName: '상록수',
       destinationStationId: 'station-sadang',
@@ -433,7 +432,7 @@ void main() {
       createdAt: '2026-06-19T09:00:00.000Z',
     );
     final wheelchairResult = RouteSearchResult(
-      routeSearchId: 'local-station-sangnoksu-station-sadang',
+      routeSearchId: 'journey-search-sangnoksu-sadang',
       originStationId: 'station-sangnoksu',
       originStationName: '상록수',
       destinationStationId: 'station-sadang',
@@ -470,7 +469,7 @@ void main() {
     );
   });
 
-  test('복원 가능한 레거시 경로 즐겨찾기는 identity로 한 번 이관되고 재시작 후에도 안정적이다', () async {
+  test('persisted local 경로 행과 snapshot은 목록 조회에서 함께 삭제한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -485,7 +484,7 @@ void main() {
           .into(userDatabase.favoriteRoutes)
           .insert(
             user_db.FavoriteRoutesCompanion.insert(
-              routeId: 'local-legacy-route',
+              routeId: 'local-stale-route',
               originStationId: 'station-sangnoksu',
               destinationStationId: 'station-sadang',
               mobilityProfile: 'WHEELCHAIR',
@@ -496,331 +495,30 @@ void main() {
           .into(userDatabase.appPreferences)
           .insert(
             user_db.AppPreferencesCompanion.insert(
-              key: 'favorite_route_snapshot:local-legacy-route',
-              value: jsonEncode({
-                'routeSearchId': 'local-legacy-route',
-                'originStationId': 'station-sangnoksu',
-                'originStationName': '상록수',
-                'destinationStationId': 'station-sadang',
-                'destinationStationName': '사당',
-                'mobilityType': 'WHEELCHAIR',
-                'status': 'FOUND',
-                'score': 71,
-                'createdAt': '2026-07-01T00:00:00.000Z',
-                'objective': 'FASTEST',
-                'steps': [
-                  {
-                    'stepType': 'RIDE',
-                    'fromStationId': 'station-sangnoksu',
-                    'toStationId': 'station-sadang',
-                    'lineId': 'seoul-4',
-                    'serviceClass': 'SUBWAY',
-                    'servicePattern': 'LOCAL',
-                  },
-                ],
-              }),
+              key: 'favorite_route_snapshot:local-stale-route',
+              value: '{"legacy":true}',
               updatedAt: DateTime.utc(2026, 7),
             ),
           );
     });
 
-    final first = await repository.listFavoriteRoutes();
-    final restarted = DriftFavoriteRouteRepository(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-    );
-    final second = await restarted.listFavoriteRoutes();
-
-    expect(first.single.favoriteRouteId, startsWith('rc:v1:'));
-    expect(second.single.favoriteRouteId, first.single.favoriteRouteId);
-    final migratedSnapshot =
-        jsonDecode(
-              (await userDatabase
-                      .customSelect(
-                        'SELECT value FROM app_preferences WHERE key = ?',
-                        variables: [
-                          Variable.withString(
-                            'favorite_route_snapshot:${first.single.favoriteRouteId}',
-                          ),
-                        ],
-                      )
-                      .getSingle())
-                  .read<String>('value'),
-            )
-            as Map<String, Object?>;
-    expect(
-      (migratedSnapshot['querySnapshot']
-          as Map<String, Object?>)['mobilityPreset'],
-      'STEP_FREE',
-    );
+    expect(await repository.listFavoriteRoutes(), isEmpty);
     expect(
       await userDatabase
           .customSelect('SELECT route_id FROM favorite_routes')
           .get(),
-      hasLength(1),
+      isEmpty,
     );
     expect(
       await userDatabase
           .customSelect(
-            'SELECT value FROM app_preferences WHERE key = ?',
+            'SELECT key FROM app_preferences WHERE key = ?',
             variables: [
-              Variable.withString(
-                'favorite_route_snapshot:${first.single.favoriteRouteId}',
-              ),
+              Variable.withString('favorite_route_snapshot:local-stale-route'),
             ],
           )
           .get(),
-      hasLength(1),
-    );
-  });
-
-  test('목록 조회 뒤 삭제된 레거시 경로는 candidate identity로 되살리지 않는다', () async {
-    const legacyRouteId = 'local-concurrently-deleted';
-    final interceptor = _DeleteLegacyBeforeMigrationTransaction(legacyRouteId);
-    final catalogDatabase = CatalogDatabase.memory();
-    final userDatabase = user_db.UserDatabase(
-      NativeDatabase.memory().interceptWith(interceptor),
-    );
-    addTearDown(catalogDatabase.close);
-    addTearDown(userDatabase.close);
-    await catalogDatabase.seedBaselineIfEmpty();
-    final repository = DriftFavoriteRouteRepository(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-    );
-    await userDatabase.transaction(() async {
-      await userDatabase
-          .into(userDatabase.favoriteRoutes)
-          .insert(
-            user_db.FavoriteRoutesCompanion.insert(
-              routeId: legacyRouteId,
-              originStationId: 'station-sangnoksu',
-              destinationStationId: 'station-sadang',
-              mobilityProfile: 'WHEELCHAIR',
-              addedAt: DateTime.utc(2026, 7),
-            ),
-          );
-      await userDatabase
-          .into(userDatabase.appPreferences)
-          .insert(
-            user_db.AppPreferencesCompanion.insert(
-              key: 'favorite_route_snapshot:$legacyRouteId',
-              value: jsonEncode({
-                'routeSearchId': legacyRouteId,
-                'originStationId': 'station-sangnoksu',
-                'originStationName': '상록수',
-                'destinationStationId': 'station-sadang',
-                'destinationStationName': '사당',
-                'mobilityType': 'WHEELCHAIR',
-                'status': 'FOUND',
-                'score': 71,
-                'createdAt': '2026-07-01T00:00:00.000Z',
-                'objective': 'FASTEST',
-                'steps': [
-                  {
-                    'stepType': 'RIDE',
-                    'fromStationId': 'station-sangnoksu',
-                    'toStationId': 'station-sadang',
-                    'lineId': 'seoul-4',
-                    'serviceClass': 'SUBWAY',
-                    'servicePattern': 'LOCAL',
-                  },
-                ],
-              }),
-              updatedAt: DateTime.utc(2026, 7),
-            ),
-          );
-    });
-    interceptor.arm();
-
-    final favorites = await repository.listFavoriteRoutes();
-
-    expect(favorites, isEmpty);
-    expect(
-      await userDatabase
-          .customSelect('SELECT route_id FROM favorite_routes')
-          .get(),
       isEmpty,
-    );
-    expect(
-      await userDatabase
-          .customSelect(
-            "SELECT key FROM app_preferences WHERE key LIKE 'favorite_route_snapshot:%'",
-          )
-          .get(),
-      isEmpty,
-    );
-  });
-
-  test('orphan target snapshot이 있으면 legacy 행을 보존하고 다시 검색 필요로 표시한다', () async {
-    final catalogDatabase = CatalogDatabase.memory();
-    final userDatabase = user_db.UserDatabase.memory();
-    addTearDown(catalogDatabase.close);
-    addTearDown(userDatabase.close);
-    await catalogDatabase.seedBaselineIfEmpty();
-    final repository = DriftFavoriteRouteRepository(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-    );
-    final query = RouteQueryIdentity(
-      originStationId: 'station-sangnoksu',
-      destinationStationId: 'station-sadang',
-      mobilityType: 'WHEELCHAIR',
-      mobilityPreset: 'STEP_FREE',
-      constraintMode: 'STRICT_STEP_FREE',
-      transportScope: 'SUBWAY',
-      objective: 'FASTEST',
-    );
-    final candidate = RouteCandidateIdentity(
-      query: query,
-      legs: [
-        RouteCandidateLegSignature(
-          stepType: 'RIDE',
-          fromStationId: 'station-sangnoksu',
-          toStationId: 'station-sadang',
-          lineId: 'seoul-4',
-          serviceClass: 'SUBWAY',
-          servicePattern: 'LOCAL',
-        ),
-      ],
-    );
-    final legacySnapshot = jsonEncode({
-      'routeSearchId': 'local-orphan-target',
-      'originStationId': 'station-sangnoksu',
-      'originStationName': '상록수',
-      'destinationStationId': 'station-sadang',
-      'destinationStationName': '사당',
-      'mobilityType': 'WHEELCHAIR',
-      'status': 'FOUND',
-      'score': 71,
-      'createdAt': '2026-07-01T00:00:00.000Z',
-      'objective': 'FASTEST',
-      'steps': [
-        {
-          'stepType': 'RIDE',
-          'fromStationId': 'station-sangnoksu',
-          'toStationId': 'station-sadang',
-          'lineId': 'seoul-4',
-          'serviceClass': 'SUBWAY',
-          'servicePattern': 'LOCAL',
-        },
-      ],
-    });
-    await userDatabase.transaction(() async {
-      await userDatabase
-          .into(userDatabase.favoriteRoutes)
-          .insert(
-            user_db.FavoriteRoutesCompanion.insert(
-              routeId: 'local-orphan-target',
-              originStationId: 'station-sangnoksu',
-              destinationStationId: 'station-sadang',
-              mobilityProfile: 'WHEELCHAIR',
-              addedAt: DateTime.utc(2026, 7),
-            ),
-          );
-      for (final entry in {
-        'favorite_route_snapshot:local-orphan-target': legacySnapshot,
-        'favorite_route_snapshot:${candidate.value}': 'orphan',
-      }.entries) {
-        await userDatabase
-            .into(userDatabase.appPreferences)
-            .insert(
-              user_db.AppPreferencesCompanion.insert(
-                key: entry.key,
-                value: entry.value,
-                updatedAt: DateTime.utc(2026, 7),
-              ),
-            );
-      }
-    });
-
-    final favorite = (await repository.listFavoriteRoutes()).single;
-
-    expect(favorite.favoriteRouteId, 'local-orphan-target');
-    expect(favorite.needsResearch, isTrue);
-    expect(
-      await userDatabase
-          .customSelect('SELECT route_id FROM favorite_routes')
-          .get(),
-      hasLength(1),
-    );
-    expect(
-      await userDatabase.customSelect('SELECT key FROM app_preferences').get(),
-      hasLength(2),
-    );
-  });
-
-  test('같은 출발지와 도착지의 레거시 경로도 identity 입력이 다르면 분리 이관한다', () async {
-    final catalogDatabase = CatalogDatabase.memory();
-    final userDatabase = user_db.UserDatabase.memory();
-    addTearDown(catalogDatabase.close);
-    addTearDown(userDatabase.close);
-    await catalogDatabase.seedBaselineIfEmpty();
-    final repository = DriftFavoriteRouteRepository(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-    );
-    for (final fixture in [
-      ('local-legacy-fastest', 'FASTEST', 'RIDE'),
-      ('local-legacy-transfer', 'FEWEST_TRANSFERS', 'WALK'),
-    ]) {
-      await userDatabase.transaction(() async {
-        await userDatabase
-            .into(userDatabase.favoriteRoutes)
-            .insert(
-              user_db.FavoriteRoutesCompanion.insert(
-                routeId: fixture.$1,
-                originStationId: 'station-sangnoksu',
-                destinationStationId: 'station-sadang',
-                mobilityProfile: 'SENIOR',
-                addedAt: DateTime.utc(2026, 7),
-              ),
-            );
-        await userDatabase
-            .into(userDatabase.appPreferences)
-            .insert(
-              user_db.AppPreferencesCompanion.insert(
-                key: 'favorite_route_snapshot:${fixture.$1}',
-                value: jsonEncode({
-                  'originStationId': 'station-sangnoksu',
-                  'originStationName': '상록수',
-                  'destinationStationId': 'station-sadang',
-                  'destinationStationName': '사당',
-                  'mobilityType': 'SENIOR',
-                  'status': 'FOUND',
-                  'score': 70,
-                  'createdAt': '2026-07-01T00:00:00.000Z',
-                  'objective': fixture.$2,
-                  'steps': [
-                    {
-                      'stepType': fixture.$3,
-                      'fromStationId': 'station-sangnoksu',
-                      'toStationId': 'station-sadang',
-                      if (fixture.$3 == 'RIDE') ...{
-                        'serviceClass': 'SUBWAY',
-                        'servicePattern': 'LOCAL',
-                      },
-                    },
-                  ],
-                }),
-                updatedAt: DateTime.utc(2026, 7),
-              ),
-            );
-      });
-    }
-
-    final favorites = await repository.listFavoriteRoutes();
-
-    expect(favorites, hasLength(2));
-    expect(
-      favorites.every(
-        (favorite) => favorite.favoriteRouteId.startsWith('rc:v1:'),
-      ),
-      isTrue,
-    );
-    expect(
-      favorites.map((favorite) => favorite.favoriteRouteId).toSet(),
-      hasLength(2),
     );
   });
 
@@ -981,7 +679,7 @@ void main() {
     );
   });
 
-  test('map이 아닌 querySnapshot이 있는 레거시 경로는 보존하고 다시 검색 필요로 표시한다', () async {
+  test('형식이 손상된 local snapshot도 route row와 함께 삭제한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -1016,29 +714,25 @@ void main() {
           );
     });
 
-    final favorite = (await repository.listFavoriteRoutes()).single;
-
-    expect(favorite.favoriteRouteId, 'local-corrupt-query-snapshot');
-    expect(favorite.needsResearch, isTrue);
+    expect(await repository.listFavoriteRoutes(), isEmpty);
     expect(
       await userDatabase
           .customSelect('SELECT route_id FROM favorite_routes')
           .get(),
-      hasLength(1),
+      isEmpty,
     );
     expect(
-      (await userDatabase
-              .customSelect(
-                'SELECT value FROM app_preferences WHERE key = ?',
-                variables: [
-                  Variable.withString(
-                    'favorite_route_snapshot:local-corrupt-query-snapshot',
-                  ),
-                ],
-              )
-              .getSingle())
-          .read<String>('value'),
-      snapshot,
+      await userDatabase
+          .customSelect(
+            'SELECT key FROM app_preferences WHERE key = ?',
+            variables: [
+              Variable.withString(
+                'favorite_route_snapshot:local-corrupt-query-snapshot',
+              ),
+            ],
+          )
+          .get(),
+      isEmpty,
     );
   });
 
@@ -1172,7 +866,7 @@ void main() {
     expect(await repository.listFavoriteRoutes(), isEmpty);
   });
 
-  test('복원할 수 없는 레거시 snapshot은 보존하고 다시 검색 필요로 표시한다', () async {
+  test('어떤 snapshot 형태든 stale local 경로 후보를 복원하거나 표시하지 않는다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -1384,96 +1078,14 @@ void main() {
       }
     }
 
-    final favorites = await repository.listFavoriteRoutes();
-
-    expect(favorites, hasLength(11));
-    expect(favorites.every((favorite) => favorite.needsResearch), isTrue);
-    expect(favorites.map((favorite) => favorite.statusLabel).toSet(), {
-      '다시 검색 필요',
-    });
-    for (final favorite in favorites) {
-      expect(favorite.routeSearchId, favorite.favoriteRouteId);
-      expect(favorite.originStationId, 'station-sangnoksu');
-      expect(favorite.destinationStationId, 'station-sadang');
-      expect(favorite.mobilityType, 'WHEELCHAIR');
-      expect(favorite.status, 'RESEARCH_REQUIRED');
-      expect(favorite.lineId, isEmpty);
-      expect(favorite.lineName, isEmpty);
-      expect(favorite.etaSource, isEmpty);
-      expect(favorite.score, 0);
-      expect(favorite.routeCreatedAt, '2026-07-01T00:00:00.000Z');
-      expect(favorite.addedAt, '2026-07-01T00:00:00.000Z');
-    }
-    final missing = favorites.singleWhere(
-      (favorite) => favorite.favoriteRouteId == 'local-missing',
-    );
-    expect(missing.originStationName, '상록수');
-    expect(missing.destinationStationName, '사당');
-    expect(missing.transportScope, RouteTransportScope.subway);
-    final waypoint = favorites.singleWhere(
-      (favorite) => favorite.favoriteRouteId == 'local-waypoint',
-    );
-    expect(waypoint.originStationName, '저장 출발');
-    expect(waypoint.destinationStationName, '저장 도착');
-    expect(waypoint.transportScope, RouteTransportScope.subwayAndItxCheongchun);
-    final queryMismatch = favorites.singleWhere(
-      (favorite) => favorite.favoriteRouteId == 'local-query-mismatch',
-    );
-    expect(queryMismatch.originStationName, '상록수');
-
-    await repository.removeFavoriteRoute('local-invalid-json');
-
+    expect(await repository.listFavoriteRoutes(), isEmpty);
     expect(
-      await userDatabase
-          .customSelect('SELECT route_id FROM favorite_routes')
-          .get(),
-      hasLength(10),
-    );
-    expect(
-      await userDatabase
-          .customSelect(
-            'SELECT key FROM app_preferences WHERE key = ?',
-            variables: [
-              Variable.withString('favorite_route_snapshot:local-invalid-json'),
-            ],
-          )
-          .get(),
+      await userDatabase.customSelect('SELECT route_id FROM favorite_routes').get(),
       isEmpty,
     );
     expect(
-      await userDatabase
-          .customSelect(
-            'SELECT route_id FROM favorite_routes WHERE route_id IN (?, ?)',
-            variables: [
-              Variable.withString('local-missing'),
-              Variable.withString('local-waypoint'),
-            ],
-          )
-          .get(),
-      hasLength(2),
-    );
-    expect(
-      await userDatabase
-          .customSelect(
-            'SELECT key FROM app_preferences WHERE key = ?',
-            variables: [
-              Variable.withString('favorite_route_snapshot:local-waypoint'),
-            ],
-          )
-          .get(),
-      hasLength(1),
-    );
-    expect(
-      await userDatabase
-          .customSelect(
-            'SELECT route_id FROM favorite_routes WHERE route_id IN (?, ?)',
-            variables: [
-              Variable.withString('local-query-mismatch'),
-              Variable.withString('local-waypoint-number'),
-            ],
-          )
-          .get(),
-      hasLength(2),
+      await userDatabase.customSelect('SELECT key FROM app_preferences').get(),
+      isEmpty,
     );
   });
 
@@ -1544,7 +1156,7 @@ void main() {
     );
   });
 
-  test('V2 경로 즐겨찾기는 ETA 출처와 step metadata를 snapshot에 보존한다', () async {
+  test('Journey 경로 즐겨찾기는 ETA 출처와 step metadata를 snapshot에 보존한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
     addTearDown(catalogDatabase.close);
@@ -1579,7 +1191,7 @@ void main() {
           distanceMeters: 0,
           includesStairs: false,
           requiresAccessibilityCheck: false,
-          timeSource: 'STATIC_BACKEND_V1',
+          timeSource: 'STATIC_BACKEND_ESTIMATE',
           distanceSource: 'BACKEND_V2',
           confidenceLabel: 'LOW',
         ),
@@ -1587,7 +1199,7 @@ void main() {
       warnings: const [],
       blockedReasons: const [],
       createdAt: '2026-07-01T09:00:00+09:00',
-      etaSource: 'STATIC_BACKEND_V1',
+      etaSource: 'STATIC_BACKEND_ESTIMATE',
       transportScope: RouteTransportScope.subwayAndItxCheongchun,
     );
 
@@ -1621,9 +1233,9 @@ void main() {
       favorites.single.transportScope,
       RouteTransportScope.subwayAndItxCheongchun,
     );
-    expect(snapshot['etaSource'], 'STATIC_BACKEND_V1');
+    expect(snapshot['etaSource'], 'STATIC_BACKEND_ESTIMATE');
     expect(snapshot['transportScope'], 'SUBWAY_AND_ITX_CHEONGCHUN');
-    expect(firstStep['timeSource'], 'STATIC_BACKEND_V1');
+    expect(firstStep['timeSource'], 'STATIC_BACKEND_ESTIMATE');
     expect(firstStep['distanceSource'], 'BACKEND_V2');
     expect(firstStep['confidenceLabel'], 'LOW');
   });
@@ -1714,32 +1326,4 @@ void main() {
       isA<UserDataDeletionLocalRepository>(),
     );
   });
-}
-
-final class _DeleteLegacyBeforeMigrationTransaction extends QueryInterceptor {
-  _DeleteLegacyBeforeMigrationTransaction(this.legacyRouteId);
-
-  final String legacyRouteId;
-  bool _armed = false;
-
-  void arm() => _armed = true;
-
-  @override
-  Future<List<Map<String, Object?>>> runSelect(
-    QueryExecutor executor,
-    String statement,
-    List<Object?> args,
-  ) async {
-    if (_armed && executor is TransactionExecutor) {
-      _armed = false;
-      await executor.runDelete(
-        'DELETE FROM favorite_routes WHERE route_id = ?',
-        [legacyRouteId],
-      );
-      await executor.runDelete('DELETE FROM app_preferences WHERE key = ?', [
-        'favorite_route_snapshot:$legacyRouteId',
-      ]);
-    }
-    return executor.runSelect(statement, args);
-  }
 }

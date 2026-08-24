@@ -283,16 +283,13 @@ void main() {
     expect(warningResult.attentionLabel, '주의 안내 보기');
   });
 
-  test('ETA source 라벨은 상용 claim 전에 무음 또는 실시간 claim으로 떨어지지 않는다', () {
+  test('ETA source 라벨은 현재 Journey V3 출처만 인식한다', () {
     expect(routeEtaSourceLabels.keys.toSet(), {
       'REALTIME',
       'MIXED',
       'PLANNED',
       'STATIC_BACKEND_ESTIMATE',
-      'STATIC_BACKEND_V1',
-      'STATIC_LOCAL',
       'STATIC_ESTIMATE',
-      'FALLBACK',
       'UNSUPPORTED',
       'STALE',
     });
@@ -304,6 +301,9 @@ void main() {
     expect(routeEtaSourceLabel('STALE'), '저장된 데이터 기준');
     expect(routeEtaSourceLabel(''), '도착 정보를 확인하고 있어요');
     expect(routeEtaSourceLabel('SERVER_NEW_VALUE'), '도착 정보를 확인하고 있어요');
+    expect(routeEtaSourceLabel('STATIC_BACKEND_V1'), '도착 정보를 확인하고 있어요');
+    expect(routeEtaSourceLabel('STATIC_LOCAL'), '도착 정보를 확인하고 있어요');
+    expect(routeEtaSourceLabel('FALLBACK'), '도착 정보를 확인하고 있어요');
     expect(routeEtaSourceLabels.values, isNot(contains('실시간 반영')));
     expect(routeEtaSourceLabels.values, isNot(contains('일부 실시간 반영')));
   });
@@ -375,7 +375,7 @@ void main() {
       ],
     );
 
-    expect(clearTransfer.badgeLabels, ['시간표 기준', '계단 없는 경로 확인', '환승 여유 충분']);
+    expect(clearTransfer.badgeLabels, ['시간표 기준', '일부 이동 정보를 살펴봐 주세요', '환승 여유 충분']);
   });
 
   test('경로 이동 부담은 warning 없음만으로 낮음이 되지 않는다', () {
@@ -595,7 +595,7 @@ void main() {
     expect(result.semanticLabel, isNot(contains('계단 없음')));
   });
 
-  test('경로 계단 상태는 계단 없는 길을 쉬운 문구로 보여준다', () {
+  test('경로 계단 상태는 경로 단위 판정 없이는 step 원자료로 유추하지 않는다', () {
     final result = _sampleRouteSearchResult(
       steps: const [
         RouteSearchStep(
@@ -616,9 +616,9 @@ void main() {
       ],
     );
 
-    expect(result.stairAccessLabel, '계단 없는 길이에요');
-    expect(result.semanticLabel, contains('계단 없는 길이에요'));
-    expect(result.semanticLabel, isNot(contains('계단 없음 확인')));
+    expect(result.stairAccessLabel, '계단 여부를 확인하고 있어요');
+    expect(result.semanticLabel, contains('계단 여부를 확인하고 있어요'));
+    expect(result.semanticLabel, isNot(contains('계단 없는 길이에요')));
   });
 
   test('경로 요약 사실값은 열차 거리와 환승 문구에 의존하지 않는다', () {
@@ -841,22 +841,22 @@ void main() {
     expect(noCarDoor.carDoorHintSemanticLabel, '빠른 하차 null번 칸 null번 문');
   });
 
-  test('경로 결과는 정적 출처·다음 운행·계단과 block alias를 fail closed로 표시한다', () {
-    final local = _sampleRouteSearchResult(
+  test('경로 결과는 legacy local route ID와 출처를 현재 성공으로 표시하지 않는다', () {
+    final legacy = _sampleRouteSearchResult(
       routeSearchId: 'local-route',
       etaSource: 'STATIC_LOCAL',
     );
-    final datedLocal = RouteSearchResult(
-      routeSearchId: local.routeSearchId,
-      originStationId: local.originStationId,
-      originStationName: local.originStationName,
-      destinationStationId: local.destinationStationId,
-      destinationStationName: local.destinationStationName,
-      mobilityType: local.mobilityType,
-      status: local.status,
-      lineId: local.lineId,
-      lineName: local.lineName,
-      score: local.score,
+    final datedLegacy = RouteSearchResult(
+      routeSearchId: legacy.routeSearchId,
+      originStationId: legacy.originStationId,
+      originStationName: legacy.originStationName,
+      destinationStationId: legacy.destinationStationId,
+      destinationStationName: legacy.destinationStationName,
+      mobilityType: legacy.mobilityType,
+      status: legacy.status,
+      lineId: legacy.lineId,
+      lineName: legacy.lineName,
+      score: legacy.score,
       steps: const [
         RouteSearchStep(
           sequence: 1,
@@ -873,21 +873,21 @@ void main() {
           requiresAccessibilityCheck: false,
         ),
       ],
-      warnings: local.warnings,
+      warnings: legacy.warnings,
       blockedReasons: const [
         'STAIR_ONLY_ACCESS',
         '필수 접근성 시설을 사용할 수 없습니다.',
         '경로 연결 정보를 확인할 수 없습니다.',
         'unknown',
       ],
-      createdAt: local.createdAt,
-      etaSource: local.etaSource,
+      createdAt: legacy.createdAt,
+      etaSource: legacy.etaSource,
       sourceUpdatedAt: '2026-08-24T05:00:00Z',
       nextServiceTime: '2026-08-24T06:07:00Z',
     );
-    expect(datedLocal.sourceNotice, '예상 소요시간: 저장된 데이터 기준 · 최근 확인 2026-08-24');
-    expect(datedLocal.stairAccessLabel, '계단 없는 길이에요');
-    expect(datedLocal.blockedReasonLabels, [
+    expect(datedLegacy.sourceNotice, '예상 소요시간: 도착 정보를 확인하고 있어요');
+    expect(datedLegacy.stairAccessLabel, '계단 여부를 확인하고 있어요');
+    expect(datedLegacy.blockedReasonLabels, [
       '계단 없는 경로를 아직 찾지 못했어요.',
       '꼭 필요한 시설을 지금 이용하기 어려워요.',
       '길이 이어지는지 확인하고 있어요.',
@@ -911,7 +911,7 @@ void main() {
             '계단 포함',
           ),
     );
-    expect(datedLocal.sourceNoticeCaption, '저장된 데이터 기준');
+    expect(datedLegacy.sourceNoticeCaption, '도착 정보를 확인하고 있어요');
     expect(
       _sampleRouteSearchResult(
         steps: const [
