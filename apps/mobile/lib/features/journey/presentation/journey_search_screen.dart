@@ -12,7 +12,7 @@ import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import 'journey_get_off_alarm_toggle.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
-import '../../../mobile_error_reporter.dart';
+import '../../../core/crashlytics/mobile_crash_reporting.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
 
@@ -63,11 +63,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       attestor: widget.attestor,
       now: widget.journeyNow,
       reportNonFatalError: (error, stackTrace) {
-        return reportMobileNonFatalError(
-          error,
-          stackTrace,
-          context: 'Journey search failure',
-        );
+        return recordNonFatalError(error, stackTrace);
       },
     )..addListener(_changed);
     WidgetsBinding.instance.addObserver(this);

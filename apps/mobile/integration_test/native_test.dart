@@ -3,7 +3,9 @@ import 'package:easysubway_mobile/features/journey/domain/journey_repository.dar
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
-import 'package:easysubway_mobile/mobile_error_reporter.dart';
+import 'package:easysubway_mobile/core/crashlytics/crash_report_redaction.dart';
+import 'package:easysubway_mobile/core/crashlytics/crashlytics_gateway.dart';
+import 'package:easysubway_mobile/core/crashlytics/mobile_crash_reporting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -51,13 +53,13 @@ void main() {
     'Android native Journey transport failure는 candidate 없이 안전한 retry state로 끝난다',
     (tester) async {
       final repository = _NativeJourneyRepository(failSearch: true);
-      final reportedErrors = <FlutterErrorDetails>[];
-      await runWithMobileErrorReporter(reportedErrors.add, () async {
-        await _pumpJourney(tester, repository);
+      final crashlytics = _NativeRecordingCrashlytics();
+      replaceCrashlyticsGatewayForTest(crashlytics);
+      addTearDown(resetCrashlyticsGateway);
+      await _pumpJourney(tester, repository);
 
-        await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-        await tester.pumpAndSettle();
-      });
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
 
       expect(repository.sessionRequests, 1);
       expect(repository.searchRequests, 1);
@@ -67,15 +69,52 @@ void main() {
         findsNothing,
       );
       expect(find.textContaining('native transport detail'), findsNothing);
-      expect(reportedErrors, hasLength(1));
-      final report = reportedErrors.single;
-      expect(report.exception, isA<JourneyTransportFailure>());
-      expect(report.context.toString(), 'Journey search failure');
-      expect(report.toString(), isNot(contains('station-origin')));
-      expect(report.toString(), isNot(contains('station-destination')));
-      expect(report.toString(), isNot(contains('native-session-token')));
+      expect(crashlytics.errors, hasLength(1));
+      expect(crashlytics.fatalFlags, <bool>[false]);
+      expect(crashlytics.errors.single, isA<SanitizedCrashException>());
+      expect(crashlytics.payload, contains('subsystem=app-report'));
+      expect(crashlytics.payload, isNot(contains('native transport detail')));
+      expect(crashlytics.payload, isNot(contains('station-origin')));
+      expect(crashlytics.payload, isNot(contains('station-destination')));
+      expect(crashlytics.payload, isNot(contains('native-session-token')));
     },
   );
+}
+
+class _NativeRecordingCrashlytics implements CrashlyticsGateway {
+  final errors = <Object>[];
+  final fatalFlags = <bool>[];
+  final payloadLines = <String>[];
+
+  String get payload => payloadLines.join('\n');
+
+  @override
+  bool get isCollectionEnabled => false;
+
+  @override
+  Future<void> recordError(
+    Object error,
+    StackTrace stackTrace, {
+    bool fatal = false,
+    String? reason,
+  }) async {
+    errors.add(error);
+    fatalFlags.add(fatal);
+    payloadLines.addAll(<String>[
+      error.toString(),
+      stackTrace.toString(),
+      reason ?? '',
+    ]);
+  }
+
+  @override
+  Future<void> recordFlutterFatalError(FlutterErrorDetails details) async {}
+
+  @override
+  Future<void> setCollectionEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setCustomKey(String key, String value) async {}
 }
 
 Future<void> _pumpJourney(

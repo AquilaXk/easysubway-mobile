@@ -310,29 +310,6 @@ void main() {
   });
 
   test(
-    'handled nonfatal report uses the sanitized app-report boundary',
-    () async {
-      final gateway = _RecordingCrashlytics();
-      replaceCrashlyticsGatewayForTest(gateway);
-
-      await reportMobileNonFatalError(
-        StateError('station-origin private request'),
-        StackTrace.current,
-        context: 'Journey search failure',
-      );
-
-      expect(gateway.errors, hasLength(1));
-      expect(gateway.fatalFlags, <bool>[false]);
-      expect(gateway.errors.single, isA<SanitizedCrashException>());
-      expect(
-        gateway.errors.single.toString(),
-        contains('subsystem=app-report'),
-      );
-      expect(gateway.payloadText, isNot(contains('station-origin')));
-    },
-  );
-
-  test(
     'zone reporter short-circuits Crashlytics on FlutterError.onError',
     () async {
       final gateway = _RecordingCrashlytics();

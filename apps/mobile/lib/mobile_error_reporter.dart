@@ -31,35 +31,6 @@ void reportMobileError(
   FlutterError.reportError(details);
 }
 
-/// 앱이 처리한 오류를 기존 정화된 nonfatal 경계로 기록한다.
-///
-/// 테스트 zone에서는 raw provider 대신 details만 관측해 기존 주입 계약을
-/// 유지한다. zone 밖 기록은 항상 app-report/nonfatal 정화 경로를 사용한다.
-Future<void> reportMobileNonFatalError(
-  Object error,
-  StackTrace stackTrace, {
-  required String context,
-}) {
-  final details = FlutterErrorDetails(
-    exception: error,
-    stack: stackTrace,
-    library: 'easysubway mobile',
-    context: ErrorDescription(context),
-  );
-
-  final zoneReporter = Zone.current[_mobileErrorReporterZoneKey];
-  if (zoneReporter is MobileErrorReporter) {
-    zoneReporter(details);
-    return Future<void>.value();
-  }
-
-  return recordNonFatalError(
-    error,
-    stackTrace,
-    subsystem: CrashSubsystem.appReport,
-  );
-}
-
 Future<T> runWithMobileErrorReporter<T>(
   MobileErrorReporter reporter,
   Future<T> Function() body,
