@@ -522,6 +522,64 @@ void main() {
     );
   });
 
+  test('정규 저장 ID 뒤에 숨은 local 경로 snapshot도 함께 삭제한다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    await catalogDatabase.seedBaselineIfEmpty();
+    final repository = DriftFavoriteRouteRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+    );
+    const storedRouteId = 'rc:v1:previously-local-route';
+    await userDatabase.transaction(() async {
+      await userDatabase
+          .into(userDatabase.favoriteRoutes)
+          .insert(
+            user_db.FavoriteRoutesCompanion.insert(
+              routeId: storedRouteId,
+              originStationId: 'station-sangnoksu',
+              destinationStationId: 'station-sadang',
+              mobilityProfile: 'WHEELCHAIR',
+              addedAt: DateTime.utc(2026, 7),
+            ),
+          );
+      await userDatabase
+          .into(userDatabase.appPreferences)
+          .insert(
+            user_db.AppPreferencesCompanion.insert(
+              key: 'favorite_route_snapshot:$storedRouteId',
+              value:
+                  '{"routeSearchId":"local-stale-route","originStationId":"station-sangnoksu","destinationStationId":"station-sadang"}',
+              updatedAt: DateTime.utc(2026, 7),
+            ),
+          );
+    });
+
+    expect(await repository.listFavoriteRoutes(), isEmpty);
+    expect(
+      await userDatabase
+          .customSelect(
+            'SELECT route_id FROM favorite_routes WHERE route_id = ?',
+            variables: [Variable.withString(storedRouteId)],
+          )
+          .get(),
+      isEmpty,
+    );
+    expect(
+      await userDatabase
+          .customSelect(
+            'SELECT key FROM app_preferences WHERE key = ?',
+            variables: [
+              Variable.withString('favorite_route_snapshot:$storedRouteId'),
+            ],
+          )
+          .get(),
+      isEmpty,
+    );
+  });
+
   test('기존 candidate 대상은 보존하고 최종 추가 시각 순으로 정렬한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();

@@ -512,11 +512,12 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
     final favorites = <FavoriteRoute>[];
     for (final row in rows) {
       final routeId = row.read<String>('route_id');
-      if (routeId.startsWith('local-')) {
+      final snapshot = await _readRouteSnapshot(routeId);
+      if (routeId.startsWith('local-') ||
+          _isStaleLocalRouteSnapshot(snapshot)) {
         await _removeStaleLocalFavoriteRoute(routeId);
         continue;
       }
-      final snapshot = await _readRouteSnapshot(routeId);
       final addedAt = _isoFromEpoch(row.read<int?>('added_at_value'));
       final originStationId = row.read<String>('origin_station_id');
       final destinationStationId = row.read<String>('destination_station_id');
@@ -550,6 +551,11 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
     }
     favorites.sort((left, right) => right.addedAt.compareTo(left.addedAt));
     return favorites;
+  }
+
+  bool _isStaleLocalRouteSnapshot(Map<String, Object?>? snapshot) {
+    final routeSearchId = snapshot?['routeSearchId'];
+    return routeSearchId is String && routeSearchId.trim().startsWith('local-');
   }
 
   Future<void> _removeStaleLocalFavoriteRoute(String routeId) {
