@@ -1,0 +1,1 @@
+{"schemaVersion":1,"artifactKind":"mobile-cross-feature-boundary-policy-v1","repository":"AquilaXk/easysubway-mobile","reviewedHeadSha":"8516d6176fffd6729f4e6e647582b963f371178d","featurePrefix":"apps/mobile/lib/features/","forbiddenTargetSegments":["application","data","infrastructure","presentation"]}

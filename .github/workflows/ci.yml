@@ -203,6 +203,7 @@ jobs:
           node --test \
             tools/ci/check-google-play-api-access.test.mjs \
             tools/ci/filter-mobile-lcov.test.mjs \
+            tools/ci/mobile-cross-feature-boundary-ratchet.test.mjs \
             tools/ci/mobile-coverage-ratchet.test.mjs \
             tools/ci/lib/google-play-auth.test.mjs \
             tools/ci/mobile-changed-path-classifier.test.mjs \
@@ -217,6 +218,7 @@ jobs:
             tools/mobile/store-release-preflight.test.mjs \
             tools/mobile/status-voice-inventory.test.mjs \
             tools/release/hash-android-bundle-payload.test.mjs
+          node tools/ci/mobile-cross-feature-boundary-ratchet.mjs
           node tools/ci/audit-mobile-datapack-assets.mjs \
             --index apps/mobile/assets/datapacks/index.json \
             --root apps/mobile
