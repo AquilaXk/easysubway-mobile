@@ -12979,7 +12979,10 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.textContaining('상록수'), findsWidgets);
-    expect(find.byKey(const Key('stationFavoriteToggleButton')), findsOneWidget);
+    expect(
+      find.byKey(const Key('stationFavoriteToggleButton')),
+      findsOneWidget,
+    );
     expect(find.text('역 안 이동'), findsNothing);
     expect(find.text('역 안 이동 경로를 찾았어요'), findsNothing);
   });
