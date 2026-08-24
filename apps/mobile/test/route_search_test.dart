@@ -4,11 +4,187 @@ import 'dart:io';
 import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/features/favorites/data/favorite_route_api_repository.dart';
 import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_identity.dart';
 import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('표시 이름 오버라이드는 경로의 식별자와 사실값을 보존한다', () {
+    final query = RouteQueryIdentity(
+      originStationId: 'station-origin',
+      destinationStationId: 'station-destination',
+      mobilityType: 'WHEELCHAIR',
+      constraintMode: 'AVOID_STAIRS',
+      waypointStationId: 'station-waypoint',
+      mobilityPreset: 'SLOW_WALK',
+      transportScope: 'SUBWAY',
+      objective: 'ACCESSIBILITY',
+    );
+    final candidate = RouteCandidateIdentity(
+      query: query,
+      legs: [
+        RouteCandidateLegSignature(
+          stepType: 'RIDE',
+          fromStationId: 'station-origin',
+          toStationId: 'station-destination',
+          lineId: 'line-original',
+        ),
+      ],
+    );
+    const originalStep = RouteSearchStep(
+      sequence: 1,
+      title: '기존 이동',
+      description: '엘리베이터 이동',
+      lineId: 'line-original',
+      lineName: '기존 노선',
+      fromStationId: 'station-origin',
+      toStationId: 'station-destination',
+      estimatedMinutes: 12,
+      distanceMeters: 340,
+      includesStairs: false,
+      requiresAccessibilityCheck: true,
+    );
+    const displayStep = RouteSearchStep(
+      sequence: 2,
+      title: '표시 이동',
+      description: '표시용 환승',
+      lineId: 'line-display',
+      lineName: '표시 노선',
+      fromStationId: 'station-origin',
+      toStationId: 'station-destination',
+      estimatedMinutes: 9,
+      distanceMeters: 120,
+      includesStairs: false,
+      requiresAccessibilityCheck: false,
+    );
+    final original = RouteSearchResult(
+      routeSearchId: 'route-search-1',
+      queryIdentity: query,
+      candidateIdentity: candidate,
+      providerRouteSearchId: 'provider-route-1',
+      providerItineraryId: 'provider-itinerary-1',
+      originStationId: 'station-origin',
+      originStationName: '기존 출발역',
+      destinationStationId: 'station-destination',
+      destinationStationName: '기존 도착역',
+      mobilityType: 'WHEELCHAIR',
+      constraintMode: 'AVOID_STAIRS',
+      status: 'FOUND',
+      lineId: 'line-original',
+      lineName: '기존 노선',
+      score: 87,
+      accessibilityScore: 91,
+      burdenCost: 24,
+      estimatedDurationSeconds: 720,
+      walkingDistanceMeters: 340,
+      transferCount: 1,
+      evidenceSummary: const ['시설 상태 확인'],
+      steps: const [originalStep],
+      warnings: const [RouteSearchWarning(code: 'NOTICE', message: '주의')],
+      recommendationReasons: const ['엘리베이터 우선'],
+      blockedReasons: const ['NONE'],
+      createdAt: '2026-08-24T05:00:00Z',
+      etaSource: 'PLANNED',
+      etaConfidence: 'HIGH',
+      accessibilityRiskLevel: 'LOW',
+      transferSlackSeconds: 180,
+      hasOutOfStationTransfer: true,
+      commercialEtaEligible: true,
+      sourceUpdatedAt: '2026-08-24T04:00:00Z',
+      supportsRefresh: false,
+      nextServiceTime: '2026-08-24T06:00:00Z',
+      transportScope: RouteTransportScope.subwayAndItxCheongchun,
+      departureTimeIso: '2026-08-24T05:10:00Z',
+      arrivalTimeIso: '2026-08-24T05:22:00Z',
+      stairAccess: 'STEP_FREE',
+    );
+
+    final displayed = original.withDisplayLabels(
+      originStationName: '표시 출발역',
+      destinationStationName: '표시 도착역',
+      lineName: '표시 노선',
+      steps: const [displayStep],
+      etaSource: 'REALTIME',
+    );
+
+    expect(displayed.originStationName, '표시 출발역');
+    expect(displayed.destinationStationName, '표시 도착역');
+    expect(displayed.lineName, '표시 노선');
+    expect(displayed.steps, const [displayStep]);
+    expect(displayed.etaSource, 'REALTIME');
+    expect(displayed.queryIdentity, same(query));
+    expect(displayed.candidateIdentity, same(candidate));
+    expect(displayed.providerRouteSearchId, 'provider-route-1');
+    expect(displayed.providerItineraryId, 'provider-itinerary-1');
+    expect(
+      [
+        displayed.routeSearchId,
+        displayed.originStationId,
+        displayed.destinationStationId,
+        displayed.mobilityType,
+        displayed.constraintMode,
+        displayed.status,
+        displayed.lineId,
+        displayed.score,
+        displayed.accessibilityScore,
+        displayed.burdenCost,
+        displayed.estimatedDurationSeconds,
+        displayed.walkingDistanceMeters,
+        displayed.transferCount,
+        displayed.evidenceSummary,
+        displayed.warnings,
+        displayed.recommendationReasons,
+        displayed.blockedReasons,
+        displayed.createdAt,
+        displayed.etaConfidence,
+        displayed.accessibilityRiskLevel,
+        displayed.transferSlackSeconds,
+        displayed.hasOutOfStationTransfer,
+        displayed.commercialEtaEligible,
+        displayed.sourceUpdatedAt,
+        displayed.supportsRefresh,
+        displayed.nextServiceTime,
+        displayed.transportScope,
+        displayed.departureTimeIso,
+        displayed.arrivalTimeIso,
+        displayed.stairAccess,
+      ],
+      [
+        original.routeSearchId,
+        original.originStationId,
+        original.destinationStationId,
+        original.mobilityType,
+        original.constraintMode,
+        original.status,
+        original.lineId,
+        original.score,
+        original.accessibilityScore,
+        original.burdenCost,
+        original.estimatedDurationSeconds,
+        original.walkingDistanceMeters,
+        original.transferCount,
+        original.evidenceSummary,
+        original.warnings,
+        original.recommendationReasons,
+        original.blockedReasons,
+        original.createdAt,
+        original.etaConfidence,
+        original.accessibilityRiskLevel,
+        original.transferSlackSeconds,
+        original.hasOutOfStationTransfer,
+        original.commercialEtaEligible,
+        original.sourceUpdatedAt,
+        original.supportsRefresh,
+        original.nextServiceTime,
+        original.transportScope,
+        original.departureTimeIso,
+        original.arrivalTimeIso,
+        original.stairAccess,
+      ],
+    );
+  });
+
   test('사용하지 않는 route feedback 주입 경로는 production route root에 남지 않는다', () {
     const productionPaths = [
       'lib/features/routes/domain/route_search.dart',
