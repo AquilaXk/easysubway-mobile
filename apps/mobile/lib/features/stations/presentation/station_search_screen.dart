@@ -10,10 +10,10 @@ import '../../../search_field.dart';
 import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
-import '../../network_map/presentation/region_menu.dart';
+import '../../../core/ui/region_menu.dart';
 import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
 import '../../route_draft/domain/route_draft.dart';
+import '../../route_draft/route_draft_port.dart';
 import '../application/station_search_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
@@ -62,7 +62,7 @@ class StationSearchScreen extends StatefulWidget {
   final SearchHistoryRepository? searchHistoryRepository;
   final RealtimeRepository? realtimeRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
 
   /// 특정 칸(출발/도착)을 채우려고 검색을 연 경우의 대상 칸. 지정되면 결과를 한 번
   /// 탭하는 즉시 [routeDraftController]의 해당 칸을 설정하고 이 화면을 닫는다. 지도

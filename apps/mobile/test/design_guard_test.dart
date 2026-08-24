@@ -203,7 +203,7 @@ void main() {
       'lib/app/network_map_screen.dart': {'0x99000000', '0xFF000000'},
       'lib/features/network_map/presentation/network_map_chrome_controls.dart':
           {'0xE62F3437'},
-      'lib/features/network_map/presentation/region_menu.dart': {'0x99000000'},
+      'lib/core/ui/region_menu.dart': {'0x99000000'},
       'lib/app/accessibility_theme.dart': {'Colors.white'},
     };
     final colorReferences = RegExp(

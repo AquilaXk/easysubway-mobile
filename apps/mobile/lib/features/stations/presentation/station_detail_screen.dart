@@ -9,7 +9,7 @@ import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
+import '../../route_draft/route_draft_port.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_repositories.dart';
@@ -28,7 +28,7 @@ Future<T?> showStationDetailSheet<T>({
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
-  RouteDraftController? routeDraftController,
+  RouteDraftPort? routeDraftController,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
 }) {
   return showModalBottomSheet<T>(
@@ -84,7 +84,7 @@ class StationDetailScreen extends StatefulWidget {
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
   final KakaoMapLauncher mapLauncher;
 
   @override
@@ -244,7 +244,7 @@ class StationDetailExpandHost extends StatefulWidget {
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
   final KakaoMapLauncher mapLauncher;
   final bool showContextChrome;
   final bool showRealtimeSection;

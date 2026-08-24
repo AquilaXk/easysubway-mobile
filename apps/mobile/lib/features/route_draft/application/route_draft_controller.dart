@@ -1,14 +1,16 @@
 import 'package:flutter/foundation.dart';
 
 import '../domain/route_draft.dart';
+import '../route_draft_port.dart';
 
-class RouteDraftController extends ChangeNotifier {
+class RouteDraftController extends ChangeNotifier implements RouteDraftPort {
   RouteDraft _draft = const RouteDraft.empty();
 
   /// 경유 칸이 비어 있어도 출발·도착 사이에 행을 보여줄지.
   /// [openWaypointSlot]으로 열고, 역을 채우거나 [clearWaypoint]로 닫는다.
   bool _waypointSlotOpen = false;
 
+  @override
   RouteDraft get draft => _draft;
 
   /// 경유 행 표시 여부(빈 칸 포함).
@@ -23,6 +25,7 @@ class RouteDraftController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void setOrigin(RouteDraftStation station) {
     // 같은 역이 다른 슬롯(도착·경유)에 이미 있으면 지정을 거부한다. 같은 슬롯
     // 재지정(덮어쓰기)은 허용한다.
@@ -39,6 +42,7 @@ class RouteDraftController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void setDestination(RouteDraftStation station) {
     if (station.id == _draft.origin?.id || station.id == _draft.waypoint?.id) {
       return;
@@ -52,6 +56,7 @@ class RouteDraftController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @override
   void setWaypoint(RouteDraftStation station) {
     if (station.id == _draft.origin?.id ||
         station.id == _draft.destination?.id) {
@@ -231,6 +236,7 @@ class RouteDraftController extends ChangeNotifier {
     return _stationFor(slot);
   }
 
+  @override
   void clear() {
     if (_draft.isEmpty && !_waypointSlotOpen) {
       return;

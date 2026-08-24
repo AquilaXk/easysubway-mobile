@@ -148,6 +148,13 @@
       "terminalDisposition": "RETAIN_TYPED_CONTRACT"
     },
     {
+      "path": "apps/mobile/lib/features/route_draft/route_draft_port.dart",
+      "ownerFeature": "route_draft",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
       "path": "apps/mobile/lib/features/routes/domain/route_search.dart",
       "ownerFeature": "routes",
       "classification": "PUBLIC_API",
@@ -262,46 +269,6 @@
       "ownerIssue": 20,
       "reason": "Station presentation constructs Facility Report presentation directly.",
       "removalTrigger": "App composition handles a typed facility-report intent."
-    },
-    {
-      "source": "apps/mobile/lib/features/stations/presentation/station_detail_body.dart",
-      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Station detail receives the concrete route draft controller.",
-      "removalTrigger": "Station detail emits a typed route-point intent."
-    },
-    {
-      "source": "apps/mobile/lib/features/stations/presentation/station_detail_route_actions.dart",
-      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Station route actions mutate the concrete route draft controller.",
-      "removalTrigger": "Station actions emit typed origin and destination intents."
-    },
-    {
-      "source": "apps/mobile/lib/features/stations/presentation/station_detail_screen.dart",
-      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Station detail screen forwards a concrete route draft controller.",
-      "removalTrigger": "Station detail forwards typed route-point callbacks only."
-    },
-    {
-      "source": "apps/mobile/lib/features/stations/presentation/station_search_screen.dart",
-      "target": "apps/mobile/lib/features/network_map/presentation/region_menu.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 19,
-      "reason": "Station search imports a Network Map presentation menu type.",
-      "removalTrigger": "Station search owns a typed region value contract."
-    },
-    {
-      "source": "apps/mobile/lib/features/stations/presentation/station_search_screen.dart",
-      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Station search mutates the concrete route draft controller.",
-      "removalTrigger": "Station search returns a typed station intent to app composition."
     }
   ]
 }

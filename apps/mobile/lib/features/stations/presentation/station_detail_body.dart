@@ -13,7 +13,7 @@ import '../../facility_report/domain/facility_report_location.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
+import '../../route_draft/route_draft_port.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
@@ -72,7 +72,7 @@ class StationDetailBody extends StatelessWidget {
   final FacilityReportRepository reportRepository;
   final StationFavoriteToggleController? favoriteController;
   final AdRepository? adRepository;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
@@ -193,7 +193,7 @@ class _StationDetailContent extends StatelessWidget {
   final FacilityReportRepository reportRepository;
   final StationFavoriteToggleController? favoriteController;
   final AdRepository? adRepository;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;

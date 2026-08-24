@@ -26,7 +26,7 @@ import '../features/mobility_profile/mobility_preset_picker.dart';
 import '../features/mobility_profile/mobility_profile_policy.dart';
 import '../features/network_map/application/network_map_region_bridge.dart';
 import '../features/network_map/domain/network_map_models.dart';
-import '../features/network_map/presentation/region_menu.dart';
+import '../core/ui/region_menu.dart';
 import '../features/notifications/notification_settings.dart';
 import '../features/notifications/presentation/new_notification_bar.dart';
 import '../features/notifications/presentation/notification_inbox_screen.dart';

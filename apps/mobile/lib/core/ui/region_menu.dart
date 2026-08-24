@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
-import '../../../accessible_design.dart';
-import '../../../design_tokens.dart';
+import '../../accessible_design.dart';
+import '../../design_tokens.dart';
 
-/// 홈·역 검색 상단바 지역 메뉴 항목.
+/// 노선도·역 검색 상단바가 공유하는 지역 메뉴 항목.
 class EasySubwayRegionMenuItem {
   const EasySubwayRegionMenuItem({required this.id, required this.label});
 

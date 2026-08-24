@@ -6,7 +6,7 @@ import '../../../search_field.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../domain/network_map_models.dart';
 import '../domain/route_map_min_scale.dart';
-import 'region_menu.dart';
+import '../../../core/ui/region_menu.dart';
 
 /// 테스트 전용: [NetworkMapChrome]가 build될 때마다 증가한다. 검색 중 키
 /// 입력이 지도 chrome 전체를 재빌드하지 않는지 검증할 때만 읽는다.
