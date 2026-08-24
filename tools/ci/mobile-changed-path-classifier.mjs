@@ -52,7 +52,7 @@ const REQUIREMENT_OUTPUT_KEYS = Object.freeze({
 });
 const STATUS_MAP = { A: "ADDED", M: "MODIFIED", D: "DELETED", R: "RENAMED", C: "COPIED", T: "TYPE_CHANGED", U: "UNMERGED_OR_UNKNOWN" };
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
-const POLICY_SHA256 = "77d5af146fc5640720f196da9fb2cd68a699c1fc50594e9b4f853a91853524d9";
+const POLICY_SHA256 = "4c9f9b231a9e00aa291f470aa87f17bfc6f207f85e076f1a7eeb32a8ed5edd11";
 const CLOSED_POLICY = JSON.parse(readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url), "utf8"));
 const POLICY_ORACLE = JSON.stringify(CLOSED_POLICY);
 const PATH_RULE_IDS = CLOSED_POLICY.pathRules.map((rule) => rule.id);

@@ -77,6 +77,20 @@ test("Facility Report root 삭제는 critical boundaries를 feature owner에 보
   }
 });
 
+test("facility status baseline owners는 current changed-path policy projection과 정확히 일치한다", () => {
+  const changedPathPolicy = JSON.parse(readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url), "utf8"));
+  const baseline = parseBaselineBytes(readFileSync(baselineFile));
+  const sourcePath = "apps/mobile/lib/features/stations/domain/facility_status.dart";
+  const expectedOwners = [];
+  for (const rule of changedPathPolicy.pathRules) {
+    if (rule.exactPaths.includes(sourcePath) || rule.prefixes.some((prefix) => sourcePath.startsWith(prefix))) {
+      for (const owner of rule.owners) if (!expectedOwners.includes(owner)) expectedOwners.push(owner);
+    }
+  }
+  assert.deepEqual(expectedOwners, ["FEATURE:stations", "CONTRACT_ARTIFACT", "MAP_CATALOG"]);
+  assert.deepEqual(baseline.paths.find((source) => source.path === sourcePath)?.owners, expectedOwners);
+});
+
 test("Network Map root 삭제는 accessibility critical boundary를 app owner에 보존한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;

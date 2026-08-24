@@ -1,4 +1,4 @@
-import '../../../facility_status.dart';
+import 'facility_status.dart';
 import 'station_line.dart';
 
 const _nearbyLocationMaxAge = Duration(minutes: 5);
