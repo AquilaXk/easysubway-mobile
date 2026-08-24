@@ -20,8 +20,8 @@ import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mj
 const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[^\u0000-\u001f\u007f]+$/u;
-const POLICY_SHA256 = "394bc9f014da80e276c1f4c3ee71ab1efd721d976b15b07927c2cf202c845d0f";
-const BASELINE_SHA256 = "b4868596d3741c966e785a143f1994ccc886dbe68e9b0d6f667f0fdee5d2876b";
+const POLICY_SHA256 = "40203406c3f303ba4d5266d8300cf11c24d3d46e8a857ecb25e2a83c755a840a";
+const BASELINE_SHA256 = "64a64046ef8e1e7f68fcbbd8215df10b6f690985761242df987dc21a62850f66";
 const PHASE = "NO_INCREASE";
 const REPOSITORY = "AquilaXk/easysubway-mobile";
 const POLICY_KEYS = ["schemaVersion", "artifactKind", "repository", "phase", "featureRoots", "rootClassifications", "importerRules", "forbiddenMatrix", "owners", "artifactContract"];
@@ -178,7 +178,7 @@ export function parsePolicyBytes(bytes) {
 
 export function validateBaseline(value, policy) {
   exactKeys(value, BASELINE_KEYS, "baseline");
-  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "b590afe4da6af46b21c2a81a50bc53a783243103" || !Array.isArray(value.edges) || value.edges.length !== 47) fail("baseline identity or count changed");
+  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "fc89812dea8bc8d5072468323221fbca7adb21ee" || !Array.isArray(value.edges) || value.edges.length !== 26) fail("baseline identity or count changed");
   const rootMap = new Map(policy.rootClassifications.map((entry) => [entry.path, entry]));
   let previous = "";
   const seen = new Set();
@@ -194,7 +194,7 @@ export function validateBaseline(value, policy) {
     seen.add(key);
     ownerCounts.set(edge.ownerIssue, (ownerCounts.get(edge.ownerIssue) ?? 0) + 1);
   }
-  if (JSON.stringify([...ownerCounts.entries()].sort(([left], [right]) => left - right)) !== JSON.stringify([[18, 14], [19, 3], [20, 6], [22, 24]])) fail("baseline owner partition changed");
+  if (JSON.stringify([...ownerCounts.entries()].sort(([left], [right]) => left - right)) !== JSON.stringify([[22, 26]])) fail("baseline owner partition changed");
   return value;
 }
 

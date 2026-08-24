@@ -85,13 +85,17 @@ test("Network Map root 삭제는 accessibility critical boundary를 app owner에
   assert.ok(!boundary.includes("network_map.dart"));
 });
 
-test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey owner로 교체한다", () => {
+test("Journey 전환은 삭제된 internal route ingress를 active Journey V3 owner로 교체한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const removedLocalRouteStackPaths = [
     "features/routes/application/accessibility_cost_calculator.dart",
     "features/routes/application/network_graph.dart",
     "features/routes/application/route_engine.dart",
     "features/routes/data/local_route_repository.dart",
+  ];
+  const removedInternalRouteBoundaryPaths = [
+    "internal_route.dart",
+    "features/internal_route/",
   ];
 
   for (const boundary of [
@@ -100,6 +104,9 @@ test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey 
     "CONTRACT_ARTIFACT_IDENTITY",
   ]) {
     assert.ok(policy.criticalBoundaryRules[boundary].includes("features/journey/"));
+    for (const removedPath of removedInternalRouteBoundaryPaths) {
+      assert.ok(!policy.criticalBoundaryRules[boundary].includes(removedPath));
+    }
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_search.dart"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_v2_ingress.dart"));
     for (const removedPath of removedLocalRouteStackPaths) {

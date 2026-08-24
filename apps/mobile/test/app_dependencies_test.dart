@@ -138,11 +138,6 @@ void main() {
       dependencies.reportRepository,
       isA<UnavailableFacilityReportRepository>(),
     );
-
-    final internalNodes = await dependencies.internalRouteRepository
-        .listRouteNodes('station-sangnoksu');
-
-    expect(internalNodes, isEmpty);
   });
 
   test('로컬 데이터베이스 기본 의존성은 시설 신고 fallback 때문에 API 주소를 읽지 않는다', () async {
