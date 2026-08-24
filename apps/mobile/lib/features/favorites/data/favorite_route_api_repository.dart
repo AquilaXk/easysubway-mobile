@@ -10,6 +10,8 @@ const _favoriteRouteRequestTimeout = Duration(seconds: 8);
 const _favoriteRouteErrorMessage = '즐겨찾기 경로를 바꾸지 못했어요.';
 const _favoriteRouteLoadErrorMessage = '즐겨찾기 경로를 불러오지 못했어요.';
 
+enum _FavoriteRouteRequestMethod { get, post, delete }
+
 class FavoriteRouteApiRepository implements FavoriteRouteRepository {
   FavoriteRouteApiRepository({
     required this.baseUri,
@@ -26,7 +28,7 @@ class FavoriteRouteApiRepository implements FavoriteRouteRepository {
   @override
   Future<List<FavoriteRoute>> listFavoriteRoutes() async {
     final data = await _requestData(
-      'GET',
+      _FavoriteRouteRequestMethod.get,
       '/api/v1/me/favorites/routes',
       errorMessage: _favoriteRouteLoadErrorMessage,
     );
@@ -59,7 +61,7 @@ class FavoriteRouteApiRepository implements FavoriteRouteRepository {
     RouteSearchResult? result,
   }) async {
     final data = await _requestData(
-      'POST',
+      _FavoriteRouteRequestMethod.post,
       '/api/v1/me/favorites/routes',
       body: {'routeSearchId': routeSearchId},
       errorMessage: _favoriteRouteErrorMessage,
@@ -83,14 +85,14 @@ class FavoriteRouteApiRepository implements FavoriteRouteRepository {
   @override
   Future<void> removeFavoriteRoute(String favoriteRouteId) async {
     await _requestData(
-      'DELETE',
+      _FavoriteRouteRequestMethod.delete,
       '/api/v1/me/favorites/routes/$favoriteRouteId',
       errorMessage: _favoriteRouteErrorMessage,
     );
   }
 
   Future<Object?> _requestData(
-    String method,
+    _FavoriteRouteRequestMethod method,
     String path, {
     Map<String, Object?>? body,
     required String errorMessage,
@@ -106,10 +108,19 @@ class FavoriteRouteApiRepository implements FavoriteRouteRepository {
         }
 
         final response = await switch (method) {
-          'GET' => _apiClient.getJson(path, headers: headers),
-          'POST' => _apiClient.postJson(path, body: body!, headers: headers),
-          'DELETE' => _apiClient.deleteJson(path, headers: headers),
-          _ => throw FavoriteRouteException(errorMessage),
+          _FavoriteRouteRequestMethod.get => _apiClient.getJson(
+            path,
+            headers: headers,
+          ),
+          _FavoriteRouteRequestMethod.post => _apiClient.postJson(
+            path,
+            body: body!,
+            headers: headers,
+          ),
+          _FavoriteRouteRequestMethod.delete => _apiClient.deleteJson(
+            path,
+            headers: headers,
+          ),
         };
 
         if (response.isUnauthorized &&
@@ -141,6 +152,5 @@ class FavoriteRouteApiRepository implements FavoriteRouteRepository {
         throw FavoriteRouteException(errorMessage);
       }
     }
-    throw FavoriteRouteException(errorMessage);
   }
 }
