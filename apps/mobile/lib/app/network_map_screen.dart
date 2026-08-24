@@ -33,7 +33,6 @@ import '../features/route_draft/domain/route_draft.dart';
 import '../features/stations/presentation/station_detail_body.dart';
 import '../features/stations/presentation/station_detail_screen.dart';
 import '../features/stations/presentation/station_line_badges.dart';
-import '../internal_route.dart';
 import '../mobile_error_reporter.dart';
 import '../station_search.dart';
 import 'network_map_nearby_panel_composition.dart';
@@ -52,8 +51,6 @@ class NetworkMapScreen extends StatefulWidget {
     this.adRepository,
     this.searchHistoryRepository,
     this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteMobilityType = 'SENIOR',
     this.locationProvider,
     this.viewportRepository,
     this.realtimeRepository,
@@ -114,8 +111,6 @@ class NetworkMapScreen extends StatefulWidget {
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final String internalRouteMobilityType;
   final CurrentLocationProvider? locationProvider;
   final NetworkMapViewportRepository? viewportRepository;
   final RealtimeRepository? realtimeRepository;
@@ -1641,8 +1636,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         locationProvider: widget.locationProvider,
         stationId: primary.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
-        internalRouteRepository: widget.internalRouteRepository,
-        internalRouteMobilityType: widget.internalRouteMobilityType,
         routeDraftController: widget.routeDraftController,
         // 상단 호선바·실시간/시간표가 맥락·열차를 담당한다.
         showContextChrome: false,

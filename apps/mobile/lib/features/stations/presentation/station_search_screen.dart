@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
-import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../search_field.dart';
 import '../../ads/ad_repository.dart';
@@ -47,8 +46,6 @@ class StationSearchScreen extends StatefulWidget {
     this.searchHistoryRepository,
     this.realtimeRepository,
     this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteMobilityType = 'SENIOR',
     this.routeDraftController,
     this.pickSlot,
     required this.regionLabel,
@@ -65,8 +62,6 @@ class StationSearchScreen extends StatefulWidget {
   final SearchHistoryRepository? searchHistoryRepository;
   final RealtimeRepository? realtimeRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final String internalRouteMobilityType;
   final RouteDraftController? routeDraftController;
 
   /// 특정 칸(출발/도착)을 채우려고 검색을 연 경우의 대상 칸. 지정되면 결과를 한 번
@@ -708,8 +703,6 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         realtimeRepository: widget.realtimeRepository,
         stationId: result.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
-        internalRouteRepository: widget.internalRouteRepository,
-        internalRouteMobilityType: widget.internalRouteMobilityType,
         routeDraftController: widget.routeDraftController,
       ),
     );

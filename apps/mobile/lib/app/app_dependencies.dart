@@ -38,13 +38,11 @@ import '../features/journey/data/journey_api_repository.dart';
 import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../generated/journey_v3/journey_v3_contract.dart';
-import '../internal_route.dart';
 import '../features/network_map/domain/network_map_models.dart';
 import '../notification_settings.dart';
 import '../route_search.dart';
 import '../station_search.dart' show defaultOptionalStationApiBaseUri;
 import '../user_data_deletion.dart';
-import '../features/internal_route/data/local_internal_route_repository.dart';
 
 class AppDependencies {
   const AppDependencies({
@@ -55,7 +53,6 @@ class AppDependencies {
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
     required this.searchHistoryRepository,
-    required this.internalRouteRepository,
     required this.networkMapRepository,
     required this.networkMapViewportRepository,
     required this.realtimeRepository,
@@ -79,7 +76,6 @@ class AppDependencies {
     FavoriteFacilityRepository? favoriteFacilityRepository,
     FavoriteRouteRepository? favoriteRouteRepository,
     SearchHistoryRepository? searchHistoryRepository,
-    InternalRouteRepository? internalRouteRepository,
     NetworkMapRepository? networkMapRepository,
     NetworkMapViewportRepository? networkMapViewportRepository,
     RealtimeRepository? realtimeRepository,
@@ -213,15 +209,6 @@ class AppDependencies {
           (userDatabase == null
               ? null
               : DriftSearchHistoryRepository(userDatabase: userDatabase)),
-      internalRouteRepository:
-          internalRouteRepository ??
-          (catalogDatabase == null
-              ? InternalRouteApiRepository(baseUri: requireBaseUri())
-              : LocalFirstInternalRouteRepository(
-                  localRepository: LocalInternalRouteRepository(
-                    catalogDatabase: catalogDatabase,
-                  ),
-                )),
       networkMapRepository: resolvedNetworkMapRepository,
       networkMapViewportRepository:
           networkMapViewportRepository ??
@@ -264,7 +251,6 @@ class AppDependencies {
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;

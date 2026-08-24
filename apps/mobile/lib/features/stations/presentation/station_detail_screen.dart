@@ -5,7 +5,6 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../app/easy_subway_family_app_bar.dart';
 import '../../../core/external/kakao_map_launcher.dart';
-import '../../../internal_route.dart';
 import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
@@ -29,9 +28,6 @@ Future<T?> showStationDetailSheet<T>({
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
-  InternalRouteRepository? internalRouteRepository,
-  InternalRouteRequest? internalRouteRequest,
-  String internalRouteMobilityType = 'SENIOR',
   RouteDraftController? routeDraftController,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
 }) {
@@ -55,9 +51,6 @@ Future<T?> showStationDetailSheet<T>({
           stationId: stationId,
           initiallyFavorite: initiallyFavorite,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteRequest: internalRouteRequest,
-          internalRouteMobilityType: internalRouteMobilityType,
           routeDraftController: routeDraftController,
           mapLauncher: mapLauncher,
         ),
@@ -77,9 +70,6 @@ class StationDetailScreen extends StatefulWidget {
     this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteRequest,
-    this.internalRouteMobilityType = 'SENIOR',
     this.routeDraftController,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     super.key,
@@ -94,9 +84,6 @@ class StationDetailScreen extends StatefulWidget {
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final InternalRouteRequest? internalRouteRequest;
-  final String internalRouteMobilityType;
   final RouteDraftController? routeDraftController;
   final KakaoMapLauncher mapLauncher;
 
@@ -107,7 +94,6 @@ class StationDetailScreen extends StatefulWidget {
 class _StationDetailScreenState extends State<StationDetailScreen> {
   late final StationDetailController _controller;
   StationFavoriteToggleController? _favoriteController;
-  InternalRouteController? _internalRouteController;
 
   @override
   void initState() {
@@ -116,23 +102,6 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
       repository: widget.repository,
       realtimeRepository: widget.realtimeRepository,
     );
-    final internalRouteRepository = widget.internalRouteRepository;
-    final internalRouteRequest = widget.internalRouteRequest;
-    if (internalRouteRepository != null) {
-      _internalRouteController = InternalRouteController(
-        repository: internalRouteRepository,
-      );
-      if (internalRouteRequest != null) {
-        unawaited(_internalRouteController!.load(internalRouteRequest));
-      } else {
-        unawaited(
-          _internalRouteController!.loadDefault(
-            stationId: widget.stationId,
-            mobilityType: widget.internalRouteMobilityType,
-          ),
-        );
-      }
-    }
     final favoriteRepository = widget.favoriteRepository;
     if (favoriteRepository != null) {
       final initiallyFavorite = widget.initiallyFavorite;
@@ -153,14 +122,13 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
   void dispose() {
     _controller.dispose();
     _favoriteController?.dispose();
-    _internalRouteController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_controller, ?_internalRouteController]),
+      animation: _controller,
       builder: (context, _) {
         return Scaffold(
           backgroundColor: EasySubwayAccessibleColors.surface,
@@ -176,7 +144,6 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
               child: StationDetailBody(
                 state: _controller.state,
                 onRetryRealtime: _controller.retryRealtime,
-                internalRouteState: _internalRouteController?.state,
                 reportRepository: widget.reportRepository,
                 favoriteController: _favoriteController,
                 adRepository: widget.adRepository,
@@ -256,9 +223,6 @@ class StationDetailExpandHost extends StatefulWidget {
     this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteRequest,
-    this.internalRouteMobilityType = 'SENIOR',
     this.routeDraftController,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     this.showContextChrome = true,
@@ -280,9 +244,6 @@ class StationDetailExpandHost extends StatefulWidget {
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final InternalRouteRequest? internalRouteRequest;
-  final String internalRouteMobilityType;
   final RouteDraftController? routeDraftController;
   final KakaoMapLauncher mapLauncher;
   final bool showContextChrome;
@@ -301,7 +262,6 @@ class StationDetailExpandHost extends StatefulWidget {
 class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
   late final StationDetailController _controller;
   StationFavoriteToggleController? _favoriteController;
-  InternalRouteController? _internalRouteController;
 
   @override
   void initState() {
@@ -310,7 +270,6 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
       repository: widget.repository,
       realtimeRepository: widget.realtimeRepository,
     );
-    _bindInternalRoute(widget.stationId);
     _bindFavorite(widget.stationId, widget.initiallyFavorite);
     unawaited(_controller.load(widget.stationId));
   }
@@ -319,30 +278,8 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
   void didUpdateWidget(covariant StationDetailExpandHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.stationId != widget.stationId) {
-      _bindInternalRoute(widget.stationId);
       _bindFavorite(widget.stationId, widget.initiallyFavorite);
       unawaited(_controller.load(widget.stationId));
-    }
-  }
-
-  void _bindInternalRoute(String stationId) {
-    _internalRouteController?.dispose();
-    _internalRouteController = null;
-    final repository = widget.internalRouteRepository;
-    if (repository == null) {
-      return;
-    }
-    _internalRouteController = InternalRouteController(repository: repository);
-    final request = widget.internalRouteRequest;
-    if (request != null) {
-      unawaited(_internalRouteController!.load(request));
-    } else {
-      unawaited(
-        _internalRouteController!.loadDefault(
-          stationId: stationId,
-          mobilityType: widget.internalRouteMobilityType,
-        ),
-      );
     }
   }
 
@@ -368,21 +305,19 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
   void dispose() {
     _controller.dispose();
     _favoriteController?.dispose();
-    _internalRouteController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_controller, ?_internalRouteController]),
+      animation: _controller,
       builder: (context, _) {
         return ColoredBox(
           color: EasySubwayAccessibleColors.surface,
           child: StationDetailBody(
             state: _controller.state,
             onRetryRealtime: _controller.retryRealtime,
-            internalRouteState: _internalRouteController?.state,
             reportRepository: widget.reportRepository,
             favoriteController: _favoriteController,
             adRepository: widget.adRepository,

@@ -6,7 +6,6 @@ import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../../facility_report/presentation/facility_report_screen.dart';
-import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../ads/active_ad_banner.dart';
 import '../../ads/ad_repository.dart';
@@ -24,7 +23,6 @@ import 'station_exit_section.dart';
 import 'station_facility_card.dart';
 import 'station_facility_status_summary.dart';
 import 'station_info_basis_disclosure.dart';
-import 'station_internal_route_guidance.dart';
 import 'station_layout_summary.dart';
 import 'station_line_badges.dart';
 import 'station_realtime_summary.dart';
@@ -52,7 +50,6 @@ class StationDetailBody extends StatelessWidget {
     required this.state,
     required this.onRetryRealtime,
     required this.reportRepository,
-    this.internalRouteState,
     this.favoriteController,
     this.adRepository,
     this.routeDraftController,
@@ -72,7 +69,6 @@ class StationDetailBody extends StatelessWidget {
 
   final StationDetailState state;
   final VoidCallback onRetryRealtime;
-  final InternalRouteState? internalRouteState;
   final FacilityReportRepository reportRepository;
   final StationFavoriteToggleController? favoriteController;
   final AdRepository? adRepository;
@@ -114,7 +110,6 @@ class StationDetailBody extends StatelessWidget {
         layoutSummarySemanticLabel: state.layoutSummarySemanticLabel,
         realtimeSnapshot: state.realtimeSnapshot,
         onRetryRealtime: onRetryRealtime,
-        internalRouteState: internalRouteState,
         reportRepository: reportRepository,
         favoriteController: favoriteController,
         adRepository: adRepository,
@@ -169,7 +164,6 @@ class _StationDetailContent extends StatelessWidget {
     required this.layoutSummarySemanticLabel,
     required this.realtimeSnapshot,
     required this.onRetryRealtime,
-    required this.internalRouteState,
     required this.reportRepository,
     required this.favoriteController,
     required this.adRepository,
@@ -196,7 +190,6 @@ class _StationDetailContent extends StatelessWidget {
   final String layoutSummarySemanticLabel;
   final RealtimeSnapshot realtimeSnapshot;
   final VoidCallback onRetryRealtime;
-  final InternalRouteState? internalRouteState;
   final FacilityReportRepository reportRepository;
   final StationFavoriteToggleController? favoriteController;
   final AdRepository? adRepository;
@@ -247,11 +240,6 @@ class _StationDetailContent extends StatelessWidget {
       const SizedBox(height: 12),
       _StationTimetableEntry(detail: detail, repository: timetableRepository),
     ];
-
-    final internalRouteStateValue = internalRouteState;
-    final hasInternalRouteGuidance =
-        internalRouteStateValue != null &&
-        internalRouteStateValue.status != InternalRouteViewStatus.unavailable;
 
     final hasExits = exits.isNotEmpty;
     final hasFacilities =
@@ -318,7 +306,7 @@ class _StationDetailContent extends StatelessWidget {
           height: 1.2,
         ),
       ),
-      if (layoutSummaryItems.isNotEmpty || hasInternalRouteGuidance) ...[
+      if (layoutSummaryItems.isNotEmpty) ...[
         const SizedBox(height: 16),
         const _StationDetailSectionTitle(title: '역 안 이동'),
         const SizedBox(height: 12),
@@ -327,10 +315,7 @@ class _StationDetailContent extends StatelessWidget {
             items: layoutSummaryItems,
             semanticLabel: layoutSummarySemanticLabel,
           ),
-          if (hasInternalRouteGuidance) const SizedBox(height: 16),
         ],
-        if (hasInternalRouteGuidance)
-          StationInternalRouteGuidance(state: internalRouteState!),
       ],
       const SizedBox(height: 16),
       StationInfoBasisDisclosure(

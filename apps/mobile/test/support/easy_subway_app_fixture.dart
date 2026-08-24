@@ -10,7 +10,6 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
-import 'package:easysubway_mobile/internal_route.dart';
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/notification_settings.dart';
@@ -31,7 +30,6 @@ EasySubwayApp buildEasySubwayTestApp({
   AdRepository? adRepository,
   Future<List<FavoriteRoute>>? recentRoutesFuture,
   SearchHistoryRepository? searchHistoryRepository,
-  InternalRouteRepository? internalRouteRepository,
   NetworkMapRepository? networkMapRepository,
   NetworkMapViewportRepository? networkMapViewportRepository,
   RealtimeRepository? realtimeRepository,
@@ -78,7 +76,6 @@ EasySubwayApp buildEasySubwayTestApp({
           favoriteRouteRepository: favoriteRouteRepository,
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
-          internalRouteRepository: internalRouteRepository,
           networkMapRepository: fixtureNetworkMapRepository,
           networkMapViewportRepository: networkMapViewportRepository,
           realtimeRepository: realtimeRepository,
