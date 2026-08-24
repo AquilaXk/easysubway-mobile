@@ -343,6 +343,85 @@ void main() {
     },
   );
 
+  test('현재 Journey 실패는 reporter에 한 번만 기록하고 typed failure를 유지한다', () async {
+    final reporter = _RecordingJourneyErrorReporter();
+    final controller = JourneySearchController(
+      repository: _Repository(),
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+      reportNonFatalError: reporter.record,
+    );
+
+    await controller.search(_command());
+
+    expect(reporter.calls, 1);
+    expect(controller.state.failure, JourneySearchFailure.unavailable);
+  });
+
+  test('stale·disposed Journey 실패는 reporter에 기록하지 않는다', () async {
+    final repository = _Repository()..pendingSession = true;
+    final reporter = _RecordingJourneyErrorReporter();
+    final controller = JourneySearchController(
+      repository: repository,
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+      reportNonFatalError: reporter.record,
+    );
+
+    final stale = controller.search(_command());
+    await Future<void>.delayed(Duration.zero);
+    controller.reset();
+    repository.completeSessionAt(0);
+    await stale;
+    expect(reporter.calls, 0);
+
+    repository.pendingSession = true;
+    final disposed = controller.search(_command());
+    await Future<void>.delayed(Duration.zero);
+    controller.dispose();
+    repository.completeSessionAt(1);
+    await disposed;
+    expect(reporter.calls, 0);
+  });
+
+  test('reporter failure는 Journey typed failure를 바꾸지 않는다', () async {
+    final reporter = _RecordingJourneyErrorReporter()
+      ..failure = StateError('reporting unavailable');
+    final controller = JourneySearchController(
+      repository: _Repository(),
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+      reportNonFatalError: reporter.record,
+    );
+
+    await controller.search(_command());
+
+    expect(reporter.calls, 1);
+    expect(controller.state.failure, JourneySearchFailure.unavailable);
+  });
+
+  test('완료되지 않는 reporter도 Journey failure와 retry를 막지 않는다', () async {
+    final reporter = _RecordingJourneyErrorReporter()..neverCompletes = true;
+    final controller = JourneySearchController(
+      repository: _Repository(),
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+      reportNonFatalError: reporter.record,
+    );
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+
+    await controller.search(_command());
+
+    expect(reporter.calls, 1);
+    expect(controller.state.failure, JourneySearchFailure.unavailable);
+    expect(notifications, greaterThanOrEqualTo(2));
+
+    await controller.retry();
+    expect(controller.state.failure, JourneySearchFailure.unavailable);
+    expect(reporter.calls, 2);
+  });
+
   test('reset 뒤 late session issuance는 search 또는 cache를 재개하지 않는다', () async {
     final repository = _Repository()..pendingSession = true;
     final controller = JourneySearchController(
@@ -766,6 +845,19 @@ class _Attestor implements JourneyV3IntegrityAttestor {
   Future<String> attest(String requestHash) async {
     hashes.add(requestHash);
     return 'integrity-token';
+  }
+}
+
+class _RecordingJourneyErrorReporter {
+  int calls = 0;
+  Object? failure;
+  bool neverCompletes = false;
+
+  Future<void> record(Object error, StackTrace stackTrace) async {
+    calls++;
+    final currentFailure = failure;
+    if (currentFailure != null) throw currentFailure;
+    if (neverCompletes) await Completer<void>().future;
   }
 }
 
