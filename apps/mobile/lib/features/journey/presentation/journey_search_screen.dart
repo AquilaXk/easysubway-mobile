@@ -12,6 +12,7 @@ import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import 'journey_get_off_alarm_toggle.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
+import '../../../mobile_error_reporter.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
 
@@ -61,6 +62,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       repository: widget.repository,
       attestor: widget.attestor,
       now: widget.journeyNow,
+      reportNonFatalError: (error, stackTrace) {
+        reportMobileError(error, stackTrace, context: 'Journey search failure');
+      },
     )..addListener(_changed);
     WidgetsBinding.instance.addObserver(this);
   }
