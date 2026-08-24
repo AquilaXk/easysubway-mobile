@@ -21,7 +21,7 @@ const SHA = /^[0-9a-f]{40}$/u;
 const DIGEST = /^[0-9a-f]{64}$/u;
 const SAFE_TEXT = /^[^\u0000-\u001f\u007f]+$/u;
 const POLICY_SHA256 = "9f6b1d38bde18b5d513a8f30d40d8eba5735284211307196bedf8bb753094523";
-const BASELINE_SHA256 = "d1ba53818f9891c035accecacc4e31bd14ed7f4f8fa6f6f5aae038f5cf6a5bbe";
+const BASELINE_SHA256 = "698d02f3f39e2045669e91a40d9e246d4e2045dc72c649170570d24f5aeb4272";
 const PHASE = "NO_INCREASE";
 const REPOSITORY = "AquilaXk/easysubway-mobile";
 const POLICY_KEYS = ["schemaVersion", "artifactKind", "repository", "phase", "featureRoots", "rootClassifications", "importerRules", "forbiddenMatrix", "owners", "artifactContract"];
@@ -178,7 +178,7 @@ export function parsePolicyBytes(bytes) {
 
 export function validateBaseline(value, policy) {
   exactKeys(value, BASELINE_KEYS, "baseline");
-  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "fc89812dea8bc8d5072468323221fbca7adb21ee" || !Array.isArray(value.edges) || value.edges.length !== 22) fail("baseline identity or count changed");
+  if (value.schemaVersion !== 1 || value.artifactKind !== "mobile-root-import-baseline-v1" || value.repository !== REPOSITORY || value.phase !== PHASE || value.reviewedHeadSha !== "cf66cf8fc6598a60d8e2adb0afcd3d1a9871adcd" || !Array.isArray(value.edges) || value.edges.length !== 19) fail("baseline identity or count changed");
   const rootMap = new Map(policy.rootClassifications.map((entry) => [entry.path, entry]));
   let previous = "";
   const seen = new Set();
@@ -194,7 +194,7 @@ export function validateBaseline(value, policy) {
     seen.add(key);
     ownerCounts.set(edge.ownerIssue, (ownerCounts.get(edge.ownerIssue) ?? 0) + 1);
   }
-  if (JSON.stringify([...ownerCounts.entries()].sort(([left], [right]) => left - right)) !== JSON.stringify([[22, 22]])) fail("baseline owner partition changed");
+  if (JSON.stringify([...ownerCounts.entries()].sort(([left], [right]) => left - right)) !== JSON.stringify([[22, 19]])) fail("baseline owner partition changed");
   return value;
 }
 
