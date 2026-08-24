@@ -8,7 +8,7 @@ import 'package:workmanager_platform_interface/workmanager_platform_interface.da
 
 import '../../core/database/user/user_database.dart';
 import '../../core/database/user/user_database_opener.dart';
-import '../../notification_settings.dart';
+import '../notifications/notification_settings.dart';
 import 'data/get_off_alarm_recovery_notice_store.dart';
 import 'data/get_off_alarm_state_repository.dart';
 import 'exact_alarm_permission.dart';

@@ -286,7 +286,7 @@ void main() {
       // — 오너 결정 2026-07-16, #2200
       'lib/features/network_map/presentation/nearby_station_line_bar.dart': 2,
       // 의도 잔존: 온보딩 시작·프리셋·권한 화면 타이틀 (#1936 전면 재설계로 축소)
-      'lib/onboarding.dart': 4,
+      'lib/features/onboarding/onboarding.dart': 4,
       // 의도 잔존: 노선 배지 번호 — 색 배지 위 시인성 (w900은 w800로 강등)
       'lib/features/stations/presentation/station_line_badges.dart': 2,
     }, rule: 'w800');
@@ -467,7 +467,7 @@ void main() {
       'lib/features/facility_report/presentation/facility_report_screen.dart':
           1,
       // 의도 잔존: 알림 설정 카드 radius(16) — 무박스 전환 대상
-      'lib/notification_settings.dart': 1,
+      'lib/features/notifications/notification_settings.dart': 1,
       // 의도 잔존: 운행 공지 리스트 카드 radius(12) — 무박스 전환 대상
       'lib/features/service_notice/presentation/service_notice_list_screen.dart':
           1,

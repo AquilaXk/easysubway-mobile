@@ -13,7 +13,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/facility_report/presentation/my_facility_reports_screens.dart';
-import 'package:easysubway_mobile/favorite_facility.dart';
+import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
 import 'package:easysubway_mobile/core/datapack/bundled_data_pack_freshness.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
@@ -69,13 +69,13 @@ import 'package:easysubway_mobile/features/network_map/presentation/nearby_direc
 import 'package:easysubway_mobile/features/network_map/presentation/structured_route_map_painter.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart'
     show kFanMenuDesignSize, kFanMenuTailTip;
-import 'package:easysubway_mobile/notification_settings.dart';
-import 'package:easysubway_mobile/onboarding.dart';
+import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
+import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
 import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
-import 'package:easysubway_mobile/user_data_deletion.dart';
+import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';

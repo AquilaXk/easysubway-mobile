@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
-import '../ad_slot.dart';
+import '../features/ads/ad_slot.dart';
 import '../design_tokens.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';

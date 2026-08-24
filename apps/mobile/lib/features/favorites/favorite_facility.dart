@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'auth_headers.dart';
-import 'features/stations/domain/facility_status.dart';
-import 'mobile_error_reporter.dart';
+import '../../auth_headers.dart';
+import '../stations/domain/facility_status.dart';
+import '../../mobile_error_reporter.dart';
 
 const _favoriteFacilityTimeout = Duration(seconds: 8);
 const _favoriteFacilityLoadErrorMessage = '즐겨찾기 시설을 불러오지 못했어요.';

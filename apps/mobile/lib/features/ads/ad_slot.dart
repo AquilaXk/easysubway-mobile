@@ -1,8 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import 'accessible_design.dart';
-import 'design_tokens.dart';
+import '../../accessible_design.dart';
+import '../../design_tokens.dart';
 
 /// 표준 배너 규격(아이콘 + 제목/부제 + CTA) 기준 슬롯 높이 (#1931).
 const double kAdBannerSlotStandardHeight = 96;

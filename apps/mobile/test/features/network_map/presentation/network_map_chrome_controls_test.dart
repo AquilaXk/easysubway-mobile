@@ -1,7 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
-import 'package:easysubway_mobile/ad_slot.dart';
+import 'package:easysubway_mobile/features/ads/ad_slot.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
 import '../../facility_report/presentation/facility_report_screen.dart';
-import '../../../favorite_facility.dart';
+import '../favorite_facility.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../routes/domain/route_search.dart';
 import '../domain/favorite_route.dart';
