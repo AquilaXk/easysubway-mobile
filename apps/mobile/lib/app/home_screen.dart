@@ -3,48 +3,65 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 
-import '../../../accessible_design.dart';
-import '../../../app/app_components.dart';
-import '../../favorites/favorite_facility.dart';
-import '../../../mobile_error_reporter.dart';
-import '../../../app/network_map_screen.dart';
-import '../../network_map/domain/network_map_models.dart';
-import '../../notifications/notification_settings.dart';
-import '../../onboarding/onboarding.dart';
-import '../../routes/domain/route_search.dart';
-import '../../stations/domain/station_models.dart';
-import '../../stations/domain/station_repositories.dart';
-import '../../account/user_data_deletion.dart';
-import '../../ads/ad_repository.dart';
-import '../../facility_report/domain/facility_report_repository.dart';
-import '../../facility_report/domain/facility_report_target.dart';
-import '../../facility_report/presentation/my_facility_reports_screens.dart';
-import '../../favorites/presentation/favorite_home_screen.dart';
-import '../../favorites/domain/favorite_route.dart';
-import '../../get_off_alarm/get_off_alarm_controller.dart';
-import '../../mobility_profile/mobility_preset_labels.dart';
-import '../../mobility_profile/mobility_preset_picker.dart';
-import '../../mobility_profile/mobility_profile_policy.dart';
-import '../../network_map/application/network_map_region_bridge.dart';
-import '../../network_map/presentation/region_menu.dart';
-import '../../notifications/presentation/new_notification_bar.dart';
-import '../../notifications/presentation/notification_inbox_screen.dart';
-import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
-import '../../route_draft/domain/route_draft.dart';
-import '../../service_notice/data/notice_repository.dart';
-import '../../service_notice/presentation/notice_controller.dart';
-import '../../service_notice/presentation/service_notice_list_screen.dart';
-import '../../settings/presentation/app_settings_screen.dart';
-import '../../settings/presentation/service_info_screen.dart';
-import '../../stations/presentation/station_search_screen.dart';
-import '../../support/presentation/inquiry_screen.dart';
-import '../../support/presentation/support_access_screen.dart';
-import '../../train_search/domain/train_search_models.dart';
-import '../../train_search/presentation/train_search_screen.dart';
-import '../../journey/application/journey_search_controller.dart';
-import '../../journey/domain/journey_repository.dart';
-import '../../journey/presentation/journey_search_screen.dart';
+import '../accessible_design.dart';
+import '../features/account/user_data_deletion.dart';
+import '../features/account/presentation/user_data_deletion_screen.dart';
+import '../features/ads/active_ad_banner.dart';
+import '../features/ads/ad_repository.dart';
+import '../features/attribution/presentation/data_source_attribution_screen.dart';
+import '../features/facility_report/domain/facility_report_repository.dart';
+import '../features/facility_report/domain/facility_report_result.dart';
+import '../features/facility_report/domain/facility_report_location.dart';
+import '../features/facility_report/domain/facility_report_target.dart';
+import '../features/facility_report/presentation/facility_report_screen.dart';
+import '../features/facility_report/presentation/my_facility_reports_screens.dart';
+import '../features/favorites/domain/favorite_route.dart';
+import '../features/favorites/favorite_facility.dart';
+import '../features/favorites/presentation/favorite_home_screen.dart';
+import '../features/get_off_alarm/get_off_alarm_controller.dart';
+import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/domain/journey_repository.dart';
+import '../features/journey/presentation/journey_search_screen.dart';
+import '../features/mobility_profile/mobility_preset_labels.dart';
+import '../features/mobility_profile/mobility_preset_picker.dart';
+import '../features/mobility_profile/mobility_profile_policy.dart';
+import '../features/network_map/application/network_map_region_bridge.dart';
+import '../features/network_map/domain/network_map_models.dart';
+import '../core/ui/region_menu.dart';
+import '../features/notifications/notification_settings.dart';
+import '../features/notifications/presentation/new_notification_bar.dart';
+import '../features/notifications/presentation/notification_inbox_screen.dart';
+import '../features/onboarding/onboarding.dart';
+import '../features/realtime/realtime_repository.dart';
+import '../features/route_draft/application/route_draft_controller.dart';
+import '../features/route_draft/domain/route_draft.dart';
+import '../features/routes/domain/route_search.dart';
+import '../features/service_notice/data/notice_repository.dart';
+import '../features/service_notice/presentation/notice_controller.dart';
+import '../features/service_notice/presentation/service_notice_list_screen.dart';
+import '../features/settings/presentation/app_settings_screen.dart';
+import '../features/settings/presentation/service_info_screen.dart';
+import '../features/stations/domain/station_models.dart';
+import '../features/stations/domain/station_repositories.dart';
+import '../features/stations/presentation/station_search_screen.dart';
+import '../features/stations/presentation/station_detail_screen.dart';
+import '../features/support/presentation/inquiry_screen.dart';
+import '../features/support/support_access.dart';
+import '../features/support/presentation/support_access_screen.dart';
+import '../features/train_search/domain/train_search_models.dart';
+import '../features/train_search/presentation/train_search_screen.dart';
+import '../mobile_error_reporter.dart';
+import 'app_components.dart';
+import 'network_map_screen.dart';
+
+WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
+  if (repository == null) return null;
+  return (_) => ActiveAdBanner(
+    key: const Key('stationDetailBottomAdBanner'),
+    repository: repository,
+    placement: AdPlacement.stationDetailBottom,
+  );
+}
 
 const _mainIconControlRadius = BorderRadius.all(Radius.circular(12));
 
@@ -76,6 +93,23 @@ Future<String> Function(String stationId) journeyAlarmStationNameResolver(
       throw StateError('station identity mismatch');
     }
     return station.nameKo;
+  };
+}
+
+FacilityReportLocationLoader _facilityReportLocationLoader(
+  CurrentLocationProvider provider,
+) {
+  return () async {
+    final CurrentLocation location;
+    try {
+      location = await provider.currentLocation();
+    } on CurrentLocationException catch (error) {
+      throw FacilityReportLocationException(error.message);
+    }
+    return FacilityReportLocation(
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
   };
 }
 
@@ -327,8 +361,12 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             builder: (_) => SupportAccessScreen(
               accessInfo: supportAccessInfo,
               launcher: supportAccessLauncher,
-              userDataDeletionRepository: userDataDeletionRepository,
-              onUserDataDeleted: onUserDataDeleted,
+              userDataDeletionAccessItem: userDataDeletionRepository == null
+                  ? null
+                  : UserDataDeletionAccessItem(
+                      repository: userDataDeletionRepository,
+                      onDeleted: onUserDataDeleted,
+                    ),
             ),
           ),
         ),
@@ -352,7 +390,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       unawaited(
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => ServiceInfoScreen(accessInfo: supportAccessInfo),
+            builder: (serviceInfoContext) => ServiceInfoScreen(
+              accessInfo: supportAccessInfo,
+              onOpenDataSourceAttribution: () {
+                unawaited(
+                  Navigator.of(serviceInfoContext).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const DataSourceAttributionScreen(),
+                    ),
+                  ),
+                );
+              },
+            ),
           ),
         ),
       );
@@ -378,7 +427,33 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               reportRepository: reportRepository,
               notificationRepository: notificationRepository,
               notificationPermissionProvider: notificationPermissionProvider,
+              onOpenReport: (FacilityReportResult report) {
+                unawaited(
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) =>
+                          MyFacilityReportDetailScreen(report: report),
+                    ),
+                  ),
+                );
+              },
             ),
+          ),
+        ),
+      );
+    }
+
+    Future<void> openFacilityReport(FacilityReportTarget target) {
+      return Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => FacilityReportScreen(
+            repository: reportRepository,
+            locationLoader: _facilityReportLocationLoader(locationProvider),
+            needsLocationPermissionRequest:
+                locationProvider.needsLocationPermissionRequest,
+            openLocationSettings: locationProvider.openLocationSettings,
+            draftTargetStore: facilityReportDraftTargetStore,
+            target: target,
           ),
         ),
       );
@@ -482,9 +557,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             repository: repository,
             reportRepository: reportRepository,
             favoriteRepository: favoriteRepository,
-            adRepository: adRepository,
+            bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+            onOpenFacilityReport: openFacilityReport,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             regionLabel: regionLabel,
@@ -514,6 +590,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             favoriteRepository: favoriteRepository,
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+            onOpenFacilityReport: openFacilityReport,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             pickSlot: slot,
@@ -639,6 +716,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+          onOpenFacilityReport: openFacilityReport,
           locationProvider: locationProvider,
           viewportRepository: widget.networkMapViewportRepository,
           realtimeRepository: widget.realtimeRepository,
@@ -655,7 +733,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                   future: _hasNotificationItemsFuture,
                   builder: (context, snapshot) {
                     return NewNotificationBar(
-                      noticeController: noticeController,
+                      disruptionChanges: noticeController,
+                      hasDisruption: noticeController == null
+                          ? null
+                          : () => noticeController.topDisruption != null,
                       hasNotificationItems: snapshot.data ?? false,
                       onOpenInbox: openNotificationInbox,
                     );
@@ -686,26 +767,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    if (_selectedTabIndex == 1) {
-      // 하단 탭 인덱스 1은 현재 어떤 탭 전환 경로에서도 setState로 선택되지
-      // 않는 미도달 분기다(탭 0 노선도 안 "역 검색" 메뉴가 실사용 경로).
-      // 지역 상태는 NetworkMapScreen 안에만 있어 이 분기는 알 수 없으므로
-      // 홈 기본 지역과 동일한 '수도권'을 명시한다.
-      return rootTab(
-        StationSearchScreen(
-          repository: repository,
-          reportRepository: reportRepository,
-          favoriteRepository: favoriteRepository,
-          adRepository: adRepository,
-          searchHistoryRepository: searchHistoryRepository,
-          facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          realtimeRepository: realtimeRepository,
-          routeDraftController: _routeDraftController,
-          regionLabel: '수도권',
-        ),
-      );
-    }
-
     if (_selectedTabIndex == 2) {
       return rootTab(
         JourneySearchScreen(
@@ -728,19 +789,40 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: favoriteRouteRepository,
-          adRepository: adRepository,
-          stationRepository: repository,
-          reportRepository: reportRepository,
-          locationProvider: locationProvider,
-          facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          realtimeRepository: realtimeRepository,
-          routeDraftController: _routeDraftController,
-          initialMobilityType: initialMobilityType,
-          onOpenRouteSearch: ([mobilityType, transportScope]) async =>
-              openRouteTab(
-                mobilityType,
-                transportScope ?? RouteTransportScope.subway,
+          onOpenStationDetail: (favorite) async {
+            await showStationDetailSheet<void>(
+              context: context,
+              repository: repository,
+              reportRepository: reportRepository,
+              favoriteRepository: favoriteRepository,
+              bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
+              locationProvider: locationProvider,
+              realtimeRepository: realtimeRepository,
+              stationId: favorite.stationId,
+              facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+              routeDraftController: _routeDraftController,
+              onOpenFacilityReport: openFacilityReport,
+              initiallyFavorite: true,
+            );
+          },
+          onOpenFacilityReport: openFacilityReport,
+          onOpenFavoriteRoute: (favorite) async {
+            _routeDraftController.clear();
+            _routeDraftController.setOrigin(
+              RouteDraftStation(
+                id: favorite.originStationId,
+                nameKo: favorite.originStationName,
               ),
+            );
+            _routeDraftController.setDestination(
+              RouteDraftStation(
+                id: favorite.destinationStationId,
+                nameKo: favorite.destinationStationName,
+              ),
+            );
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            openRouteTab(favorite.mobilityType, favorite.transportScope);
+          },
           onShellBack: openPreviousTabOrHome,
         ),
       );

@@ -1,0 +1,216 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "mobile-cross-feature-boundary-inventory-v1",
+  "repository": "AquilaXk/easysubway-mobile",
+  "featureRoots": [
+    "account",
+    "ads",
+    "attribution",
+    "facility_report",
+    "fare",
+    "favorites",
+    "get_off_alarm",
+    "home",
+    "home_widget",
+    "journey",
+    "mobility_profile",
+    "network_map",
+    "notifications",
+    "onboarding",
+    "preferences",
+    "realtime",
+    "route_draft",
+    "routes",
+    "search_history",
+    "service_notice",
+    "settings",
+    "stations",
+    "support",
+    "train_search"
+  ],
+  "appCompositionPrefix": "apps/mobile/lib/app/",
+  "sharedNeutralPrefixes": [
+    "apps/mobile/lib/core/"
+  ],
+  "generatedOwnerPrefix": "apps/mobile/lib/generated/",
+  "generatedAdapterPaths": [
+    "apps/mobile/lib/app/app_dependencies.dart",
+    "apps/mobile/lib/features/get_off_alarm/get_off_alarm_subscription.dart",
+    "apps/mobile/lib/features/journey/application/journey_get_off_alarm_binding.dart",
+    "apps/mobile/lib/features/journey/application/journey_search_controller.dart",
+    "apps/mobile/lib/features/journey/data/journey_api_repository.dart",
+    "apps/mobile/lib/features/journey/domain/journey_repository.dart",
+    "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart"
+  ],
+  "publicApis": [
+    {
+      "path": "apps/mobile/lib/features/account/user_data_deletion.dart",
+      "ownerFeature": "account",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/ads/ad_repository.dart",
+      "ownerFeature": "ads",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_location.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_repository.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_result.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_target.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/favorites/favorite_facility.dart",
+      "ownerFeature": "favorites",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_port.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_reconcile_worker.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_scheduler.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_subscription.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/mobility_profile/mobility_preset_labels.dart",
+      "ownerFeature": "mobility_profile",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/mobility_profile/mobility_profile_policy.dart",
+      "ownerFeature": "mobility_profile",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/network_map/domain/network_map_models.dart",
+      "ownerFeature": "network_map",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/notifications/notification_settings.dart",
+      "ownerFeature": "notifications",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/onboarding/onboarding_preferences.dart",
+      "ownerFeature": "onboarding",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/realtime/realtime_repository.dart",
+      "ownerFeature": "realtime",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/route_draft/domain/route_draft.dart",
+      "ownerFeature": "route_draft",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/routes/domain/route_search.dart",
+      "ownerFeature": "routes",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/facility_status.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/station_line.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/station_models.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/station_repositories.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/support/support_access.dart",
+      "ownerFeature": "support",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    }
+  ],
+  "migrationExceptions": []
+}

@@ -3,15 +3,17 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 
 import '../../accessible_design.dart';
+import '../../core/ui/selectable_option_row.dart';
 import '../../design_tokens.dart';
 import '../mobility_profile/mobility_preset_labels.dart';
-import '../mobility_profile/mobility_preset_picker.dart'
-    show MobilityPresetRow, mobilityPresetSheetOrder;
 import '../mobility_profile/mobility_profile_policy.dart';
 import '../../mobile_error_reporter.dart';
 import '../notifications/notification_settings.dart';
 import '../../secure_key_value_storage.dart';
 import '../stations/domain/station_repositories.dart';
+import 'onboarding_preferences.dart';
+
+export 'onboarding_preferences.dart' show OnboardingViewPreferences;
 
 const _onboardingResultStorageKey = 'easysubway.onboarding.result';
 const _onboardingNotificationFailureNextAction = '나중에 알림 설정에서 다시 켤 수 있습니다.';
@@ -73,61 +75,6 @@ class SecureOnboardingResultStore implements OnboardingResultStore {
         context: '손상된 온보딩 설정을 지우는 중 예외가 발생했습니다.',
       );
     }
-  }
-}
-
-class OnboardingViewPreferences {
-  const OnboardingViewPreferences({
-    required this.largeTextEnabled,
-    required this.highContrastEnabled,
-    required this.simpleViewEnabled,
-  });
-
-  const OnboardingViewPreferences.defaults()
-    : largeTextEnabled = false,
-      highContrastEnabled = false,
-      simpleViewEnabled = true;
-
-  factory OnboardingViewPreferences.fromJson(Map<String, Object?> json) {
-    final largeTextEnabled = json['largeTextEnabled'];
-    final highContrastEnabled = json['highContrastEnabled'];
-    final simpleViewEnabled = json['simpleViewEnabled'];
-    // 손상된 저장값이 접근성 기본값을 조용히 끄지 않도록 타입을 엄격히 확인한다.
-    if (largeTextEnabled is! bool ||
-        highContrastEnabled is! bool ||
-        simpleViewEnabled is! bool) {
-      throw const FormatException('Invalid onboarding preferences payload');
-    }
-
-    return OnboardingViewPreferences(
-      largeTextEnabled: largeTextEnabled,
-      highContrastEnabled: highContrastEnabled,
-      simpleViewEnabled: simpleViewEnabled,
-    );
-  }
-
-  final bool largeTextEnabled;
-  final bool highContrastEnabled;
-  final bool simpleViewEnabled;
-
-  OnboardingViewPreferences copyWith({
-    bool? largeTextEnabled,
-    bool? highContrastEnabled,
-    bool? simpleViewEnabled,
-  }) {
-    return OnboardingViewPreferences(
-      largeTextEnabled: largeTextEnabled ?? this.largeTextEnabled,
-      highContrastEnabled: highContrastEnabled ?? this.highContrastEnabled,
-      simpleViewEnabled: simpleViewEnabled ?? this.simpleViewEnabled,
-    );
-  }
-
-  Map<String, Object?> toJson() {
-    return {
-      'largeTextEnabled': largeTextEnabled,
-      'highContrastEnabled': highContrastEnabled,
-      'simpleViewEnabled': simpleViewEnabled,
-    };
   }
 }
 
@@ -584,7 +531,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       const SizedBox(height: EasySubwaySpacing.xl),
                       for (
                         var i = 0;
-                        i < mobilityPresetSheetOrder.length;
+                        i < mobilityPresetDisplayOrder.length;
                         i++
                       ) ...[
                         if (i != 0)
@@ -593,16 +540,33 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                             thickness: 1,
                             color: EasySubwayAccessibleColors.line,
                           ),
-                        MobilityPresetRow(
-                          preset: mobilityPresetSheetOrder[i],
+                        AccessibleSelectableOptionRow(
+                          controlKey: Key(
+                            'mobilityPresetRow-${mobilityPresetDisplayOrder[i].name}',
+                          ),
+                          icon: mobilityPresetIcon(
+                            mobilityPresetDisplayOrder[i],
+                          ),
+                          title: mobilityPresetDisplayName(
+                            mobilityPresetDisplayOrder[i],
+                          ),
+                          description: mobilityPresetDescription(
+                            mobilityPresetDisplayOrder[i],
+                          ),
                           selected:
-                              mobilityPresetSheetOrder[i] == _selectedPreset,
+                              mobilityPresetDisplayOrder[i] == _selectedPreset,
                           // 온보딩 step0은 각 행 아래 부가설명도 노출한다(#1703).
                           showDescription: true,
                           showBrandRadio: true,
+                          radioKey: Key(
+                            'mobilityPresetRadio-${mobilityPresetDisplayOrder[i].name}',
+                          ),
+                          checkKey: Key(
+                            'mobilityPresetCheck-${mobilityPresetDisplayOrder[i].name}',
+                          ),
                           onTap: () {
                             setState(() {
-                              _selectedPreset = mobilityPresetSheetOrder[i];
+                              _selectedPreset = mobilityPresetDisplayOrder[i];
                             });
                           },
                         ),

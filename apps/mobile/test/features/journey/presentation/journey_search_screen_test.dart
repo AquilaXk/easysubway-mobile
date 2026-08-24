@@ -8,7 +8,7 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscription.dart';
-import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
+import 'package:easysubway_mobile/app/home_screen.dart';
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';

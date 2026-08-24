@@ -10,8 +10,8 @@ import '../../../mobile_error_reporter.dart';
 import '../notification_settings.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_result.dart';
-import '../../facility_report/presentation/facility_report_result_labels.dart';
-import '../../facility_report/presentation/my_facility_reports_screens.dart';
+
+typedef OpenFacilityReport = void Function(FacilityReportResult report);
 
 class NotificationInboxScreen extends StatefulWidget {
   const NotificationInboxScreen({
@@ -19,6 +19,7 @@ class NotificationInboxScreen extends StatefulWidget {
     required this.reportRepository,
     required this.notificationRepository,
     required this.notificationPermissionProvider,
+    required this.onOpenReport,
     super.key,
   });
 
@@ -26,6 +27,7 @@ class NotificationInboxScreen extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final NotificationSettingsRepository? notificationRepository;
   final NotificationPermissionProvider? notificationPermissionProvider;
+  final OpenFacilityReport onOpenReport;
 
   @override
   State<NotificationInboxScreen> createState() =>
@@ -131,7 +133,11 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                     )
                   else ...[
                     _NotificationInboxChips(items: items),
-                    for (final item in items) _NotificationInboxRow(item: item),
+                    for (final item in items)
+                      _NotificationInboxRow(
+                        item: item,
+                        onOpenReport: widget.onOpenReport,
+                      ),
                   ],
                 ],
               ),
@@ -250,12 +256,13 @@ class _NotificationInboxItem {
   }
 
   factory _NotificationInboxItem.report(FacilityReportResult report) {
+    final statusLabel = _reportStatusLabel(report.status);
+    final receiptCode = _reportReceiptCode(report.publicReceiptCode);
     return _NotificationInboxItem(
       icon: Icons.report_outlined,
-      title: '제보 ${report.statusLabel}',
-      subtitle: '제보 번호 ${report.displayReceiptCode}',
-      semanticLabel:
-          '제보 ${report.statusLabel}, 제보 번호 ${report.displayReceiptCode}',
+      title: '제보 $statusLabel',
+      subtitle: '제보 번호 $receiptCode',
+      semanticLabel: '제보 $statusLabel, 제보 번호 $receiptCode',
       kind: '제보',
       report: report,
     );
@@ -300,9 +307,10 @@ class _NotificationInboxChips extends StatelessWidget {
 }
 
 class _NotificationInboxRow extends StatelessWidget {
-  const _NotificationInboxRow({required this.item});
+  const _NotificationInboxRow({required this.item, required this.onOpenReport});
 
   final _NotificationInboxItem item;
+  final OpenFacilityReport onOpenReport;
 
   @override
   Widget build(BuildContext context) {
@@ -311,13 +319,7 @@ class _NotificationInboxRow extends StatelessWidget {
       if (report == null) {
         return;
       }
-      unawaited(
-        Navigator.of(context).push(
-          MaterialPageRoute<void>(
-            builder: (_) => MyFacilityReportDetailScreen(report: report),
-          ),
-        ),
-      );
+      onOpenReport(report);
     }
 
     final accent = _facilitySeverityAccent(item.severity);
@@ -407,6 +409,23 @@ class _NotificationInboxRow extends StatelessWidget {
       ),
     );
   }
+}
+
+String _reportStatusLabel(String status) {
+  return switch (status) {
+    'SUBMITTED' => '접수됨',
+    'UNDER_REVIEW' => '확인 중',
+    'ACCEPTED' => '반영됨',
+    'REJECTED' => '반려됨',
+    'DUPLICATE' => '중복 제보',
+    'RESOLVED' => '확인 완료',
+    _ => '접수 상태를 불러오지 못했어요',
+  };
+}
+
+String _reportReceiptCode(String? publicReceiptCode) {
+  final code = publicReceiptCode?.trim();
+  return code == null || code.isEmpty ? '발급 전' : code;
 }
 
 class _FacilitySeverityAccent {

@@ -200,7 +200,7 @@ void main() {
       'lib/app/app_bootstrap.dart',
       'lib/app/app_dependencies.dart',
       'lib/app/easy_subway_app.dart',
-      'lib/features/home/presentation/home_screen.dart',
+      'lib/app/home_screen.dart',
     ];
 
     for (final path in productionPaths) {

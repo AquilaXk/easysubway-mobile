@@ -9,6 +9,14 @@ import 'package:flutter/material.dart';
 
 import 'mobility_profile_policy.dart';
 
+/// 선택 UI에 노출하는 프리셋 순서(표준 → 천천히 → 계단 없이 → 휠체어).
+const List<MobilityPreset> mobilityPresetDisplayOrder = <MobilityPreset>[
+  MobilityPreset.standard,
+  MobilityPreset.slow,
+  MobilityPreset.noStairs,
+  MobilityPreset.stepFree,
+];
+
 /// 프리셋 → 서버 문자열('STANDARD','SLOW','NO_STAIRS','STEP_FREE').
 String mobilityPresetServerString(MobilityPreset preset) {
   switch (preset) {
