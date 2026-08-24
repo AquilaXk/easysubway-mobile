@@ -8,6 +8,7 @@ import '../../../core/database/user/user_database.dart' as user_db;
 import '../../../favorite_facility.dart';
 import '../../routes/domain/route_search.dart';
 import '../../stations/domain/station_models.dart';
+import '../../stations/domain/station_line.dart';
 import '../../stations/domain/station_repositories.dart';
 import '../domain/favorite_route.dart';
 import '../../routes/domain/route_identity.dart';

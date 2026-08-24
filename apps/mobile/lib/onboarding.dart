@@ -11,7 +11,7 @@ import 'features/mobility_profile/mobility_profile_policy.dart';
 import 'mobile_error_reporter.dart';
 import 'notification_settings.dart';
 import 'secure_key_value_storage.dart';
-import 'features/stations/data/current_location_provider.dart';
+import 'features/stations/domain/station_repositories.dart';
 
 const _onboardingResultStorageKey = 'easysubway.onboarding.result';
 const _onboardingNotificationFailureNextAction = '나중에 알림 설정에서 다시 켤 수 있습니다.';
