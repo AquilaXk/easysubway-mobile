@@ -166,3 +166,45 @@ test("generated code is reachable only from exact reviewed adapter paths", () =>
     ["UNREVIEWED_GENERATED_CONSUMER"],
   );
 });
+
+test("feature composition cannot move into locator, event bus, static singleton, or ambient registry", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const files = {
+    "apps/mobile/lib/features/favorites/presentation/locator.dart":
+      "final journey = GetIt.instance.get<JourneyPort>();\n",
+    "apps/mobile/lib/features/favorites/presentation/events.dart":
+      "final events = EventBus();\n",
+    "apps/mobile/lib/features/favorites/presentation/singleton.dart":
+      "class WorkflowOwner { static final WorkflowOwner instance = WorkflowOwner(); }\n",
+    "apps/mobile/lib/features/favorites/presentation/static_registry.dart":
+      "class WorkflowOwner { static final Map<Type, Object> registry = <Type, Object>{}; }\n",
+    "apps/mobile/lib/features/favorites/presentation/registry.dart":
+      "final Map<Type, Object> registry = <Type, Object>{};\n",
+    "apps/mobile/lib/features/favorites/presentation/navigator.dart":
+      "final navigatorKey = GlobalKey<NavigatorState>();\n",
+    "apps/mobile/lib/features/favorites/presentation/allowed.dart": [
+      "// GetIt.instance and EventBus() are documentation only.",
+      "const description = 'static final instance = registry';",
+      "class Parser { static Parser fromJson(Object? value) => Parser(); }",
+    ].join("\n"),
+    "apps/mobile/lib/app/composition.dart":
+      "final Map<Type, Object> registry = <Type, Object>{};\n",
+  };
+
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files,
+      policy: policyFor(bytes),
+      inventory: explicitInventory,
+    }).violations.map((entry) => [entry.code, entry.source]),
+    [
+      ["GLOBAL_EVENT_BUS", "apps/mobile/lib/features/favorites/presentation/events.dart"],
+      ["GLOBAL_NAVIGATOR_KEY", "apps/mobile/lib/features/favorites/presentation/navigator.dart"],
+      ["GLOBAL_SERVICE_LOCATOR", "apps/mobile/lib/features/favorites/presentation/locator.dart"],
+      ["STATIC_REGISTRY", "apps/mobile/lib/features/favorites/presentation/static_registry.dart"],
+      ["STATIC_SINGLETON", "apps/mobile/lib/features/favorites/presentation/singleton.dart"],
+      ["TOP_LEVEL_REGISTRY", "apps/mobile/lib/features/favorites/presentation/registry.dart"],
+    ],
+  );
+});

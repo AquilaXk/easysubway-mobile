@@ -323,6 +323,22 @@ function parseDartDirectives(source) {
   return { directives, uncertain: uncertain || state.malformed };
 }
 
+/// Tokenizes executable Dart structure while excluding comments and string
+/// literal contents. Consumers use this for narrow declaration patterns, not
+/// as a general Dart parser.
+export function tokenizeDartStructure(source) {
+  if (typeof source !== "string") throw new Error("Dart source must be UTF-8 text");
+  const state = { index: 0, malformed: false };
+  const tokens = [];
+  while (!state.malformed) {
+    const token = nextToken(source, state);
+    if (token === null) break;
+    if (token.type !== "string") tokens.push(token);
+  }
+  if (state.malformed) throw new Error("Dart source tokenization uncertainty");
+  return tokens;
+}
+
 function resolveUri(uri, source, files, packageName) {
   if (typeof uri !== "string" || uri.length === 0 || CONTROL.test(uri) || /[\\?#]/u.test(uri)) return { uncertain: true };
   if (uri.startsWith("dart:")) return { external: true, uriKind: "DART_EXTERNAL" };

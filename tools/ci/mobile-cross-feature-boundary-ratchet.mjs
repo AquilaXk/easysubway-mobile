@@ -3,7 +3,10 @@ import { createHash } from "node:crypto";
 import { readFileSync, readdirSync } from "node:fs";
 import path from "node:path";
 
-import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mjs";
+import {
+  buildImmutableDartSourceGraph,
+  tokenizeDartStructure,
+} from "./lib/mobile-dart-source-graph.mjs";
 
 const POLICY_PATH = "tools/ci/mobile-cross-feature-boundary-policy.json";
 const POLICY_KEYS = [
@@ -202,6 +205,87 @@ function violation(code, edge) {
   return { code, source: edge.source, target: edge.target, kind: edge.kind };
 }
 
+const sequenceAt = (values, index, sequence) => sequence.every((value, offset) => values[index + offset] === value);
+const registryName = (value) => /^(?:_)?(?:registry|services|handlers|factories)$/iu.test(value ?? "");
+
+export function exactGlobalCompositionViolations(files, policy) {
+  const violations = [];
+  for (const file of Object.keys(files).sort(compare)) {
+    if (!featurePath(file, policy)) continue;
+    const tokens = tokenizeDartStructure(files[file]);
+    const values = tokens.map((token) => token.value);
+    const codes = new Set();
+    let braceDepth = 0;
+
+    for (let index = 0; index < values.length; index += 1) {
+      const value = values[index];
+      if (
+        sequenceAt(values, index, ["GetIt", ".", "instance"])
+        || sequenceAt(values, index, ["GetIt", ".", "I"])
+        || sequenceAt(values, index, ["ServiceLocator", ".", "instance"])
+        || sequenceAt(values, index, ["serviceLocator", ".", "get"])
+      ) {
+        codes.add("GLOBAL_SERVICE_LOCATOR");
+      }
+      if (
+        sequenceAt(values, index, ["EventBus", "("])
+        || (
+          value === "eventBus"
+          && values[index + 1] === "."
+          && ["emit", "fire", "on", "subscribe"].includes(values[index + 2])
+        )
+      ) {
+        codes.add("GLOBAL_EVENT_BUS");
+      }
+      if (
+        braceDepth === 0
+        && sequenceAt(values, index, ["GlobalKey", "<", "NavigatorState", ">", "("])
+      ) {
+        codes.add("GLOBAL_NAVIGATOR_KEY");
+      }
+
+      if (value === "static") {
+        const statementEnd = values.indexOf(";", index + 1);
+        if (statementEnd !== -1) {
+          const assignment = values.indexOf("=", index + 1);
+          if (assignment !== -1 && assignment < statementEnd) {
+            const declaredName = tokens
+              .slice(index + 1, assignment)
+              .filter((token) => token.type === "identifier")
+              .at(-1)?.value;
+            if (["instance", "_instance"].includes(declaredName)) {
+              codes.add("STATIC_SINGLETON");
+            }
+            if (registryName(declaredName)) codes.add("STATIC_REGISTRY");
+          }
+        }
+      }
+
+      if (braceDepth === 0 && ["final", "late", "var"].includes(value)) {
+        const statementEnd = values.indexOf(";", index + 1);
+        if (statementEnd !== -1) {
+          const assignment = values.indexOf("=", index + 1);
+          if (assignment !== -1 && assignment < statementEnd) {
+            const declaredName = tokens
+              .slice(index + 1, assignment)
+              .filter((token) => token.type === "identifier")
+              .at(-1)?.value;
+            if (registryName(declaredName)) codes.add("TOP_LEVEL_REGISTRY");
+          }
+        }
+      }
+
+      if (value === "{") braceDepth += 1;
+      if (value === "}") braceDepth = Math.max(0, braceDepth - 1);
+    }
+
+    for (const code of codes) {
+      violations.push({ code, source: file, target: null, kind: "DECLARATION" });
+    }
+  }
+  return violations;
+}
+
 export function auditCrossFeatureBoundaries({ files, policy, inventory, packageName = "easysubway_mobile" }) {
   if (policy.terminalZeroRequired && inventory.migrationExceptions.length > 0) {
     throw new Error("terminal zero forbids migration exceptions");
@@ -212,7 +296,7 @@ export function auditCrossFeatureBoundaries({ files, policy, inventory, packageN
   const generatedAdapters = new Set(inventory.generatedAdapterPaths);
   const exceptions = new Map(inventory.migrationExceptions.map((entry) => [edgeKey(entry), entry]));
   const matchedExceptions = new Set();
-  const violations = [];
+  const violations = exactGlobalCompositionViolations(files, policy);
 
   for (const file of Object.keys(files).sort(compare)) {
     const feature = featurePath(file, policy);
