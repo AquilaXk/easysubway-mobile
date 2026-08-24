@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rename
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { analyze, changedExecutableLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
+import { acceptReviewedSub90Renames, analyze, changedExecutableLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
 import { normalizeLcov } from "./filter-mobile-lcov.mjs";
 
 const policyFile = new URL("./mobile-coverage-policy.json", import.meta.url);
@@ -220,6 +220,29 @@ test("F1/F3/F5 Phase 2 decision, external JSON, pure rename inheritance를 fail-
     parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
     parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
   ), /aliases one path/i);
+});
+
+test("Home owner move만 reviewed sub-90 rename으로 허용한다", () => {
+  const oldPath = "apps/mobile/lib/features/home/presentation/home_screen.dart";
+  const newPath = "apps/mobile/lib/app/home_screen.dart";
+  const strict = [
+    { status: "ADDED", oldPath: null, newPath, added: 1019, deleted: 0 },
+    { status: "DELETED", oldPath, newPath: null, added: 0, deleted: 916 },
+  ];
+  const reviewed = [
+    { status: "RENAMED", oldPath, newPath, added: 223, deleted: 120 },
+  ];
+  assert.deepEqual(acceptReviewedSub90Renames(strict, reviewed), reviewed);
+  assert.throws(
+    () => acceptReviewedSub90Renames(strict, [
+      {
+        ...reviewed[0],
+        oldPath: "apps/mobile/lib/features/other/old.dart",
+        newPath: "apps/mobile/lib/app/other.dart",
+      },
+    ]),
+    /unreviewed sub-90 rename/i,
+  );
 });
 
 test("F4 CLI는 invalid argument/outcome 전에 owner request를 만들지 않고 bounded injected request를 닫는다", async () => {
@@ -569,7 +592,8 @@ test("changed executable set은 present SF의 exact DA hit·miss만 사용한다
     coveredLines: 1,
     lineBasisPoints: 5000,
   });
-  assert.deepEqual(productionDiffCalls.map((args) => args.find((arg) => ["--name-status", "--numstat", "--unified=0"].includes(arg))).sort(), ["--name-status", "--numstat", "--unified=0"]);
+  assert.deepEqual(productionDiffCalls.map((args) => args.find((arg) => ["--name-status", "--numstat", "--unified=0"].includes(arg))).sort(), ["--name-status", "--name-status", "--numstat", "--numstat", "--unified=0"]);
+  assert.deepEqual(productionDiffCalls.map((args) => args.find((arg) => arg.startsWith("--find-renames="))).sort(), ["--find-renames=75%", "--find-renames=75%", "--find-renames=75%", "--find-renames=90%", "--find-renames=90%"]);
   for (const args of productionDiffCalls) assert.deepEqual(args.slice(-3), [range, "--", ":(glob)apps/mobile/lib/**/*.dart"]);
 });
 

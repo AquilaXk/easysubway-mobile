@@ -19,6 +19,8 @@ import 'features/facility_report/data/image_picker_facility_report_photo_picker.
 import 'features/facility_report/data/secure_facility_report_draft_target_store.dart';
 import 'features/facility_report/domain/facility_report_location.dart';
 import 'features/facility_report/presentation/facility_report_screen.dart';
+import 'features/favorites/domain/favorite_route.dart';
+import 'features/favorites/favorite_facility.dart';
 import 'features/stations/domain/station_repositories.dart';
 import 'features/stations/presentation/station_detail_screen.dart';
 import 'legacy_credential_cleanup.dart';
@@ -29,6 +31,46 @@ const defaultPushNotificationsEnabled = bool.fromEnvironment(
   'EASYSUBWAY_ENABLE_PUSH_NOTIFICATIONS',
   defaultValue: false,
 );
+
+typedef MainCrashReportingInitializer =
+    Future<bool> Function({required bool isReleaseMode});
+typedef MainAppBootstrapInitializer =
+    Future<AppBootstrap> Function({
+      required bool enablePushNotifications,
+      FavoriteStationRepository? favoriteRepository,
+      FavoriteFacilityRepository? favoriteFacilityRepository,
+      FavoriteRouteRepository? favoriteRouteRepository,
+      SearchHistoryRepository? searchHistoryRepository,
+    });
+typedef MainNextTrainWidgetStartup =
+    Future<void> Function({
+      required Future<List<int>> Function() installedWidgetIds,
+      required Future<void> Function() registerRefresh,
+      required Future<void> Function() cancelRefresh,
+      required Future<void> Function(List<int> widgetIds) refresh,
+      required void Function(Object error, StackTrace stackTrace) reportError,
+    });
+
+@visibleForTesting
+MainCrashReportingInitializer debugMainCrashReportingInitializer =
+    initializeMobileCrashReporting;
+@visibleForTesting
+MainAppBootstrapInitializer debugMainAppBootstrapInitializer =
+    AppBootstrap.initialize;
+@visibleForTesting
+Future<void> Function() debugMainWorkManagerInitializer =
+    next_train_widget_runtime.initializeWorkManagerDispatcher;
+@visibleForTesting
+Future<void> Function(GetOffAlarmController?) debugMainAlarmRestorer =
+    restoreGetOffAlarmState;
+@visibleForTesting
+MainNextTrainWidgetStartup debugMainNextTrainWidgetStartup =
+    next_train_widget_runtime.runNextTrainWidgetStartup;
+@visibleForTesting
+Stream<Uri?> Function() debugMainHomeWidgetClicks =
+    next_train_widget_runtime.homeWidgetClicks;
+@visibleForTesting
+void Function(Widget) debugMainRunApp = runApp;
 
 WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
   if (repository == null) return null;
@@ -46,7 +88,7 @@ Future<void> main() async {
     isReleaseMode: kReleaseMode,
   );
   installMobileErrorHandlers();
-  await initializeMobileCrashReporting(isReleaseMode: kReleaseMode);
+  await debugMainCrashReportingInitializer(isReleaseMode: kReleaseMode);
   if (kakaoMapNativeAppKey.trim().isNotEmpty) {
     try {
       await KakaoMapSdk.instance.initialize(kakaoMapNativeAppKey);
@@ -64,7 +106,7 @@ Future<void> main() async {
     isReleaseMode: kReleaseMode,
     demoHomeDataEnabled: defaultDemoHomeDataEnabled,
   );
-  final bootstrap = await AppBootstrap.initialize(
+  final bootstrap = await debugMainAppBootstrapInitializer(
     enablePushNotifications: defaultPushNotificationsEnabled,
     favoriteRepository: defaultDemoHomeDataEnabled
         ? const DemoFavoriteStationRepository()
@@ -81,13 +123,13 @@ Future<void> main() async {
   );
   // process-wide WorkManager dispatcher를 app bootstrap에서 정확히 1회 초기화한다.
   // 이후 하차 알림 복원과 위젯 startup은 각자 등록만 수행한다(재초기화 금지).
-  await next_train_widget_runtime.initializeWorkManagerDispatcher();
-  await restoreGetOffAlarmState(bootstrap.dependencies.getOffAlarmController);
+  await debugMainWorkManagerInitializer();
+  await debugMainAlarmRestorer(bootstrap.dependencies.getOffAlarmController);
   final nextTrainWidgetRepository = NextTrainWidgetRepository(
     catalogDatabase: bootstrap.catalogDatabase,
     userDatabase: bootstrap.userDatabase,
   );
-  await next_train_widget_runtime.runNextTrainWidgetStartup(
+  await debugMainNextTrainWidgetStartup(
     installedWidgetIds: next_train_widget_runtime.installedNextTrainWidgetIds,
     registerRefresh: next_train_widget_runtime.registerNextTrainWidgetRefresh,
     cancelRefresh: next_train_widget_runtime.cancelNextTrainWidgetRefresh,
@@ -102,7 +144,7 @@ Future<void> main() async {
   final navigatorKey = GlobalKey<NavigatorState>();
   final onboardingStore = const SecureOnboardingResultStore();
   final draftTargetStore = const SecureFacilityReportDraftTargetStore();
-  runApp(
+  debugMainRunApp(
     AppBootstrapLifecycle(
       close: bootstrap.close,
       resumeDataPackUpdate: () async {
@@ -122,7 +164,7 @@ Future<void> main() async {
         bootstrap.dependencies.getOffAlarmController,
       ),
       child: HomeWidgetLinkHandler(
-        clicks: next_train_widget_runtime.homeWidgetClicks(),
+        clicks: debugMainHomeWidgetClicks(),
         navigatorKey: navigatorKey,
         stationDetailBuilder: (stationId) => StationDetailScreen(
           repository: bootstrap.dependencies.repository,

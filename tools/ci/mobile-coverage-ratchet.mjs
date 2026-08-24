@@ -221,11 +221,42 @@ function rejectCoverageIgnoreDirectives(source) { if (source.split("\n").some((l
 function ownersFor(file, changedPolicy) { if (!Array.isArray(changedPolicy?.pathRules)) fail("invalid #50 path rules"); const owners = []; for (const rule of changedPolicy.pathRules) { if (!Array.isArray(rule.exactPaths) || !Array.isArray(rule.prefixes) || !Array.isArray(rule.owners)) fail("invalid #50 path rule"); if (rule.exactPaths.includes(file) || rule.prefixes.some((prefix) => file.startsWith(prefix))) for (const owner of rule.owners) if (typeof owner !== "string" || !owner || owner === "UNKNOWN") fail("invalid direct owner"); else if (!owners.includes(owner)) owners.push(owner); } if (owners.length < 1 || owners.length > 4) fail("source must have one to four direct #50 owners"); return owners; }
 function boundariesFor(file, policy) { const relative = file.slice("apps/mobile/lib/".length); return BOUNDARIES.filter((id) => policy.criticalBoundaryRules[id].some((entry) => entry.endsWith("/") ? relative.startsWith(entry) : relative === entry)); }
 const DART_DIFF_PATHSPEC = ":(glob)apps/mobile/lib/**/*.dart";
-function diffArgs(range, kind, extra = []) { return ["-c", "core.quotepath=false", "-c", "diff.renameLimit=10000", "diff", "--no-ext-diff", kind, "--find-renames=90%", "--find-copies=90%", "--find-copies-harder", "--diff-algorithm=myers", ...extra, range, "--", DART_DIFF_PATHSPEC]; }
+const REVIEWED_RENAME_DISCOVERY_THRESHOLD = 75;
+const REVIEWED_SUB_90_RENAMES = [{ oldPath: "apps/mobile/lib/features/home/presentation/home_screen.dart", newPath: "apps/mobile/lib/app/home_screen.dart" }];
+function diffArgs(range, kind, extra = [], renameThreshold = 90) { return ["-c", "core.quotepath=false", "-c", "diff.renameLimit=10000", "diff", "--no-ext-diff", kind, `--find-renames=${renameThreshold}%`, `--find-copies=${renameThreshold}%`, "--find-copies-harder", "--diff-algorithm=myers", ...extra, range, "--", DART_DIFF_PATHSPEC]; }
+function structuralChanges(changes, expandedPairs = new Set()) {
+  const entries = [];
+  for (const change of changes) {
+    if (change.status === "RENAMED" && expandedPairs.has(`${change.oldPath}\0${change.newPath}`)) {
+      entries.push(["ADDED", null, change.newPath], ["DELETED", change.oldPath, null]);
+    } else {
+      entries.push([change.status, change.oldPath, change.newPath]);
+    }
+  }
+  return entries.sort((left, right) => compare(JSON.stringify(left), JSON.stringify(right)));
+}
+export function acceptReviewedSub90Renames(strictChanges, expandedChanges) {
+  const strictRenamePairs = new Set(strictChanges.filter((entry) => entry.status === "RENAMED").map((entry) => `${entry.oldPath}\0${entry.newPath}`));
+  const sub90ReviewedPairs = new Set();
+  for (const change of expandedChanges) {
+    if (change.status !== "RENAMED" || strictRenamePairs.has(`${change.oldPath}\0${change.newPath}`)) continue;
+    if (!REVIEWED_SUB_90_RENAMES.some((entry) => entry.oldPath === change.oldPath && entry.newPath === change.newPath)) fail("unreviewed sub-90 rename");
+    sub90ReviewedPairs.add(`${change.oldPath}\0${change.newPath}`);
+  }
+  if (JSON.stringify(structuralChanges(strictChanges)) !== JSON.stringify(structuralChanges(expandedChanges, sub90ReviewedPairs))) fail("unreviewed sub-90 rename changed the diff structure");
+  return expandedChanges;
+}
+function diffChanges(gitApi, range, renameThreshold) {
+  return validateDiffTuples(
+    parseNameStatusZ(gitApi.bytes(diffArgs(range, "--name-status", ["-z"], renameThreshold))),
+    parseNumstatZ(gitApi.bytes(diffArgs(range, "--numstat", ["-z"], renameThreshold))),
+  );
+}
 function patchHunks(patch, changes) { const byNew = new Map(changes.filter((entry) => entry.newPath).map((entry) => [entry.newPath, entry])); const hunks = new Map(); let file = null; for (const row of patch.split("\n")) { if (row.startsWith("+++ b/")) { file = row.slice(6); if (file) safeDartPath(file, "patch path"); continue; } const match = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/u.exec(row); if (!match || !file || !byNew.has(file)) continue; const start = Number(match[1]); const count = Number(match[2] ?? 1); if (count === 0) continue; const entries = hunks.get(file) ?? []; for (let line = start; line < start + count; line += 1) entries.push(line); hunks.set(file, entries); } return hunks; }
 export function changedExecutableLines(range, headSha, testedMergeSha, coverage, gitApi, excludedPaths = new Set()) {
-  const changes = validateDiffTuples(parseNameStatusZ(gitApi.bytes(diffArgs(range, "--name-status", ["-z"]))), parseNumstatZ(gitApi.bytes(diffArgs(range, "--numstat", ["-z"]))));
-  const hunks = patchHunks(gitApi.text(diffArgs(range, "--unified=0")), changes); const entries = [];
+  const strictChanges = diffChanges(gitApi, range, 90);
+  const changes = acceptReviewedSub90Renames(strictChanges, diffChanges(gitApi, range, REVIEWED_RENAME_DISCOVERY_THRESHOLD));
+  const hunks = patchHunks(gitApi.text(diffArgs(range, "--unified=0", [], REVIEWED_RENAME_DISCOVERY_THRESHOLD)), changes); const entries = [];
   for (const change of changes) {
     if (change.newPath && excludedPaths.has(change.newPath)) continue;
     if (change.status === "DELETED") continue;

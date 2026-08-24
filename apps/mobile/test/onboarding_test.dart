@@ -531,6 +531,10 @@ void main() {
     );
     expect(selectedCheck.size, const Size.square(12));
     expect(selectedCheck.painter, isNotNull);
+    expect(
+      selectedCheck.painter!.shouldRepaint(selectedCheck.painter!),
+      isFalse,
+    );
 
     final unselectedIndicator = tester.widget<Container>(
       find.byKey(const Key('mobilityPresetRadio-slow')),

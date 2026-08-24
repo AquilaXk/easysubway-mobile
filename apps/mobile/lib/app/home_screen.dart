@@ -767,27 +767,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
-    if (_selectedTabIndex == 1) {
-      // 하단 탭 인덱스 1은 현재 어떤 탭 전환 경로에서도 setState로 선택되지
-      // 않는 미도달 분기다(탭 0 노선도 안 "역 검색" 메뉴가 실사용 경로).
-      // 지역 상태는 NetworkMapScreen 안에만 있어 이 분기는 알 수 없으므로
-      // 홈 기본 지역과 동일한 '수도권'을 명시한다.
-      return rootTab(
-        StationSearchScreen(
-          repository: repository,
-          reportRepository: reportRepository,
-          favoriteRepository: favoriteRepository,
-          bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
-          searchHistoryRepository: searchHistoryRepository,
-          facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          onOpenFacilityReport: openFacilityReport,
-          realtimeRepository: realtimeRepository,
-          routeDraftController: _routeDraftController,
-          regionLabel: '수도권',
-        ),
-      );
-    }
-
     if (_selectedTabIndex == 2) {
       return rootTab(
         JourneySearchScreen(
