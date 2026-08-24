@@ -6,6 +6,8 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import * as contract from "./datapack-contract.mjs";
+import "./stage-map-catalog-release.test.mjs";
+import "./verify-map-catalog-aab.test.mjs";
 
 import {
   CONTRACT_VERSION,

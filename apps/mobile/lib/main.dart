@@ -119,8 +119,6 @@ Future<void> main() async {
           locationProvider: bootstrap.dependencies.locationProvider,
           stationId: stationId,
           facilityReportDraftTargetStore: draftTargetStore,
-          internalRouteRepository:
-              bootstrap.dependencies.internalRouteRepository,
         ),
         child: EasySubwayApp(
           navigatorKey: navigatorKey,

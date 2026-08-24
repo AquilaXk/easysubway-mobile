@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://easysubway.kr/contracts/mobile/map-catalog-release-lock.schema.json",
+  "title": "Mobile map/catalog content lock",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "contractVersion", "dataRelease", "artifacts"],
+  "properties": {
+    "schemaVersion": { "const": 1 },
+    "contractVersion": { "const": "mobile-map-catalog-content-lock-v1" },
+    "dataRelease": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerRepository", "producerGitSha", "releaseSequence", "signedFinalDescriptorSha256", "publicationReceiptSha256"],
+      "properties": {
+        "producerRepository": { "const": "AquilaXk/easysubway-data" },
+        "producerGitSha": { "$ref": "#/$defs/gitSha" },
+        "releaseSequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "signedFinalDescriptorSha256": { "$ref": "#/$defs/sha256" },
+        "publicationReceiptSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "artifacts": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "prefixItems": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifactKind", "manifest", "payload"],
+          "properties": {
+            "artifactKind": { "const": "map-pack" },
+            "manifest": { "$ref": "#/$defs/mapManifest" },
+            "payload": { "$ref": "#/$defs/mapPayload" }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["artifactKind", "manifest", "payload"],
+          "properties": {
+            "artifactKind": { "const": "station-catalog-pack" },
+            "manifest": { "$ref": "#/$defs/catalogManifest" },
+            "payload": { "$ref": "#/$defs/catalogPayload" }
+          }
+        }
+      ],
+      "items": false
+    }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "gitSha": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "file": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "sizeBytes", "sha256"],
+      "properties": {
+        "path": { "type": "string", "pattern": "^[a-z][a-z0-9-]*/(?:manifest\\.json|payload/[A-Za-z0-9._-]+)$" },
+        "sizeBytes": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "mapManifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sizeBytes", "sha256", "manifestVersion", "artifactKind", "mapPackId", "stationSetSha256", "payloadSha256"],
+      "properties": { "path": { "const": "map-pack/manifest.json" }, "sizeBytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/sha256" }, "manifestVersion": { "const": 1 }, "artifactKind": { "const": "map-pack" }, "mapPackId": { "$ref": "#/$defs/nonBlank" }, "stationSetSha256": { "$ref": "#/$defs/sha256" }, "payloadSha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "catalogManifest": {
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sizeBytes", "sha256", "manifestVersion", "artifactKind", "catalogPackId", "stationSetSha256", "payloadSha256"],
+      "properties": { "path": { "const": "station-catalog-pack/manifest.json" }, "sizeBytes": { "type": "integer", "minimum": 1 }, "sha256": { "$ref": "#/$defs/sha256" }, "manifestVersion": { "const": 1 }, "artifactKind": { "const": "station-catalog-pack" }, "catalogPackId": { "$ref": "#/$defs/nonBlank" }, "stationSetSha256": { "$ref": "#/$defs/sha256" }, "payloadSha256": { "$ref": "#/$defs/sha256" } }
+    },
+    "nonBlank": { "type": "string", "pattern": "^(?!\\s)[\\s\\S]*\\S$" },
+    "mapPayload": {
+      "type": "array", "minItems": 4, "maxItems": 4,
+      "prefixItems": [
+        { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "map-pack/payload/metropolitan.svg" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "map-pack/payload/stations-layout.json" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "map-pack/payload/line-styles.json" } } }] },
+        { "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "map-pack/payload/interchange-layout.json" } } }] }
+      ], "items": false
+    },
+    "catalogPayload": {
+      "type": "array", "minItems": 1, "maxItems": 1,
+      "prefixItems": [{ "allOf": [{ "$ref": "#/$defs/file" }, { "properties": { "path": { "const": "station-catalog-pack/payload/catalog.sqlite" } } }] }], "items": false
+    }
+  }
+}

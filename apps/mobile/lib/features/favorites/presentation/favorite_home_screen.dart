@@ -6,10 +6,11 @@ import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
 import '../../facility_report/presentation/facility_report_screen.dart';
 import '../../../favorite_facility.dart';
-import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../../route_search.dart';
-import '../../../station_search.dart';
+import '../../routes/domain/route_search.dart';
+import '../domain/favorite_route.dart';
+import '../../stations/domain/station_models.dart';
+import '../../stations/domain/station_repositories.dart';
 import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_location.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
@@ -33,7 +34,6 @@ class FavoriteHomeScreen extends StatefulWidget {
     required this.reportRepository,
     required this.locationProvider,
     required this.facilityReportDraftTargetStore,
-    required this.internalRouteRepository,
     required this.realtimeRepository,
     required this.routeDraftController,
     required this.initialMobilityType,
@@ -51,7 +51,6 @@ class FavoriteHomeScreen extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final CurrentLocationProvider locationProvider;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository internalRouteRepository;
   final RealtimeRepository realtimeRepository;
   final RouteDraftController routeDraftController;
   final String initialMobilityType;
@@ -312,8 +311,6 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
       realtimeRepository: widget.realtimeRepository,
       stationId: favorite.stationId,
       facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
-      internalRouteRepository: widget.internalRouteRepository,
-      internalRouteMobilityType: widget.initialMobilityType,
       routeDraftController: widget.routeDraftController,
       // 즐겨찾기에서 들어온 역은 이미 저장 상태로 열어 바로 해제할 수 있게 한다.
       initiallyFavorite: true,

@@ -11,6 +11,7 @@ import '../core/datapack/data_pack_update_state.dart';
 import '../design_tokens.dart';
 import '../features/facility_report/presentation/facility_report_screen.dart';
 import '../favorite_facility.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../features/account/presentation/user_data_deletion_screen.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/domain/facility_report_location.dart';
@@ -26,14 +27,13 @@ import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/journey/application/journey_search_controller.dart';
 import '../features/journey/domain/journey_repository.dart';
-import '../internal_route.dart';
 import '../legacy_credential_cleanup.dart';
 import '../mobile_error_reporter.dart';
 import '../features/network_map/domain/network_map_models.dart';
 import '../notification_settings.dart';
 import '../onboarding.dart';
-import '../route_search.dart';
-import '../station_search.dart';
+import '../features/stations/domain/station_models.dart';
+import '../features/stations/domain/station_repositories.dart';
 import '../user_data_deletion.dart';
 import 'accessibility_theme.dart';
 import 'app_components.dart';
@@ -107,13 +107,11 @@ class EasySubwayApp extends StatelessWidget {
     super.key,
   }) : repository = dependencies.repository,
        reportRepository = dependencies.reportRepository,
-       routeFeedbackRepository = dependencies.routeFeedbackRepository,
        favoriteRepository = dependencies.favoriteRepository,
        favoriteFacilityRepository = dependencies.favoriteFacilityRepository,
        favoriteRouteRepository = dependencies.favoriteRouteRepository,
        adRepository = dependencies.adRepository,
        searchHistoryRepository = dependencies.searchHistoryRepository,
-       internalRouteRepository = dependencies.internalRouteRepository,
        networkMapRepository = dependencies.networkMapRepository,
        networkMapViewportRepository = dependencies.networkMapViewportRepository,
        realtimeRepository = dependencies.realtimeRepository,
@@ -130,13 +128,11 @@ class EasySubwayApp extends StatelessWidget {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;
@@ -264,14 +260,12 @@ class EasySubwayApp extends StatelessWidget {
           reportRepository: reportRepository,
           journeyRepository: journeyRepository,
           journeyAttestor: journeyAttestor,
-          routeFeedbackRepository: routeFeedbackRepository,
           getOffAlarmController: getOffAlarmController,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: favoriteRouteRepository,
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
-          internalRouteRepository: internalRouteRepository,
           networkMapRepository: networkMapRepository,
           networkMapViewportRepository: networkMapViewportRepository,
           realtimeRepository: realtimeRepository,
@@ -392,14 +386,12 @@ class _EasySubwayHome extends StatefulWidget {
     required this.reportRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
-    required this.routeFeedbackRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
     required this.adRepository,
     required this.searchHistoryRepository,
-    required this.internalRouteRepository,
     required this.networkMapRepository,
     required this.networkMapViewportRepository,
     required this.realtimeRepository,
@@ -424,14 +416,12 @@ class _EasySubwayHome extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;
@@ -536,14 +526,12 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         reportRepository: widget.reportRepository,
         journeyRepository: widget.journeyRepository,
         journeyAttestor: widget.journeyAttestor,
-        routeFeedbackRepository: widget.routeFeedbackRepository,
         getOffAlarmController: widget.getOffAlarmController,
         favoriteRepository: widget.favoriteRepository,
         favoriteFacilityRepository: widget.favoriteFacilityRepository,
         favoriteRouteRepository: widget.favoriteRouteRepository,
         adRepository: widget.adRepository,
         searchHistoryRepository: widget.searchHistoryRepository,
-        internalRouteRepository: widget.internalRouteRepository,
         networkMapRepository: widget.networkMapRepository,
         networkMapViewportRepository: widget.networkMapViewportRepository,
         realtimeRepository: widget.realtimeRepository,

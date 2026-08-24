@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../app/easy_subway_family_app_bar.dart';
 import '../../../design_tokens.dart';
-import '../../../facility_status.dart';
+import '../domain/facility_status.dart';
 import '../domain/station_models.dart';
 import 'station_detail_info_row.dart';
 import 'station_info_basis_disclosure.dart';

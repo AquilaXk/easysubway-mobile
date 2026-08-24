@@ -7,11 +7,10 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../favorite_facility.dart';
-import '../internal_route.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../mobile_error_reporter.dart';
 import '../notification_settings.dart';
-import '../route_search.dart';
-import '../station_search.dart';
+import '../features/stations/domain/station_repositories.dart';
 import '../core/datapack/data_pack_client.dart';
 import '../core/datapack/bundled_data_pack_freshness.dart';
 import '../core/datapack/data_pack_installer.dart';
@@ -59,12 +58,10 @@ class AppBootstrap {
     AssetBundle? assetBundle,
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
-    RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
     FavoriteRouteRepository? favoriteRouteRepository,
     SearchHistoryRepository? searchHistoryRepository,
-    InternalRouteRepository? internalRouteRepository,
     NotificationSettingsRepository? notificationRepository,
     NotificationPermissionProvider? notificationPermissionProvider,
     CurrentLocationProvider? locationProvider,
@@ -110,12 +107,10 @@ class AppBootstrap {
       final dependencies = AppDependencies.resolve(
         repository: repository,
         reportRepository: reportRepository,
-        routeFeedbackRepository: routeFeedbackRepository,
         favoriteRepository: favoriteRepository,
         favoriteFacilityRepository: favoriteFacilityRepository,
         favoriteRouteRepository: favoriteRouteRepository,
         searchHistoryRepository: searchHistoryRepository,
-        internalRouteRepository: internalRouteRepository,
         notificationRepository: notificationRepository,
         notificationPermissionProvider: notificationPermissionProvider,
         locationProvider: locationProvider,

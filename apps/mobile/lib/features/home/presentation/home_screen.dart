@@ -6,20 +6,21 @@ import 'package:flutter/semantics.dart';
 import '../../../accessible_design.dart';
 import '../../../app/app_components.dart';
 import '../../../favorite_facility.dart';
-import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../app/network_map_screen.dart';
 import '../../network_map/domain/network_map_models.dart';
 import '../../../notification_settings.dart';
 import '../../../onboarding.dart';
-import '../../../route_search.dart';
-import '../../../station_search.dart';
+import '../../routes/domain/route_search.dart';
+import '../../stations/domain/station_models.dart';
+import '../../stations/domain/station_repositories.dart';
 import '../../../user_data_deletion.dart';
 import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../facility_report/presentation/my_facility_reports_screens.dart';
 import '../../favorites/presentation/favorite_home_screen.dart';
+import '../../favorites/domain/favorite_route.dart';
 import '../../get_off_alarm/get_off_alarm_controller.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_preset_picker.dart';
@@ -84,14 +85,12 @@ class HomeScreen extends StatefulWidget {
     required this.reportRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
-    required this.routeFeedbackRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
     this.adRepository,
     required this.searchHistoryRepository,
-    required this.internalRouteRepository,
     required this.networkMapRepository,
     required this.networkMapViewportRepository,
     required this.realtimeRepository,
@@ -121,14 +120,12 @@ class HomeScreen extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;
@@ -307,7 +304,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     final favoriteRouteRepository = widget.favoriteRouteRepository;
     final adRepository = widget.adRepository;
     final searchHistoryRepository = widget.searchHistoryRepository;
-    final internalRouteRepository = widget.internalRouteRepository;
     final networkMapRepository = widget.networkMapRepository;
     final realtimeRepository = widget.realtimeRepository;
     final notificationRepository = widget.notificationRepository;
@@ -489,8 +485,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             adRepository: adRepository,
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-            internalRouteRepository: internalRouteRepository,
-            internalRouteMobilityType: initialMobilityType,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             regionLabel: regionLabel,
@@ -520,8 +514,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             favoriteRepository: favoriteRepository,
             searchHistoryRepository: searchHistoryRepository,
             facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-            internalRouteRepository: internalRouteRepository,
-            internalRouteMobilityType: initialMobilityType,
             realtimeRepository: realtimeRepository,
             routeDraftController: _routeDraftController,
             pickSlot: slot,
@@ -647,8 +639,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: initialMobilityType,
           locationProvider: locationProvider,
           viewportRepository: widget.networkMapViewportRepository,
           realtimeRepository: widget.realtimeRepository,
@@ -709,8 +699,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: initialMobilityType,
           realtimeRepository: realtimeRepository,
           routeDraftController: _routeDraftController,
           regionLabel: '수도권',
@@ -745,7 +733,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           reportRepository: reportRepository,
           locationProvider: locationProvider,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
           realtimeRepository: realtimeRepository,
           routeDraftController: _routeDraftController,
           initialMobilityType: initialMobilityType,

@@ -22,6 +22,7 @@ import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/account/presentation/user_data_deletion_screen.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/features/favorites/presentation/favorite_home_screen.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
@@ -48,10 +49,10 @@ import 'package:easysubway_mobile/features/stations/presentation/station_detail_
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_facility_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_search_screen.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_timetable_screen.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
-import 'package:easysubway_mobile/internal_route.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_preset_labels.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
@@ -70,8 +71,10 @@ import 'package:easysubway_mobile/features/network_map/presentation/station_fan_
     show kFanMenuDesignSize, kFanMenuTailTip;
 import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
-import 'package:easysubway_mobile/station_search.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/user_data_deletion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -202,7 +205,6 @@ Future<void> _openFavoriteList(
           reportRepository: home.reportRepository,
           locationProvider: home.locationProvider,
           facilityReportDraftTargetStore: home.facilityReportDraftTargetStore,
-          internalRouteRepository: home.internalRouteRepository,
           realtimeRepository: home.realtimeRepository,
           routeDraftController: draftController,
           initialMobilityType: home.initialMobilityType,
@@ -246,9 +248,6 @@ Future<void> _pumpStationDetailForTest(
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
-  InternalRouteRepository? internalRouteRepository,
-  InternalRouteRequest? internalRouteRequest,
-  String internalRouteMobilityType = 'SENIOR',
   RouteDraftController? routeDraftController,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
   bool settle = true,
@@ -265,9 +264,6 @@ Future<void> _pumpStationDetailForTest(
         locationProvider: locationProvider,
         initiallyFavorite: initiallyFavorite,
         facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-        internalRouteRepository: internalRouteRepository,
-        internalRouteRequest: internalRouteRequest,
-        internalRouteMobilityType: internalRouteMobilityType,
         routeDraftController: routeDraftController,
         mapLauncher: mapLauncher,
       ),
@@ -853,12 +849,10 @@ void main() {
     final dependencies = AppDependencies(
       repository: baseDependencies.repository,
       reportRepository: baseDependencies.reportRepository,
-      routeFeedbackRepository: baseDependencies.routeFeedbackRepository,
       favoriteRepository: baseDependencies.favoriteRepository,
       favoriteFacilityRepository: baseDependencies.favoriteFacilityRepository,
       favoriteRouteRepository: baseDependencies.favoriteRouteRepository,
       searchHistoryRepository: baseDependencies.searchHistoryRepository,
-      internalRouteRepository: baseDependencies.internalRouteRepository,
       networkMapRepository: baseDependencies.networkMapRepository,
       networkMapViewportRepository:
           baseDependencies.networkMapViewportRepository,
@@ -9295,9 +9289,6 @@ void main() {
           reportRepository: FakeFacilityReportRepository(),
           locationProvider: FakeCurrentLocationProvider(),
           facilityReportDraftTargetStore: null,
-          internalRouteRepository: FakeInternalRouteRepository(
-            result: _internalRouteResult(),
-          ),
           realtimeRepository: const UnavailableRealtimeRepository(),
           routeDraftController: RouteDraftController(),
           initialMobilityType: 'SENIOR',
@@ -9338,9 +9329,6 @@ void main() {
           reportRepository: FakeFacilityReportRepository(),
           locationProvider: FakeCurrentLocationProvider(),
           facilityReportDraftTargetStore: null,
-          internalRouteRepository: FakeInternalRouteRepository(
-            result: _internalRouteResult(),
-          ),
           realtimeRepository: const UnavailableRealtimeRepository(),
           routeDraftController: RouteDraftController(),
           initialMobilityType: 'SENIOR',
@@ -12321,80 +12309,6 @@ void main() {
     }
   });
 
-  testWidgets('확장 역 상세는 늦은 이전 역 내부 이동 응답을 현재 역에 적용하지 않는다', (tester) async {
-    final internalRouteRepository = ControlledStationInternalRouteRepository();
-    final stationRepository = FakeStationSearchRepository(
-      stationDetails: {
-        'station-sangnoksu': _stationDetail(
-          id: 'station-sangnoksu',
-          name: '상록수',
-        ),
-        'station-sadang': _stationDetail(id: 'station-sadang', name: '사당'),
-      },
-    );
-
-    Widget host(String stationId) {
-      return MaterialApp(
-        home: StationDetailExpandHost(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          stationId: stationId,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: 'WHEELCHAIR',
-        ),
-      );
-    }
-
-    await tester.pumpWidget(host('station-sangnoksu'));
-    await tester.pumpWidget(host('station-sadang'));
-
-    internalRouteRepository.completeNodes('station-sadang');
-    await tester.pump();
-    await tester.pump();
-    expect(
-      internalRouteRepository.requests.map((request) => request.stationId),
-      ['station-sadang'],
-    );
-
-    internalRouteRepository.completeNodes('station-sangnoksu');
-    await tester.pump();
-    await tester.pump();
-
-    expect(
-      internalRouteRepository.requests.map((request) => request.stationId),
-      ['station-sadang'],
-    );
-  });
-
-  testWidgets('확장 역 상세는 주입된 내부 이동 요청을 즉시 전달한다', (tester) async {
-    const request = InternalRouteRequest(
-      stationId: 'station-sangnoksu',
-      fromNodeId: 'node-sangnoksu-elevator-1',
-      toNodeId: 'node-sangnoksu-faregate',
-      mobilityType: 'WHEELCHAIR',
-    );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      result: _internalRouteResult(),
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: StationDetailExpandHost(
-          repository: FakeStationSearchRepository(
-            stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-          ),
-          reportRepository: FakeFacilityReportRepository(),
-          stationId: 'station-sangnoksu',
-          internalRouteRepository: internalRouteRepository,
-          internalRouteRequest: request,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(internalRouteRepository.requests, [request]);
-  });
-
   testWidgets('역 상세 광고는 성공 content 최하단에 station placement로 배선된다', (
     tester,
   ) async {
@@ -13051,117 +12965,29 @@ void main() {
     expect(mapLauncher.routeTargets, isEmpty);
   });
 
-  testWidgets('역 상세는 주입된 내부 이동 경로를 쉬운 단계 안내로 보여준다', (tester) async {
+  testWidgets('역 상세는 내부 이동 안내 없이 역 정보와 즐겨찾기 조작을 유지한다', (tester) async {
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
     );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      result: _internalRouteResult(),
-    );
-
     await tester.pumpWidget(
       MaterialApp(
         home: StationDetailScreen(
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
           stationId: 'station-sangnoksu',
-          internalRouteRepository: internalRouteRepository,
-          internalRouteRequest: const InternalRouteRequest(
-            stationId: 'station-sangnoksu',
-            fromNodeId: 'node-sangnoksu-elevator-1',
-            toNodeId: 'node-sangnoksu-faregate',
-            mobilityType: 'WHEELCHAIR',
-          ),
+          favoriteRepository: FakeFavoriteStationRepository(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(internalRouteRepository.requests, hasLength(1));
-    await tester.scrollUntilVisible(find.text('역 안 이동'), 500);
-    await tester.pumpAndSettle();
-    expect(find.text('역 안 이동'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('역 안 이동 경로를 찾았어요'), 500);
-    await tester.pumpAndSettle();
-    expect(find.text('역 안 이동 경로를 찾았어요'), findsOneWidget);
-    expect(find.text('1번 출구 엘리베이터에서 개찰구까지'), findsWidgets);
-    expect(find.text('약 1분 15초 · 28m'), findsOneWidget);
-    expect(find.text('엘리베이터에서 개찰구까지 이동합니다.'), findsOneWidget);
-    expect(find.text('약 1분 15초 · 28m · 엘리베이터를 이용해요'), findsOneWidget);
-    expect(find.text('내부 이동 경로를 찾았습니다'), findsNothing);
-    expect(find.text('현장 검증 전'), findsNothing);
-    expect(find.text('엘리베이터 필요'), findsNothing);
+    expect(find.textContaining('상록수'), findsWidgets);
     expect(
-      find.bySemanticsLabel(
-        '역 안 이동 순서, 역 안 이동 경로를 찾았어요, 1번 출구 엘리베이터에서 개찰구까지, 약 1분 15초 · 28m, 이동 단계 1번 역 안 이동, 1번 출구 엘리베이터에서 개찰구까지, 약 1분 15초 · 28m · 엘리베이터를 이용해요, 엘리베이터에서 개찰구까지 이동합니다.',
-      ),
+      find.byKey(const Key('stationFavoriteToggleButton')),
       findsOneWidget,
     );
-  });
-
-  testWidgets('역 상세는 내부 이동 노드로 기본 안내를 표시한다', (tester) async {
-    final stationRepository = FakeStationSearchRepository(
-      nextResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
-      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-    );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      nodes: _internalRouteNodes(),
-      result: _internalRouteResult(),
-    );
-
-    await _pumpStationDetailForTest(
-      tester,
-      repository: stationRepository,
-      reportRepository: FakeFacilityReportRepository(),
-      internalRouteRepository: internalRouteRepository,
-      internalRouteMobilityType: 'WHEELCHAIR',
-    );
-
-    expect(internalRouteRepository.nodeStationIds, ['station-sangnoksu']);
-    expect(internalRouteRepository.requests, hasLength(1));
-    expect(
-      internalRouteRepository.requests.single.fromNodeId,
-      'node-sangnoksu-elevator-1',
-    );
-    expect(
-      internalRouteRepository.requests.single.toNodeId,
-      'node-sangnoksu-faregate',
-    );
-    expect(internalRouteRepository.requests.single.mobilityType, 'WHEELCHAIR');
-    await tester.scrollUntilVisible(find.text('역 안 이동'), 500);
-    await tester.pumpAndSettle();
-    expect(find.text('역 안 이동'), findsOneWidget);
-    expect(find.text('역 안 이동 경로를 찾았어요'), findsOneWidget);
-    expect(find.text('내부 이동 경로를 찾았습니다'), findsNothing);
-  });
-
-  testWidgets('역 상세는 역 안 이동 정보가 없으면 관련 안내를 숨긴다', (tester) async {
-    final stationRepository = FakeStationSearchRepository(
-      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-    );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      nodes: const [],
-      result: _internalRouteResult(),
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: StationDetailScreen(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          stationId: 'station-sangnoksu',
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: 'WHEELCHAIR',
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(internalRouteRepository.nodeStationIds, ['station-sangnoksu']);
-    // 데이터가 없으면 사과 문구 대신 역 안 이동 안내를 통째로 숨긴다(#1577).
-    expect(find.text('역 안 길 안내에 필요한 정보를 찾지 못했어요.'), findsNothing);
     expect(find.text('역 안 이동'), findsNothing);
-    expect(find.textContaining('기준점'), findsNothing);
+    expect(find.text('역 안 이동 경로를 찾았어요'), findsNothing);
   });
 
   testWidgets('역 상세는 현재 역을 즐겨찾기에 저장하고 해제한다', (tester) async {
@@ -15632,69 +15458,6 @@ NetworkMapData _unifiedRouteMapData() {
   );
 }
 
-InternalRouteResult _internalRouteResult({
-  String status = 'FOUND',
-  List<String> blockedReasons = const [],
-}) {
-  return InternalRouteResult(
-    stationId: 'station-sangnoksu',
-    stationName: '상록수',
-    fromNodeId: 'node-sangnoksu-elevator-1',
-    fromNodeName: '1번 출구 엘리베이터',
-    toNodeId: 'node-sangnoksu-faregate',
-    toNodeName: '개찰구',
-    mobilityType: 'WHEELCHAIR',
-    status: status,
-    totalDistanceMeters: status == 'FOUND' ? 28 : 0,
-    totalEstimatedSeconds: status == 'FOUND' ? 75 : 0,
-    steps: status == 'FOUND'
-        ? const [
-            InternalRouteStep(
-              sequence: 1,
-              edgeId: 'edge-sangnoksu-elevator-to-faregate',
-              fromNodeId: 'node-sangnoksu-elevator-1',
-              fromNodeName: '1번 출구 엘리베이터',
-              toNodeId: 'node-sangnoksu-faregate',
-              toNodeName: '개찰구',
-              edgeType: 'WALK',
-              distanceMeters: 28,
-              estimatedSeconds: 75,
-              includesStairs: false,
-              requiresElevator: true,
-              requiresEscalator: false,
-              slopeLevel: 1,
-              widthLevel: 2,
-              reliabilityScore: 92,
-              guidance: '엘리베이터에서 개찰구까지 이동합니다.',
-            ),
-          ]
-        : const [],
-    warnings: const [],
-    blockedReasons: blockedReasons,
-  );
-}
-
-List<InternalRouteNode> _internalRouteNodes() {
-  return const [
-    InternalRouteNode(
-      id: 'node-sangnoksu-elevator-1',
-      stationId: 'station-sangnoksu',
-      type: 'ELEVATOR',
-      name: '1번 출구 엘리베이터',
-      facilityId: 'facility-sangnoksu-elevator-1',
-      displayLabel: '1번 출구 승강기',
-    ),
-    InternalRouteNode(
-      id: 'node-sangnoksu-faregate',
-      stationId: 'station-sangnoksu',
-      type: 'FAREGATE',
-      name: '개찰구',
-      facilityId: '',
-      displayLabel: '개찰구',
-    ),
-  ];
-}
-
 class FakeStationSearchRepository
     implements
         StationSearchRepository,
@@ -16177,86 +15940,6 @@ class FakeSearchHistoryRepository implements SearchHistoryRepository {
   }
 }
 
-class FakeInternalRouteRepository implements InternalRouteRepository {
-  FakeInternalRouteRepository({
-    required this.result,
-    this.nodes = const [],
-    this.error,
-  });
-
-  final InternalRouteResult result;
-  final List<InternalRouteNode> nodes;
-  final InternalRouteException? error;
-  final nodeStationIds = <String>[];
-  final requests = <InternalRouteRequest>[];
-
-  @override
-  Future<List<InternalRouteNode>> listRouteNodes(String stationId) async {
-    nodeStationIds.add(stationId);
-    final routeError = error;
-    if (routeError != null) {
-      throw routeError;
-    }
-    return nodes;
-  }
-
-  @override
-  Future<InternalRouteResult> searchInternalRoute(
-    InternalRouteRequest request,
-  ) async {
-    requests.add(request);
-    final routeError = error;
-    if (routeError != null) {
-      throw routeError;
-    }
-    return result;
-  }
-}
-
-class ControlledStationInternalRouteRepository
-    implements InternalRouteRepository {
-  final _nodeCompleters = <String, Completer<List<InternalRouteNode>>>{};
-  final nodeStationIds = <String>[];
-  final requests = <InternalRouteRequest>[];
-
-  @override
-  Future<List<InternalRouteNode>> listRouteNodes(String stationId) {
-    nodeStationIds.add(stationId);
-    return _nodeCompleters
-        .putIfAbsent(stationId, Completer<List<InternalRouteNode>>.new)
-        .future;
-  }
-
-  @override
-  Future<InternalRouteResult> searchInternalRoute(
-    InternalRouteRequest request,
-  ) async {
-    requests.add(request);
-    return _internalRouteResult();
-  }
-
-  void completeNodes(String stationId) {
-    _nodeCompleters[stationId]!.complete([
-      InternalRouteNode(
-        id: '$stationId-elevator',
-        stationId: stationId,
-        type: 'ELEVATOR',
-        name: '엘리베이터',
-        facilityId: '$stationId-facility',
-        displayLabel: '엘리베이터',
-      ),
-      InternalRouteNode(
-        id: '$stationId-faregate',
-        stationId: stationId,
-        type: 'FAREGATE',
-        name: '개찰구',
-        facilityId: '',
-        displayLabel: '개찰구',
-      ),
-    ]);
-  }
-}
-
 class ControlledStationSearchRepository implements StationSearchRepository {
   final requestedQueries = <String>[];
   final _completer = Completer<List<StationSearchResult>>();
@@ -16387,20 +16070,6 @@ class _MemoryGetOffAlarmStateRepository implements GetOffAlarmStateRepository {
   @override
   Future<void> saveActive(GetOffAlarmSubscription subscription) async {
     _active = subscription;
-  }
-}
-
-class FakeRouteFeedbackRepository implements RouteFeedbackRepository {
-  final requests = <RouteFeedbackRequest>[];
-  Object? error;
-
-  @override
-  Future<void> submitRouteFeedback(RouteFeedbackRequest request) async {
-    requests.add(request);
-    final currentError = error;
-    if (currentError != null) {
-      throw currentError;
-    }
   }
 }
 
@@ -16862,26 +16531,6 @@ class RecordingSupportAccessLauncher implements SupportAccessLauncher {
   Future<bool> open(Uri uri) async {
     openedUris.add(uri);
     return openResult;
-  }
-}
-
-class ControlledRouteSearchRepository implements RouteSearchRepository {
-  final requests = <RouteSearchRequest>[];
-  final _completer = Completer<RouteSearchResult>();
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    requests.add(request);
-    return _completer.future;
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError();
-  }
-
-  void complete(RouteSearchResult result) {
-    _completer.complete(result);
   }
 }
 

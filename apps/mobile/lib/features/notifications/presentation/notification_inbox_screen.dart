@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../app/app_components.dart';
-import '../../../facility_status.dart';
+import '../../stations/domain/facility_status.dart';
 import '../../../favorite_facility.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../notification_settings.dart';

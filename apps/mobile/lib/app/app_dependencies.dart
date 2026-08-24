@@ -8,6 +8,8 @@ import '../favorite_facility.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../features/favorites/data/drift_favorite_repositories.dart';
+import '../features/favorites/data/favorite_route_api_repository.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
 import '../features/facility_report/data/facility_report_api_repository.dart';
@@ -38,24 +40,20 @@ import '../features/journey/data/journey_api_repository.dart';
 import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../generated/journey_v3/journey_v3_contract.dart';
-import '../internal_route.dart';
 import '../features/network_map/domain/network_map_models.dart';
 import '../notification_settings.dart';
-import '../route_search.dart';
-import '../station_search.dart' show defaultOptionalStationApiBaseUri;
+import '../features/stations/data/station_api_base_uri.dart'
+    show defaultOptionalStationApiBaseUri;
 import '../user_data_deletion.dart';
-import '../features/internal_route/data/local_internal_route_repository.dart';
 
 class AppDependencies {
   const AppDependencies({
     required this.repository,
     required this.reportRepository,
-    required this.routeFeedbackRepository,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
     required this.searchHistoryRepository,
-    required this.internalRouteRepository,
     required this.networkMapRepository,
     required this.networkMapViewportRepository,
     required this.realtimeRepository,
@@ -74,12 +72,10 @@ class AppDependencies {
   factory AppDependencies.resolve({
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
-    RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
     FavoriteRouteRepository? favoriteRouteRepository,
     SearchHistoryRepository? searchHistoryRepository,
-    InternalRouteRepository? internalRouteRepository,
     NetworkMapRepository? networkMapRepository,
     NetworkMapViewportRepository? networkMapViewportRepository,
     RealtimeRepository? realtimeRepository,
@@ -169,12 +165,6 @@ class AppDependencies {
       },
       journeyAttestor:
           journeyAttestor ?? JourneyMethodChannelIntegrityAttestor(),
-      routeFeedbackRepository:
-          routeFeedbackRepository ??
-          _defaultRouteFeedbackRepository(
-            baseUri: requireBaseUri,
-            authProvider: null,
-          ),
       favoriteRepository:
           favoriteRepository ??
           (catalogDatabase != null && userDatabase != null
@@ -213,15 +203,6 @@ class AppDependencies {
           (userDatabase == null
               ? null
               : DriftSearchHistoryRepository(userDatabase: userDatabase)),
-      internalRouteRepository:
-          internalRouteRepository ??
-          (catalogDatabase == null
-              ? InternalRouteApiRepository(baseUri: requireBaseUri())
-              : LocalFirstInternalRouteRepository(
-                  localRepository: LocalInternalRouteRepository(
-                    catalogDatabase: catalogDatabase,
-                  ),
-                )),
       networkMapRepository: resolvedNetworkMapRepository,
       networkMapViewportRepository:
           networkMapViewportRepository ??
@@ -259,12 +240,10 @@ class AppDependencies {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;
@@ -570,19 +549,6 @@ FavoriteRouteRepository? _defaultFavoriteRouteRepository({
     return null;
   }
   return FavoriteRouteApiRepository(
-    baseUri: baseUri(),
-    authProvider: authProvider,
-  );
-}
-
-RouteFeedbackRepository? _defaultRouteFeedbackRepository({
-  required Uri Function() baseUri,
-  required AuthorizationHeaderProvider? authProvider,
-}) {
-  if (authProvider == null) {
-    return null;
-  }
-  return RouteFeedbackApiRepository(
     baseUri: baseUri(),
     authProvider: authProvider,
   );
