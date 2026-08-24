@@ -49,6 +49,7 @@ import 'package:easysubway_mobile/features/stations/presentation/station_detail_
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_facility_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_search_screen.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_timetable_screen.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
@@ -71,7 +72,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/station_fan_
 import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:easysubway_mobile/onboarding.dart';
 import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
-import 'package:easysubway_mobile/features/stations/data/current_location_provider.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/user_data_deletion.dart';

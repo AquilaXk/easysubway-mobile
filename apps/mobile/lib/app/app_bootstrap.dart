@@ -10,7 +10,6 @@ import '../favorite_facility.dart';
 import '../features/favorites/domain/favorite_route.dart';
 import '../mobile_error_reporter.dart';
 import '../notification_settings.dart';
-import '../features/stations/data/current_location_provider.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../core/datapack/data_pack_client.dart';
 import '../core/datapack/bundled_data_pack_freshness.dart';

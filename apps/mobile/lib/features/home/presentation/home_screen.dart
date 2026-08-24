@@ -12,7 +12,6 @@ import '../../network_map/domain/network_map_models.dart';
 import '../../../notification_settings.dart';
 import '../../../onboarding.dart';
 import '../../routes/domain/route_search.dart';
-import '../../stations/data/current_location_provider.dart';
 import '../../stations/domain/station_models.dart';
 import '../../stations/domain/station_repositories.dart';
 import '../../../user_data_deletion.dart';
