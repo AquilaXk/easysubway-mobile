@@ -34,7 +34,9 @@ import '../features/stations/presentation/station_detail_body.dart';
 import '../features/stations/presentation/station_detail_screen.dart';
 import '../features/stations/presentation/station_line_badges.dart';
 import '../mobile_error_reporter.dart';
-import '../station_search.dart';
+import '../features/stations/data/current_location_provider.dart';
+import '../features/stations/domain/station_models.dart';
+import '../features/stations/domain/station_repositories.dart';
 import 'network_map_nearby_panel_composition.dart';
 import 'network_map_search_session.dart';
 

@@ -1,7 +1,8 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/database/user/user_database.dart' as user_db;
-import '../../../station_search.dart';
+import '../../stations/domain/station_models.dart';
+import '../../stations/domain/station_repositories.dart';
 
 class DriftSearchHistoryRepository implements SearchHistoryRepository {
   DriftSearchHistoryRepository({

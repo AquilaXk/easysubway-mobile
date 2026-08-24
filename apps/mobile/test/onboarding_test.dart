@@ -5,7 +5,7 @@ import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_pol
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/station_search.dart';
+import 'package:easysubway_mobile/features/stations/data/current_location_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

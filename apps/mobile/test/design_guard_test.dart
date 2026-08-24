@@ -451,7 +451,6 @@ void main() {
     );
     expectRatchet(actual, {
       // 의도 잔존: 역 상세 정보/도움/시설 카드·액션 버튼 radius (16/12) — 무박스 전환 진행 중
-      'lib/station_search.dart': 4,
       // 의도 잔존: AppCard(20)·공용 control radius(12) — v4 정리 대상
       'lib/app/app_components.dart': 2,
       // 의도 잔존: 앱 shell 입력 필드(12) — v4 정리 대상

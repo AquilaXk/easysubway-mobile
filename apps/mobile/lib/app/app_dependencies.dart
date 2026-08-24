@@ -42,7 +42,8 @@ import '../features/journey/domain/journey_repository.dart';
 import '../generated/journey_v3/journey_v3_contract.dart';
 import '../features/network_map/domain/network_map_models.dart';
 import '../notification_settings.dart';
-import '../station_search.dart' show defaultOptionalStationApiBaseUri;
+import '../features/stations/data/station_api_base_uri.dart'
+    show defaultOptionalStationApiBaseUri;
 import '../user_data_deletion.dart';
 
 class AppDependencies {

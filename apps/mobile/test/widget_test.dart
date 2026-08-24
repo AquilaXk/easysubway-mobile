@@ -71,7 +71,9 @@ import 'package:easysubway_mobile/features/network_map/presentation/station_fan_
 import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:easysubway_mobile/onboarding.dart';
 import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
-import 'package:easysubway_mobile/station_search.dart';
+import 'package:easysubway_mobile/features/stations/data/current_location_provider.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/user_data_deletion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
