@@ -15,23 +15,12 @@ String _mobilityLabelFor(String mobilityType) {
   return '이동 조건을 다시 선택해 주세요';
 }
 
-String _routeDateLabel(String value) {
-  final trimmed = value.trim();
-  if (trimmed.length >= 10) {
-    return '최근 확인 ${trimmed.substring(0, 10)}';
-  }
-  return '최근 확인일이 아직 없어요';
-}
-
 const routeEtaSourceLabels = <String, String>{
   'REALTIME': '실시간 도착정보',
   'MIXED': '일부 실시간 도착정보',
   'PLANNED': '시간표 기준',
   'STATIC_BACKEND_ESTIMATE': '시간표 기준',
-  'STATIC_BACKEND_V1': '시간표 기준',
-  'STATIC_LOCAL': '저장된 데이터 기준',
   'STATIC_ESTIMATE': '정적 추정',
-  'FALLBACK': '실시간 미지원',
   'UNSUPPORTED': '실시간 미지원',
   'STALE': '저장된 데이터 기준',
 };
@@ -147,9 +136,8 @@ class RouteSearchResult {
   final String departureTimeIso;
   final String arrivalTimeIso;
 
-  /// 백엔드가 내린 경로 계단 판정(#2590). 판정 원천은 백엔드 하나이고 화면은 이
-  /// 값을 표시만 한다. 판정 필드가 없는 응답(레거시 백엔드)과 로컬 폴백 결과에서는
-  /// 비어 있으며, 그때만 [stairAccessLabel]이 스텝 원자료로 폴백한다.
+  /// Journey V3가 내린 경로 계단 판정(#2590). 화면은 이 값을 표시만 한다.
+  /// 판정 필드가 없거나 알 수 없는 값이면 접근성 상태도 알 수 없는 것으로 표시한다.
   final String stairAccess;
 
   int get accessibilityScore => _accessibilityScore ?? score;
@@ -182,11 +170,7 @@ class RouteSearchResult {
   }
 
   String get stairAccessLabel {
-    return _routeStairAccessLabel(
-      stairAccess.isEmpty
-          ? _routeStairAccessFromSteps(steps)
-          : _normalizeRouteStairState(stairAccess),
-    );
+    return _routeStairAccessLabel(_normalizeRouteStairState(stairAccess));
   }
 
   int get walkingDistanceMeters {
@@ -240,16 +224,7 @@ class RouteSearchResult {
 
   bool get needsConfirmation => !isBlocked && status != 'FOUND';
 
-  bool get isLocalResult => routeSearchId.startsWith('local-');
-
   String get sourceNotice {
-    if (isLocalResult && etaSource == 'STATIC_LOCAL') {
-      final updatedAt = sourceUpdatedAt.trim();
-      final freshness = updatedAt.isEmpty
-          ? ''
-          : ' · ${_routeDateLabel(updatedAt)}';
-      return '예상 소요시간: 저장된 데이터 기준$freshness';
-    }
     return '예상 소요시간: ${routeEtaSourceLabel(etaSource)}';
   }
 
@@ -869,42 +844,5 @@ String _routeStairAccessLabel(String stairAccess) {
     'stairOnly' => '계단 포함',
     'stepFree' => '계단 없는 길이에요',
     _ => '계단 여부를 확인하고 있어요',
-  };
-}
-
-/// 판정 필드가 없는 응답(레거시 백엔드·기기 내 로컬 경로)에서 쓰는 유일한 폴백 판정.
-///
-/// 판정 규칙이 여러 벌로 갈리지 않도록 두 경로가 이 함수 하나만 쓴다. 격자는 백엔드
-/// `StairAccess`와 같다: 계단 구간이 하나라도 있으면 `stairOnly`, 미확인이 있으면
-/// `unknown`, 계단 개념이 적용되지 않는 구간(`notApplicable`)은 판정에 기여하지
-/// 않는다. 스텝이 전부 `notApplicable`이면 계단 장벽이 놓인 구간이 하나도 없다는
-/// 뜻이라 `stepFree`이고, 스텝이 아예 없으면 판정 근거 자체가 없어 `unknown`이다
-/// (백엔드 `StairAccess.ofItineraryDisplay`도 같은 규칙으로 fail closed다).
-///
-/// **이 폴백은 백엔드 경로 판정의 복원이 아니다.** 경로 판정은 어느 구간에도 매달 수
-/// 없는 경로 단위 경고까지 반영하는데 스텝에는 그 신호가 없다. 판정 필드가 실린
-/// 응답에서 이 함수를 타면 표시가 실제 근거보다 강해질 수 있으므로, 호출은 판정
-/// 필드가 비었을 때로만 제한한다. 레거시 응답에서는 승차 leg의 미확인 원자료가
-/// 폴백을 `unknown`으로 떨어뜨려 그 방향으로는 새지 않는다.
-String _routeStairAccessFromSteps(List<RouteSearchStep> steps) {
-  if (steps.isEmpty) {
-    return 'unknown';
-  }
-  var merged = 'notApplicable';
-  for (final step in steps) {
-    final state = _routeStepStairState(step);
-    if (_routeStairAccessRank(state) > _routeStairAccessRank(merged)) {
-      merged = state;
-    }
-  }
-  return merged == 'notApplicable' ? 'stepFree' : merged;
-}
-
-int _routeStairAccessRank(String stairAccess) {
-  return switch (stairAccess) {
-    'stairOnly' => 3,
-    'unknown' => 2,
-    'stepFree' => 1,
-    _ => 0,
   };
 }
