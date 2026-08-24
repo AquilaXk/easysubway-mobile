@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'auth_headers.dart';
-import 'facility_status.dart';
+import 'features/stations/domain/facility_status.dart';
 import 'mobile_error_reporter.dart';
 
 const _favoriteFacilityTimeout = Duration(seconds: 8);
