@@ -7,7 +7,8 @@ import 'package:easysubway_mobile/features/network_map/application/network_map_n
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_nearby_panel_content.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/app/network_map_screen.dart';
-import 'package:easysubway_mobile/station_search.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

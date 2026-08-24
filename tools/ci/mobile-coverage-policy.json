@@ -137,7 +137,7 @@
       "onboarding.dart",
       "features/routes/domain/route_search.dart",
       "search_field.dart",
-      "station_search.dart"
+      "features/stations/data/station_api_base_uri.dart"
     ],
     "ALARM_WIDGET_REPORT_IO": [
       "features/facility_report/",

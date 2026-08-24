@@ -103,11 +103,11 @@ test("tracked policy, baseline, and current immutable graph match the reviewed c
   const directFeatureRootEdges = graph.edges.filter((edge) => edge.source.startsWith("apps/mobile/lib/features/") && /^apps\/mobile\/lib\/[^/]+\.dart$/u.test(edge.target ?? ""));
   const baseDecision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, ownerStatus: POLICY.owners.map((owner) => OPEN(owner.number)) });
   const decision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, baseWrapperFindings: baseDecision.wrapperFindings, ownerStatus: [OPEN(22)] });
-  assert.deepEqual({ production: production.length, features: featureSources.length, roots: directRoots.length, directFeatureRootEdges: directFeatureRootEdges.length, neutralEdges: directFeatureRootEdges.length - decision.forbiddenEdges.length, forbidden: decision.forbiddenEdges.length }, { production: 241, features: 173, roots: 15, directFeatureRootEdges: 122, neutralEdges: 103, forbidden: 19 });
+  assert.deepEqual({ production: production.length, features: featureSources.length, roots: directRoots.length, directFeatureRootEdges: directFeatureRootEdges.length, neutralEdges: directFeatureRootEdges.length - decision.forbiddenEdges.length, forbidden: decision.forbiddenEdges.length }, { production: 241, features: 174, roots: 14, directFeatureRootEdges: 118, neutralEdges: 103, forbidden: 15 });
   assert.deepEqual(decision.forbiddenEdges.map(({ conditional, ...edge }) => (assert.equal(conditional, false), edge)), BASELINE.edges);
   assert.deepEqual(decision.reasons, []);
   assert.equal(decision.outcome, "PASS");
-  assert.deepEqual(Object.fromEntries([18, 19, 20, 22].map((number) => [number, decision.currentEdges.filter((edge) => edge.ownerIssue === number).length])), { 18: 0, 19: 0, 20: 0, 22: 19 });
+  assert.deepEqual(Object.fromEntries([18, 19, 20, 22].map((number) => [number, decision.currentEdges.filter((edge) => edge.ownerIssue === number).length])), { 18: 0, 19: 0, 20: 0, 22: 15 });
 });
 
 test("terminal predecessor handoff leaves only the open successor responsible for live root debt", () => {
@@ -273,7 +273,7 @@ test("no-increase decision distinguishes neutral, new, wrapper, removal, and rei
 
   const removed = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: neutralFiles }), files: neutralFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [] });
   assert.equal(removed.outcome, "PASS");
-  assert.equal(removed.removedEdges.length, 19);
+  assert.equal(removed.removedEdges.length, 15);
 
   const reviewed = BASELINE.edges[0];
   const reintroducedFiles = { [reviewed.source]: `import '${reviewed.uri}';`, [reviewed.target]: "class Target {}" };
