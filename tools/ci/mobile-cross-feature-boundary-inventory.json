@@ -169,13 +169,6 @@
       "terminalDisposition": "RETAIN_TYPED_CONTRACT"
     },
     {
-      "path": "apps/mobile/lib/features/route_draft/route_draft_port.dart",
-      "ownerFeature": "route_draft",
-      "classification": "PUBLIC_API",
-      "contractKind": "TYPED_APPLICATION_PORT",
-      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
-    },
-    {
       "path": "apps/mobile/lib/features/routes/domain/route_search.dart",
       "ownerFeature": "routes",
       "classification": "PUBLIC_API",

@@ -1,7 +1,6 @@
 import 'package:flutter/foundation.dart';
 
 import '../domain/route_draft.dart';
-import '../route_draft_port.dart';
 
 class RouteDraftController extends ChangeNotifier implements RouteDraftPort {
   RouteDraft _draft = const RouteDraft.empty();

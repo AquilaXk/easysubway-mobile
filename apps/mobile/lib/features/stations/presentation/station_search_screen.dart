@@ -12,7 +12,6 @@ import '../../facility_report/domain/facility_report_target.dart';
 import '../../../core/ui/region_menu.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/domain/route_draft.dart';
-import '../../route_draft/route_draft_port.dart';
 import '../application/station_search_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
