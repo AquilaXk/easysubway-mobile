@@ -1,0 +1,372 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "mobile-cross-feature-boundary-inventory-v1",
+  "repository": "AquilaXk/easysubway-mobile",
+  "featureRoots": [
+    "account",
+    "ads",
+    "attribution",
+    "facility_report",
+    "fare",
+    "favorites",
+    "get_off_alarm",
+    "home",
+    "home_widget",
+    "journey",
+    "mobility_profile",
+    "network_map",
+    "notifications",
+    "onboarding",
+    "preferences",
+    "realtime",
+    "route_draft",
+    "routes",
+    "search_history",
+    "service_notice",
+    "settings",
+    "stations",
+    "support",
+    "train_search"
+  ],
+  "appCompositionPrefix": "apps/mobile/lib/app/",
+  "sharedNeutralPrefixes": [
+    "apps/mobile/lib/core/"
+  ],
+  "generatedOwnerPrefix": "apps/mobile/lib/generated/",
+  "generatedAdapterPaths": [
+    "apps/mobile/lib/features/get_off_alarm/get_off_alarm_subscription.dart",
+    "apps/mobile/lib/features/journey/application/journey_get_off_alarm_binding.dart",
+    "apps/mobile/lib/features/journey/application/journey_search_controller.dart",
+    "apps/mobile/lib/features/journey/data/journey_api_repository.dart",
+    "apps/mobile/lib/features/journey/domain/journey_repository.dart",
+    "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart"
+  ],
+  "publicApis": [
+    {
+      "path": "apps/mobile/lib/features/account/user_data_deletion.dart",
+      "ownerFeature": "account",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/ads/ad_repository.dart",
+      "ownerFeature": "ads",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_location.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_repository.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_result.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/facility_report/domain/facility_report_target.dart",
+      "ownerFeature": "facility_report",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/favorites/favorite_facility.dart",
+      "ownerFeature": "favorites",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_scheduler.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_subscription.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/mobility_profile/mobility_preset_labels.dart",
+      "ownerFeature": "mobility_profile",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/mobility_profile/mobility_profile_policy.dart",
+      "ownerFeature": "mobility_profile",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/network_map/domain/network_map_models.dart",
+      "ownerFeature": "network_map",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/notifications/notification_settings.dart",
+      "ownerFeature": "notifications",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/realtime/realtime_repository.dart",
+      "ownerFeature": "realtime",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/route_draft/domain/route_draft.dart",
+      "ownerFeature": "route_draft",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/routes/domain/route_search.dart",
+      "ownerFeature": "routes",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/facility_status.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/station_line.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/station_models.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/stations/domain/station_repositories.dart",
+      "ownerFeature": "stations",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    }
+  ],
+  "migrationExceptions": [
+    {
+      "source": "apps/mobile/lib/features/favorites/presentation/favorite_home_screen.dart",
+      "target": "apps/mobile/lib/features/facility_report/presentation/facility_report_screen.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 20,
+      "reason": "Favorites still constructs a Facility Report screen directly.",
+      "removalTrigger": "App composition supplies a typed report-opening callback."
+    },
+    {
+      "source": "apps/mobile/lib/features/favorites/presentation/favorite_home_screen.dart",
+      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Favorites still mutates the concrete route draft controller.",
+      "removalTrigger": "App composition handles a typed favorite-route intent."
+    },
+    {
+      "source": "apps/mobile/lib/features/favorites/presentation/favorite_home_screen.dart",
+      "target": "apps/mobile/lib/features/stations/presentation/station_detail_screen.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Favorites still constructs Station Detail presentation directly.",
+      "removalTrigger": "App composition supplies a typed station-detail callback."
+    },
+    {
+      "source": "apps/mobile/lib/features/home_widget/next_train_widget_runtime.dart",
+      "target": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_reconcile_worker.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 22,
+      "reason": "The widget runtime imports a concrete alarm worker dispatcher.",
+      "removalTrigger": "Root composition supplies the exact worker task handler."
+    },
+    {
+      "source": "apps/mobile/lib/features/journey/presentation/journey_get_off_alarm_toggle.dart",
+      "target": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 18,
+      "reason": "Journey presentation still depends on the concrete alarm controller.",
+      "removalTrigger": "Journey receives a typed alarm command and state port."
+    },
+    {
+      "source": "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart",
+      "target": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 18,
+      "reason": "Journey screen still accepts the concrete alarm controller.",
+      "removalTrigger": "App composition injects the typed selected-journey alarm port."
+    },
+    {
+      "source": "apps/mobile/lib/features/notifications/notification_settings.dart",
+      "target": "apps/mobile/lib/features/get_off_alarm/exact_alarm_permission.dart",
+      "kind": "EXPORT",
+      "ownerIssue": 22,
+      "reason": "Notification public surface re-exports a mixed concrete permission file.",
+      "removalTrigger": "The notification permission port moves to an exact typed contract."
+    },
+    {
+      "source": "apps/mobile/lib/features/notifications/notification_settings.dart",
+      "target": "apps/mobile/lib/features/get_off_alarm/exact_alarm_permission.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 22,
+      "reason": "Notification settings imports a mixed concrete permission file.",
+      "removalTrigger": "The notification permission port moves to an exact typed contract."
+    },
+    {
+      "source": "apps/mobile/lib/features/notifications/presentation/new_notification_bar.dart",
+      "target": "apps/mobile/lib/features/service_notice/presentation/notice_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Notification presentation reads a concrete service notice controller.",
+      "removalTrigger": "App composition passes a typed disruption projection."
+    },
+    {
+      "source": "apps/mobile/lib/features/notifications/presentation/notification_inbox_screen.dart",
+      "target": "apps/mobile/lib/features/facility_report/presentation/facility_report_result_labels.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 20,
+      "reason": "Notification presentation imports Facility Report presentation labels.",
+      "removalTrigger": "Facility Report exposes typed domain status labels."
+    },
+    {
+      "source": "apps/mobile/lib/features/notifications/presentation/notification_inbox_screen.dart",
+      "target": "apps/mobile/lib/features/facility_report/presentation/my_facility_reports_screens.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 20,
+      "reason": "Notification presentation constructs Facility Report detail UI.",
+      "removalTrigger": "App composition supplies a typed report-detail callback."
+    },
+    {
+      "source": "apps/mobile/lib/features/onboarding/onboarding.dart",
+      "target": "apps/mobile/lib/features/mobility_profile/mobility_preset_picker.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 22,
+      "reason": "Onboarding imports a concrete Mobility Profile widget.",
+      "removalTrigger": "Root composition owns the shared preset-picker presentation."
+    },
+    {
+      "source": "apps/mobile/lib/features/settings/presentation/app_settings_screen.dart",
+      "target": "apps/mobile/lib/features/onboarding/onboarding.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 22,
+      "reason": "Settings imports a mixed Onboarding domain and presentation monolith.",
+      "removalTrigger": "View preferences move to an exact typed public contract."
+    },
+    {
+      "source": "apps/mobile/lib/features/settings/presentation/service_info_screen.dart",
+      "target": "apps/mobile/lib/features/attribution/presentation/data_source_attribution_screen.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Settings constructs Attribution presentation directly.",
+      "removalTrigger": "App composition supplies an attribution-opening callback."
+    },
+    {
+      "source": "apps/mobile/lib/features/settings/presentation/service_info_screen.dart",
+      "target": "apps/mobile/lib/features/support/presentation/support_access_screen.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Settings constructs Support presentation directly.",
+      "removalTrigger": "App composition supplies a support-opening callback."
+    },
+    {
+      "source": "apps/mobile/lib/features/stations/presentation/station_detail_body.dart",
+      "target": "apps/mobile/lib/features/ads/active_ad_banner.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Station presentation constructs an Ads presentation widget.",
+      "removalTrigger": "App composition supplies the optional ad slot widget."
+    },
+    {
+      "source": "apps/mobile/lib/features/stations/presentation/station_detail_body.dart",
+      "target": "apps/mobile/lib/features/facility_report/presentation/facility_report_screen.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 20,
+      "reason": "Station presentation constructs Facility Report presentation directly.",
+      "removalTrigger": "App composition handles a typed facility-report intent."
+    },
+    {
+      "source": "apps/mobile/lib/features/stations/presentation/station_detail_body.dart",
+      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Station detail receives the concrete route draft controller.",
+      "removalTrigger": "Station detail emits a typed route-point intent."
+    },
+    {
+      "source": "apps/mobile/lib/features/stations/presentation/station_detail_route_actions.dart",
+      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Station route actions mutate the concrete route draft controller.",
+      "removalTrigger": "Station actions emit typed origin and destination intents."
+    },
+    {
+      "source": "apps/mobile/lib/features/stations/presentation/station_detail_screen.dart",
+      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Station detail screen forwards a concrete route draft controller.",
+      "removalTrigger": "Station detail forwards typed route-point callbacks only."
+    },
+    {
+      "source": "apps/mobile/lib/features/stations/presentation/station_search_screen.dart",
+      "target": "apps/mobile/lib/features/network_map/presentation/region_menu.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 19,
+      "reason": "Station search imports a Network Map presentation menu type.",
+      "removalTrigger": "Station search owns a typed region value contract."
+    },
+    {
+      "source": "apps/mobile/lib/features/stations/presentation/station_search_screen.dart",
+      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Station search mutates the concrete route draft controller.",
+      "removalTrigger": "Station search returns a typed station intent to app composition."
+    },
+    {
+      "source": "apps/mobile/lib/features/support/presentation/support_access_screen.dart",
+      "target": "apps/mobile/lib/features/account/presentation/user_data_deletion_screen.dart",
+      "kind": "IMPORT",
+      "ownerIssue": 37,
+      "reason": "Support constructs Account presentation directly.",
+      "removalTrigger": "App composition supplies a user-data-deletion callback."
+    }
+  ]
+}

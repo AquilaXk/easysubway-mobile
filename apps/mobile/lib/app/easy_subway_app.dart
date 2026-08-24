@@ -19,7 +19,7 @@ import '../features/facility_report/domain/facility_report_photo.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
 import '../features/facility_report/domain/facility_report_target.dart';
 import '../features/get_off_alarm/get_off_alarm_controller.dart';
-import '../features/home/presentation/home_screen.dart';
+import 'home_screen.dart';
 import '../features/mobility_profile/mobility_profile_policy.dart';
 import '../features/realtime/realtime_repository.dart';
 import '../features/service_notice/data/notice_repository.dart';
