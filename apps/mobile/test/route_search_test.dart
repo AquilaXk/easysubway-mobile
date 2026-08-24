@@ -272,12 +272,13 @@ void main() {
 
   test('경로 검색 결과는 주의 안내를 쉬운 문구로 보여준다', () {
     final safeResult = _sampleRouteSearchResult(warnings: const []);
-    final warningResult = _sampleRouteSearchResult(
-      warnings: const [
-        RouteSearchWarning(code: 'ROUTE_GRAPH_UNKNOWN', message: ''),
-      ],
+    final warning = RouteSearchWarning(
+      code: 'ROUTE_GRAPH_UNKNOWN',
+      message: '',
     );
+    final warningResult = _sampleRouteSearchResult(warnings: [warning]);
 
+    expect(warning.message, isEmpty);
     expect(safeResult.attentionLabel, '주의 안내가 없어요');
     expect(warningResult.attentionLabel, '주의 안내 보기');
   });
