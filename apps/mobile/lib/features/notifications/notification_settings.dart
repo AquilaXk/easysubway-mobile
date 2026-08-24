@@ -7,11 +7,11 @@ import 'package:flutter/services.dart';
 
 import '../../accessible_design.dart';
 import '../../auth_headers.dart';
-import '../get_off_alarm/exact_alarm_permission.dart'
+import '../get_off_alarm/get_off_alarm_port.dart'
     show NotificationPermissionProvider, NotificationPermissionStatus;
 import '../../mobile_error_reporter.dart';
 
-export '../get_off_alarm/exact_alarm_permission.dart'
+export '../get_off_alarm/get_off_alarm_port.dart'
     show NotificationPermissionProvider, NotificationPermissionStatus;
 
 const _notificationSettingsTimeout = Duration(seconds: 8);

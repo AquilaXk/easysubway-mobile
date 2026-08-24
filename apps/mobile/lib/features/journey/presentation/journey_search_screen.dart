@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../../get_off_alarm/get_off_alarm_controller.dart';
+import '../../get_off_alarm/get_off_alarm_port.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
@@ -37,7 +37,7 @@ class JourneySearchScreen extends StatefulWidget {
   final String mobilityType;
   final VoidCallback onShellBackToHome;
   final JourneyShareInvoker? shareInvoker;
-  final GetOffAlarmController? getOffAlarmController;
+  final GetOffAlarmPort? getOffAlarmController;
   final JourneyStationNameResolver? stationNameResolver;
   final DateTime Function()? getOffAlarmNow;
   final DateTime Function()? journeyNow;
@@ -446,9 +446,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     await _controller.retry();
   }
 
-  Future<bool> _disableAlarmBeforeTransition(
-    GetOffAlarmController controller,
-  ) async {
+  Future<bool> _disableAlarmBeforeTransition(GetOffAlarmPort controller) async {
     setState(() {
       _isAlarmTransitioning = true;
       _alarmTransitionError = null;

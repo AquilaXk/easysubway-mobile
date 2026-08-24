@@ -92,6 +92,13 @@
       "terminalDisposition": "RETAIN_TYPED_CONTRACT"
     },
     {
+      "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_port.dart",
+      "ownerFeature": "get_off_alarm",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
       "path": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_scheduler.dart",
       "ownerFeature": "get_off_alarm",
       "classification": "PUBLIC_API",
@@ -205,38 +212,6 @@
       "ownerIssue": 22,
       "reason": "The widget runtime imports a concrete alarm worker dispatcher.",
       "removalTrigger": "Root composition supplies the exact worker task handler."
-    },
-    {
-      "source": "apps/mobile/lib/features/journey/presentation/journey_get_off_alarm_toggle.dart",
-      "target": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 18,
-      "reason": "Journey presentation still depends on the concrete alarm controller.",
-      "removalTrigger": "Journey receives a typed alarm command and state port."
-    },
-    {
-      "source": "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart",
-      "target": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 18,
-      "reason": "Journey screen still accepts the concrete alarm controller.",
-      "removalTrigger": "App composition injects the typed selected-journey alarm port."
-    },
-    {
-      "source": "apps/mobile/lib/features/notifications/notification_settings.dart",
-      "target": "apps/mobile/lib/features/get_off_alarm/exact_alarm_permission.dart",
-      "kind": "EXPORT",
-      "ownerIssue": 22,
-      "reason": "Notification public surface re-exports a mixed concrete permission file.",
-      "removalTrigger": "The notification permission port moves to an exact typed contract."
-    },
-    {
-      "source": "apps/mobile/lib/features/notifications/notification_settings.dart",
-      "target": "apps/mobile/lib/features/get_off_alarm/exact_alarm_permission.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 22,
-      "reason": "Notification settings imports a mixed concrete permission file.",
-      "removalTrigger": "The notification permission port moves to an exact typed contract."
     },
     {
       "source": "apps/mobile/lib/features/onboarding/onboarding.dart",
