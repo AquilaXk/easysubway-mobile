@@ -11,7 +11,7 @@ const nativeTest = readFileSync(
   "utf8",
 );
 
-test("native workflow runs one bounded Android Journey smoke and iOS simulator compile", () => {
+test("native workflow runs one bounded Android and iOS simulator Journey smoke", () => {
   assert.match(workflow, /^name: Mobile Native Integration$/m);
   assert.match(workflow, /^  pull_request:\n    branches: \[main\]\n    paths:/m);
   assert.match(workflow, /^  push:\n    branches: \[main\]\n    paths:/m);
@@ -53,16 +53,20 @@ test("native workflow runs one bounded Android Journey smoke and iOS simulator c
   assert.match(workflow, /\{"schemaVersion":1,"lane":"android-native","status":"FAIL"\}/u);
   assert.match(workflow, /^          name: mobile-native-android-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}$/m);
 
-  assert.match(workflow, /^  ios-compile:\n    name: iOS simulator compile\n    runs-on: macos-15\n    timeout-minutes: 25$/m);
+  assert.match(workflow, /^  ios-native:\n    name: iOS Journey native smoke\n    runs-on: macos-15\n    timeout-minutes: 35$/m);
   assert.equal((workflow.match(/flutter-version: "3\.44\.0"/gu) ?? []).length, 2);
   assert.match(
     workflow,
     /^        env:\n          DEVELOPER_DIR: \/Applications\/Xcode_26\.3\.app\/Contents\/Developer\n        run: \|$/m,
   );
   assert.match(workflow, /flutter build ios --simulator --debug 2>&1 \| tee "\$\{RUNNER_TEMP\}\/mobile-native-ios\/flutter-build-ios\.log"/u);
-  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-compile","status":"PENDING"\}/u);
-  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-compile","status":"PASS"\}/u);
-  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-compile","status":"FAIL"\}/u);
+  assert.match(workflow, /xcrun simctl boot "\$simulator" \|\| xcrun simctl bootstatus "\$simulator" -b/u);
+  assert.match(workflow, /xcrun simctl bootstatus "\$simulator" -b/u);
+  assert.match(workflow, /perl -e 'alarm shift; exec @ARGV' 720 flutter drive --driver=test_driver\/integration_test\.dart --target=integration_test\/native_test\.dart -d "\$simulator" --no-dds > "\$\{RUNNER_TEMP\}\/mobile-native-ios\/flutter-drive\.log" 2>&1/u);
+  assert.match(workflow, /xcrun simctl spawn "\$simulator" log show --last 5m --style compact > "\$\{RUNNER_TEMP\}\/mobile-native-ios\/simulator\.log" 2>&1 \|\| true/u);
+  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-native","status":"PENDING"\}/u);
+  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-native","status":"PASS"\}/u);
+  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-native","status":"FAIL"\}/u);
   assert.match(workflow, /^          name: mobile-native-ios-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}$/m);
   assert.equal(
     (workflow.match(/uses: actions\/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808/gu) ?? []).length,
