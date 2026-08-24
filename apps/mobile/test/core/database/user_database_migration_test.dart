@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:drift/native.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database_opener.dart';
-import 'package:easysubway_mobile/user_data_deletion.dart';
+import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqlite3/sqlite3.dart' as sqlite;

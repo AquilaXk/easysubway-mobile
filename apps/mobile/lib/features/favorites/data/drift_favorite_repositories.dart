@@ -5,7 +5,7 @@ import 'package:drift/drift.dart';
 import '../../../core/database/catalog/canonical_station_id.dart';
 import '../../../core/database/catalog/catalog_database.dart';
 import '../../../core/database/user/user_database.dart' as user_db;
-import '../../../favorite_facility.dart';
+import '../favorite_facility.dart';
 import '../../routes/domain/route_search.dart';
 import '../../stations/domain/station_models.dart';
 import '../../stations/domain/station_line.dart';

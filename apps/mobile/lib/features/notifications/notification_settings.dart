@@ -5,13 +5,13 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-import 'accessible_design.dart';
-import 'auth_headers.dart';
-import 'features/get_off_alarm/exact_alarm_permission.dart'
+import '../../accessible_design.dart';
+import '../../auth_headers.dart';
+import '../get_off_alarm/exact_alarm_permission.dart'
     show NotificationPermissionProvider, NotificationPermissionStatus;
-import 'mobile_error_reporter.dart';
+import '../../mobile_error_reporter.dart';
 
-export 'features/get_off_alarm/exact_alarm_permission.dart'
+export '../get_off_alarm/exact_alarm_permission.dart'
     show NotificationPermissionProvider, NotificationPermissionStatus;
 
 const _notificationSettingsTimeout = Duration(seconds: 8);

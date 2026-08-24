@@ -18,7 +18,7 @@ import 'features/facility_report/data/secure_facility_report_draft_target_store.
 import 'features/stations/presentation/station_detail_screen.dart';
 import 'legacy_credential_cleanup.dart';
 import 'mobile_error_reporter.dart';
-import 'onboarding.dart';
+import 'features/onboarding/onboarding.dart';
 
 const defaultPushNotificationsEnabled = bool.fromEnvironment(
   'EASYSUBWAY_ENABLE_PUSH_NOTIFICATIONS',

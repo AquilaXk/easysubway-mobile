@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easysubway_mobile/auth_headers.dart';
-import 'package:easysubway_mobile/notification_settings.dart';
+import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
