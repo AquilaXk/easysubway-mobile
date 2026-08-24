@@ -16,6 +16,7 @@ import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -400,16 +401,19 @@ void main() {
     );
     final repository = _Repository()..failuresRemaining = 1;
     final alarm = _AlarmHarness();
+    final reportedErrors = <FlutterErrorDetails>[];
     addTearDown(alarm.dispose);
-    await _pumpScreen(
-      tester,
-      repository: repository,
-      getOffAlarmController: alarm.controller,
-      stationNameResolver: (stationId) async => '$stationId 이름',
-    );
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await _pumpScreen(
+        tester,
+        repository: repository,
+        getOffAlarmController: alarm.controller,
+        stationNameResolver: (stationId) async => '$stationId 이름',
+      );
 
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+    });
     expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
     expect(find.textContaining('private'), findsNothing);
     expect(
@@ -417,6 +421,12 @@ void main() {
       greaterThanOrEqualTo(48),
     );
     expect(tester.takeException(), isNull);
+    expect(reportedErrors, hasLength(1));
+    final report = reportedErrors.single;
+    expect(report.exception, isA<JourneyTransportFailure>());
+    expect(report.context.toString(), 'Journey search failure');
+    expect(report.toString(), isNot(contains('station-origin')));
+    expect(report.toString(), isNot(contains('station-destination')));
 
     await alarm.controller.enable(
       routeId: 'retry-alarm',
