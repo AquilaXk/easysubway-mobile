@@ -63,7 +63,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       attestor: widget.attestor,
       now: widget.journeyNow,
       reportNonFatalError: (error, stackTrace) {
-        reportMobileError(error, stackTrace, context: 'Journey search failure');
+        return reportMobileNonFatalError(
+          error,
+          stackTrace,
+          context: 'Journey search failure',
+        );
       },
     )..addListener(_changed);
     WidgetsBinding.instance.addObserver(this);

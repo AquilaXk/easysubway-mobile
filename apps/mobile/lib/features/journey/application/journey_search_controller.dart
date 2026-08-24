@@ -328,11 +328,9 @@ class JourneySearchController extends ChangeNotifier {
       if (_isSessionAuthenticationFailure(error)) {
         _invalidateSession();
       }
-      await _reportNonFatalErrorSafely(error, stackTrace);
-      if (_isCurrent(generation)) {
-        _state = JourneySearchState.failure(_safeFailure(error));
-        _safeNotify();
-      }
+      _state = JourneySearchState.failure(_safeFailure(error));
+      _safeNotify();
+      _reportNonFatalErrorFireAndContain(error, stackTrace);
     } finally {
       if (_isCurrent(generation)) {
         _inFlight = null;
@@ -448,12 +446,20 @@ class JourneySearchController extends ChangeNotifier {
   bool _isSessionAuthenticationFailure(Object error) =>
       error is JourneyRejectedFailure && error.statusCode == 401;
 
-  Future<void> _reportNonFatalErrorSafely(
-    Object error,
-    StackTrace stackTrace,
-  ) async {
+  void _reportNonFatalErrorFireAndContain(Object error, StackTrace stackTrace) {
     try {
-      await _reportNonFatalError(error, stackTrace);
+      final reporting = _reportNonFatalError(error, stackTrace);
+      if (reporting is Future<void>) {
+        unawaited(_swallowReporterFailure(reporting));
+      }
+    } catch (_) {
+      // Reporting must not change the typed Journey failure.
+    }
+  }
+
+  Future<void> _swallowReporterFailure(Future<void> reporting) async {
+    try {
+      await reporting;
     } catch (_) {
       // Reporting must not change the typed Journey failure.
     }

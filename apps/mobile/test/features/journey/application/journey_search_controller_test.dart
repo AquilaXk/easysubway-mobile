@@ -400,6 +400,28 @@ void main() {
     expect(controller.state.failure, JourneySearchFailure.unavailable);
   });
 
+  test('완료되지 않는 reporter도 Journey failure와 retry를 막지 않는다', () async {
+    final reporter = _RecordingJourneyErrorReporter()..neverCompletes = true;
+    final controller = JourneySearchController(
+      repository: _Repository(),
+      attestor: _Attestor(),
+      now: () => DateTime.utc(2026, 8, 12),
+      reportNonFatalError: reporter.record,
+    );
+    var notifications = 0;
+    controller.addListener(() => notifications++);
+
+    await controller.search(_command());
+
+    expect(reporter.calls, 1);
+    expect(controller.state.failure, JourneySearchFailure.unavailable);
+    expect(notifications, greaterThanOrEqualTo(2));
+
+    await controller.retry();
+    expect(controller.state.failure, JourneySearchFailure.unavailable);
+    expect(reporter.calls, 2);
+  });
+
   test('reset 뒤 late session issuance는 search 또는 cache를 재개하지 않는다', () async {
     final repository = _Repository()..pendingSession = true;
     final controller = JourneySearchController(
@@ -829,11 +851,13 @@ class _Attestor implements JourneyV3IntegrityAttestor {
 class _RecordingJourneyErrorReporter {
   int calls = 0;
   Object? failure;
+  bool neverCompletes = false;
 
   Future<void> record(Object error, StackTrace stackTrace) async {
     calls++;
     final currentFailure = failure;
     if (currentFailure != null) throw currentFailure;
+    if (neverCompletes) await Completer<void>().future;
   }
 }
 
