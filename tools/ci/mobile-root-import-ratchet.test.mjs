@@ -92,7 +92,7 @@ test("shared graph parser handles directive-only Dart grammar and fails closed",
 
 test("tracked policy, baseline, and current immutable graph match the reviewed ceiling", () => {
   assert.throws(() => parsePolicyBytes(Buffer.from(POLICY_BYTES.toString().replace("NO_INCREASE", "NO_INCREASED"))), /reviewed pin/);
-  assert.throws(() => parseBaselineBytes(Buffer.from(BASELINE_BYTES.toString().replace("\"ownerIssue\":18", "\"ownerIssue\":19")), POLICY), /reviewed pin/);
+  assert.throws(() => parseBaselineBytes(Buffer.from(BASELINE_BYTES.toString().replace("\"ownerIssue\":22", "\"ownerIssue\":23")), POLICY), /reviewed pin/);
   const commit = BASELINE.reviewedHeadSha;
   assert.notEqual(requireGitText(["rev-parse", "HEAD"]), commit);
   const files = loadImmutableDartTree(commit);
@@ -102,12 +102,42 @@ test("tracked policy, baseline, and current immutable graph match the reviewed c
   const directRoots = production.filter((source) => /^apps\/mobile\/lib\/[^/]+\.dart$/u.test(source.path));
   const directFeatureRootEdges = graph.edges.filter((edge) => edge.source.startsWith("apps/mobile/lib/features/") && /^apps\/mobile\/lib\/[^/]+\.dart$/u.test(edge.target ?? ""));
   const baseDecision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, ownerStatus: POLICY.owners.map((owner) => OPEN(owner.number)) });
-  const decision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, baseWrapperFindings: baseDecision.wrapperFindings, ownerStatus: POLICY.owners.map((owner) => OPEN(owner.number)) });
-  assert.deepEqual({ production: production.length, features: featureSources.length, roots: directRoots.length, directFeatureRootEdges: directFeatureRootEdges.length, neutralEdges: directFeatureRootEdges.length - decision.forbiddenEdges.length, forbidden: decision.forbiddenEdges.length }, { production: 187, features: 119, roots: 23, directFeatureRootEdges: 128, neutralEdges: 81, forbidden: 47 });
+  const decision = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, baseWrapperFindings: baseDecision.wrapperFindings, ownerStatus: [OPEN(22)] });
+  assert.deepEqual({ production: production.length, features: featureSources.length, roots: directRoots.length, directFeatureRootEdges: directFeatureRootEdges.length, neutralEdges: directFeatureRootEdges.length - decision.forbiddenEdges.length, forbidden: decision.forbiddenEdges.length }, { production: 240, features: 168, roots: 19, directFeatureRootEdges: 127, neutralEdges: 101, forbidden: 26 });
   assert.deepEqual(decision.forbiddenEdges.map(({ conditional, ...edge }) => (assert.equal(conditional, false), edge)), BASELINE.edges);
   assert.deepEqual(decision.reasons, []);
   assert.equal(decision.outcome, "PASS");
-  assert.deepEqual(Object.fromEntries([18, 19, 20, 22].map((number) => [number, decision.currentEdges.filter((edge) => edge.ownerIssue === number).length])), { 18: 14, 19: 3, 20: 6, 22: 24 });
+  assert.deepEqual(Object.fromEntries([18, 19, 20, 22].map((number) => [number, decision.currentEdges.filter((edge) => edge.ownerIssue === number).length])), { 18: 0, 19: 0, 20: 0, 22: 26 });
+});
+
+test("terminal predecessor handoff leaves only the open successor responsible for live root debt", () => {
+  const routeSearch = POLICY.rootClassifications.find((entry) => entry.path === "apps/mobile/lib/route_search.dart");
+  assert.deepEqual(routeSearch, {
+    path: "apps/mobile/lib/route_search.dart",
+    classification: "LEGACY_ROUTE_DELETE",
+    ownerIssue: 22,
+    removalTrigger: "MOBILE_22_ROOT_CLEANUP_ZERO",
+  });
+  assert.equal(BASELINE.edges.some((edge) => edge.ownerIssue === 18), false);
+
+  const files = loadImmutableDartTree(BASELINE.reviewedHeadSha);
+  const graph = buildImmutableDartSourceGraph({ files });
+  const base = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, ownerStatus: POLICY.owners.map((owner) => OPEN(owner.number)) });
+  const accepted = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: BASELINE.edges, baseWrapperFindings: base.wrapperFindings, ownerStatus: [OPEN(22)] });
+  assert.deepEqual(accepted.neededOwners, [22]);
+  assert.deepEqual(accepted.reasons, []);
+  assert.equal(accepted.outcome, "PASS");
+
+  const successorEdge = BASELINE.edges.find((edge) => edge.ownerIssue === 22);
+  const successorFiles = {
+    [successorEdge.source]: `import '${successorEdge.uri}';`,
+    [successorEdge.target]: "final class Target {}",
+  };
+  const successorGraph = buildImmutableDartSourceGraph({ files: successorFiles });
+  const closedSuccessor = classifyRootImportGraph({ graph: successorGraph, files: successorFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [successorEdge], ownerStatus: [{ ...OPEN(22), state: "CLOSED" }] });
+  assert.deepEqual(closedSuccessor.reasons, ["OWNER_ISSUE_NOT_OPEN"]);
+  const missingSuccessor = classifyRootImportGraph({ graph: successorGraph, files: successorFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [successorEdge], ownerStatus: [] });
+  assert.deepEqual(missingSuccessor.reasons, ["OWNER_ISSUE_NOT_OPEN"]);
 });
 
 test("Journey domain and data fixtures are classified as feature production", () => {
@@ -218,14 +248,14 @@ test("no-increase decision distinguishes neutral, new, wrapper, removal, and rei
   const created = classifyRootImportGraph({ graph: newGraph, files: newFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [OPEN(19)] });
   assert.deepEqual(created.reasons, ["NEW_FORBIDDEN_EDGE"]);
 
-  const reviewedNetwork = BASELINE.edges.find((edge) => edge.target.endsWith("network_map.dart"));
-  const fallback = path.posix.join(path.posix.dirname(reviewedNetwork.source), "fallback.dart");
+  const reviewedRoot = BASELINE.edges[0];
+  const fallback = path.posix.join(path.posix.dirname(reviewedRoot.source), "fallback.dart");
   const conditionalFiles = {
-    "apps/mobile/lib/network_map.dart": "class NetworkMap {}",
+    [reviewedRoot.target]: "class Root {}",
     [fallback]: "class Fallback {}",
-    [reviewedNetwork.source]: `import 'fallback.dart' if (dart.library.io) '${reviewedNetwork.uri}';`,
+    [reviewedRoot.source]: `import 'fallback.dart' if (dart.library.io) '${reviewedRoot.uri}';`,
   };
-  const conditional = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: conditionalFiles }), files: conditionalFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [reviewedNetwork], ownerStatus: [OPEN(19)] });
+  const conditional = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: conditionalFiles }), files: conditionalFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [reviewedRoot], ownerStatus: [OPEN(22)] });
   assert.equal(conditional.currentEdges[0].conditional, true);
   assert.deepEqual(conditional.newEdges, conditional.currentEdges);
 
@@ -243,7 +273,7 @@ test("no-increase decision distinguishes neutral, new, wrapper, removal, and rei
 
   const removed = classifyRootImportGraph({ graph: buildImmutableDartSourceGraph({ files: neutralFiles }), files: neutralFiles, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], ownerStatus: [] });
   assert.equal(removed.outcome, "PASS");
-  assert.equal(removed.removedEdges.length, 47);
+  assert.equal(removed.removedEdges.length, 26);
 
   const reviewed = BASELINE.edges[0];
   const reintroducedFiles = { [reviewed.source]: `import '${reviewed.uri}';`, [reviewed.target]: "class Target {}" };
@@ -327,9 +357,9 @@ test("wrapper discovery emits one bounded canonical witness per origin and targe
 });
 
 test("owner issue evidence is strict and bounded retry never leaks credentials", async () => {
-  const owner = POLICY.owners[0];
+  const owner = POLICY.owners.find((candidate) => candidate.number === 22);
   assert.deepEqual(validateOwnerIssueResponse(RESPONSE(owner, { labels: [] }), owner), OPEN(owner.number));
-  assert.throws(() => validateOwnerIssueResponse({ statusCode: 200, body: Buffer.from(`{"number":18,"number":18,"title":${JSON.stringify(owner.title)},"html_url":${JSON.stringify(owner.url)},"state":"open"}`) }, owner), /duplicate key/);
+  assert.throws(() => validateOwnerIssueResponse({ statusCode: 200, body: Buffer.from(`{"number":${owner.number},"number":${owner.number},"title":${JSON.stringify(owner.title)},"html_url":${JSON.stringify(owner.url)},"state":"open"}`) }, owner), /duplicate key/);
   assert.equal(validateOwnerIssueResponse(RESPONSE(owner, { state: "closed" }), owner).state, "CLOSED");
   const reviewed = BASELINE.edges.find((edge) => edge.ownerIssue === owner.number);
   const files = { [reviewed.source]: `import '${reviewed.uri}';`, [reviewed.target]: "class Target {}" };
