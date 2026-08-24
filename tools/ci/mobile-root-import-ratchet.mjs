@@ -331,7 +331,7 @@ export function classifyRootImportGraph({ graph, files = {}, policy, baseline, b
   const reasons = [];
   if (newEdges.length) reasons.push("NEW_FORBIDDEN_EDGE");
   if (rootTargets.some((root) => root.exists && root.classification === "FORBIDDEN_OR_UNKNOWN")) reasons.push("UNREVIEWED_ROOT_TARGET");
-  if (newWrapperFindings.length) reasons.push("FORBIDDEN_WRAPPER_OR_BARREL");
+  if ((PHASE === "ZERO" ? wrapperFindings : newWrapperFindings).length) reasons.push("FORBIDDEN_WRAPPER_OR_BARREL");
   if (!ownerOpen) reasons.push("OWNER_ISSUE_NOT_OPEN");
   if (uncertainty.length) reasons.push("GRAPH_UNCERTAINTY");
   reasons.sort((left, right) => REASONS.indexOf(left) - REASONS.indexOf(right));

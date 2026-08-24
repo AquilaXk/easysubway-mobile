@@ -382,6 +382,19 @@ test("wrapper discovery emits one bounded canonical witness per origin and targe
   assert.equal(afterRemoval.newWrapperFindings.filter((finding) => finding.source.endsWith("origin.dart") && finding.target.endsWith("network_map.dart")).length, 0);
 });
 
+test("zero mode rejects an existing wrapper on a full scan", () => {
+  const files = {
+    "apps/mobile/lib/main.dart": "void main() {}\n",
+    "apps/mobile/lib/accessible_design.dart": "import 'main.dart';\n",
+    "apps/mobile/lib/features/home/home.dart": "import '../../accessible_design.dart';\n",
+  };
+  const graph = buildImmutableDartSourceGraph({ files });
+  const first = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], baseWrapperFindings: [], ownerStatus: [] });
+  assert.ok(first.wrapperFindings.length > 0);
+  const fullScan = classifyRootImportGraph({ graph, files, policy: POLICY, baseline: BASELINE, baseForbiddenEdges: [], baseWrapperFindings: first.wrapperFindings, ownerStatus: [] });
+  assert.ok(fullScan.reasons.includes("FORBIDDEN_WRAPPER_OR_BARREL"));
+});
+
 test("owner issue evidence is strict and bounded retry never leaks credentials", async () => {
   const owner = FIXTURE_OWNERS[1];
   assert.deepEqual(validateOwnerIssueResponse(RESPONSE(owner, { labels: [] }), owner), OPEN(owner.number));
