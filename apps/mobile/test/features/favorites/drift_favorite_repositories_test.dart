@@ -1080,7 +1080,9 @@ void main() {
 
     expect(await repository.listFavoriteRoutes(), isEmpty);
     expect(
-      await userDatabase.customSelect('SELECT route_id FROM favorite_routes').get(),
+      await userDatabase
+          .customSelect('SELECT route_id FROM favorite_routes')
+          .get(),
       isEmpty,
     );
     expect(

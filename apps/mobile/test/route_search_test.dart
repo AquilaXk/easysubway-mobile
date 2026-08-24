@@ -375,7 +375,11 @@ void main() {
       ],
     );
 
-    expect(clearTransfer.badgeLabels, ['시간표 기준', '일부 이동 정보를 살펴봐 주세요', '환승 여유 충분']);
+    expect(clearTransfer.badgeLabels, [
+      '시간표 기준',
+      '일부 이동 정보를 살펴봐 주세요',
+      '환승 여유 충분',
+    ]);
   });
 
   test('경로 이동 부담은 warning 없음만으로 낮음이 되지 않는다', () {
