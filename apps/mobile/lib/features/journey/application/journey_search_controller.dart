@@ -15,6 +15,9 @@ abstract interface class JourneyV3IntegrityAttestor {
 typedef JourneyExpiryTimerFactory =
     Timer Function(Duration duration, void Function() callback);
 
+typedef JourneyNonFatalErrorReporter =
+    FutureOr<void> Function(Object error, StackTrace stackTrace);
+
 enum JourneySearchStatus { idle, searching, success, failure }
 
 enum JourneySearchFailure {
@@ -183,10 +186,12 @@ class JourneySearchController extends ChangeNotifier {
     String Function()? requestIdGenerator,
     String Function(int entropyBytes)? nonceGenerator,
     JourneyExpiryTimerFactory? expiryTimerFactory,
+    JourneyNonFatalErrorReporter? reportNonFatalError,
   }) : _now = now ?? DateTime.now,
        _requestIdGenerator = requestIdGenerator ?? _secureUlid,
        _nonceGenerator = nonceGenerator ?? _secureNonce,
        _expiryTimerFactory = expiryTimerFactory ?? Timer.new,
+       _reportNonFatalError = reportNonFatalError ?? _ignoreNonFatalError,
        _sessionSpec = _JourneyV3SessionIntegritySpec.fromGeneratedArtifact();
 
   final JourneyRepository repository;
@@ -195,6 +200,7 @@ class JourneySearchController extends ChangeNotifier {
   final String Function() _requestIdGenerator;
   final String Function(int entropyBytes) _nonceGenerator;
   final JourneyExpiryTimerFactory _expiryTimerFactory;
+  final JourneyNonFatalErrorReporter _reportNonFatalError;
   final _JourneyV3SessionIntegritySpec _sessionSpec;
 
   JourneySearchState _state = const JourneySearchState.idle();
@@ -317,10 +323,12 @@ class JourneySearchController extends ChangeNotifier {
         _scheduleResponseExpiry(response, generation, observedAt);
         _safeNotify();
       }
-    } catch (error) {
-      if (_isCurrent(generation) && _isSessionAuthenticationFailure(error)) {
+    } catch (error, stackTrace) {
+      if (!_isCurrent(generation)) return;
+      if (_isSessionAuthenticationFailure(error)) {
         _invalidateSession();
       }
+      await _reportNonFatalErrorSafely(error, stackTrace);
       if (_isCurrent(generation)) {
         _state = JourneySearchState.failure(_safeFailure(error));
         _safeNotify();
@@ -440,6 +448,17 @@ class JourneySearchController extends ChangeNotifier {
   bool _isSessionAuthenticationFailure(Object error) =>
       error is JourneyRejectedFailure && error.statusCode == 401;
 
+  Future<void> _reportNonFatalErrorSafely(
+    Object error,
+    StackTrace stackTrace,
+  ) async {
+    try {
+      await _reportNonFatalError(error, stackTrace);
+    } catch (_) {
+      // Reporting must not change the typed Journey failure.
+    }
+  }
+
   JourneySearchFailure _safeFailure(Object error) {
     if (error is _InvalidSession) return JourneySearchFailure.sessionExpired;
     if (error is JourneyRejectedFailure) {
@@ -475,6 +494,8 @@ class JourneySearchController extends ChangeNotifier {
     final bytes = List<int>.generate(entropyBytes, (_) => random.nextInt(256));
     return base64Url.encode(bytes).replaceAll('=', '');
   }
+
+  static void _ignoreNonFatalError(Object error, StackTrace stackTrace) {}
 
   static String _secureUlid() {
     const alphabet = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
