@@ -7,6 +7,30 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('사용하지 않는 route feedback 주입 경로는 production route root에 남지 않는다', () {
+    const productionPaths = [
+      'lib/route_search.dart',
+      'lib/app/app_bootstrap.dart',
+      'lib/app/app_dependencies.dart',
+      'lib/app/easy_subway_app.dart',
+      'lib/features/home/presentation/home_screen.dart',
+    ];
+
+    for (final path in productionPaths) {
+      final source = File(path).readAsStringSync();
+      expect(
+        source,
+        isNot(contains('RouteFeedback')),
+        reason: 'dead route-feedback injection remains in $path',
+      );
+      expect(
+        source,
+        isNot(contains('routeFeedbackRepository')),
+        reason: 'dead route-feedback forwarding remains in $path',
+      );
+    }
+  });
+
   test('경로 검색 결과는 확인 필요 상태를 이동 가능으로 안내하지 않는다', () {
     final result = _sampleRouteSearchResult(status: 'REVIEW_REQUIRED');
 
@@ -527,165 +551,6 @@ void main() {
     expect(saved.semanticLabel, isNot(contains('92점')));
     expect(saved.semanticLabel, isNot(contains('아직 알 수 없어요')));
   });
-
-  test('경로 피드백 API 저장소는 익명 사용자 식별자와 평가를 전송한다', () async {
-    late Uri requestedUri;
-    late String requestedBody;
-    late String? requestedAuthorization;
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(server.close);
-
-    server.listen((request) async {
-      requestedUri = request.uri;
-      requestedAuthorization = request.headers.value(
-        HttpHeaders.authorizationHeader,
-      );
-      requestedBody = await utf8.decoder.bind(request).join();
-
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..headers.contentType = ContentType.json
-        ..write(
-          jsonEncode({
-            'success': true,
-            'data': {
-              'feedbackId': 'route-feedback-1',
-              'routeSearchId': 'route-1',
-              'userId': 'anonymous-user-1',
-              'rating': 'HELPFUL',
-              'comment': '추천이 도움이 됐어요',
-              'createdAt': '2026-06-15T12:00:00',
-            },
-          }),
-        );
-      await request.response.close();
-    });
-
-    final repository = RouteFeedbackApiRepository(
-      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
-      authProvider: const BasicAuthorizationHeaderProvider(
-        username: 'anonymous-user-1',
-        password: 'password',
-      ),
-    );
-
-    await repository.submitRouteFeedback(
-      const RouteFeedbackRequest(
-        routeSearchId: 'route-1',
-        rating: RouteFeedbackRating.helpful,
-        comment: '추천이 도움이 됐어요',
-        itineraryId: 'route-1-primary',
-        mobilityType: 'SENIOR',
-        constraintMode: 'PREFER_STEP_FREE',
-        etaSource: 'PLANNED',
-        etaOffsetBucket: RouteEtaOffsetBucket.notProvided,
-        etaFeedbackOptedIn: true,
-      ),
-    );
-
-    expect(requestedUri.path, '/api/v1/routes/route-1/feedback');
-    expect(requestedAuthorization, startsWith('Basic '));
-    expect(jsonDecode(requestedBody), {
-      'userId': 'anonymous-user-1',
-      'rating': 'HELPFUL',
-      'comment': '추천이 도움이 됐어요',
-      'itineraryId': 'route-1-primary',
-      'mobilityType': 'SENIOR',
-      'constraintMode': 'PREFER_STEP_FREE',
-      'etaSource': 'PLANNED',
-      'etaOffsetBucket': 'NOT_PROVIDED',
-      'etaFeedbackOptedIn': true,
-    });
-  });
-
-  test('경로 피드백 API 저장소는 인증 실패를 성공으로 바꾸지 않는다', () async {
-    final noAuthorizationRepository = RouteFeedbackApiRepository(
-      baseUri: Uri.parse('http://127.0.0.1'),
-      authProvider: const NoAuthorizationHeaderProvider(),
-    );
-    final throwingAuthorizationRepository = RouteFeedbackApiRepository(
-      baseUri: Uri.parse('http://127.0.0.1'),
-      authProvider: const _ThrowingAuthorizationHeaderProvider(),
-    );
-    final malformedAuthorizationRepository = RouteFeedbackApiRepository(
-      baseUri: Uri.parse('http://127.0.0.1'),
-      authProvider: const _MalformedAuthorizationHeaderProvider(),
-    );
-    const request = RouteFeedbackRequest(
-      routeSearchId: 'route-1',
-      rating: RouteFeedbackRating.helpful,
-      comment: '',
-    );
-
-    await expectLater(
-      noAuthorizationRepository.submitRouteFeedback(request),
-      throwsA(isA<RouteFeedbackException>()),
-    );
-    await expectLater(
-      throwingAuthorizationRepository.submitRouteFeedback(request),
-      throwsA(isA<RouteFeedbackException>()),
-    );
-    await expectLater(
-      malformedAuthorizationRepository.submitRouteFeedback(request),
-      throwsA(
-        isA<RouteFeedbackException>().having(
-          (error) => error.toString(),
-          'safe message',
-          '의견을 보내지 못했어요.',
-        ),
-      ),
-    );
-    expect(
-      const FavoriteRouteException('즐겨찾기를 불러오지 못했어요.').toString(),
-      '즐겨찾기를 불러오지 못했어요.',
-    );
-
-    var requestCount = 0;
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(server.close);
-    server.listen((httpRequest) async {
-      requestCount += 1;
-      httpRequest.response.statusCode = HttpStatus.unauthorized;
-      await httpRequest.response.close();
-    });
-    final expiredAuthorizationRepository = RouteFeedbackApiRepository(
-      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
-      authProvider: const BasicAuthorizationHeaderProvider(
-        username: 'anonymous-user-1',
-        password: 'expired-password',
-      ),
-    );
-
-    await expectLater(
-      expiredAuthorizationRepository.submitRouteFeedback(request),
-      throwsA(isA<RouteFeedbackException>()),
-    );
-    expect(requestCount, 2);
-  });
-}
-
-class _ThrowingAuthorizationHeaderProvider
-    implements AuthorizationHeaderProvider {
-  const _ThrowingAuthorizationHeaderProvider();
-
-  @override
-  Future<String?> authorizationHeader() async {
-    throw StateError('authorization unavailable');
-  }
-
-  @override
-  Future<void> invalidateAuthorization() async {}
-}
-
-class _MalformedAuthorizationHeaderProvider
-    implements AuthorizationHeaderProvider {
-  const _MalformedAuthorizationHeaderProvider();
-
-  @override
-  Future<String?> authorizationHeader() async => 'Basic not-base64';
-
-  @override
-  Future<void> invalidateAuthorization() async {}
 }
 
 RouteSearchResult _sampleRouteSearchResult({

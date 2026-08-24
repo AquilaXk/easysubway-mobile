@@ -48,7 +48,6 @@ class AppDependencies {
   const AppDependencies({
     required this.repository,
     required this.reportRepository,
-    required this.routeFeedbackRepository,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
@@ -71,7 +70,6 @@ class AppDependencies {
   factory AppDependencies.resolve({
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
-    RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
     FavoriteRouteRepository? favoriteRouteRepository,
@@ -165,12 +163,6 @@ class AppDependencies {
       },
       journeyAttestor:
           journeyAttestor ?? JourneyMethodChannelIntegrityAttestor(),
-      routeFeedbackRepository:
-          routeFeedbackRepository ??
-          _defaultRouteFeedbackRepository(
-            baseUri: requireBaseUri,
-            authProvider: null,
-          ),
       favoriteRepository:
           favoriteRepository ??
           (catalogDatabase != null && userDatabase != null
@@ -246,7 +238,6 @@ class AppDependencies {
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
@@ -556,19 +547,6 @@ FavoriteRouteRepository? _defaultFavoriteRouteRepository({
     return null;
   }
   return FavoriteRouteApiRepository(
-    baseUri: baseUri(),
-    authProvider: authProvider,
-  );
-}
-
-RouteFeedbackRepository? _defaultRouteFeedbackRepository({
-  required Uri Function() baseUri,
-  required AuthorizationHeaderProvider? authProvider,
-}) {
-  if (authProvider == null) {
-    return null;
-  }
-  return RouteFeedbackApiRepository(
     baseUri: baseUri(),
     authProvider: authProvider,
   );

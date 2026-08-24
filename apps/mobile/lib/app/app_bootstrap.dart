@@ -58,7 +58,6 @@ class AppBootstrap {
     AssetBundle? assetBundle,
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
-    RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
     FavoriteRouteRepository? favoriteRouteRepository,
@@ -108,7 +107,6 @@ class AppBootstrap {
       final dependencies = AppDependencies.resolve(
         repository: repository,
         reportRepository: reportRepository,
-        routeFeedbackRepository: routeFeedbackRepository,
         favoriteRepository: favoriteRepository,
         favoriteFacilityRepository: favoriteFacilityRepository,
         favoriteRouteRepository: favoriteRouteRepository,

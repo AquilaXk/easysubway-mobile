@@ -83,7 +83,6 @@ class HomeScreen extends StatefulWidget {
     required this.reportRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
-    required this.routeFeedbackRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
@@ -119,7 +118,6 @@ class HomeScreen extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
