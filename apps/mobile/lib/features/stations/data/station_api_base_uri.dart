@@ -54,15 +54,7 @@ Uri stationApiBaseUriForEnvironment({
   if (isReleaseMode) {
     throw StateError('Release API base URL must be configured.');
   }
-  Uri? developmentBaseUri;
-  assert(() {
-    developmentBaseUri = Uri.parse(
-      isAndroid ? 'http://10.0.2.2:8080' : 'http://127.0.0.1:8080',
-    );
-    return true;
-  }());
-  if (developmentBaseUri == null) {
-    throw StateError('Development API base URL is only available in debug.');
-  }
-  return developmentBaseUri!;
+  return Uri.parse(
+    isAndroid ? 'http://10.0.2.2:8080' : 'http://127.0.0.1:8080',
+  );
 }

@@ -14,7 +14,7 @@ import 'package:easysubway_mobile/features/stations/domain/station_repositories.
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:easysubway_mobile/features/stations/data/station_api_base_uri.dart'
-    show stationApiBaseUriForEnvironment;
+    show defaultStationApiBaseUri, stationApiBaseUriForEnvironment;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -98,6 +98,15 @@ void main() {
           'message',
           'Release API base URL must be configured.',
         ),
+      ),
+    );
+  });
+
+  test('기본 역 API 주소는 현재 debug 플랫폼 주소를 사용한다', () {
+    expect(
+      defaultStationApiBaseUri(),
+      Uri.parse(
+        Platform.isAndroid ? 'http://10.0.2.2:8080' : 'http://127.0.0.1:8080',
       ),
     );
   });
