@@ -6,7 +6,7 @@ import '../../../accessible_design.dart';
 import '../../../app/accessibility_theme.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../notifications/notification_settings.dart';
-import '../../onboarding/onboarding.dart';
+import '../../onboarding/onboarding_preferences.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
 
