@@ -5,7 +5,6 @@ import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:easysubway_mobile/core/crashlytics/crash_report_redaction.dart';
 import 'package:easysubway_mobile/core/crashlytics/crashlytics_gateway.dart';
-import 'package:easysubway_mobile/core/crashlytics/mobile_crash_reporting.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
