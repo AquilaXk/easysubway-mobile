@@ -97,7 +97,8 @@ class FavoriteRouteApiRepository implements FavoriteRouteRepository {
     Map<String, Object?>? body,
     required String errorMessage,
   }) async {
-    for (var attempt = 0; attempt < 2; attempt++) {
+    var attempt = 0;
+    while (true) {
       try {
         final authorizationHeader = await authProvider
             .authorizationHeader()
@@ -129,6 +130,7 @@ class FavoriteRouteApiRepository implements FavoriteRouteRepository {
           await authProvider.invalidateAuthorization().timeout(
             _favoriteRouteRequestTimeout,
           );
+          attempt += 1;
           continue;
         }
 

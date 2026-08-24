@@ -1099,7 +1099,7 @@ void main() {
           'success': true,
           'data': [42],
         },
-        2 => {'success': false, 'data': []},
+        2 => {'success': false, 'data': <Object?>[]},
         3 => {'success': true, 'data': 42},
         _ => {
           'success': true,
