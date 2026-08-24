@@ -107,6 +107,16 @@ test("Route Search root 삭제는 accessibility critical boundary를 routes doma
   assert.ok(!boundary.includes("route_search.dart"));
 });
 
+test("root cleanup moved critical boundaries retain feature-owned sources", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  assert.ok(policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS.includes("features/onboarding/onboarding.dart"));
+  assert.ok(!policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS.includes("onboarding.dart"));
+  assert.ok(policy.criticalBoundaryRules.ALARM_WIDGET_REPORT_IO.includes("features/notifications/notification_settings.dart"));
+  assert.ok(!policy.criticalBoundaryRules.ALARM_WIDGET_REPORT_IO.includes("notification_settings.dart"));
+  assert.ok(policy.criticalBoundaryRules.CRASHLYTICS_PRIVACY.includes("features/account/user_data_deletion.dart"));
+  assert.ok(!policy.criticalBoundaryRules.CRASHLYTICS_PRIVACY.includes("user_data_deletion.dart"));
+});
+
 test("Journey 전환은 삭제된 internal route ingress를 active Journey V3 owner로 교체한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const removedLocalRouteStackPaths = [

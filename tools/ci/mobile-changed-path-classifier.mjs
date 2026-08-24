@@ -29,7 +29,7 @@ const REQUIREMENT_KEYS = [
   "requiresArchitectureGates", "requiresPrivacyStoreGate",
 ];
 export const FULL_REQUIREMENTS = Object.freeze(Object.fromEntries(REQUIREMENT_KEYS.map((key) => [key, true])));
-const FEATURE_ROOTS = ["account", "ads", "attribution", "facility_report", "fare", "favorites", "get_off_alarm", "home", "home_widget", "internal_route", "journey", "mobility_profile", "network_map", "notifications", "preferences", "realtime", "route_draft", "routes", "search_history", "service_notice", "settings", "stations", "support", "train_search"];
+const FEATURE_ROOTS = ["account", "ads", "attribution", "facility_report", "fare", "favorites", "get_off_alarm", "home", "home_widget", "internal_route", "journey", "mobility_profile", "network_map", "notifications", "onboarding", "preferences", "realtime", "route_draft", "routes", "search_history", "service_notice", "settings", "stations", "support", "train_search"];
 const LOGICAL_CLASSES = ["APP_COMPOSITION_OR_ENTRYPOINT", "FEATURE", "SHARED_CORE_OR_PUBLIC_API", "GENERATED_CONTRACT_OR_CODEGEN", "GENERIC_CONSUMER_CONTRACT", "MAP_CATALOG_ARTIFACT_OR_ASSET", "INSTALLER_STORAGE_DATABASE_MIGRATION", "PRIVACY_SECURITY_PERMISSION", "FLUTTER_DART_DEPENDENCY_OR_TOOLCHAIN", "ANDROID_NATIVE_OR_BUILD", "IOS_NATIVE_OR_BUILD", "WORKFLOW_CI_TEST_COVERAGE_ARCHITECTURE_TOOL", "GOLDEN_OR_VISUAL_ASSET", "DOC_ONLY_NONEXECUTABLE", "TEMPLATE_POLICY_STORE_DECLARATION", "TEST_OR_FIXTURE", "UNKNOWN"];
 const UNCERTAINTY_CODES = ["UNMATCHED_PATH", "UNKNOWN_FEATURE_ROOT", "SYMLINK", "SUBMODULE", "BINARY", "UNKNOWN_FILE_TYPE", "GRAPH_UNCERTAINTY", "SELF_CHANGE", "EMPTY_DIFF", "DOCS_POLICY_UNREVIEWED"];
 const BOUNDARIES = ["APP_COMPOSITION", "SHARED_CORE", "FEATURE", "JOURNEY_CONTRACT", "MAP_CATALOG", "ANDROID_NATIVE", "IOS_NATIVE", "PRIVACY_STORE", "TOOLCHAIN", "TEST_INFRA", "WORKFLOW_CI", "UNKNOWN"];
@@ -52,13 +52,13 @@ const REQUIREMENT_OUTPUT_KEYS = Object.freeze({
 });
 const STATUS_MAP = { A: "ADDED", M: "MODIFIED", D: "DELETED", R: "RENAMED", C: "COPIED", T: "TYPE_CHANGED", U: "UNMERGED_OR_UNKNOWN" };
 const UTF8 = new TextDecoder("utf-8", { fatal: true });
-const POLICY_SHA256 = "4c9f9b231a9e00aa291f470aa87f17bfc6f207f85e076f1a7eeb32a8ed5edd11";
+const POLICY_SHA256 = "86c196bc4efe64eca3479f695970a52de7a6e431535c72c71690f8453cc375a6";
 const CLOSED_POLICY = JSON.parse(readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url), "utf8"));
 const POLICY_ORACLE = JSON.stringify(CLOSED_POLICY);
 const PATH_RULE_IDS = CLOSED_POLICY.pathRules.map((rule) => rule.id);
 const EXPECTED_PATH_RULE_IDS = [
   "self", "workflow", "github-config", "root-policy", "toolchain", "android-native", "ios-native", "app-composition", "shared-core", "journey-contract", "journey-v3-generated", "map-catalog", "contracts", "release", "assets", "tests", "tools", "feature-network-map",
-  "feature-account", "feature-ads", "feature-attribution", "feature-facility_report", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-journey", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
+  "feature-account", "feature-ads", "feature-attribution", "feature-facility_report", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-journey", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-onboarding", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
   "feature-privacy", "feature-contract", "feature-catalog", "feature-native",
 ];
 const OWNER_TOKENS = [...FEATURE_ROOTS.map((root) => `FEATURE:${root}`), "APP_COMPOSITION", "SHARED_CORE", "ANDROID_NATIVE", "IOS_NATIVE", "CI_TOOLING", "CONTRACT_ARTIFACT", "MAP_CATALOG", "PRIVACY_STORE", "RELEASE", "UNKNOWN"];

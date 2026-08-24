@@ -134,7 +134,7 @@
       "features/train_search/presentation/",
       "features/stations/domain/facility_status.dart",
       "app/network_map_screen.dart",
-      "onboarding.dart",
+      "features/onboarding/onboarding.dart",
       "features/routes/domain/route_search.dart",
       "search_field.dart",
       "features/stations/data/station_api_base_uri.dart"
@@ -150,7 +150,7 @@
       "features/search_history/data/drift_search_history_repository.dart",
       "features/service_notice/data/drift_notice_cache_store.dart",
       "features/stations/domain/facility_status.dart",
-      "notification_settings.dart",
+      "features/notifications/notification_settings.dart",
       "secure_key_value_storage.dart",
       "mobile_error_reporter.dart"
     ],
@@ -161,7 +161,7 @@
       "mobile_error_reporter.dart",
       "features/account/presentation/user_data_deletion_screen.dart",
       "features/facility_report/",
-      "user_data_deletion.dart"
+      "features/account/user_data_deletion.dart"
     ],
     "CONTRACT_ARTIFACT_IDENTITY": [
       "app/app_endpoints.dart",

@@ -2,11 +2,11 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'auth_headers.dart';
-import 'core/database/user/user_database.dart';
-import 'core/database/user/user_database_opener.dart';
-import 'core/network/api_client.dart';
-import 'mobile_error_reporter.dart';
+import '../../auth_headers.dart';
+import '../../core/database/user/user_database.dart';
+import '../../core/database/user/user_database_opener.dart';
+import '../../core/network/api_client.dart';
+import '../../mobile_error_reporter.dart';
 
 const userDataDeletionErrorMessage = '정보 삭제를 완료하지 못했어요. 잠시 후 다시 시도해 주세요.';
 const _userDataDeletionTimeout = defaultApiTimeout;

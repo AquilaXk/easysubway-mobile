@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../app/accessibility_theme.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../../notification_settings.dart';
-import '../../../onboarding.dart';
+import '../../notifications/notification_settings.dart';
+import '../../onboarding/onboarding.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
 

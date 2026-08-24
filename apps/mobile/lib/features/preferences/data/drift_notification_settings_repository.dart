@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 
 import '../../../core/database/user/user_database.dart' as user_db;
-import '../../../notification_settings.dart';
+import '../../notifications/notification_settings.dart';
 
 const _localUserId = 'local-user';
 const _notificationSettingsKey = 'notification_settings';

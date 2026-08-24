@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
-import 'package:easysubway_mobile/ad_slot.dart';
+import 'package:easysubway_mobile/features/ads/ad_slot.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/features/ads/active_ad_banner.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';

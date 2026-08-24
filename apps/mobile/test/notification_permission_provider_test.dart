@@ -1,4 +1,4 @@
-import 'package:easysubway_mobile/notification_settings.dart';
+import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 

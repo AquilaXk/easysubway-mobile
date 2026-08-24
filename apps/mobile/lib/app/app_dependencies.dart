@@ -4,7 +4,7 @@ import '../auth_headers.dart';
 import '../core/database/catalog/catalog_database.dart';
 import '../core/database/user/user_database.dart';
 import '../core/network/api_client.dart';
-import '../favorite_facility.dart';
+import '../features/favorites/favorite_facility.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../features/favorites/data/drift_favorite_repositories.dart';
@@ -41,10 +41,10 @@ import '../features/journey/data/journey_method_channel_integrity_attestor.dart'
 import '../features/journey/domain/journey_repository.dart';
 import '../generated/journey_v3/journey_v3_contract.dart';
 import '../features/network_map/domain/network_map_models.dart';
-import '../notification_settings.dart';
+import '../features/notifications/notification_settings.dart';
 import '../features/stations/data/station_api_base_uri.dart'
     show defaultOptionalStationApiBaseUri;
-import '../user_data_deletion.dart';
+import '../features/account/user_data_deletion.dart';
 
 class AppDependencies {
   const AppDependencies({

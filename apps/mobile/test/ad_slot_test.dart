@@ -1,4 +1,4 @@
-import 'package:easysubway_mobile/ad_slot.dart';
+import 'package:easysubway_mobile/features/ads/ad_slot.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

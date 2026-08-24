@@ -5,7 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../accessible_design.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../../user_data_deletion.dart';
+import '../../account/user_data_deletion.dart';
 import '../../account/presentation/user_data_deletion_screen.dart';
 
 abstract interface class SupportAccessLauncher {
