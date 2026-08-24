@@ -1,4 +1,4 @@
-import '../../../route_search.dart';
+import '../../routes/domain/route_search.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 
 abstract class FavoriteRouteRepository {

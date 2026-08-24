@@ -70,7 +70,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/station_fan_
     show kFanMenuDesignSize, kFanMenuTailTip;
 import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:easysubway_mobile/station_search.dart';
 import 'package:easysubway_mobile/user_data_deletion.dart';
 import 'package:flutter/foundation.dart';

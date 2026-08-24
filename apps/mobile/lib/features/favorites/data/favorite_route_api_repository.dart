@@ -3,7 +3,7 @@ import 'dart:io';
 import '../../../auth_headers.dart';
 import '../../../core/network/api_client.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../../route_search.dart';
+import '../../routes/domain/route_search.dart';
 import '../domain/favorite_route.dart';
 
 const _favoriteRouteRequestTimeout = Duration(seconds: 8);

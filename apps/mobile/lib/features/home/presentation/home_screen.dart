@@ -11,7 +11,7 @@ import '../../../app/network_map_screen.dart';
 import '../../network_map/domain/network_map_models.dart';
 import '../../../notification_settings.dart';
 import '../../../onboarding.dart';
-import '../../../route_search.dart';
+import '../../routes/domain/route_search.dart';
 import '../../../station_search.dart';
 import '../../../user_data_deletion.dart';
 import '../../ads/ad_repository.dart';

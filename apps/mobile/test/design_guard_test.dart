@@ -310,7 +310,7 @@ void main() {
   test('노선도 그림자/elevation 재유입 금지 가드 (#1933)', () {
     final filesToCheck = [
       'lib/app/network_map_screen.dart',
-      'lib/route_search.dart',
+      'lib/features/routes/domain/route_search.dart',
       'lib/features/network_map/presentation/network_map_chrome_controls.dart',
     ];
     final violations = <String, List<String>>{};

@@ -9,7 +9,7 @@ import 'package:easysubway_mobile/core/database/user/user_database.dart'
 import 'package:easysubway_mobile/features/favorites/data/drift_favorite_repositories.dart';
 import 'package:easysubway_mobile/features/preferences/data/drift_notification_settings_repository.dart';
 import 'package:easysubway_mobile/features/search_history/data/drift_search_history_repository.dart';
-import 'package:easysubway_mobile/route_search.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:easysubway_mobile/features/routes/domain/route_identity.dart';
 import 'package:easysubway_mobile/user_data_deletion.dart';
 import 'package:flutter_test/flutter_test.dart';

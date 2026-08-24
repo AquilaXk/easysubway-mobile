@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
-import 'features/routes/domain/route_identity.dart';
-import 'features/mobility_profile/mobility_preset_labels.dart';
+import 'route_identity.dart';
+import '../../mobility_profile/mobility_preset_labels.dart';
 import 'route_hedge_labels.dart';
 
 const _routeSafetyGuidanceNotice = '이동 전 현장 안내와 역무원 안내를 확인해 주세요.';

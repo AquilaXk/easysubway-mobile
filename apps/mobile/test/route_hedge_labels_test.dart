@@ -1,4 +1,4 @@
-import 'package:easysubway_mobile/route_hedge_labels.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_hedge_labels.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -4,14 +4,14 @@ import 'dart:io';
 import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/features/favorites/data/favorite_route_api_repository.dart';
 import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
-import 'package:easysubway_mobile/route_search.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('사용하지 않는 route feedback 주입 경로는 production route root에 남지 않는다', () {
     const productionPaths = [
-      'lib/route_search.dart',
+      'lib/features/routes/domain/route_search.dart',
       'lib/app/app_bootstrap.dart',
       'lib/app/app_dependencies.dart',
       'lib/app/easy_subway_app.dart',
