@@ -197,38 +197,79 @@ Future<void> _openFavoriteList(
   unawaited(
     Navigator.of(homeContext).push(
       MaterialPageRoute<void>(
-        builder: (_) => FavoriteHomeScreen(
+        builder: (favoriteContext) => FavoriteHomeScreen(
           favoriteRepository: home.favoriteRepository,
           favoriteFacilityRepository: home.favoriteFacilityRepository,
           favoriteRouteRepository: home.favoriteRouteRepository,
-          stationRepository: home.repository,
-          reportRepository: home.reportRepository,
-          locationProvider: home.locationProvider,
-          facilityReportDraftTargetStore: home.facilityReportDraftTargetStore,
-          realtimeRepository: home.realtimeRepository,
-          routeDraftController: draftController,
-          initialMobilityType: home.initialMobilityType,
-          onOpenRouteSearch:
-              onOpenRouteSearch == null && onOpenRouteSearchWithScope == null
-              ? null
-              : ([mobilityType, transportScope]) async {
-                  final restoredMobilityType =
-                      mobilityType ?? home.initialMobilityType;
-                  final restoredTransportScope =
-                      transportScope ?? RouteTransportScope.subway;
-                  if (onOpenRouteSearchWithScope != null) {
-                    await onOpenRouteSearchWithScope(
-                      draftController.draft,
-                      restoredMobilityType,
-                      restoredTransportScope,
+          onOpenStationDetail: (favorite) async {
+            await showStationDetailSheet<void>(
+              context: favoriteContext,
+              repository: home.repository,
+              reportRepository: home.reportRepository,
+              favoriteRepository: home.favoriteRepository,
+              adRepository: home.adRepository,
+              locationProvider: home.locationProvider,
+              realtimeRepository: home.realtimeRepository,
+              stationId: favorite.stationId,
+              facilityReportDraftTargetStore:
+                  home.facilityReportDraftTargetStore,
+              routeDraftController: draftController,
+              initiallyFavorite: true,
+            );
+          },
+          onOpenFacilityReport: (target) async {
+            await Navigator.of(favoriteContext).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FacilityReportScreen(
+                  repository: home.reportRepository,
+                  locationLoader: () async {
+                    final location = await home.locationProvider
+                        .currentLocation();
+                    return FacilityReportLocation(
+                      latitude: location.latitude,
+                      longitude: location.longitude,
                     );
-                    return;
-                  }
-                  await onOpenRouteSearch!(
-                    draftController.draft,
-                    restoredMobilityType,
-                  );
-                },
+                  },
+                  needsLocationPermissionRequest:
+                      home.locationProvider.needsLocationPermissionRequest,
+                  openLocationSettings:
+                      home.locationProvider.openLocationSettings,
+                  draftTargetStore: home.facilityReportDraftTargetStore,
+                  target: target,
+                ),
+              ),
+            );
+          },
+          onOpenFavoriteRoute: (favorite) async {
+            draftController.clear();
+            draftController.setOrigin(
+              RouteDraftStation(
+                id: favorite.originStationId,
+                nameKo: favorite.originStationName,
+              ),
+            );
+            draftController.setDestination(
+              RouteDraftStation(
+                id: favorite.destinationStationId,
+                nameKo: favorite.destinationStationName,
+              ),
+            );
+            Navigator.of(favoriteContext).popUntil((route) => route.isFirst);
+            if (onOpenRouteSearchWithScope != null) {
+              await onOpenRouteSearchWithScope(
+                draftController.draft,
+                favorite.mobilityType,
+                favorite.transportScope,
+              );
+              return;
+            }
+            if (onOpenRouteSearch != null) {
+              await onOpenRouteSearch(
+                draftController.draft,
+                favorite.mobilityType,
+              );
+            }
+          },
         ),
       ),
     ),
@@ -9287,13 +9328,9 @@ void main() {
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
-          stationRepository: FakeStationSearchRepository(),
-          reportRepository: FakeFacilityReportRepository(),
-          locationProvider: FakeCurrentLocationProvider(),
-          facilityReportDraftTargetStore: null,
-          realtimeRepository: const UnavailableRealtimeRepository(),
-          routeDraftController: RouteDraftController(),
-          initialMobilityType: 'SENIOR',
+          onOpenStationDetail: (_) async {},
+          onOpenFacilityReport: (_) async {},
+          onOpenFavoriteRoute: (_) async {},
         ),
       ),
     );
@@ -9321,19 +9358,28 @@ void main() {
       favorites: [_favoriteStation(id: 'station-sangnoksu', name: '상록수')],
     );
 
+    final navigatorKey = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       MaterialApp(
+        navigatorKey: navigatorKey,
         home: FavoriteHomeScreen(
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
-          stationRepository: FakeStationSearchRepository(),
-          reportRepository: FakeFacilityReportRepository(),
-          locationProvider: FakeCurrentLocationProvider(),
-          facilityReportDraftTargetStore: null,
-          realtimeRepository: const UnavailableRealtimeRepository(),
-          routeDraftController: RouteDraftController(),
-          initialMobilityType: 'SENIOR',
+          onOpenStationDetail: (favorite) async {
+            await showStationDetailSheet<void>(
+              context: navigatorKey.currentContext!,
+              repository: FakeStationSearchRepository(),
+              reportRepository: FakeFacilityReportRepository(),
+              favoriteRepository: favoriteRepository,
+              realtimeRepository: const UnavailableRealtimeRepository(),
+              locationProvider: FakeCurrentLocationProvider(),
+              stationId: favorite.stationId,
+              initiallyFavorite: true,
+            );
+          },
+          onOpenFacilityReport: (_) async {},
+          onOpenFavoriteRoute: (_) async {},
         ),
       ),
     );

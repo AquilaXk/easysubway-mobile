@@ -192,30 +192,6 @@
   ],
   "migrationExceptions": [
     {
-      "source": "apps/mobile/lib/features/favorites/presentation/favorite_home_screen.dart",
-      "target": "apps/mobile/lib/features/facility_report/presentation/facility_report_screen.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 20,
-      "reason": "Favorites still constructs a Facility Report screen directly.",
-      "removalTrigger": "App composition supplies a typed report-opening callback."
-    },
-    {
-      "source": "apps/mobile/lib/features/favorites/presentation/favorite_home_screen.dart",
-      "target": "apps/mobile/lib/features/route_draft/application/route_draft_controller.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Favorites still mutates the concrete route draft controller.",
-      "removalTrigger": "App composition handles a typed favorite-route intent."
-    },
-    {
-      "source": "apps/mobile/lib/features/favorites/presentation/favorite_home_screen.dart",
-      "target": "apps/mobile/lib/features/stations/presentation/station_detail_screen.dart",
-      "kind": "IMPORT",
-      "ownerIssue": 37,
-      "reason": "Favorites still constructs Station Detail presentation directly.",
-      "removalTrigger": "App composition supplies a typed station-detail callback."
-    },
-    {
       "source": "apps/mobile/lib/features/home_widget/next_train_widget_runtime.dart",
       "target": "apps/mobile/lib/features/get_off_alarm/get_off_alarm_reconcile_worker.dart",
       "kind": "IMPORT",

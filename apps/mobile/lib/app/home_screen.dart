@@ -10,7 +10,9 @@ import '../features/ads/ad_repository.dart';
 import '../features/attribution/presentation/data_source_attribution_screen.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
 import '../features/facility_report/domain/facility_report_result.dart';
+import '../features/facility_report/domain/facility_report_location.dart';
 import '../features/facility_report/domain/facility_report_target.dart';
+import '../features/facility_report/presentation/facility_report_screen.dart';
 import '../features/facility_report/presentation/my_facility_reports_screens.dart';
 import '../features/favorites/domain/favorite_route.dart';
 import '../features/favorites/favorite_facility.dart';
@@ -41,6 +43,7 @@ import '../features/settings/presentation/service_info_screen.dart';
 import '../features/stations/domain/station_models.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/stations/presentation/station_search_screen.dart';
+import '../features/stations/presentation/station_detail_screen.dart';
 import '../features/support/presentation/inquiry_screen.dart';
 import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
@@ -80,6 +83,23 @@ Future<String> Function(String stationId) journeyAlarmStationNameResolver(
       throw StateError('station identity mismatch');
     }
     return station.nameKo;
+  };
+}
+
+FacilityReportLocationLoader _facilityReportLocationLoader(
+  CurrentLocationProvider provider,
+) {
+  return () async {
+    final CurrentLocation location;
+    try {
+      location = await provider.currentLocation();
+    } on CurrentLocationException catch (error) {
+      throw FacilityReportLocationException(error.message);
+    }
+    return FacilityReportLocation(
+      latitude: location.latitude,
+      longitude: location.longitude,
+    );
   };
 }
 
@@ -760,19 +780,55 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: favoriteRouteRepository,
-          adRepository: adRepository,
-          stationRepository: repository,
-          reportRepository: reportRepository,
-          locationProvider: locationProvider,
-          facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          realtimeRepository: realtimeRepository,
-          routeDraftController: _routeDraftController,
-          initialMobilityType: initialMobilityType,
-          onOpenRouteSearch: ([mobilityType, transportScope]) async =>
-              openRouteTab(
-                mobilityType,
-                transportScope ?? RouteTransportScope.subway,
+          onOpenStationDetail: (favorite) async {
+            await showStationDetailSheet<void>(
+              context: context,
+              repository: repository,
+              reportRepository: reportRepository,
+              favoriteRepository: favoriteRepository,
+              adRepository: adRepository,
+              locationProvider: locationProvider,
+              realtimeRepository: realtimeRepository,
+              stationId: favorite.stationId,
+              facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+              routeDraftController: _routeDraftController,
+              initiallyFavorite: true,
+            );
+          },
+          onOpenFacilityReport: (target) async {
+            await Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FacilityReportScreen(
+                  repository: reportRepository,
+                  locationLoader: _facilityReportLocationLoader(
+                    locationProvider,
+                  ),
+                  needsLocationPermissionRequest:
+                      locationProvider.needsLocationPermissionRequest,
+                  openLocationSettings: locationProvider.openLocationSettings,
+                  draftTargetStore: facilityReportDraftTargetStore,
+                  target: target,
+                ),
               ),
+            );
+          },
+          onOpenFavoriteRoute: (favorite) async {
+            _routeDraftController.clear();
+            _routeDraftController.setOrigin(
+              RouteDraftStation(
+                id: favorite.originStationId,
+                nameKo: favorite.originStationName,
+              ),
+            );
+            _routeDraftController.setDestination(
+              RouteDraftStation(
+                id: favorite.destinationStationId,
+                nameKo: favorite.destinationStationName,
+              ),
+            );
+            Navigator.of(context).popUntil((route) => route.isFirst);
+            openRouteTab(favorite.mobilityType, favorite.transportScope);
+          },
           onShellBack: openPreviousTabOrHome,
         ),
       );
