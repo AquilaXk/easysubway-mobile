@@ -2,14 +2,201 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easysubway_mobile/auth_headers.dart';
-import 'package:easysubway_mobile/route_search.dart';
+import 'package:easysubway_mobile/features/favorites/data/favorite_route_api_repository.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_identity.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('표시 이름 오버라이드는 경로의 식별자와 사실값을 보존한다', () {
+    final query = RouteQueryIdentity(
+      originStationId: 'station-origin',
+      destinationStationId: 'station-destination',
+      mobilityType: 'WHEELCHAIR',
+      constraintMode: 'AVOID_STAIRS',
+      waypointStationId: 'station-waypoint',
+      mobilityPreset: 'SLOW_WALK',
+      transportScope: 'SUBWAY',
+      objective: 'ACCESSIBILITY',
+    );
+    final candidate = RouteCandidateIdentity(
+      query: query,
+      legs: [
+        RouteCandidateLegSignature(
+          stepType: 'RIDE',
+          fromStationId: 'station-origin',
+          toStationId: 'station-destination',
+          lineId: 'line-original',
+        ),
+      ],
+    );
+    const originalStep = RouteSearchStep(
+      sequence: 1,
+      title: '기존 이동',
+      description: '엘리베이터 이동',
+      lineId: 'line-original',
+      lineName: '기존 노선',
+      fromStationId: 'station-origin',
+      toStationId: 'station-destination',
+      estimatedMinutes: 12,
+      distanceMeters: 340,
+      includesStairs: false,
+      requiresAccessibilityCheck: true,
+    );
+    const displayStep = RouteSearchStep(
+      sequence: 2,
+      title: '표시 이동',
+      description: '표시용 환승',
+      lineId: 'line-display',
+      lineName: '표시 노선',
+      fromStationId: 'station-origin',
+      toStationId: 'station-destination',
+      estimatedMinutes: 9,
+      distanceMeters: 120,
+      includesStairs: false,
+      requiresAccessibilityCheck: false,
+    );
+    final original = RouteSearchResult(
+      routeSearchId: 'route-search-1',
+      queryIdentity: query,
+      candidateIdentity: candidate,
+      providerRouteSearchId: 'provider-route-1',
+      providerItineraryId: 'provider-itinerary-1',
+      originStationId: 'station-origin',
+      originStationName: '기존 출발역',
+      destinationStationId: 'station-destination',
+      destinationStationName: '기존 도착역',
+      mobilityType: 'WHEELCHAIR',
+      constraintMode: 'AVOID_STAIRS',
+      status: 'FOUND',
+      lineId: 'line-original',
+      lineName: '기존 노선',
+      score: 87,
+      accessibilityScore: 91,
+      burdenCost: 24,
+      estimatedDurationSeconds: 720,
+      walkingDistanceMeters: 340,
+      transferCount: 1,
+      evidenceSummary: const ['시설 상태 확인'],
+      steps: const [originalStep],
+      warnings: const [RouteSearchWarning(code: 'NOTICE', message: '주의')],
+      recommendationReasons: const ['엘리베이터 우선'],
+      blockedReasons: const ['NONE'],
+      createdAt: '2026-08-24T05:00:00Z',
+      etaSource: 'PLANNED',
+      etaConfidence: 'HIGH',
+      accessibilityRiskLevel: 'LOW',
+      transferSlackSeconds: 180,
+      hasOutOfStationTransfer: true,
+      commercialEtaEligible: true,
+      sourceUpdatedAt: '2026-08-24T04:00:00Z',
+      supportsRefresh: false,
+      nextServiceTime: '2026-08-24T06:00:00Z',
+      transportScope: RouteTransportScope.subwayAndItxCheongchun,
+      departureTimeIso: '2026-08-24T05:10:00Z',
+      arrivalTimeIso: '2026-08-24T05:22:00Z',
+      stairAccess: 'STEP_FREE',
+    );
+
+    final displayed = original.withDisplayLabels(
+      originStationName: '표시 출발역',
+      destinationStationName: '표시 도착역',
+      lineName: '표시 노선',
+      steps: const [displayStep],
+      etaSource: 'REALTIME',
+    );
+
+    expect(displayed.originStationName, '표시 출발역');
+    expect(displayed.destinationStationName, '표시 도착역');
+    expect(displayed.lineName, '표시 노선');
+    expect(displayed.steps, const [displayStep]);
+    expect(displayed.etaSource, 'REALTIME');
+    expect(displayed.queryIdentity, same(query));
+    expect(displayed.candidateIdentity, same(candidate));
+    expect(displayed.providerRouteSearchId, 'provider-route-1');
+    expect(displayed.providerItineraryId, 'provider-itinerary-1');
+    final retainedDisplay = original.withDisplayLabels();
+    expect(retainedDisplay.originStationName, original.originStationName);
+    expect(
+      retainedDisplay.destinationStationName,
+      original.destinationStationName,
+    );
+    expect(retainedDisplay.lineName, original.lineName);
+    expect(retainedDisplay.steps, original.steps);
+    expect(retainedDisplay.etaSource, original.etaSource);
+    expect(
+      [
+        displayed.routeSearchId,
+        displayed.originStationId,
+        displayed.destinationStationId,
+        displayed.mobilityType,
+        displayed.constraintMode,
+        displayed.status,
+        displayed.lineId,
+        displayed.score,
+        displayed.accessibilityScore,
+        displayed.burdenCost,
+        displayed.estimatedDurationSeconds,
+        displayed.walkingDistanceMeters,
+        displayed.transferCount,
+        displayed.evidenceSummary,
+        displayed.warnings,
+        displayed.recommendationReasons,
+        displayed.blockedReasons,
+        displayed.createdAt,
+        displayed.etaConfidence,
+        displayed.accessibilityRiskLevel,
+        displayed.transferSlackSeconds,
+        displayed.hasOutOfStationTransfer,
+        displayed.commercialEtaEligible,
+        displayed.sourceUpdatedAt,
+        displayed.supportsRefresh,
+        displayed.nextServiceTime,
+        displayed.transportScope,
+        displayed.departureTimeIso,
+        displayed.arrivalTimeIso,
+        displayed.stairAccess,
+      ],
+      [
+        original.routeSearchId,
+        original.originStationId,
+        original.destinationStationId,
+        original.mobilityType,
+        original.constraintMode,
+        original.status,
+        original.lineId,
+        original.score,
+        original.accessibilityScore,
+        original.burdenCost,
+        original.estimatedDurationSeconds,
+        original.walkingDistanceMeters,
+        original.transferCount,
+        original.evidenceSummary,
+        original.warnings,
+        original.recommendationReasons,
+        original.blockedReasons,
+        original.createdAt,
+        original.etaConfidence,
+        original.accessibilityRiskLevel,
+        original.transferSlackSeconds,
+        original.hasOutOfStationTransfer,
+        original.commercialEtaEligible,
+        original.sourceUpdatedAt,
+        original.supportsRefresh,
+        original.nextServiceTime,
+        original.transportScope,
+        original.departureTimeIso,
+        original.arrivalTimeIso,
+        original.stairAccess,
+      ],
+    );
+  });
+
   test('사용하지 않는 route feedback 주입 경로는 production route root에 남지 않는다', () {
     const productionPaths = [
-      'lib/route_search.dart',
+      'lib/features/routes/domain/route_search.dart',
       'lib/app/app_bootstrap.dart',
       'lib/app/app_dependencies.dart',
       'lib/app/easy_subway_app.dart',
@@ -85,12 +272,13 @@ void main() {
 
   test('경로 검색 결과는 주의 안내를 쉬운 문구로 보여준다', () {
     final safeResult = _sampleRouteSearchResult(warnings: const []);
-    final warningResult = _sampleRouteSearchResult(
-      warnings: const [
-        RouteSearchWarning(code: 'ROUTE_GRAPH_UNKNOWN', message: ''),
-      ],
+    final warning = RouteSearchWarning(
+      code: 'ROUTE_GRAPH_UNKNOWN',
+      message: '',
     );
+    final warningResult = _sampleRouteSearchResult(warnings: [warning]);
 
+    expect(warning.message, isEmpty);
     expect(safeResult.attentionLabel, '주의 안내가 없어요');
     expect(warningResult.attentionLabel, '주의 안내 보기');
   });
@@ -486,6 +674,286 @@ void main() {
     expect(result.estimatedDurationSeconds, 2220);
   });
 
+  test('경로 표시 보조값은 실제 거리·시설·환승 사실을 유지한다', () {
+    RouteSearchStep step({
+      int distanceMeters = 180,
+      int estimatedMinutes = 3,
+      String facility = '',
+      String? serviceClass,
+      String? servicePattern,
+    }) => RouteSearchStep(
+      sequence: 3,
+      stepType: 'ride',
+      title: '접근성 정보 승차',
+      description: '원본 설명',
+      lineId: 'line-4',
+      lineName: '4호선',
+      fromStationId: 'origin',
+      toStationId: 'destination',
+      estimatedMinutes: estimatedMinutes,
+      distanceMeters: distanceMeters,
+      includesStairs: false,
+      stairAccessState: 'NOT_APPLICABLE',
+      requiresAccessibilityCheck: false,
+      actionTitle: '원본 행동',
+      actionDetail: '원본 세부',
+      reason: '검증됨',
+      evidenceSources: const ['OFFICIAL'],
+      timeSource: 'PLANNED',
+      distanceSource: 'BACKEND_V2',
+      confidenceLabel: '높은 신뢰도',
+      plannedArrivalTimeIso: '2026-08-24T06:00:00Z',
+      realtimeArrivalTimeIso: '2026-08-24T06:01:00Z',
+      plannedDepartureTimeIso: '2026-08-24T05:40:00Z',
+      realtimeDepartureTimeIso: '2026-08-24T05:41:00Z',
+      carDoorCarNumber: 2,
+      carDoorDoorNumber: 3,
+      carDoorFacilityType: facility,
+      serviceClass: serviceClass,
+      servicePattern: servicePattern,
+    );
+
+    final original = step(
+      facility: 'STAIR',
+      serviceClass: 'SUBWAY',
+      servicePattern: 'EXPRESS',
+    );
+    final displayed = original.withDisplayLabels(
+      title: '표시 제목',
+      lineName: '표시 노선',
+      actionDetail: '표시 세부',
+      plannedArrivalTimeIso: '2026-08-24T06:02:00Z',
+      realtimeArrivalTimeIso: '2026-08-24T06:03:00Z',
+    );
+
+    expect(displayed.title, '표시 제목');
+    expect(displayed.description, '표시 제목');
+    expect(displayed.lineName, '표시 노선');
+    expect(displayed.actionDetail, '표시 세부');
+    expect(displayed.plannedArrivalTimeIso, '2026-08-24T06:02:00Z');
+    expect(displayed.realtimeArrivalTimeIso, '2026-08-24T06:03:00Z');
+    expect(
+      [
+        displayed.sequence,
+        displayed.stepType,
+        displayed.lineId,
+        displayed.fromStationId,
+        displayed.toStationId,
+        displayed.estimatedMinutes,
+        displayed.distanceMeters,
+        displayed.includesStairs,
+        displayed.stairAccessState,
+        displayed.requiresAccessibilityCheck,
+        displayed.actionTitle,
+        displayed.reason,
+        displayed.evidenceSources,
+        displayed.timeSource,
+        displayed.distanceSource,
+        displayed.confidenceLabel,
+        displayed.plannedDepartureTimeIso,
+        displayed.realtimeDepartureTimeIso,
+        displayed.carDoorCarNumber,
+        displayed.carDoorDoorNumber,
+        displayed.carDoorFacilityType,
+        displayed.serviceClass,
+        displayed.servicePattern,
+      ],
+      [
+        original.sequence,
+        original.stepType,
+        original.lineId,
+        original.fromStationId,
+        original.toStationId,
+        original.estimatedMinutes,
+        original.distanceMeters,
+        original.includesStairs,
+        original.stairAccessState,
+        original.requiresAccessibilityCheck,
+        original.actionTitle,
+        original.reason,
+        original.evidenceSources,
+        original.timeSource,
+        original.distanceSource,
+        original.confidenceLabel,
+        original.plannedDepartureTimeIso,
+        original.realtimeDepartureTimeIso,
+        original.carDoorCarNumber,
+        original.carDoorDoorNumber,
+        original.carDoorFacilityType,
+        original.serviceClass,
+        original.servicePattern,
+      ],
+    );
+    expect(displayed.isSubwayExpress, isTrue);
+    expect(step(serviceClass: 'ITX_CHEONGCHUN').isItxCheongchun, isTrue);
+    final retainedTimes = original.withDisplayLabels(
+      title: '제목만 바꿈',
+      lineName: '노선만 바꿈',
+      actionDetail: '세부만 바꿈',
+    );
+    expect(retainedTimes.plannedArrivalTimeIso, original.plannedArrivalTimeIso);
+    expect(
+      retainedTimes.realtimeArrivalTimeIso,
+      original.realtimeArrivalTimeIso,
+    );
+    expect(retainedTimes.userReason, '선택한 길을 따라 안내합니다.');
+    expect(retainedTimes.hasCarDoorHint, isTrue);
+    expect(
+      [
+        'STAIR',
+        'ELEVATOR',
+        'ESCALATOR',
+        'TRANSFER',
+        'OTHER',
+      ].map((facility) => step(facility: facility).carDoorHintLabel),
+      [
+        '빠른 하차 2-3칸 · 계단 가까움',
+        '빠른 하차 2-3칸 · 엘리베이터 가까움',
+        '빠른 하차 2-3칸 · 에스컬레이터 가까움',
+        '빠른 하차 2-3칸 · 빠른 환승',
+        '빠른 하차 2-3칸',
+      ],
+    );
+    expect(
+      [
+        0,
+        999,
+        1000,
+        1250,
+      ].map((meters) => step(distanceMeters: meters).burdenLabel),
+      ['약 3분 · 거리 미확인', '약 3분 · 999m', '약 3분 · 1km', '약 3분 · 1.3km'],
+    );
+    expect(step(estimatedMinutes: 0).burdenLabel, '시간 미확인 · 180m');
+    final noCarDoor = RouteSearchStep(
+      sequence: 1,
+      title: '접근성 정보',
+      description: '',
+      lineId: 'line',
+      lineName: '노선',
+      fromStationId: 'origin',
+      toStationId: 'destination',
+      estimatedMinutes: 1,
+      distanceMeters: 1,
+      includesStairs: false,
+      requiresAccessibilityCheck: false,
+    );
+    expect(noCarDoor.hasCarDoorHint, isFalse);
+    expect(noCarDoor.carDoorHintSemanticLabel, '빠른 하차 null번 칸 null번 문');
+  });
+
+  test('경로 결과는 정적 출처·다음 운행·계단과 block alias를 fail closed로 표시한다', () {
+    final local = _sampleRouteSearchResult(
+      routeSearchId: 'local-route',
+      etaSource: 'STATIC_LOCAL',
+    );
+    final datedLocal = RouteSearchResult(
+      routeSearchId: local.routeSearchId,
+      originStationId: local.originStationId,
+      originStationName: local.originStationName,
+      destinationStationId: local.destinationStationId,
+      destinationStationName: local.destinationStationName,
+      mobilityType: local.mobilityType,
+      status: local.status,
+      lineId: local.lineId,
+      lineName: local.lineName,
+      score: local.score,
+      steps: const [
+        RouteSearchStep(
+          sequence: 1,
+          title: '계단 없는 이동',
+          description: '',
+          lineId: 'line',
+          lineName: '노선',
+          fromStationId: 'origin',
+          toStationId: 'destination',
+          estimatedMinutes: 1,
+          distanceMeters: 1,
+          includesStairs: false,
+          stairAccessState: 'STEP_FREE',
+          requiresAccessibilityCheck: false,
+        ),
+      ],
+      warnings: local.warnings,
+      blockedReasons: const [
+        'STAIR_ONLY_ACCESS',
+        '필수 접근성 시설을 사용할 수 없습니다.',
+        '경로 연결 정보를 확인할 수 없습니다.',
+        'unknown',
+      ],
+      createdAt: local.createdAt,
+      etaSource: local.etaSource,
+      sourceUpdatedAt: '2026-08-24T05:00:00Z',
+      nextServiceTime: '2026-08-24T06:07:00Z',
+    );
+    expect(datedLocal.sourceNotice, '예상 소요시간: 저장된 데이터 기준 · 최근 확인 2026-08-24');
+    expect(datedLocal.stairAccessLabel, '계단 없는 길이에요');
+    expect(datedLocal.blockedReasonLabels, [
+      '계단 없는 경로를 아직 찾지 못했어요.',
+      '꼭 필요한 시설을 지금 이용하기 어려워요.',
+      '길이 이어지는지 확인하고 있어요.',
+      '안내할 수 있는 경로를 아직 찾지 못했어요.',
+      '다음 운행 2026-08-24 06:07',
+    ]);
+    expect(
+      _sampleRouteSearchResult(
+        nextServiceTime: 'bad',
+        stairAccess: 'STAIR_ONLY',
+      ),
+      isA<RouteSearchResult>()
+          .having(
+            (result) => result.blockedReasonLabels.last,
+            'malformed next service label',
+            '다음 운행 시각을 확인해 주세요.',
+          )
+          .having(
+            (result) => result.stairAccessLabel,
+            'explicit stair state',
+            '계단 포함',
+          ),
+    );
+    expect(datedLocal.sourceNoticeCaption, '저장된 데이터 기준');
+    expect(
+      _sampleRouteSearchResult(
+        steps: const [
+          RouteSearchStep(
+            sequence: 1,
+            title: '승차',
+            description: '',
+            lineId: 'a',
+            lineName: 'A',
+            fromStationId: 'a',
+            toStationId: 'b',
+            estimatedMinutes: 1,
+            distanceMeters: 1,
+            includesStairs: false,
+            requiresAccessibilityCheck: false,
+          ),
+          RouteSearchStep(
+            sequence: 2,
+            title: '승차',
+            description: '',
+            lineId: 'b',
+            lineName: 'B',
+            fromStationId: 'b',
+            toStationId: 'c',
+            estimatedMinutes: 1,
+            distanceMeters: 1,
+            includesStairs: false,
+            requiresAccessibilityCheck: false,
+          ),
+        ],
+      ).transferCount,
+      1,
+    );
+    expect(
+      FavoriteRoute.fromJson({
+        ..._favoriteRouteJson(),
+        'needsResearch': true,
+      }).statusLabel,
+      '다시 검색 필요',
+    );
+  });
+
   test('즐겨찾기 경로 API 저장소는 인증 헤더로 저장과 목록과 삭제를 요청한다', () async {
     final requestedMethods = <String>[];
     final requestedPaths = <String>[];
@@ -551,6 +1019,164 @@ void main() {
     expect(saved.semanticLabel, isNot(contains('92점')));
     expect(saved.semanticLabel, isNot(contains('아직 알 수 없어요')));
   });
+
+  test('즐겨찾기 경로 API는 인증된 401만 한 번 무효화하고 재시도한다', () async {
+    final requests = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      requests.add(request.headers.value(HttpHeaders.authorizationHeader));
+      request.response
+        ..statusCode = requests.length == 1
+            ? HttpStatus.unauthorized
+            : HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': [_favoriteRouteJson()],
+          }),
+        );
+      await request.response.close();
+    });
+    final auth = _CountingAuthorizationProvider('Basic first');
+    final repository = FavoriteRouteApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: auth,
+    );
+
+    await repository.listFavoriteRoutes();
+
+    expect(requests, ['Basic first', 'Basic first']);
+    expect(auth.invalidateCount, 1);
+  });
+
+  test('즐겨찾기 경로 API는 두 번째 인증 401 또는 익명 401에서 추가 재시도하지 않는다', () async {
+    final requests = <String?>[];
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      requests.add(request.headers.value(HttpHeaders.authorizationHeader));
+      request.response
+        ..statusCode = HttpStatus.unauthorized
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({'success': false}));
+      await request.response.close();
+    });
+    final auth = _CountingAuthorizationProvider('Basic expired');
+    final authenticatedRepository = FavoriteRouteApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: auth,
+    );
+    await expectLater(
+      authenticatedRepository.listFavoriteRoutes(),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    expect(requests, ['Basic expired', 'Basic expired']);
+    expect(auth.invalidateCount, 1);
+
+    requests.clear();
+    final anonymousRepository = FavoriteRouteApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: const NoAuthorizationHeaderProvider(),
+    );
+    await expectLater(
+      anonymousRepository.listFavoriteRoutes(),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    expect(requests, hasLength(1));
+    expect(requests.single, isNull);
+  });
+
+  test('즐겨찾기 경로 API는 깨진 payload와 인증 provider 오류를 typed failure로 닫는다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    var requestCount = 0;
+    server.listen((request) async {
+      requestCount += 1;
+      request.response.headers.contentType = ContentType.json;
+      final payload = switch (requestCount) {
+        1 => {
+          'success': true,
+          'data': [42],
+        },
+        2 => {'success': false, 'data': <Object?>[]},
+        3 => {'success': true, 'data': 42},
+        _ => {
+          'success': true,
+          'data': {..._favoriteRouteJson(), 'score': 'not-an-int'},
+        },
+      };
+      request.response.write(jsonEncode(payload));
+      await request.response.close();
+    });
+    final repository = FavoriteRouteApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      authProvider: const NoAuthorizationHeaderProvider(),
+    );
+
+    await expectLater(
+      repository.listFavoriteRoutes(),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    await expectLater(
+      repository.listFavoriteRoutes(),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    await expectLater(
+      repository.saveFavoriteRoute('route-1'),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    await expectLater(
+      repository.saveFavoriteRoute('route-1'),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    expect(requestCount, 4);
+    await expectLater(
+      FavoriteRouteApiRepository(
+        baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+        authProvider: const _ThrowingAuthorizationProvider(),
+      ).listFavoriteRoutes(),
+      throwsA(isA<FavoriteRouteException>()),
+    );
+    expect(
+      const FavoriteRouteException('typed failure').toString(),
+      'typed failure',
+    );
+    final missing = Map<String, Object?>.from(_favoriteRouteJson())
+      ..remove('originStationName');
+    expect(() => FavoriteRoute.fromJson(missing), throwsFormatException);
+    expect(
+      () => FavoriteRoute.fromJson({..._favoriteRouteJson(), 'score': '92'}),
+      throwsFormatException,
+    );
+  });
+}
+
+class _CountingAuthorizationProvider implements AuthorizationHeaderProvider {
+  _CountingAuthorizationProvider(this.value);
+
+  final String value;
+  int invalidateCount = 0;
+
+  @override
+  Future<String?> authorizationHeader() async => value;
+
+  @override
+  Future<void> invalidateAuthorization() async {
+    invalidateCount += 1;
+  }
+}
+
+class _ThrowingAuthorizationProvider implements AuthorizationHeaderProvider {
+  const _ThrowingAuthorizationProvider();
+
+  @override
+  Future<String?> authorizationHeader() =>
+      Future.error(StateError('auth failed'));
+
+  @override
+  Future<void> invalidateAuthorization() async {}
 }
 
 RouteSearchResult _sampleRouteSearchResult({
@@ -589,6 +1215,8 @@ RouteSearchResult _sampleRouteSearchResult({
   String accessibilityRiskLevel = '',
   int? transferSlackSeconds,
   bool hasOutOfStationTransfer = false,
+  String nextServiceTime = '',
+  String stairAccess = '',
 }) {
   return RouteSearchResult(
     routeSearchId: routeSearchId,
@@ -612,6 +1240,8 @@ RouteSearchResult _sampleRouteSearchResult({
     accessibilityRiskLevel: accessibilityRiskLevel,
     transferSlackSeconds: transferSlackSeconds,
     hasOutOfStationTransfer: hasOutOfStationTransfer,
+    nextServiceTime: nextServiceTime,
+    stairAccess: stairAccess,
   );
 }
 

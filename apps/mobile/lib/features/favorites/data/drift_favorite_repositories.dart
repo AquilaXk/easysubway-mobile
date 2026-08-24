@@ -6,8 +6,9 @@ import '../../../core/database/catalog/canonical_station_id.dart';
 import '../../../core/database/catalog/catalog_database.dart';
 import '../../../core/database/user/user_database.dart' as user_db;
 import '../../../favorite_facility.dart';
-import '../../../route_search.dart';
+import '../../routes/domain/route_search.dart';
 import '../../../station_search.dart';
+import '../domain/favorite_route.dart';
 import '../../routes/domain/route_identity.dart';
 
 const _localUserId = 'local-user';

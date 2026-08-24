@@ -7,9 +7,9 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
 import '../favorite_facility.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../mobile_error_reporter.dart';
 import '../notification_settings.dart';
-import '../route_search.dart';
 import '../station_search.dart';
 import '../core/datapack/data_pack_client.dart';
 import '../core/datapack/bundled_data_pack_freshness.dart';

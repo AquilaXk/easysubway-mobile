@@ -22,6 +22,7 @@ import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/account/presentation/user_data_deletion_screen.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/features/favorites/presentation/favorite_home_screen.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
@@ -69,7 +70,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/station_fan_
     show kFanMenuDesignSize, kFanMenuTailTip;
 import 'package:easysubway_mobile/notification_settings.dart';
 import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
+import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:easysubway_mobile/station_search.dart';
 import 'package:easysubway_mobile/user_data_deletion.dart';
 import 'package:flutter/foundation.dart';
