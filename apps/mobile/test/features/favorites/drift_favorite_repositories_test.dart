@@ -8,8 +8,6 @@ import 'package:easysubway_mobile/core/database/user/user_database.dart'
 import 'package:easysubway_mobile/features/favorites/data/drift_favorite_repositories.dart';
 import 'package:easysubway_mobile/features/preferences/data/drift_notification_settings_repository.dart';
 import 'package:easysubway_mobile/features/search_history/data/drift_search_history_repository.dart';
-import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
-import 'package:easysubway_mobile/features/routes/domain/route_identity.dart';
 import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -246,111 +244,6 @@ void main() {
     expect(await repository.listFavoriteFacilities(), isEmpty);
   });
 
-  test('Journey 후보 경로 즐겨찾기는 검색 결과 요약을 user DB에 저장하고 삭제한다', () async {
-    final catalogDatabase = CatalogDatabase.memory();
-    final userDatabase = user_db.UserDatabase.memory();
-    addTearDown(catalogDatabase.close);
-    addTearDown(userDatabase.close);
-    await catalogDatabase.seedBaselineIfEmpty();
-    final repository = DriftFavoriteRouteRepository(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-    );
-    final result = RouteSearchResult(
-      routeSearchId: 'journey-search-sangnoksu-sadang',
-      originStationId: 'station-sangnoksu',
-      originStationName: '상록수',
-      destinationStationId: 'station-sadang',
-      destinationStationName: '사당',
-      mobilityType: 'SENIOR',
-      status: 'FOUND',
-      lineId: 'seoul-4',
-      lineName: '수도권 4호선',
-      score: 92,
-      burdenCost: 44,
-      estimatedDurationSeconds: 600,
-      walkingDistanceMeters: 120,
-      transferCount: 1,
-      evidenceSummary: const ['DURATION_ESTIMATED', 'DISTANCE_MEASURED'],
-      steps: const [],
-      warnings: const [],
-      blockedReasons: const [],
-      createdAt: '2026-06-19T09:00:00.000Z',
-      providerRouteSearchId: 'provider-search-opaque',
-      providerItineraryId: 'provider-itinerary-full-opaque',
-      queryIdentity: RouteQueryIdentity(
-        originStationId: 'station-sangnoksu',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'SENIOR',
-        constraintMode: 'PREFER_STEP_FREE',
-        transportScope: 'SUBWAY',
-        objective: 'FASTEST',
-      ),
-      candidateIdentity: RouteCandidateIdentity(
-        query: RouteQueryIdentity(
-          originStationId: 'station-sangnoksu',
-          destinationStationId: 'station-sadang',
-          mobilityType: 'SENIOR',
-          constraintMode: 'PREFER_STEP_FREE',
-          transportScope: 'SUBWAY',
-          objective: 'FASTEST',
-        ),
-        legs: [
-          RouteCandidateLegSignature(
-            stepType: 'RIDE',
-            fromStationId: 'station-sangnoksu',
-            toStationId: 'station-sadang',
-            lineId: 'seoul-4',
-          ),
-        ],
-      ),
-    );
-
-    final saved = await repository.saveFavoriteRoute(
-      result.routeSearchId,
-      result: result,
-    );
-    final favorites = await repository.listFavoriteRoutes();
-
-    expect(saved.summaryTitle, '상록수에서 사당까지');
-    expect(saved.routeSearchId, result.routeSearchId);
-    expect(saved.favoriteRouteId, startsWith('rc:v1:'));
-    expect(favorites.single.lineName, '수도권 4호선');
-    expect(favorites.single.score, 92);
-    final snapshotRows = await userDatabase
-        .customSelect(
-          'SELECT value FROM app_preferences WHERE key = ?',
-          variables: [
-            Variable.withString(
-              'favorite_route_snapshot:${saved.favoriteRouteId}',
-            ),
-          ],
-          readsFrom: {userDatabase.appPreferences},
-        )
-        .get();
-    final snapshot =
-        jsonDecode(snapshotRows.single.read<String>('value'))
-            as Map<String, Object?>;
-    expect(snapshot['burdenCost'], 44);
-    expect(snapshot['accessibilityScore'], 92);
-    expect(snapshot['estimatedDurationSeconds'], 600);
-    expect(snapshot['walkingDistanceMeters'], 120);
-    expect(snapshot['transferCount'], 1);
-    expect(snapshot['evidenceSummary'], [
-      'DURATION_ESTIMATED',
-      'DISTANCE_MEASURED',
-    ]);
-    expect(snapshot['queryIdentity'], result.queryIdentity!.value);
-    expect(snapshot['candidateIdentity'], result.candidateIdentity!.value);
-    expect(snapshot['querySnapshot'], result.queryIdentity!.toSnapshot());
-    expect(snapshot['providerRouteSearchId'], 'provider-search-opaque');
-    expect(snapshot['providerItineraryId'], 'provider-itinerary-full-opaque');
-
-    await repository.removeFavoriteRoute(saved.favoriteRouteId);
-
-    expect(await repository.listFavoriteRoutes(), isEmpty);
-  });
-
   test(
     'legacy 즐겨찾기 경로 snapshot의 raw bytes와 canonical ID를 읽기만 해도 바꾸지 않는다',
     () async {
@@ -401,73 +294,18 @@ void main() {
 
       expect(favorites.single.favoriteRouteId, routeId);
       expect(favorites.single.routeSearchId, routeId);
+      expect(favorites.single.originStationName, '상록수');
+      expect(favorites.single.destinationStationName, '사당');
+      expect(favorites.single.mobilityType, 'SENIOR');
+      expect(favorites.single.status, 'RESEARCH_REQUIRED');
+      expect(favorites.single.needsResearch, isTrue);
+      expect(favorites.single.score, 0);
+      expect(favorites.single.lineId, isEmpty);
+      expect(favorites.single.lineName, isEmpty);
+      expect(favorites.single.etaSource, isEmpty);
       expect(stored.read<String>('value'), rawSnapshot);
     },
   );
-
-  test('Journey 후보 경로 즐겨찾기는 같은 구간도 이동 조건별로 분리해 저장한다', () async {
-    final catalogDatabase = CatalogDatabase.memory();
-    final userDatabase = user_db.UserDatabase.memory();
-    addTearDown(catalogDatabase.close);
-    addTearDown(userDatabase.close);
-    await catalogDatabase.seedBaselineIfEmpty();
-    final repository = DriftFavoriteRouteRepository(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-    );
-    final seniorResult = RouteSearchResult(
-      routeSearchId: 'journey-search-sangnoksu-sadang',
-      originStationId: 'station-sangnoksu',
-      originStationName: '상록수',
-      destinationStationId: 'station-sadang',
-      destinationStationName: '사당',
-      mobilityType: 'SENIOR',
-      status: 'FOUND',
-      lineId: 'seoul-4',
-      lineName: '수도권 4호선',
-      score: 92,
-      steps: const [],
-      warnings: const [],
-      blockedReasons: const [],
-      createdAt: '2026-06-19T09:00:00.000Z',
-    );
-    final wheelchairResult = RouteSearchResult(
-      routeSearchId: 'journey-search-sangnoksu-sadang',
-      originStationId: 'station-sangnoksu',
-      originStationName: '상록수',
-      destinationStationId: 'station-sadang',
-      destinationStationName: '사당',
-      mobilityType: 'WHEELCHAIR',
-      status: 'FOUND',
-      lineId: 'seoul-4',
-      lineName: '수도권 4호선',
-      score: 88,
-      steps: const [],
-      warnings: const [],
-      blockedReasons: const [],
-      createdAt: '2026-06-19T09:01:00.000Z',
-    );
-
-    await repository.saveFavoriteRoute(
-      seniorResult.routeSearchId,
-      result: seniorResult,
-    );
-    await repository.saveFavoriteRoute(
-      wheelchairResult.routeSearchId,
-      result: wheelchairResult,
-    );
-    final favorites = await repository.listFavoriteRoutes();
-
-    expect(favorites, hasLength(2));
-    expect(favorites.map((favorite) => favorite.mobilityType).toSet(), {
-      'SENIOR',
-      'WHEELCHAIR',
-    });
-    expect(
-      favorites.map((favorite) => favorite.favoriteRouteId).toSet(),
-      hasLength(2),
-    );
-  });
 
   test('persisted local 경로 행과 snapshot은 목록 조회에서 함께 삭제한다', () async {
     final catalogDatabase = CatalogDatabase.memory();
@@ -590,28 +428,7 @@ void main() {
       catalogDatabase: catalogDatabase,
       userDatabase: userDatabase,
     );
-    final query = RouteQueryIdentity(
-      originStationId: 'station-sangnoksu',
-      destinationStationId: 'station-sadang',
-      mobilityType: 'SENIOR',
-      mobilityPreset: 'SLOW',
-      constraintMode: 'PREFER_STEP_FREE',
-      transportScope: 'SUBWAY',
-      objective: 'FASTEST',
-    );
-    final candidate = RouteCandidateIdentity(
-      query: query,
-      legs: [
-        RouteCandidateLegSignature(
-          stepType: 'RIDE',
-          fromStationId: 'station-sangnoksu',
-          toStationId: 'station-sadang',
-          lineId: 'seoul-4',
-          serviceClass: 'SUBWAY',
-          servicePattern: 'LOCAL',
-        ),
-      ],
-    );
+    const candidateId = 'persisted-candidate-route';
     const targetSnapshot =
         '{"routeSearchId":"target-route","originStationId":"station-sangnoksu","originStationName":"대상 출발","destinationStationId":"station-sadang","destinationStationName":"대상 도착","mobilityType":"SENIOR","status":"FOUND","score":99,"createdAt":"2026-07-02T00:00:00.000Z","steps":[]}';
     await userDatabase.transaction(() async {
@@ -619,7 +436,7 @@ void main() {
           .into(userDatabase.favoriteRoutes)
           .insert(
             user_db.FavoriteRoutesCompanion.insert(
-              routeId: candidate.value,
+              routeId: candidateId,
               originStationId: 'target-origin',
               destinationStationId: 'target-destination',
               mobilityProfile: 'WHEELCHAIR',
@@ -630,7 +447,7 @@ void main() {
           .into(userDatabase.appPreferences)
           .insert(
             user_db.AppPreferencesCompanion.insert(
-              key: 'favorite_route_snapshot:${candidate.value}',
+              key: 'favorite_route_snapshot:$candidateId',
               value: targetSnapshot,
               updatedAt: DateTime.utc(2026, 7, 1),
             ),
@@ -702,15 +519,23 @@ void main() {
 
     expect(favorites.map((favorite) => favorite.favoriteRouteId), [
       'middle-route',
-      candidate.value,
+      candidateId,
     ]);
     expect(favorites.last.addedAt, '2026-07-01T00:00:00.000Z');
-    expect(favorites.last.originStationName, '대상 출발');
+    expect(favorites.last.originStationName, 'target-origin');
+    expect(favorites.last.destinationStationName, 'target-destination');
+    expect(favorites.last.mobilityType, 'WHEELCHAIR');
+    expect(favorites.last.status, 'RESEARCH_REQUIRED');
+    expect(favorites.last.needsResearch, isTrue);
+    expect(favorites.last.score, 0);
+    expect(favorites.last.lineId, isEmpty);
+    expect(favorites.last.lineName, isEmpty);
+    expect(favorites.last.etaSource, isEmpty);
     final target = await userDatabase
         .customSelect(
           'SELECT value, CAST(updated_at AS INTEGER) AS updated_at_value FROM app_preferences WHERE key = ?',
           variables: [
-            Variable.withString('favorite_route_snapshot:${candidate.value}'),
+            Variable.withString('favorite_route_snapshot:$candidateId'),
           ],
         )
         .getSingle();
@@ -804,32 +629,13 @@ void main() {
       catalogDatabase: catalogDatabase,
       userDatabase: userDatabase,
     );
-    final candidate = RouteCandidateIdentity(
-      query: RouteQueryIdentity(
-        originStationId: 'station-sangnoksu',
-        destinationStationId: 'station-sadang',
-        mobilityType: 'SENIOR',
-        mobilityPreset: 'SLOW',
-        constraintMode: 'PREFER_STEP_FREE',
-        transportScope: 'SUBWAY',
-        objective: 'FASTEST',
-      ),
-      legs: [
-        RouteCandidateLegSignature(
-          stepType: 'RIDE',
-          fromStationId: 'station-sangnoksu',
-          toStationId: 'station-sadang',
-          serviceClass: 'SUBWAY',
-          servicePattern: 'LOCAL',
-        ),
-      ],
-    );
+    const candidateId = 'persisted-candidate-malformed';
     await userDatabase.transaction(() async {
       await userDatabase
           .into(userDatabase.favoriteRoutes)
           .insert(
             user_db.FavoriteRoutesCompanion.insert(
-              routeId: candidate.value,
+              routeId: candidateId,
               originStationId: 'target-origin',
               destinationStationId: 'target-destination',
               mobilityProfile: 'WHEELCHAIR',
@@ -879,8 +685,8 @@ void main() {
 
     final favorite = (await repository.listFavoriteRoutes()).single;
 
-    expect(favorite.favoriteRouteId, candidate.value);
-    expect(favorite.routeSearchId, candidate.value);
+    expect(favorite.favoriteRouteId, candidateId);
+    expect(favorite.routeSearchId, candidateId);
     expect(favorite.originStationId, 'target-origin');
     expect(favorite.destinationStationId, 'target-destination');
     expect(favorite.mobilityType, 'WHEELCHAIR');
@@ -900,7 +706,7 @@ void main() {
           .customSelect(
             'SELECT key FROM app_preferences WHERE key = ?',
             variables: [
-              Variable.withString('favorite_route_snapshot:${candidate.value}'),
+              Variable.withString('favorite_route_snapshot:$candidateId'),
             ],
           )
           .get(),
@@ -912,7 +718,7 @@ void main() {
       userDatabase: userDatabase,
     );
     final reloaded = (await restarted.listFavoriteRoutes()).single;
-    expect(reloaded.favoriteRouteId, candidate.value);
+    expect(reloaded.favoriteRouteId, candidateId);
     expect(reloaded.originStationId, 'target-origin');
     expect(reloaded.destinationStationId, 'target-destination');
     expect(reloaded.mobilityType, 'WHEELCHAIR');
@@ -999,14 +805,14 @@ void main() {
       (
         'local-query-snapshot-mismatch',
         jsonEncode({
-          'querySnapshot': RouteQueryIdentity(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-            constraintMode: 'STRICT_STEP_FREE',
-            transportScope: 'SUBWAY',
-            objective: 'FASTEST',
-          ).toSnapshot(),
+          'querySnapshot': {
+            'originStationId': 'station-sangnoksu',
+            'destinationStationId': 'station-sadang',
+            'mobilityType': 'WHEELCHAIR',
+            'constraintMode': 'STRICT_STEP_FREE',
+            'transportScope': 'SUBWAY',
+            'objective': 'FASTEST',
+          },
           'originStationId': 'station-other',
           'originStationName': '다른 출발',
           'destinationStationId': 'station-sadang',
@@ -1179,33 +985,32 @@ void main() {
             updatedAt: DateTime.utc(2026, 7),
           ),
         );
-    final saved = await repository.saveFavoriteRoute(
-      'good',
-      result: RouteSearchResult(
-        routeSearchId: 'good',
-        originStationId: 'station-sangnoksu',
-        originStationName: '상록수',
-        destinationStationId: 'station-sadang',
-        destinationStationName: '사당',
-        mobilityType: 'SENIOR',
-        status: 'FOUND',
-        lineId: '',
-        lineName: '',
-        score: 1,
-        steps: const [],
-        warnings: const [],
-        blockedReasons: const [],
-        createdAt: '2026-07-01T00:00:00.000Z',
-      ),
-    );
-
+    await userDatabase
+        .into(userDatabase.favoriteRoutes)
+        .insert(
+          user_db.FavoriteRoutesCompanion.insert(
+            routeId: 'good',
+            originStationId: 'station-sangnoksu',
+            destinationStationId: 'station-sadang',
+            mobilityProfile: 'SENIOR',
+            addedAt: DateTime.utc(2026, 7, 1),
+          ),
+        );
+    await userDatabase
+        .into(userDatabase.appPreferences)
+        .insert(
+          user_db.AppPreferencesCompanion.insert(
+            key: 'favorite_route_snapshot:good',
+            value:
+                '{"routeSearchId":"good","originStationId":"station-sangnoksu","originStationName":"상록수","destinationStationId":"station-sadang","destinationStationName":"사당","mobilityType":"SENIOR","status":"FOUND","lineId":"","lineName":"","score":1,"createdAt":"2026-07-01T00:00:00.000Z"}',
+            updatedAt: DateTime.utc(2026, 7, 1),
+          ),
+        );
     final favorites = await repository.listFavoriteRoutes();
 
     expect(favorites, hasLength(2));
     expect(
-      favorites.any(
-        (favorite) => favorite.favoriteRouteId == saved.favoriteRouteId,
-      ),
+      favorites.any((favorite) => favorite.favoriteRouteId == 'good'),
       isTrue,
     );
     expect(
@@ -1214,90 +1019,6 @@ void main() {
           .needsResearch,
       isTrue,
     );
-  });
-
-  test('Journey 경로 즐겨찾기는 ETA 출처와 step metadata를 snapshot에 보존한다', () async {
-    final catalogDatabase = CatalogDatabase.memory();
-    final userDatabase = user_db.UserDatabase.memory();
-    addTearDown(catalogDatabase.close);
-    addTearDown(userDatabase.close);
-    await catalogDatabase.seedBaselineIfEmpty();
-    final repository = DriftFavoriteRouteRepository(
-      catalogDatabase: catalogDatabase,
-      userDatabase: userDatabase,
-    );
-    final result = RouteSearchResult(
-      routeSearchId: 'route-v2',
-      originStationId: 'station-sangnoksu',
-      originStationName: '상록수',
-      destinationStationId: 'station-sadang',
-      destinationStationName: '사당',
-      mobilityType: 'WHEELCHAIR',
-      status: 'FOUND',
-      lineId: 'seoul-4',
-      lineName: '수도권 4호선',
-      score: 88,
-      steps: const [
-        RouteSearchStep(
-          sequence: 1,
-          stepType: 'ride',
-          title: '상록수에서 사당까지 이동',
-          description: '4호선 이동',
-          lineId: 'seoul-4',
-          lineName: '수도권 4호선',
-          fromStationId: 'station-sangnoksu',
-          toStationId: 'station-sadang',
-          estimatedMinutes: 26,
-          distanceMeters: 0,
-          includesStairs: false,
-          requiresAccessibilityCheck: false,
-          timeSource: 'STATIC_BACKEND_ESTIMATE',
-          distanceSource: 'BACKEND_V2',
-          confidenceLabel: 'LOW',
-        ),
-      ],
-      warnings: const [],
-      blockedReasons: const [],
-      createdAt: '2026-07-01T09:00:00+09:00',
-      etaSource: 'STATIC_BACKEND_ESTIMATE',
-      transportScope: RouteTransportScope.subwayAndItxCheongchun,
-    );
-
-    final saved = await repository.saveFavoriteRoute(
-      result.routeSearchId,
-      result: result,
-    );
-    final favorites = await repository.listFavoriteRoutes();
-    final snapshotRows = await userDatabase
-        .customSelect(
-          'SELECT value FROM app_preferences WHERE key = ?',
-          variables: [
-            Variable.withString(
-              'favorite_route_snapshot:${saved.favoriteRouteId}',
-            ),
-          ],
-          readsFrom: {userDatabase.appPreferences},
-        )
-        .get();
-    final snapshot =
-        jsonDecode(snapshotRows.single.read<String>('value'))
-            as Map<String, Object?>;
-    final steps = snapshot['steps'] as List<Object?>;
-    final firstStep = steps.single as Map<String, Object?>;
-
-    expect(favorites.single.routeSearchId, 'route-v2');
-    expect(favorites.single.scoreBasisText, contains('시간표 기준'));
-    expect(favorites.single.semanticLabel, contains('시간표 기준'));
-    expect(saved.transportScope, RouteTransportScope.subwayAndItxCheongchun);
-    expect(
-      favorites.single.transportScope,
-      RouteTransportScope.subwayAndItxCheongchun,
-    );
-    expect(snapshot['etaSource'], 'STATIC_BACKEND_ESTIMATE');
-    expect(snapshot['transportScope'], 'SUBWAY_AND_ITX_CHEONGCHUN');
-    expect(firstStep['timeSource'], 'STATIC_BACKEND_ESTIMATE');
-    expect(firstStep['distanceSource'], 'BACKEND_V2');
-    expect(firstStep['confidenceLabel'], 'LOW');
   });
 
   test('로컬 알림 설정과 최근 검색은 app_preferences와 search_history에 보관한다', () async {

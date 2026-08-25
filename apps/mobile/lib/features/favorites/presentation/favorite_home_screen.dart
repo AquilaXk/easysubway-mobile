@@ -176,9 +176,11 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
                           ) ...[
                             _FavoriteHomeRouteRow(
                               route: data.routes[index],
-                              onTap: () => _openRouteSearchFromFavorite(
-                                data.routes[index],
-                              ),
+                              onTap: data.routes[index].canReSearch
+                                  ? () => _openRouteSearchFromFavorite(
+                                      data.routes[index],
+                                    )
+                                  : null,
                               onRemove: widget.favoriteRouteRepository == null
                                   ? null
                                   : () => _removeFavoriteRoute(
@@ -515,7 +517,7 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
   });
 
   final FavoriteRoute route;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   // 즐겨찾기 목록에서 바로 삭제할 수 있게 오른쪽 액션을 준다. null이면 진입 화살표만.
   final VoidCallback? onRemove;
 
@@ -533,6 +535,7 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     return Semantics(
       button: true,
+      enabled: onTap != null,
       label: [
         '즐겨찾기 경로',
         '$originName에서 $destinationName까지',

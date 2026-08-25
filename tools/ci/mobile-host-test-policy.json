@@ -125,6 +125,27 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/297",
       "reason": "Legacy Route V2 get-off-alarm toggle has no production consumer and is physically removed.",
       "reviewTrigger": "Mobile #297 Journey V3 get-off-alarm legacy deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_search_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy local route result and V1 favorite-route API writer have no production consumer and are physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/route_hedge_labels_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy route hedge labels have no production consumer and are physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_identity_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy local route candidate identity has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
     }
   ]
 }

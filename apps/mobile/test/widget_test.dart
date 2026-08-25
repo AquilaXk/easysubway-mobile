@@ -71,7 +71,6 @@ import 'package:easysubway_mobile/features/network_map/presentation/station_fan_
     show kFanMenuDesignSize, kFanMenuTailTip;
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
-import 'package:easysubway_mobile/features/routes/domain/route_search.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
@@ -193,12 +192,6 @@ Future<void> _openFavoriteList(
   RouteDraftController? routeDraftController,
   Future<void> Function(RouteDraft draft, String mobilityType)?
   onOpenRouteSearch,
-  Future<void> Function(
-    RouteDraft draft,
-    String mobilityType,
-    RouteTransportScope transportScope,
-  )?
-  onOpenRouteSearchWithScope,
 }) async {
   final homeContext = tester.element(find.byType(HomeScreen));
   final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
@@ -264,14 +257,6 @@ Future<void> _openFavoriteList(
               ),
             );
             Navigator.of(favoriteContext).popUntil((route) => route.isFirst);
-            if (onOpenRouteSearchWithScope != null) {
-              await onOpenRouteSearchWithScope(
-                draftController.draft,
-                favorite.mobilityType,
-                favorite.transportScope,
-              );
-              return;
-            }
             if (onOpenRouteSearch != null) {
               await onOpenRouteSearch(
                 draftController.draft,
@@ -10593,10 +10578,56 @@ void main() {
     expect(searchAgainMobilityType, 'WHEELCHAIR');
   });
 
-  testWidgets('즐겨찾기 ITX 경로 다시 찾기는 저장된 transport scope로 연다', (tester) async {
+  testWidgets('알 수 없는 저장 이동 조건은 Journey V3 재검색을 시작하지 않는다', (tester) async {
+    final routeDraftController = RouteDraftController();
+    var searchCount = 0;
+
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
+        favoriteRouteRepository: FakeFavoriteRouteRepository(
+          favorites: [_favoriteRoute(mobilityType: 'UNKNOWN_PROFILE')],
+        ),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+
+    await _openFavoriteList(
+      tester,
+      routeDraftController: routeDraftController,
+      onOpenRouteSearch: (_, __) async {
+        searchCount++;
+      },
+    );
+    await tester.tap(find.text('상록수역 → 사당역'));
+    await tester.pumpAndSettle();
+
+    expect(searchCount, 0);
+    expect(routeDraftController.draft, const RouteDraft.empty());
+  });
+
+  test('지원되는 대표 이동 유형은 Journey V3 재검색 대상으로 유지한다', () {
+    for (final mobilityType in [
+      'STANDARD',
+      'SENIOR',
+      'LUGGAGE',
+      'WHEELCHAIR',
+    ]) {
+      expect(_favoriteRoute(mobilityType: mobilityType).canReSearch, isTrue);
+    }
+  });
+
+  testWidgets('즐겨찾기 재검색은 legacy transport scope를 Journey V3에 전달하지 않는다', (
+    tester,
+  ) async {
     final favoriteRouteRepository = FakeFavoriteRouteRepository(
       favorites: [
         _favoriteRoute(
+          mobilityType: 'WHEELCHAIR',
           transportScope: RouteTransportScope.subwayAndItxCheongchun,
         ),
       ],
@@ -10605,7 +10636,7 @@ void main() {
     routeDraftController.setWaypoint(
       const RouteDraftStation(id: 'station-old-waypoint', nameKo: '기존 경유역'),
     );
-    RouteTransportScope? restoredTransportScope;
+    String? restoredMobilityType;
     RouteDraft? restoredDraft;
 
     await tester.pumpWidget(
@@ -10623,15 +10654,15 @@ void main() {
     await _openFavoriteList(
       tester,
       routeDraftController: routeDraftController,
-      onOpenRouteSearchWithScope: (draft, mobilityType, transportScope) async {
+      onOpenRouteSearch: (draft, mobilityType) async {
         restoredDraft = draft;
-        restoredTransportScope = transportScope;
+        restoredMobilityType = mobilityType;
       },
     );
     await tester.tap(find.text('상록수역 → 사당역'));
     await tester.pumpAndSettle();
 
-    expect(restoredTransportScope, RouteTransportScope.subwayAndItxCheongchun);
+    expect(restoredMobilityType, 'WHEELCHAIR');
     expect(restoredDraft?.origin?.id, 'station-sangnoksu');
     expect(restoredDraft?.destination?.id, 'station-sadang');
     expect(restoredDraft?.waypoint, isNull);
@@ -16651,7 +16682,6 @@ class FakeFavoriteRouteRepository implements FavoriteRouteRepository {
   List<FavoriteRoute> favorites;
   final Completer<void>? removeCompleter;
   int listCount = 0;
-  final savedRouteSearchIds = <String>[];
   final removedFavoriteRouteIds = <String>[];
   Object? error;
 
@@ -16663,21 +16693,6 @@ class FakeFavoriteRouteRepository implements FavoriteRouteRepository {
       throw currentError;
     }
     return favorites;
-  }
-
-  @override
-  Future<FavoriteRoute> saveFavoriteRoute(
-    String routeSearchId, {
-    RouteSearchResult? result,
-  }) async {
-    savedRouteSearchIds.add(routeSearchId);
-    final currentError = error;
-    if (currentError != null) {
-      throw currentError;
-    }
-    final favorite = _favoriteRoute();
-    favorites = [favorite];
-    return favorite;
   }
 
   @override

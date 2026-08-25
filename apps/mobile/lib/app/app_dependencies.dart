@@ -8,7 +8,6 @@ import '../features/favorites/favorite_facility.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../features/favorites/data/drift_favorite_repositories.dart';
-import '../features/favorites/data/favorite_route_api_repository.dart';
 import '../features/favorites/domain/favorite_route.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/data/drift_facility_report_receipt_store.dart';
@@ -194,10 +193,7 @@ class AppDependencies {
                   catalogDatabase: catalogDatabase,
                   userDatabase: userDatabase,
                 )
-              : _defaultFavoriteRouteRepository(
-                  baseUri: requireBaseUri,
-                  authProvider: null,
-                )),
+              : null),
       searchHistoryRepository:
           searchHistoryRepository ??
           (userDatabase == null
@@ -536,19 +532,6 @@ FavoriteFacilityRepository? _defaultFavoriteFacilityRepository({
     return null;
   }
   return FavoriteFacilityApiRepository(
-    baseUri: baseUri(),
-    authProvider: authProvider,
-  );
-}
-
-FavoriteRouteRepository? _defaultFavoriteRouteRepository({
-  required Uri Function() baseUri,
-  required AuthorizationHeaderProvider? authProvider,
-}) {
-  if (authProvider == null) {
-    return null;
-  }
-  return FavoriteRouteApiRepository(
     baseUri: baseUri(),
     authProvider: authProvider,
   );

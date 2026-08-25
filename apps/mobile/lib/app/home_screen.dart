@@ -35,7 +35,6 @@ import '../features/onboarding/onboarding.dart';
 import '../features/realtime/realtime_repository.dart';
 import '../features/route_draft/application/route_draft_controller.dart';
 import '../features/route_draft/domain/route_draft.dart';
-import '../features/routes/domain/route_search.dart';
 import '../features/service_notice/data/notice_repository.dart';
 import '../features/service_notice/presentation/notice_controller.dart';
 import '../features/service_notice/presentation/service_notice_list_screen.dart';
@@ -807,6 +806,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           },
           onOpenFacilityReport: openFacilityReport,
           onOpenFavoriteRoute: (favorite) async {
+            if (!favorite.canReSearch) {
+              return;
+            }
             _routeDraftController.clear();
             _routeDraftController.setOrigin(
               RouteDraftStation(
@@ -821,7 +823,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               ),
             );
             Navigator.of(context).popUntil((route) => route.isFirst);
-            openRouteTab(favorite.mobilityType, favorite.transportScope);
+            openRouteTab(favorite.mobilityType);
           },
           onShellBack: openPreviousTabOrHome,
         ),
