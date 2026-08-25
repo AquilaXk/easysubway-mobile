@@ -9,7 +9,9 @@ import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/main.dart' as app;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:workmanager_platform_interface/workmanager_platform_interface.dart';
 
 void main() {
   test(
@@ -71,6 +73,34 @@ void main() {
     expect(await homeWidgetClicks(bindings: host).toList(), isEmpty);
   });
 
+  test('기본 Android dispatcher는 Workmanager host API를 한 번 초기화한다', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channelName =
+        'dev.flutter.pigeon.workmanager_platform_interface.WorkmanagerHostApi.initialize';
+    var initializeCalls = 0;
+    messenger.setMockMessageHandler(channelName, (ByteData? message) async {
+      final request =
+          WorkmanagerHostApi.pigeonChannelCodec.decodeMessage(message)!
+              as List<Object?>;
+      final initializeRequest = request.single as InitializeRequest;
+      expect(initializeRequest.callbackHandle, isNot(0));
+      initializeCalls += 1;
+      return WorkmanagerHostApi.pigeonChannelCodec.encodeMessage(<Object?>[
+        null,
+      ]);
+    });
+    addTearDown(() => messenger.setMockMessageHandler(channelName, null));
+
+    await initializeWorkManagerDispatcher(
+      callbackDispatcher: app.nextTrainWidgetCallbackDispatcher,
+      isAndroid: () => true,
+    );
+
+    expect(initializeCalls, 1);
+  });
+
   test(
     'host refresh는 injected non-Android와 기본 host 경로 모두 plugin 없이 종료한다',
     () async {
@@ -113,21 +143,61 @@ void main() {
         userDatabase: user,
         timetableRepository: _NoopTimetableRepository(),
       );
+      var installedIdReads = 0;
       final android = NextTrainWidgetAndroidBindings(
         isAndroid: () => true,
         initialize: (_) async {},
         register: () async {},
         cancel: () async {},
-        installedWidgetIds: () async => const [],
+        installedWidgetIds: () async {
+          installedIdReads += 1;
+          return const [];
+        },
         clicks: Stream.empty,
       );
 
       await refreshNextTrainWidgets(
         repository,
-        widgetIds: const [],
         now: DateTime.utc(2026, 8, 11),
         bindings: android,
       );
+      expect(installedIdReads, 1);
+    },
+  );
+
+  test(
+    'callback dispatcher는 native task channel에 refresh handler를 등록한다',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      var refreshCalls = 0;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const channelName =
+          'dev.flutter.pigeon.workmanager_platform_interface.WorkmanagerFlutterApi.executeTask';
+
+      nextTrainWidgetCallbackDispatcher(
+        runWidgetRefresh: () async {
+          refreshCalls += 1;
+          return true;
+        },
+      );
+      try {
+        final reply = await messenger.handlePlatformMessage(
+          channelName,
+          WorkmanagerFlutterApi.pigeonChannelCodec.encodeMessage(<Object?>[
+            nextTrainWidgetRefreshTask,
+            null,
+          ]),
+          null,
+        );
+        expect(
+          WorkmanagerFlutterApi.pigeonChannelCodec.decodeMessage(reply),
+          <Object?>[true],
+        );
+        expect(refreshCalls, 1);
+      } finally {
+        WorkmanagerFlutterApi.setUp(null, binaryMessenger: messenger);
+      }
     },
   );
 

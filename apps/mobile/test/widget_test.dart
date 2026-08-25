@@ -13280,6 +13280,19 @@ void main() {
             ),
           ],
         ),
+        StationTimetableDayType.sundayHoliday: _stationTimetable(
+          StationTimetableDayType.sundayHoliday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [
+            StationTimetableDirection(
+              name: '하행',
+              departures: [
+                StationTimetableDeparture(directionName: '하행', seconds: 36200),
+              ],
+            ),
+          ],
+        ),
       },
     );
     try {
@@ -13295,6 +13308,18 @@ void main() {
       );
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('stationTimetableDirection-하행')));
+      await tester.tap(
+        find.byKey(const Key('stationTimetableDay-sundayHoliday')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const Key('stationTimetableDirection-하행')),
+            )
+            .selected,
+        isTrue,
+      );
       await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
       await tester.pumpAndSettle();
 

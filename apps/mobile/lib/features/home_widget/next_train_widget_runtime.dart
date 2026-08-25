@@ -198,6 +198,7 @@ Future<void> refreshInstalledNextTrainWidgets({
 Future<void> initializeWorkManagerDispatcher({
   required void Function() callbackDispatcher,
   NextTrainWidgetAndroidBindings? bindings,
+  bool Function()? isAndroid,
 }) async {
   if (bindings != null) {
     if (!bindings.isAndroid()) {
@@ -206,7 +207,7 @@ Future<void> initializeWorkManagerDispatcher({
     await bindings.initialize(callbackDispatcher);
     return;
   }
-  if (!Platform.isAndroid) {
+  if (!(isAndroid ?? () => Platform.isAndroid)()) {
     return;
   }
   await WorkmanagerAndroid().initialize(callbackDispatcher);
