@@ -16221,7 +16221,6 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
   final String timetableLineId;
   final String? unavailableLineId;
   final requestedDayTypes = <StationTimetableDayType>[];
-  final requestedLineIds = <String>[];
 
   @override
   Future<StationTimetable> loadStationTimetable({
