@@ -65,7 +65,7 @@ class PlayIntegrityMethodChannelPlugin : FlutterPlugin {
                     }
                 }.addOnFailureListener {
                     if (!detached) {
-                        provider = null
+                        this.provider = null
                         projectNumber = null
                         fail()
                     }
