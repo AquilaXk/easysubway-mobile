@@ -1,4 +1,4 @@
-import 'package:easysubway_mobile/features/journey/application/journey_session_provider.dart';
+import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart'

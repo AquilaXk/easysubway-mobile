@@ -2,6 +2,7 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_reconcile
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_repository.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_runtime.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_service.dart';
+import 'package:easysubway_mobile/main.dart' as app;
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -205,6 +206,54 @@ void main() {
     expect(await worker.executeTask(getOffAlarmReconcileTask, null), isTrue);
     expect(calls, ['widget', 'reconcile']);
   });
+
+  test(
+    'injected headless facade runs once and keeps unavailable widget output explicit',
+    () async {
+      final stored = <String, Object?>{
+        'widget_42_direction_1': '상록수 방면',
+        'widget_42_departure_1': '09:12',
+        'widget_42_direction_2': '사당 방면',
+        'widget_42_departure_2': '09:18',
+      };
+      var facadeCalls = 0;
+      final service = NextTrainWidgetService(
+        load: (selection, now) async =>
+            NextTrainWidgetData.unavailable(selection, now),
+        saveValue: (key, value) async => stored[key] = value,
+        updateWidget: () async {},
+      );
+      final previousInstaller = app.debugMainNextTrainWidgetCallbackInstaller;
+      final previousRefresh = app.debugMainHeadlessWidgetRefresh;
+      Future<bool> Function()? injectedRefresh;
+      app.debugMainNextTrainWidgetCallbackInstaller =
+          ({required runWidgetRefresh}) {
+            injectedRefresh = runWidgetRefresh;
+          };
+      app.debugMainHeadlessWidgetRefresh = () async {
+        facadeCalls += 1;
+        await service.refresh(
+          appWidgetId: 42,
+          selection: _selection,
+          now: DateTime(2027, 1, 1, 9),
+        );
+        return true;
+      };
+      try {
+        app.nextTrainWidgetCallbackDispatcher();
+        expect(await injectedRefresh!(), isTrue);
+        expect(facadeCalls, 1);
+        expect(stored['widget_42_status'], 'timetableUnavailable');
+        expect(stored['widget_42_direction_1'], '');
+        expect(stored['widget_42_departure_1'], '');
+        expect(stored['widget_42_direction_2'], '');
+        expect(stored['widget_42_departure_2'], '');
+      } finally {
+        app.debugMainNextTrainWidgetCallbackInstaller = previousInstaller;
+        app.debugMainHeadlessWidgetRefresh = previousRefresh;
+      }
+    },
+  );
 
   test('configure는 widget id별 시간표 snapshot을 저장하고 provider를 갱신한다', () async {
     final stored = <String, Object?>{};

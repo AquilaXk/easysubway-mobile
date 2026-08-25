@@ -3,10 +3,25 @@ plugins {
     id 'org.jetbrains.kotlin.android'
 }
 
+def easysubwayJvmVersion = rootProject.ext.easysubwayJvmVersion as int
+
 android {
     namespace 'com.easysubway.play_integrity_channel'
     compileSdk = flutter.compileSdkVersion
     defaultConfig { minSdk = flutter.minSdkVersion }
+    compileOptions {
+        sourceCompatibility JavaVersion.toVersion(easysubwayJvmVersion)
+        targetCompatibility JavaVersion.toVersion(easysubwayJvmVersion)
+    }
+}
+
+kotlin {
+    jvmToolchain(easysubwayJvmVersion)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(
+            easysubwayJvmVersion.toString(),
+        ))
+    }
 }
 
 dependencies { implementation 'com.google.android.play:integrity:1.6.0' }

@@ -3,10 +3,10 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 
 import '../../../generated/journey_v3/journey_v3_contract.dart';
-import 'journey_session_provider.dart';
+import '../journey_session_provider.dart';
 import '../domain/journey_repository.dart';
 
-export 'journey_session_provider.dart'
+export '../journey_session_provider.dart'
     show JourneySessionProvider, JourneyV3IntegrityAttestor;
 
 typedef JourneyExpiryTimerFactory =

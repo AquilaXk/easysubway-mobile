@@ -40,7 +40,9 @@
     "apps/mobile/lib/features/journey/application/journey_search_controller.dart",
     "apps/mobile/lib/features/journey/data/journey_api_repository.dart",
     "apps/mobile/lib/features/journey/domain/journey_repository.dart",
-    "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart"
+    "apps/mobile/lib/features/journey/journey_session_provider.dart",
+    "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart",
+    "apps/mobile/lib/features/stations/data/server_station_timetable_repository.dart"
   ],
   "publicApis": [
     {
@@ -118,6 +120,20 @@
       "ownerFeature": "get_off_alarm",
       "classification": "PUBLIC_API",
       "contractKind": "TYPED_DOMAIN",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/journey/domain/journey_repository.dart",
+      "ownerFeature": "journey",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
+      "terminalDisposition": "RETAIN_TYPED_CONTRACT"
+    },
+    {
+      "path": "apps/mobile/lib/features/journey/journey_session_provider.dart",
+      "ownerFeature": "journey",
+      "classification": "PUBLIC_API",
+      "contractKind": "TYPED_APPLICATION_PORT",
       "terminalDisposition": "RETAIN_TYPED_CONTRACT"
     },
     {

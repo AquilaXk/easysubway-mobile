@@ -6,6 +6,7 @@ import 'app/app_bootstrap.dart';
 import 'app/app_endpoints.dart';
 import 'app/demo_dependencies.dart';
 import 'app/easy_subway_app.dart';
+import 'app/next_train_widget_timetable_composition.dart';
 import 'core/crashlytics/mobile_crash_reporting.dart';
 import 'core/external/kakao_map_configuration.dart';
 import 'features/ads/active_ad_banner.dart';
@@ -50,6 +51,8 @@ typedef MainNextTrainWidgetStartup =
       required Future<void> Function(List<int> widgetIds) refresh,
       required void Function(Object error, StackTrace stackTrace) reportError,
     });
+typedef MainNextTrainWidgetCallbackInstaller =
+    void Function({required Future<bool> Function() runWidgetRefresh});
 
 @visibleForTesting
 MainCrashReportingInitializer debugMainCrashReportingInitializer =
@@ -59,13 +62,19 @@ MainAppBootstrapInitializer debugMainAppBootstrapInitializer =
     AppBootstrap.initialize;
 @visibleForTesting
 Future<void> Function() debugMainWorkManagerInitializer =
-    next_train_widget_runtime.initializeWorkManagerDispatcher;
+    initializeMainWorkManagerDispatcher;
 @visibleForTesting
 Future<void> Function(GetOffAlarmController?) debugMainAlarmRestorer =
     restoreGetOffAlarmState;
 @visibleForTesting
 MainNextTrainWidgetStartup debugMainNextTrainWidgetStartup =
     next_train_widget_runtime.runNextTrainWidgetStartup;
+@visibleForTesting
+MainNextTrainWidgetCallbackInstaller debugMainNextTrainWidgetCallbackInstaller =
+    next_train_widget_runtime.nextTrainWidgetCallbackDispatcher;
+@visibleForTesting
+Future<bool> Function() debugMainHeadlessWidgetRefresh =
+    runMainHeadlessNextTrainWidgetRefresh;
 @visibleForTesting
 Stream<Uri?> Function() debugMainHomeWidgetClicks =
     next_train_widget_runtime.homeWidgetClicks;
@@ -262,7 +271,35 @@ Changes: converted from SVG to PNG and colorized for EasySubway.
 }
 
 @pragma('vm:entry-point')
-Future<void> configureMain() => next_train_widget_runtime.configureMain();
+Future<void> configureMain() => next_train_widget_runtime.configureMain(
+  createTimetableRepository: createNextTrainWidgetTimetableRepository,
+  initializeAndRegisterRefresh: initializeAndRegisterNextTrainWidgetRefresh,
+);
+
+@pragma('vm:entry-point')
+void nextTrainWidgetCallbackDispatcher() {
+  debugMainNextTrainWidgetCallbackInstaller(
+    runWidgetRefresh: debugMainHeadlessWidgetRefresh,
+  );
+}
+
+Future<bool> runMainHeadlessNextTrainWidgetRefresh() {
+  return next_train_widget_runtime.runHeadlessNextTrainWidgetRefresh(
+    createTimetableRepository: createNextTrainWidgetTimetableRepository,
+  );
+}
+
+Future<void> initializeMainWorkManagerDispatcher() {
+  return next_train_widget_runtime.initializeWorkManagerDispatcher(
+    callbackDispatcher: nextTrainWidgetCallbackDispatcher,
+  );
+}
+
+Future<void> initializeAndRegisterNextTrainWidgetRefresh() {
+  return next_train_widget_runtime.initializeAndRegisterNextTrainWidgetRefresh(
+    callbackDispatcher: nextTrainWidgetCallbackDispatcher,
+  );
+}
 
 @visibleForTesting
 Future<void> restoreGetOffAlarmState(GetOffAlarmController? controller) async {

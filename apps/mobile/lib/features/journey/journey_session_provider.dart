@@ -4,8 +4,8 @@ import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 
-import '../../../generated/journey_v3/journey_v3_contract.dart';
-import '../domain/journey_repository.dart';
+import '../../generated/journey_v3/journey_v3_contract.dart';
+import 'domain/journey_repository.dart';
 
 abstract interface class JourneyV3IntegrityAttestor {
   Future<String> attest(String requestHash);

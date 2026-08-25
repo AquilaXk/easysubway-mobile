@@ -20,7 +20,7 @@ import '../features/favorites/favorite_facility.dart';
 import '../features/favorites/presentation/favorite_home_screen.dart';
 import '../features/get_off_alarm/get_off_alarm_controller.dart';
 import '../features/journey/application/journey_search_controller.dart';
-import '../features/journey/application/journey_session_provider.dart';
+import '../features/journey/journey_session_provider.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../features/journey/presentation/journey_search_screen.dart';
 import '../features/mobility_profile/mobility_preset_labels.dart';

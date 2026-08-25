@@ -17,6 +17,9 @@ if (googleServicesFile.exists()) {
     apply(plugin = "com.google.firebase.crashlytics")
 }
 
+val easysubwayJvmVersion = rootProject.extra["easysubwayJvmVersion"] as Int
+val easysubwayJavaVersion = JavaVersion.toVersion(easysubwayJvmVersion)
+
 val releaseSigningValueNames = listOf(
     "EASYSUBWAY_ANDROID_KEYSTORE_PATH",
     "EASYSUBWAY_ANDROID_STORE_PASSWORD",
@@ -49,8 +52,8 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_17
-        targetCompatibility = JavaVersion.VERSION_17
+        sourceCompatibility = easysubwayJavaVersion
+        targetCompatibility = easysubwayJavaVersion
         // flutter_local_notifications(하차 알림 #1766)가 java.time API를 써서
         // core library desugaring을 요구한다.
         isCoreLibraryDesugaringEnabled = true
@@ -89,8 +92,11 @@ android {
 }
 
 kotlin {
+    jvmToolchain(easysubwayJvmVersion)
     compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
+        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.fromTarget(
+            easysubwayJvmVersion.toString(),
+        )
     }
 }
 

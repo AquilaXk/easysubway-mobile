@@ -27,7 +27,7 @@ import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/journey/application/journey_search_controller.dart';
-import '../features/journey/application/journey_session_provider.dart';
+import '../features/journey/journey_session_provider.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../legacy_credential_cleanup.dart';
 import '../mobile_error_reporter.dart';

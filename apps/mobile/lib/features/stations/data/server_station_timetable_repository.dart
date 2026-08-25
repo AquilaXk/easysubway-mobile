@@ -1,5 +1,5 @@
 import '../../../generated/journey_v3/journey_v3_contract.dart' as contract;
-import '../../journey/application/journey_session_provider.dart';
+import '../../journey/journey_session_provider.dart';
 import '../../journey/domain/journey_repository.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';

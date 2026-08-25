@@ -14,14 +14,9 @@ import '../../core/database/catalog/catalog_database_opener.dart';
 import '../../core/database/user/user_database.dart';
 import '../../core/database/user/user_database_opener.dart';
 import '../../core/datapack/emergency_override_repository.dart';
-import '../../core/network/api_client.dart';
 import '../../mobile_error_reporter.dart';
 import '../get_off_alarm/get_off_alarm_reconcile_worker.dart';
-import '../journey/application/journey_session_provider.dart';
-import '../journey/data/journey_api_repository.dart';
-import '../journey/data/journey_method_channel_integrity_attestor.dart';
-import '../stations/data/server_station_timetable_repository.dart';
-import '../stations/data/station_api_base_uri.dart';
+import '../stations/domain/station_repositories.dart';
 import 'next_train_widget_configuration_screen.dart';
 import 'next_train_widget_repository.dart';
 import 'next_train_widget_service.dart';
@@ -34,21 +29,8 @@ const nextTrainWidgetRefreshUniqueName = 'next-train-widget-refresh';
 typedef ReadWidgetValue = Future<String?> Function(String key);
 typedef ReportNextTrainWidgetError =
     void Function(Object error, StackTrace stackTrace);
-
-ServerStationTimetableRepository _serverTimetableRepository() {
-  final baseUri = defaultOptionalStationApiBaseUri();
-  if (baseUri == null) {
-    throw StateError('Journey V3 API base URL is not configured.');
-  }
-  final journeyRepository = JourneyApiRepository(ApiClient(baseUri: baseUri));
-  return ServerStationTimetableRepository(
-    journeyRepository: journeyRepository,
-    sessionProvider: JourneySessionProvider(
-      repository: journeyRepository,
-      attestor: JourneyMethodChannelIntegrityAttestor(),
-    ),
-  );
-}
+typedef CreateNextTrainWidgetTimetableRepository =
+    StationTimetableRepository Function();
 
 Future<void> runNextTrainWidgetStartup({
   required Future<List<int>> Function() installedWidgetIds,
@@ -193,11 +175,13 @@ Future<void> refreshInstalledNextTrainWidgets({
 /// process-wide WorkManager dispatcher를 초기화한다. app bootstrap에서 정확히
 /// 한 번만 호출한다(다음 열차 위젯·하차 알림 reconcile이 이 단일 dispatcher를
 /// 공유한다). 등록(register*)은 initialize와 분리해 개별적으로 수행한다.
-Future<void> initializeWorkManagerDispatcher() async {
+Future<void> initializeWorkManagerDispatcher({
+  required void Function() callbackDispatcher,
+}) async {
   if (!Platform.isAndroid) {
     return;
   }
-  await WorkmanagerAndroid().initialize(nextTrainWidgetCallbackDispatcher);
+  await WorkmanagerAndroid().initialize(callbackDispatcher);
 }
 
 /// 다음 열차 위젯 unique periodic work만 등록/update한다(initialize하지 않음).
@@ -217,8 +201,10 @@ Future<void> registerNextTrainWidgetRefresh() async {
 /// 위젯 설정 activity(별도 engine)의 진입점 전용: 그 engine에는 dispatcher가
 /// 초기화돼 있지 않으므로 initialize와 register를 함께 수행한다. main bootstrap은
 /// 이 함수를 쓰지 않고 [initializeWorkManagerDispatcher]로 1회만 초기화한다.
-Future<void> initializeAndRegisterNextTrainWidgetRefresh() async {
-  await initializeWorkManagerDispatcher();
+Future<void> initializeAndRegisterNextTrainWidgetRefresh({
+  required void Function() callbackDispatcher,
+}) async {
+  await initializeWorkManagerDispatcher(callbackDispatcher: callbackDispatcher);
   await registerNextTrainWidgetRefresh();
 }
 
@@ -277,10 +263,13 @@ Stream<Uri?> homeWidgetClicks() async* {
   yield* HomeWidget.widgetClicked;
 }
 
-@pragma('vm:entry-point')
-void nextTrainWidgetCallbackDispatcher() {
+void nextTrainWidgetCallbackDispatcher({
+  required Future<bool> Function() runWidgetRefresh,
+}) {
   WidgetsFlutterBinding.ensureInitialized();
-  WorkmanagerFlutterApi.setUp(NextTrainWidgetWorkmanagerApi());
+  WorkmanagerFlutterApi.setUp(
+    NextTrainWidgetWorkmanagerApi(runWidgetRefresh: runWidgetRefresh),
+  );
 }
 
 // ponytail: the federated public Android API keeps iOS SwiftPM-only; replace
@@ -291,13 +280,12 @@ void nextTrainWidgetCallbackDispatcher() {
 @visibleForTesting
 class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
   NextTrainWidgetWorkmanagerApi({
-    Future<bool> Function()? runWidgetRefresh,
+    required this.runWidgetRefresh,
     Future<bool> Function()? runGetOffAlarmReconcile,
-  }) : _runWidgetRefresh = runWidgetRefresh ?? _defaultRunWidgetRefresh,
-       _runGetOffAlarmReconcile =
+  }) : _runGetOffAlarmReconcile =
            runGetOffAlarmReconcile ?? _defaultRunGetOffAlarmReconcile;
 
-  final Future<bool> Function() _runWidgetRefresh;
+  final Future<bool> Function() runWidgetRefresh;
   final Future<bool> Function() _runGetOffAlarmReconcile;
 
   @override
@@ -310,30 +298,12 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
   ) async {
     switch (task) {
       case nextTrainWidgetRefreshTask:
-        return _runWidgetRefresh();
+        return runWidgetRefresh();
       case getOffAlarmReconcileTask:
         return _runGetOffAlarmReconcile();
       default:
         return false;
     }
-  }
-
-  static Future<bool> _defaultRunWidgetRefresh() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    DartPluginRegistrant.ensureInitialized();
-    final databases = await _openWidgetDatabases();
-    try {
-      await refreshNextTrainWidgets(
-        NextTrainWidgetRepository(
-          catalogDatabase: databases.catalog,
-          userDatabase: databases.user,
-          timetableRepository: _serverTimetableRepository(),
-        ),
-      );
-    } finally {
-      await databases.close();
-    }
-    return true;
   }
 
   static Future<bool> _defaultRunGetOffAlarmReconcile() async {
@@ -349,8 +319,30 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
   }
 }
 
-@pragma('vm:entry-point')
-Future<void> configureMain() async {
+Future<bool> runHeadlessNextTrainWidgetRefresh({
+  required CreateNextTrainWidgetTimetableRepository createTimetableRepository,
+}) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+  final databases = await _openWidgetDatabases();
+  try {
+    await refreshNextTrainWidgets(
+      NextTrainWidgetRepository(
+        catalogDatabase: databases.catalog,
+        userDatabase: databases.user,
+        timetableRepository: createTimetableRepository(),
+      ),
+    );
+  } finally {
+    await databases.close();
+  }
+  return true;
+}
+
+Future<void> configureMain({
+  required CreateNextTrainWidgetTimetableRepository createTimetableRepository,
+  required Future<void> Function() initializeAndRegisterRefresh,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
   await launchNextTrainWidgetConfiguration(
@@ -364,7 +356,7 @@ Future<void> configureMain() async {
               (databases) => NextTrainWidgetRepository(
                 catalogDatabase: databases.catalog,
                 userDatabase: databases.user,
-                timetableRepository: _serverTimetableRepository(),
+                timetableRepository: createTimetableRepository(),
               ).availableSelections(),
             ),
             configure: (selection) => configureNextTrainWidgetSelection(
@@ -375,7 +367,7 @@ Future<void> configureMain() async {
                       load: NextTrainWidgetRepository(
                         catalogDatabase: databases.catalog,
                         userDatabase: databases.user,
-                        timetableRepository: _serverTimetableRepository(),
+                        timetableRepository: createTimetableRepository(),
                       ).load,
                       saveValue: _saveWidgetValue,
                       updateWidget: _updateNativeWidget,
@@ -385,7 +377,7 @@ Future<void> configureMain() async {
                       now: DateTime.now(),
                     ),
               ),
-              registerRefresh: initializeAndRegisterNextTrainWidgetRefresh,
+              registerRefresh: initializeAndRegisterRefresh,
               finish: HomeWidget.finishHomeWidgetConfigure,
               cancelRefresh: () async {
                 final installedWidgetIds = await installedNextTrainWidgetIds();
