@@ -10599,7 +10599,7 @@ void main() {
     await _openFavoriteList(
       tester,
       routeDraftController: routeDraftController,
-      onOpenRouteSearch: (_, __) async {
+      onOpenRouteSearch: (_, _) async {
         searchCount++;
       },
     );
