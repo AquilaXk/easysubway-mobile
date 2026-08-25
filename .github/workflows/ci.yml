@@ -60,6 +60,7 @@ jobs:
           node tools/mobile/stage-journey-v3-contract.mjs \
             --lock contracts/mobile/journey-v3-client.lock.json \
             --input "$JOURNEY_PULL_ROOT/journey-v3-contract-bundle-v2.json" \
+            --receipt tools/mobile/fixtures/journey-v3-contract-v2/journey-v3-contract-bundle-v2-receipt.json \
             --output "$JOURNEY_STAGE_ROOT"
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
