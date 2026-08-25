@@ -4,33 +4,33 @@
   "bundleVersion": "2.0.0",
   "producer": {
     "repository": "AquilaXk/easysubway-backend",
-    "gitSha": "620fb3ce2771a68bd8ddf09c98f8ac4c509d27bf"
+    "gitSha": "724cab9263765eb5184e84a50c406ec9fc12c592"
   },
   "artifact": {
     "repository": "ghcr.io/aquilaxk/easysubway-backend-contracts",
-    "manifestDigest": "sha256:6575b636c3e0c5af7dedb341d44ce8b36e54788a343c813ccc173b292cfa5673",
+    "manifestDigest": "sha256:5e0be15abeb46d0bda4799ec9c6036b8b2b41f5436bd0d816169308a82d5f9a2",
     "artifactType": "application/vnd.easysubway.journey.contract-bundle.v2"
   },
   "payload": {
     "fileName": "journey-v3-contract-bundle-v2.json",
     "mediaType": "application/vnd.easysubway.journey.contract-bundle.v2+json",
-    "sha256": "c1df7eff5db030bfe297f3f7acf1d626a24407e17edddcacee119b81dcb19e23"
+    "sha256": "674e50f2f472760aad58864cee2cab4f08b8d5b3c8740ced7221eb45383e82a0"
   },
-  "publicationReceiptSha256": "f514dc7a3f5374133682b29457c82bf51dba1a05991a35af29081848d2fb2b20",
+  "publicationReceiptSha256": "e9534e2f82c64d617a5c536950cd6228d56cfa0c42c44104f4365979e07761ee",
   "resources": [
     {
       "id": "journey-v3-error-catalog",
       "path": "contracts/api/journey-v3-error-catalog.json",
       "owner": "AquilaXk/easysubway-backend",
       "mediaType": "application/json",
-      "sha256": "5b93075c2e19801c8084e8ab08b5efb1ef8267822b3a71487742e7888e822772"
+      "sha256": "0f9fe2731765b5a704c3493cd85fd5280e4629c8074269ac980edaa9303a7095"
     },
     {
       "id": "journey-v3-error-disposition",
       "path": "contracts/api/journey-v3-error-disposition.json",
       "owner": "AquilaXk/easysubway-backend",
       "mediaType": "application/json",
-      "sha256": "1e03ee7262897e0887ef837c95a2802ff420ffeaf15c921e0dca8a9750280780"
+      "sha256": "2452ba70dd4109eb01b5b1714151002333c8a08bd3c1b48494d3590f1d3686b0"
     },
     {
       "id": "journey-v3-session-integrity",
@@ -44,7 +44,7 @@
       "path": "contracts/api/journey-v3.openapi.yaml",
       "owner": "AquilaXk/easysubway-backend",
       "mediaType": "application/yaml",
-      "sha256": "7de00754abb8c0088707164bca634abf6fe01cd846151b95084357735702b980"
+      "sha256": "a523a0502008e03c18d46bf65dff5ef82d8a88e27d93c0f7b67f8583e042c21c"
     }
   ]
 }

@@ -32,19 +32,26 @@ function fixture(root) {
   lock.payload.sha256 = sha256(JSON.stringify(payload));
   const lockPath = join(root, 'lock.json');
   const inputPath = join(root, lock.payload.fileName);
+  const receiptPath = join(root, 'receipt.json');
+  const receipt = { schemaVersion: 1, component: lock.component, bundleVersion: lock.bundleVersion, producer: lock.producer, artifact: lock.artifact, payload: lock.payload };
+  lock.publicationReceiptSha256 = sha256(JSON.stringify(receipt));
   writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
   writeFileSync(inputPath, JSON.stringify(payload));
-  return { lock, payload, lockPath, inputPath, expectedPublicationReceiptSha256: lock.publicationReceiptSha256 };
+  writeFileSync(receiptPath, JSON.stringify(receipt));
+  return { lock, payload, lockPath, inputPath, receiptPath };
 }
 
-function persist({ lock, payload, lockPath, inputPath }) {
+function persist({ lock, payload, lockPath, inputPath, receiptPath }) {
   lock.payload.sha256 = sha256(JSON.stringify(payload));
+  const receipt = { schemaVersion: 1, component: lock.component, bundleVersion: lock.bundleVersion, producer: lock.producer, artifact: lock.artifact, payload: lock.payload };
+  lock.publicationReceiptSha256 = sha256(JSON.stringify(receipt));
   writeFileSync(lockPath, `${JSON.stringify(lock, null, 2)}\n`);
   writeFileSync(inputPath, JSON.stringify(payload));
+  writeFileSync(receiptPath, JSON.stringify(receipt));
 }
 
 function run(fixture_, output) {
-  return stageJourneyV3ContractForTest({ lockPath: fixture_.lockPath, inputPath: fixture_.inputPath, outputPath: output, buildRoot: fixture_.buildRoot, expectedPublicationReceiptSha256: fixture_.expectedPublicationReceiptSha256 });
+  return stageJourneyV3ContractForTest({ lockPath: fixture_.lockPath, inputPath: fixture_.inputPath, receiptPath: fixture_.receiptPath, outputPath: output, buildRoot: fixture_.buildRoot });
 }
 
 function fails(fixture_, output, message) {
@@ -55,9 +62,9 @@ test('stages only the exact lock-bound bundle and receipt', () => {
   const root = mkdtempSync(join(tmpdir(), 'journey-stage-'));
   let output;
   try {
-    const { lock, lockPath, inputPath, expectedPublicationReceiptSha256 } = fixture(root);
+    const { lock, lockPath, inputPath } = fixture(root);
     output = join(repository, 'build', `journey-stage-test-${process.pid}-${Date.now()}`);
-    const fixture_ = { lock, payload: JSON.parse(readFileSync(inputPath, 'utf8')), lockPath, inputPath, expectedPublicationReceiptSha256 };
+    const fixture_ = { lock, payload: JSON.parse(readFileSync(inputPath, 'utf8')), lockPath, inputPath, receiptPath: join(root, 'receipt.json') };
     run(fixture_, output);
     assert.equal(readFileSync(join(output, lock.resources[0].path), 'utf8'), '{"errors":[]}');
     const receipt = JSON.parse(readFileSync(join(output, 'journey-v3-contract-stage-receipt.json'), 'utf8'));
@@ -86,7 +93,7 @@ test('fails closed when the immutable session-integrity resource is missing, reo
     const absent = fixture(join(root, 'absent')); persist(absent); absent.lock.resources.splice(2, 1); absent.payload.resources.splice(2, 1); persist(absent); const absentOutput = join(repository, 'build', `journey-stage-session-${process.pid}-${Date.now()}-absent`); fails(absent, absentOutput, 'lock.resources must contain exactly the required resources'); assert.equal(existsSync(absentOutput), false);
     const reordered = fixture(join(root, 'reordered')); persist(reordered); [reordered.lock.resources[2], reordered.lock.resources[3]] = [reordered.lock.resources[3], reordered.lock.resources[2]]; [reordered.payload.resources[2], reordered.payload.resources[3]] = [reordered.payload.resources[3], reordered.payload.resources[2]]; persist(reordered); fails(reordered, join(repository, 'build', `journey-stage-session-${process.pid}-${Date.now()}-reordered`), 'lock.resources has an invalid order or duplicate path');
     const tampered = fixture(join(root, 'tampered')); persist(tampered); tampered.payload.resources[2].contentBase64 = Buffer.from('{"schemaVersion":"TAMPERED"}').toString('base64'); persist(tampered); fails(tampered, join(repository, 'build', `journey-stage-session-${process.pid}-${Date.now()}-tampered`), 'payload resource 2 content does not match lock');
-    const receipt = fixture(join(root, 'receipt')); persist(receipt); const expectedPublicationReceiptSha256 = receipt.lock.publicationReceiptSha256; receipt.lock.publicationReceiptSha256 = 'd'.repeat(64); persist(receipt); const output = join(repository, 'build', `journey-stage-session-${process.pid}-${Date.now()}-receipt`); fails({ ...receipt, expectedPublicationReceiptSha256 }, output, 'lock publication receipt SHA-256 does not match the expected receipt'); assert.equal(existsSync(output), false);
+    const receipt = fixture(join(root, 'receipt')); persist(receipt); writeFileSync(receipt.receiptPath, '{"schemaVersion":1}'); const output = join(repository, 'build', `journey-stage-session-${process.pid}-${Date.now()}-receipt`); fails(receipt, output, 'publication receipt has unexpected or missing fields'); assert.equal(existsSync(output), false);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 
@@ -96,6 +103,12 @@ test('rejects symlink inputs and output outside a safe absent directory below bu
     const fixture_ = fixture(root);
     const output = join(repository, 'build', `journey-stage-test-${process.pid}-${Date.now()}`);
     const inputLink = join(root, 'payload-link.json'); symlinkSync(fixture_.inputPath, inputLink); fails({ ...fixture_, inputPath: inputLink }, output, 'input must be a regular non-symlink file');
+    fails({ ...fixture_, receiptPath: join(root, 'missing-receipt.json') }, join(repository, 'build', `journey-stage-missing-receipt-${process.pid}-${Date.now()}`), 'publication receipt must be a regular non-symlink file');
+    const identityReceipt = { schemaVersion: 1, component: fixture_.lock.component, bundleVersion: fixture_.lock.bundleVersion, producer: { ...fixture_.lock.producer, gitSha: 'c'.repeat(40) }, artifact: fixture_.lock.artifact, payload: fixture_.lock.payload };
+    fixture_.lock.publicationReceiptSha256 = sha256(JSON.stringify(identityReceipt));
+    writeFileSync(fixture_.lockPath, JSON.stringify(fixture_.lock)); writeFileSync(fixture_.receiptPath, JSON.stringify(identityReceipt));
+    fails(fixture_, join(repository, 'build', `journey-stage-identity-receipt-${process.pid}-${Date.now()}`), 'publication receipt does not match lock identity');
+    persist(fixture_);
     fails(fixture_, join(root, 'outside-build'), 'output must be an absent direct child below repository build');
     const linkParent = join(repository, 'build', `journey-stage-link-${process.pid}-${Date.now()}`); symlinkSync(root, linkParent); fails(fixture_, join(linkParent, 'output'), 'output must be an absent direct child below repository build'); rmSync(linkParent);
   } finally { rmSync(root, { recursive: true, force: true }); }
@@ -107,7 +120,7 @@ test('production CLI rejects a self-consistent alternate lock and never replaces
   try {
     const fixture_ = fixture(root); persist(fixture_);
     output = join(repository, 'build', `journey-stage-test-${process.pid}-${Date.now()}`);
-    assert.throws(() => execFileSync(process.execPath, [stager, '--lock', fixture_.lockPath, '--input', fixture_.inputPath, '--output', output], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }), /lock must be the tracked journey-v3-client lock/);
+    assert.throws(() => execFileSync(process.execPath, [stager, '--lock', fixture_.lockPath, '--input', fixture_.inputPath, '--receipt', fixture_.receiptPath, '--output', output], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }), /lock must be the tracked journey-v3-client lock/);
     sibling = `${output}.sibling`; writeFileSync(sibling, 'sibling-unchanged');
     mkdirSync(output); writeFileSync(join(output, 'partial'), 'unchanged');
     fails(fixture_, output, 'output must be absent');
