@@ -128,6 +128,7 @@ Future<void> main() async {
   final nextTrainWidgetRepository = NextTrainWidgetRepository(
     catalogDatabase: bootstrap.catalogDatabase,
     userDatabase: bootstrap.userDatabase,
+    timetableRepository: bootstrap.dependencies.stationTimetableRepository,
   );
   await debugMainNextTrainWidgetStartup(
     installedWidgetIds: next_train_widget_runtime.installedNextTrainWidgetIds,
@@ -174,6 +175,8 @@ Future<void> main() async {
             bootstrap.dependencies.adRepository,
           ),
           realtimeRepository: bootstrap.dependencies.realtimeRepository,
+          timetableRepository:
+              bootstrap.dependencies.stationTimetableRepository,
           locationProvider: bootstrap.dependencies.locationProvider,
           stationId: stationId,
           facilityReportDraftTargetStore: draftTargetStore,

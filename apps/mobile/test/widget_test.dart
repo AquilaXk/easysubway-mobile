@@ -939,6 +939,8 @@ void main() {
       adRepository: baseDependencies.adRepository,
       journeyRepositoryFactory: baseDependencies.journeyRepositoryFactory,
       journeyAttestor: baseDependencies.journeyAttestor,
+      journeySessionProvider: baseDependencies.journeySessionProvider,
+      stationTimetableRepository: baseDependencies.stationTimetableRepository,
     );
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -16206,6 +16208,18 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
       referenceDate: date,
     );
   }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => loadStationTimetableForDate(
+    stationId: stationId,
+    lineId: lineId,
+    date: asOf,
+  );
 }
 
 /// #2453: 로컬 시간표 Future를 완료하지 않아 패널 첫 프레임 골격을 검증한다.
@@ -16251,6 +16265,14 @@ class _HangingTimetableStationRepository extends FakeStationSearchRepository
       referenceDate: date,
     );
   }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => completer.future;
 }
 
 class FakeSearchHistoryRepository implements SearchHistoryRepository {

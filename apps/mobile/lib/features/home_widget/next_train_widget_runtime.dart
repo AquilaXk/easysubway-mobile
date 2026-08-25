@@ -14,8 +14,14 @@ import '../../core/database/catalog/catalog_database_opener.dart';
 import '../../core/database/user/user_database.dart';
 import '../../core/database/user/user_database_opener.dart';
 import '../../core/datapack/emergency_override_repository.dart';
+import '../../core/network/api_client.dart';
 import '../../mobile_error_reporter.dart';
 import '../get_off_alarm/get_off_alarm_reconcile_worker.dart';
+import '../journey/application/journey_session_provider.dart';
+import '../journey/data/journey_api_repository.dart';
+import '../journey/data/journey_method_channel_integrity_attestor.dart';
+import '../stations/data/server_station_timetable_repository.dart';
+import '../stations/data/station_api_base_uri.dart';
 import 'next_train_widget_configuration_screen.dart';
 import 'next_train_widget_repository.dart';
 import 'next_train_widget_service.dart';
@@ -28,6 +34,21 @@ const nextTrainWidgetRefreshUniqueName = 'next-train-widget-refresh';
 typedef ReadWidgetValue = Future<String?> Function(String key);
 typedef ReportNextTrainWidgetError =
     void Function(Object error, StackTrace stackTrace);
+
+ServerStationTimetableRepository _serverTimetableRepository() {
+  final baseUri = defaultOptionalStationApiBaseUri();
+  if (baseUri == null) {
+    throw StateError('Journey V3 API base URL is not configured.');
+  }
+  final journeyRepository = JourneyApiRepository(ApiClient(baseUri: baseUri));
+  return ServerStationTimetableRepository(
+    journeyRepository: journeyRepository,
+    sessionProvider: JourneySessionProvider(
+      repository: journeyRepository,
+      attestor: JourneyMethodChannelIntegrityAttestor(),
+    ),
+  );
+}
 
 Future<void> runNextTrainWidgetStartup({
   required Future<List<int>> Function() installedWidgetIds,
@@ -306,6 +327,7 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
         NextTrainWidgetRepository(
           catalogDatabase: databases.catalog,
           userDatabase: databases.user,
+          timetableRepository: _serverTimetableRepository(),
         ),
       );
     } finally {
@@ -342,6 +364,7 @@ Future<void> configureMain() async {
               (databases) => NextTrainWidgetRepository(
                 catalogDatabase: databases.catalog,
                 userDatabase: databases.user,
+                timetableRepository: _serverTimetableRepository(),
               ).availableSelections(),
             ),
             configure: (selection) => configureNextTrainWidgetSelection(
@@ -352,6 +375,7 @@ Future<void> configureMain() async {
                       load: NextTrainWidgetRepository(
                         catalogDatabase: databases.catalog,
                         userDatabase: databases.user,
+                        timetableRepository: _serverTimetableRepository(),
                       ).load,
                       saveValue: _saveWidgetValue,
                       updateWidget: _updateNativeWidget,

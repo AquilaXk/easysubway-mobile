@@ -1,16 +1,13 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:math';
-
-import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../../generated/journey_v3/journey_v3_contract.dart';
+import 'journey_session_provider.dart';
 import '../domain/journey_repository.dart';
 
-abstract interface class JourneyV3IntegrityAttestor {
-  Future<String> attest(String requestHash);
-}
+export 'journey_session_provider.dart'
+    show JourneySessionProvider, JourneyV3IntegrityAttestor;
 
 typedef JourneyExpiryTimerFactory =
     Timer Function(Duration duration, void Function() callback);
@@ -185,33 +182,37 @@ class JourneySearchController extends ChangeNotifier {
     DateTime Function()? now,
     String Function()? requestIdGenerator,
     String Function(int entropyBytes)? nonceGenerator,
+    JourneySessionProvider? sessionProvider,
     JourneyExpiryTimerFactory? expiryTimerFactory,
     JourneyNonFatalErrorReporter? reportNonFatalError,
   }) : _now = now ?? DateTime.now,
        _requestIdGenerator = requestIdGenerator ?? _secureUlid,
-       _nonceGenerator = nonceGenerator ?? _secureNonce,
        _expiryTimerFactory = expiryTimerFactory ?? Timer.new,
        _reportNonFatalError = reportNonFatalError ?? _ignoreNonFatalError,
-       _sessionSpec = _JourneyV3SessionIntegritySpec.fromGeneratedArtifact();
+       _sessionProvider =
+           sessionProvider ??
+           JourneySessionProvider(
+             repository: repository,
+             attestor: attestor,
+             now: now,
+             nonceGenerator: nonceGenerator,
+           ),
+       _ownsSessionProvider = sessionProvider == null;
 
   final JourneyRepository repository;
   final JourneyV3IntegrityAttestor attestor;
   final DateTime Function() _now;
   final String Function() _requestIdGenerator;
-  final String Function(int entropyBytes) _nonceGenerator;
   final JourneyExpiryTimerFactory _expiryTimerFactory;
   final JourneyNonFatalErrorReporter _reportNonFatalError;
-  final _JourneyV3SessionIntegritySpec _sessionSpec;
+  final JourneySessionProvider _sessionProvider;
+  final bool _ownsSessionProvider;
 
   JourneySearchState _state = const JourneySearchState.idle();
-  JourneySessionResponse? _session;
-  Future<JourneySessionResponse>? _sessionInFlight;
-  Object? _sessionInFlightToken;
   Future<void>? _inFlight;
   JourneySearchCommand? _inFlightCommand;
   JourneySearchCommand? _lastAcceptedCommand;
   int _generation = 0;
-  int _sessionEpoch = 0;
   bool _disposed = false;
   Timer? _responseExpiryTimer;
 
@@ -280,20 +281,17 @@ class JourneySearchController extends ChangeNotifier {
   void reset() {
     _generation++;
     _cancelResponseExpiry();
-    _sessionEpoch++;
     _inFlight = null;
     _inFlightCommand = null;
-    _sessionInFlight = null;
-    _sessionInFlightToken = null;
     _lastAcceptedCommand = null;
-    _invalidateSession();
+    _invalidateOwnedSession();
     _state = const JourneySearchState.idle();
     _safeNotify();
   }
 
   Future<void> _run(JourneySearchCommand command, int generation) async {
     try {
-      final session = await _sessionForSearch();
+      final session = await _sessionProvider.session();
       if (!_isCurrent(generation)) return;
       final request = JourneySearchRequest(
         requestId: _requestIdGenerator(),
@@ -326,7 +324,7 @@ class JourneySearchController extends ChangeNotifier {
     } catch (error, stackTrace) {
       if (!_isCurrent(generation)) return;
       if (_isSessionAuthenticationFailure(error)) {
-        _invalidateSession();
+        _sessionProvider.invalidate();
       }
       _state = JourneySearchState.failure(_safeFailure(error));
       _safeNotify();
@@ -337,67 +335,6 @@ class JourneySearchController extends ChangeNotifier {
         _inFlightCommand = null;
       }
     }
-  }
-
-  Future<JourneySessionResponse> _sessionForSearch() {
-    final cached = _session;
-    if (cached != null && cached.expiresAt.isAfter(_now())) {
-      return Future<JourneySessionResponse>.value(cached);
-    }
-    _invalidateSession();
-    final inFlight = _sessionInFlight;
-    if (inFlight != null) return inFlight;
-    final token = Object();
-    final issued = _issueSession(_sessionEpoch, token);
-    _sessionInFlight = issued;
-    _sessionInFlightToken = token;
-    return issued;
-  }
-
-  Future<JourneySessionResponse> _issueSession(int epoch, Object token) async {
-    try {
-      final nonce = _nonceGenerator(_sessionSpec.nonceEntropyBytes);
-      if (!_sessionSpec.noncePattern.hasMatch(nonce)) {
-        throw const _InvalidSession();
-      }
-      final integrityToken = await attestor.attest(_requestHash(nonce));
-      if (_disposed || epoch != _sessionEpoch) {
-        throw const _SessionInvalidated();
-      }
-      final issued = await repository.issueSession(
-        JourneySessionRequest(
-          integrityToken: integrityToken,
-          clientNonce: nonce,
-        ),
-      );
-      final now = _now();
-      if (_disposed || epoch != _sessionEpoch) {
-        throw const _SessionInvalidated();
-      }
-      if (issued.scope.wire != _sessionSpec.scope ||
-          !issued.expiresAt.isAfter(now) ||
-          issued.expiresAt.isAfter(
-            now.add(Duration(seconds: _sessionSpec.ttlSeconds)),
-          )) {
-        throw const _InvalidSession();
-      }
-      _session = issued;
-      return issued;
-    } catch (_) {
-      if (!_disposed && epoch == _sessionEpoch) {
-        _invalidateSession();
-      }
-      rethrow;
-    } finally {
-      if (identical(_sessionInFlightToken, token)) {
-        _sessionInFlight = null;
-        _sessionInFlightToken = null;
-      }
-    }
-  }
-
-  void _invalidateSession() {
-    _session = null;
   }
 
   void _scheduleResponseExpiry(
@@ -466,7 +403,9 @@ class JourneySearchController extends ChangeNotifier {
   }
 
   JourneySearchFailure _safeFailure(Object error) {
-    if (error is _InvalidSession) return JourneySearchFailure.sessionExpired;
+    if (error is JourneySessionInvalid) {
+      return JourneySearchFailure.sessionExpired;
+    }
     if (error is JourneyRejectedFailure) {
       return error.operation == JourneyOperation.issueJourneySession
           ? JourneySearchFailure.sessionRejected
@@ -479,26 +418,6 @@ class JourneySearchController extends ChangeNotifier {
           : JourneySearchFailure.unavailable;
     }
     return JourneySearchFailure.sessionUnavailable;
-  }
-
-  String _requestHash(String nonce) {
-    final canonical = _sessionSpec.canonicalPayloadTemplate.replaceAll(
-      '<clientNonce>',
-      nonce,
-    );
-    final hash = base64Url
-        .encode(sha256.convert(utf8.encode(canonical)).bytes)
-        .replaceAll('=', '');
-    if (!_sessionSpec.requestHashPattern.hasMatch(hash)) {
-      throw const _InvalidSession();
-    }
-    return hash;
-  }
-
-  static String _secureNonce(int entropyBytes) {
-    final random = Random.secure();
-    final bytes = List<int>.generate(entropyBytes, (_) => random.nextInt(256));
-    return base64Url.encode(bytes).replaceAll('=', '');
   }
 
   static void _ignoreNonFatalError(Object error, StackTrace stackTrace) {}
@@ -525,90 +444,21 @@ class JourneySearchController extends ChangeNotifier {
     if (!_disposed) notifyListeners();
   }
 
+  void _invalidateOwnedSession() {
+    if (_ownsSessionProvider) {
+      _sessionProvider.invalidate();
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
     _generation++;
     _cancelResponseExpiry();
-    _sessionEpoch++;
     _inFlight = null;
     _inFlightCommand = null;
-    _sessionInFlight = null;
-    _sessionInFlightToken = null;
     _lastAcceptedCommand = null;
-    _invalidateSession();
+    _invalidateOwnedSession();
     super.dispose();
-  }
-}
-
-class _InvalidSession implements Exception {
-  const _InvalidSession();
-}
-
-class _SessionInvalidated implements Exception {
-  const _SessionInvalidated();
-}
-
-class _JourneyV3SessionIntegritySpec {
-  const _JourneyV3SessionIntegritySpec({
-    required this.nonceEntropyBytes,
-    required this.noncePattern,
-    required this.requestHashPattern,
-    required this.canonicalPayloadTemplate,
-    required this.scope,
-    required this.ttlSeconds,
-  });
-
-  final int nonceEntropyBytes;
-  final RegExp noncePattern;
-  final RegExp requestHashPattern;
-  final String canonicalPayloadTemplate;
-  final String scope;
-  final int ttlSeconds;
-
-  factory _JourneyV3SessionIntegritySpec.fromGeneratedArtifact() {
-    try {
-      final root = jsonDecode(journeyV3SessionIntegritySpecJson);
-      if (root is! Map<String, Object?>) throw const FormatException();
-      final nonce = root['nonce'];
-      final requestHash = root['requestHash'];
-      final session = root['session'];
-      if (nonce is! Map<String, Object?> ||
-          requestHash is! Map<String, Object?> ||
-          session is! Map<String, Object?> ||
-          root['schemaVersion'] != 'JOURNEY_V3_SESSION_INTEGRITY_V1' ||
-          root['operationId'] != 'issueJourneySession' ||
-          nonce['source'] != 'CSPRNG' ||
-          nonce['encoding'] != 'BASE64URL_NO_PADDING' ||
-          nonce['entropyBytes'] != 16 ||
-          requestHash['algorithm'] != 'SHA-256' ||
-          requestHash['encoding'] != 'BASE64URL_NO_PADDING' ||
-          requestHash['purpose'] != 'journey:v3:session' ||
-          requestHash['version'] != 1 ||
-          session['scope'] != 'journey:v3' ||
-          session['ttlSeconds'] != 600) {
-        throw const FormatException();
-      }
-      final noncePattern = nonce['pattern'];
-      final hashPattern = requestHash['pattern'];
-      final template = requestHash['canonicalPayloadUtf8Template'];
-      if (noncePattern is! String ||
-          hashPattern is! String ||
-          template is! String ||
-          template !=
-              '{"clientNonce":"<clientNonce>","purpose":"journey:v3:session","version":1}') {
-        throw const FormatException();
-      }
-      return _JourneyV3SessionIntegritySpec(
-        nonceEntropyBytes: nonce['entropyBytes']! as int,
-        noncePattern: RegExp(noncePattern),
-        requestHashPattern: RegExp(hashPattern),
-        canonicalPayloadTemplate: template,
-        scope: session['scope']! as String,
-        ttlSeconds: session['ttlSeconds']! as int,
-      );
-    } catch (_) {
-      throw const FormatException('Invalid generated Journey V3 session spec');
-    }
   }
 }

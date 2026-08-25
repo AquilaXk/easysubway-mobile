@@ -20,6 +20,7 @@ class JourneySearchScreen extends StatefulWidget {
   const JourneySearchScreen({
     required this.repository,
     required this.attestor,
+    this.sessionProvider,
     required this.draft,
     required this.mobilityType,
     required this.onShellBackToHome,
@@ -33,6 +34,7 @@ class JourneySearchScreen extends StatefulWidget {
 
   final JourneyRepository repository;
   final JourneyV3IntegrityAttestor attestor;
+  final JourneySessionProvider? sessionProvider;
   final RouteDraft draft;
   final String mobilityType;
   final VoidCallback onShellBackToHome;
@@ -61,6 +63,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     _controller = JourneySearchController(
       repository: widget.repository,
       attestor: widget.attestor,
+      sessionProvider: widget.sessionProvider,
       now: widget.journeyNow,
       reportNonFatalError: (error, stackTrace) {
         return recordNonFatalError(error, stackTrace);

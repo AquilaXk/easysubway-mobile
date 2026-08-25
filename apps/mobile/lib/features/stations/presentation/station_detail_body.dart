@@ -524,6 +524,7 @@ class _StationTimetableEntry extends StatefulWidget {
 
 class _StationTimetableEntryState extends State<_StationTimetableEntry> {
   StationTimetable? _timetable;
+  bool _unavailable = false;
 
   @override
   void initState() {
@@ -539,16 +540,25 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     List<StationSearchLine> lines,
   ) async {
     try {
-      final timetable = await loadFirstAvailableStationTimetable(
+      final line = lines.first;
+      final timetable = await repository.loadStationTimetableForDate(
         stationId: widget.detail.id,
-        lines: lines,
-        repository: repository,
         date: debugStationVerifiedClock(),
+        lineId: line.id,
       );
-      if (mounted && timetable != null) {
-        setState(() => _timetable = timetable);
+      if (mounted) {
+        setState(() {
+          _timetable = timetable;
+          _unavailable = false;
+        });
       }
     } catch (error, stackTrace) {
+      if (mounted) {
+        setState(() {
+          _timetable = null;
+          _unavailable = true;
+        });
+      }
       reportMobileError(
         error,
         stackTrace,
@@ -576,6 +586,11 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
             ),
           const SizedBox(height: 4),
         ],
+        if (_unavailable)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Text('시간표를 확인할 수 없어요.'),
+          ),
         TextButton.icon(
           key: const Key('stationTimetableButton'),
           onPressed: () => Navigator.of(context).push(

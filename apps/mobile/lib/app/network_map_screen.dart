@@ -58,6 +58,7 @@ class NetworkMapScreen extends StatefulWidget {
     this.onStationSearchClosed,
     this.onPickStationForSlot,
     this.stationSearchRepository,
+    this.timetableRepository,
     this.reportRepository,
     this.favoriteRepository,
     this.adRepository,
@@ -114,6 +115,7 @@ class NetworkMapScreen extends StatefulWidget {
   )?
   onPickStationForSlot;
   final StationSearchRepository? stationSearchRepository;
+  final StationTimetableRepository? timetableRepository;
 
   /// #1933 홈 노선도 위에서 역 검색을 in-place로 열 때, 결과 탭 → 역 상세로
   /// 이동하려면 필요한 저장소들. 검색 모드는 [stationSearchRepository]가 있을 때만
@@ -1227,8 +1229,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     StationSearchLine line, {
     required NearbyPanelRequestKey request,
   }) async {
-    final repository = widget.stationSearchRepository;
-    if (repository is! StationTimetableRepository) {
+    final timetableRepository = widget.timetableRepository;
+    if (timetableRepository == null) {
       if (mounted) {
         setState(() => _clearNearbyTimetableInFlightIf(request));
       } else {
@@ -1236,7 +1238,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       }
       return;
     }
-    final timetableRepository = repository as StationTimetableRepository;
     try {
       final timetable = await timetableRepository.loadStationTimetableForDate(
         stationId: station.id,
@@ -1273,8 +1274,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         }
         return;
       }
-      // 실패로 성공 캐시를 지우지 않는다.
-      setState(() => _clearNearbyTimetableInFlightIf(request));
+      setState(() {
+        _nearbyTimetableDisplay = null;
+        _clearNearbyTimetableInFlightIf(request);
+      });
     }
   }
 
@@ -1648,6 +1651,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         favoriteRepository: widget.favoriteRepository,
         bottomAdBuilder: _stationDetailBottomAdBuilder(widget.adRepository),
         realtimeRepository: widget.realtimeRepository,
+        timetableRepository: widget.timetableRepository,
         locationProvider: widget.locationProvider,
         stationId: primary.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,

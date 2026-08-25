@@ -27,6 +27,7 @@ import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/application/journey_session_provider.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../legacy_credential_cleanup.dart';
 import '../mobile_error_reporter.dart';
@@ -125,7 +126,9 @@ class EasySubwayApp extends StatelessWidget {
        getOffAlarmController = dependencies.getOffAlarmController,
        noticeRepository = dependencies.noticeRepository,
        journeyRepository = dependencies.journeyRepository,
-       journeyAttestor = dependencies.journeyAttestor;
+       journeyAttestor = dependencies.journeyAttestor,
+       journeySessionProvider = dependencies.journeySessionProvider,
+       stationTimetableRepository = dependencies.stationTimetableRepository;
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
@@ -146,6 +149,8 @@ class EasySubwayApp extends StatelessWidget {
   final NoticeRepository? noticeRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository stationTimetableRepository;
   final OnboardingState initialOnboardingState;
   final OnboardingResultStore? onboardingStore;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
@@ -261,6 +266,8 @@ class EasySubwayApp extends StatelessWidget {
           reportRepository: reportRepository,
           journeyRepository: journeyRepository,
           journeyAttestor: journeyAttestor,
+          journeySessionProvider: journeySessionProvider,
+          stationTimetableRepository: stationTimetableRepository,
           getOffAlarmController: getOffAlarmController,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
@@ -387,6 +394,8 @@ class _EasySubwayHome extends StatefulWidget {
     required this.reportRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
+    required this.journeySessionProvider,
+    required this.stationTimetableRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
@@ -417,6 +426,8 @@ class _EasySubwayHome extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository stationTimetableRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
@@ -527,6 +538,8 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         reportRepository: widget.reportRepository,
         journeyRepository: widget.journeyRepository,
         journeyAttestor: widget.journeyAttestor,
+        journeySessionProvider: widget.journeySessionProvider,
+        timetableRepository: widget.stationTimetableRepository,
         getOffAlarmController: widget.getOffAlarmController,
         favoriteRepository: widget.favoriteRepository,
         favoriteFacilityRepository: widget.favoriteFacilityRepository,

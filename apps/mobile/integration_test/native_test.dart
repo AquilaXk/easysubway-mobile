@@ -210,6 +210,12 @@ final class _NativeJourneyRepository implements JourneyRepository {
       journeys: <Journey>[_nativeJourney(now)],
     );
   }
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) => throw UnimplementedError();
 }
 
 Journey _nativeJourney(DateTime now) => Journey(

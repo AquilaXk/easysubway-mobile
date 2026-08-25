@@ -30,11 +30,13 @@ import '../features/service_notice/data/notice_repository.dart';
 import '../features/stations/data/drift_station_repository.dart';
 import '../features/stations/data/current_location_provider.dart';
 import '../features/stations/data/station_api_repository.dart';
+import '../features/stations/data/server_station_timetable_repository.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/train_search/data/train_search_repository.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/train_search/domain/train_search_scope_policy.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/application/journey_session_provider.dart';
 import '../features/journey/data/journey_api_repository.dart';
 import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
 import '../features/journey/domain/journey_repository.dart';
@@ -66,6 +68,8 @@ class AppDependencies {
     this.adRepository,
     required this.journeyRepositoryFactory,
     required this.journeyAttestor,
+    required this.journeySessionProvider,
+    required this.stationTimetableRepository,
   });
 
   factory AppDependencies.resolve({
@@ -145,6 +149,22 @@ class AppDependencies {
     final resolvedRealtimeRepository =
         realtimeRepository ??
         _defaultRealtimeRepository(baseUri: optionalBaseUri);
+    final journeyBaseUri = optionalBaseUri();
+    final resolvedJourneyRepository =
+        journeyRepository ??
+        (journeyBaseUri == null
+            ? const _UnavailableJourneyRepository()
+            : JourneyApiRepository(ApiClient(baseUri: journeyBaseUri)));
+    final resolvedJourneyAttestor =
+        journeyAttestor ?? JourneyMethodChannelIntegrityAttestor();
+    final resolvedJourneySessionProvider = JourneySessionProvider(
+      repository: resolvedJourneyRepository,
+      attestor: resolvedJourneyAttestor,
+    );
+    final resolvedStationTimetableRepository = ServerStationTimetableRepository(
+      journeyRepository: resolvedJourneyRepository,
+      sessionProvider: resolvedJourneySessionProvider,
+    );
 
     return AppDependencies(
       repository: resolvedStationRepository,
@@ -154,16 +174,10 @@ class AppDependencies {
             baseUri: optionalBaseUri,
             userDatabase: userDatabase,
           ),
-      journeyRepositoryFactory: () {
-        final injected = journeyRepository;
-        if (injected != null) return injected;
-        final baseUri = optionalBaseUri();
-        return baseUri == null
-            ? const _UnavailableJourneyRepository()
-            : JourneyApiRepository(ApiClient(baseUri: baseUri));
-      },
-      journeyAttestor:
-          journeyAttestor ?? JourneyMethodChannelIntegrityAttestor(),
+      journeyRepositoryFactory: () => resolvedJourneyRepository,
+      journeyAttestor: resolvedJourneyAttestor,
+      journeySessionProvider: resolvedJourneySessionProvider,
+      stationTimetableRepository: resolvedStationTimetableRepository,
       favoriteRepository:
           favoriteRepository ??
           (catalogDatabase != null && userDatabase != null
@@ -254,6 +268,8 @@ class AppDependencies {
   final JourneyRepository Function() journeyRepositoryFactory;
   JourneyRepository get journeyRepository => journeyRepositoryFactory();
   final JourneyV3IntegrityAttestor journeyAttestor;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository stationTimetableRepository;
 }
 
 class _UnavailableJourneyRepository implements JourneyRepository {
@@ -276,6 +292,17 @@ class _UnavailableJourneyRepository implements JourneyRepository {
   }) async {
     throw const JourneyTransportFailure(
       JourneyOperation.searchJourneys,
+      'Journey API base URL is unavailable.',
+    );
+  }
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.searchStationTimetables,
       'Journey API base URL is unavailable.',
     );
   }

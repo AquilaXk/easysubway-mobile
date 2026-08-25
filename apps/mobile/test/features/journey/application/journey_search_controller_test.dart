@@ -917,6 +917,15 @@ class _Repository implements JourneyRepository {
     );
   }
 
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async => throw const JourneyTransportFailure(
+    JourneyOperation.searchStationTimetables,
+    'unused in journey controller test',
+  );
+
   void completeSession() {
     completeSessionAt(0);
   }

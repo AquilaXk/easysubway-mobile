@@ -50,6 +50,47 @@ final _searchRequest = JourneySearchRequest(
   alternativeCount: 2,
 );
 
+final _timetableRequest = StationTimetableSearchRequest(
+  stationId: 'station-origin',
+  lineId: 'line-1',
+  selector: StationTimetableServiceDateSelector(
+    JourneyDate.parse('2026-08-11'),
+  ),
+);
+
+Map<String, Object?> _timetableSuccessJson() => StationTimetableSearchSuccess(
+  contractVersion:
+      StationTimetableSearchContractVersion.stationTimetableSearchV3,
+  stationId: _timetableRequest.stationId,
+  lineId: _timetableRequest.lineId,
+  selector: _timetableRequest.selector,
+  resolvedDayType: StationTimetableDayType.weekday,
+  serviceTimezone: StationTimetableServiceTimezone.asiaSeoul,
+  directionGroups: [
+    StationTimetableDirectionGroup(
+      directionName: '상행',
+      departures: [
+        StationTimetableDeparture(
+          serviceDate: JourneyDate.parse('2026-08-11'),
+          secondsFromServiceDayStart: 36000,
+          departureAt: DateTime.parse('2026-08-11T01:00:00Z'),
+          servicePattern: StationTimetableServicePattern.local,
+          serviceClass: StationTimetableServiceClass.subway,
+        ),
+      ],
+    ),
+  ],
+  sourceIdentity: StationTimetableSourceIdentity(
+    timetableArtifactId: 'timetable-1',
+    timetableSnapshotSha256: 'a' * 64,
+    canonicalStationVersion: 'station-v1',
+    canonicalStationSetSha256: 'b' * 64,
+    sourceLineageSha256: 'c' * 64,
+    evidenceHash: 'd' * 64,
+    freshUntil: DateTime.parse('2026-08-11T01:30:00Z'),
+  ),
+).toJson();
+
 final _stepFreeSearchRequest = JourneySearchRequest(
   requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
   originStationId: 'station-origin',
@@ -221,7 +262,85 @@ Map<String, Object?> _errorJson(String code) => {
   'occurredAt': '2026-08-11T00:00:00Z',
 };
 
+Map<String, Object?> _withTimetableDeparture({
+  required int seconds,
+  required String departureAt,
+}) {
+  final body = _timetableSuccessJson();
+  final groups = List<Object?>.of(body['directionGroups']! as List<Object?>);
+  final group = Map<String, Object?>.of(groups.single! as Map<String, Object?>);
+  final departures = List<Object?>.of(group['departures']! as List<Object?>);
+  departures[0] =
+      Map<String, Object?>.of(departures[0]! as Map<String, Object?>)
+        ..['secondsFromServiceDayStart'] = seconds
+        ..['departureAt'] = departureAt;
+  group['departures'] = departures;
+  groups[0] = group;
+  body['directionGroups'] = groups;
+  return body;
+}
+
 void main() {
+  test(
+    'station timetable은 generated operation과 Journey session으로 한 번만 호출한다',
+    () async {
+      final client = _StubApiClient([
+        ApiResponse(statusCode: 200, jsonBody: _timetableSuccessJson()),
+      ]);
+      final repository = JourneyApiRepository(
+        client,
+        now: () => DateTime.parse('2026-08-11T00:00:00Z'),
+      );
+
+      final response = await repository.searchStationTimetables(
+        _timetableRequest,
+        sessionToken: 'session-token',
+      );
+
+      expect(client.posts.single.path, '/api/v3/station-timetables/search');
+      expect(client.posts.single.body, _timetableRequest.toJson());
+      expect(client.posts.single.headers, {
+        'Authorization': 'Bearer session-token',
+      });
+      expect(response.stationId, _timetableRequest.stationId);
+      expect(response.lineId, _timetableRequest.lineId);
+    },
+  );
+
+  test(
+    'station timetable rollover는 KST service day와 seconds가 UTC 출발 시각에 exact 일치해야 한다',
+    () async {
+      final valid = _withTimetableDeparture(
+        seconds: 90000,
+        departureAt: '2026-08-11T16:00:00Z',
+      );
+      final invalid = _withTimetableDeparture(
+        seconds: 90000,
+        departureAt: '2026-08-11T16:00:01Z',
+      );
+      final validRepository = JourneyApiRepository(
+        _StubApiClient([ApiResponse(statusCode: 200, jsonBody: valid)]),
+        now: () => DateTime.parse('2026-08-11T00:00:00Z'),
+      );
+      final invalidRepository = JourneyApiRepository(
+        _StubApiClient([ApiResponse(statusCode: 200, jsonBody: invalid)]),
+        now: () => DateTime.parse('2026-08-11T00:00:00Z'),
+      );
+
+      await validRepository.searchStationTimetables(
+        _timetableRequest,
+        sessionToken: 'session-token',
+      );
+      await expectLater(
+        invalidRepository.searchStationTimetables(
+          _timetableRequest,
+          sessionToken: 'session-token',
+        ),
+        throwsA(isA<JourneyProtocolFailure>()),
+      );
+    },
+  );
+
   test('session과 search는 exact V3 direct JSON으로 각각 한 번만 호출한다', () async {
     final client = _StubApiClient([
       ApiResponse(statusCode: 200, jsonBody: _sessionJson()),
