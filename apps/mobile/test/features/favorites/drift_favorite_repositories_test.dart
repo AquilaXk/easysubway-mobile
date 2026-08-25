@@ -6,12 +6,19 @@ import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
 import 'package:easysubway_mobile/features/favorites/data/drift_favorite_repositories.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/features/preferences/data/drift_notification_settings_repository.dart';
 import 'package:easysubway_mobile/features/search_history/data/drift_search_history_repository.dart';
 import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('즐겨찾기 경로 ETA 출처는 비어 있음·알려짐·알 수 없음을 구분한다', () {
+    expect(routeEtaSourceLabel('  '), '도착 정보를 확인하고 있어요');
+    expect(routeEtaSourceLabel('REALTIME'), '실시간 도착정보');
+    expect(routeEtaSourceLabel('UNKNOWN'), '도착 정보를 확인하고 있어요');
+  });
+
   test('로컬 역 즐겨찾기는 user DB에 저장하고 catalog DB 정보로 목록을 만든다', () async {
     final catalogDatabase = CatalogDatabase.memory();
     final userDatabase = user_db.UserDatabase.memory();
