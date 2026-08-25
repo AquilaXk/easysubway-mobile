@@ -534,6 +534,8 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
     ].join(' · ');
     final textTheme = Theme.of(context).textTheme;
     return Semantics(
+      container: true,
+      explicitChildNodes: true,
       button: true,
       enabled: onTap != null,
       label: [
@@ -544,16 +546,16 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
         if (route.needsResearch) route.statusLabel,
       ].join(', '),
       onTap: onTap,
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          child: ColoredBox(
-            color: EasySubwayAccessibleColors.surface,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(
+      child: ColoredBox(
+        color: EasySubwayAccessibleColors.surface,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: ExcludeSemantics(
+                  child: InkWell(
+                    onTap: onTap,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -578,13 +580,23 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (onRemove == null)
-                    const Icon(
-                      Icons.chevron_right,
-                      color: EasySubwayAccessibleColors.disclosure,
-                    )
-                  else
-                    IconButton(
+                ),
+              ),
+              if (onRemove == null)
+                const ExcludeSemantics(
+                  child: Icon(
+                    Icons.chevron_right,
+                    color: EasySubwayAccessibleColors.disclosure,
+                  ),
+                )
+              else
+                Semantics(
+                  button: true,
+                  enabled: true,
+                  label: '즐겨찾기 경로 삭제',
+                  onTap: onRemove,
+                  child: ExcludeSemantics(
+                    child: IconButton(
                       key: Key(
                         'favoriteRouteRemoveButton-${route.favoriteRouteId}',
                       ),
@@ -602,9 +614,9 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
                         color: EasySubwayAccessibleColors.mutedText,
                       ),
                     ),
-                ],
-              ),
-            ),
+                  ),
+                ),
+            ],
           ),
         ),
       ),

@@ -10610,6 +10610,56 @@ void main() {
     expect(routeDraftController.draft, const RouteDraft.empty());
   });
 
+  testWidgets('알 수 없는 저장 이동 조건도 보조기기 삭제 동작으로 제거할 수 있다', (tester) async {
+    final semanticsHandle = tester.ensureSemantics();
+    final routeDraftController = RouteDraftController();
+    final favoriteRouteRepository = FakeFavoriteRouteRepository(
+      favorites: [_favoriteRoute(mobilityType: 'UNKNOWN_PROFILE')],
+    );
+    var searchCount = 0;
+
+    try {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: FakeStationSearchRepository(),
+          reportRepository: FakeFacilityReportRepository(),
+          favoriteRepository: FakeFavoriteStationRepository(),
+          favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
+          favoriteRouteRepository: favoriteRouteRepository,
+          notificationRepository: FakeNotificationSettingsRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+
+      await _openFavoriteList(
+        tester,
+        routeDraftController: routeDraftController,
+        onOpenRouteSearch: (_, _) async {
+          searchCount++;
+        },
+      );
+
+      final deleteAction = find.bySemanticsLabel('즐겨찾기 경로 삭제');
+      expect(deleteAction, findsOneWidget);
+      expect(
+        tester
+            .getSemantics(deleteAction)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+
+      tester.semantics.tap(find.semantics.byLabel('즐겨찾기 경로 삭제'));
+      await tester.pumpAndSettle();
+
+      expect(favoriteRouteRepository.removedFavoriteRouteIds, ['route-1']);
+      expect(searchCount, 0);
+      expect(routeDraftController.draft, const RouteDraft.empty());
+    } finally {
+      semanticsHandle.dispose();
+    }
+  });
+
   test('지원되는 대표 이동 유형은 Journey V3 재검색 대상으로 유지한다', () {
     for (final mobilityType in [
       'STANDARD',
