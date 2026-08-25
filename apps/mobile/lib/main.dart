@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
@@ -156,17 +158,10 @@ Future<void> main() async {
     userDatabase: bootstrap.userDatabase,
     timetableRepository: bootstrap.dependencies.stationTimetableRepository,
   );
-  await debugMainNextTrainWidgetStartup(
-    installedWidgetIds: next_train_widget_runtime.installedNextTrainWidgetIds,
-    registerRefresh: next_train_widget_runtime.registerNextTrainWidgetRefresh,
-    cancelRefresh: next_train_widget_runtime.cancelNextTrainWidgetRefresh,
-    refresh: (widgetIds) => next_train_widget_runtime.refreshNextTrainWidgets(
-      nextTrainWidgetRepository,
-      widgetIds: widgetIds,
-    ),
-    reportError: (error, stackTrace) =>
-        reportMobileError(error, stackTrace, context: '홈 위젯 초기화 중 예외가 발생했습니다.'),
-  );
+  void reportNextTrainWidgetStartupError(Object error, StackTrace stackTrace) {
+    reportMobileError(error, stackTrace, context: '홈 위젯 초기화 중 예외가 발생했습니다.');
+  }
+
   final photoPicker = ImagePickerFacilityReportPhotoPicker();
   final navigatorKey = GlobalKey<NavigatorState>();
   final onboardingStore = const SecureOnboardingResultStore();
@@ -256,6 +251,24 @@ Future<void> main() async {
           bundledDataPackFreshness: bootstrap.bundledDataPackFreshness,
         ),
       ),
+    ),
+  );
+  unawaited(
+    next_train_widget_runtime.runNextTrainWidgetOperationSafely(
+      operation: () => debugMainNextTrainWidgetStartup(
+        installedWidgetIds:
+            next_train_widget_runtime.installedNextTrainWidgetIds,
+        registerRefresh:
+            next_train_widget_runtime.registerNextTrainWidgetRefresh,
+        cancelRefresh: next_train_widget_runtime.cancelNextTrainWidgetRefresh,
+        refresh: (widgetIds) =>
+            next_train_widget_runtime.refreshNextTrainWidgets(
+              nextTrainWidgetRepository,
+              widgetIds: widgetIds,
+            ),
+        reportError: reportNextTrainWidgetStartupError,
+      ),
+      reportError: reportNextTrainWidgetStartupError,
     ),
   );
 }

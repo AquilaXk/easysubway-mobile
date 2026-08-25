@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easysubway_mobile/app/app_bootstrap.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
@@ -80,6 +82,7 @@ void main() {
     final previousWidgetStartup = app.debugMainNextTrainWidgetStartup;
     final previousClicks = app.debugMainHomeWidgetClicks;
     final previousRunApp = app.debugMainRunApp;
+    final widgetStartupCompleter = Completer<void>();
     late Widget root;
     addTearDown(() async {
       FlutterError.onError = previousFlutterError;
@@ -91,6 +94,9 @@ void main() {
       app.debugMainNextTrainWidgetStartup = previousWidgetStartup;
       app.debugMainHomeWidgetClicks = previousClicks;
       app.debugMainRunApp = previousRunApp;
+      if (!widgetStartupCompleter.isCompleted) {
+        widgetStartupCompleter.complete();
+      }
       await catalogDatabase.close();
       await userDatabase.close();
     });
@@ -114,12 +120,13 @@ void main() {
           required cancelRefresh,
           required refresh,
           required reportError,
-        }) async {};
+        }) => widgetStartupCompleter.future;
     app.debugMainHomeWidgetClicks = () => const Stream<Uri?>.empty();
     app.debugMainRunApp = (widget) => root = widget;
 
     await app.main();
 
+    expect(widgetStartupCompleter.isCompleted, isFalse);
     final lifecycle = root as AppBootstrapLifecycle;
     final linkHandler = lifecycle.child as HomeWidgetLinkHandler;
     final detail =
