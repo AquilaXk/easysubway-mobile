@@ -181,11 +181,8 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
                                       data.routes[index],
                                     )
                                   : null,
-                              onRemove: widget.favoriteRouteRepository == null
-                                  ? null
-                                  : () => _removeFavoriteRoute(
-                                      data.routes[index],
-                                    ),
+                              onRemove: () =>
+                                  _removeFavoriteRoute(data.routes[index]),
                             ),
                             if (index < data.routes.length - 1)
                               const _FavoriteHomeRowDivider(),
@@ -513,13 +510,13 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
   const _FavoriteHomeRouteRow({
     required this.route,
     required this.onTap,
-    this.onRemove,
+    required this.onRemove,
   });
 
   final FavoriteRoute route;
   final VoidCallback? onTap;
-  // 즐겨찾기 목록에서 바로 삭제할 수 있게 오른쪽 액션을 준다. null이면 진입 화살표만.
-  final VoidCallback? onRemove;
+  // 즐겨찾기 목록에서 바로 삭제할 수 있게 오른쪽 액션을 준다.
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -582,40 +579,32 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (onRemove == null)
-                const ExcludeSemantics(
-                  child: Icon(
-                    Icons.chevron_right,
-                    color: EasySubwayAccessibleColors.disclosure,
-                  ),
-                )
-              else
-                Semantics(
-                  button: true,
-                  enabled: true,
-                  label: '즐겨찾기 경로 삭제',
-                  onTap: onRemove,
-                  child: ExcludeSemantics(
-                    child: IconButton(
-                      key: Key(
-                        'favoriteRouteRemoveButton-${route.favoriteRouteId}',
+              Semantics(
+                button: true,
+                enabled: true,
+                label: '즐겨찾기 경로 삭제',
+                onTap: onRemove,
+                child: ExcludeSemantics(
+                  child: IconButton(
+                    key: Key(
+                      'favoriteRouteRemoveButton-${route.favoriteRouteId}',
+                    ),
+                    onPressed: onRemove,
+                    tooltip: '즐겨찾기 경로 삭제',
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size.square(
+                        EasySubwayTouchTarget.general,
                       ),
-                      onPressed: onRemove,
-                      tooltip: '즐겨찾기 경로 삭제',
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size.square(
-                          EasySubwayTouchTarget.general,
-                        ),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        padding: EdgeInsets.zero,
-                      ),
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: EasySubwayAccessibleColors.mutedText,
-                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: EdgeInsets.zero,
+                    ),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: EasySubwayAccessibleColors.mutedText,
                     ),
                   ),
                 ),
+              ),
             ],
           ),
         ),
