@@ -5525,12 +5525,12 @@ void main() {
       find.byKey(const Key('networkMapNearbyStationPanel')),
       findsOneWidget,
     );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await tester.pump(const Duration(seconds: 2));
     expect(find.text('상록수'), findsOneWidget);
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
     expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
     expect(find.byKey(const Key('networkMapBottomAdBanner')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('GPS 하단 패널은 환승 호선을 탭으로 구분하고 선택 호선을 재조회한다', (tester) async {
