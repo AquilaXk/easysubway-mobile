@@ -1,15 +1,36 @@
-import '../../routes/domain/route_search.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 
 abstract class FavoriteRouteRepository {
   Future<List<FavoriteRoute>> listFavoriteRoutes();
 
-  Future<FavoriteRoute> saveFavoriteRoute(
-    String routeSearchId, {
-    RouteSearchResult? result,
-  });
-
   Future<void> removeFavoriteRoute(String favoriteRouteId);
+}
+
+enum RouteTransportScope {
+  subway('SUBWAY'),
+  subwayAndItxCheongchun('SUBWAY_AND_ITX_CHEONGCHUN');
+
+  const RouteTransportScope(this.serverValue);
+
+  final String serverValue;
+}
+
+const _routeEtaSourceLabels = <String, String>{
+  'REALTIME': '실시간 도착정보',
+  'MIXED': '일부 실시간 도착정보',
+  'PLANNED': '시간표 기준',
+  'STATIC_BACKEND_ESTIMATE': '시간표 기준',
+  'STATIC_ESTIMATE': '정적 추정',
+  'UNSUPPORTED': '실시간 미지원',
+  'STALE': '저장된 데이터 기준',
+};
+
+String routeEtaSourceLabel(String value) {
+  final trimmed = value.trim();
+  if (trimmed.isEmpty) {
+    return '도착 정보를 확인하고 있어요';
+  }
+  return _routeEtaSourceLabels[trimmed] ?? '도착 정보를 확인하고 있어요';
 }
 
 class FavoriteRouteException implements Exception {
@@ -102,6 +123,9 @@ class FavoriteRoute {
   bool get hasLine => lineName.isNotEmpty;
 
   String get mobilityLabel => _mobilityLabelForFavoriteRoute(mobilityType);
+
+  bool get canReSearch =>
+      mobilityPresetFromRepresentativeMobilityType(mobilityType) != null;
 
   String get etaSourceLabel => routeEtaSourceLabel(etaSource);
 
