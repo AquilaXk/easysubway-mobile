@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../mobile_error_reporter.dart';
+import '../data/server_station_timetable_repository.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
@@ -44,7 +45,51 @@ class _StationTimetableScreenState extends State<StationTimetableScreen> {
     final now = debugStationVerifiedClock();
     _dayType = _todayTimetableDayType(now);
     if (widget.repository != null && _lineId != null) {
-      unawaited(_load(date: now));
+      unawaited(_loadInitialAvailableLine(now));
+    }
+  }
+
+  Future<void> _loadInitialAvailableLine(DateTime date) async {
+    final repository = widget.repository;
+    if (repository == null) return;
+    final requestId = ++_requestId;
+    setState(() => _loading = true);
+    StationTimetable? unavailable;
+    try {
+      for (final line in widget.lines) {
+        final timetable = await repository.loadStationTimetableForDate(
+          stationId: widget.stationId,
+          lineId: line.id,
+          date: date,
+        );
+        if (!mounted || requestId != _requestId) return;
+        if (timetable.isAvailable) {
+          _applyTimetable(timetable);
+          return;
+        }
+        unavailable ??= timetable;
+      }
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _timetable = unavailable;
+        _directionName = null;
+        _loading = false;
+      });
+    } on StationTimetableUnavailable {
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _timetable = null;
+        _directionName = null;
+        _loading = false;
+      });
+    } catch (error, stackTrace) {
+      reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _timetable = null;
+        _directionName = null;
+        _loading = false;
+      });
     }
   }
 
@@ -72,16 +117,12 @@ class _StationTimetableScreenState extends State<StationTimetableScreen> {
       if (!mounted || requestId != _requestId) {
         return;
       }
-      final directionNames = timetable.directions
-          .map((direction) => direction.name)
-          .toSet();
+      _applyTimetable(timetable);
+    } on StationTimetableUnavailable {
+      if (!mounted || requestId != _requestId) return;
       setState(() {
-        _timetable = timetable;
-        _lineId = timetable.lineId;
-        _dayType = timetable.dayType;
-        _directionName = directionNames.contains(_directionName)
-            ? _directionName
-            : timetable.directions.firstOrNull?.name;
+        _timetable = null;
+        _directionName = null;
         _loading = false;
       });
     } catch (error, stackTrace) {
@@ -95,6 +136,21 @@ class _StationTimetableScreenState extends State<StationTimetableScreen> {
         _loading = false;
       });
     }
+  }
+
+  void _applyTimetable(StationTimetable timetable) {
+    final directionNames = timetable.directions
+        .map((direction) => direction.name)
+        .toSet();
+    setState(() {
+      _timetable = timetable;
+      _lineId = timetable.lineId;
+      _dayType = timetable.dayType;
+      _directionName = directionNames.contains(_directionName)
+          ? _directionName
+          : timetable.directions.firstOrNull?.name;
+      _loading = false;
+    });
   }
 
   @override

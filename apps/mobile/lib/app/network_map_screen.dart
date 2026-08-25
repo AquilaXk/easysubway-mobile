@@ -30,6 +30,7 @@ import '../features/network_map/presentation/network_map_nearby_panel_shell.dart
 import '../features/network_map/presentation/network_map_unavailable_states.dart';
 import '../features/realtime/realtime_repository.dart';
 import '../features/route_draft/application/route_draft_controller.dart';
+import '../features/stations/data/server_station_timetable_repository.dart';
 import '../features/route_draft/domain/route_draft.dart';
 import '../features/stations/presentation/station_detail_body.dart';
 import '../features/stations/presentation/station_detail_screen.dart';
@@ -1258,6 +1259,19 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
           lineId: request.lineId,
           timetable: timetable,
         );
+        _clearNearbyTimetableInFlightIf(request);
+      });
+    } on StationTimetableUnavailable {
+      if (!_isCurrentNearbyRequest(request)) {
+        if (mounted) {
+          setState(() => _clearNearbyTimetableInFlightIf(request));
+        } else {
+          _clearNearbyTimetableInFlightIf(request);
+        }
+        return;
+      }
+      setState(() {
+        _nearbyTimetableDisplay = null;
         _clearNearbyTimetableInFlightIf(request);
       });
     } catch (error, stackTrace) {

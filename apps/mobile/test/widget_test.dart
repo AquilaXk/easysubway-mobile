@@ -50,6 +50,7 @@ import 'package:easysubway_mobile/features/stations/presentation/station_detail_
 import 'package:easysubway_mobile/features/stations/presentation/station_facility_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_search_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_timetable_screen.dart';
+import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
@@ -12784,6 +12785,7 @@ void main() {
         MaterialApp(
           home: StationDetailScreen(
             repository: repository,
+            timetableRepository: repository,
             reportRepository: FakeFacilityReportRepository(),
             stationId: 'station-sangnoksu',
           ),
@@ -12972,6 +12974,7 @@ void main() {
         MaterialApp(
           home: StationDetailScreen(
             repository: repository,
+            timetableRepository: repository,
             reportRepository: FakeFacilityReportRepository(),
             stationId: 'station-sadang',
           ),
@@ -12990,6 +12993,58 @@ void main() {
     } finally {
       debugStationVerifiedClock = DateTime.now;
     }
+  });
+
+  testWidgets('서버 시간표 실패는 다음 환승 노선을 재호출하지 않는다', (tester) async {
+    const lines = [
+      StationSearchLine(
+        id: 'seoul-2',
+        name: '수도권 2호선',
+        color: '#00A84D',
+        stationCode: '226',
+      ),
+      StationSearchLine(
+        id: 'seoul-4',
+        name: '수도권 4호선',
+        color: '#00A5DE',
+        stationCode: '433',
+      ),
+    ];
+    final repository = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: lines,
+      ),
+      timetableLineId: 'seoul-4',
+      unavailableLineId: 'seoul-2',
+      timetables: {
+        StationTimetableDayType.weekday: _stationTimetable(
+          StationTimetableDayType.weekday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [],
+        ),
+      },
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationDetailScreen(
+            repository: repository,
+            timetableRepository: repository,
+            reportRepository: FakeFacilityReportRepository(),
+            stationId: 'station-sadang',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    expect(repository.requestedLineIds, ['seoul-2']);
+    expect(reportedErrors, isEmpty);
   });
 
   testWidgets('역 상세는 좌표 있는 출구에만 카카오맵 버튼을 보여준다', (tester) async {
@@ -16159,11 +16214,14 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     super.networkMapRegionNames,
     required this.timetables,
     this.timetableLineId = 'seoul-2',
+    this.unavailableLineId,
   });
 
   final Map<StationTimetableDayType, StationTimetable> timetables;
   final String timetableLineId;
+  final String? unavailableLineId;
   final requestedDayTypes = <StationTimetableDayType>[];
+  final requestedLineIds = <String>[];
 
   @override
   Future<StationTimetable> loadStationTimetable({
@@ -16173,6 +16231,10 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     required DateTime referenceDate,
   }) async {
     requestedDayTypes.add(dayType);
+    requestedLineIds.add(lineId);
+    if (lineId == unavailableLineId) {
+      throw const StationTimetableUnavailable('server unavailable');
+    }
     if (lineId != timetableLineId) {
       return StationTimetable(
         stationId: stationId,

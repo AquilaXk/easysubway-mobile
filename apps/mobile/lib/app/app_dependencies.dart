@@ -91,6 +91,7 @@ class AppDependencies {
     AdRepository? adRepository,
     JourneyRepository? journeyRepository,
     JourneyV3IntegrityAttestor? journeyAttestor,
+    StationTimetableRepository? stationTimetableRepository,
     CatalogDatabase? catalogDatabase,
     UserDatabase? userDatabase,
     Directory? userDatabaseDirectory,
@@ -149,22 +150,31 @@ class AppDependencies {
     final resolvedRealtimeRepository =
         realtimeRepository ??
         _defaultRealtimeRepository(baseUri: optionalBaseUri);
-    final journeyBaseUri = optionalBaseUri();
-    final resolvedJourneyRepository =
-        journeyRepository ??
-        (journeyBaseUri == null
-            ? const _UnavailableJourneyRepository()
-            : JourneyApiRepository(ApiClient(baseUri: journeyBaseUri)));
+    JourneyRepository? cachedJourneyRepository = journeyRepository;
+    JourneyRepository resolveJourneyRepository() {
+      final cachedRepository = cachedJourneyRepository;
+      if (cachedRepository != null) return cachedRepository;
+      final journeyBaseUri = optionalBaseUri();
+      return cachedJourneyRepository = journeyBaseUri == null
+          ? const _UnavailableJourneyRepository()
+          : JourneyApiRepository(ApiClient(baseUri: journeyBaseUri));
+    }
+
+    final lazyJourneyRepository = _LazyJourneyRepository(
+      resolveJourneyRepository,
+    );
     final resolvedJourneyAttestor =
         journeyAttestor ?? JourneyMethodChannelIntegrityAttestor();
     final resolvedJourneySessionProvider = JourneySessionProvider(
-      repository: resolvedJourneyRepository,
+      repository: lazyJourneyRepository,
       attestor: resolvedJourneyAttestor,
     );
-    final resolvedStationTimetableRepository = ServerStationTimetableRepository(
-      journeyRepository: resolvedJourneyRepository,
-      sessionProvider: resolvedJourneySessionProvider,
-    );
+    final resolvedStationTimetableRepository =
+        stationTimetableRepository ??
+        ServerStationTimetableRepository(
+          journeyRepository: lazyJourneyRepository,
+          sessionProvider: resolvedJourneySessionProvider,
+        );
 
     return AppDependencies(
       repository: resolvedStationRepository,
@@ -174,7 +184,7 @@ class AppDependencies {
             baseUri: optionalBaseUri,
             userDatabase: userDatabase,
           ),
-      journeyRepositoryFactory: () => resolvedJourneyRepository,
+      journeyRepositoryFactory: resolveJourneyRepository,
       journeyAttestor: resolvedJourneyAttestor,
       journeySessionProvider: resolvedJourneySessionProvider,
       stationTimetableRepository: resolvedStationTimetableRepository,
@@ -306,6 +316,33 @@ class _UnavailableJourneyRepository implements JourneyRepository {
       'Journey API base URL is unavailable.',
     );
   }
+}
+
+/// Journey authority is optional at bootstrap, but never replaced by a local
+/// timetable source when unavailable. Resolve the API boundary on first use.
+class _LazyJourneyRepository implements JourneyRepository {
+  _LazyJourneyRepository(this._resolveDelegate);
+
+  final JourneyRepository Function() _resolveDelegate;
+
+  @override
+  Future<JourneySessionResponse> issueSession(JourneySessionRequest request) =>
+      _resolveDelegate().issueSession(request);
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) => _resolveDelegate().searchJourneys(request, sessionToken: sessionToken);
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) => _resolveDelegate().searchStationTimetables(
+    request,
+    sessionToken: sessionToken,
+  );
 }
 
 class _LazyDefaultTrainSearchRepository implements TrainSearchRepository {

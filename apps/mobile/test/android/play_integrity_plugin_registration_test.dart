@@ -43,6 +43,10 @@ void main() {
       expect(rootBuild, contains('extra["easysubwayJvmVersion"] = 17'));
       expect(appBuild, contains('rootProject.extra["easysubwayJvmVersion"]'));
       expect(appBuild, contains('jvmToolchain(easysubwayJvmVersion)'));
+      expect(
+        appBuild,
+        contains('!taskName.endsWith("Classpath", ignoreCase = true)'),
+      );
       expect(pluginBuild, contains('rootProject.ext.easysubwayJvmVersion'));
       expect(pluginBuild, contains('jvmToolchain(easysubwayJvmVersion)'));
     },

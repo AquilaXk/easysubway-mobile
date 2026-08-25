@@ -492,11 +492,11 @@ final _availableData = NextTrainWidgetData(
   directions: [
     NextTrainDirection(
       name: '상록수 방면',
-      departureAt: DateTime(2026, 7, 10, 9, 12),
+      departureAt: DateTime.utc(2026, 7, 10, 0, 12),
     ),
     NextTrainDirection(
       name: '사당 방면',
-      departureAt: DateTime(2026, 7, 10, 9, 18),
+      departureAt: DateTime.utc(2026, 7, 10, 0, 18),
     ),
   ],
   statusLabel: '시간표 기준',

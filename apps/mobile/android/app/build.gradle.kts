@@ -36,7 +36,8 @@ fun releaseSigningValue(name: String): String? {
 }
 
 val releaseBuildRequested = gradle.startParameter.taskNames.any { taskName ->
-    taskName.contains("Release", ignoreCase = true)
+    taskName.contains("Release", ignoreCase = true) &&
+        !taskName.endsWith("Classpath", ignoreCase = true)
 }
 val missingReleaseSigningValues = releaseSigningValueNames.filter { releaseSigningValue(it) == null }
 if (releaseBuildRequested && missingReleaseSigningValues.isNotEmpty()) {

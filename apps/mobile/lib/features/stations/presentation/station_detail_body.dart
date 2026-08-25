@@ -9,6 +9,7 @@ import '../../../mobile_error_reporter.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/domain/route_draft.dart';
+import '../data/server_station_timetable_repository.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
@@ -540,16 +541,36 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     List<StationSearchLine> lines,
   ) async {
     try {
-      final line = lines.first;
-      final timetable = await repository.loadStationTimetableForDate(
-        stationId: widget.detail.id,
-        date: debugStationVerifiedClock(),
-        lineId: line.id,
-      );
+      final date = debugStationVerifiedClock();
+      StationTimetable? unavailable;
+      for (final line in lines) {
+        final timetable = await repository.loadStationTimetableForDate(
+          stationId: widget.detail.id,
+          date: date,
+          lineId: line.id,
+        );
+        if (timetable.isAvailable) {
+          if (mounted) {
+            setState(() {
+              _timetable = timetable;
+              _unavailable = false;
+            });
+          }
+          return;
+        }
+        unavailable ??= timetable;
+      }
       if (mounted) {
         setState(() {
-          _timetable = timetable;
-          _unavailable = false;
+          _timetable = unavailable;
+          _unavailable = true;
+        });
+      }
+    } on StationTimetableUnavailable {
+      if (mounted) {
+        setState(() {
+          _timetable = null;
+          _unavailable = true;
         });
       }
     } catch (error, stackTrace) {
@@ -573,7 +594,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 로컬 coverage가 없으면 준비 중 문구 대신 요약 줄을 그리지 않는다(#2078).
+        // 서버가 시간표를 제공하지 않으면 요약 줄을 그리지 않는다.
         // '시간표 보기' 버튼은 남겨 전체 시간표 화면으로 진입할 수 있게 한다.
         if (timetable != null && timetable.isAvailable) ...[
           for (final direction in timetable.directions)
