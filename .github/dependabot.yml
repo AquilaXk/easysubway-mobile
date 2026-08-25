@@ -84,7 +84,7 @@ updates:
           - "minor"
           - "patch"
 
-    # #257/#258 및 #259 current-head CI에서 실패가 확인된 정확한 버전만 보류한다.
+    # #257/#258 current-head CI에서 실패가 확인된 정확한 버전만 보류한다.
     # 패키지 전체나 update type을 숨기지 않아 이후 호환·보안 릴리스는 다시 제안된다.
     ignore:
       - dependency-name: "build_runner"
@@ -93,12 +93,6 @@ updates:
       - dependency-name: "meta"
         versions:
           - "1.19.0"
-      - dependency-name: "workmanager_android"
-        versions:
-          - "0.9.3"
-      - dependency-name: "workmanager_platform_interface"
-        versions:
-          - "0.9.4"
 
   # (2) github-actions — 워크플로 5개(automerge-queue / ci / osv-scheduled /
   # release-artifacts / store-distribution-evidence)의 action 핀이 대상이다.
