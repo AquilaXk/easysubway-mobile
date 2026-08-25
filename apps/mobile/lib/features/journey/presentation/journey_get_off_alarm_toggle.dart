@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../get_off_alarm/get_off_alarm_controller.dart';
+import '../../get_off_alarm/get_off_alarm_port.dart';
 import '../../get_off_alarm/get_off_alarm_scheduler.dart';
 import '../../get_off_alarm/get_off_alarm_subscription.dart';
 import '../application/journey_get_off_alarm_binding.dart';
@@ -38,7 +38,7 @@ class JourneyGetOffAlarmToggle extends StatefulWidget {
   });
 
   final JourneySelectedSnapshot snapshot;
-  final GetOffAlarmController controller;
+  final GetOffAlarmPort controller;
   final JourneyStationNameResolver stationNameResolver;
   final DateTime Function() now;
 

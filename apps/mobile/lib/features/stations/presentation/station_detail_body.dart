@@ -5,15 +5,10 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
-import '../../facility_report/presentation/facility_report_screen.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../ads/active_ad_banner.dart';
-import '../../ads/ad_repository.dart';
-import '../../facility_report/domain/facility_report_location.dart';
-import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
+import '../../route_draft/domain/route_draft.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
@@ -49,13 +44,12 @@ class StationDetailBody extends StatelessWidget {
   const StationDetailBody({
     required this.state,
     required this.onRetryRealtime,
-    required this.reportRepository,
+    required this.onOpenFacilityReport,
     this.favoriteController,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.routeDraftController,
     this.locationProvider,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
-    this.facilityReportDraftTargetStore,
     this.timetableRepository,
     this.showContextChrome = false,
     this.showRealtimeSection = true,
@@ -69,13 +63,12 @@ class StationDetailBody extends StatelessWidget {
 
   final StationDetailState state;
   final VoidCallback onRetryRealtime;
-  final FacilityReportRepository reportRepository;
+  final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
   final StationFavoriteToggleController? favoriteController;
-  final AdRepository? adRepository;
-  final RouteDraftController? routeDraftController;
+  final WidgetBuilder? bottomAdBuilder;
+  final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
-  final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final StationTimetableRepository? timetableRepository;
   final bool showContextChrome;
 
@@ -110,13 +103,12 @@ class StationDetailBody extends StatelessWidget {
         layoutSummarySemanticLabel: state.layoutSummarySemanticLabel,
         realtimeSnapshot: state.realtimeSnapshot,
         onRetryRealtime: onRetryRealtime,
-        reportRepository: reportRepository,
+        onOpenFacilityReport: onOpenFacilityReport,
         favoriteController: favoriteController,
-        adRepository: adRepository,
+        bottomAdBuilder: bottomAdBuilder,
         routeDraftController: routeDraftController,
         locationProvider: locationProvider,
         mapLauncher: mapLauncher,
-        facilityReportDraftTargetStore: facilityReportDraftTargetStore,
         timetableRepository: timetableRepository,
         showContextChrome: showContextChrome,
         showRealtimeSection: showRealtimeSection,
@@ -164,13 +156,12 @@ class _StationDetailContent extends StatelessWidget {
     required this.layoutSummarySemanticLabel,
     required this.realtimeSnapshot,
     required this.onRetryRealtime,
-    required this.reportRepository,
+    required this.onOpenFacilityReport,
     required this.favoriteController,
-    required this.adRepository,
+    required this.bottomAdBuilder,
     required this.routeDraftController,
     required this.locationProvider,
     required this.mapLauncher,
-    required this.facilityReportDraftTargetStore,
     required this.timetableRepository,
     required this.showContextChrome,
     required this.showRealtimeSection,
@@ -190,13 +181,12 @@ class _StationDetailContent extends StatelessWidget {
   final String layoutSummarySemanticLabel;
   final RealtimeSnapshot realtimeSnapshot;
   final VoidCallback onRetryRealtime;
-  final FacilityReportRepository reportRepository;
+  final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
   final StationFavoriteToggleController? favoriteController;
-  final AdRepository? adRepository;
-  final RouteDraftController? routeDraftController;
+  final WidgetBuilder? bottomAdBuilder;
+  final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
-  final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final StationTimetableRepository? timetableRepository;
   final bool showContextChrome;
   final bool showRealtimeSection;
@@ -272,7 +262,7 @@ class _StationDetailContent extends StatelessWidget {
           StationFacilityCard(
             facility: facility,
             station: detail,
-            onReportTap: () => _openFacilityReport(context, facility),
+            onReportTap: () => _openFacilityReport(facility),
           ),
         const SizedBox(height: 12),
       ],
@@ -324,13 +314,9 @@ class _StationDetailContent extends StatelessWidget {
           '마지막 확인 ${stationVerifiedRelativeLabel(detail.lastVerifiedAt)}',
         ],
       ),
-      if (adRepository case final repository?) ...[
+      if (bottomAdBuilder case final builder?) ...[
         const SizedBox(height: 24),
-        ActiveAdBanner(
-          key: const Key('stationDetailBottomAdBanner'),
-          repository: repository,
-          placement: AdPlacement.stationDetailBottom,
-        ),
+        builder(context),
       ],
     ];
 
@@ -362,64 +348,19 @@ class _StationDetailContent extends StatelessWidget {
     );
   }
 
-  void _openFacilityReport(BuildContext context, StationFacilityInfo facility) {
+  void _openFacilityReport(StationFacilityInfo facility) {
     unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => FacilityReportScreen(
-            repository: reportRepository,
-            locationLoader: _locationLoader(),
-            needsLocationPermissionRequest: _locationPermissionRequestChecker(),
-            openLocationSettings: _locationSettingsOpener(),
-            draftTargetStore: facilityReportDraftTargetStore,
-            target: FacilityReportTarget(
-              stationId: detail.id,
-              stationName: detail.nameKo,
-              facilityId: facility.id,
-              facilityName: facility.name,
-              facilityTypeLabel: facility.typeLabel,
-              facilityStatusLabel: facility.statusLabel,
-            ),
-          ),
+      onOpenFacilityReport(
+        FacilityReportTarget(
+          stationId: detail.id,
+          stationName: detail.nameKo,
+          facilityId: facility.id,
+          facilityName: facility.name,
+          facilityTypeLabel: facility.typeLabel,
+          facilityStatusLabel: facility.statusLabel,
         ),
       ),
     );
-  }
-
-  FacilityReportLocationLoader? _locationLoader() {
-    final provider = locationProvider;
-    if (provider == null) {
-      return null;
-    }
-    return () async {
-      final CurrentLocation location;
-      try {
-        location = await provider.currentLocation();
-      } on CurrentLocationException catch (error) {
-        throw FacilityReportLocationException(error.message);
-      }
-      return FacilityReportLocation(
-        latitude: location.latitude,
-        longitude: location.longitude,
-      );
-    };
-  }
-
-  FacilityReportLocationPermissionRequestChecker?
-  _locationPermissionRequestChecker() {
-    final provider = locationProvider;
-    if (provider == null) {
-      return null;
-    }
-    return provider.needsLocationPermissionRequest;
-  }
-
-  FacilityReportLocationSettingsOpener? _locationSettingsOpener() {
-    final provider = locationProvider;
-    if (provider == null) {
-      return null;
-    }
-    return provider.openLocationSettings;
   }
 }
 

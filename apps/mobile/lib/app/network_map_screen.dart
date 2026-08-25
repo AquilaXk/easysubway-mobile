@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
+import '../features/ads/active_ad_banner.dart';
 import '../features/ads/ad_slot.dart';
 import '../design_tokens.dart';
 import '../features/ads/ad_repository.dart';
@@ -40,6 +41,15 @@ import '../features/stations/domain/station_repositories.dart';
 import 'network_map_nearby_panel_composition.dart';
 import 'network_map_search_session.dart';
 
+WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
+  if (repository == null) return null;
+  return (_) => ActiveAdBanner(
+    key: const Key('stationDetailBottomAdBanner'),
+    repository: repository,
+    placement: AdPlacement.stationDetailBottom,
+  );
+}
+
 class NetworkMapScreen extends StatefulWidget {
   const NetworkMapScreen({
     required this.repository,
@@ -53,6 +63,7 @@ class NetworkMapScreen extends StatefulWidget {
     this.adRepository,
     this.searchHistoryRepository,
     this.facilityReportDraftTargetStore,
+    this.onOpenFacilityReport,
     this.locationProvider,
     this.viewportRepository,
     this.realtimeRepository,
@@ -113,6 +124,8 @@ class NetworkMapScreen extends StatefulWidget {
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
   final CurrentLocationProvider? locationProvider;
   final NetworkMapViewportRepository? viewportRepository;
   final RealtimeRepository? realtimeRepository;
@@ -1633,11 +1646,12 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         repository: widget.stationSearchRepository!,
         reportRepository: widget.reportRepository!,
         favoriteRepository: widget.favoriteRepository,
-        adRepository: widget.adRepository,
+        bottomAdBuilder: _stationDetailBottomAdBuilder(widget.adRepository),
         realtimeRepository: widget.realtimeRepository,
         locationProvider: widget.locationProvider,
         stationId: primary.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
+        onOpenFacilityReport: widget.onOpenFacilityReport,
         routeDraftController: widget.routeDraftController,
         // 상단 호선바·실시간/시간표가 맥락·열차를 담당한다.
         showContextChrome: false,

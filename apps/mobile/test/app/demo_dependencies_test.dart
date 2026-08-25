@@ -84,10 +84,6 @@ void main() {
     expect(route.routeCreatedAt, '2026-06-13T09:00:00');
     expect(route.addedAt, '2026-06-14T10:00:00');
 
-    expect(
-      (await repository.saveFavoriteRoute('ignored')).favoriteRouteId,
-      'route-1',
-    );
     await repository.removeFavoriteRoute('route-1');
     expect(await repository.listFavoriteRoutes(), hasLength(1));
   });

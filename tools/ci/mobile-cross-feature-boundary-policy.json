@@ -1,1 +1,15 @@
-{"schemaVersion":1,"artifactKind":"mobile-cross-feature-boundary-policy-v1","repository":"AquilaXk/easysubway-mobile","reviewedHeadSha":"8516d6176fffd6729f4e6e647582b963f371178d","featurePrefix":"apps/mobile/lib/features/","forbiddenTargetSegments":["application","data","infrastructure","presentation"]}
+{
+  "schemaVersion": 2,
+  "artifactKind": "mobile-cross-feature-boundary-policy-v2",
+  "repository": "AquilaXk/easysubway-mobile",
+  "inventoryPath": "tools/ci/mobile-cross-feature-boundary-inventory.json",
+  "inventorySha256": "0d8fd2d806df1e30912333be3813a534cf073e6b1a4b236f4b590e1921d6f73e",
+  "featurePrefix": "apps/mobile/lib/features/",
+  "forbiddenTargetSegments": [
+    "application",
+    "data",
+    "infrastructure",
+    "presentation"
+  ],
+  "terminalZeroRequired": true
+}

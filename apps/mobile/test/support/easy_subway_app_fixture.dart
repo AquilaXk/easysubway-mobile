@@ -10,6 +10,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
+import 'package:easysubway_mobile/features/support/support_access.dart';
 import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';

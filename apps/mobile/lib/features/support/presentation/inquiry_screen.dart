@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../mobile_error_reporter.dart';
-import 'support_access_screen.dart';
+import '../support_access.dart';
 
 enum InquiryKind { general, security }
 

@@ -1,6 +1,5 @@
 import '../features/favorites/favorite_facility.dart';
 import '../features/favorites/domain/favorite_route.dart';
-import '../features/routes/domain/route_search.dart';
 import '../features/stations/domain/station_models.dart';
 import '../features/stations/domain/station_line.dart';
 import '../features/stations/domain/station_repositories.dart';
@@ -107,14 +106,6 @@ class DemoFavoriteRouteRepository implements FavoriteRouteRepository {
   @override
   Future<List<FavoriteRoute>> listFavoriteRoutes() async {
     return const [_route];
-  }
-
-  @override
-  Future<FavoriteRoute> saveFavoriteRoute(
-    String routeSearchId, {
-    RouteSearchResult? result,
-  }) async {
-    return _route;
   }
 
   @override

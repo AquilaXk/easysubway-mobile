@@ -6,7 +6,6 @@ import '../../../core/database/catalog/canonical_station_id.dart';
 import '../../../core/database/catalog/catalog_database.dart';
 import '../../../core/database/user/user_database.dart' as user_db;
 import '../favorite_facility.dart';
-import '../../routes/domain/route_search.dart';
 import '../../stations/domain/station_models.dart';
 import '../../stations/domain/station_line.dart';
 import '../../stations/domain/station_repositories.dart';
@@ -522,22 +521,6 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
       final originStationId = row.read<String>('origin_station_id');
       final destinationStationId = row.read<String>('destination_station_id');
       final mobilityType = row.read<String>('mobility_profile');
-      try {
-        if (snapshot != null) {
-          favorites.add(
-            _favoriteRouteFromSnapshot(
-              routeId: routeId,
-              snapshot: snapshot,
-              addedAt: addedAt,
-            ),
-          );
-          continue;
-        }
-      } on FormatException {
-        // A malformed old snapshot remains in place and is rendered below.
-      } on FavoriteRouteException {
-        // A partial old snapshot remains in place and is rendered below.
-      }
       favorites.add(
         await _researchRequiredFavorite(
           routeId: routeId,
@@ -569,42 +552,6 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
         ['$_routeSnapshotPrefix$routeId'],
       );
     });
-  }
-
-  @override
-  Future<FavoriteRoute> saveFavoriteRoute(
-    String routeSearchId, {
-    RouteSearchResult? result,
-  }) async {
-    final routeResult = result;
-    if (routeResult == null) {
-      throw const FavoriteRouteException('즐겨찾기 경로를 바꾸지 못했어요.');
-    }
-    final routeId = _favoriteRouteStorageId(
-      routeSearchId: routeSearchId,
-      result: routeResult,
-    );
-
-    final addedAt = DateTime.now().toUtc();
-    await userDatabase.transaction(() async {
-      await userDatabase
-          .into(userDatabase.favoriteRoutes)
-          .insertOnConflictUpdate(
-            user_db.FavoriteRoutesCompanion.insert(
-              routeId: routeId,
-              originStationId: routeResult.originStationId,
-              destinationStationId: routeResult.destinationStationId,
-              mobilityProfile: routeResult.mobilityType,
-              addedAt: addedAt,
-            ),
-          );
-      await _writeRouteSnapshot(routeId, routeResult);
-    });
-    return _favoriteRouteFromResult(
-      result: routeResult,
-      favoriteRouteId: routeId,
-      addedAt: _isoFromSql(addedAt),
-    );
   }
 
   @override
@@ -654,19 +601,9 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
       favoriteRouteId: routeId,
       routeSearchId: routeId,
       originStationId: originStationId,
-      originStationName: await _fallbackStationName(
-        snapshot,
-        'originStationName',
-        'originStationId',
-        originStationId,
-      ),
+      originStationName: await _stationName(originStationId),
       destinationStationId: destinationStationId,
-      destinationStationName: await _fallbackStationName(
-        snapshot,
-        'destinationStationName',
-        'destinationStationId',
-        destinationStationId,
-      ),
+      destinationStationName: await _stationName(destinationStationId),
       mobilityType: mobilityType,
       status: 'RESEARCH_REQUIRED',
       lineId: '',
@@ -674,28 +611,11 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
       score: 0,
       routeCreatedAt: addedAt,
       addedAt: addedAt,
-      transportScope: _routeTransportScopeFromSnapshot(
-        snapshot?['transportScope'],
-      ),
       needsResearch: true,
     );
   }
 
-  Future<String> _fallbackStationName(
-    Map<String, Object?>? snapshot,
-    String nameKey,
-    String idKey,
-    String stationId,
-  ) async {
-    final snapshotName = snapshot?[nameKey];
-    final snapshotStationId = snapshot?[idKey];
-    if ((snapshotStationId == null ||
-            snapshotStationId is String &&
-                snapshotStationId.trim() == stationId) &&
-        snapshotName is String &&
-        snapshotName.trim().isNotEmpty) {
-      return snapshotName.trim();
-    }
+  Future<String> _stationName(String stationId) async {
     final row = await catalogDatabase
         .customSelect(
           'SELECT name_ko FROM stations WHERE id = ?',
@@ -704,89 +624,6 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
         .getSingleOrNull();
     final catalogName = row?.read<String?>('name_ko')?.trim() ?? '';
     return catalogName.isEmpty ? stationId : catalogName;
-  }
-
-  Future<void> _writeRouteSnapshot(
-    String routeId,
-    RouteSearchResult result,
-  ) async {
-    final catalogVersion = await _catalogVersion();
-    await userDatabase
-        .into(userDatabase.appPreferences)
-        .insertOnConflictUpdate(
-          user_db.AppPreferencesCompanion.insert(
-            key: '$_routeSnapshotPrefix$routeId',
-            value: jsonEncode({
-              ..._routeResultToJson(result),
-              'savedCatalogVersion': catalogVersion,
-            }),
-            updatedAt: DateTime.now().toUtc(),
-          ),
-        );
-  }
-
-  FavoriteRoute _favoriteRouteFromSnapshot({
-    required String routeId,
-    required Map<String, Object?> snapshot,
-    required String addedAt,
-  }) {
-    final originalRouteSearchId = _string(
-      snapshot['routeSearchId'],
-      fallback: routeId,
-    );
-    final originStationId = _requiredSnapshotString(
-      snapshot,
-      'originStationId',
-    );
-    final originStationName = _requiredSnapshotString(
-      snapshot,
-      'originStationName',
-    );
-    final destinationStationId = _requiredSnapshotString(
-      snapshot,
-      'destinationStationId',
-    );
-    final destinationStationName = _requiredSnapshotString(
-      snapshot,
-      'destinationStationName',
-    );
-    final mobilityType = _requiredSnapshotString(snapshot, 'mobilityType');
-    final status = _requiredSnapshotString(snapshot, 'status');
-    final routeCreatedAt = _requiredSnapshotString(snapshot, 'createdAt');
-    final score = snapshot['score'];
-    if (score is! int) {
-      throw const FavoriteRouteException('즐겨찾기 경로를 불러오지 못했어요.');
-    }
-    return FavoriteRoute(
-      userId: _localUserId,
-      favoriteRouteId: routeId,
-      routeSearchId: originalRouteSearchId,
-      originStationId: originStationId,
-      originStationName: originStationName,
-      destinationStationId: destinationStationId,
-      destinationStationName: destinationStationName,
-      mobilityType: mobilityType,
-      status: status,
-      lineId: _string(snapshot['lineId']),
-      lineName: _string(snapshot['lineName']),
-      score: score,
-      routeCreatedAt: routeCreatedAt,
-      addedAt: addedAt,
-      etaSource: _string(snapshot['etaSource']),
-      transportScope: _routeTransportScopeFromSnapshot(
-        snapshot['transportScope'],
-      ),
-    );
-  }
-
-  Future<String> _catalogVersion() async {
-    final row = await catalogDatabase
-        .customSelect(
-          "SELECT value FROM catalog_metadata WHERE key = 'schemaVersion'",
-          readsFrom: {catalogDatabase.catalogMetadata},
-        )
-        .getSingleOrNull();
-    return row?.read<String>('value') ?? '';
   }
 }
 
@@ -831,129 +668,6 @@ class FavoriteStationBuilder {
   }
 }
 
-FavoriteRoute _favoriteRouteFromResult({
-  required RouteSearchResult result,
-  required String favoriteRouteId,
-  required String addedAt,
-}) {
-  return FavoriteRoute(
-    userId: _localUserId,
-    favoriteRouteId: favoriteRouteId,
-    routeSearchId: result.routeSearchId,
-    originStationId: result.originStationId,
-    originStationName: result.originStationName,
-    destinationStationId: result.destinationStationId,
-    destinationStationName: result.destinationStationName,
-    mobilityType: result.mobilityType,
-    status: result.status,
-    lineId: result.lineId,
-    lineName: result.lineName,
-    score: result.score,
-    routeCreatedAt: result.createdAt,
-    addedAt: addedAt,
-    etaSource: result.etaSource,
-    transportScope: result.transportScope,
-  );
-}
-
-String _favoriteRouteStorageId({
-  required String routeSearchId,
-  required RouteSearchResult result,
-}) {
-  final candidateIdentity = result.candidateIdentity;
-  if (candidateIdentity != null) {
-    return candidateIdentity.value;
-  }
-  final baseId = routeSearchId.trim().isNotEmpty
-      ? routeSearchId.trim()
-      : result.routeSearchId.trim();
-  final mobilityType = result.mobilityType.trim();
-  if (baseId.isEmpty || mobilityType.isEmpty) {
-    return baseId;
-  }
-  final transportScope = result.transportScope;
-  return transportScope == RouteTransportScope.subway
-      ? '$baseId::$mobilityType'
-      : '$baseId::$mobilityType::${transportScope.serverValue}';
-}
-
-Map<String, Object?> _routeResultToJson(RouteSearchResult result) {
-  return {
-    'routeSearchId': result.routeSearchId,
-    'providerRouteSearchId': result.providerRouteSearchId,
-    'providerItineraryId': result.providerItineraryId,
-    if (result.queryIdentity != null)
-      'querySnapshot': result.queryIdentity!.toSnapshot(),
-    if (result.queryIdentity != null)
-      'queryIdentity': result.queryIdentity!.value,
-    if (result.candidateIdentity != null)
-      'candidateIdentity': result.candidateIdentity!.value,
-    'originStationId': result.originStationId,
-    'originStationName': result.originStationName,
-    'destinationStationId': result.destinationStationId,
-    'destinationStationName': result.destinationStationName,
-    'mobilityType': result.mobilityType,
-    'status': result.status,
-    'lineId': result.lineId,
-    'lineName': result.lineName,
-    'score': result.score,
-    'accessibilityScore': result.accessibilityScore,
-    'burdenCost': result.burdenCost,
-    'estimatedDurationSeconds': result.estimatedDurationSeconds,
-    'walkingDistanceMeters': result.walkingDistanceMeters,
-    'transferCount': result.transferCount,
-    'evidenceSummary': result.evidenceSummary,
-    'steps': result.steps.map(_routeStepToJson).toList(growable: false),
-    'warnings': result.warnings
-        .map(_routeWarningToJson)
-        .toList(growable: false),
-    'recommendationReasons': result.recommendationReasons,
-    'blockedReasons': result.blockedReasons,
-    'createdAt': result.createdAt,
-    'etaSource': result.etaSource,
-    'transportScope': result.transportScope.serverValue,
-  };
-}
-
-RouteTransportScope _routeTransportScopeFromSnapshot(Object? value) {
-  return value == RouteTransportScope.subwayAndItxCheongchun.serverValue
-      ? RouteTransportScope.subwayAndItxCheongchun
-      : RouteTransportScope.subway;
-}
-
-Map<String, Object?> _routeStepToJson(RouteSearchStep step) {
-  return {
-    'sequence': step.sequence,
-    'stepType': step.stepType,
-    'title': step.title,
-    'description': step.description,
-    'lineId': step.lineId,
-    'lineName': step.lineName,
-    'fromStationId': step.fromStationId,
-    'toStationId': step.toStationId,
-    'estimatedMinutes': step.estimatedMinutes,
-    'distanceMeters': step.distanceMeters,
-    'includesStairs': step.includesStairs,
-    'stairAccessState': step.stairAccessState,
-    'requiresAccessibilityCheck': step.requiresAccessibilityCheck,
-    'actionTitle': step.actionTitle,
-    'actionDetail': step.actionDetail,
-    'reason': step.reason,
-    'evidenceSources': step.evidenceSources,
-    'timeSource': step.timeSource,
-    'distanceSource': step.distanceSource,
-    'confidenceLabel': step.confidenceLabel,
-    'serviceClass': step.serviceClass,
-    'servicePattern': step.servicePattern,
-  };
-}
-
-Map<String, Object?> _routeWarningToJson(RouteSearchWarning warning) {
-  return {'code': warning.code};
-}
-
-String _isoFromSql(DateTime value) => value.toUtc().toIso8601String();
-
 String _isoFromEpoch(int? value) {
   if (value == null) {
     return '';
@@ -993,19 +707,4 @@ String _fieldValidationStatus(String? qualityLevel, int? checkedAt) {
     'FIELD_UNKNOWN' => 'UNKNOWN',
     _ => 'UNKNOWN',
   };
-}
-
-String _string(Object? value, {String fallback = ''}) {
-  if (value is String) {
-    return value;
-  }
-  return fallback;
-}
-
-String _requiredSnapshotString(Map<String, Object?> snapshot, String key) {
-  final value = snapshot[key];
-  if (value is String && value.trim().isNotEmpty) {
-    return value;
-  }
-  throw const FavoriteRouteException('즐겨찾기 경로를 불러오지 못했어요.');
 }

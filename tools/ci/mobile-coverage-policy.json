@@ -85,8 +85,7 @@
   ],
   "criticalBoundaryRules": {
     "JOURNEY_ROUTE_INGRESS": [
-      "features/journey/",
-      "features/routes/domain/"
+      "features/journey/"
     ],
     "JOURNEY_REPOSITORY_DI_STATE_IDENTITY": [
       "app/app_bootstrap.dart",
@@ -94,8 +93,7 @@
       "app/app_endpoints.dart",
       "features/journey/",
       "features/route_draft/",
-      "features/mobility_profile/",
-      "features/routes/domain/"
+      "features/mobility_profile/"
     ],
     "DATAPACK_CATALOG_LIFECYCLE": [
       "app/app_endpoints.dart",
@@ -123,7 +121,7 @@
       "features/attribution/presentation/",
       "features/facility_report/",
       "features/favorites/presentation/",
-      "features/home/presentation/",
+      "app/home_screen.dart",
       "features/home_widget/next_train_widget_configuration_screen.dart",
       "features/network_map/presentation/",
       "features/notifications/presentation/",
@@ -135,7 +133,6 @@
       "features/stations/domain/facility_status.dart",
       "app/network_map_screen.dart",
       "features/onboarding/onboarding.dart",
-      "features/routes/domain/route_search.dart",
       "search_field.dart",
       "features/stations/data/station_api_base_uri.dart"
     ],

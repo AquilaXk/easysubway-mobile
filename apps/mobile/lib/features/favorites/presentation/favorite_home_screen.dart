@@ -4,21 +4,12 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
-import '../../facility_report/presentation/facility_report_screen.dart';
 import '../favorite_facility.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../routes/domain/route_search.dart';
 import '../domain/favorite_route.dart';
+import '../../facility_report/domain/facility_report_target.dart';
 import '../../stations/domain/station_models.dart';
 import '../../stations/domain/station_repositories.dart';
-import '../../ads/ad_repository.dart';
-import '../../facility_report/domain/facility_report_location.dart';
-import '../../facility_report/domain/facility_report_repository.dart';
-import '../../facility_report/domain/facility_report_target.dart';
-import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
-import '../../route_draft/domain/route_draft.dart';
-import '../../stations/presentation/station_detail_screen.dart';
 
 String _stationNameWithSuffix(String name) {
   return name.endsWith('역') ? name : '$name역';
@@ -29,15 +20,9 @@ class FavoriteHomeScreen extends StatefulWidget {
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
-    this.adRepository,
-    required this.stationRepository,
-    required this.reportRepository,
-    required this.locationProvider,
-    required this.facilityReportDraftTargetStore,
-    required this.realtimeRepository,
-    required this.routeDraftController,
-    required this.initialMobilityType,
-    this.onOpenRouteSearch,
+    required this.onOpenStationDetail,
+    required this.onOpenFacilityReport,
+    required this.onOpenFavoriteRoute,
     this.onShellBack,
     this.bottomNavigationBar,
     super.key,
@@ -46,19 +31,9 @@ class FavoriteHomeScreen extends StatefulWidget {
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
-  final AdRepository? adRepository;
-  final StationSearchRepository stationRepository;
-  final FacilityReportRepository reportRepository;
-  final CurrentLocationProvider locationProvider;
-  final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final RealtimeRepository realtimeRepository;
-  final RouteDraftController routeDraftController;
-  final String initialMobilityType;
-  final Future<void> Function([
-    String? mobilityType,
-    RouteTransportScope? transportScope,
-  ])?
-  onOpenRouteSearch;
+  final Future<void> Function(FavoriteStation station) onOpenStationDetail;
+  final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
+  final Future<void> Function(FavoriteRoute route) onOpenFavoriteRoute;
 
   /// 루트 탭으로 열린 즐겨찾기에서 Navigator.pop이 안 될 때 이전 탭(없으면 홈)으로 돌아간다.
   final VoidCallback? onShellBack;
@@ -201,14 +176,13 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
                           ) ...[
                             _FavoriteHomeRouteRow(
                               route: data.routes[index],
-                              onTap: () => _openRouteSearchFromFavorite(
-                                data.routes[index],
-                              ),
-                              onRemove: widget.favoriteRouteRepository == null
-                                  ? null
-                                  : () => _removeFavoriteRoute(
+                              onTap: data.routes[index].canReSearch
+                                  ? () => _openRouteSearchFromFavorite(
                                       data.routes[index],
-                                    ),
+                                    )
+                                  : null,
+                              onRemove: () =>
+                                  _removeFavoriteRoute(data.routes[index]),
                             ),
                             if (index < data.routes.length - 1)
                               const _FavoriteHomeRowDivider(),
@@ -262,25 +236,7 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
   }
 
   void _openRouteSearchFromFavorite(FavoriteRoute favorite) {
-    widget.routeDraftController.clear();
-    widget.routeDraftController.setOrigin(
-      RouteDraftStation(
-        id: favorite.originStationId,
-        nameKo: favorite.originStationName,
-      ),
-    );
-    widget.routeDraftController.setDestination(
-      RouteDraftStation(
-        id: favorite.destinationStationId,
-        nameKo: favorite.destinationStationName,
-      ),
-    );
-    final openRouteSearch = widget.onOpenRouteSearch;
-    if (openRouteSearch == null) {
-      return;
-    }
-    Navigator.of(context).popUntil((route) => route.isFirst);
-    unawaited(openRouteSearch(favorite.mobilityType, favorite.transportScope));
+    unawaited(widget.onOpenFavoriteRoute(favorite));
   }
 
   Future<void> _removeFavoriteRoute(FavoriteRoute favorite) async {
@@ -301,46 +257,21 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
     if (repository == null) {
       return;
     }
-    await showStationDetailSheet<void>(
-      context: context,
-      repository: widget.stationRepository,
-      reportRepository: widget.reportRepository,
-      favoriteRepository: repository,
-      adRepository: widget.adRepository,
-      locationProvider: widget.locationProvider,
-      realtimeRepository: widget.realtimeRepository,
-      stationId: favorite.stationId,
-      facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
-      routeDraftController: widget.routeDraftController,
-      // 즐겨찾기에서 들어온 역은 이미 저장 상태로 열어 바로 해제할 수 있게 한다.
-      initiallyFavorite: true,
-    );
+    await widget.onOpenStationDetail(favorite);
     await _reloadFavoritesAfterReturn();
   }
 
   Future<void> _openFacilityReportFromFavorite(
     FavoriteFacility favorite,
   ) async {
-    await Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => FacilityReportScreen(
-          repository: widget.reportRepository,
-          locationLoader: _facilityReportLocationLoader(
-            widget.locationProvider,
-          ),
-          needsLocationPermissionRequest:
-              widget.locationProvider.needsLocationPermissionRequest,
-          openLocationSettings: widget.locationProvider.openLocationSettings,
-          draftTargetStore: widget.facilityReportDraftTargetStore,
-          target: FacilityReportTarget(
-            stationId: favorite.stationId,
-            stationName: favorite.stationNameKo,
-            facilityId: favorite.facilityId,
-            facilityName: favorite.name,
-            facilityTypeLabel: favorite.typeLabel,
-            facilityStatusLabel: favorite.statusLabel,
-          ),
-        ),
+    await widget.onOpenFacilityReport(
+      FacilityReportTarget(
+        stationId: favorite.stationId,
+        stationName: favorite.stationNameKo,
+        facilityId: favorite.facilityId,
+        facilityName: favorite.name,
+        facilityTypeLabel: favorite.typeLabel,
+        facilityStatusLabel: favorite.statusLabel,
       ),
     );
     await _reloadFavoritesAfterReturn();
@@ -579,13 +510,13 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
   const _FavoriteHomeRouteRow({
     required this.route,
     required this.onTap,
-    this.onRemove,
+    required this.onRemove,
   });
 
   final FavoriteRoute route;
-  final VoidCallback onTap;
-  // 즐겨찾기 목록에서 바로 삭제할 수 있게 오른쪽 액션을 준다. null이면 진입 화살표만.
-  final VoidCallback? onRemove;
+  final VoidCallback? onTap;
+  // 즐겨찾기 목록에서 바로 삭제할 수 있게 오른쪽 액션을 준다.
+  final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -600,7 +531,10 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
     ].join(' · ');
     final textTheme = Theme.of(context).textTheme;
     return Semantics(
+      container: true,
+      explicitChildNodes: true,
       button: true,
+      enabled: onTap != null,
       label: [
         '즐겨찾기 경로',
         '$originName에서 $destinationName까지',
@@ -609,16 +543,16 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
         if (route.needsResearch) route.statusLabel,
       ].join(', '),
       onTap: onTap,
-      child: ExcludeSemantics(
-        child: InkWell(
-          onTap: onTap,
-          child: ColoredBox(
-            color: EasySubwayAccessibleColors.surface,
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                children: [
-                  Expanded(
+      child: ColoredBox(
+        color: EasySubwayAccessibleColors.surface,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: ExcludeSemantics(
+                  child: InkWell(
+                    onTap: onTap,
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -643,33 +577,35 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (onRemove == null)
-                    const Icon(
-                      Icons.chevron_right,
-                      color: EasySubwayAccessibleColors.disclosure,
-                    )
-                  else
-                    IconButton(
-                      key: Key(
-                        'favoriteRouteRemoveButton-${route.favoriteRouteId}',
-                      ),
-                      onPressed: onRemove,
-                      tooltip: '즐겨찾기 경로 삭제',
-                      style: IconButton.styleFrom(
-                        minimumSize: const Size.square(
-                          EasySubwayTouchTarget.general,
-                        ),
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                        padding: EdgeInsets.zero,
-                      ),
-                      icon: const Icon(
-                        Icons.delete_outline,
-                        color: EasySubwayAccessibleColors.mutedText,
-                      ),
-                    ),
-                ],
+                ),
               ),
-            ),
+              Semantics(
+                button: true,
+                enabled: true,
+                label: '즐겨찾기 경로 삭제',
+                onTap: onRemove,
+                child: ExcludeSemantics(
+                  child: IconButton(
+                    key: Key(
+                      'favoriteRouteRemoveButton-${route.favoriteRouteId}',
+                    ),
+                    onPressed: onRemove,
+                    tooltip: '즐겨찾기 경로 삭제',
+                    style: IconButton.styleFrom(
+                      minimumSize: const Size.square(
+                        EasySubwayTouchTarget.general,
+                      ),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      padding: EdgeInsets.zero,
+                    ),
+                    icon: const Icon(
+                      Icons.delete_outline,
+                      color: EasySubwayAccessibleColors.mutedText,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -729,21 +665,4 @@ class _FavoriteHomeFacilityRow extends StatelessWidget {
       ),
     );
   }
-}
-
-FacilityReportLocationLoader _facilityReportLocationLoader(
-  CurrentLocationProvider provider,
-) {
-  return () async {
-    final CurrentLocation location;
-    try {
-      location = await provider.currentLocation();
-    } on CurrentLocationException catch (error) {
-      throw FacilityReportLocationException(error.message);
-    }
-    return FacilityReportLocation(
-      latitude: location.latitude,
-      longitude: location.longitude,
-    );
-  };
 }

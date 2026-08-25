@@ -1,11 +1,57 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { buildImmutableDartSourceGraph } from "./lib/mobile-dart-source-graph.mjs";
-import { compareGraphs, forbiddenConcreteEdges, parsePolicy } from "./mobile-cross-feature-boundary-ratchet.mjs";
+import {
+  auditCrossFeatureBoundaries,
+  classifyDartSourceSets,
+  compareGraphs,
+  forbiddenConcreteEdges,
+  parseInventory,
+  parsePolicy,
+  verifyInventoryBinding,
+} from "./mobile-cross-feature-boundary-ratchet.mjs";
 
 const policy = parsePolicy(readFileSync("tools/ci/mobile-cross-feature-boundary-policy.json"));
+const reviewedInventoryBytes = readFileSync("tools/ci/mobile-cross-feature-boundary-inventory.json");
+
+function inventoryBytes(overrides = {}) {
+  return Buffer.from(`${JSON.stringify({
+    schemaVersion: 1,
+    artifactKind: "mobile-cross-feature-boundary-inventory-v1",
+    repository: "AquilaXk/easysubway-mobile",
+    featureRoots: ["favorites", "journey"],
+    appCompositionPrefix: "apps/mobile/lib/app/",
+    sharedNeutralPrefixes: ["apps/mobile/lib/core/"],
+    generatedOwnerPrefix: "apps/mobile/lib/generated/",
+    generatedAdapterPaths: ["apps/mobile/lib/features/journey/data/journey_adapter.dart"],
+    publicApis: [{
+      path: "apps/mobile/lib/features/journey/domain/journey.dart",
+      ownerFeature: "journey",
+      classification: "PUBLIC_API",
+      contractKind: "TYPED_DOMAIN",
+      terminalDisposition: "RETAIN_TYPED_CONTRACT",
+    }],
+    migrationExceptions: [],
+    ...overrides,
+  })}\n`, "utf8");
+}
+
+function policyFor(bytes, overrides = {}) {
+  return parsePolicy(Buffer.from(`${JSON.stringify({
+    schemaVersion: 2,
+    artifactKind: "mobile-cross-feature-boundary-policy-v2",
+    repository: "AquilaXk/easysubway-mobile",
+    inventoryPath: "tools/ci/mobile-cross-feature-boundary-inventory.json",
+    inventorySha256: createHash("sha256").update(bytes).digest("hex"),
+    featurePrefix: "apps/mobile/lib/features/",
+    forbiddenTargetSegments: ["application", "data", "infrastructure", "presentation"],
+    terminalZeroRequired: false,
+    ...overrides,
+  })}\n`, "utf8"));
+}
 
 test("cross-feature concrete imports and exports are normalized and compared to the reviewed baseline", () => {
   const baseFiles = { "apps/mobile/lib/features/journey/domain/journey.dart": "final class Journey {}\n", "apps/mobile/lib/features/favorites/domain/favorite.dart": "final class Favorite {}\n" };
@@ -19,4 +65,264 @@ test("cross-feature concrete imports and exports are normalized and compared to 
 test("same-feature and other-feature domain imports are not concrete-boundary violations", () => {
   const files = { "apps/mobile/lib/features/journey/domain/journey.dart": "final class Journey {}\n", "apps/mobile/lib/features/journey/presentation/journey_screen.dart": "import '../domain/journey.dart';\n", "apps/mobile/lib/features/favorites/domain/favorite.dart": "import '../../journey/domain/journey.dart';\n" };
   assert.deepEqual(forbiddenConcreteEdges(buildImmutableDartSourceGraph({ files, packageName: "easysubway_mobile" }), policy), []);
+});
+
+test("current policy is byte-bound to the reviewed repository inventory", () => {
+  const reviewedInventory = verifyInventoryBinding(policy, reviewedInventoryBytes);
+  assert.equal(reviewedInventory.featureRoots.length, 24);
+  assert.equal(reviewedInventory.publicApis.length, 24);
+  assert.equal(reviewedInventory.migrationExceptions.length, 0);
+  assert.equal(policy.terminalZeroRequired, true);
+  assert.deepEqual(
+    reviewedInventory.publicApis.find((entry) => entry.path.endsWith("/get_off_alarm_reconcile_worker.dart")),
+    {
+      path: "apps/mobile/lib/features/get_off_alarm/get_off_alarm_reconcile_worker.dart",
+      ownerFeature: "get_off_alarm",
+      classification: "PUBLIC_API",
+      contractKind: "TYPED_APPLICATION_PORT",
+      terminalDisposition: "RETAIN_TYPED_CONTRACT",
+    },
+  );
+});
+
+test("production과 test/fixture imports는 disjoint source set으로 분리 분류한다", () => {
+  const productionFiles = {
+    "apps/mobile/lib/features/journey/domain/journey.dart": "final class Journey {}\n",
+    "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart":
+      "import '../../journey/domain/journey.dart';\n",
+  };
+  const testFixtureFiles = {
+    "apps/mobile/test/features/favorites/favorite_screen_test.dart":
+      "import 'package:easysubway_mobile/features/journey/domain/journey.dart';\n",
+  };
+  const classified = classifyDartSourceSets({ productionFiles, testFixtureFiles });
+
+  assert.deepEqual(classified.productionEdges.map((edge) => edge.source), [
+    "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart",
+  ]);
+  assert.deepEqual(classified.testFixtureEdges.map((edge) => edge.source), [
+    "apps/mobile/test/features/favorites/favorite_screen_test.dart",
+  ]);
+  assert.throws(
+    () => classifyDartSourceSets({
+      productionFiles: { ...productionFiles, ...testFixtureFiles },
+      testFixtureFiles: {},
+    }),
+    /production source is outside apps\/mobile\/lib/u,
+  );
+});
+
+test("policy is byte-bound to a normalized explicit inventory", () => {
+  const bytes = inventoryBytes();
+  const boundPolicy = policyFor(bytes);
+  assert.equal(verifyInventoryBinding(boundPolicy, bytes).featureRoots.length, 2);
+  assert.throws(
+    () => verifyInventoryBinding(boundPolicy, Buffer.concat([bytes, Buffer.from(" ")])),
+    /inventory SHA-256 mismatch/u,
+  );
+  assert.throws(
+    () => parseInventory(inventoryBytes({ featureRoots: ["journey", "favorites"] })),
+    /inventory identity is invalid/u,
+  );
+});
+
+test("only exact typed public API targets are retained across features", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  const files = {
+    "apps/mobile/lib/features/journey/domain/journey.dart": "final class Journey {}\n",
+    "apps/mobile/lib/features/journey/domain/internal.dart": "final class InternalJourney {}\n",
+    "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart": "import '../../journey/domain/journey.dart';\n",
+  };
+  const retained = auditCrossFeatureBoundaries({
+    files,
+    policy: explicitPolicy,
+    inventory: explicitInventory,
+  });
+  assert.deepEqual(retained.violations, []);
+  assert.deepEqual(retained.classifiedEdges, [{
+    source: "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart",
+    target: "apps/mobile/lib/features/journey/domain/journey.dart",
+    kind: "IMPORT",
+    sourceOwner: "favorites",
+    targetOwner: "journey",
+    terminalDisposition: "RETAIN_TYPED_CONTRACT",
+  }]);
+  files["apps/mobile/lib/features/favorites/presentation/favorite_screen.dart"] = "import '../../journey/domain/internal.dart';\n";
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({ files, policy: explicitPolicy, inventory: explicitInventory }).violations.map((entry) => entry.code),
+    ["UNLISTED_CROSS_FEATURE_API"],
+  );
+});
+
+test("migration exceptions are exact, reviewed and forbidden in terminal-zero mode", () => {
+  const exception = {
+    source: "apps/mobile/lib/features/favorites/presentation/favorite_screen.dart",
+    target: "apps/mobile/lib/features/journey/presentation/journey_screen.dart",
+    kind: "IMPORT",
+    ownerIssue: 37,
+    reason: "typed app-composition handoff pending",
+    removalTrigger: "remove when the app-owned destination callback is wired",
+  };
+  const bytes = inventoryBytes({ migrationExceptions: [exception] });
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  const files = {
+    [exception.source]: "import '../../journey/presentation/journey_screen.dart';\n",
+    [exception.target]: "final class JourneyScreen {}\n",
+  };
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({ files, policy: explicitPolicy, inventory: explicitInventory }).violations,
+    [],
+  );
+  files[exception.source] += "import '../../journey/application/journey_controller.dart';\n";
+  files["apps/mobile/lib/features/journey/application/journey_controller.dart"] = "final class JourneyController {}\n";
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({ files, policy: explicitPolicy, inventory: explicitInventory }).violations.map((entry) => entry.code),
+    ["UNREVIEWED_CONCRETE_EDGE"],
+  );
+  assert.throws(
+    () => auditCrossFeatureBoundaries({ files: {}, policy: policyFor(bytes, { terminalZeroRequired: true }), inventory: explicitInventory }),
+    /terminal zero forbids migration exceptions/u,
+  );
+});
+
+test("a public API cannot re-export its own internal concrete implementation", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const files = {
+    "apps/mobile/lib/features/journey/domain/journey.dart": "export '../presentation/journey_screen.dart';\n",
+    "apps/mobile/lib/features/journey/presentation/journey_screen.dart": "final class JourneyScreen {}\n",
+  };
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({ files, policy: policyFor(bytes), inventory: explicitInventory }).violations.map((entry) => entry.code),
+    ["PUBLIC_API_REEXPORTS_INTERNAL"],
+  );
+});
+
+test("generated code is reachable only from exact reviewed adapter paths", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const generated = "apps/mobile/lib/generated/journey_v3/client.dart";
+  const files = {
+    [generated]: "final class GeneratedJourney {}\n",
+    "apps/mobile/lib/features/journey/data/journey_adapter.dart": "import '../../../generated/journey_v3/client.dart';\n",
+    "apps/mobile/lib/features/journey/presentation/journey_screen.dart": "import '../../../generated/journey_v3/client.dart';\n",
+  };
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({ files, policy: policyFor(bytes), inventory: explicitInventory }).violations.map((entry) => entry.code),
+    ["UNREVIEWED_GENERATED_CONSUMER"],
+  );
+});
+
+test("shared neutral sources cannot import feature internals", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  const journeyScreen = "apps/mobile/lib/features/journey/presentation/journey_screen.dart";
+
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files: {
+        "apps/mobile/lib/core/bridge.dart":
+          "import '../features/journey/presentation/journey_screen.dart';\n",
+        [journeyScreen]: "final class JourneyScreen {}\n",
+      },
+      policy: explicitPolicy,
+      inventory: explicitInventory,
+    }).violations.map((entry) => entry.code),
+    ["SHARED_NEUTRAL_IMPORTS_FEATURE"],
+  );
+});
+
+test("cross-feature part directives cannot bypass the terminal boundary", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  const journeyScreen = "apps/mobile/lib/features/journey/presentation/journey_screen.dart";
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files: {
+        "apps/mobile/lib/features/favorites/domain/favorite.dart":
+          "part '../../journey/presentation/journey_screen.dart';\n",
+        [journeyScreen]: "part of '../../favorites/domain/favorite.dart';\n",
+      },
+      policy: explicitPolicy,
+      inventory: explicitInventory,
+    }).violations.map((entry) => [entry.code, entry.kind]),
+    [
+      ["CROSS_FEATURE_PART_DIRECTIVE", "PART"],
+      ["CROSS_FEATURE_PART_DIRECTIVE", "PART_OF"],
+    ],
+  );
+});
+
+test("non-feature generated consumers require an exact adapter allowlist entry", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const explicitPolicy = policyFor(bytes);
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files: {
+        "apps/mobile/lib/app/composition.dart":
+          "import '../generated/journey_v3/client.dart';\n",
+        "apps/mobile/lib/generated/journey_v3/client.dart":
+          "final class GeneratedJourney {}\n",
+      },
+      policy: explicitPolicy,
+      inventory: explicitInventory,
+    }).violations.map((entry) => entry.code),
+    ["UNREVIEWED_GENERATED_CONSUMER"],
+  );
+});
+
+test("feature composition cannot move into locator, event bus, static singleton, or ambient registry", () => {
+  const bytes = inventoryBytes();
+  const explicitInventory = parseInventory(bytes);
+  const files = {
+    "apps/mobile/lib/features/favorites/presentation/locator.dart":
+      "final journey = GetIt.instance.get<JourneyPort>();\n",
+    "apps/mobile/lib/features/favorites/presentation/events.dart":
+      "final events = EventBus();\n",
+    "apps/mobile/lib/features/favorites/presentation/singleton.dart":
+      "class WorkflowOwner { static final WorkflowOwner instance = WorkflowOwner(); }\n",
+    "apps/mobile/lib/features/favorites/presentation/static_registry.dart":
+      "class WorkflowOwner { static final Map<Type, Object> registry = <Type, Object>{}; }\n",
+    "apps/mobile/lib/features/favorites/presentation/registry.dart":
+      "final Map<Type, Object> registry = <Type, Object>{};\n",
+    "apps/mobile/lib/features/favorites/presentation/typed_registry.dart":
+      "Map<Type, Object> registry = <Type, Object>{};\n",
+    "apps/mobile/lib/features/favorites/presentation/const_services.dart":
+      "const Map<Type, Object> services = <Type, Object>{};\n",
+    "apps/mobile/lib/features/favorites/presentation/navigator.dart":
+      "final navigatorKey = GlobalKey<NavigatorState>();\n",
+    "apps/mobile/lib/features/favorites/presentation/allowed.dart": [
+      "// GetIt.instance and EventBus() are documentation only.",
+      "const description = 'static final instance = registry';",
+      "class Parser { static Parser fromJson(Object? value) => Parser(); }",
+      "void configure([Map<Type, Object> services = const <Type, Object>{}]) {}",
+      "class Owner { final Map<Type, Object> registry = <Type, Object>{}; }",
+    ].join("\n"),
+    "apps/mobile/lib/app/composition.dart":
+      "final Map<Type, Object> registry = <Type, Object>{};\n",
+  };
+
+  assert.deepEqual(
+    auditCrossFeatureBoundaries({
+      files,
+      policy: policyFor(bytes),
+      inventory: explicitInventory,
+    }).violations.map((entry) => [entry.code, entry.source]),
+    [
+      ["GLOBAL_EVENT_BUS", "apps/mobile/lib/features/favorites/presentation/events.dart"],
+      ["GLOBAL_NAVIGATOR_KEY", "apps/mobile/lib/features/favorites/presentation/navigator.dart"],
+      ["GLOBAL_SERVICE_LOCATOR", "apps/mobile/lib/features/favorites/presentation/locator.dart"],
+      ["STATIC_REGISTRY", "apps/mobile/lib/features/favorites/presentation/static_registry.dart"],
+      ["STATIC_SINGLETON", "apps/mobile/lib/features/favorites/presentation/singleton.dart"],
+      ["TOP_LEVEL_REGISTRY", "apps/mobile/lib/features/favorites/presentation/const_services.dart"],
+      ["TOP_LEVEL_REGISTRY", "apps/mobile/lib/features/favorites/presentation/registry.dart"],
+      ["TOP_LEVEL_REGISTRY", "apps/mobile/lib/features/favorites/presentation/typed_registry.dart"],
+    ],
+  );
 });
