@@ -107,11 +107,11 @@ test("Home feature presentation 이동은 accessibility critical boundary를 app
   assert.ok(!boundary.includes("features/home/presentation/"));
 });
 
-test("Route Search root 삭제는 accessibility critical boundary를 routes domain owner에 보존한다", () => {
+test("Route Search terminal 삭제는 stale accessibility critical boundary를 남기지 않는다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;
 
-  assert.ok(boundary.includes("features/routes/domain/route_search.dart"));
+  assert.ok(!boundary.includes("features/routes/domain/route_search.dart"));
   assert.ok(!boundary.includes("route_search.dart"));
 });
 
