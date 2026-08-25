@@ -184,7 +184,10 @@ class AppDependencies {
             baseUri: optionalBaseUri,
             userDatabase: userDatabase,
           ),
-      journeyRepositoryFactory: resolveJourneyRepository,
+      // Keep every consumer behind the same lazy authority.  In particular,
+      // station-timetable/session users and the public factory must not resolve
+      // independently and accidentally expose different transport boundaries.
+      journeyRepositoryFactory: () => lazyJourneyRepository,
       journeyAttestor: resolvedJourneyAttestor,
       journeySessionProvider: resolvedJourneySessionProvider,
       stationTimetableRepository: resolvedStationTimetableRepository,

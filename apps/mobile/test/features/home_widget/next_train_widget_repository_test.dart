@@ -80,6 +80,69 @@ void main() {
     expect(data.directions, isEmpty);
   });
 
+  test('대표 station을 찾지 못하면 시간표를 조회하지 않고 unavailable이다', () async {
+    final fake = _RecordingServerTimetableFake(
+      timetable: _serverTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        departureAt: DateTime.utc(2026, 8, 11),
+      ),
+    );
+    final serverRepository = NextTrainWidgetRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      timetableRepository: fake,
+    );
+
+    final data = await serverRepository.load(
+      const WidgetStationSelection(
+        stationId: 'station-not-found',
+        lineId: 'seoul-4',
+        stationName: '없는 역',
+        lineName: '수도권 4호선',
+      ),
+      DateTime.utc(2026, 8, 11),
+    );
+
+    expect(data.status, NextTrainWidgetStatus.timetableUnavailable);
+    expect(fake.nextRequests, 0);
+  });
+
+  test('양방향 출발이 부족하면 server 응답도 unavailable으로 표현한다', () async {
+    final fake = _RecordingServerTimetableFake(
+      timetable: StationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        directions: [
+          StationTimetableDirection(
+            name: '상록수 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '상록수 방면',
+                seconds: 36000,
+                departureAt: DateTime.utc(2026, 8, 11, 1),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+    final serverRepository = NextTrainWidgetRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      timetableRepository: fake,
+    );
+
+    final data = await serverRepository.load(
+      _sadangLine4,
+      DateTime.utc(2026, 8, 11),
+    );
+
+    expect(data.status, NextTrainWidgetStatus.timetableUnavailable);
+    expect(data.selection, same(_sadangLine4));
+  });
+
   test('흡수 station ID 즐겨찾기도 대표 station-line으로 선택한다', () async {
     await catalogDatabase.customStatement('''
       INSERT INTO station_aliases (station_id, alias, normalized_alias)

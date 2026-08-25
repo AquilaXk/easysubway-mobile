@@ -282,6 +282,23 @@ Map<String, Object?> _withTimetableDeparture({
 
 void main() {
   test(
+    'station timetable은 빈 session token을 전송하지 않고 protocol failure로 닫는다',
+    () async {
+      final client = _StubApiClient(const []);
+      final repository = JourneyApiRepository(client);
+
+      await expectLater(
+        repository.searchStationTimetables(
+          _timetableRequest,
+          sessionToken: ' ',
+        ),
+        throwsA(isA<JourneyProtocolFailure>()),
+      );
+      expect(client.posts, isEmpty);
+    },
+  );
+
+  test(
     'station timetable은 generated operation과 Journey session으로 한 번만 호출한다',
     () async {
       final client = _StubApiClient([
@@ -340,6 +357,37 @@ void main() {
       );
     },
   );
+
+  test('station timetable은 같은 방향의 역순 출발을 protocol failure로 닫는다', () async {
+    final body = _timetableSuccessJson();
+    final groups = List<Object?>.of(body['directionGroups']! as List<Object?>);
+    final group = Map<String, Object?>.of(
+      groups.single! as Map<String, Object?>,
+    );
+    final departure = Map<String, Object?>.of(
+      (group['departures']! as List<Object?>).single! as Map<String, Object?>,
+    );
+    group['departures'] = [
+      departure,
+      Map<String, Object?>.of(departure)
+        ..['secondsFromServiceDayStart'] = 60
+        ..['departureAt'] = '2026-08-10T15:01:00Z',
+    ];
+    groups[0] = group;
+    body['directionGroups'] = groups;
+    final repository = JourneyApiRepository(
+      _StubApiClient([ApiResponse(statusCode: 200, jsonBody: body)]),
+      now: () => DateTime.parse('2026-08-11T00:00:00Z'),
+    );
+
+    await expectLater(
+      repository.searchStationTimetables(
+        _timetableRequest,
+        sessionToken: 'session-token',
+      ),
+      throwsA(isA<JourneyProtocolFailure>()),
+    );
+  });
 
   test('session과 search는 exact V3 direct JSON으로 각각 한 번만 호출한다', () async {
     final client = _StubApiClient([

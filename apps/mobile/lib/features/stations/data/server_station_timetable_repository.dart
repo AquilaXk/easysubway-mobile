@@ -176,14 +176,10 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
   }
 
   bool _matchesSeoulServiceDate(contract.StationTimetableDeparture departure) {
-    try {
-      return _serviceDayInstantUtc(
-        departure.serviceDate.toString(),
-        departure.secondsFromServiceDayStart,
-      ).isAtSameMomentAs(departure.departureAt.toUtc());
-    } on FormatException {
-      return false;
-    }
+    return _serviceDayInstantUtc(
+      departure.serviceDate.toString(),
+      departure.secondsFromServiceDayStart,
+    ).isAtSameMomentAs(departure.departureAt.toUtc());
   }
 
   DateTime _serviceDayInstantUtc(String serviceDate, int seconds) {

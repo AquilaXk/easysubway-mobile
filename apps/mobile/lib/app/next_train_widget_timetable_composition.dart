@@ -11,8 +11,12 @@ import '../features/stations/domain/station_repositories.dart';
 /// The widget feature receives only [StationTimetableRepository], keeping the
 /// Journey V3 transport, integrity, and session implementations at the app
 /// composition boundary.
-StationTimetableRepository createNextTrainWidgetTimetableRepository() {
-  final baseUri = defaultOptionalStationApiBaseUri();
+StationTimetableRepository createNextTrainWidgetTimetableRepository({
+  Uri? Function() resolveBaseUri = defaultOptionalStationApiBaseUri,
+  JourneyV3IntegrityAttestor Function() createAttestor =
+      JourneyMethodChannelIntegrityAttestor.new,
+}) {
+  final baseUri = resolveBaseUri();
   if (baseUri == null) {
     throw StateError('Journey V3 API base URL is not configured.');
   }
@@ -21,7 +25,7 @@ StationTimetableRepository createNextTrainWidgetTimetableRepository() {
     journeyRepository: journeyRepository,
     sessionProvider: JourneySessionProvider(
       repository: journeyRepository,
-      attestor: JourneyMethodChannelIntegrityAttestor(),
+      attestor: createAttestor(),
     ),
   );
 }

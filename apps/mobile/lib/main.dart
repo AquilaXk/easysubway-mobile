@@ -53,6 +53,17 @@ typedef MainNextTrainWidgetStartup =
     });
 typedef MainNextTrainWidgetCallbackInstaller =
     void Function({required Future<bool> Function() runWidgetRefresh});
+typedef MainNextTrainWidgetConfigurator =
+    Future<void> Function({
+      required next_train_widget_runtime.CreateNextTrainWidgetTimetableRepository
+      createTimetableRepository,
+      required Future<void> Function() initializeAndRegisterRefresh,
+    });
+typedef MainNextTrainWidgetHeadlessRunner =
+    Future<bool> Function({
+      required next_train_widget_runtime.CreateNextTrainWidgetTimetableRepository
+      createTimetableRepository,
+    });
 
 @visibleForTesting
 MainCrashReportingInitializer debugMainCrashReportingInitializer =
@@ -75,6 +86,12 @@ MainNextTrainWidgetCallbackInstaller debugMainNextTrainWidgetCallbackInstaller =
 @visibleForTesting
 Future<bool> Function() debugMainHeadlessWidgetRefresh =
     runMainHeadlessNextTrainWidgetRefresh;
+@visibleForTesting
+MainNextTrainWidgetConfigurator debugMainNextTrainWidgetConfigurator =
+    next_train_widget_runtime.configureMain;
+@visibleForTesting
+MainNextTrainWidgetHeadlessRunner debugMainNextTrainWidgetHeadlessRunner =
+    next_train_widget_runtime.runHeadlessNextTrainWidgetRefresh;
 @visibleForTesting
 Stream<Uri?> Function() debugMainHomeWidgetClicks =
     next_train_widget_runtime.homeWidgetClicks;
@@ -271,7 +288,7 @@ Changes: converted from SVG to PNG and colorized for EasySubway.
 }
 
 @pragma('vm:entry-point')
-Future<void> configureMain() => next_train_widget_runtime.configureMain(
+Future<void> configureMain() => debugMainNextTrainWidgetConfigurator(
   createTimetableRepository: createNextTrainWidgetTimetableRepository,
   initializeAndRegisterRefresh: initializeAndRegisterNextTrainWidgetRefresh,
 );
@@ -284,7 +301,7 @@ void nextTrainWidgetCallbackDispatcher() {
 }
 
 Future<bool> runMainHeadlessNextTrainWidgetRefresh() {
-  return next_train_widget_runtime.runHeadlessNextTrainWidgetRefresh(
+  return debugMainNextTrainWidgetHeadlessRunner(
     createTimetableRepository: createNextTrainWidgetTimetableRepository,
   );
 }

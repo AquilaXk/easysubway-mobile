@@ -1,6 +1,7 @@
 import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart'
     as contract;
 import 'package:flutter_test/flutter_test.dart';
@@ -156,6 +157,135 @@ void main() {
       expect(attestorFailure.issueCalls, 0);
     },
   );
+
+  test(
+    'server FormatException은 그 사유를 가진 typed timetable unavailable로 닫는다',
+    () async {
+      final journey = _FakeJourneyRepository(
+        failure: const FormatException('malformed server timetable'),
+        now: now,
+      );
+
+      await expectLater(
+        _repository(journey, now: now).loadStationTimetableForDate(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          date: now,
+        ),
+        throwsA(
+          isA<StationTimetableUnavailable>().having(
+            (failure) => failure.reason,
+            'reason',
+            'malformed server timetable',
+          ),
+        ),
+      );
+    },
+  );
+
+  test('day type와 service date selector는 KST date로 server에 전달한다', () async {
+    final journey = _FakeJourneyRepository(
+      timetable: _success(
+        selector: contract.StationTimetableDayTypeSelector(
+          dayType: contract.StationTimetableDayType.saturday,
+          referenceDate: contract.JourneyDate.parse('2026-08-11'),
+        ),
+        departures: const [],
+        now: now,
+      ),
+      now: now,
+    );
+    await _repository(journey, now: now).loadStationTimetable(
+      stationId: 'station-sadang',
+      lineId: 'seoul-4',
+      dayType: StationTimetableDayType.saturday,
+      referenceDate: DateTime.utc(2026, 8, 10, 15),
+    );
+    final serviceDateJourney = _FakeJourneyRepository(
+      timetable: _success(
+        selector: contract.StationTimetableServiceDateSelector(
+          contract.JourneyDate.parse('2026-08-11'),
+        ),
+        departures: const [],
+        now: now,
+      ),
+      now: now,
+    );
+    await _repository(serviceDateJourney, now: now).loadStationTimetableForDate(
+      stationId: 'station-sadang',
+      lineId: 'seoul-4',
+      date: DateTime.utc(2026, 8, 10, 15),
+    );
+
+    expect(journey.searchCalls, 1);
+    expect(serviceDateJourney.searchCalls, 1);
+  });
+
+  test('sunday-holiday day type은 server selector와 응답에 대칭으로 보존한다', () async {
+    final selector = contract.StationTimetableDayTypeSelector(
+      dayType: contract.StationTimetableDayType.sundayHoliday,
+      referenceDate: contract.JourneyDate.parse('2026-08-16'),
+    );
+    final journey = _FakeJourneyRepository(
+      timetable: _success(
+        selector: selector,
+        departures: const [],
+        now: now,
+        resolvedDayType: contract.StationTimetableDayType.sundayHoliday,
+      ),
+      now: now,
+    );
+
+    final timetable = await _repository(journey, now: now).loadStationTimetable(
+      stationId: 'station-sadang',
+      lineId: 'seoul-4',
+      dayType: StationTimetableDayType.sundayHoliday,
+      referenceDate: DateTime.utc(2026, 8, 15, 15),
+    );
+
+    expect(timetable.dayType, StationTimetableDayType.sundayHoliday);
+    expect(journey.searchCalls, 1);
+  });
+
+  test('허용 범위를 벗어난 service-day seconds는 typed unavailable로 닫는다', () async {
+    final journey = _FakeJourneyRepository(
+      timetable: _success(
+        selector: contract.StationTimetableNextDeparturesSelector(
+          asOf: now,
+          horizonDays: 1,
+        ),
+        departures: [_departure('2026-08-11', 108000, '2026-08-12T21:00:00Z')],
+        now: now,
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(journey, now: now).loadNextStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        asOf: now,
+      ),
+      throwsA(isA<StationTimetableUnavailable>()),
+    );
+  });
+
+  test(
+    'invalid next-departures horizon은 server 요청 전에 typed unavailable이다',
+    () async {
+      final journey = _FakeJourneyRepository(now: now);
+      expect(
+        () => _repository(journey, now: now).loadNextStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          asOf: now,
+          horizonDays: 0,
+        ),
+        throwsA(isA<StationTimetableUnavailable>()),
+      );
+      expect(journey.searchCalls, 0);
+    },
+  );
 }
 
 ServerStationTimetableRepository _repository(
@@ -190,13 +320,15 @@ contract.StationTimetableSearchSuccess _success({
   required List<contract.StationTimetableDeparture> departures,
   required DateTime now,
   List<contract.StationTimetableDirectionGroup>? directionGroups,
+  contract.StationTimetableDayType resolvedDayType =
+      contract.StationTimetableDayType.weekday,
 }) => contract.StationTimetableSearchSuccess(
   contractVersion:
       contract.StationTimetableSearchContractVersion.stationTimetableSearchV3,
   stationId: 'station-sadang',
   lineId: 'seoul-4',
   selector: selector,
-  resolvedDayType: contract.StationTimetableDayType.weekday,
+  resolvedDayType: resolvedDayType,
   serviceTimezone: contract.StationTimetableServiceTimezone.asiaSeoul,
   directionGroups:
       directionGroups ??

@@ -17,6 +17,38 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test(
+    'widget entrypoints는 production dependency를 같은 delegate에 전달한다',
+    () async {
+      final previousConfigure = app.debugMainNextTrainWidgetConfigurator;
+      final previousHeadless = app.debugMainNextTrainWidgetHeadlessRunner;
+      final calls = <String>[];
+      addTearDown(() {
+        app.debugMainNextTrainWidgetConfigurator = previousConfigure;
+        app.debugMainNextTrainWidgetHeadlessRunner = previousHeadless;
+      });
+      app.debugMainNextTrainWidgetConfigurator =
+          ({
+            required createTimetableRepository,
+            required initializeAndRegisterRefresh,
+          }) async {
+            calls.add('configure');
+          };
+      app.debugMainNextTrainWidgetHeadlessRunner =
+          ({required createTimetableRepository}) async {
+            calls.add('headless');
+            return true;
+          };
+
+      await app.configureMain();
+      expect(await app.runMainHeadlessNextTrainWidgetRefresh(), isTrue);
+      await app.initializeMainWorkManagerDispatcher();
+      await app.initializeAndRegisterNextTrainWidgetRefresh();
+
+      expect(calls, ['configure', 'headless']);
+    },
+  );
+
   testWidgets('production main은 홈 위젯 역 상세·시설 제보 composition을 그대로 배선한다', (
     tester,
   ) async {
