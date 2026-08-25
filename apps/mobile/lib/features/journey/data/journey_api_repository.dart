@@ -3,12 +3,16 @@ import '../../../generated/journey_v3/journey_v3_contract.dart';
 import '../domain/journey_repository.dart';
 
 class JourneyApiRepository implements JourneyRepository {
-  JourneyApiRepository(this._apiClient);
+  JourneyApiRepository(this._apiClient, {DateTime Function()? now})
+    : _now = now ?? DateTime.now;
 
   static const _sessionPath = '/api/v3/journeys/session';
   static const _searchPath = '/api/v3/journeys/search';
+  static const _stationTimetableSearchPath =
+      '/api/v3/station-timetables/search';
 
   final ApiClient _apiClient;
+  final DateTime Function() _now;
 
   @override
   Future<JourneySessionResponse> issueSession(
@@ -57,6 +61,40 @@ class JourneyApiRepository implements JourneyRepository {
     } on FormatException catch (error) {
       throw JourneyProtocolFailure(
         JourneyOperation.searchJourneys,
+        cause: error,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async {
+    if (sessionToken.trim().isEmpty) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.searchStationTimetables,
+        cause: const FormatException('Journey session token must be nonblank'),
+      );
+    }
+    final response = await _post(
+      JourneyOperation.searchStationTimetables,
+      _stationTimetableSearchPath,
+      request.toJson(),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+    );
+    final body = _successBody(
+      JourneyOperation.searchStationTimetables,
+      response,
+    );
+    try {
+      final success = StationTimetableSearchSuccess.fromJson(body);
+      _validateStationTimetableSuccess(success, request);
+      return success;
+    } on FormatException catch (error) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.searchStationTimetables,
         cause: error,
         statusCode: response.statusCode,
       );
@@ -220,6 +258,58 @@ class JourneyApiRepository implements JourneyRepository {
         );
       }
     }
+  }
+
+  void _validateStationTimetableSuccess(
+    StationTimetableSearchSuccess success,
+    StationTimetableSearchRequest request,
+  ) {
+    if (success.stationId != request.stationId ||
+        success.lineId != request.lineId ||
+        success.selector.toJson().toString() !=
+            request.selector.toJson().toString() ||
+        success.serviceTimezone != StationTimetableServiceTimezone.asiaSeoul ||
+        !success.sourceIdentity.freshUntil.isAfter(_now())) {
+      throw const FormatException(
+        'Station timetable identity or freshness mismatch',
+      );
+    }
+    for (final group in success.directionGroups) {
+      if (group.directionName.trim().isEmpty) {
+        throw const FormatException(
+          'Station timetable direction must be nonblank',
+        );
+      }
+      DateTime? previous;
+      for (final departure in group.departures) {
+        if (previous != null && departure.departureAt.isBefore(previous)) {
+          throw const FormatException(
+            'Station timetable departures must be ordered',
+          );
+        }
+        previous = departure.departureAt;
+        if (!_serviceDayInstantUtc(
+          departure.serviceDate.toString(),
+          departure.secondsFromServiceDayStart,
+        ).isAtSameMomentAs(departure.departureAt.toUtc())) {
+          throw const FormatException(
+            'Station timetable departure time mismatch',
+          );
+        }
+      }
+    }
+  }
+
+  DateTime _serviceDayInstantUtc(String serviceDate, int seconds) {
+    final parts = serviceDate.split('-').map(int.parse).toList(growable: false);
+    if (parts.length != 3 || seconds < 0 || seconds > 107999) {
+      throw const FormatException('Station timetable service day is invalid');
+    }
+    return DateTime.utc(
+      parts[0],
+      parts[1],
+      parts[2],
+    ).subtract(const Duration(hours: 9)).add(Duration(seconds: seconds));
   }
 
   void _requireOrdered(DateTime departure, DateTime arrival, String label) {

@@ -30,11 +30,13 @@ import '../features/service_notice/data/notice_repository.dart';
 import '../features/stations/data/drift_station_repository.dart';
 import '../features/stations/data/current_location_provider.dart';
 import '../features/stations/data/station_api_repository.dart';
+import '../features/stations/data/server_station_timetable_repository.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/train_search/data/train_search_repository.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/train_search/domain/train_search_scope_policy.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/journey_session_provider.dart';
 import '../features/journey/data/journey_api_repository.dart';
 import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
 import '../features/journey/domain/journey_repository.dart';
@@ -66,6 +68,8 @@ class AppDependencies {
     this.adRepository,
     required this.journeyRepositoryFactory,
     required this.journeyAttestor,
+    required this.journeySessionProvider,
+    required this.stationTimetableRepository,
   });
 
   factory AppDependencies.resolve({
@@ -87,6 +91,7 @@ class AppDependencies {
     AdRepository? adRepository,
     JourneyRepository? journeyRepository,
     JourneyV3IntegrityAttestor? journeyAttestor,
+    StationTimetableRepository? stationTimetableRepository,
     CatalogDatabase? catalogDatabase,
     UserDatabase? userDatabase,
     Directory? userDatabaseDirectory,
@@ -145,6 +150,31 @@ class AppDependencies {
     final resolvedRealtimeRepository =
         realtimeRepository ??
         _defaultRealtimeRepository(baseUri: optionalBaseUri);
+    JourneyRepository? cachedJourneyRepository = journeyRepository;
+    JourneyRepository resolveJourneyRepository() {
+      final cachedRepository = cachedJourneyRepository;
+      if (cachedRepository != null) return cachedRepository;
+      final journeyBaseUri = optionalBaseUri();
+      return cachedJourneyRepository = journeyBaseUri == null
+          ? const _UnavailableJourneyRepository()
+          : JourneyApiRepository(ApiClient(baseUri: journeyBaseUri));
+    }
+
+    final lazyJourneyRepository = _LazyJourneyRepository(
+      resolveJourneyRepository,
+    );
+    final resolvedJourneyAttestor =
+        journeyAttestor ?? JourneyMethodChannelIntegrityAttestor();
+    final resolvedJourneySessionProvider = JourneySessionProvider(
+      repository: lazyJourneyRepository,
+      attestor: resolvedJourneyAttestor,
+    );
+    final resolvedStationTimetableRepository =
+        stationTimetableRepository ??
+        ServerStationTimetableRepository(
+          journeyRepository: lazyJourneyRepository,
+          sessionProvider: resolvedJourneySessionProvider,
+        );
 
     return AppDependencies(
       repository: resolvedStationRepository,
@@ -154,16 +184,13 @@ class AppDependencies {
             baseUri: optionalBaseUri,
             userDatabase: userDatabase,
           ),
-      journeyRepositoryFactory: () {
-        final injected = journeyRepository;
-        if (injected != null) return injected;
-        final baseUri = optionalBaseUri();
-        return baseUri == null
-            ? const _UnavailableJourneyRepository()
-            : JourneyApiRepository(ApiClient(baseUri: baseUri));
-      },
-      journeyAttestor:
-          journeyAttestor ?? JourneyMethodChannelIntegrityAttestor(),
+      // Keep every consumer behind the same lazy authority.  In particular,
+      // station-timetable/session users and the public factory must not resolve
+      // independently and accidentally expose different transport boundaries.
+      journeyRepositoryFactory: () => lazyJourneyRepository,
+      journeyAttestor: resolvedJourneyAttestor,
+      journeySessionProvider: resolvedJourneySessionProvider,
+      stationTimetableRepository: resolvedStationTimetableRepository,
       favoriteRepository:
           favoriteRepository ??
           (catalogDatabase != null && userDatabase != null
@@ -254,6 +281,8 @@ class AppDependencies {
   final JourneyRepository Function() journeyRepositoryFactory;
   JourneyRepository get journeyRepository => journeyRepositoryFactory();
   final JourneyV3IntegrityAttestor journeyAttestor;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository stationTimetableRepository;
 }
 
 class _UnavailableJourneyRepository implements JourneyRepository {
@@ -279,6 +308,44 @@ class _UnavailableJourneyRepository implements JourneyRepository {
       'Journey API base URL is unavailable.',
     );
   }
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async {
+    throw const JourneyTransportFailure(
+      JourneyOperation.searchStationTimetables,
+      'Journey API base URL is unavailable.',
+    );
+  }
+}
+
+/// Journey authority is optional at bootstrap, but never replaced by a local
+/// timetable source when unavailable. Resolve the API boundary on first use.
+class _LazyJourneyRepository implements JourneyRepository {
+  _LazyJourneyRepository(this._resolveDelegate);
+
+  final JourneyRepository Function() _resolveDelegate;
+
+  @override
+  Future<JourneySessionResponse> issueSession(JourneySessionRequest request) =>
+      _resolveDelegate().issueSession(request);
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) => _resolveDelegate().searchJourneys(request, sessionToken: sessionToken);
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) => _resolveDelegate().searchStationTimetables(
+    request,
+    sessionToken: sessionToken,
+  );
 }
 
 class _LazyDefaultTrainSearchRepository implements TrainSearchRepository {

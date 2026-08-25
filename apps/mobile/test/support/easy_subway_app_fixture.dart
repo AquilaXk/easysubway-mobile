@@ -63,6 +63,10 @@ EasySubwayApp buildEasySubwayTestApp({
         final NetworkMapRepository dualPortRepository => dualPortRepository,
         _ => null,
       };
+  final fixtureStationTimetableRepository = switch (repository) {
+    final StationTimetableRepository dualPortRepository => dualPortRepository,
+    _ => null,
+  };
 
   return EasySubwayApp(
     dependencies:
@@ -76,6 +80,7 @@ EasySubwayApp buildEasySubwayTestApp({
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
           networkMapRepository: fixtureNetworkMapRepository,
+          stationTimetableRepository: fixtureStationTimetableRepository,
           networkMapViewportRepository: networkMapViewportRepository,
           realtimeRepository: realtimeRepository,
           notificationRepository: notificationRepository,

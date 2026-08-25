@@ -24,6 +24,7 @@ Future<T?> showStationDetailSheet<T>({
   FavoriteStationRepository? favoriteRepository,
   WidgetBuilder? bottomAdBuilder,
   RealtimeRepository? realtimeRepository,
+  StationTimetableRepository? timetableRepository,
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
@@ -47,6 +48,7 @@ Future<T?> showStationDetailSheet<T>({
           favoriteRepository: favoriteRepository,
           bottomAdBuilder: bottomAdBuilder,
           realtimeRepository: realtimeRepository,
+          timetableRepository: timetableRepository,
           locationProvider: locationProvider,
           stationId: stationId,
           initiallyFavorite: initiallyFavorite,
@@ -68,6 +70,7 @@ class StationDetailScreen extends StatefulWidget {
     this.favoriteRepository,
     this.bottomAdBuilder,
     this.realtimeRepository,
+    this.timetableRepository,
     this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
@@ -82,6 +85,7 @@ class StationDetailScreen extends StatefulWidget {
   final FavoriteStationRepository? favoriteRepository;
   final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
+  final StationTimetableRepository? timetableRepository;
   final CurrentLocationProvider? locationProvider;
   final String stationId;
   final bool? initiallyFavorite;
@@ -156,10 +160,7 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
                 routeDraftController: widget.routeDraftController,
                 locationProvider: widget.locationProvider,
                 mapLauncher: widget.mapLauncher,
-                timetableRepository:
-                    widget.repository is StationTimetableRepository
-                    ? widget.repository as StationTimetableRepository
-                    : null,
+                timetableRepository: widget.timetableRepository,
                 // AppBar가 호선·역명을 담당. 이전/다음역 chrome은 노선도 확장(PR-B)에서.
                 showContextChrome: false,
               ),
@@ -224,6 +225,7 @@ class StationDetailExpandHost extends StatefulWidget {
     this.favoriteRepository,
     this.bottomAdBuilder,
     this.realtimeRepository,
+    this.timetableRepository,
     this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
@@ -245,6 +247,7 @@ class StationDetailExpandHost extends StatefulWidget {
   final FavoriteStationRepository? favoriteRepository;
   final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
+  final StationTimetableRepository? timetableRepository;
   final CurrentLocationProvider? locationProvider;
   final String stationId;
   final bool? initiallyFavorite;
@@ -333,9 +336,7 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
             routeDraftController: widget.routeDraftController,
             locationProvider: widget.locationProvider,
             mapLauncher: widget.mapLauncher,
-            timetableRepository: widget.repository is StationTimetableRepository
-                ? widget.repository as StationTimetableRepository
-                : null,
+            timetableRepository: widget.timetableRepository,
             showContextChrome: widget.showContextChrome,
             showRealtimeSection: widget.showRealtimeSection,
             onClose: widget.onClose,

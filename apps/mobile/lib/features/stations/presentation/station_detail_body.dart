@@ -9,6 +9,7 @@ import '../../../mobile_error_reporter.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/domain/route_draft.dart';
+import '../data/server_station_timetable_repository.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
@@ -524,6 +525,7 @@ class _StationTimetableEntry extends StatefulWidget {
 
 class _StationTimetableEntryState extends State<_StationTimetableEntry> {
   StationTimetable? _timetable;
+  bool _unavailable = false;
 
   @override
   void initState() {
@@ -539,16 +541,45 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     List<StationSearchLine> lines,
   ) async {
     try {
-      final timetable = await loadFirstAvailableStationTimetable(
-        stationId: widget.detail.id,
-        lines: lines,
-        repository: repository,
-        date: debugStationVerifiedClock(),
-      );
-      if (mounted && timetable != null) {
-        setState(() => _timetable = timetable);
+      final date = debugStationVerifiedClock();
+      StationTimetable? unavailable;
+      for (final line in lines) {
+        final timetable = await repository.loadStationTimetableForDate(
+          stationId: widget.detail.id,
+          date: date,
+          lineId: line.id,
+        );
+        if (timetable.isAvailable) {
+          if (mounted) {
+            setState(() {
+              _timetable = timetable;
+              _unavailable = false;
+            });
+          }
+          return;
+        }
+        unavailable ??= timetable;
+      }
+      if (mounted) {
+        setState(() {
+          _timetable = unavailable;
+          _unavailable = true;
+        });
+      }
+    } on StationTimetableUnavailable {
+      if (mounted) {
+        setState(() {
+          _timetable = null;
+          _unavailable = true;
+        });
       }
     } catch (error, stackTrace) {
+      if (mounted) {
+        setState(() {
+          _timetable = null;
+          _unavailable = true;
+        });
+      }
       reportMobileError(
         error,
         stackTrace,
@@ -563,7 +594,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 로컬 coverage가 없으면 준비 중 문구 대신 요약 줄을 그리지 않는다(#2078).
+        // 서버가 시간표를 제공하지 않으면 요약 줄을 그리지 않는다.
         // '시간표 보기' 버튼은 남겨 전체 시간표 화면으로 진입할 수 있게 한다.
         if (timetable != null && timetable.isAvailable) ...[
           for (final direction in timetable.directions)
@@ -576,6 +607,11 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
             ),
           const SizedBox(height: 4),
         ],
+        if (_unavailable)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Text('시간표를 확인할 수 없어요.'),
+          ),
         TextButton.icon(
           key: const Key('stationTimetableButton'),
           onPressed: () => Navigator.of(context).push(

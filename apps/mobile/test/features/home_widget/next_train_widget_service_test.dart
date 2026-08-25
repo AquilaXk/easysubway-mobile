@@ -1,10 +1,370 @@
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_reconcile_worker.dart';
+import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
+import 'package:easysubway_mobile/core/database/user/user_database.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_repository.dart';
+import 'package:easysubway_mobile/features/home_widget/next_train_widget_configuration_screen.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_runtime.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_service.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/main.dart' as app;
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:workmanager_platform_interface/workmanager_platform_interface.dart';
 
 void main() {
+  test(
+    'Android runtime bindings는 host와 Android plugin 진입을 모두 결정론적으로 실행한다',
+    () async {
+      var initialized = 0;
+      var registered = 0;
+      var cancelled = 0;
+      final android = NextTrainWidgetAndroidBindings(
+        isAndroid: () => true,
+        initialize: (_) async => initialized += 1,
+        register: () async => registered += 1,
+        cancel: () async => cancelled += 1,
+        installedWidgetIds: () async => const [42],
+        clicks: () => Stream.value(Uri.parse('easysubway://station/sadang')),
+      );
+
+      await initializeWorkManagerDispatcher(
+        callbackDispatcher: () {},
+        bindings: android,
+      );
+      await registerNextTrainWidgetRefresh(bindings: android);
+      await cancelNextTrainWidgetRefresh(bindings: android);
+      await initializeAndRegisterNextTrainWidgetRefresh(
+        callbackDispatcher: () {},
+        bindings: android,
+      );
+
+      expect(initialized, 2);
+      expect(registered, 2);
+      expect(cancelled, 1);
+      expect(await installedNextTrainWidgetIds(bindings: android), [42]);
+      expect(
+        await homeWidgetClicks(
+          bindings: android,
+        ).map((uri) => uri.toString()).toList(),
+        ['easysubway://station/sadang'],
+      );
+    },
+  );
+
+  test('non-Android runtime bindings는 plugin 작업을 시작하지 않는다', () async {
+    final host = NextTrainWidgetAndroidBindings(
+      isAndroid: () => false,
+      initialize: (_) => throw StateError('must not initialize'),
+      register: () => throw StateError('must not register'),
+      cancel: () => throw StateError('must not cancel'),
+      installedWidgetIds: () => throw StateError('must not list'),
+      clicks: () => Stream.error(StateError('must not listen')),
+    );
+
+    await initializeWorkManagerDispatcher(
+      callbackDispatcher: () {},
+      bindings: host,
+    );
+    await registerNextTrainWidgetRefresh(bindings: host);
+    await cancelNextTrainWidgetRefresh(bindings: host);
+    expect(await installedNextTrainWidgetIds(bindings: host), isEmpty);
+    expect(await homeWidgetClicks(bindings: host).toList(), isEmpty);
+  });
+
+  test('기본 Android dispatcher는 Workmanager host API를 한 번 초기화한다', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const channelName =
+        'dev.flutter.pigeon.workmanager_platform_interface.WorkmanagerHostApi.initialize';
+    var initializeCalls = 0;
+    messenger.setMockMessageHandler(channelName, (ByteData? message) async {
+      final request =
+          WorkmanagerHostApi.pigeonChannelCodec.decodeMessage(message)!
+              as List<Object?>;
+      final initializeRequest = request.single as InitializeRequest;
+      expect(initializeRequest.callbackHandle, isNot(0));
+      initializeCalls += 1;
+      return WorkmanagerHostApi.pigeonChannelCodec.encodeMessage(<Object?>[
+        null,
+      ]);
+    });
+    addTearDown(() => messenger.setMockMessageHandler(channelName, null));
+
+    await initializeWorkManagerDispatcher(
+      callbackDispatcher: app.nextTrainWidgetCallbackDispatcher,
+      isAndroid: () => true,
+    );
+
+    expect(initializeCalls, 1);
+  });
+
+  test(
+    'host refresh는 injected non-Android와 기본 host 경로 모두 plugin 없이 종료한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      final repository = NextTrainWidgetRepository(
+        catalogDatabase: catalog,
+        userDatabase: user,
+        timetableRepository: _NoopTimetableRepository(),
+      );
+      final host = NextTrainWidgetAndroidBindings(
+        isAndroid: () => false,
+        initialize: (_) => throw StateError('must not initialize'),
+        register: () => throw StateError('must not register'),
+        cancel: () => throw StateError('must not cancel'),
+        installedWidgetIds: () => throw StateError('must not list'),
+        clicks: () => Stream.error(StateError('must not listen')),
+      );
+
+      await refreshNextTrainWidgets(
+        repository,
+        widgetIds: const [42],
+        bindings: host,
+      );
+      await refreshNextTrainWidgets(repository, widgetIds: const [42]);
+    },
+  );
+
+  test(
+    'Android refresh는 injected platform에서 explicit widget IDs만 실행한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      final repository = NextTrainWidgetRepository(
+        catalogDatabase: catalog,
+        userDatabase: user,
+        timetableRepository: _NoopTimetableRepository(),
+      );
+      var installedIdReads = 0;
+      final android = NextTrainWidgetAndroidBindings(
+        isAndroid: () => true,
+        initialize: (_) async {},
+        register: () async {},
+        cancel: () async {},
+        installedWidgetIds: () async {
+          installedIdReads += 1;
+          return const [];
+        },
+        clicks: Stream.empty,
+      );
+
+      await refreshNextTrainWidgets(
+        repository,
+        now: DateTime.utc(2026, 8, 11),
+        bindings: android,
+      );
+      expect(installedIdReads, 1);
+    },
+  );
+
+  test(
+    'callback dispatcher는 native task channel에 refresh handler를 등록한다',
+    () async {
+      TestWidgetsFlutterBinding.ensureInitialized();
+      var refreshCalls = 0;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const channelName =
+          'dev.flutter.pigeon.workmanager_platform_interface.WorkmanagerFlutterApi.executeTask';
+
+      nextTrainWidgetCallbackDispatcher(
+        runWidgetRefresh: () async {
+          refreshCalls += 1;
+          return true;
+        },
+      );
+      try {
+        final reply = await messenger.handlePlatformMessage(
+          channelName,
+          WorkmanagerFlutterApi.pigeonChannelCodec.encodeMessage(<Object?>[
+            nextTrainWidgetRefreshTask,
+            null,
+          ]),
+          null,
+        );
+        expect(
+          WorkmanagerFlutterApi.pigeonChannelCodec.decodeMessage(reply),
+          <Object?>[true],
+        );
+        expect(refreshCalls, 1);
+      } finally {
+        WorkmanagerFlutterApi.setUp(null, binaryMessenger: messenger);
+      }
+    },
+  );
+
+  test(
+    'headless refresh는 injected open, create, refresh, close 순서를 보장한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      var opened = 0;
+      var created = 0;
+      var refreshed = 0;
+      var closed = 0;
+
+      expect(
+        await runHeadlessNextTrainWidgetRefresh(
+          createTimetableRepository: () {
+            created += 1;
+            return _NoopTimetableRepository();
+          },
+          openDatabases: () async {
+            opened += 1;
+            return (catalog: catalog, user: user);
+          },
+          refresh: (repository) async {
+            refreshed += 1;
+            expect(repository.catalogDatabase, same(catalog));
+            expect(repository.userDatabase, same(user));
+          },
+          closeDatabases: ({required catalog, required user}) async {
+            closed += 1;
+          },
+        ),
+        isTrue,
+      );
+
+      expect((opened, created, refreshed, closed), (1, 1, 1, 1));
+    },
+  );
+
+  test(
+    'headless refresh 실패도 injected database close 후 typed error를 전달한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      var closed = 0;
+
+      await expectLater(
+        runHeadlessNextTrainWidgetRefresh(
+          createTimetableRepository: _NoopTimetableRepository.new,
+          openDatabases: () async => (catalog: catalog, user: user),
+          refresh: (_) async => throw StateError('headless refresh failed'),
+          closeDatabases: ({required catalog, required user}) async {
+            closed += 1;
+          },
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(closed, 1);
+    },
+  );
+
+  test(
+    'widget configuration은 injected catalog open/close와 registration을 실행한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      await _seedWidgetCatalog(catalog);
+      Widget? capturedApp;
+      var created = 0;
+      var opened = 0;
+      var closed = 0;
+      var registered = 0;
+      var finished = 0;
+      var updated = 0;
+      final stored = <String, Object?>{};
+
+      await configureMain(
+        createTimetableRepository: () {
+          created += 1;
+          return _AvailableTimetableRepository();
+        },
+        initializeAndRegisterRefresh: () async => registered += 1,
+        readWidgetId: () async => '42',
+        runWidgetApp: (widget) => capturedApp = widget,
+        openDatabases: () async {
+          opened += 1;
+          return (catalog: catalog, user: user);
+        },
+        closeDatabases: ({required catalog, required user}) async {
+          closed += 1;
+        },
+        saveWidgetValue: (key, value) async => stored[key] = value,
+        updateNativeWidget: () async => updated += 1,
+        finishConfiguration: () async => finished += 1,
+      );
+
+      final screen =
+          (capturedApp! as MaterialApp).home!
+              as NextTrainWidgetConfigurationScreen;
+      expect(await screen.loadSelections(), isEmpty);
+      await screen.configure(_selection);
+
+      expect(
+        (opened, created, closed, updated, registered, finished),
+        (2, 2, 2, 1, 1, 1),
+      );
+      expect(stored['widget_42_station_id'], 'station-sadang');
+    },
+  );
+
+  test('widget configuration은 widget ID 부재를 typed failure로 종료한다', () async {
+    await expectLater(
+      configureMain(
+        createTimetableRepository: _NoopTimetableRepository.new,
+        initializeAndRegisterRefresh: () async {},
+        readWidgetId: () async => null,
+        runWidgetApp: (_) => throw StateError('must not launch'),
+      ),
+      throwsA(isA<StateError>()),
+    );
+  });
+
+  test(
+    'configuration 완료 실패는 current pending widget뿐일 때 host refresh를 취소한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      await _seedWidgetCatalog(catalog);
+      Widget? capturedApp;
+      var registered = 0;
+      var closed = 0;
+
+      await configureMain(
+        createTimetableRepository: _AvailableTimetableRepository.new,
+        initializeAndRegisterRefresh: () async => registered += 1,
+        readWidgetId: () async => '42',
+        runWidgetApp: (widget) => capturedApp = widget,
+        openDatabases: () async => (catalog: catalog, user: user),
+        closeDatabases: ({required catalog, required user}) async =>
+            closed += 1,
+        saveWidgetValue: (_, _) async {},
+        updateNativeWidget: () async {},
+        finishConfiguration: () async => throw StateError('finish failed'),
+      );
+
+      final screen =
+          (capturedApp! as MaterialApp).home!
+              as NextTrainWidgetConfigurationScreen;
+      await expectLater(
+        screen.configure(_selection),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(registered, 1);
+      expect(closed, 1);
+    },
+  );
+
   test('위젯 startup plugin 실패를 보고하고 core startup은 계속한다', () async {
     final errors = <Object>[];
     var refreshed = false;
@@ -205,6 +565,54 @@ void main() {
     expect(await worker.executeTask(getOffAlarmReconcileTask, null), isTrue);
     expect(calls, ['widget', 'reconcile']);
   });
+
+  test(
+    'injected headless facade runs once and keeps unavailable widget output explicit',
+    () async {
+      final stored = <String, Object?>{
+        'widget_42_direction_1': '상록수 방면',
+        'widget_42_departure_1': '09:12',
+        'widget_42_direction_2': '사당 방면',
+        'widget_42_departure_2': '09:18',
+      };
+      var facadeCalls = 0;
+      final service = NextTrainWidgetService(
+        load: (selection, now) async =>
+            NextTrainWidgetData.unavailable(selection, now),
+        saveValue: (key, value) async => stored[key] = value,
+        updateWidget: () async {},
+      );
+      final previousInstaller = app.debugMainNextTrainWidgetCallbackInstaller;
+      final previousRefresh = app.debugMainHeadlessWidgetRefresh;
+      Future<bool> Function()? injectedRefresh;
+      app.debugMainNextTrainWidgetCallbackInstaller =
+          ({required runWidgetRefresh}) {
+            injectedRefresh = runWidgetRefresh;
+          };
+      app.debugMainHeadlessWidgetRefresh = () async {
+        facadeCalls += 1;
+        await service.refresh(
+          appWidgetId: 42,
+          selection: _selection,
+          now: DateTime(2027, 1, 1, 9),
+        );
+        return true;
+      };
+      try {
+        app.nextTrainWidgetCallbackDispatcher();
+        expect(await injectedRefresh!(), isTrue);
+        expect(facadeCalls, 1);
+        expect(stored['widget_42_status'], 'timetableUnavailable');
+        expect(stored['widget_42_direction_1'], '');
+        expect(stored['widget_42_departure_1'], '');
+        expect(stored['widget_42_direction_2'], '');
+        expect(stored['widget_42_departure_2'], '');
+      } finally {
+        app.debugMainNextTrainWidgetCallbackInstaller = previousInstaller;
+        app.debugMainHeadlessWidgetRefresh = previousRefresh;
+      }
+    },
+  );
 
   test('configure는 widget id별 시간표 snapshot을 저장하고 provider를 갱신한다', () async {
     final stored = <String, Object?>{};
@@ -443,13 +851,97 @@ final _availableData = NextTrainWidgetData(
   directions: [
     NextTrainDirection(
       name: '상록수 방면',
-      departureAt: DateTime(2026, 7, 10, 9, 12),
+      departureAt: DateTime.utc(2026, 7, 10, 0, 12),
     ),
     NextTrainDirection(
       name: '사당 방면',
-      departureAt: DateTime(2026, 7, 10, 9, 18),
+      departureAt: DateTime.utc(2026, 7, 10, 0, 18),
     ),
   ],
   statusLabel: '시간표 기준',
   updatedAt: DateTime(2026, 7, 10, 9),
 );
+
+Future<void> _seedWidgetCatalog(CatalogDatabase database) async {
+  await database.customStatement('''
+    INSERT INTO operators (id, name_ko, name_en)
+    VALUES ('seoul-metro', '서울교통공사', 'Seoul Metro')
+  ''');
+  await database.customStatement('''
+    INSERT INTO lines (id, operator_id, name_ko, name_en, color)
+    VALUES ('seoul-4', 'seoul-metro', '수도권 4호선', 'Line 4', '#00A5DE')
+  ''');
+  await database.customStatement('''
+    INSERT INTO stations (
+      id, name_ko, name_en, name_sub, normalized_name, region,
+      data_quality_level, data_source_type
+    ) VALUES ('station-sadang', '사당', 'Sadang', '', '사당', '수도권',
+      'LEVEL_2', 'OFFICIAL_FILE')
+  ''');
+  await database.customStatement('''
+    INSERT INTO station_lines (
+      station_id, line_id, station_code, line_sequence, platform_info
+    ) VALUES ('station-sadang', 'seoul-4', '433', 28, '당고개 / 오이도')
+  ''');
+}
+
+class _AvailableTimetableRepository extends _NoopTimetableRepository {
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) async => StationTimetable(
+    stationId: stationId,
+    lineId: lineId,
+    dayType: StationTimetableDayType.weekday,
+    directions: [
+      StationTimetableDirection(
+        name: '상록수 방면',
+        departures: [
+          StationTimetableDeparture(
+            directionName: '상록수 방면',
+            seconds: 1,
+            departureAt: asOf.add(const Duration(minutes: 1)),
+          ),
+        ],
+      ),
+      StationTimetableDirection(
+        name: '사당 방면',
+        departures: [
+          StationTimetableDeparture(
+            directionName: '사당 방면',
+            seconds: 2,
+            departureAt: asOf.add(const Duration(minutes: 2)),
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class _NoopTimetableRepository implements StationTimetableRepository {
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) => throw UnimplementedError();
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) => throw UnimplementedError();
+}

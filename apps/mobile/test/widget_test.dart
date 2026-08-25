@@ -50,6 +50,7 @@ import 'package:easysubway_mobile/features/stations/presentation/station_detail_
 import 'package:easysubway_mobile/features/stations/presentation/station_facility_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_search_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_timetable_screen.dart';
+import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
@@ -454,11 +455,11 @@ Future<void> _openJourneySearchScreen(
 }) async {
   // 노선도(지도·역)가 렌더될 때까지 기다린 뒤 역을 탭한다.
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(Key(originStationKey)));
+  await tester.tapAt(tester.getCenter(find.byKey(Key(originStationKey))));
   await tester.pumpAndSettle();
   await _tapFanMenuSector(tester, _fanOriginLabel);
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(Key(destinationStationKey)));
+  await tester.tapAt(tester.getCenter(find.byKey(Key(destinationStationKey))));
   await tester.pumpAndSettle();
   await _tapFanMenuSector(tester, _fanDestinationLabel);
   // 출발·도착이 모두 차면 셸이 자동으로 결과 타임라인 탭으로 전환한다. 전환은
@@ -939,6 +940,8 @@ void main() {
       adRepository: baseDependencies.adRepository,
       journeyRepositoryFactory: baseDependencies.journeyRepositoryFactory,
       journeyAttestor: baseDependencies.journeyAttestor,
+      journeySessionProvider: baseDependencies.journeySessionProvider,
+      stationTimetableRepository: baseDependencies.stationTimetableRepository,
     );
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -5526,6 +5529,8 @@ void main() {
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
     expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
     expect(find.byKey(const Key('networkMapBottomAdBanner')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('GPS 하단 패널은 환승 호선을 탭으로 구분하고 선택 호선을 재조회한다', (tester) async {
@@ -7170,6 +7175,164 @@ void main() {
 
     expect(find.byKey(const Key('networkMapNearbyStationPanel')), findsNothing);
     expect(find.text('오이도행'), findsNothing);
+  });
+
+  testWidgets('닫힌 최근접 패널은 늦은 시간표 typed·generic failure를 모두 무시한다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '448',
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      for (final failure in <Object>[
+        const StationTimetableUnavailable('server unavailable'),
+        StateError('server failed'),
+      ]) {
+        final timetableCompleter = Completer<StationTimetable>();
+        final repository = _HangingTimetableStationRepository(
+          completer: timetableCompleter,
+          stationDetail: _stationDetail(
+            id: 'station-sangnoksu',
+            name: '상록수',
+            lines: const [line],
+          ),
+          networkMapRegionNames: const ['수도권'],
+          nearbyResults: [
+            _stationResult(
+              id: 'station-sangnoksu',
+              name: '상록수',
+              lines: const [line],
+            ),
+          ],
+        );
+        await _pumpNetworkMapForGpsTest(
+          tester,
+          repository: repository,
+          locationProvider: FakeCurrentLocationProvider(
+            location: _freshCurrentLocation(),
+            needsPermissionRequest: false,
+          ),
+          realtimeRepository: _HangingRealtimeRepository(),
+        );
+
+        await tester.tap(find.byKey(const Key('nearbyStationButton')));
+        await tester.pump();
+        await tester.pump();
+        expect(
+          find.byKey(const Key('networkMapNearbyStationPanel')),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byKey(const Key('networkMapNearbyPanelCloseButton')),
+        );
+        await tester.pump();
+        timetableCompleter.completeError(failure);
+        await tester.pump();
+        expect(
+          find.byKey(const Key('networkMapNearbyStationPanel')),
+          findsNothing,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 2));
+      }
+    });
+    expect(reportedErrors, hasLength(1));
+  });
+
+  testWidgets('최근접 패널이 mount된 현재 시간표 generic failure는 display를 비운다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final timetableCompleter = Completer<StationTimetable>();
+    final repository = _HangingTimetableStationRepository(
+      completer: timetableCompleter,
+      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      networkMapRegionNames: const ['수도권'],
+      nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: repository,
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: _HangingRealtimeRepository(),
+      );
+      await tester.tap(find.byKey(const Key('nearbyStationButton')));
+      await tester.pump();
+      await tester.pump();
+
+      timetableCompleter.completeError(StateError('server failed'));
+      await tester.pump();
+    });
+
+    expect(reportedErrors, hasLength(1));
+    expect(
+      find.byKey(const Key('networkMapNearbyStationPanel')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('unmount된 최근접 패널의 stale typed failure는 state를 건드리지 않는다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final timetableCompleter = Completer<StationTimetable>();
+    final repository = _HangingTimetableStationRepository(
+      completer: timetableCompleter,
+      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      networkMapRegionNames: const ['수도권'],
+      nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+    );
+
+    await _pumpNetworkMapForGpsTest(
+      tester,
+      repository: repository,
+      locationProvider: FakeCurrentLocationProvider(
+        location: _freshCurrentLocation(),
+        needsPermissionRequest: false,
+      ),
+      realtimeRepository: _HangingRealtimeRepository(),
+    );
+    await tester.tap(find.byKey(const Key('nearbyStationButton')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    timetableCompleter.completeError(
+      const StationTimetableUnavailable('server unavailable'),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('networkMapNearbyStationPanel')), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('급행 운행 정보는 선택 UI 없이 시간표에 표시된다', (tester) async {
@@ -12782,6 +12945,7 @@ void main() {
         MaterialApp(
           home: StationDetailScreen(
             repository: repository,
+            timetableRepository: repository,
             reportRepository: FakeFacilityReportRepository(),
             stationId: 'station-sangnoksu',
           ),
@@ -12970,6 +13134,7 @@ void main() {
         MaterialApp(
           home: StationDetailScreen(
             repository: repository,
+            timetableRepository: repository,
             reportRepository: FakeFacilityReportRepository(),
             stationId: 'station-sadang',
           ),
@@ -12988,6 +13153,300 @@ void main() {
     } finally {
       debugStationVerifiedClock = DateTime.now;
     }
+  });
+
+  testWidgets('역 시간표는 empty·typed·generic server failure를 이전 결과 없이 비운다', (
+    tester,
+  ) async {
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '433',
+    );
+    final empty = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final typed = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      unavailableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final generic = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      timetableError: StateError('server failed'),
+      timetables: const {},
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationTimetableScreen(
+          stationId: 'station-sadang',
+          stationName: '사당',
+          lines: const [line],
+          repository: empty,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationTimetableScreen(
+          stationId: 'station-sadang',
+          stationName: '사당',
+          lines: const [line],
+          repository: typed,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
+    await tester.pumpAndSettle();
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-sadang',
+            stationName: '사당',
+            lines: const [line],
+            repository: generic,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+    expect(reportedErrors, hasLength(1));
+  });
+
+  testWidgets('시간표 운행일 변경은 사라진 방향 선택을 새 첫 방향으로 초기화한다', (tester) async {
+    debugStationVerifiedClock = () => DateTime(2026, 7, 6);
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '433',
+    );
+    final repository = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      timetables: {
+        StationTimetableDayType.weekday: _stationTimetable(
+          StationTimetableDayType.weekday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [
+            StationTimetableDirection(
+              name: '상행',
+              departures: [
+                StationTimetableDeparture(directionName: '상행', seconds: 36000),
+              ],
+            ),
+            StationTimetableDirection(
+              name: '하행',
+              departures: [
+                StationTimetableDeparture(directionName: '하행', seconds: 36100),
+              ],
+            ),
+          ],
+        ),
+        StationTimetableDayType.saturday: _stationTimetable(
+          StationTimetableDayType.saturday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [
+            StationTimetableDirection(
+              name: '주말 상행',
+              departures: [
+                StationTimetableDeparture(
+                  directionName: '주말 상행',
+                  seconds: 36000,
+                ),
+              ],
+            ),
+          ],
+        ),
+        StationTimetableDayType.sundayHoliday: _stationTimetable(
+          StationTimetableDayType.sundayHoliday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [
+            StationTimetableDirection(
+              name: '하행',
+              departures: [
+                StationTimetableDeparture(directionName: '하행', seconds: 36200),
+              ],
+            ),
+          ],
+        ),
+      },
+    );
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-sadang',
+            stationName: '사당',
+            lines: const [line],
+            repository: repository,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('stationTimetableDirection-하행')));
+      await tester.tap(
+        find.byKey(const Key('stationTimetableDay-sundayHoliday')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const Key('stationTimetableDirection-하행')),
+            )
+            .selected,
+        isTrue,
+      );
+      await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const Key('stationTimetableDirection-주말 상행')),
+            )
+            .selected,
+        isTrue,
+      );
+    } finally {
+      debugStationVerifiedClock = DateTime.now;
+    }
+  });
+
+  testWidgets('역 상세 시간표 summary는 empty·typed·generic failure를 명시적으로 표시한다', (
+    tester,
+  ) async {
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '433',
+    );
+    final empty = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: const [line],
+      ),
+      timetableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final typed = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: const [line],
+      ),
+      timetableLineId: 'seoul-4',
+      unavailableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final generic = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: const [line],
+      ),
+      timetableLineId: 'seoul-4',
+      timetableError: StateError('server failed'),
+      timetables: const {},
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    for (final repository in [empty, typed, generic]) {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StationDetailScreen(
+              repository: repository,
+              timetableRepository: repository,
+              reportRepository: FakeFacilityReportRepository(),
+              stationId: 'station-sadang',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      });
+      expect(find.text('시간표를 확인할 수 없어요.'), findsOneWidget);
+    }
+    expect(reportedErrors, hasLength(1));
+  });
+
+  testWidgets('서버 시간표 실패는 다음 환승 노선을 재호출하지 않는다', (tester) async {
+    const lines = [
+      StationSearchLine(
+        id: 'seoul-2',
+        name: '수도권 2호선',
+        color: '#00A84D',
+        stationCode: '226',
+      ),
+      StationSearchLine(
+        id: 'seoul-4',
+        name: '수도권 4호선',
+        color: '#00A5DE',
+        stationCode: '433',
+      ),
+    ];
+    final repository = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: lines,
+      ),
+      timetableLineId: 'seoul-4',
+      unavailableLineId: 'seoul-2',
+      timetables: {
+        StationTimetableDayType.weekday: _stationTimetable(
+          StationTimetableDayType.weekday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [],
+        ),
+      },
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationDetailScreen(
+            repository: repository,
+            timetableRepository: repository,
+            reportRepository: FakeFacilityReportRepository(),
+            stationId: 'station-sadang',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    expect(repository.requestedLineIds, ['seoul-2']);
+    expect(reportedErrors, isEmpty);
   });
 
   testWidgets('역 상세는 좌표 있는 출구에만 카카오맵 버튼을 보여준다', (tester) async {
@@ -16157,10 +16616,14 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     super.networkMapRegionNames,
     required this.timetables,
     this.timetableLineId = 'seoul-2',
+    this.unavailableLineId,
+    this.timetableError,
   });
 
   final Map<StationTimetableDayType, StationTimetable> timetables;
   final String timetableLineId;
+  final String? unavailableLineId;
+  final Object? timetableError;
   final requestedDayTypes = <StationTimetableDayType>[];
 
   @override
@@ -16171,6 +16634,13 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     required DateTime referenceDate,
   }) async {
     requestedDayTypes.add(dayType);
+    requestedLineIds.add(lineId);
+    if (timetableError != null) {
+      throw timetableError!;
+    }
+    if (lineId == unavailableLineId) {
+      throw const StationTimetableUnavailable('server unavailable');
+    }
     if (lineId != timetableLineId) {
       return StationTimetable(
         stationId: stationId,
@@ -16206,6 +16676,18 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
       referenceDate: date,
     );
   }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => loadStationTimetableForDate(
+    stationId: stationId,
+    lineId: lineId,
+    date: asOf,
+  );
 }
 
 /// #2453: 로컬 시간표 Future를 완료하지 않아 패널 첫 프레임 골격을 검증한다.
@@ -16251,6 +16733,14 @@ class _HangingTimetableStationRepository extends FakeStationSearchRepository
       referenceDate: date,
     );
   }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => completer.future;
 }
 
 class FakeSearchHistoryRepository implements SearchHistoryRepository {

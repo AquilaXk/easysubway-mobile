@@ -20,6 +20,7 @@ import '../features/favorites/favorite_facility.dart';
 import '../features/favorites/presentation/favorite_home_screen.dart';
 import '../features/get_off_alarm/get_off_alarm_controller.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/journey_session_provider.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../features/journey/presentation/journey_search_screen.dart';
 import '../features/mobility_profile/mobility_preset_labels.dart';
@@ -118,6 +119,8 @@ class HomeScreen extends StatefulWidget {
     required this.reportRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
+    required this.journeySessionProvider,
+    required this.timetableRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
@@ -153,6 +156,8 @@ class HomeScreen extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository timetableRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
@@ -710,6 +715,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 openStationSearchForSlot(slot, regionLabel, mapRegionLabels),
               ),
           stationSearchRepository: repository,
+          timetableRepository: widget.timetableRepository,
           reportRepository: reportRepository,
           favoriteRepository: favoriteRepository,
           adRepository: adRepository,
@@ -771,6 +777,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         JourneySearchScreen(
           repository: widget.journeyRepository,
           attestor: widget.journeyAttestor,
+          sessionProvider: widget.journeySessionProvider,
           draft: _routeDraftController.draft,
           mobilityType: _routeTabMobilityType ?? initialMobilityType,
           onShellBackToHome: closeRouteTab,
@@ -797,6 +804,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
               bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
               locationProvider: locationProvider,
               realtimeRepository: realtimeRepository,
+              timetableRepository: widget.timetableRepository,
               stationId: favorite.stationId,
               facilityReportDraftTargetStore: facilityReportDraftTargetStore,
               routeDraftController: _routeDraftController,

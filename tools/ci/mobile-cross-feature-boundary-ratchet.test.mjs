@@ -70,7 +70,7 @@ test("same-feature and other-feature domain imports are not concrete-boundary vi
 test("current policy is byte-bound to the reviewed repository inventory", () => {
   const reviewedInventory = verifyInventoryBinding(policy, reviewedInventoryBytes);
   assert.equal(reviewedInventory.featureRoots.length, 24);
-  assert.equal(reviewedInventory.publicApis.length, 24);
+  assert.equal(reviewedInventory.publicApis.length, 26);
   assert.equal(reviewedInventory.migrationExceptions.length, 0);
   assert.equal(policy.terminalZeroRequired, true);
   assert.deepEqual(

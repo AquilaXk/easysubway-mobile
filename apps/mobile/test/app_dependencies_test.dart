@@ -10,7 +10,6 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';
-import 'package:easysubway_mobile/features/journey/data/journey_api_repository.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
@@ -162,14 +161,44 @@ void main() {
     expect(dependencies.repository, isA<DriftStationRepository>());
   });
 
-  test('API 주소가 있으면 Journey V3 repository만 release route로 만든다', () {
+  test('API 주소가 있으면 Journey V3 lazy authority를 공유한다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    late Uri requestedUri;
+    server.listen((request) async {
+      requestedUri = request.uri;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'token': 'session-token',
+            'scope': 'journey:v3',
+            'issuedAt': '2026-08-11T00:00:00Z',
+            'expiresAt': '2026-08-11T01:00:00Z',
+          }),
+        );
+      await request.response.close();
+    });
     final dependencies = AppDependencies.resolve(
       reportRepository: const UnavailableFacilityReportRepository(),
-      apiBaseUri: () => Uri.parse('https://api.example.com'),
+      apiBaseUri: () =>
+          Uri.parse('http://${server.address.host}:${server.port}'),
       enablePushNotifications: false,
     );
 
-    expect(dependencies.journeyRepository, isA<JourneyApiRepository>());
+    expect(
+      dependencies.journeyRepositoryFactory(),
+      same(dependencies.journeyRepository),
+    );
+    final session = await dependencies.journeyRepository.issueSession(
+      JourneySessionRequest(
+        integrityToken: 'integrity-token',
+        clientNonce: 'AAAAAAAAAAAAAAAAAAAAAA',
+      ),
+    );
+    expect(session.token, 'session-token');
+    expect(requestedUri.path, '/api/v3/journeys/session');
   });
 
   test('API 주소가 없으면 local로 강등하지 않고 Journey failure로 닫는다', () async {
@@ -210,6 +239,36 @@ void main() {
       ),
       throwsA(isA<JourneyTransportFailure>()),
     );
+  });
+
+  test('API 주소가 없으면 시간표 Journey operation도 한 번의 typed failure로 닫는다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    addTearDown(catalogDatabase.close);
+    var apiBaseReads = 0;
+    final dependencies = AppDependencies.resolve(
+      catalogDatabase: catalogDatabase,
+      reportRepository: const UnavailableFacilityReportRepository(),
+      apiBaseUri: () {
+        apiBaseReads += 1;
+        return null;
+      },
+      enablePushNotifications: false,
+    );
+
+    await expectLater(
+      dependencies.journeyRepository.searchStationTimetables(
+        StationTimetableSearchRequest(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          selector: StationTimetableServiceDateSelector(
+            JourneyDate.parse('2026-08-11'),
+          ),
+        ),
+        sessionToken: 'unused',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    expect(apiBaseReads, 1);
   });
 
   test('로컬 데이터베이스와 API 주소가 있으면 실시간은 API를 호출한다', () async {

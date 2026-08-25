@@ -146,18 +146,122 @@ extension JourneyLegTypeWire on JourneyLegType {
   }
 }
 
-enum JourneyOperation { issueJourneySession, searchJourneys }
+enum JourneyOperation { issueJourneySession, searchJourneys, searchStationTimetables }
 
 extension JourneyOperationWire on JourneyOperation {
   String get wire => switch (this) {
     JourneyOperation.issueJourneySession => "issueJourneySession",
     JourneyOperation.searchJourneys => "searchJourneys",
+    JourneyOperation.searchStationTimetables => "searchStationTimetables",
   };
   static JourneyOperation fromWire(Object? value) {
     if (value is! String) throw const FormatException('wire value must be string');
     return switch (value) {
       "issueJourneySession" => JourneyOperation.issueJourneySession,
       "searchJourneys" => JourneyOperation.searchJourneys,
+      "searchStationTimetables" => JourneyOperation.searchStationTimetables,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum StationTimetableSelectorKind { serviceDate, dayType, nextDepartures }
+
+extension StationTimetableSelectorKindWire on StationTimetableSelectorKind {
+  String get wire => switch (this) {
+    StationTimetableSelectorKind.serviceDate => "SERVICE_DATE",
+    StationTimetableSelectorKind.dayType => "DAY_TYPE",
+    StationTimetableSelectorKind.nextDepartures => "NEXT_DEPARTURES",
+  };
+  static StationTimetableSelectorKind fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "SERVICE_DATE" => StationTimetableSelectorKind.serviceDate,
+      "DAY_TYPE" => StationTimetableSelectorKind.dayType,
+      "NEXT_DEPARTURES" => StationTimetableSelectorKind.nextDepartures,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum StationTimetableDayType { weekday, saturday, sundayHoliday }
+
+extension StationTimetableDayTypeWire on StationTimetableDayType {
+  String get wire => switch (this) {
+    StationTimetableDayType.weekday => "WEEKDAY",
+    StationTimetableDayType.saturday => "SATURDAY",
+    StationTimetableDayType.sundayHoliday => "SUNDAY_HOLIDAY",
+  };
+  static StationTimetableDayType fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "WEEKDAY" => StationTimetableDayType.weekday,
+      "SATURDAY" => StationTimetableDayType.saturday,
+      "SUNDAY_HOLIDAY" => StationTimetableDayType.sundayHoliday,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum StationTimetableServicePattern { local, express }
+
+extension StationTimetableServicePatternWire on StationTimetableServicePattern {
+  String get wire => switch (this) {
+    StationTimetableServicePattern.local => "LOCAL",
+    StationTimetableServicePattern.express => "EXPRESS",
+  };
+  static StationTimetableServicePattern fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "LOCAL" => StationTimetableServicePattern.local,
+      "EXPRESS" => StationTimetableServicePattern.express,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum StationTimetableServiceClass { subway, itxCheongchun }
+
+extension StationTimetableServiceClassWire on StationTimetableServiceClass {
+  String get wire => switch (this) {
+    StationTimetableServiceClass.subway => "SUBWAY",
+    StationTimetableServiceClass.itxCheongchun => "ITX_CHEONGCHUN",
+  };
+  static StationTimetableServiceClass fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "SUBWAY" => StationTimetableServiceClass.subway,
+      "ITX_CHEONGCHUN" => StationTimetableServiceClass.itxCheongchun,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum StationTimetableSearchContractVersion { stationTimetableSearchV3 }
+
+extension StationTimetableSearchContractVersionWire on StationTimetableSearchContractVersion {
+  String get wire => switch (this) {
+    StationTimetableSearchContractVersion.stationTimetableSearchV3 => "STATION_TIMETABLE_SEARCH_V3",
+  };
+  static StationTimetableSearchContractVersion fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "STATION_TIMETABLE_SEARCH_V3" => StationTimetableSearchContractVersion.stationTimetableSearchV3,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum StationTimetableServiceTimezone { asiaSeoul }
+
+extension StationTimetableServiceTimezoneWire on StationTimetableServiceTimezone {
+  String get wire => switch (this) {
+    StationTimetableServiceTimezone.asiaSeoul => "Asia/Seoul",
+  };
+  static StationTimetableServiceTimezone fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "Asia/Seoul" => StationTimetableServiceTimezone.asiaSeoul,
       _ => throw const FormatException('unrecognized wire value'),
     };
   }
@@ -317,6 +421,9 @@ enum JourneyErrorCode {
   routingIdentityMismatch,
   routeServiceUnavailable,
   journeySearchTimeout,
+  stationLineNotFound,
+  timetableNotCovered,
+  timetableIdentityMismatch,
   routeSessionRequired,
   routeRateLimited,
   invalidJourneySessionRequest,
@@ -338,6 +445,9 @@ extension JourneyErrorCodeWire on JourneyErrorCode {
     JourneyErrorCode.routingIdentityMismatch => "ROUTING_IDENTITY_MISMATCH",
     JourneyErrorCode.routeServiceUnavailable => "ROUTE_SERVICE_UNAVAILABLE",
     JourneyErrorCode.journeySearchTimeout => "JOURNEY_SEARCH_TIMEOUT",
+    JourneyErrorCode.stationLineNotFound => "STATION_LINE_NOT_FOUND",
+    JourneyErrorCode.timetableNotCovered => "TIMETABLE_NOT_COVERED",
+    JourneyErrorCode.timetableIdentityMismatch => "TIMETABLE_IDENTITY_MISMATCH",
     JourneyErrorCode.routeSessionRequired => "ROUTE_SESSION_REQUIRED",
     JourneyErrorCode.routeRateLimited => "ROUTE_RATE_LIMITED",
     JourneyErrorCode.invalidJourneySessionRequest => "INVALID_JOURNEY_SESSION_REQUEST",
@@ -359,6 +469,9 @@ extension JourneyErrorCodeWire on JourneyErrorCode {
       "ROUTING_IDENTITY_MISMATCH" => JourneyErrorCode.routingIdentityMismatch,
       "ROUTE_SERVICE_UNAVAILABLE" => JourneyErrorCode.routeServiceUnavailable,
       "JOURNEY_SEARCH_TIMEOUT" => JourneyErrorCode.journeySearchTimeout,
+      "STATION_LINE_NOT_FOUND" => JourneyErrorCode.stationLineNotFound,
+      "TIMETABLE_NOT_COVERED" => JourneyErrorCode.timetableNotCovered,
+      "TIMETABLE_IDENTITY_MISMATCH" => JourneyErrorCode.timetableIdentityMismatch,
       "ROUTE_SESSION_REQUIRED" => JourneyErrorCode.routeSessionRequired,
       "ROUTE_RATE_LIMITED" => JourneyErrorCode.routeRateLimited,
       "INVALID_JOURNEY_SESSION_REQUEST" => JourneyErrorCode.invalidJourneySessionRequest,

@@ -146,6 +146,13 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
       "reason": "Legacy local route candidate identity has no production consumer and is physically removed.",
       "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/core/database/catalog/station_timetable_query_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/67",
+      "reason": "CatalogStationTimetableQuery/Drift timetable success has no production consumer and is physically removed for server-authoritative Journey V3.",
+      "reviewTrigger": "Mobile #67 server-authoritative timetable terminal deletion"
     }
   ]
 }

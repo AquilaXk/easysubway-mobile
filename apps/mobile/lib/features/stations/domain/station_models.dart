@@ -56,12 +56,14 @@ class StationTimetableDeparture {
   const StationTimetableDeparture({
     required this.directionName,
     required this.seconds,
+    this.departureAt,
     this.servicePattern = 'LOCAL',
     this.serviceClass = 'SUBWAY',
   });
 
   final String directionName;
   final int seconds;
+  final DateTime? departureAt;
 
   /// 운행종별(예: `LOCAL`·`EXPRESS`). 선택 컨트롤이 아니라 실제 운행 정보다.
   final String servicePattern;

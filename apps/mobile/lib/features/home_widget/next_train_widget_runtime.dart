@@ -16,6 +16,7 @@ import '../../core/database/user/user_database_opener.dart';
 import '../../core/datapack/emergency_override_repository.dart';
 import '../../mobile_error_reporter.dart';
 import '../get_off_alarm/get_off_alarm_reconcile_worker.dart';
+import '../stations/domain/station_repositories.dart';
 import 'next_train_widget_configuration_screen.dart';
 import 'next_train_widget_repository.dart';
 import 'next_train_widget_service.dart';
@@ -28,6 +29,28 @@ const nextTrainWidgetRefreshUniqueName = 'next-train-widget-refresh';
 typedef ReadWidgetValue = Future<String?> Function(String key);
 typedef ReportNextTrainWidgetError =
     void Function(Object error, StackTrace stackTrace);
+typedef CreateNextTrainWidgetTimetableRepository =
+    StationTimetableRepository Function();
+
+/// Host tests supply these Android callbacks without loading platform plugins.
+@visibleForTesting
+class NextTrainWidgetAndroidBindings {
+  const NextTrainWidgetAndroidBindings({
+    required this.isAndroid,
+    required this.initialize,
+    required this.register,
+    required this.cancel,
+    required this.installedWidgetIds,
+    required this.clicks,
+  });
+
+  final bool Function() isAndroid;
+  final Future<void> Function(void Function() callbackDispatcher) initialize;
+  final Future<void> Function() register;
+  final Future<void> Function() cancel;
+  final Future<List<int>> Function() installedWidgetIds;
+  final Stream<Uri?> Function() clicks;
+}
 
 Future<void> runNextTrainWidgetStartup({
   required Future<List<int>> Function() installedWidgetIds,
@@ -172,15 +195,35 @@ Future<void> refreshInstalledNextTrainWidgets({
 /// process-wide WorkManager dispatcher를 초기화한다. app bootstrap에서 정확히
 /// 한 번만 호출한다(다음 열차 위젯·하차 알림 reconcile이 이 단일 dispatcher를
 /// 공유한다). 등록(register*)은 initialize와 분리해 개별적으로 수행한다.
-Future<void> initializeWorkManagerDispatcher() async {
-  if (!Platform.isAndroid) {
+Future<void> initializeWorkManagerDispatcher({
+  required void Function() callbackDispatcher,
+  NextTrainWidgetAndroidBindings? bindings,
+  bool Function()? isAndroid,
+}) async {
+  if (bindings != null) {
+    if (!bindings.isAndroid()) {
+      return;
+    }
+    await bindings.initialize(callbackDispatcher);
     return;
   }
-  await WorkmanagerAndroid().initialize(nextTrainWidgetCallbackDispatcher);
+  if (!(isAndroid ?? () => Platform.isAndroid)()) {
+    return;
+  }
+  await WorkmanagerAndroid().initialize(callbackDispatcher);
 }
 
 /// 다음 열차 위젯 unique periodic work만 등록/update한다(initialize하지 않음).
-Future<void> registerNextTrainWidgetRefresh() async {
+Future<void> registerNextTrainWidgetRefresh({
+  NextTrainWidgetAndroidBindings? bindings,
+}) async {
+  if (bindings != null) {
+    if (!bindings.isAndroid()) {
+      return;
+    }
+    await bindings.register();
+    return;
+  }
   if (!Platform.isAndroid) {
     return;
   }
@@ -196,12 +239,27 @@ Future<void> registerNextTrainWidgetRefresh() async {
 /// 위젯 설정 activity(별도 engine)의 진입점 전용: 그 engine에는 dispatcher가
 /// 초기화돼 있지 않으므로 initialize와 register를 함께 수행한다. main bootstrap은
 /// 이 함수를 쓰지 않고 [initializeWorkManagerDispatcher]로 1회만 초기화한다.
-Future<void> initializeAndRegisterNextTrainWidgetRefresh() async {
-  await initializeWorkManagerDispatcher();
-  await registerNextTrainWidgetRefresh();
+Future<void> initializeAndRegisterNextTrainWidgetRefresh({
+  required void Function() callbackDispatcher,
+  NextTrainWidgetAndroidBindings? bindings,
+}) async {
+  await initializeWorkManagerDispatcher(
+    callbackDispatcher: callbackDispatcher,
+    bindings: bindings,
+  );
+  await registerNextTrainWidgetRefresh(bindings: bindings);
 }
 
-Future<void> cancelNextTrainWidgetRefresh() async {
+Future<void> cancelNextTrainWidgetRefresh({
+  NextTrainWidgetAndroidBindings? bindings,
+}) async {
+  if (bindings != null) {
+    if (!bindings.isAndroid()) {
+      return;
+    }
+    await bindings.cancel();
+    return;
+  }
   if (!Platform.isAndroid) {
     return;
   }
@@ -210,7 +268,15 @@ Future<void> cancelNextTrainWidgetRefresh() async {
   );
 }
 
-Future<List<int>> installedNextTrainWidgetIds() async {
+Future<List<int>> installedNextTrainWidgetIds({
+  NextTrainWidgetAndroidBindings? bindings,
+}) async {
+  if (bindings != null) {
+    if (!bindings.isAndroid()) {
+      return const [];
+    }
+    return bindings.installedWidgetIds();
+  }
   if (!Platform.isAndroid) {
     return const [];
   }
@@ -230,11 +296,17 @@ Future<void> refreshNextTrainWidgets(
   NextTrainWidgetRepository repository, {
   DateTime? now,
   List<int>? widgetIds,
+  NextTrainWidgetAndroidBindings? bindings,
 }) async {
-  if (!Platform.isAndroid) {
+  if (bindings != null) {
+    if (!bindings.isAndroid()) {
+      return;
+    }
+  } else if (!Platform.isAndroid) {
     return;
   }
-  final installedWidgetIds = widgetIds ?? await installedNextTrainWidgetIds();
+  final installedWidgetIds =
+      widgetIds ?? await installedNextTrainWidgetIds(bindings: bindings);
   final service = NextTrainWidgetService(
     load: repository.load,
     saveValue: _saveWidgetValue,
@@ -248,7 +320,16 @@ Future<void> refreshNextTrainWidgets(
   );
 }
 
-Stream<Uri?> homeWidgetClicks() async* {
+Stream<Uri?> homeWidgetClicks({
+  NextTrainWidgetAndroidBindings? bindings,
+}) async* {
+  if (bindings != null) {
+    if (!bindings.isAndroid()) {
+      return;
+    }
+    yield* bindings.clicks();
+    return;
+  }
   if (!Platform.isAndroid) {
     return;
   }
@@ -256,10 +337,13 @@ Stream<Uri?> homeWidgetClicks() async* {
   yield* HomeWidget.widgetClicked;
 }
 
-@pragma('vm:entry-point')
-void nextTrainWidgetCallbackDispatcher() {
+void nextTrainWidgetCallbackDispatcher({
+  required Future<bool> Function() runWidgetRefresh,
+}) {
   WidgetsFlutterBinding.ensureInitialized();
-  WorkmanagerFlutterApi.setUp(NextTrainWidgetWorkmanagerApi());
+  WorkmanagerFlutterApi.setUp(
+    NextTrainWidgetWorkmanagerApi(runWidgetRefresh: runWidgetRefresh),
+  );
 }
 
 // ponytail: the federated public Android API keeps iOS SwiftPM-only; replace
@@ -270,13 +354,12 @@ void nextTrainWidgetCallbackDispatcher() {
 @visibleForTesting
 class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
   NextTrainWidgetWorkmanagerApi({
-    Future<bool> Function()? runWidgetRefresh,
+    required this.runWidgetRefresh,
     Future<bool> Function()? runGetOffAlarmReconcile,
-  }) : _runWidgetRefresh = runWidgetRefresh ?? _defaultRunWidgetRefresh,
-       _runGetOffAlarmReconcile =
+  }) : _runGetOffAlarmReconcile =
            runGetOffAlarmReconcile ?? _defaultRunGetOffAlarmReconcile;
 
-  final Future<bool> Function() _runWidgetRefresh;
+  final Future<bool> Function() runWidgetRefresh;
   final Future<bool> Function() _runGetOffAlarmReconcile;
 
   @override
@@ -289,29 +372,12 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
   ) async {
     switch (task) {
       case nextTrainWidgetRefreshTask:
-        return _runWidgetRefresh();
+        return runWidgetRefresh();
       case getOffAlarmReconcileTask:
         return _runGetOffAlarmReconcile();
       default:
         return false;
     }
-  }
-
-  static Future<bool> _defaultRunWidgetRefresh() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    DartPluginRegistrant.ensureInitialized();
-    final databases = await _openWidgetDatabases();
-    try {
-      await refreshNextTrainWidgets(
-        NextTrainWidgetRepository(
-          catalogDatabase: databases.catalog,
-          userDatabase: databases.user,
-        ),
-      );
-    } finally {
-      await databases.close();
-    }
-    return true;
   }
 
   static Future<bool> _defaultRunGetOffAlarmReconcile() async {
@@ -327,14 +393,65 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
   }
 }
 
-@pragma('vm:entry-point')
-Future<void> configureMain() async {
+Future<bool> runHeadlessNextTrainWidgetRefresh({
+  required CreateNextTrainWidgetTimetableRepository createTimetableRepository,
+  @visibleForTesting
+  Future<({CatalogDatabase catalog, UserDatabase user})> Function()?
+  openDatabases,
+  @visibleForTesting
+  Future<void> Function({
+    required CatalogDatabase catalog,
+    required UserDatabase user,
+  })?
+  closeDatabases,
+  @visibleForTesting Future<void> Function(NextTrainWidgetRepository)? refresh,
+}) async {
+  WidgetsFlutterBinding.ensureInitialized();
+  DartPluginRegistrant.ensureInitialized();
+  final databases = await _openWidgetDatabases(
+    openOverride: openDatabases,
+    closeOverride: closeDatabases,
+  );
+  try {
+    await (refresh ?? refreshNextTrainWidgets)(
+      NextTrainWidgetRepository(
+        catalogDatabase: databases.catalog,
+        userDatabase: databases.user,
+        timetableRepository: createTimetableRepository(),
+      ),
+    );
+  } finally {
+    await databases.close();
+  }
+  return true;
+}
+
+Future<void> configureMain({
+  required CreateNextTrainWidgetTimetableRepository createTimetableRepository,
+  required Future<void> Function() initializeAndRegisterRefresh,
+  @visibleForTesting Future<String?> Function()? readWidgetId,
+  @visibleForTesting void Function(Widget)? runWidgetApp,
+  @visibleForTesting
+  Future<({CatalogDatabase catalog, UserDatabase user})> Function()?
+  openDatabases,
+  @visibleForTesting
+  Future<void> Function({
+    required CatalogDatabase catalog,
+    required UserDatabase user,
+  })?
+  closeDatabases,
+  @visibleForTesting
+  Future<void> Function(String key, Object? value)? saveWidgetValue,
+  @visibleForTesting Future<void> Function()? updateNativeWidget,
+  @visibleForTesting Future<void> Function()? finishConfiguration,
+}) async {
   WidgetsFlutterBinding.ensureInitialized();
   DartPluginRegistrant.ensureInitialized();
   await launchNextTrainWidgetConfiguration(
-    readWidgetId: HomeWidget.initiallyLaunchedFromHomeWidgetConfigure,
+    readWidgetId:
+        readWidgetId ?? HomeWidget.initiallyLaunchedFromHomeWidgetConfigure,
     launch: (appWidgetId) async {
-      runApp(
+      (runWidgetApp ?? runApp)(
         MaterialApp(
           title: '쉬운 지하철 위젯',
           home: NextTrainWidgetConfigurationScreen(
@@ -342,7 +459,10 @@ Future<void> configureMain() async {
               (databases) => NextTrainWidgetRepository(
                 catalogDatabase: databases.catalog,
                 userDatabase: databases.user,
+                timetableRepository: createTimetableRepository(),
               ).availableSelections(),
+              openDatabases: openDatabases,
+              closeDatabases: closeDatabases,
             ),
             configure: (selection) => configureNextTrainWidgetSelection(
               selection: selection,
@@ -352,21 +472,25 @@ Future<void> configureMain() async {
                       load: NextTrainWidgetRepository(
                         catalogDatabase: databases.catalog,
                         userDatabase: databases.user,
+                        timetableRepository: createTimetableRepository(),
                       ).load,
-                      saveValue: _saveWidgetValue,
-                      updateWidget: _updateNativeWidget,
+                      saveValue: saveWidgetValue ?? _saveWidgetValue,
+                      updateWidget: updateNativeWidget ?? _updateNativeWidget,
                     ).configure(
                       appWidgetId: appWidgetId,
                       selection: selection,
                       now: DateTime.now(),
                     ),
+                openDatabases: openDatabases,
+                closeDatabases: closeDatabases,
               ),
-              registerRefresh: initializeAndRegisterNextTrainWidgetRefresh,
-              finish: HomeWidget.finishHomeWidgetConfigure,
+              registerRefresh: initializeAndRegisterRefresh,
+              finish:
+                  finishConfiguration ?? HomeWidget.finishHomeWidgetConfigure,
               cancelRefresh: () async {
-                final installedWidgetIds = await installedNextTrainWidgetIds();
+                final currentWidgetIds = await installedNextTrainWidgetIds();
                 if (shouldCancelNextTrainWidgetRefreshAfterFailedConfiguration(
-                  installedWidgetIds: installedWidgetIds,
+                  installedWidgetIds: currentWidgetIds,
                   configuringWidgetId: appWidgetId,
                 )) {
                   await cancelNextTrainWidgetRefresh();
@@ -394,7 +518,23 @@ Future<void> _updateNativeWidget() async {
   );
 }
 
-Future<_WidgetDatabases> _openWidgetDatabases() async {
+Future<_WidgetDatabases> _openWidgetDatabases({
+  Future<({CatalogDatabase catalog, UserDatabase user})> Function()?
+  openOverride,
+  Future<void> Function({
+    required CatalogDatabase catalog,
+    required UserDatabase user,
+  })?
+  closeOverride,
+}) async {
+  if (openOverride != null) {
+    final databases = await openOverride();
+    return _WidgetDatabases(
+      catalog: databases.catalog,
+      user: databases.user,
+      closeOverride: closeOverride,
+    );
+  }
   final supportDirectory = await getApplicationSupportDirectory();
   final user = await UserDatabaseOpener(
     databaseDirectory: Directory(p.join(supportDirectory.path, 'user')),
@@ -415,22 +555,48 @@ Future<_WidgetDatabases> _openWidgetDatabases() async {
 }
 
 Future<T> _withConfigurationDatabases<T>(
-  Future<T> Function(_WidgetDatabases databases) operation,
-) async {
-  final databases = await _openWidgetDatabases();
+  Future<T> Function(({CatalogDatabase catalog, UserDatabase user}) databases)
+  operation, {
+  Future<({CatalogDatabase catalog, UserDatabase user})> Function()?
+  openDatabases,
+  Future<void> Function({
+    required CatalogDatabase catalog,
+    required UserDatabase user,
+  })?
+  closeDatabases,
+}) async {
+  final databases = await _openWidgetDatabases(
+    openOverride: openDatabases,
+    closeOverride: closeDatabases,
+  );
   return runNextTrainWidgetConfigurationOperation(
-    operation: () => operation(databases),
+    operation: () =>
+        operation((catalog: databases.catalog, user: databases.user)),
     close: databases.close,
   );
 }
 
 class _WidgetDatabases {
-  const _WidgetDatabases({required this.catalog, required this.user});
+  const _WidgetDatabases({
+    required this.catalog,
+    required this.user,
+    this.closeOverride,
+  });
 
   final CatalogDatabase catalog;
   final UserDatabase user;
+  final Future<void> Function({
+    required CatalogDatabase catalog,
+    required UserDatabase user,
+  })?
+  closeOverride;
 
   Future<void> close() async {
+    final override = closeOverride;
+    if (override != null) {
+      await override(catalog: catalog, user: user);
+      return;
+    }
     try {
       await catalog.close();
     } finally {

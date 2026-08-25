@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
@@ -6,6 +8,7 @@ import 'app/app_bootstrap.dart';
 import 'app/app_endpoints.dart';
 import 'app/demo_dependencies.dart';
 import 'app/easy_subway_app.dart';
+import 'app/next_train_widget_timetable_composition.dart';
 import 'core/crashlytics/mobile_crash_reporting.dart';
 import 'core/external/kakao_map_configuration.dart';
 import 'features/ads/active_ad_banner.dart';
@@ -50,6 +53,19 @@ typedef MainNextTrainWidgetStartup =
       required Future<void> Function(List<int> widgetIds) refresh,
       required void Function(Object error, StackTrace stackTrace) reportError,
     });
+typedef MainNextTrainWidgetCallbackInstaller =
+    void Function({required Future<bool> Function() runWidgetRefresh});
+typedef MainNextTrainWidgetConfigurator =
+    Future<void> Function({
+      required next_train_widget_runtime.CreateNextTrainWidgetTimetableRepository
+      createTimetableRepository,
+      required Future<void> Function() initializeAndRegisterRefresh,
+    });
+typedef MainNextTrainWidgetHeadlessRunner =
+    Future<bool> Function({
+      required next_train_widget_runtime.CreateNextTrainWidgetTimetableRepository
+      createTimetableRepository,
+    });
 
 @visibleForTesting
 MainCrashReportingInitializer debugMainCrashReportingInitializer =
@@ -59,13 +75,25 @@ MainAppBootstrapInitializer debugMainAppBootstrapInitializer =
     AppBootstrap.initialize;
 @visibleForTesting
 Future<void> Function() debugMainWorkManagerInitializer =
-    next_train_widget_runtime.initializeWorkManagerDispatcher;
+    initializeMainWorkManagerDispatcher;
 @visibleForTesting
 Future<void> Function(GetOffAlarmController?) debugMainAlarmRestorer =
     restoreGetOffAlarmState;
 @visibleForTesting
 MainNextTrainWidgetStartup debugMainNextTrainWidgetStartup =
     next_train_widget_runtime.runNextTrainWidgetStartup;
+@visibleForTesting
+MainNextTrainWidgetCallbackInstaller debugMainNextTrainWidgetCallbackInstaller =
+    next_train_widget_runtime.nextTrainWidgetCallbackDispatcher;
+@visibleForTesting
+Future<bool> Function() debugMainHeadlessWidgetRefresh =
+    runMainHeadlessNextTrainWidgetRefresh;
+@visibleForTesting
+MainNextTrainWidgetConfigurator debugMainNextTrainWidgetConfigurator =
+    next_train_widget_runtime.configureMain;
+@visibleForTesting
+MainNextTrainWidgetHeadlessRunner debugMainNextTrainWidgetHeadlessRunner =
+    next_train_widget_runtime.runHeadlessNextTrainWidgetRefresh;
 @visibleForTesting
 Stream<Uri?> Function() debugMainHomeWidgetClicks =
     next_train_widget_runtime.homeWidgetClicks;
@@ -128,18 +156,12 @@ Future<void> main() async {
   final nextTrainWidgetRepository = NextTrainWidgetRepository(
     catalogDatabase: bootstrap.catalogDatabase,
     userDatabase: bootstrap.userDatabase,
+    timetableRepository: bootstrap.dependencies.stationTimetableRepository,
   );
-  await debugMainNextTrainWidgetStartup(
-    installedWidgetIds: next_train_widget_runtime.installedNextTrainWidgetIds,
-    registerRefresh: next_train_widget_runtime.registerNextTrainWidgetRefresh,
-    cancelRefresh: next_train_widget_runtime.cancelNextTrainWidgetRefresh,
-    refresh: (widgetIds) => next_train_widget_runtime.refreshNextTrainWidgets(
-      nextTrainWidgetRepository,
-      widgetIds: widgetIds,
-    ),
-    reportError: (error, stackTrace) =>
-        reportMobileError(error, stackTrace, context: '홈 위젯 초기화 중 예외가 발생했습니다.'),
-  );
+  void reportNextTrainWidgetStartupError(Object error, StackTrace stackTrace) {
+    reportMobileError(error, stackTrace, context: '홈 위젯 초기화 중 예외가 발생했습니다.');
+  }
+
   final photoPicker = ImagePickerFacilityReportPhotoPicker();
   final navigatorKey = GlobalKey<NavigatorState>();
   final onboardingStore = const SecureOnboardingResultStore();
@@ -174,6 +196,8 @@ Future<void> main() async {
             bootstrap.dependencies.adRepository,
           ),
           realtimeRepository: bootstrap.dependencies.realtimeRepository,
+          timetableRepository:
+              bootstrap.dependencies.stationTimetableRepository,
           locationProvider: bootstrap.dependencies.locationProvider,
           stationId: stationId,
           facilityReportDraftTargetStore: draftTargetStore,
@@ -229,6 +253,24 @@ Future<void> main() async {
       ),
     ),
   );
+  unawaited(
+    next_train_widget_runtime.runNextTrainWidgetOperationSafely(
+      operation: () => debugMainNextTrainWidgetStartup(
+        installedWidgetIds:
+            next_train_widget_runtime.installedNextTrainWidgetIds,
+        registerRefresh:
+            next_train_widget_runtime.registerNextTrainWidgetRefresh,
+        cancelRefresh: next_train_widget_runtime.cancelNextTrainWidgetRefresh,
+        refresh: (widgetIds) =>
+            next_train_widget_runtime.refreshNextTrainWidgets(
+              nextTrainWidgetRepository,
+              widgetIds: widgetIds,
+            ),
+        reportError: reportNextTrainWidgetStartupError,
+      ),
+      reportError: reportNextTrainWidgetStartupError,
+    ),
+  );
 }
 
 @visibleForTesting
@@ -259,7 +301,35 @@ Changes: converted from SVG to PNG and colorized for EasySubway.
 }
 
 @pragma('vm:entry-point')
-Future<void> configureMain() => next_train_widget_runtime.configureMain();
+Future<void> configureMain() => debugMainNextTrainWidgetConfigurator(
+  createTimetableRepository: createNextTrainWidgetTimetableRepository,
+  initializeAndRegisterRefresh: initializeAndRegisterNextTrainWidgetRefresh,
+);
+
+@pragma('vm:entry-point')
+void nextTrainWidgetCallbackDispatcher() {
+  debugMainNextTrainWidgetCallbackInstaller(
+    runWidgetRefresh: debugMainHeadlessWidgetRefresh,
+  );
+}
+
+Future<bool> runMainHeadlessNextTrainWidgetRefresh() {
+  return debugMainNextTrainWidgetHeadlessRunner(
+    createTimetableRepository: createNextTrainWidgetTimetableRepository,
+  );
+}
+
+Future<void> initializeMainWorkManagerDispatcher() {
+  return next_train_widget_runtime.initializeWorkManagerDispatcher(
+    callbackDispatcher: nextTrainWidgetCallbackDispatcher,
+  );
+}
+
+Future<void> initializeAndRegisterNextTrainWidgetRefresh() {
+  return next_train_widget_runtime.initializeAndRegisterNextTrainWidgetRefresh(
+    callbackDispatcher: nextTrainWidgetCallbackDispatcher,
+  );
+}
 
 @visibleForTesting
 Future<void> restoreGetOffAlarmState(GetOffAlarmController? controller) async {

@@ -30,6 +30,7 @@ import '../features/network_map/presentation/network_map_nearby_panel_shell.dart
 import '../features/network_map/presentation/network_map_unavailable_states.dart';
 import '../features/realtime/realtime_repository.dart';
 import '../features/route_draft/application/route_draft_controller.dart';
+import '../features/stations/data/server_station_timetable_repository.dart';
 import '../features/route_draft/domain/route_draft.dart';
 import '../features/stations/presentation/station_detail_body.dart';
 import '../features/stations/presentation/station_detail_screen.dart';
@@ -58,6 +59,7 @@ class NetworkMapScreen extends StatefulWidget {
     this.onStationSearchClosed,
     this.onPickStationForSlot,
     this.stationSearchRepository,
+    this.timetableRepository,
     this.reportRepository,
     this.favoriteRepository,
     this.adRepository,
@@ -114,6 +116,7 @@ class NetworkMapScreen extends StatefulWidget {
   )?
   onPickStationForSlot;
   final StationSearchRepository? stationSearchRepository;
+  final StationTimetableRepository? timetableRepository;
 
   /// #1933 홈 노선도 위에서 역 검색을 in-place로 열 때, 결과 탭 → 역 상세로
   /// 이동하려면 필요한 저장소들. 검색 모드는 [stationSearchRepository]가 있을 때만
@@ -1227,8 +1230,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     StationSearchLine line, {
     required NearbyPanelRequestKey request,
   }) async {
-    final repository = widget.stationSearchRepository;
-    if (repository is! StationTimetableRepository) {
+    final timetableRepository = widget.timetableRepository;
+    if (timetableRepository == null) {
       if (mounted) {
         setState(() => _clearNearbyTimetableInFlightIf(request));
       } else {
@@ -1236,7 +1239,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       }
       return;
     }
-    final timetableRepository = repository as StationTimetableRepository;
     try {
       final timetable = await timetableRepository.loadStationTimetableForDate(
         stationId: station.id,
@@ -1259,6 +1261,19 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         );
         _clearNearbyTimetableInFlightIf(request);
       });
+    } on StationTimetableUnavailable {
+      if (!_isCurrentNearbyRequest(request)) {
+        if (mounted) {
+          setState(() => _clearNearbyTimetableInFlightIf(request));
+        } else {
+          _clearNearbyTimetableInFlightIf(request);
+        }
+        return;
+      }
+      setState(() {
+        _nearbyTimetableDisplay = null;
+        _clearNearbyTimetableInFlightIf(request);
+      });
     } catch (error, stackTrace) {
       reportMobileError(
         error,
@@ -1273,8 +1288,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         }
         return;
       }
-      // 실패로 성공 캐시를 지우지 않는다.
-      setState(() => _clearNearbyTimetableInFlightIf(request));
+      setState(() {
+        _nearbyTimetableDisplay = null;
+        _clearNearbyTimetableInFlightIf(request);
+      });
     }
   }
 
@@ -1648,6 +1665,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         favoriteRepository: widget.favoriteRepository,
         bottomAdBuilder: _stationDetailBottomAdBuilder(widget.adRepository),
         realtimeRepository: widget.realtimeRepository,
+        timetableRepository: widget.timetableRepository,
         locationProvider: widget.locationProvider,
         stationId: primary.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
