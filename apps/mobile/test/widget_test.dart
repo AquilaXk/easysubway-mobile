@@ -455,11 +455,11 @@ Future<void> _openJourneySearchScreen(
 }) async {
   // 노선도(지도·역)가 렌더될 때까지 기다린 뒤 역을 탭한다.
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(Key(originStationKey)));
+  await tester.tapAt(tester.getCenter(find.byKey(Key(originStationKey))));
   await tester.pumpAndSettle();
   await _tapFanMenuSector(tester, _fanOriginLabel);
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(Key(destinationStationKey)));
+  await tester.tapAt(tester.getCenter(find.byKey(Key(destinationStationKey))));
   await tester.pumpAndSettle();
   await _tapFanMenuSector(tester, _fanDestinationLabel);
   // 출발·도착이 모두 차면 셸이 자동으로 결과 타임라인 탭으로 전환한다. 전환은
