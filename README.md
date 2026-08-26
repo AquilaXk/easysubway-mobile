@@ -1,43 +1,43 @@
 <div align="center">
 
-<img alt="쉬운 지하철 앱 아이콘" src="apps/mobile/assets/branding/app_icon/app_icon.png" width="120" />
+<img alt="EasySubway app icon" src="apps/mobile/assets/branding/app_icon/app_icon.png" width="120" />
 
-# 쉬운 지하철
+# EasySubway
 
-### 빠른 길보다, 갈 수 있는 길.
+### A route you can take matters more than the fastest route.
 
-계단 하나가 누군가에게는 벽이 됩니다.
-<br><strong>쉬운 지하철은 이동 가능성을 먼저 보는 지하철 앱입니다.</strong>
+One staircase can turn a simple trip into a dead end.
+<br><strong>EasySubway looks at whether a journey is actually possible for you.</strong>
 
 </div>
 
-## 갈 수 있는 길을 먼저 보여줍니다
+## We show routes you can actually take
 
-- **오프라인 역 검색과 노선도** — 신호가 끊긴 지하에서도 역과 노선도를 확인합니다.
-- **이동 조건 기반 경로** — 휠체어, 유모차, 불편한 걸음에 맞춰 계단을 피하는 길을 먼저 봅니다.
-- **출처가 있는 접근성 정보** — 확인 시점을 함께 표시하고, 모르는 상태를 확정된 사실처럼 말하지 않습니다.
-- **가입 없는 시설 신고** — 엘리베이터와 편의시설 문제를 바로 알리고 접수 번호로 확인합니다.
-- **기기에 남는 개인 정보** — 계정과 추적 없이 즐겨찾기와 최근 검색을 기기에 저장합니다.
+- **Offline station search and subway maps** — Keep finding stations and checking the map when the signal drops underground.
+- **Routes that fit how you move** — Choose a standard, slower, no-stairs, or step-free profile and see accessible options first.
+- **Accessibility information you can trust** — See where the information came from and when it was checked. If something is unknown, we say it is unknown.
+- **Facility reports without an account** — Report elevator, escalator, and other facility problems, then follow the report with its receipt number.
+- **Personal choices that stay on your device** — Keep favorites, recent searches, and view preferences without an account or tracking.
 
-## 현재 지원 범위
+## Where it works
 
-- 상록수·사당의 접근성 정보를 우선 검증하고 있습니다.
-- 경춘선 ITX-청춘 길찾기의 출시 근거를 준비하고 있습니다.
-- 확인되지 않은 시설 정보는 미확인 상태로 표시합니다.
-- Android를 먼저 출시하며 iOS는 후속으로 제공합니다.
+- Explore urban-rail stations, facilities, and subway maps across South Korea.
+- Plan supported subway and ITX-Cheongchun journeys with Journey V3, and search nationwide trains including ITX-Maum and ITX-Saemaeul.
+- Use offline packs for maps and station search only. Route planning always comes from the server, and an unavailable or unverified result is shown as a clear error instead of an old, local, or placeholder route.
+- Get the same accessibility-first experience on Android and iOS, including large text, strong contrast, generous touch targets, and screen-reader-friendly labels.
 
-## 다운로드
+## Download
 
-Google Play 출시를 준비하고 있습니다. 공개 다운로드 링크는 출시가 확정되면 이곳에 추가합니다.
+Find EasySubway on Google Play or the App Store.
 
-## 문의
+## Contact
 
-[aquila@aquilaxk.site](mailto:aquila@aquilaxk.site)로 연락해 주세요.
+Questions or feedback? Write to [aquila@aquilaxk.site](mailto:aquila@aquilaxk.site).
 
 ---
 
 <div align="center">
 
-<em>계단 앞에서 막막했던 모든 순간을 위해.</em>
+<em>For every moment when the stairs made the journey feel impossible.</em>
 
 </div>
