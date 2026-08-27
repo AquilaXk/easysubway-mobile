@@ -2,15 +2,25 @@ function requireCondition(condition, message) {
   if (!condition) throw new Error(`release GO rejected: ${message}`);
 }
 
-function requireNonEmptyIdentity(identity, fields) {
+const GIT_SHA = /^[a-f0-9]{40}$/;
+const SHA256 = /^[a-f0-9]{64}$/;
+const COLON_DELIMITED_SHA256_FINGERPRINT = /^(?:[a-fA-F0-9]{2}:){31}[a-fA-F0-9]{2}$/;
+
+function requireSameRcIdentity(identity, fields) {
   requireCondition(identity && typeof identity === 'object' && !Array.isArray(identity), 'sameRcIdentity is required');
   for (const field of fields) {
-    const value = identity[field];
-    requireCondition(
-      (typeof value === 'string' && value.length > 0) || (typeof value === 'number' && Number.isFinite(value)),
-      `sameRcIdentity.${field} is required`,
-    );
+    requireCondition(Object.hasOwn(identity, field), `sameRcIdentity.${field} is required`);
   }
+  requireCondition(typeof identity.gitSha === 'string' && GIT_SHA.test(identity.gitSha), 'sameRcIdentity.gitSha must be a lowercase 40-hex SHA');
+  requireCondition(typeof identity.packageId === 'string' && identity.packageId.length > 0, 'sameRcIdentity.packageId is required');
+  requireCondition(typeof identity.versionName === 'string' && identity.versionName.length > 0, 'sameRcIdentity.versionName is required');
+  requireCondition(Number.isSafeInteger(identity.versionCode) && identity.versionCode > 0, 'sameRcIdentity.versionCode must be a positive integer');
+  requireCondition(
+    typeof identity.appSigningKeySha256Fingerprint === 'string'
+      && (SHA256.test(identity.appSigningKeySha256Fingerprint) || COLON_DELIMITED_SHA256_FINGERPRINT.test(identity.appSigningKeySha256Fingerprint)),
+    'sameRcIdentity.appSigningKeySha256Fingerprint must be a SHA-256 fingerprint',
+  );
+  requireCondition(typeof identity.dataPackManifestSha256 === 'string' && SHA256.test(identity.dataPackManifestSha256), 'sameRcIdentity.dataPackManifestSha256 must be a lowercase SHA-256 digest');
 }
 
 export function validatePlayInstalledReleaseContract(contract) {
@@ -33,13 +43,16 @@ export function validatePlayInstalledReleaseContract(contract) {
   requireCondition(device.currentInitiatingPackageName === 'com.android.vending', 'Play initiating package is required');
   requireCondition(device.playInstallerProvenanceVerified === true, 'Play installer provenance is required');
   requireCondition(device.currentSigningCertificateMatchesPlay === true, 'Play signing match is required');
+  requireCondition(device.verificationState === 'PLAY_INSTALLED_VERIFIED', 'terminal Play-installed verification state is required');
+  requireCondition(device.playInstallRequiresCurrentAppUninstall === false, 'Play-installed evidence must not require uninstall');
 
-  requireNonEmptyIdentity(contract.sameRcIdentity, policy.requiredSameRcIdentityFields);
+  requireSameRcIdentity(contract.sameRcIdentity, policy.requiredSameRcIdentityFields);
   const artifact = contract.latestPlayGeneratedArtifact;
   requireCondition(artifact && contract.sameRcIdentity.packageId === contract.androidApplicationId, 'same-RC package must match the Android application id');
   requireCondition(contract.sameRcIdentity.packageId === artifact.packageId, 'same-RC package must match the generated artifact');
   requireCondition(contract.sameRcIdentity.versionName === artifact.versionName, 'same-RC versionName must match the generated artifact');
   requireCondition(contract.sameRcIdentity.versionCode === artifact.versionCode, 'same-RC versionCode must match the generated artifact');
+  requireCondition(device.currentInstalledVersionCode === contract.sameRcIdentity.versionCode, 'installed versionCode must match the same-RC identity');
 
   const releaseBlockingItems = Array.isArray(contract.deviceMatrix)
     ? contract.deviceMatrix.filter((item) => item.releaseBlocker === true)
