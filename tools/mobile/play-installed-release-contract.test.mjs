@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import { validatePlayInstalledReleaseContract } from './validate-play-installed-release-contract.mjs';
 
 const paths = {
   matrix: 'apps/mobile/release/play-generated-apk-device-matrix-gate.json',
@@ -55,4 +56,61 @@ test('route and offline evidence records explicit server-route typed failure rec
   assert.deepEqual(matrix.deviceMatrix[2].smoke, ['server-route-typed-failure-recovery', 'error-message-recovery', 'app-relaunch-state-restore']);
   assert.equal(quality.requiredChecks.find(({ id }) => id === 'network_server_upload_error_recovery').passCriteria, 'Server route failures return an explicit typed failure and recovery action; map-pack and station-catalog-pack remain display and search only.');
   assert.equal(quality.requiredEvidenceSet.find(({ id }) => id === 'route_map_fallback').proves, 'Route-map interaction and performance evidence never treats map-pack or offline datapack as route-calculation success.');
+});
+
+test('release contract fails closed for GO without complete current Play-installed evidence', async () => {
+  const { matrix } = await readContracts();
+  assert.doesNotThrow(() => validatePlayInstalledReleaseContract(matrix), 'NO_GO remains valid');
+
+  const completeGo = structuredClone(matrix);
+  completeGo.goNoGoDecision = 'GO';
+  completeGo.latestPhysicalDevice = {
+    ...completeGo.latestPhysicalDevice,
+    playStoreInstalled: true,
+    currentInstallerPackageName: 'com.android.vending',
+    currentInitiatingPackageName: 'com.android.vending',
+    playInstallerProvenanceVerified: true,
+    currentSigningCertificateMatchesPlay: true,
+  };
+  completeGo.sameRcIdentity = {
+    gitSha: 'a'.repeat(40),
+    packageId: completeGo.androidApplicationId,
+    versionName: completeGo.latestPlayGeneratedArtifact.versionName,
+    versionCode: completeGo.latestPlayGeneratedArtifact.versionCode,
+    appSigningKeySha256Fingerprint: 'b'.repeat(64),
+    dataPackManifestSha256: 'c'.repeat(64),
+  };
+  completeGo.deviceMatrix = completeGo.deviceMatrix.map((item) => ({
+    ...item,
+    result: 'PASS',
+    sameRcIdentityVerified: true,
+  }));
+
+  assert.doesNotThrow(() => validatePlayInstalledReleaseContract(completeGo));
+
+  const invalidGoMutations = [
+    (value) => { value.releaseBlockingGoPolicy.requiredBuildSource = 'rc-aab'; },
+    (value) => { value.releaseBlockingGoPolicy.currentRcOnly = false; },
+    (value) => { value.releaseBlockingGoPolicy.playGeneratedApkEvidenceRole = 'smoke-evidence'; },
+    (value) => { value.releaseBlockingGoPolicy.localEmulatorAndShellSideloadEvidenceRole = 'release-evidence'; },
+    (value) => { value.latestPhysicalDevice.playStoreInstalled = false; },
+    (value) => { value.latestPhysicalDevice.currentInstallerPackageName = null; },
+    (value) => { value.latestPhysicalDevice.currentInitiatingPackageName = 'com.android.shell'; },
+    (value) => { value.latestPhysicalDevice.playInstallerProvenanceVerified = false; },
+    (value) => { value.latestPhysicalDevice.currentSigningCertificateMatchesPlay = false; },
+    (value) => { delete value.sameRcIdentity; },
+    (value) => { delete value.sameRcIdentity.gitSha; },
+    (value) => { value.sameRcIdentity.packageId = 'different.package'; },
+    (value) => { value.sameRcIdentity.versionName = 'different-version'; },
+    (value) => { value.sameRcIdentity.versionCode += 1; },
+    (value) => { value.deviceMatrix[0].result = 'FAIL'; },
+    (value) => { value.deviceMatrix[0].sameRcIdentityVerified = false; },
+    (value) => { value.releaseBlockingGoPolicy.historicalOrCrossRcEvidenceDisposition = 'PASS'; },
+  ];
+
+  for (const invalidateGoRequirement of invalidGoMutations) {
+    const invalidGo = structuredClone(completeGo);
+    invalidateGoRequirement(invalidGo);
+    assert.throws(() => validatePlayInstalledReleaseContract(invalidGo));
+  }
 });
