@@ -9,6 +9,21 @@
   "androidPageSize16kbGate": "apps/mobile/release/android-16kb-page-size-gate.json",
   "status": "IN_PROGRESS",
   "goNoGoDecision": "NO_GO",
+  "releaseBlockingGoPolicy": {
+    "requiredBuildSource": "play-installed-build",
+    "currentRcOnly": true,
+    "requiredSameRcIdentityFields": [
+      "gitSha",
+      "packageId",
+      "versionName",
+      "versionCode",
+      "appSigningKeySha256Fingerprint",
+      "dataPackManifestSha256"
+    ],
+    "historicalOrCrossRcEvidenceDisposition": "NO_GO",
+    "playGeneratedApkEvidenceRole": "identity-and-inspection-only",
+    "localEmulatorAndShellSideloadEvidenceRole": "diagnostic-only"
+  },
   "latestPlayGeneratedArtifact": {
     "qaEvidenceDateKst": "2026-07-13",
     "source": "android-publisher-generatedapks",
@@ -78,7 +93,7 @@
     "appSigningKeySha256Fingerprint",
     "dataPackManifestSha256"
   ],
-  "identityMatchPolicy": "Play-generated APK 또는 Play-installed build evidence의 packageId, versionName, versionCode, appSigningKeySha256Fingerprint, dataPackManifestSha256는 RC evidence manifest와 일치해야 한다.",
+  "identityMatchPolicy": "Release-blocking GO requires the exact current RC Play-installed package, version, signing certificate, and datapack manifest identity.",
   "installProvenancePolicy": {
     "playGeneratedApkShellInstallKo": "App Bundle Explorer 또는 generatedApks.download로 받은 APK를 adb/shell로 설치한 증거는 artifact identity와 manifest 확인에만 사용할 수 있고 Play-installed build smoke를 대체하지 않는다.",
     "playInstalledBuildRequires": [
@@ -102,23 +117,23 @@
     {
       "id": "android_15_phone_small_screen_large_font",
       "releaseBlocker": true,
-      "platform": "Android 15+ local emulator or Play-installed device",
+      "platform": "Android 15+ Play-installed device; local emulator diagnostic-only",
       "conditions": ["small-screen", "font-scale-150-200", "TalkBack"],
       "smoke": ["app-start", "datapack-install", "station-search", "route-search", "route-map"]
     },
     {
       "id": "android_16_16kb_page_size",
       "releaseBlocker": true,
-      "platform": "Android 16 16 KB page-size emulator or Play-installed device",
+      "platform": "Android 16 16 KB page-size Play-installed device; local emulator diagnostic-only",
       "conditions": ["PAGE_SIZE=16384", "split-apk-native-library-delivery"],
       "smoke": ["app-start", "datapack-install", "station-search", "route-search", "facility-report-photo"]
     },
     {
       "id": "network_block_low_storage_low_memory",
       "releaseBlocker": true,
-      "platform": "Android local emulator or Play-installed device",
+      "platform": "Play-installed device; local emulator diagnostic-only",
       "conditions": ["network-block", "low-storage", "low-memory-or-process-death"],
-      "smoke": ["offline-datapack-fallback", "error-message-recovery", "app-relaunch-state-restore"]
+      "smoke": ["server-route-typed-failure-recovery", "error-message-recovery", "app-relaunch-state-restore"]
     }
   ],
   "goNoGoRules": {
@@ -129,6 +144,8 @@
     "appSigningCertificateMismatch": "BLOCKED_TECHNICAL",
     "versionCodeNotGreaterThanLatestPlayArtifact": "BLOCKED_EXTERNAL",
     "missingPlayInstallerProvenance": "BLOCKED_EXTERNAL",
+    "missingExactCurrentRcPlayInstalledIdentity": "BLOCKED_EXTERNAL",
+    "historicalOrCrossRcEvidence": "NO_GO",
     "shellInstalledArtifactUsedAsPlayInstalledSmoke": "BLOCKED_EXTERNAL",
     "playInstalledSmokeCrash": "BLOCKED_TECHNICAL",
     "deviceMatrixP0Failure": "BLOCKED_TECHNICAL",

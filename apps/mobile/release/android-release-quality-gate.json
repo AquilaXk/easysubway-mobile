@@ -25,7 +25,8 @@
   "routeSafetyStatusEnum": ["FOUND", "BLOCKED", "UNKNOWN", "UNSUPPORTED", "ERROR"],
   "buildIdentityPolicy": {
     "requiredIssueLinks": ["https://github.com/AquilaXk/easysubway/issues/1015", "https://github.com/AquilaXk/easysubway-mobile/issues/8", "https://github.com/AquilaXk/easysubway/issues/1020"],
-    "acceptedBuildSources": ["rc-aab", "play-generated-apk", "play-installed-build"],
+    "acceptedBuildSources": ["play-installed-build"],
+    "diagnosticOnlyBuildSources": ["rc-aab", "play-generated-apk", "local-emulator", "shell-sideload"],
     "requiredIdentityFields": [
       "gitSha",
       "versionCode",
@@ -56,8 +57,9 @@
   },
   "deviceEvidencePolicy": {
     "codexQaDevice": "local_android_emulator_only",
+    "localEmulatorEvidenceRole": "diagnostic-only",
     "physicalDeviceEvidence": "not_used_for_codex_pr_evidence",
-    "releaseRcEvidence": "play_installed_or_exact_rc_required_before_go",
+    "releaseRcEvidence": "exact_current_rc_play_installed_required_before_go",
     "minimumAndroidApi": 35,
     "fontScales": [1.5, 2.0],
     "smallScreenViewport": "compact_phone_portrait",
@@ -139,7 +141,7 @@
       "releaseBlocker": true,
       "states": ["airplane", "timeout", "backend_down", "upload_failure"],
       "evidence": ["screenshots", "logcat-summary", "request-response-summary"],
-      "passCriteriaKo": "오류 이유와 다음 행동을 쉬운 한국어로 안내하고 로컬 기능을 차단하지 않는다."
+      "passCriteria": "Server route failures return an explicit typed failure and recovery action; map-pack and station-catalog-pack remain display and search only."
     },
     {
       "id": "route_map_fallback_zoom_help",
@@ -205,7 +207,7 @@
     {
       "id": "route_map_fallback",
       "evidence": ["screenshot", "ui-tree", "performance-summary"],
-      "provesKo": "노선도 조작, fallback list, 성능 예산을 확인한다."
+      "proves": "Route-map interaction and performance evidence never treats map-pack or offline datapack as route-calculation success."
     },
     {
       "id": "facility_report_recovery",
