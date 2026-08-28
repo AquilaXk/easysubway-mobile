@@ -214,6 +214,7 @@ jobs:
             tools/mobile/automerge-queue.test.mjs \
             tools/mobile/check-android-aab-16kb-page-size.test.mjs \
             tools/mobile/datapack-contract.test.mjs \
+            tools/mobile/play-installed-release-contract.test.mjs \
             tools/mobile/release-contract-reference-integrity.test.mjs \
             tools/mobile/stage-generic-mobile-consumer-bundle.test.mjs \
             tools/mobile/store-release-preflight.test.mjs \

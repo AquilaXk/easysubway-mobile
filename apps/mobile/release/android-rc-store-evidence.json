@@ -72,8 +72,10 @@
       "rc-versioncode-greater-than-latest-play-artifact-record",
       "split-apk-manifest-permission-network-config-record",
       "device-matrix-smoke-summary",
-      "play-generated-apk-or-installed-build-smoke",
-      "play-installed-build-logcat-no-crash"
+      "play-generated-apk-identity-and-inspection-record",
+      "exact-current-rc-play-installed-identity-record",
+      "exact-current-rc-play-installed-smoke",
+      "exact-current-rc-play-installed-logcat-no-crash"
     ],
     "androidAccessibilityQa": [
       "android-release-quality-gate-manifest",
