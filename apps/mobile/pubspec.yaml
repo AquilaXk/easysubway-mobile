@@ -39,7 +39,7 @@ dependencies:
   path_provider: ^2.1.6
   crypto: ^3.0.7
   # Flutter 3.44.0의 flutter_test SDK package와 같은 exact pin이다(#260).
-  meta: 1.18.0
+  meta: 1.19.0
   path: ^1.9.1
   collection: ^1.19.1
   sqlite3: ^3.5.1
@@ -47,8 +47,8 @@ dependencies:
   timezone: ^0.11.1
   connectivity_plus: ^7.3.1
   home_widget: ^0.9.3
-  workmanager_android: 0.9.0+2
-  workmanager_platform_interface: 0.9.1+1
+  workmanager_android: 0.10.8
+  workmanager_platform_interface: 0.10.4
   play_integrity_channel:
     path: packages/play_integrity_channel
   vector_graphics: ^1.2.3
