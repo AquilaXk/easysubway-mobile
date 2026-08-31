@@ -39,7 +39,7 @@ dependencies:
   path_provider: ^2.1.6
   crypto: ^3.0.7
   # Flutter 3.44.0의 flutter_test SDK package와 같은 exact pin이다(#260).
-  meta: 1.18.0
+  meta: 1.19.0
   path: ^1.9.1
   collection: ^1.19.1
   sqlite3: ^3.5.1
@@ -53,8 +53,8 @@ dependencies:
     path: packages/play_integrity_channel
   vector_graphics: ^1.2.3
   share_plus: ^13.3.0
-  firebase_core: ^4.13.0
-  firebase_crashlytics: ^5.2.7
+  firebase_core: ^4.14.0
+  firebase_crashlytics: ^5.3.0
   logger: ^2.7.0
 dev_dependencies:
   flutter_test:
