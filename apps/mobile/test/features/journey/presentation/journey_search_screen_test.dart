@@ -207,6 +207,20 @@ void main() {
 
     await tester.tap(find.byKey(const Key('journey-scheduled-time')));
     await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('출발 시간 선택'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('출발 시간 선택'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'OK'));
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(TextButton, 'OK'));
@@ -223,6 +237,19 @@ void main() {
       (departure as JourneyDepartureScheduled).requestedAt,
       DateTime.utc(2026, 8, 12),
     );
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-departure-now')));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(find.byKey(const Key('journey-scheduled-time')), findsNothing);
   });
 
   testWidgets('계단 회피 profile은 REQUIRE_STEP_FREE로 전송한다', (tester) async {
