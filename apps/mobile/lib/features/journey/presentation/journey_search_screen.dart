@@ -16,6 +16,8 @@ import '../../../core/crashlytics/mobile_crash_reporting.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
 
+enum _JourneyDepartureSelection { now, scheduled }
+
 class JourneySearchScreen extends StatefulWidget {
   const JourneySearchScreen({
     required this.repository,
@@ -56,6 +58,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   bool _isAlarmTransitioning = false;
   String? _alarmTransitionError;
   WalkingPace _walkingPace = WalkingPace.standard;
+  _JourneyDepartureSelection _departureSelection =
+      _JourneyDepartureSelection.now;
+  DateTime? _scheduledRequestedAt;
 
   @override
   void initState() {
@@ -120,6 +125,17 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   String _kstTime(DateTime dateTime) {
     final value = dateTime.toUtc().add(const Duration(hours: 9));
     return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+  }
+
+  DateTime _seoulWallTime(DateTime instant) {
+    final value = instant.toUtc().add(const Duration(hours: 9));
+    return DateTime(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+    );
   }
 
   String _durationLabel(int seconds) => '${(seconds + 59) ~/ 60}분';
@@ -320,7 +336,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final destination = widget.draft.destination;
     if (origin == null ||
         destination == null ||
-        widget.draft.waypoint != null) {
+        widget.draft.waypoint != null ||
+        (_departureSelection == _JourneyDepartureSelection.scheduled &&
+            _scheduledRequestedAt == null)) {
       return null;
     }
     final preset =
@@ -344,7 +362,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     return JourneySearchCommand(
       originStationId: origin.id,
       destinationStationId: destination.id,
-      departure: const JourneyDepartureNow(),
+      departure: switch (_departureSelection) {
+        _JourneyDepartureSelection.now => const JourneyDepartureNow(),
+        _JourneyDepartureSelection.scheduled => JourneyDepartureScheduled(
+          _scheduledRequestedAt!,
+        ),
+      },
       timePolicy: TimePolicy.timetableRequired,
       walkingPace: _walkingPace,
       mobilityProfile: profile,
@@ -438,6 +461,140 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     await _search();
   }
 
+  Future<bool> _prepareForTemporalChange() async {
+    final alarmController = widget.getOffAlarmController;
+    return alarmController == null ||
+        !alarmController.state.enabled ||
+        await _disableAlarmBeforeTransition(alarmController);
+  }
+
+  Future<void> _selectDepartureSelection(
+    _JourneyDepartureSelection selection,
+  ) async {
+    if (selection == _departureSelection || _isAlarmTransitioning) return;
+    if (!await _prepareForTemporalChange() || !mounted) return;
+    setState(() {
+      _departureSelection = selection;
+      if (selection == _JourneyDepartureSelection.now) {
+        _scheduledRequestedAt = null;
+      }
+    });
+    _controller.reset();
+  }
+
+  Future<void> _selectScheduledTime() async {
+    if (_isAlarmTransitioning) return;
+    final initial = _seoulWallTime(
+      _scheduledRequestedAt ?? (widget.journeyNow?.call() ?? DateTime.now()),
+    );
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1, 1, 1),
+      lastDate: DateTime(9999, 12, 31),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    final requestedAt = DateTime.utc(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    ).subtract(const Duration(hours: 9));
+    if (requestedAt == _scheduledRequestedAt) return;
+    if (!await _prepareForTemporalChange() || !mounted) return;
+    setState(() => _scheduledRequestedAt = requestedAt);
+    _controller.reset();
+  }
+
+  Widget _departureControl(bool enabled) {
+    final scheduled =
+        _departureSelection == _JourneyDepartureSelection.scheduled;
+    final requestedAt = _scheduledRequestedAt;
+    final selectedWallTime = requestedAt == null
+        ? null
+        : _seoulWallTime(requestedAt);
+    final selectedLabel = selectedWallTime == null
+        ? '출발 시간 선택'
+        : '출발 시간 ${selectedWallTime.year.toString().padLeft(4, '0')}-${selectedWallTime.month.toString().padLeft(2, '0')}-${selectedWallTime.day.toString().padLeft(2, '0')} ${selectedWallTime.hour.toString().padLeft(2, '0')}:${selectedWallTime.minute.toString().padLeft(2, '0')}';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('출발 기준'),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: ChoiceChip(
+                  key: const Key('journey-departure-now'),
+                  label: const SizedBox(
+                    width: double.infinity,
+                    child: Text('지금 출발', textAlign: TextAlign.center),
+                  ),
+                  selected: !scheduled,
+                  onSelected: !enabled
+                      ? null
+                      : (selected) {
+                          if (selected) {
+                            unawaited(
+                              _selectDepartureSelection(
+                                _JourneyDepartureSelection.now,
+                              ),
+                            );
+                          }
+                        },
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: ChoiceChip(
+                  key: const Key('journey-departure-scheduled'),
+                  label: const SizedBox(
+                    width: double.infinity,
+                    child: Text('출발 시간', textAlign: TextAlign.center),
+                  ),
+                  selected: scheduled,
+                  onSelected: !enabled
+                      ? null
+                      : (selected) {
+                          if (selected) {
+                            unawaited(
+                              _selectDepartureSelection(
+                                _JourneyDepartureSelection.scheduled,
+                              ),
+                            );
+                          }
+                        },
+                ),
+              ),
+            ),
+          ],
+        ),
+        if (scheduled) ...[
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('journey-scheduled-time'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+            onPressed: enabled ? _selectScheduledTime : null,
+            child: Text(selectedLabel),
+          ),
+        ],
+      ],
+    );
+  }
+
   Future<void> _retry() async {
     if (_isAlarmTransitioning) return;
     final alarmController = widget.getOffAlarmController;
@@ -476,6 +633,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         widget.draft.origin != null &&
         widget.draft.destination != null &&
         widget.draft.waypoint == null;
+    final controlsEnabled =
+        valid &&
+        state.status != JourneySearchStatus.searching &&
+        !_isAlarmTransitioning;
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: widget.onShellBackToHome),
@@ -491,20 +652,15 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               Text(widget.draft.destinationLabel),
               if (!valid) const Text('출발역과 도착역을 다시 확인해 주세요.'),
               const SizedBox(height: 12),
-              _walkingPaceControl(
-                valid &&
-                    state.status != JourneySearchStatus.searching &&
-                    !_isAlarmTransitioning,
-              ),
+              _departureControl(controlsEnabled),
+              const SizedBox(height: 12),
+              _walkingPaceControl(controlsEnabled),
               const SizedBox(height: 12),
               FilledButton(
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(48),
                 ),
-                onPressed:
-                    valid &&
-                        state.status != JourneySearchStatus.searching &&
-                        !_isAlarmTransitioning
+                onPressed: controlsEnabled && _searchCommand() != null
                     ? _search
                     : null,
                 child: const Text('경로 찾기'),
