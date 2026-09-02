@@ -182,17 +182,37 @@ void main() {
     tester,
   ) async {
     final repository = _Repository();
-    await _pumpScreen(tester, repository: repository);
+    final alarm = _AlarmHarness();
+    addTearDown(alarm.dispose);
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      getOffAlarmController: alarm.controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+    );
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
     expect(find.text('경로 후보 2개'), findsOneWidget);
+    await alarm.controller.enable(
+      routeId: 'scheduled-selection-alarm',
+      stops: [
+        GetOffAlarmStop(
+          stationId: 'station-destination',
+          stationName: '춘천',
+          arrivalAt: DateTime.utc(2026, 8, 12),
+          kind: GetOffAlarmKind.destination,
+        ),
+      ],
+      transferAlarmEnabled: false,
+    );
 
     final scheduled = find.byKey(const Key('journey-departure-scheduled'));
     expect(tester.getSize(scheduled).height, greaterThanOrEqualTo(48));
     await tester.tap(scheduled);
     await tester.pumpAndSettle();
 
+    expect(alarm.notifier.cancelAllCount, 1);
     expect(find.text('경로 후보 2개'), findsNothing);
     expect(
       tester.getSemantics(scheduled).flagsCollection.isSelected,
