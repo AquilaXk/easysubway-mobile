@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 import { validatePlayInstalledReleaseContract } from './validate-play-installed-release-contract.mjs';
@@ -17,6 +18,118 @@ async function readContracts() {
   ));
 }
 
+const digest = (label) => createHash('sha256').update(`mobile-317-test:${label}`).digest('hex');
+const gitSha = (label) => digest(label).slice(0, 40);
+
+function fullSameRcIdentity(contract) {
+  const mobileSourceGitSha = gitSha('mobile-source');
+  const dataProducerGitSha = gitSha('data-producer');
+  const backendGitSha = gitSha('backend-source');
+  const candidateId = `candidate-${digest('candidate').slice(0, 16)}`;
+  const releaseSequence = 42;
+  const signedFinalDescriptorSha256 = digest('signed-final-descriptor');
+  const dataPublicationReceiptSha256 = digest('data-publication-receipt');
+  const sourceSetSha256 = digest('source-set');
+  const routeBundleId = `route-bundle-${digest('route-bundle-id').slice(0, 16)}`;
+  const routeBundleSha256 = digest('route-bundle');
+  const activeBundleId = `active-bundle-${digest('active-bundle-id').slice(0, 16)}`;
+  const activeBundleSha256 = digest('active-bundle');
+  const backendImageDigest = digest('backend-image');
+  const backendConfigSha256 = digest('backend-config');
+
+  return {
+    mobile: {
+      sourceGitSha: mobileSourceGitSha,
+      aabSha256: digest('source-aab'),
+      aabPayloadSha256: digest('source-aab-payload'),
+      playGeneratedApkSha256: contract.latestPlayGeneratedArtifact.generatedUniversalApkSha256,
+      packageId: contract.androidApplicationId,
+      versionName: contract.latestPlayGeneratedArtifact.versionName,
+      versionCode: contract.latestPlayGeneratedArtifact.versionCode,
+      appSigningKeySha256Fingerprint: digest('signing-fingerprint'),
+      dataPackManifestSha256: digest('datapack-manifest'),
+    },
+    journeyContract: {
+      backendGitSha,
+      contractLockSha256: digest('journey-contract-lock'),
+      contractPayloadSha256: digest('journey-contract-payload'),
+      contractPublicationReceiptSha256: digest('journey-contract-publication-receipt'),
+    },
+    mapCatalog: {
+      mapCatalogLockSha256: digest('map-catalog-lock'),
+      aabReceiptSha256: digest('map-catalog-aab-receipt'),
+      aabSha256: digest('source-aab'),
+      artifactInventorySha256: digest('map-catalog-artifact-inventory'),
+      dataPackManifestSha256: digest('datapack-manifest'),
+      dataProducerGitSha,
+      releaseSequence,
+      signedFinalDescriptorSha256,
+      publicationReceiptSha256: dataPublicationReceiptSha256,
+    },
+    dataFinal: {
+      candidateId,
+      producerGitSha: dataProducerGitSha,
+      releaseSequence,
+      signedFinalDescriptorSha256,
+      publicationReceiptSha256: dataPublicationReceiptSha256,
+      sourceSetSha256,
+    },
+    serverRoute: {
+      candidateId,
+      releaseSequence,
+      signedFinalDescriptorSha256,
+      publicationReceiptSha256: dataPublicationReceiptSha256,
+      sourceSetSha256,
+      routeBundleId,
+      routeBundleSha256,
+    },
+    backend: {
+      candidateId,
+      dataProducerGitSha,
+      releaseSequence,
+      signedFinalDescriptorSha256,
+      publicationReceiptSha256: dataPublicationReceiptSha256,
+      backendGitSha,
+      imageDigest: backendImageDigest,
+      configSha256: backendConfigSha256,
+      contractLockSha256: digest('journey-contract-lock'),
+      contractPayloadSha256: digest('journey-contract-payload'),
+      contractPublicationReceiptSha256: digest('journey-contract-publication-receipt'),
+      activeBundleId,
+      activeBundleSha256,
+      routeBundleId,
+      routeBundleSha256,
+    },
+    platform: {
+      candidateId,
+      releaseSequence,
+      signedFinalDescriptorSha256,
+      publicationReceiptSha256: dataPublicationReceiptSha256,
+      backendImageDigest,
+      backendConfigSha256,
+      activeBundleId,
+      activeBundleSha256,
+      routeBundleId,
+      routeBundleSha256,
+      activationReceiptSha256: digest('platform-activation-receipt'),
+      environment: 'production',
+      revision: `revision-${digest('platform-revision').slice(0, 16)}`,
+      servingState: 'ACTIVE_SERVING',
+    },
+    hub: {
+      candidateId,
+      releaseSequence,
+      signedFinalDescriptorSha256,
+      publicationReceiptSha256: dataPublicationReceiptSha256,
+      componentManifestSha256: digest('hub-component-manifest'),
+      systemReleaseManifestSha256: digest('hub-system-release-manifest'),
+      mobileAabSha256: digest('source-aab'),
+      mobileAabPayloadSha256: digest('source-aab-payload'),
+      productId: contract.applicationId,
+    },
+  };
+}
+
 test('release GO requires an exact current-RC Play-installed identity', async () => {
   const { matrix, signed, rc, quality, pageSize } = await readContracts();
   const requiredIdentity = [
@@ -32,6 +145,17 @@ test('release GO requires an exact current-RC Play-installed identity', async ()
   assert.equal(matrix.releaseBlockingGoPolicy.requiredBuildSource, 'play-installed-build');
   assert.equal(matrix.releaseBlockingGoPolicy.currentRcOnly, true);
   assert.equal(matrix.releaseBlockingGoPolicy.historicalOrCrossRcEvidenceDisposition, 'NO_GO');
+  assert.deepEqual(matrix.releaseBlockingGoPolicy.requiredFullSameRcIdentityFields, [
+    'mobile',
+    'journeyContract',
+    'mapCatalog',
+    'dataFinal',
+    'serverRoute',
+    'backend',
+    'platform',
+    'hub',
+  ]);
+  assert.equal(matrix.releaseBlockingGoPolicy.requiredPlatformEnvironment, 'production');
 
   assert.equal(matrix.releaseBlockingGoPolicy.playGeneratedApkEvidenceRole, 'identity-and-inspection-only');
   assert.equal(matrix.releaseBlockingGoPolicy.localEmulatorAndShellSideloadEvidenceRole, 'diagnostic-only');
@@ -75,13 +199,14 @@ test('release contract fails closed for GO without complete current Play-install
     playInstallRequiresCurrentAppUninstall: false,
   };
   completeGo.sameRcIdentity = {
-    gitSha: 'a'.repeat(40),
+    gitSha: gitSha('mobile-source'),
     packageId: completeGo.androidApplicationId,
     versionName: completeGo.latestPlayGeneratedArtifact.versionName,
     versionCode: completeGo.latestPlayGeneratedArtifact.versionCode,
-    appSigningKeySha256Fingerprint: 'b'.repeat(64),
-    dataPackManifestSha256: 'c'.repeat(64),
+    appSigningKeySha256Fingerprint: digest('signing-fingerprint'),
+    dataPackManifestSha256: digest('datapack-manifest'),
   };
+  completeGo.fullSameRcIdentity = fullSameRcIdentity(completeGo);
   completeGo.deviceMatrix = completeGo.deviceMatrix.map((item) => ({
     ...item,
     result: 'PASS',
@@ -90,9 +215,18 @@ test('release contract fails closed for GO without complete current Play-install
 
   assert.doesNotThrow(() => validatePlayInstalledReleaseContract(completeGo));
 
+  const equivalentFingerprintGo = structuredClone(completeGo);
+  equivalentFingerprintGo.fullSameRcIdentity.mobile.appSigningKeySha256Fingerprint =
+    completeGo.sameRcIdentity.appSigningKeySha256Fingerprint
+      .toUpperCase()
+      .match(/.{2}/g)
+      .join(':');
+  assert.doesNotThrow(() => validatePlayInstalledReleaseContract(equivalentFingerprintGo));
+
   const invalidGoMutations = [
     (value) => { value.releaseBlockingGoPolicy.requiredBuildSource = 'rc-aab'; },
     (value) => { value.releaseBlockingGoPolicy.currentRcOnly = false; },
+    (value) => { value.releaseBlockingGoPolicy.requiredPlatformEnvironment = 'staging'; },
     (value) => { value.releaseBlockingGoPolicy.playGeneratedApkEvidenceRole = 'smoke-evidence'; },
     (value) => { value.releaseBlockingGoPolicy.localEmulatorAndShellSideloadEvidenceRole = 'release-evidence'; },
     (value) => { value.latestPhysicalDevice.playStoreInstalled = false; },
@@ -104,6 +238,23 @@ test('release contract fails closed for GO without complete current Play-install
     (value) => { value.latestPhysicalDevice.verificationState = 'PLAY_INSTALL_AND_OWNER_UNLOCK_PENDING'; },
     (value) => { value.latestPhysicalDevice.playInstallRequiresCurrentAppUninstall = true; },
     (value) => { delete value.sameRcIdentity; },
+    (value) => { delete value.fullSameRcIdentity; },
+    (value) => { delete value.fullSameRcIdentity.mobile.aabSha256; },
+    (value) => { value.fullSameRcIdentity.mapCatalog.aabSha256 = digest('other-source-aab'); },
+    (value) => { value.fullSameRcIdentity.hub.mobileAabPayloadSha256 = digest('other-source-aab-payload'); },
+    (value) => { value.fullSameRcIdentity.mobile.playGeneratedApkSha256 = digest('other-play-apk'); },
+    (value) => { value.fullSameRcIdentity.mobile.dataPackManifestSha256 = digest('other-datapack'); },
+    (value) => { value.fullSameRcIdentity.journeyContract.contractPayloadSha256 = 'not-a-sha256'; },
+    (value) => { value.fullSameRcIdentity.mapCatalog.releaseSequence += 1; },
+    (value) => { value.fullSameRcIdentity.dataFinal.sourceSetSha256 = digest('other-source-set'); },
+    (value) => { value.fullSameRcIdentity.serverRoute.routeBundleSha256 = digest('other-route-bundle'); },
+    (value) => { value.fullSameRcIdentity.backend.backendGitSha = gitSha('other-backend'); },
+    (value) => { value.fullSameRcIdentity.backend.activeBundleId = `active-bundle-${digest('other-active-bundle').slice(0, 16)}`; },
+    (value) => { value.fullSameRcIdentity.platform.backendConfigSha256 = digest('other-backend-config'); },
+    (value) => { value.fullSameRcIdentity.platform.environment = 'staging'; },
+    (value) => { value.fullSameRcIdentity.platform.servingState = 'PENDING'; },
+    (value) => { value.fullSameRcIdentity.hub.candidateId = `candidate-${digest('other-candidate').slice(0, 16)}`; },
+    (value) => { value.fullSameRcIdentity.hub.productId = 'different-product'; },
     (value) => { delete value.sameRcIdentity.gitSha; },
     (value) => { value.sameRcIdentity.gitSha = 123; },
     (value) => { value.sameRcIdentity.gitSha = 'A'.repeat(40); },

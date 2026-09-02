@@ -12,6 +12,7 @@
   "releaseBlockingGoPolicy": {
     "requiredBuildSource": "play-installed-build",
     "currentRcOnly": true,
+    "requiredPlatformEnvironment": "production",
     "requiredSameRcIdentityFields": [
       "gitSha",
       "packageId",
@@ -19,6 +20,16 @@
       "versionCode",
       "appSigningKeySha256Fingerprint",
       "dataPackManifestSha256"
+    ],
+    "requiredFullSameRcIdentityFields": [
+      "mobile",
+      "journeyContract",
+      "mapCatalog",
+      "dataFinal",
+      "serverRoute",
+      "backend",
+      "platform",
+      "hub"
     ],
     "historicalOrCrossRcEvidenceDisposition": "NO_GO",
     "playGeneratedApkEvidenceRole": "identity-and-inspection-only",
