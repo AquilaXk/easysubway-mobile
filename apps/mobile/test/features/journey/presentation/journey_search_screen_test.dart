@@ -178,6 +178,51 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('출발 시간은 exact SCHEDULED requestedAt으로 전송하고 모드 변경 시 이전 결과를 지운다', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await _pumpScreen(tester, repository: repository);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+
+    final scheduled = find.byKey(const Key('journey-departure-scheduled'));
+    expect(tester.getSize(scheduled).height, greaterThanOrEqualTo(48));
+    await tester.tap(scheduled);
+    await tester.pumpAndSettle();
+
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(
+      tester.getSemantics(scheduled).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    final departure = repository.requests.last.departure;
+    expect(departure, isA<JourneyDepartureScheduled>());
+    expect(
+      (departure as JourneyDepartureScheduled).requestedAt,
+      DateTime(2026, 8, 12),
+    );
+  });
+
   testWidgets('계단 회피 profile은 REQUIRE_STEP_FREE로 전송한다', (tester) async {
     final repository = _Repository();
     await _pumpScreen(tester, repository: repository, mobilityType: 'LUGGAGE');
