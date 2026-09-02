@@ -5,6 +5,7 @@ function requireCondition(condition, message) {
 const GIT_SHA = /^[a-f0-9]{40}$/;
 const SHA256 = /^[a-f0-9]{64}$/;
 const COLON_DELIMITED_SHA256_FINGERPRINT = /^(?:[a-fA-F0-9]{2}:){31}[a-fA-F0-9]{2}$/;
+const PRODUCTION_ENVIRONMENT = 'production';
 const FULL_SAME_RC_IDENTITY_FIELDS = [
   'mobile',
   'journeyContract',
@@ -41,6 +42,10 @@ function requirePositiveInteger(value, label) {
 
 function requireEqual(left, right, label) {
   requireCondition(left === right, `${label} must exactly match`);
+}
+
+function canonicalSigningFingerprint(value) {
+  return value.replaceAll(':', '').toLowerCase();
 }
 
 function requireSameRcIdentity(identity, fields) {
@@ -117,6 +122,7 @@ function requireFullSameRcIdentity(identity, policy, contract) {
   requirePositiveInteger(platform.releaseSequence, 'fullSameRcIdentity.platform.releaseSequence');
   for (const field of ['signedFinalDescriptorSha256', 'publicationReceiptSha256', 'backendImageDigest', 'backendConfigSha256', 'activeBundleSha256', 'routeBundleSha256', 'activationReceiptSha256']) requireSha256(platform[field], `fullSameRcIdentity.platform.${field}`);
   for (const field of ['activeBundleId', 'routeBundleId', 'environment', 'revision']) requireNonBlank(platform[field], `fullSameRcIdentity.platform.${field}`);
+  requireEqual(platform.environment, policy.requiredPlatformEnvironment, 'Platform production environment');
   requireCondition(platform.servingState === 'ACTIVE_SERVING', 'Platform ACTIVE_SERVING identity is required');
 
   requireExactObject(hub, ['candidateId', 'releaseSequence', 'signedFinalDescriptorSha256', 'publicationReceiptSha256', 'componentManifestSha256', 'systemReleaseManifestSha256', 'mobileAabSha256', 'mobileAabPayloadSha256', 'productId'], 'fullSameRcIdentity.hub');
@@ -130,7 +136,11 @@ function requireFullSameRcIdentity(identity, policy, contract) {
   requireEqual(mobile.packageId, sameRc.packageId, 'Mobile package and same-RC package');
   requireEqual(mobile.versionName, sameRc.versionName, 'Mobile versionName and same-RC versionName');
   requireEqual(mobile.versionCode, sameRc.versionCode, 'Mobile versionCode and same-RC versionCode');
-  requireEqual(mobile.appSigningKeySha256Fingerprint, sameRc.appSigningKeySha256Fingerprint, 'Mobile signing fingerprint and same-RC signing fingerprint');
+  requireEqual(
+    canonicalSigningFingerprint(mobile.appSigningKeySha256Fingerprint),
+    canonicalSigningFingerprint(sameRc.appSigningKeySha256Fingerprint),
+    'Mobile signing fingerprint and same-RC signing fingerprint',
+  );
   requireEqual(mobile.dataPackManifestSha256, sameRc.dataPackManifestSha256, 'Mobile datapack manifest and same-RC datapack manifest');
   requireEqual(mobile.packageId, contract.androidApplicationId, 'Mobile package and Android application id');
   requireEqual(mobile.versionName, contract.latestPlayGeneratedArtifact.versionName, 'Mobile versionName and Play-generated artifact versionName');
@@ -165,6 +175,7 @@ export function validatePlayInstalledReleaseContract(contract) {
   requireCondition(policy && typeof policy === 'object', 'releaseBlockingGoPolicy is required');
   requireCondition(policy.requiredBuildSource === 'play-installed-build', 'current Play-installed build source is required');
   requireCondition(policy.currentRcOnly === true, 'current RC evidence is required');
+  requireCondition(policy.requiredPlatformEnvironment === PRODUCTION_ENVIRONMENT, 'production Platform environment is required');
   requireCondition(policy.historicalOrCrossRcEvidenceDisposition === 'NO_GO', 'historical or cross-RC evidence must remain NO_GO');
   requireCondition(policy.playGeneratedApkEvidenceRole === 'identity-and-inspection-only', 'Play-generated APK evidence must remain identity and inspection only');
   requireCondition(policy.localEmulatorAndShellSideloadEvidenceRole === 'diagnostic-only', 'local emulator and shell sideload evidence must remain diagnostic only');

@@ -155,6 +155,7 @@ test('release GO requires an exact current-RC Play-installed identity', async ()
     'platform',
     'hub',
   ]);
+  assert.equal(matrix.releaseBlockingGoPolicy.requiredPlatformEnvironment, 'production');
 
   assert.equal(matrix.releaseBlockingGoPolicy.playGeneratedApkEvidenceRole, 'identity-and-inspection-only');
   assert.equal(matrix.releaseBlockingGoPolicy.localEmulatorAndShellSideloadEvidenceRole, 'diagnostic-only');
@@ -214,9 +215,18 @@ test('release contract fails closed for GO without complete current Play-install
 
   assert.doesNotThrow(() => validatePlayInstalledReleaseContract(completeGo));
 
+  const equivalentFingerprintGo = structuredClone(completeGo);
+  equivalentFingerprintGo.fullSameRcIdentity.mobile.appSigningKeySha256Fingerprint =
+    completeGo.sameRcIdentity.appSigningKeySha256Fingerprint
+      .toUpperCase()
+      .match(/.{2}/g)
+      .join(':');
+  assert.doesNotThrow(() => validatePlayInstalledReleaseContract(equivalentFingerprintGo));
+
   const invalidGoMutations = [
     (value) => { value.releaseBlockingGoPolicy.requiredBuildSource = 'rc-aab'; },
     (value) => { value.releaseBlockingGoPolicy.currentRcOnly = false; },
+    (value) => { value.releaseBlockingGoPolicy.requiredPlatformEnvironment = 'staging'; },
     (value) => { value.releaseBlockingGoPolicy.playGeneratedApkEvidenceRole = 'smoke-evidence'; },
     (value) => { value.releaseBlockingGoPolicy.localEmulatorAndShellSideloadEvidenceRole = 'release-evidence'; },
     (value) => { value.latestPhysicalDevice.playStoreInstalled = false; },
@@ -241,6 +251,7 @@ test('release contract fails closed for GO without complete current Play-install
     (value) => { value.fullSameRcIdentity.backend.backendGitSha = gitSha('other-backend'); },
     (value) => { value.fullSameRcIdentity.backend.activeBundleId = `active-bundle-${digest('other-active-bundle').slice(0, 16)}`; },
     (value) => { value.fullSameRcIdentity.platform.backendConfigSha256 = digest('other-backend-config'); },
+    (value) => { value.fullSameRcIdentity.platform.environment = 'staging'; },
     (value) => { value.fullSameRcIdentity.platform.servingState = 'PENDING'; },
     (value) => { value.fullSameRcIdentity.hub.candidateId = `candidate-${digest('other-candidate').slice(0, 16)}`; },
     (value) => { value.fullSameRcIdentity.hub.productId = 'different-product'; },

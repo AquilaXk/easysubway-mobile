@@ -12,6 +12,7 @@
   "releaseBlockingGoPolicy": {
     "requiredBuildSource": "play-installed-build",
     "currentRcOnly": true,
+    "requiredPlatformEnvironment": "production",
     "requiredSameRcIdentityFields": [
       "gitSha",
       "packageId",
