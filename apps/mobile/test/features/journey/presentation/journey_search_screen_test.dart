@@ -212,6 +212,8 @@ void main() {
     await tester.tap(find.widgetWithText(TextButton, 'OK'));
     await tester.pumpAndSettle();
 
+    expect(find.text('출발 시간 2026-08-12 09:00'), findsOneWidget);
+
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
@@ -219,7 +221,7 @@ void main() {
     expect(departure, isA<JourneyDepartureScheduled>());
     expect(
       (departure as JourneyDepartureScheduled).requestedAt,
-      DateTime(2026, 8, 12),
+      DateTime.utc(2026, 8, 12),
     );
   });
 

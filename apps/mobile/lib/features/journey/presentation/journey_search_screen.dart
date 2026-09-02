@@ -127,6 +127,17 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
   }
 
+  DateTime _seoulWallTime(DateTime instant) {
+    final value = instant.toUtc().add(const Duration(hours: 9));
+    return DateTime(
+      value.year,
+      value.month,
+      value.day,
+      value.hour,
+      value.minute,
+    );
+  }
+
   String _durationLabel(int seconds) => '${(seconds + 59) ~/ 60}분';
 
   Widget _candidateRow(BuildContext context, Journey journey) {
@@ -473,8 +484,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   Future<void> _selectScheduledTime() async {
     if (_isAlarmTransitioning) return;
-    final initial =
-        _scheduledRequestedAt ?? (widget.journeyNow?.call() ?? DateTime.now());
+    final initial = _seoulWallTime(
+      _scheduledRequestedAt ?? (widget.journeyNow?.call() ?? DateTime.now()),
+    );
     final date = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -487,13 +499,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       initialTime: TimeOfDay.fromDateTime(initial),
     );
     if (time == null || !mounted) return;
-    final requestedAt = DateTime(
+    final requestedAt = DateTime.utc(
       date.year,
       date.month,
       date.day,
       time.hour,
       time.minute,
-    );
+    ).subtract(const Duration(hours: 9));
     if (requestedAt == _scheduledRequestedAt) return;
     if (!await _prepareForTemporalChange() || !mounted) return;
     setState(() => _scheduledRequestedAt = requestedAt);
@@ -504,9 +516,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final scheduled =
         _departureSelection == _JourneyDepartureSelection.scheduled;
     final requestedAt = _scheduledRequestedAt;
-    final selectedLabel = requestedAt == null
+    final selectedWallTime = requestedAt == null
+        ? null
+        : _seoulWallTime(requestedAt);
+    final selectedLabel = selectedWallTime == null
         ? '출발 시간 선택'
-        : '출발 시간 ${requestedAt.year.toString().padLeft(4, '0')}-${requestedAt.month.toString().padLeft(2, '0')}-${requestedAt.day.toString().padLeft(2, '0')} ${requestedAt.hour.toString().padLeft(2, '0')}:${requestedAt.minute.toString().padLeft(2, '0')}';
+        : '출발 시간 ${selectedWallTime.year.toString().padLeft(4, '0')}-${selectedWallTime.month.toString().padLeft(2, '0')}-${selectedWallTime.day.toString().padLeft(2, '0')} ${selectedWallTime.hour.toString().padLeft(2, '0')}:${selectedWallTime.minute.toString().padLeft(2, '0')}';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
