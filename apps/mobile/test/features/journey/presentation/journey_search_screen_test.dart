@@ -178,6 +178,100 @@ void main() {
     semantics.dispose();
   });
 
+  testWidgets('출발 시간은 exact SCHEDULED requestedAt으로 전송하고 모드 변경 시 이전 결과를 지운다', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final alarm = _AlarmHarness();
+    addTearDown(alarm.dispose);
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      getOffAlarmController: alarm.controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+    await alarm.controller.enable(
+      routeId: 'scheduled-selection-alarm',
+      stops: [
+        GetOffAlarmStop(
+          stationId: 'station-destination',
+          stationName: '춘천',
+          arrivalAt: DateTime.utc(2026, 8, 12),
+          kind: GetOffAlarmKind.destination,
+        ),
+      ],
+      transferAlarmEnabled: false,
+    );
+
+    final scheduled = find.byKey(const Key('journey-departure-scheduled'));
+    expect(tester.getSize(scheduled).height, greaterThanOrEqualTo(48));
+    await tester.tap(scheduled);
+    await tester.pumpAndSettle();
+
+    expect(alarm.notifier.cancelAllCount, 1);
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(
+      tester.getSemantics(scheduled).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('출발 시간 선택'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('출발 시간 선택'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('출발 시간 2026-08-12 09:00'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    final departure = repository.requests.last.departure;
+    expect(departure, isA<JourneyDepartureScheduled>());
+    expect(
+      (departure as JourneyDepartureScheduled).requestedAt,
+      DateTime.utc(2026, 8, 12),
+    );
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-departure-now')));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(find.byKey(const Key('journey-scheduled-time')), findsNothing);
+  });
+
   testWidgets('계단 회피 profile은 REQUIRE_STEP_FREE로 전송한다', (tester) async {
     final repository = _Repository();
     await _pumpScreen(tester, repository: repository, mobilityType: 'LUGGAGE');
