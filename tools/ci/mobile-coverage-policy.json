@@ -85,14 +85,7 @@
   ],
   "criticalBoundaryRules": {
     "JOURNEY_ROUTE_INGRESS": [
-      "features/journey/",
-      "internal_route.dart",
-      "features/routes/application/accessibility_cost_calculator.dart",
-      "features/routes/application/network_graph.dart",
-      "features/routes/application/route_engine.dart",
-      "features/routes/data/local_route_repository.dart",
-      "features/routes/domain/",
-      "features/internal_route/"
+      "features/journey/"
     ],
     "JOURNEY_REPOSITORY_DI_STATE_IDENTITY": [
       "app/app_bootstrap.dart",
@@ -100,11 +93,7 @@
       "app/app_endpoints.dart",
       "features/journey/",
       "features/route_draft/",
-      "features/mobility_profile/",
-      "features/routes/data/local_route_repository.dart",
-      "features/routes/domain/",
-      "features/internal_route/",
-      "internal_route.dart"
+      "features/mobility_profile/"
     ],
     "DATAPACK_CATALOG_LIFECYCLE": [
       "app/app_endpoints.dart",
@@ -132,7 +121,7 @@
       "features/attribution/presentation/",
       "features/facility_report/",
       "features/favorites/presentation/",
-      "features/home/presentation/",
+      "app/home_screen.dart",
       "features/home_widget/next_train_widget_configuration_screen.dart",
       "features/network_map/presentation/",
       "features/notifications/presentation/",
@@ -141,12 +130,11 @@
       "features/stations/presentation/",
       "features/support/presentation/",
       "features/train_search/presentation/",
-      "facility_status.dart",
+      "features/stations/domain/facility_status.dart",
       "app/network_map_screen.dart",
-      "onboarding.dart",
-      "route_search.dart",
+      "features/onboarding/onboarding.dart",
       "search_field.dart",
-      "station_search.dart"
+      "features/stations/data/station_api_base_uri.dart"
     ],
     "ALARM_WIDGET_REPORT_IO": [
       "features/facility_report/",
@@ -158,8 +146,8 @@
       "features/preferences/data/drift_notification_settings_repository.dart",
       "features/search_history/data/drift_search_history_repository.dart",
       "features/service_notice/data/drift_notice_cache_store.dart",
-      "facility_status.dart",
-      "notification_settings.dart",
+      "features/stations/domain/facility_status.dart",
+      "features/notifications/notification_settings.dart",
       "secure_key_value_storage.dart",
       "mobile_error_reporter.dart"
     ],
@@ -170,7 +158,7 @@
       "mobile_error_reporter.dart",
       "features/account/presentation/user_data_deletion_screen.dart",
       "features/facility_report/",
-      "user_data_deletion.dart"
+      "features/account/user_data_deletion.dart"
     ],
     "CONTRACT_ARTIFACT_IDENTITY": [
       "app/app_endpoints.dart",

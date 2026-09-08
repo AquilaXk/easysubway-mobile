@@ -6,7 +6,7 @@ import { mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rename
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { analyze, changedExecutableLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
+import { acceptReviewedSub90Renames, analyze, changedExecutableLines, commitArtifactPair, derivePhase2Decision, flutterVersionFromMachine, inheritPureRenameDisposition, parseBaselineBytes, parseNameStatusZ, parseNumstatZ, parsePolicyBytes, requestOwnerIssue, runCli, serializeBaseline, strictExternalJson, treeSources, validateDiffTuples, validateEventIdentity, validateOwnerIssueResponse, verifyArtifactDirectory } from "./mobile-coverage-ratchet.mjs";
 import { normalizeLcov } from "./filter-mobile-lcov.mjs";
 
 const policyFile = new URL("./mobile-coverage-policy.json", import.meta.url);
@@ -77,6 +77,20 @@ test("Facility Report root 삭제는 critical boundaries를 feature owner에 보
   }
 });
 
+test("facility status baseline owners는 current changed-path policy projection과 정확히 일치한다", () => {
+  const changedPathPolicy = JSON.parse(readFileSync(new URL("./mobile-changed-path-policy.json", import.meta.url), "utf8"));
+  const baseline = parseBaselineBytes(readFileSync(baselineFile));
+  const sourcePath = "apps/mobile/lib/features/stations/domain/facility_status.dart";
+  const expectedOwners = [];
+  for (const rule of changedPathPolicy.pathRules) {
+    if (rule.exactPaths.includes(sourcePath) || rule.prefixes.some((prefix) => sourcePath.startsWith(prefix))) {
+      for (const owner of rule.owners) if (!expectedOwners.includes(owner)) expectedOwners.push(owner);
+    }
+  }
+  assert.deepEqual(expectedOwners, ["FEATURE:stations", "CONTRACT_ARTIFACT", "MAP_CATALOG"]);
+  assert.deepEqual(baseline.paths.find((source) => source.path === sourcePath)?.owners, expectedOwners);
+});
+
 test("Network Map root 삭제는 accessibility critical boundary를 app owner에 보존한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
   const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;
@@ -85,8 +99,44 @@ test("Network Map root 삭제는 accessibility critical boundary를 app owner에
   assert.ok(!boundary.includes("network_map.dart"));
 });
 
-test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey owner로 교체한다", () => {
+test("Home feature presentation 이동은 accessibility critical boundary를 app owner에 보존한다", () => {
   const policy = parsePolicyBytes(readFileSync(policyFile));
+  const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;
+
+  assert.ok(boundary.includes("app/home_screen.dart"));
+  assert.ok(!boundary.includes("features/home/presentation/"));
+});
+
+test("Route Search terminal 삭제는 stale accessibility critical boundary를 남기지 않는다", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  const boundary = policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS;
+
+  assert.ok(!boundary.includes("features/routes/domain/route_search.dart"));
+  assert.ok(!boundary.includes("route_search.dart"));
+});
+
+test("root cleanup moved critical boundaries retain feature-owned sources", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  assert.ok(policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS.includes("features/onboarding/onboarding.dart"));
+  assert.ok(!policy.criticalBoundaryRules.ACCESSIBILITY_ERROR_TRUTHFULNESS.includes("onboarding.dart"));
+  assert.ok(policy.criticalBoundaryRules.ALARM_WIDGET_REPORT_IO.includes("features/notifications/notification_settings.dart"));
+  assert.ok(!policy.criticalBoundaryRules.ALARM_WIDGET_REPORT_IO.includes("notification_settings.dart"));
+  assert.ok(policy.criticalBoundaryRules.CRASHLYTICS_PRIVACY.includes("features/account/user_data_deletion.dart"));
+  assert.ok(!policy.criticalBoundaryRules.CRASHLYTICS_PRIVACY.includes("user_data_deletion.dart"));
+});
+
+test("Journey 전환은 삭제된 internal route ingress를 active Journey V3 owner로 교체한다", () => {
+  const policy = parsePolicyBytes(readFileSync(policyFile));
+  const removedLocalRouteStackPaths = [
+    "features/routes/application/accessibility_cost_calculator.dart",
+    "features/routes/application/network_graph.dart",
+    "features/routes/application/route_engine.dart",
+    "features/routes/data/local_route_repository.dart",
+  ];
+  const removedInternalRouteBoundaryPaths = [
+    "internal_route.dart",
+    "features/internal_route/",
+  ];
 
   for (const boundary of [
     "JOURNEY_ROUTE_INGRESS",
@@ -94,8 +144,17 @@ test("Journey 전환은 consumer-zero 레거시 route ingress를 active Journey 
     "CONTRACT_ARTIFACT_IDENTITY",
   ]) {
     assert.ok(policy.criticalBoundaryRules[boundary].includes("features/journey/"));
+    for (const removedPath of removedInternalRouteBoundaryPaths) {
+      assert.ok(!policy.criticalBoundaryRules[boundary].includes(removedPath));
+    }
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_search.dart"));
     assert.ok(!policy.criticalBoundaryRules[boundary].includes("route_v2_ingress.dart"));
+    for (const removedPath of removedLocalRouteStackPaths) {
+      assert.ok(
+        !policy.criticalBoundaryRules[boundary].includes(removedPath),
+        `${boundary} must not retain the deleted local route stack path ${removedPath}`,
+      );
+    }
   }
 });
 
@@ -161,6 +220,29 @@ test("F1/F3/F5 Phase 2 decision, external JSON, pure rename inheritance를 fail-
     parseNameStatusZ(Buffer.from("R100\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
     parseNumstatZ(Buffer.from("0\t0\t\0apps/mobile/lib/alias.dart\0apps/mobile/lib/alias.dart\0")),
   ), /aliases one path/i);
+});
+
+test("Home owner move만 reviewed sub-90 rename으로 허용한다", () => {
+  const oldPath = "apps/mobile/lib/features/home/presentation/home_screen.dart";
+  const newPath = "apps/mobile/lib/app/home_screen.dart";
+  const strict = [
+    { status: "ADDED", oldPath: null, newPath, added: 1019, deleted: 0 },
+    { status: "DELETED", oldPath, newPath: null, added: 0, deleted: 916 },
+  ];
+  const reviewed = [
+    { status: "RENAMED", oldPath, newPath, added: 223, deleted: 120 },
+  ];
+  assert.deepEqual(acceptReviewedSub90Renames(strict, reviewed), reviewed);
+  assert.throws(
+    () => acceptReviewedSub90Renames(strict, [
+      {
+        ...reviewed[0],
+        oldPath: "apps/mobile/lib/features/other/old.dart",
+        newPath: "apps/mobile/lib/app/other.dart",
+      },
+    ]),
+    /unreviewed sub-90 rename/i,
+  );
 });
 
 test("F4 CLI는 invalid argument/outcome 전에 owner request를 만들지 않고 bounded injected request를 닫는다", async () => {
@@ -290,6 +372,35 @@ test("Phase 1 analyzer는 manual artifact를 exact DISCOVERY_REMOTE_RED로 결�
     const inventory = JSON.parse(readFileSync(path.join(dir, "manual", "mobile-coverage-source-inventory.json"), "utf8"));
     assert.equal(inventory.sources.some((source) => source.path === "apps/mobile/lib/accessible_design.dart"), true);
     assert.equal(inventory.sources.every((source) => source.owners.length >= 1 && source.owners.length <= 4 && !source.owners.includes("UNKNOWN")), true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("Phase 2 missing-source failure는 안전한 repository-relative 경로를 포함한다", () => {
+  const dir = mkdtempSync(path.join(temporaryRoot, "mobile-ratchet-"));
+  try {
+    const testedMergeSha = "f".repeat(40);
+    const gitApi = {
+      text(args) {
+        if (args[0] === "rev-parse" && args[1] === "HEAD") return testedMergeSha;
+        if (args[0] === "merge-base" && args.includes("--all")) return head;
+        if (args[0] === "merge-base" && args.includes("--is-ancestor")) return "";
+        return execFileSync("git", ["-C", repositoryRoot, ...args], { encoding: "utf8" }).trim();
+      },
+      bytes(args) {
+        return execFileSync("git", ["-C", repositoryRoot, ...args.map((arg) => arg === testedMergeSha ? head : arg)]);
+      },
+    };
+    const options = discoveryInput(dir, "pull_request");
+    options.testedMergeSha = testedMergeSha;
+    assert.throws(
+      () => analyze(options, {
+        repositoryRoot,
+        reportDirectory: path.join(dir, "phase2"),
+        phase2: true,
+        gitApi,
+      }),
+      /missing source has no reviewed disposition: apps\/mobile\/lib\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.dart/,
+    );
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });
 
@@ -481,7 +592,8 @@ test("changed executable set은 present SF의 exact DA hit·miss만 사용한다
     coveredLines: 1,
     lineBasisPoints: 5000,
   });
-  assert.deepEqual(productionDiffCalls.map((args) => args.find((arg) => ["--name-status", "--numstat", "--unified=0"].includes(arg))).sort(), ["--name-status", "--numstat", "--unified=0"]);
+  assert.deepEqual(productionDiffCalls.map((args) => args.find((arg) => ["--name-status", "--numstat", "--unified=0"].includes(arg))).sort(), ["--name-status", "--name-status", "--numstat", "--numstat", "--unified=0"]);
+  assert.deepEqual(productionDiffCalls.map((args) => args.find((arg) => arg.startsWith("--find-renames="))).sort(), ["--find-renames=75%", "--find-renames=75%", "--find-renames=75%", "--find-renames=90%", "--find-renames=90%"]);
   for (const args of productionDiffCalls) assert.deepEqual(args.slice(-3), [range, "--", ":(glob)apps/mobile/lib/**/*.dart"]);
 });
 

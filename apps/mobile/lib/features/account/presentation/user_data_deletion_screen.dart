@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../../user_data_deletion.dart';
+import '../user_data_deletion.dart';
 
 class UserDataDeletionAccessItem extends StatelessWidget {
   const UserDataDeletionAccessItem({

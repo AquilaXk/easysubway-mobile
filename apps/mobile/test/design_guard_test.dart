@@ -203,7 +203,7 @@ void main() {
       'lib/app/network_map_screen.dart': {'0x99000000', '0xFF000000'},
       'lib/features/network_map/presentation/network_map_chrome_controls.dart':
           {'0xE62F3437'},
-      'lib/features/network_map/presentation/region_menu.dart': {'0x99000000'},
+      'lib/core/ui/region_menu.dart': {'0x99000000'},
       'lib/app/accessibility_theme.dart': {'Colors.white'},
     };
     final colorReferences = RegExp(
@@ -286,7 +286,7 @@ void main() {
       // — 오너 결정 2026-07-16, #2200
       'lib/features/network_map/presentation/nearby_station_line_bar.dart': 2,
       // 의도 잔존: 온보딩 시작·프리셋·권한 화면 타이틀 (#1936 전면 재설계로 축소)
-      'lib/onboarding.dart': 4,
+      'lib/features/onboarding/onboarding.dart': 4,
       // 의도 잔존: 노선 배지 번호 — 색 배지 위 시인성 (w900은 w800로 강등)
       'lib/features/stations/presentation/station_line_badges.dart': 2,
     }, rule: 'w800');
@@ -310,7 +310,6 @@ void main() {
   test('노선도 그림자/elevation 재유입 금지 가드 (#1933)', () {
     final filesToCheck = [
       'lib/app/network_map_screen.dart',
-      'lib/route_search.dart',
       'lib/features/network_map/presentation/network_map_chrome_controls.dart',
     ];
     final violations = <String, List<String>>{};
@@ -451,13 +450,12 @@ void main() {
     );
     expectRatchet(actual, {
       // 의도 잔존: 역 상세 정보/도움/시설 카드·액션 버튼 radius (16/12) — 무박스 전환 진행 중
-      'lib/station_search.dart': 4,
       // 의도 잔존: AppCard(20)·공용 control radius(12) — v4 정리 대상
       'lib/app/app_components.dart': 2,
       // 의도 잔존: 앱 shell 입력 필드(12) — v4 정리 대상
       'lib/app/easy_subway_app.dart': 1,
       // 의도 잔존: 홈 알림 control radius(12) — v4 정리 대상
-      'lib/features/home/presentation/home_screen.dart': 1,
+      'lib/app/home_screen.dart': 1,
       // 주변역 패널 현재역 캡슐(24) — 노선 바 위 흰 캡슐, 완전 원 아님.
       // 노선 바 양끝 반원은 LayoutBuilder 계산값이라 리터럴 매치 없음.
       // — 오너 결정 2026-07-16, #2200
@@ -468,7 +466,7 @@ void main() {
       'lib/features/facility_report/presentation/facility_report_screen.dart':
           1,
       // 의도 잔존: 알림 설정 카드 radius(16) — 무박스 전환 대상
-      'lib/notification_settings.dart': 1,
+      'lib/features/notifications/notification_settings.dart': 1,
       // 의도 잔존: 운행 공지 리스트 카드 radius(12) — 무박스 전환 대상
       'lib/features/service_notice/presentation/service_notice_list_screen.dart':
           1,

@@ -5,12 +5,10 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../app/easy_subway_family_app_bar.dart';
 import '../../../core/external/kakao_map_launcher.dart';
-import '../../../internal_route.dart';
-import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
+import '../../route_draft/domain/route_draft.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_repositories.dart';
@@ -24,15 +22,14 @@ Future<T?> showStationDetailSheet<T>({
   required FacilityReportRepository reportRepository,
   required String stationId,
   FavoriteStationRepository? favoriteRepository,
-  AdRepository? adRepository,
+  WidgetBuilder? bottomAdBuilder,
   RealtimeRepository? realtimeRepository,
+  StationTimetableRepository? timetableRepository,
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
-  InternalRouteRepository? internalRouteRepository,
-  InternalRouteRequest? internalRouteRequest,
-  String internalRouteMobilityType = 'SENIOR',
-  RouteDraftController? routeDraftController,
+  RouteDraftPort? routeDraftController,
+  Future<void> Function(FacilityReportTarget target)? onOpenFacilityReport,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
 }) {
   return showModalBottomSheet<T>(
@@ -49,16 +46,15 @@ Future<T?> showStationDetailSheet<T>({
           repository: repository,
           reportRepository: reportRepository,
           favoriteRepository: favoriteRepository,
-          adRepository: adRepository,
+          bottomAdBuilder: bottomAdBuilder,
           realtimeRepository: realtimeRepository,
+          timetableRepository: timetableRepository,
           locationProvider: locationProvider,
           stationId: stationId,
           initiallyFavorite: initiallyFavorite,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteRequest: internalRouteRequest,
-          internalRouteMobilityType: internalRouteMobilityType,
           routeDraftController: routeDraftController,
+          onOpenFacilityReport: onOpenFacilityReport,
           mapLauncher: mapLauncher,
         ),
       );
@@ -72,15 +68,14 @@ class StationDetailScreen extends StatefulWidget {
     required this.reportRepository,
     required this.stationId,
     this.favoriteRepository,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.realtimeRepository,
+    this.timetableRepository,
     this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteRequest,
-    this.internalRouteMobilityType = 'SENIOR',
     this.routeDraftController,
+    this.onOpenFacilityReport,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     super.key,
   });
@@ -88,16 +83,16 @@ class StationDetailScreen extends StatefulWidget {
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
   final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
+  final StationTimetableRepository? timetableRepository;
   final CurrentLocationProvider? locationProvider;
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final InternalRouteRequest? internalRouteRequest;
-  final String internalRouteMobilityType;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
   final KakaoMapLauncher mapLauncher;
 
   @override
@@ -107,7 +102,6 @@ class StationDetailScreen extends StatefulWidget {
 class _StationDetailScreenState extends State<StationDetailScreen> {
   late final StationDetailController _controller;
   StationFavoriteToggleController? _favoriteController;
-  InternalRouteController? _internalRouteController;
 
   @override
   void initState() {
@@ -116,23 +110,6 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
       repository: widget.repository,
       realtimeRepository: widget.realtimeRepository,
     );
-    final internalRouteRepository = widget.internalRouteRepository;
-    final internalRouteRequest = widget.internalRouteRequest;
-    if (internalRouteRepository != null) {
-      _internalRouteController = InternalRouteController(
-        repository: internalRouteRepository,
-      );
-      if (internalRouteRequest != null) {
-        unawaited(_internalRouteController!.load(internalRouteRequest));
-      } else {
-        unawaited(
-          _internalRouteController!.loadDefault(
-            stationId: widget.stationId,
-            mobilityType: widget.internalRouteMobilityType,
-          ),
-        );
-      }
-    }
     final favoriteRepository = widget.favoriteRepository;
     if (favoriteRepository != null) {
       final initiallyFavorite = widget.initiallyFavorite;
@@ -153,14 +130,13 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
   void dispose() {
     _controller.dispose();
     _favoriteController?.dispose();
-    _internalRouteController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_controller, ?_internalRouteController]),
+      animation: _controller,
       builder: (context, _) {
         return Scaffold(
           backgroundColor: EasySubwayAccessibleColors.surface,
@@ -176,19 +152,15 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
               child: StationDetailBody(
                 state: _controller.state,
                 onRetryRealtime: _controller.retryRealtime,
-                internalRouteState: _internalRouteController?.state,
-                reportRepository: widget.reportRepository,
+                onOpenFacilityReport:
+                    widget.onOpenFacilityReport ??
+                    (target) => _showFacilityReportUnavailable(context),
                 favoriteController: _favoriteController,
-                adRepository: widget.adRepository,
+                bottomAdBuilder: widget.bottomAdBuilder,
                 routeDraftController: widget.routeDraftController,
                 locationProvider: widget.locationProvider,
                 mapLauncher: widget.mapLauncher,
-                facilityReportDraftTargetStore:
-                    widget.facilityReportDraftTargetStore,
-                timetableRepository:
-                    widget.repository is StationTimetableRepository
-                    ? widget.repository as StationTimetableRepository
-                    : null,
+                timetableRepository: widget.timetableRepository,
                 // AppBar가 호선·역명을 담당. 이전/다음역 chrome은 노선도 확장(PR-B)에서.
                 showContextChrome: false,
               ),
@@ -251,15 +223,14 @@ class StationDetailExpandHost extends StatefulWidget {
     required this.reportRepository,
     required this.stationId,
     this.favoriteRepository,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.realtimeRepository,
+    this.timetableRepository,
     this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteRequest,
-    this.internalRouteMobilityType = 'SENIOR',
     this.routeDraftController,
+    this.onOpenFacilityReport,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     this.showContextChrome = true,
     this.showRealtimeSection = true,
@@ -274,16 +245,16 @@ class StationDetailExpandHost extends StatefulWidget {
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
   final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
+  final StationTimetableRepository? timetableRepository;
   final CurrentLocationProvider? locationProvider;
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final InternalRouteRequest? internalRouteRequest;
-  final String internalRouteMobilityType;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
   final KakaoMapLauncher mapLauncher;
   final bool showContextChrome;
   final bool showRealtimeSection;
@@ -301,7 +272,6 @@ class StationDetailExpandHost extends StatefulWidget {
 class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
   late final StationDetailController _controller;
   StationFavoriteToggleController? _favoriteController;
-  InternalRouteController? _internalRouteController;
 
   @override
   void initState() {
@@ -310,7 +280,6 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
       repository: widget.repository,
       realtimeRepository: widget.realtimeRepository,
     );
-    _bindInternalRoute(widget.stationId);
     _bindFavorite(widget.stationId, widget.initiallyFavorite);
     unawaited(_controller.load(widget.stationId));
   }
@@ -319,30 +288,8 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
   void didUpdateWidget(covariant StationDetailExpandHost oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.stationId != widget.stationId) {
-      _bindInternalRoute(widget.stationId);
       _bindFavorite(widget.stationId, widget.initiallyFavorite);
       unawaited(_controller.load(widget.stationId));
-    }
-  }
-
-  void _bindInternalRoute(String stationId) {
-    _internalRouteController?.dispose();
-    _internalRouteController = null;
-    final repository = widget.internalRouteRepository;
-    if (repository == null) {
-      return;
-    }
-    _internalRouteController = InternalRouteController(repository: repository);
-    final request = widget.internalRouteRequest;
-    if (request != null) {
-      unawaited(_internalRouteController!.load(request));
-    } else {
-      unawaited(
-        _internalRouteController!.loadDefault(
-          stationId: stationId,
-          mobilityType: widget.internalRouteMobilityType,
-        ),
-      );
     }
   }
 
@@ -368,32 +315,28 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
   void dispose() {
     _controller.dispose();
     _favoriteController?.dispose();
-    _internalRouteController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: Listenable.merge([_controller, ?_internalRouteController]),
+      animation: _controller,
       builder: (context, _) {
         return ColoredBox(
           color: EasySubwayAccessibleColors.surface,
           child: StationDetailBody(
             state: _controller.state,
             onRetryRealtime: _controller.retryRealtime,
-            internalRouteState: _internalRouteController?.state,
-            reportRepository: widget.reportRepository,
+            onOpenFacilityReport:
+                widget.onOpenFacilityReport ??
+                (target) => _showFacilityReportUnavailable(context),
             favoriteController: _favoriteController,
-            adRepository: widget.adRepository,
+            bottomAdBuilder: widget.bottomAdBuilder,
             routeDraftController: widget.routeDraftController,
             locationProvider: widget.locationProvider,
             mapLauncher: widget.mapLauncher,
-            facilityReportDraftTargetStore:
-                widget.facilityReportDraftTargetStore,
-            timetableRepository: widget.repository is StationTimetableRepository
-                ? widget.repository as StationTimetableRepository
-                : null,
+            timetableRepository: widget.timetableRepository,
             showContextChrome: widget.showContextChrome,
             showRealtimeSection: widget.showRealtimeSection,
             onClose: widget.onClose,
@@ -406,4 +349,13 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
       },
     );
   }
+}
+
+Future<void> _showFacilityReportUnavailable(BuildContext context) async {
+  if (!context.mounted) {
+    return;
+  }
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text('시설 제보 화면을 열 수 없어요. 잠시 후 다시 시도해 주세요.')),
+  );
 }

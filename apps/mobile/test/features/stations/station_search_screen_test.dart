@@ -7,7 +7,7 @@ import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_search_screen.dart';
-import 'package:easysubway_mobile/onboarding.dart';
+import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
 import 'package:easysubway_mobile/search_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';

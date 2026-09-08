@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:easysubway_mobile/features/settings/presentation/service_info_screen.dart';
 import 'package:easysubway_mobile/features/settings/presentation/open_source_licenses_screen.dart';
-import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
+import 'package:easysubway_mobile/features/support/support_access.dart';
+import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -23,6 +25,7 @@ void main() {
       MaterialApp(
         home: ServiceInfoScreen(
           accessInfo: accessInfo,
+          onOpenDataSourceAttribution: () {},
           supportsInAppBrowser: () async => true,
           launchInAppBrowser: (uri) async {
             opened.add(uri);
@@ -63,6 +66,7 @@ void main() {
           MaterialApp(
             home: ServiceInfoScreen(
               accessInfo: accessInfo,
+              onOpenDataSourceAttribution: () {},
               supportsInAppBrowser: () async => true,
               launchInAppBrowser: failure,
             ),
@@ -77,6 +81,7 @@ void main() {
         MaterialApp(
           home: ServiceInfoScreen(
             accessInfo: accessInfo,
+            onOpenDataSourceAttribution: () {},
             supportsInAppBrowser: () async => false,
             launchInAppBrowser: (_) async => true,
           ),
@@ -107,6 +112,7 @@ void main() {
           data: const MediaQueryData(textScaler: TextScaler.linear(2)),
           child: ServiceInfoScreen(
             accessInfo: accessInfo,
+            onOpenDataSourceAttribution: () {},
             supportsInAppBrowser: () async => true,
             launchInAppBrowser: (_) async => true,
           ),
@@ -141,10 +147,21 @@ void main() {
       ], 'Copyright 2026 Sample Authors.\n\nSample license text.'),
     ];
 
+    final navigatorKey = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       MaterialApp(
+        navigatorKey: navigatorKey,
         home: ServiceInfoScreen(
           accessInfo: accessInfo,
+          onOpenDataSourceAttribution: () {
+            unawaited(
+              navigatorKey.currentState!.push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const DataSourceAttributionScreen(),
+                ),
+              ),
+            );
+          },
           supportsInAppBrowser: () async => true,
           launchInAppBrowser: (_) async => true,
           licenseEntriesLoader: loadLicenses,

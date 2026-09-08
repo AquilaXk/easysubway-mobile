@@ -41,6 +41,118 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
       "reason": "Route V2 API repository has no production consumer and was physically removed.",
       "reviewTrigger": "Mobile #18 Route V2 API repository terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_search_request_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Route V2 request serialization has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 Route V2 request terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/core/error/route_search_error_mapping_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Route V2 online error mapping has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 Route V2 online error terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/local_route_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_engine_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_result_merge_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/canonical_station_pack_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/integration_test/route_search_snapshot_cache_benchmark_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Legacy local route repository/planner/graph stack has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 local route stack terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/internal_route/internal_route_engine_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Internal-route local calculation has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 internal route calculation terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/internal_route/local_internal_route_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/18",
+      "reason": "Internal-route local repository has no production consumer and was physically removed.",
+      "reviewTrigger": "Mobile #18 internal route calculation terminal deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_share_summary_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/22",
+      "reason": "Route share summary has no production importer; its sole test is removed with the consumer-zero root source.",
+      "reviewTrigger": "Mobile #22 root survivor handoff"
+    },
+    {
+      "path": "apps/mobile/test/features/get_off_alarm/get_off_alarm_route_mapping_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/297",
+      "reason": "Legacy Route V2 ride-leg projection has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #297 Journey V3 get-off-alarm legacy deletion"
+    },
+    {
+      "path": "apps/mobile/test/features/get_off_alarm/get_off_alarm_toggle_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/297",
+      "reason": "Legacy Route V2 get-off-alarm toggle has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #297 Journey V3 get-off-alarm legacy deletion"
+    },
+    {
+      "path": "apps/mobile/test/route_search_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy local route result and V1 favorite-route API writer have no production consumer and are physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/route_hedge_labels_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy route hedge labels have no production consumer and are physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/features/routes/route_identity_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/296",
+      "reason": "Legacy local route candidate identity has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #296 Journey V3 route/favorite no-fallback migration"
+    },
+    {
+      "path": "apps/mobile/test/core/database/catalog/station_timetable_query_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/67",
+      "reason": "CatalogStationTimetableQuery/Drift timetable success has no production consumer and is physically removed for server-authoritative Journey V3.",
+      "reviewTrigger": "Mobile #67 server-authoritative timetable terminal deletion"
     }
   ]
 }

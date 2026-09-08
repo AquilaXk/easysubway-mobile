@@ -70,6 +70,20 @@ test("Facility Report source has one direct feature owner without uncertainty", 
   assert.deepEqual(classified.requirements, policy.requirements.FEATURE);
 });
 
+test("Onboarding source has one direct feature owner without uncertainty", () => {
+  const checked = validatePolicy(policy);
+  const changedPath = "apps/mobile/lib/features/onboarding/onboarding.dart";
+  const classified = classifyEntries([
+    { status: "ADDED", oldPath: null, newPath: changedPath, oldMode: null, newMode: "100644", oldBlobSha: null, newBlobSha: sha("a"), isBinary: false, reasons: [] },
+  ], checked);
+
+  assert.equal(classified.outcome, "CLASSIFIED");
+  assert.deepEqual(classified.owners.map((owner) => owner.owner), ["FEATURE:onboarding"]);
+  assert.deepEqual(classified.affectedFeatures, ["onboarding"]);
+  assert.deepEqual(classified.uncertainty, { isFullRequired: false, codes: [], paths: [] });
+  assert.deepEqual(classified.requirements, policy.requirements.FEATURE);
+});
+
 test("Journey production sources retain exact feature and contract owners without uncertainty", () => {
   const checked = validatePolicy(policy);
   const changedPaths = [
@@ -226,8 +240,8 @@ test("old and new paths and fanout consumers fail closed independently", () => {
 });
 
 test("policy fixes generic feature identifiers and README-only docs uncertainty", () => {
-  assert.deepEqual(policy.pathRules.map((rule) => rule.id).slice(18, 42), [
-    "feature-account", "feature-ads", "feature-attribution", "feature-facility_report", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-journey", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
+  assert.deepEqual(policy.pathRules.map((rule) => rule.id).slice(18, 43), [
+    "feature-account", "feature-ads", "feature-attribution", "feature-facility_report", "feature-fare", "feature-favorites", "feature-get_off_alarm", "feature-home", "feature-home_widget", "feature-internal_route", "feature-journey", "feature-mobility_profile", "feature-network_map", "feature-notifications", "feature-onboarding", "feature-preferences", "feature-realtime", "feature-route_draft", "feature-routes", "feature-search_history", "feature-service_notice", "feature-settings", "feature-stations", "feature-support", "feature-train_search",
   ]);
   assert.deepEqual(policy.pathRules.find((rule) => rule.id === "root-policy").reasons, ["root-policy"]);
   const rootFiles = [".gitattributes", ".gitignore", "README.md"].map((changedPath, index) => ({ status: "MODIFIED", oldPath: changedPath, newPath: changedPath, oldMode: "100644", newMode: "100644", oldBlobSha: sha(String.fromCharCode(97 + index)), newBlobSha: sha(String.fromCharCode(100 + index)), isBinary: false, reasons: [] }));

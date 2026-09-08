@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
-import '../favorite_facility.dart';
+import '../features/favorites/favorite_facility.dart';
 
 const mainPagePadding = EdgeInsets.fromLTRB(20, 20, 20, 32);
 const mainListPagePadding = EdgeInsets.fromLTRB(17, 18, 17, 32);

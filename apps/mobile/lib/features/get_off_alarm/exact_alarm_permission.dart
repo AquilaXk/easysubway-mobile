@@ -1,16 +1,10 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../../mobile_error_reporter.dart';
+import 'get_off_alarm_port.dart';
 
-/// 휴대전화 알림 권한 요청과 현재 상태 조회 경계.
-abstract class NotificationPermissionProvider {
-  Future<NotificationPermissionStatus> requestNotificationPermission();
-
-  /// 시스템 설정의 현재 알림 권한만 읽고 프롬프트를 띄우지 않는다.
-  Future<NotificationPermissionStatus> notificationPermissionStatus();
-}
-
-enum NotificationPermissionStatus { granted, denied }
+export 'get_off_alarm_port.dart'
+    show NotificationPermissionProvider, NotificationPermissionStatus;
 
 /// 정확 알람(SCHEDULE_EXACT_ALARM) 권한 게이트.
 ///

@@ -1,0 +1,14 @@
+name: play_integrity_channel
+description: Engine-scoped Play Integrity MethodChannel registration.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.12.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: com.easysubway.play_integrity_channel
+        pluginClass: PlayIntegrityMethodChannelPlugin

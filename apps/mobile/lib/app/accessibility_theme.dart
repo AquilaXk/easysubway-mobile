@@ -3,7 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
-import '../onboarding.dart';
+import '../features/onboarding/onboarding.dart';
 
 class OnboardingPreferenceScope extends StatelessWidget {
   // ignore: use_key_in_widget_constructors

@@ -13,7 +13,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
 import 'package:easysubway_mobile/features/facility_report/presentation/my_facility_reports_screens.dart';
-import 'package:easysubway_mobile/favorite_facility.dart';
+import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
 import 'package:easysubway_mobile/core/datapack/bundled_data_pack_freshness.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
@@ -22,18 +22,19 @@ import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/account/presentation/user_data_deletion_screen.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/features/favorites/presentation/favorite_home_screen.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_location.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_type.dart';
 import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_type_options.dart';
 import 'package:easysubway_mobile/features/support/presentation/inquiry_screen.dart';
-import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
+import 'package:easysubway_mobile/features/support/support_access.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/data/get_off_alarm_state_repository.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/exact_alarm_permission.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_controller.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.dart';
-import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
+import 'package:easysubway_mobile/app/home_screen.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/settings/presentation/app_settings_screen.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
@@ -48,10 +49,11 @@ import 'package:easysubway_mobile/features/stations/presentation/station_detail_
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_facility_detail_screen.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_search_screen.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_timetable_screen.dart';
+import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
-import 'package:easysubway_mobile/internal_route.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_preset_labels.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
@@ -68,11 +70,12 @@ import 'package:easysubway_mobile/features/network_map/presentation/nearby_direc
 import 'package:easysubway_mobile/features/network_map/presentation/structured_route_map_painter.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart'
     show kFanMenuDesignSize, kFanMenuTailTip;
-import 'package:easysubway_mobile/notification_settings.dart';
-import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
-import 'package:easysubway_mobile/station_search.dart';
-import 'package:easysubway_mobile/user_data_deletion.dart';
+import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
+import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -84,6 +87,15 @@ import 'support/easy_subway_app_fixture.dart';
 
 import 'fake_secure_key_value_storage.dart';
 import 'user_copy_guard.dart';
+
+WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
+  if (repository == null) return null;
+  return (_) => ActiveAdBanner(
+    key: const Key('stationDetailBottomAdBanner'),
+    repository: repository,
+    placement: AdPlacement.stationDetailBottom,
+  );
+}
 
 OnboardingState _completedOnboardingState({
   MobilityPreset preset = MobilityPreset.slow,
@@ -181,12 +193,6 @@ Future<void> _openFavoriteList(
   RouteDraftController? routeDraftController,
   Future<void> Function(RouteDraft draft, String mobilityType)?
   onOpenRouteSearch,
-  Future<void> Function(
-    RouteDraft draft,
-    String mobilityType,
-    RouteTransportScope transportScope,
-  )?
-  onOpenRouteSearchWithScope,
 }) async {
   final homeContext = tester.element(find.byType(HomeScreen));
   final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
@@ -194,39 +200,71 @@ Future<void> _openFavoriteList(
   unawaited(
     Navigator.of(homeContext).push(
       MaterialPageRoute<void>(
-        builder: (_) => FavoriteHomeScreen(
+        builder: (favoriteContext) => FavoriteHomeScreen(
           favoriteRepository: home.favoriteRepository,
           favoriteFacilityRepository: home.favoriteFacilityRepository,
           favoriteRouteRepository: home.favoriteRouteRepository,
-          stationRepository: home.repository,
-          reportRepository: home.reportRepository,
-          locationProvider: home.locationProvider,
-          facilityReportDraftTargetStore: home.facilityReportDraftTargetStore,
-          internalRouteRepository: home.internalRouteRepository,
-          realtimeRepository: home.realtimeRepository,
-          routeDraftController: draftController,
-          initialMobilityType: home.initialMobilityType,
-          onOpenRouteSearch:
-              onOpenRouteSearch == null && onOpenRouteSearchWithScope == null
-              ? null
-              : ([mobilityType, transportScope]) async {
-                  final restoredMobilityType =
-                      mobilityType ?? home.initialMobilityType;
-                  final restoredTransportScope =
-                      transportScope ?? RouteTransportScope.subway;
-                  if (onOpenRouteSearchWithScope != null) {
-                    await onOpenRouteSearchWithScope(
-                      draftController.draft,
-                      restoredMobilityType,
-                      restoredTransportScope,
+          onOpenStationDetail: (favorite) async {
+            await showStationDetailSheet<void>(
+              context: favoriteContext,
+              repository: home.repository,
+              reportRepository: home.reportRepository,
+              favoriteRepository: home.favoriteRepository,
+              bottomAdBuilder: _stationDetailBottomAdBuilder(home.adRepository),
+              locationProvider: home.locationProvider,
+              realtimeRepository: home.realtimeRepository,
+              stationId: favorite.stationId,
+              facilityReportDraftTargetStore:
+                  home.facilityReportDraftTargetStore,
+              routeDraftController: draftController,
+              initiallyFavorite: true,
+            );
+          },
+          onOpenFacilityReport: (target) async {
+            await Navigator.of(favoriteContext).push(
+              MaterialPageRoute<void>(
+                builder: (_) => FacilityReportScreen(
+                  repository: home.reportRepository,
+                  locationLoader: () async {
+                    final location = await home.locationProvider
+                        .currentLocation();
+                    return FacilityReportLocation(
+                      latitude: location.latitude,
+                      longitude: location.longitude,
                     );
-                    return;
-                  }
-                  await onOpenRouteSearch!(
-                    draftController.draft,
-                    restoredMobilityType,
-                  );
-                },
+                  },
+                  needsLocationPermissionRequest:
+                      home.locationProvider.needsLocationPermissionRequest,
+                  openLocationSettings:
+                      home.locationProvider.openLocationSettings,
+                  draftTargetStore: home.facilityReportDraftTargetStore,
+                  target: target,
+                ),
+              ),
+            );
+          },
+          onOpenFavoriteRoute: (favorite) async {
+            draftController.clear();
+            draftController.setOrigin(
+              RouteDraftStation(
+                id: favorite.originStationId,
+                nameKo: favorite.originStationName,
+              ),
+            );
+            draftController.setDestination(
+              RouteDraftStation(
+                id: favorite.destinationStationId,
+                nameKo: favorite.destinationStationName,
+              ),
+            );
+            Navigator.of(favoriteContext).popUntil((route) => route.isFirst);
+            if (onOpenRouteSearch != null) {
+              await onOpenRouteSearch(
+                draftController.draft,
+                favorite.mobilityType,
+              );
+            }
+          },
         ),
       ),
     ),
@@ -246,30 +284,60 @@ Future<void> _pumpStationDetailForTest(
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
-  InternalRouteRepository? internalRouteRepository,
-  InternalRouteRequest? internalRouteRequest,
-  String internalRouteMobilityType = 'SENIOR',
   RouteDraftController? routeDraftController,
+  Future<void> Function(FacilityReportTarget target)? onOpenFacilityReport,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
   bool settle = true,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
-      home: StationDetailScreen(
-        repository: repository,
-        reportRepository: reportRepository,
-        stationId: stationId,
-        favoriteRepository: favoriteRepository,
-        adRepository: adRepository,
-        realtimeRepository: realtimeRepository,
-        locationProvider: locationProvider,
-        initiallyFavorite: initiallyFavorite,
-        facilityReportDraftTargetStore: facilityReportDraftTargetStore,
-        internalRouteRepository: internalRouteRepository,
-        internalRouteRequest: internalRouteRequest,
-        internalRouteMobilityType: internalRouteMobilityType,
-        routeDraftController: routeDraftController,
-        mapLauncher: mapLauncher,
+      home: Builder(
+        builder: (context) => StationDetailScreen(
+          repository: repository,
+          reportRepository: reportRepository,
+          stationId: stationId,
+          favoriteRepository: favoriteRepository,
+          bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
+          realtimeRepository: realtimeRepository,
+          locationProvider: locationProvider,
+          initiallyFavorite: initiallyFavorite,
+          facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+          routeDraftController: routeDraftController,
+          onOpenFacilityReport:
+              onOpenFacilityReport ??
+              (target) {
+                return Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => FacilityReportScreen(
+                      repository: reportRepository,
+                      locationLoader: locationProvider == null
+                          ? null
+                          : () async {
+                              try {
+                                final location = await locationProvider
+                                    .currentLocation();
+                                return FacilityReportLocation(
+                                  latitude: location.latitude,
+                                  longitude: location.longitude,
+                                );
+                              } on CurrentLocationException catch (error) {
+                                throw FacilityReportLocationException(
+                                  error.message,
+                                );
+                              }
+                            },
+                      needsLocationPermissionRequest:
+                          locationProvider?.needsLocationPermissionRequest,
+                      openLocationSettings:
+                          locationProvider?.openLocationSettings,
+                      draftTargetStore: facilityReportDraftTargetStore,
+                      target: target,
+                    ),
+                  ),
+                );
+              },
+          mapLauncher: mapLauncher,
+        ),
       ),
     ),
   );
@@ -387,11 +455,11 @@ Future<void> _openJourneySearchScreen(
 }) async {
   // 노선도(지도·역)가 렌더될 때까지 기다린 뒤 역을 탭한다.
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(Key(originStationKey)));
+  await tester.tapAt(tester.getCenter(find.byKey(Key(originStationKey))));
   await tester.pumpAndSettle();
   await _tapFanMenuSector(tester, _fanOriginLabel);
   await tester.pumpAndSettle();
-  await tester.tap(find.byKey(Key(destinationStationKey)));
+  await tester.tapAt(tester.getCenter(find.byKey(Key(destinationStationKey))));
   await tester.pumpAndSettle();
   await _tapFanMenuSector(tester, _fanDestinationLabel);
   // 출발·도착이 모두 차면 셸이 자동으로 결과 타임라인 탭으로 전환한다. 전환은
@@ -853,12 +921,10 @@ void main() {
     final dependencies = AppDependencies(
       repository: baseDependencies.repository,
       reportRepository: baseDependencies.reportRepository,
-      routeFeedbackRepository: baseDependencies.routeFeedbackRepository,
       favoriteRepository: baseDependencies.favoriteRepository,
       favoriteFacilityRepository: baseDependencies.favoriteFacilityRepository,
       favoriteRouteRepository: baseDependencies.favoriteRouteRepository,
       searchHistoryRepository: baseDependencies.searchHistoryRepository,
-      internalRouteRepository: baseDependencies.internalRouteRepository,
       networkMapRepository: baseDependencies.networkMapRepository,
       networkMapViewportRepository:
           baseDependencies.networkMapViewportRepository,
@@ -874,6 +940,8 @@ void main() {
       adRepository: baseDependencies.adRepository,
       journeyRepositoryFactory: baseDependencies.journeyRepositoryFactory,
       journeyAttestor: baseDependencies.journeyAttestor,
+      journeySessionProvider: baseDependencies.journeySessionProvider,
+      stationTimetableRepository: baseDependencies.stationTimetableRepository,
     );
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -1866,6 +1934,36 @@ void main() {
           status: 'ACCEPTED',
           createdAt: '2026-06-15T09:00:00',
         ),
+        const FacilityReportResult(
+          id: 'report-rejected',
+          publicReceiptCode: 'ES-REJECTED',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'CLOSED',
+          description: '반려 상태',
+          status: 'REJECTED',
+          createdAt: '2026-06-15T08:00:00',
+        ),
+        const FacilityReportResult(
+          id: 'report-duplicate',
+          publicReceiptCode: 'ES-DUPLICATE',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'CLOSED',
+          description: '중복 상태',
+          status: 'DUPLICATE',
+          createdAt: '2026-06-15T07:00:00',
+        ),
+        const FacilityReportResult(
+          id: 'report-resolved',
+          publicReceiptCode: 'ES-RESOLVED',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'CLOSED',
+          description: '확인 완료 상태',
+          status: 'RESOLVED',
+          createdAt: '2026-06-15T06:00:00',
+        ),
       ],
     );
     await tester.pumpWidget(
@@ -1888,6 +1986,9 @@ void main() {
     expect(find.text('상록수역 1번 출구 엘리베이터'), findsOneWidget);
     expect(find.text('미확인 · 엘리베이터 설치 확인 · 운행상태 미확인'), findsOneWidget);
     expect(find.text('자세히 보기'), findsOneWidget);
+    expect(find.text('제보 반려됨'), findsOneWidget);
+    expect(find.text('제보 중복 제보'), findsOneWidget);
+    expect(find.text('제보 확인 완료'), findsOneWidget);
     final reportTitle = find.text('제보 반영됨');
     final reportRow = find.ancestor(
       of: reportTitle,
@@ -1941,7 +2042,9 @@ void main() {
 
     await tester.tap(reportRow);
     await tester.pumpAndSettle();
+    expect(find.byKey(const Key('myReportDetailScreen')), findsOneWidget);
     expect(find.text('제보 상세'), findsOneWidget);
+    expect(find.text('ES-1002'), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('myReportDetailBackButton')));
     await tester.pumpAndSettle();
@@ -5426,6 +5529,8 @@ void main() {
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
     expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
     expect(find.byKey(const Key('networkMapBottomAdBanner')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
   });
 
   testWidgets('GPS 하단 패널은 환승 호선을 탭으로 구분하고 선택 호선을 재조회한다', (tester) async {
@@ -7072,6 +7177,164 @@ void main() {
     expect(find.text('오이도행'), findsNothing);
   });
 
+  testWidgets('닫힌 최근접 패널은 늦은 시간표 typed·generic failure를 모두 무시한다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '448',
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      for (final failure in <Object>[
+        const StationTimetableUnavailable('server unavailable'),
+        StateError('server failed'),
+      ]) {
+        final timetableCompleter = Completer<StationTimetable>();
+        final repository = _HangingTimetableStationRepository(
+          completer: timetableCompleter,
+          stationDetail: _stationDetail(
+            id: 'station-sangnoksu',
+            name: '상록수',
+            lines: const [line],
+          ),
+          networkMapRegionNames: const ['수도권'],
+          nearbyResults: [
+            _stationResult(
+              id: 'station-sangnoksu',
+              name: '상록수',
+              lines: const [line],
+            ),
+          ],
+        );
+        await _pumpNetworkMapForGpsTest(
+          tester,
+          repository: repository,
+          locationProvider: FakeCurrentLocationProvider(
+            location: _freshCurrentLocation(),
+            needsPermissionRequest: false,
+          ),
+          realtimeRepository: _HangingRealtimeRepository(),
+        );
+
+        await tester.tap(find.byKey(const Key('nearbyStationButton')));
+        await tester.pump();
+        await tester.pump();
+        expect(
+          find.byKey(const Key('networkMapNearbyStationPanel')),
+          findsOneWidget,
+        );
+        await tester.tap(
+          find.byKey(const Key('networkMapNearbyPanelCloseButton')),
+        );
+        await tester.pump();
+        timetableCompleter.completeError(failure);
+        await tester.pump();
+        expect(
+          find.byKey(const Key('networkMapNearbyStationPanel')),
+          findsNothing,
+        );
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 2));
+      }
+    });
+    expect(reportedErrors, hasLength(1));
+  });
+
+  testWidgets('최근접 패널이 mount된 현재 시간표 generic failure는 display를 비운다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final timetableCompleter = Completer<StationTimetable>();
+    final repository = _HangingTimetableStationRepository(
+      completer: timetableCompleter,
+      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      networkMapRegionNames: const ['수도권'],
+      nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: repository,
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: _HangingRealtimeRepository(),
+      );
+      await tester.tap(find.byKey(const Key('nearbyStationButton')));
+      await tester.pump();
+      await tester.pump();
+
+      timetableCompleter.completeError(StateError('server failed'));
+      await tester.pump();
+    });
+
+    expect(reportedErrors, hasLength(1));
+    expect(
+      find.byKey(const Key('networkMapNearbyStationPanel')),
+      findsOneWidget,
+    );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  testWidgets('unmount된 최근접 패널의 stale typed failure는 state를 건드리지 않는다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final timetableCompleter = Completer<StationTimetable>();
+    final repository = _HangingTimetableStationRepository(
+      completer: timetableCompleter,
+      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      networkMapRegionNames: const ['수도권'],
+      nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+    );
+
+    await _pumpNetworkMapForGpsTest(
+      tester,
+      repository: repository,
+      locationProvider: FakeCurrentLocationProvider(
+        location: _freshCurrentLocation(),
+        needsPermissionRequest: false,
+      ),
+      realtimeRepository: _HangingRealtimeRepository(),
+    );
+    await tester.tap(find.byKey(const Key('nearbyStationButton')));
+    await tester.pump();
+    await tester.pump();
+    await tester.pumpWidget(const SizedBox.shrink());
+
+    timetableCompleter.completeError(
+      const StationTimetableUnavailable('server unavailable'),
+    );
+    await tester.pump();
+
+    expect(find.byKey(const Key('networkMapNearbyStationPanel')), findsNothing);
+    await tester.pump(const Duration(seconds: 2));
+  });
+
   testWidgets('급행 운행 정보는 선택 UI 없이 시간표에 표시된다', (tester) async {
     tester.view.physicalSize = const Size(320, 1200);
     tester.view.devicePixelRatio = 1;
@@ -8115,6 +8378,39 @@ void main() {
 
     expect(find.byType(AppSettingsScreen), findsOneWidget);
     expect(find.byKey(const Key('settingsBackButton')), findsOneWidget);
+  });
+
+  testWidgets('서비스 정보의 정보제공처는 실제 Home composition으로 출처 화면을 연다', (tester) async {
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _openSettingsScreen(tester);
+    await tester.scrollUntilVisible(
+      find.byKey(const Key('settingsServiceInfoButton')),
+      120,
+    );
+    await tester.ensureVisible(
+      find.byKey(const Key('settingsServiceInfoButton')),
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('settingsServiceInfoButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('dataSourceAttributionItem')));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 350));
+
+    expect(
+      find.byKey(const Key('dataSourceAttributionScreen')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('설정 뒤로가기는 직전 탭(홈)으로 돌아간다', (tester) async {
@@ -9291,16 +9587,9 @@ void main() {
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
-          stationRepository: FakeStationSearchRepository(),
-          reportRepository: FakeFacilityReportRepository(),
-          locationProvider: FakeCurrentLocationProvider(),
-          facilityReportDraftTargetStore: null,
-          internalRouteRepository: FakeInternalRouteRepository(
-            result: _internalRouteResult(),
-          ),
-          realtimeRepository: const UnavailableRealtimeRepository(),
-          routeDraftController: RouteDraftController(),
-          initialMobilityType: 'SENIOR',
+          onOpenStationDetail: (_) async {},
+          onOpenFacilityReport: (_) async {},
+          onOpenFavoriteRoute: (_) async {},
         ),
       ),
     );
@@ -9328,22 +9617,28 @@ void main() {
       favorites: [_favoriteStation(id: 'station-sangnoksu', name: '상록수')],
     );
 
+    final navigatorKey = GlobalKey<NavigatorState>();
     await tester.pumpWidget(
       MaterialApp(
+        navigatorKey: navigatorKey,
         home: FavoriteHomeScreen(
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
           favoriteRouteRepository: FakeFavoriteRouteRepository(),
-          stationRepository: FakeStationSearchRepository(),
-          reportRepository: FakeFacilityReportRepository(),
-          locationProvider: FakeCurrentLocationProvider(),
-          facilityReportDraftTargetStore: null,
-          internalRouteRepository: FakeInternalRouteRepository(
-            result: _internalRouteResult(),
-          ),
-          realtimeRepository: const UnavailableRealtimeRepository(),
-          routeDraftController: RouteDraftController(),
-          initialMobilityType: 'SENIOR',
+          onOpenStationDetail: (favorite) async {
+            await showStationDetailSheet<void>(
+              context: navigatorKey.currentContext!,
+              repository: FakeStationSearchRepository(),
+              reportRepository: FakeFacilityReportRepository(),
+              favoriteRepository: favoriteRepository,
+              realtimeRepository: const UnavailableRealtimeRepository(),
+              locationProvider: FakeCurrentLocationProvider(),
+              stationId: favorite.stationId,
+              initiallyFavorite: true,
+            );
+          },
+          onOpenFacilityReport: (_) async {},
+          onOpenFavoriteRoute: (_) async {},
         ),
       ),
     );
@@ -10157,6 +10452,38 @@ void main() {
     }
   });
 
+  testWidgets('실제 Home 즐겨찾기 역 행은 즐겨찾기 상태의 역 상세 시트를 연다', (tester) async {
+    final favoriteRepository = FakeFavoriteStationRepository(
+      favorites: [_favoriteStation(id: 'station-sangnoksu', name: '상록수')],
+    );
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: favoriteRepository,
+        favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
+        favoriteRouteRepository: FakeFavoriteRouteRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _openSavedItemsScreen(tester);
+    await tester.tap(
+      find.byKey(const Key('favoriteHomeStationRow-station-sangnoksu')),
+    );
+    await tester.pumpAndSettle();
+
+    final detail = tester.widget<StationDetailScreen>(
+      find.byType(StationDetailScreen),
+    );
+    expect(detail.stationId, 'station-sangnoksu');
+    expect(detail.initiallyFavorite, isTrue);
+    expect(detail.routeDraftController, isNotNull);
+    expect(detail.onOpenFacilityReport, isNotNull);
+    expect(find.byKey(const Key('stationDetailSheet')), findsOneWidget);
+  });
+
   testWidgets('홈 즐겨찾기 시설은 즐겨찾기한 시설을 큰 목록으로 보여준다', (tester) async {
     final semanticsHandle = tester.ensureSemantics();
     final favoriteFacilityRepository = FakeFavoriteFacilityRepository(
@@ -10244,6 +10571,62 @@ void main() {
     expect(locationProvider.requestCount, 0);
     expect(find.text('현재 위치 사용'), findsOneWidget);
     expect(find.text('가까운 역 찾기와 시설 제보 위치 확인에만 현재 위치를 사용합니다.'), findsOneWidget);
+  });
+
+  testWidgets('실제 Home 즐겨찾기 시설 제보는 위치 identity와 typed 실패를 보존한다', (
+    tester,
+  ) async {
+    var locationCalls = 0;
+    final locationProvider = FakeCurrentLocationProvider(
+      locationLoader: () async {
+        locationCalls++;
+        if (locationCalls == 1) {
+          return _freshCurrentLocation();
+        }
+        throw const CurrentLocationException('현재 위치를 확인하지 못했어요.');
+      },
+    );
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        favoriteFacilityRepository: FakeFavoriteFacilityRepository(
+          favorites: [_favoriteFacility()],
+        ),
+        favoriteRouteRepository: FakeFavoriteRouteRepository(),
+        locationProvider: locationProvider,
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _openSavedItemsScreen(tester);
+    await tester.tap(
+      find.byKey(
+        const Key('favoriteFacilityReportButton-facility-sangnoksu-elevator-1'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final reportScreen = tester.widget<FacilityReportScreen>(
+      find.byType(FacilityReportScreen),
+    );
+    expect(reportScreen.target.stationId, 'station-sangnoksu');
+    expect(reportScreen.target.facilityId, 'facility-sangnoksu-elevator-1');
+    final location = await reportScreen.locationLoader!();
+    expect(location.latitude, _freshCurrentLocation().latitude);
+    expect(location.longitude, _freshCurrentLocation().longitude);
+    await expectLater(
+      reportScreen.locationLoader!(),
+      throwsA(
+        isA<FacilityReportLocationException>().having(
+          (error) => error.message,
+          'message',
+          '현재 위치를 확인하지 못했어요.',
+        ),
+      ),
+    );
   });
 
   testWidgets('홈 즐겨찾기 경로는 즐겨찾기한 경로를 큰 목록으로 보여주고 삭제한다', (tester) async {
@@ -10358,10 +10741,106 @@ void main() {
     expect(searchAgainMobilityType, 'WHEELCHAIR');
   });
 
-  testWidgets('즐겨찾기 ITX 경로 다시 찾기는 저장된 transport scope로 연다', (tester) async {
+  testWidgets('알 수 없는 저장 이동 조건은 Journey V3 재검색을 시작하지 않는다', (tester) async {
+    final routeDraftController = RouteDraftController();
+    var searchCount = 0;
+
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
+        favoriteRouteRepository: FakeFavoriteRouteRepository(
+          favorites: [_favoriteRoute(mobilityType: 'UNKNOWN_PROFILE')],
+        ),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+
+    await _openFavoriteList(
+      tester,
+      routeDraftController: routeDraftController,
+      onOpenRouteSearch: (_, _) async {
+        searchCount++;
+      },
+    );
+    await tester.tap(find.text('상록수역 → 사당역'));
+    await tester.pumpAndSettle();
+
+    expect(searchCount, 0);
+    expect(routeDraftController.draft, const RouteDraft.empty());
+  });
+
+  testWidgets('알 수 없는 저장 이동 조건도 보조기기 삭제 동작으로 제거할 수 있다', (tester) async {
+    final semanticsHandle = tester.ensureSemantics();
+    final routeDraftController = RouteDraftController();
+    final favoriteRouteRepository = FakeFavoriteRouteRepository(
+      favorites: [_favoriteRoute(mobilityType: 'UNKNOWN_PROFILE')],
+    );
+    var searchCount = 0;
+
+    try {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: FakeStationSearchRepository(),
+          reportRepository: FakeFacilityReportRepository(),
+          favoriteRepository: FakeFavoriteStationRepository(),
+          favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
+          favoriteRouteRepository: favoriteRouteRepository,
+          notificationRepository: FakeNotificationSettingsRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+
+      await _openFavoriteList(
+        tester,
+        routeDraftController: routeDraftController,
+        onOpenRouteSearch: (_, _) async {
+          searchCount++;
+        },
+      );
+
+      final deleteAction = find.bySemanticsLabel('즐겨찾기 경로 삭제');
+      expect(deleteAction, findsOneWidget);
+      expect(
+        tester
+            .getSemantics(deleteAction)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+
+      tester.semantics.tap(find.semantics.byLabel('즐겨찾기 경로 삭제'));
+      await tester.pumpAndSettle();
+
+      expect(favoriteRouteRepository.removedFavoriteRouteIds, ['route-1']);
+      expect(searchCount, 0);
+      expect(routeDraftController.draft, const RouteDraft.empty());
+    } finally {
+      semanticsHandle.dispose();
+    }
+  });
+
+  test('지원되는 대표 이동 유형은 Journey V3 재검색 대상으로 유지한다', () {
+    for (final mobilityType in [
+      'STANDARD',
+      'SENIOR',
+      'LUGGAGE',
+      'WHEELCHAIR',
+    ]) {
+      expect(_favoriteRoute(mobilityType: mobilityType).canReSearch, isTrue);
+    }
+  });
+
+  testWidgets('즐겨찾기 재검색은 legacy transport scope를 Journey V3에 전달하지 않는다', (
+    tester,
+  ) async {
     final favoriteRouteRepository = FakeFavoriteRouteRepository(
       favorites: [
         _favoriteRoute(
+          mobilityType: 'WHEELCHAIR',
           transportScope: RouteTransportScope.subwayAndItxCheongchun,
         ),
       ],
@@ -10370,7 +10849,7 @@ void main() {
     routeDraftController.setWaypoint(
       const RouteDraftStation(id: 'station-old-waypoint', nameKo: '기존 경유역'),
     );
-    RouteTransportScope? restoredTransportScope;
+    String? restoredMobilityType;
     RouteDraft? restoredDraft;
 
     await tester.pumpWidget(
@@ -10388,15 +10867,15 @@ void main() {
     await _openFavoriteList(
       tester,
       routeDraftController: routeDraftController,
-      onOpenRouteSearchWithScope: (draft, mobilityType, transportScope) async {
+      onOpenRouteSearch: (draft, mobilityType) async {
         restoredDraft = draft;
-        restoredTransportScope = transportScope;
+        restoredMobilityType = mobilityType;
       },
     );
     await tester.tap(find.text('상록수역 → 사당역'));
     await tester.pumpAndSettle();
 
-    expect(restoredTransportScope, RouteTransportScope.subwayAndItxCheongchun);
+    expect(restoredMobilityType, 'WHEELCHAIR');
     expect(restoredDraft?.origin?.id, 'station-sangnoksu');
     expect(restoredDraft?.destination?.id, 'station-sadang');
     expect(restoredDraft?.waypoint, isNull);
@@ -11873,6 +12352,67 @@ void main() {
     }
   });
 
+  testWidgets('역 상세 두 host는 시설 제보 callback 누락을 명시적 실패로 닫는다', (tester) async {
+    final repository = FakeStationSearchRepository(
+      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+      stationFacilities: const [
+        StationFacilityInfo(
+          id: 'facility-sangnoksu-elevator-1',
+          stationId: 'station-sangnoksu',
+          exitId: 'exit-sangnoksu-1',
+          type: 'ELEVATOR',
+          name: '1번 출구 엘리베이터',
+          floorFrom: 'B1',
+          floorTo: '1F',
+          description: '1번 출구 앞',
+          status: 'NORMAL',
+          dataConfidence: 'HIGH',
+          lastUpdatedAt: '2026-06-12',
+        ),
+      ],
+    );
+
+    Future<void> expectUnavailable(Widget host) async {
+      await tester.pumpWidget(MaterialApp(home: Scaffold(body: host)));
+      await tester.pumpAndSettle();
+      await tester.scrollUntilVisible(
+        find.byKey(
+          const Key('facilityReportButton-facility-sangnoksu-elevator-1'),
+        ),
+        120,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.ensureVisible(
+        find.byKey(
+          const Key('facilityReportButton-facility-sangnoksu-elevator-1'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(
+          const Key('facilityReportButton-facility-sangnoksu-elevator-1'),
+        ),
+      );
+      await tester.pump();
+      expect(find.text('시설 제보 화면을 열 수 없어요. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+    }
+
+    await expectUnavailable(
+      StationDetailScreen(
+        repository: repository,
+        reportRepository: FakeFacilityReportRepository(),
+        stationId: 'station-sangnoksu',
+      ),
+    );
+    await expectUnavailable(
+      StationDetailExpandHost(
+        repository: repository,
+        reportRepository: FakeFacilityReportRepository(),
+        stationId: 'station-sangnoksu',
+      ),
+    );
+  });
+
   testWidgets('역 상세는 태블릿 landscape에서 요약과 시설 정보를 나란히 보여준다', (tester) async {
     tester.view.physicalSize = const Size(1280, 800);
     tester.view.devicePixelRatio = 1;
@@ -12321,80 +12861,6 @@ void main() {
     }
   });
 
-  testWidgets('확장 역 상세는 늦은 이전 역 내부 이동 응답을 현재 역에 적용하지 않는다', (tester) async {
-    final internalRouteRepository = ControlledStationInternalRouteRepository();
-    final stationRepository = FakeStationSearchRepository(
-      stationDetails: {
-        'station-sangnoksu': _stationDetail(
-          id: 'station-sangnoksu',
-          name: '상록수',
-        ),
-        'station-sadang': _stationDetail(id: 'station-sadang', name: '사당'),
-      },
-    );
-
-    Widget host(String stationId) {
-      return MaterialApp(
-        home: StationDetailExpandHost(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          stationId: stationId,
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: 'WHEELCHAIR',
-        ),
-      );
-    }
-
-    await tester.pumpWidget(host('station-sangnoksu'));
-    await tester.pumpWidget(host('station-sadang'));
-
-    internalRouteRepository.completeNodes('station-sadang');
-    await tester.pump();
-    await tester.pump();
-    expect(
-      internalRouteRepository.requests.map((request) => request.stationId),
-      ['station-sadang'],
-    );
-
-    internalRouteRepository.completeNodes('station-sangnoksu');
-    await tester.pump();
-    await tester.pump();
-
-    expect(
-      internalRouteRepository.requests.map((request) => request.stationId),
-      ['station-sadang'],
-    );
-  });
-
-  testWidgets('확장 역 상세는 주입된 내부 이동 요청을 즉시 전달한다', (tester) async {
-    const request = InternalRouteRequest(
-      stationId: 'station-sangnoksu',
-      fromNodeId: 'node-sangnoksu-elevator-1',
-      toNodeId: 'node-sangnoksu-faregate',
-      mobilityType: 'WHEELCHAIR',
-    );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      result: _internalRouteResult(),
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: StationDetailExpandHost(
-          repository: FakeStationSearchRepository(
-            stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-          ),
-          reportRepository: FakeFacilityReportRepository(),
-          stationId: 'station-sangnoksu',
-          internalRouteRepository: internalRouteRepository,
-          internalRouteRequest: request,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(internalRouteRepository.requests, [request]);
-  });
-
   testWidgets('역 상세 광고는 성공 content 최하단에 station placement로 배선된다', (
     tester,
   ) async {
@@ -12406,7 +12872,7 @@ void main() {
             stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
           ),
           reportRepository: FakeFacilityReportRepository(),
-          adRepository: adRepository,
+          bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
           stationId: 'station-sangnoksu',
         ),
       ),
@@ -12479,6 +12945,7 @@ void main() {
         MaterialApp(
           home: StationDetailScreen(
             repository: repository,
+            timetableRepository: repository,
             reportRepository: FakeFacilityReportRepository(),
             stationId: 'station-sangnoksu',
           ),
@@ -12667,6 +13134,7 @@ void main() {
         MaterialApp(
           home: StationDetailScreen(
             repository: repository,
+            timetableRepository: repository,
             reportRepository: FakeFacilityReportRepository(),
             stationId: 'station-sadang',
           ),
@@ -12685,6 +13153,300 @@ void main() {
     } finally {
       debugStationVerifiedClock = DateTime.now;
     }
+  });
+
+  testWidgets('역 시간표는 empty·typed·generic server failure를 이전 결과 없이 비운다', (
+    tester,
+  ) async {
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '433',
+    );
+    final empty = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final typed = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      unavailableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final generic = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      timetableError: StateError('server failed'),
+      timetables: const {},
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationTimetableScreen(
+          stationId: 'station-sadang',
+          stationName: '사당',
+          lines: const [line],
+          repository: empty,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationTimetableScreen(
+          stationId: 'station-sadang',
+          stationName: '사당',
+          lines: const [line],
+          repository: typed,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
+    await tester.pumpAndSettle();
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-sadang',
+            stationName: '사당',
+            lines: const [line],
+            repository: generic,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+    expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+    expect(reportedErrors, hasLength(1));
+  });
+
+  testWidgets('시간표 운행일 변경은 사라진 방향 선택을 새 첫 방향으로 초기화한다', (tester) async {
+    debugStationVerifiedClock = () => DateTime(2026, 7, 6);
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '433',
+    );
+    final repository = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(id: 'station-sadang', name: '사당'),
+      timetableLineId: 'seoul-4',
+      timetables: {
+        StationTimetableDayType.weekday: _stationTimetable(
+          StationTimetableDayType.weekday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [
+            StationTimetableDirection(
+              name: '상행',
+              departures: [
+                StationTimetableDeparture(directionName: '상행', seconds: 36000),
+              ],
+            ),
+            StationTimetableDirection(
+              name: '하행',
+              departures: [
+                StationTimetableDeparture(directionName: '하행', seconds: 36100),
+              ],
+            ),
+          ],
+        ),
+        StationTimetableDayType.saturday: _stationTimetable(
+          StationTimetableDayType.saturday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [
+            StationTimetableDirection(
+              name: '주말 상행',
+              departures: [
+                StationTimetableDeparture(
+                  directionName: '주말 상행',
+                  seconds: 36000,
+                ),
+              ],
+            ),
+          ],
+        ),
+        StationTimetableDayType.sundayHoliday: _stationTimetable(
+          StationTimetableDayType.sundayHoliday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [
+            StationTimetableDirection(
+              name: '하행',
+              departures: [
+                StationTimetableDeparture(directionName: '하행', seconds: 36200),
+              ],
+            ),
+          ],
+        ),
+      },
+    );
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-sadang',
+            stationName: '사당',
+            lines: const [line],
+            repository: repository,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('stationTimetableDirection-하행')));
+      await tester.tap(
+        find.byKey(const Key('stationTimetableDay-sundayHoliday')),
+      );
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const Key('stationTimetableDirection-하행')),
+            )
+            .selected,
+        isTrue,
+      );
+      await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<ChoiceChip>(
+              find.byKey(const Key('stationTimetableDirection-주말 상행')),
+            )
+            .selected,
+        isTrue,
+      );
+    } finally {
+      debugStationVerifiedClock = DateTime.now;
+    }
+  });
+
+  testWidgets('역 상세 시간표 summary는 empty·typed·generic failure를 명시적으로 표시한다', (
+    tester,
+  ) async {
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '433',
+    );
+    final empty = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: const [line],
+      ),
+      timetableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final typed = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: const [line],
+      ),
+      timetableLineId: 'seoul-4',
+      unavailableLineId: 'seoul-4',
+      timetables: const {},
+    );
+    final generic = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: const [line],
+      ),
+      timetableLineId: 'seoul-4',
+      timetableError: StateError('server failed'),
+      timetables: const {},
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    for (final repository in [empty, typed, generic]) {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpAndSettle();
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StationDetailScreen(
+              repository: repository,
+              timetableRepository: repository,
+              reportRepository: FakeFacilityReportRepository(),
+              stationId: 'station-sadang',
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+      });
+      expect(find.text('시간표를 확인할 수 없어요.'), findsOneWidget);
+    }
+    expect(reportedErrors, hasLength(1));
+  });
+
+  testWidgets('서버 시간표 실패는 다음 환승 노선을 재호출하지 않는다', (tester) async {
+    const lines = [
+      StationSearchLine(
+        id: 'seoul-2',
+        name: '수도권 2호선',
+        color: '#00A84D',
+        stationCode: '226',
+      ),
+      StationSearchLine(
+        id: 'seoul-4',
+        name: '수도권 4호선',
+        color: '#00A5DE',
+        stationCode: '433',
+      ),
+    ];
+    final repository = FakeTimetableStationRepository(
+      stationDetail: _stationDetail(
+        id: 'station-sadang',
+        name: '사당',
+        lines: lines,
+      ),
+      timetableLineId: 'seoul-4',
+      unavailableLineId: 'seoul-2',
+      timetables: {
+        StationTimetableDayType.weekday: _stationTimetable(
+          StationTimetableDayType.weekday,
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          directions: const [],
+        ),
+      },
+    );
+    final reportedErrors = <FlutterErrorDetails>[];
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationDetailScreen(
+            repository: repository,
+            timetableRepository: repository,
+            reportRepository: FakeFacilityReportRepository(),
+            stationId: 'station-sadang',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    expect(repository.requestedLineIds, ['seoul-2']);
+    expect(reportedErrors, isEmpty);
   });
 
   testWidgets('역 상세는 좌표 있는 출구에만 카카오맵 버튼을 보여준다', (tester) async {
@@ -13051,117 +13813,29 @@ void main() {
     expect(mapLauncher.routeTargets, isEmpty);
   });
 
-  testWidgets('역 상세는 주입된 내부 이동 경로를 쉬운 단계 안내로 보여준다', (tester) async {
+  testWidgets('역 상세는 내부 이동 안내 없이 역 정보와 즐겨찾기 조작을 유지한다', (tester) async {
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
     );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      result: _internalRouteResult(),
-    );
-
     await tester.pumpWidget(
       MaterialApp(
         home: StationDetailScreen(
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
           stationId: 'station-sangnoksu',
-          internalRouteRepository: internalRouteRepository,
-          internalRouteRequest: const InternalRouteRequest(
-            stationId: 'station-sangnoksu',
-            fromNodeId: 'node-sangnoksu-elevator-1',
-            toNodeId: 'node-sangnoksu-faregate',
-            mobilityType: 'WHEELCHAIR',
-          ),
+          favoriteRepository: FakeFavoriteStationRepository(),
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    expect(internalRouteRepository.requests, hasLength(1));
-    await tester.scrollUntilVisible(find.text('역 안 이동'), 500);
-    await tester.pumpAndSettle();
-    expect(find.text('역 안 이동'), findsOneWidget);
-    await tester.scrollUntilVisible(find.text('역 안 이동 경로를 찾았어요'), 500);
-    await tester.pumpAndSettle();
-    expect(find.text('역 안 이동 경로를 찾았어요'), findsOneWidget);
-    expect(find.text('1번 출구 엘리베이터에서 개찰구까지'), findsWidgets);
-    expect(find.text('약 1분 15초 · 28m'), findsOneWidget);
-    expect(find.text('엘리베이터에서 개찰구까지 이동합니다.'), findsOneWidget);
-    expect(find.text('약 1분 15초 · 28m · 엘리베이터를 이용해요'), findsOneWidget);
-    expect(find.text('내부 이동 경로를 찾았습니다'), findsNothing);
-    expect(find.text('현장 검증 전'), findsNothing);
-    expect(find.text('엘리베이터 필요'), findsNothing);
+    expect(find.textContaining('상록수'), findsWidgets);
     expect(
-      find.bySemanticsLabel(
-        '역 안 이동 순서, 역 안 이동 경로를 찾았어요, 1번 출구 엘리베이터에서 개찰구까지, 약 1분 15초 · 28m, 이동 단계 1번 역 안 이동, 1번 출구 엘리베이터에서 개찰구까지, 약 1분 15초 · 28m · 엘리베이터를 이용해요, 엘리베이터에서 개찰구까지 이동합니다.',
-      ),
+      find.byKey(const Key('stationFavoriteToggleButton')),
       findsOneWidget,
     );
-  });
-
-  testWidgets('역 상세는 내부 이동 노드로 기본 안내를 표시한다', (tester) async {
-    final stationRepository = FakeStationSearchRepository(
-      nextResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
-      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-    );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      nodes: _internalRouteNodes(),
-      result: _internalRouteResult(),
-    );
-
-    await _pumpStationDetailForTest(
-      tester,
-      repository: stationRepository,
-      reportRepository: FakeFacilityReportRepository(),
-      internalRouteRepository: internalRouteRepository,
-      internalRouteMobilityType: 'WHEELCHAIR',
-    );
-
-    expect(internalRouteRepository.nodeStationIds, ['station-sangnoksu']);
-    expect(internalRouteRepository.requests, hasLength(1));
-    expect(
-      internalRouteRepository.requests.single.fromNodeId,
-      'node-sangnoksu-elevator-1',
-    );
-    expect(
-      internalRouteRepository.requests.single.toNodeId,
-      'node-sangnoksu-faregate',
-    );
-    expect(internalRouteRepository.requests.single.mobilityType, 'WHEELCHAIR');
-    await tester.scrollUntilVisible(find.text('역 안 이동'), 500);
-    await tester.pumpAndSettle();
-    expect(find.text('역 안 이동'), findsOneWidget);
-    expect(find.text('역 안 이동 경로를 찾았어요'), findsOneWidget);
-    expect(find.text('내부 이동 경로를 찾았습니다'), findsNothing);
-  });
-
-  testWidgets('역 상세는 역 안 이동 정보가 없으면 관련 안내를 숨긴다', (tester) async {
-    final stationRepository = FakeStationSearchRepository(
-      stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-    );
-    final internalRouteRepository = FakeInternalRouteRepository(
-      nodes: const [],
-      result: _internalRouteResult(),
-    );
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: StationDetailScreen(
-          repository: stationRepository,
-          reportRepository: FakeFacilityReportRepository(),
-          stationId: 'station-sangnoksu',
-          internalRouteRepository: internalRouteRepository,
-          internalRouteMobilityType: 'WHEELCHAIR',
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(internalRouteRepository.nodeStationIds, ['station-sangnoksu']);
-    // 데이터가 없으면 사과 문구 대신 역 안 이동 안내를 통째로 숨긴다(#1577).
-    expect(find.text('역 안 길 안내에 필요한 정보를 찾지 못했어요.'), findsNothing);
     expect(find.text('역 안 이동'), findsNothing);
-    expect(find.textContaining('기준점'), findsNothing);
+    expect(find.text('역 안 이동 경로를 찾았어요'), findsNothing);
   });
 
   testWidgets('역 상세는 현재 역을 즐겨찾기에 저장하고 해제한다', (tester) async {
@@ -15632,69 +16306,6 @@ NetworkMapData _unifiedRouteMapData() {
   );
 }
 
-InternalRouteResult _internalRouteResult({
-  String status = 'FOUND',
-  List<String> blockedReasons = const [],
-}) {
-  return InternalRouteResult(
-    stationId: 'station-sangnoksu',
-    stationName: '상록수',
-    fromNodeId: 'node-sangnoksu-elevator-1',
-    fromNodeName: '1번 출구 엘리베이터',
-    toNodeId: 'node-sangnoksu-faregate',
-    toNodeName: '개찰구',
-    mobilityType: 'WHEELCHAIR',
-    status: status,
-    totalDistanceMeters: status == 'FOUND' ? 28 : 0,
-    totalEstimatedSeconds: status == 'FOUND' ? 75 : 0,
-    steps: status == 'FOUND'
-        ? const [
-            InternalRouteStep(
-              sequence: 1,
-              edgeId: 'edge-sangnoksu-elevator-to-faregate',
-              fromNodeId: 'node-sangnoksu-elevator-1',
-              fromNodeName: '1번 출구 엘리베이터',
-              toNodeId: 'node-sangnoksu-faregate',
-              toNodeName: '개찰구',
-              edgeType: 'WALK',
-              distanceMeters: 28,
-              estimatedSeconds: 75,
-              includesStairs: false,
-              requiresElevator: true,
-              requiresEscalator: false,
-              slopeLevel: 1,
-              widthLevel: 2,
-              reliabilityScore: 92,
-              guidance: '엘리베이터에서 개찰구까지 이동합니다.',
-            ),
-          ]
-        : const [],
-    warnings: const [],
-    blockedReasons: blockedReasons,
-  );
-}
-
-List<InternalRouteNode> _internalRouteNodes() {
-  return const [
-    InternalRouteNode(
-      id: 'node-sangnoksu-elevator-1',
-      stationId: 'station-sangnoksu',
-      type: 'ELEVATOR',
-      name: '1번 출구 엘리베이터',
-      facilityId: 'facility-sangnoksu-elevator-1',
-      displayLabel: '1번 출구 승강기',
-    ),
-    InternalRouteNode(
-      id: 'node-sangnoksu-faregate',
-      stationId: 'station-sangnoksu',
-      type: 'FAREGATE',
-      name: '개찰구',
-      facilityId: '',
-      displayLabel: '개찰구',
-    ),
-  ];
-}
-
 class FakeStationSearchRepository
     implements
         StationSearchRepository,
@@ -16005,10 +16616,14 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     super.networkMapRegionNames,
     required this.timetables,
     this.timetableLineId = 'seoul-2',
+    this.unavailableLineId,
+    this.timetableError,
   });
 
   final Map<StationTimetableDayType, StationTimetable> timetables;
   final String timetableLineId;
+  final String? unavailableLineId;
+  final Object? timetableError;
   final requestedDayTypes = <StationTimetableDayType>[];
 
   @override
@@ -16019,6 +16634,13 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     required DateTime referenceDate,
   }) async {
     requestedDayTypes.add(dayType);
+    requestedLineIds.add(lineId);
+    if (timetableError != null) {
+      throw timetableError!;
+    }
+    if (lineId == unavailableLineId) {
+      throw const StationTimetableUnavailable('server unavailable');
+    }
     if (lineId != timetableLineId) {
       return StationTimetable(
         stationId: stationId,
@@ -16054,6 +16676,18 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
       referenceDate: date,
     );
   }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => loadStationTimetableForDate(
+    stationId: stationId,
+    lineId: lineId,
+    date: asOf,
+  );
 }
 
 /// #2453: 로컬 시간표 Future를 완료하지 않아 패널 첫 프레임 골격을 검증한다.
@@ -16099,6 +16733,14 @@ class _HangingTimetableStationRepository extends FakeStationSearchRepository
       referenceDate: date,
     );
   }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => completer.future;
 }
 
 class FakeSearchHistoryRepository implements SearchHistoryRepository {
@@ -16174,86 +16816,6 @@ class FakeSearchHistoryRepository implements SearchHistoryRepository {
   Future<void> clearSearches() async {
     clearCount++;
     queries.clear();
-  }
-}
-
-class FakeInternalRouteRepository implements InternalRouteRepository {
-  FakeInternalRouteRepository({
-    required this.result,
-    this.nodes = const [],
-    this.error,
-  });
-
-  final InternalRouteResult result;
-  final List<InternalRouteNode> nodes;
-  final InternalRouteException? error;
-  final nodeStationIds = <String>[];
-  final requests = <InternalRouteRequest>[];
-
-  @override
-  Future<List<InternalRouteNode>> listRouteNodes(String stationId) async {
-    nodeStationIds.add(stationId);
-    final routeError = error;
-    if (routeError != null) {
-      throw routeError;
-    }
-    return nodes;
-  }
-
-  @override
-  Future<InternalRouteResult> searchInternalRoute(
-    InternalRouteRequest request,
-  ) async {
-    requests.add(request);
-    final routeError = error;
-    if (routeError != null) {
-      throw routeError;
-    }
-    return result;
-  }
-}
-
-class ControlledStationInternalRouteRepository
-    implements InternalRouteRepository {
-  final _nodeCompleters = <String, Completer<List<InternalRouteNode>>>{};
-  final nodeStationIds = <String>[];
-  final requests = <InternalRouteRequest>[];
-
-  @override
-  Future<List<InternalRouteNode>> listRouteNodes(String stationId) {
-    nodeStationIds.add(stationId);
-    return _nodeCompleters
-        .putIfAbsent(stationId, Completer<List<InternalRouteNode>>.new)
-        .future;
-  }
-
-  @override
-  Future<InternalRouteResult> searchInternalRoute(
-    InternalRouteRequest request,
-  ) async {
-    requests.add(request);
-    return _internalRouteResult();
-  }
-
-  void completeNodes(String stationId) {
-    _nodeCompleters[stationId]!.complete([
-      InternalRouteNode(
-        id: '$stationId-elevator',
-        stationId: stationId,
-        type: 'ELEVATOR',
-        name: '엘리베이터',
-        facilityId: '$stationId-facility',
-        displayLabel: '엘리베이터',
-      ),
-      InternalRouteNode(
-        id: '$stationId-faregate',
-        stationId: stationId,
-        type: 'FAREGATE',
-        name: '개찰구',
-        facilityId: '',
-        displayLabel: '개찰구',
-      ),
-    ]);
   }
 }
 
@@ -16387,20 +16949,6 @@ class _MemoryGetOffAlarmStateRepository implements GetOffAlarmStateRepository {
   @override
   Future<void> saveActive(GetOffAlarmSubscription subscription) async {
     _active = subscription;
-  }
-}
-
-class FakeRouteFeedbackRepository implements RouteFeedbackRepository {
-  final requests = <RouteFeedbackRequest>[];
-  Object? error;
-
-  @override
-  Future<void> submitRouteFeedback(RouteFeedbackRequest request) async {
-    requests.add(request);
-    final currentError = error;
-    if (currentError != null) {
-      throw currentError;
-    }
   }
 }
 
@@ -16674,7 +17222,6 @@ class FakeFavoriteRouteRepository implements FavoriteRouteRepository {
   List<FavoriteRoute> favorites;
   final Completer<void>? removeCompleter;
   int listCount = 0;
-  final savedRouteSearchIds = <String>[];
   final removedFavoriteRouteIds = <String>[];
   Object? error;
 
@@ -16686,21 +17233,6 @@ class FakeFavoriteRouteRepository implements FavoriteRouteRepository {
       throw currentError;
     }
     return favorites;
-  }
-
-  @override
-  Future<FavoriteRoute> saveFavoriteRoute(
-    String routeSearchId, {
-    RouteSearchResult? result,
-  }) async {
-    savedRouteSearchIds.add(routeSearchId);
-    final currentError = error;
-    if (currentError != null) {
-      throw currentError;
-    }
-    final favorite = _favoriteRoute();
-    favorites = [favorite];
-    return favorite;
   }
 
   @override
@@ -16862,26 +17394,6 @@ class RecordingSupportAccessLauncher implements SupportAccessLauncher {
   Future<bool> open(Uri uri) async {
     openedUris.add(uri);
     return openResult;
-  }
-}
-
-class ControlledRouteSearchRepository implements RouteSearchRepository {
-  final requests = <RouteSearchRequest>[];
-  final _completer = Completer<RouteSearchResult>();
-
-  @override
-  Future<RouteSearchResult> searchRoute(RouteSearchRequest request) {
-    requests.add(request);
-    return _completer.future;
-  }
-
-  @override
-  Future<RouteRefreshResult> refreshRoute(String routeSearchId) {
-    throw UnimplementedError();
-  }
-
-  void complete(RouteSearchResult result) {
-    _completer.complete(result);
   }
 }
 

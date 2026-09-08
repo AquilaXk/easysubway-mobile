@@ -223,6 +223,10 @@ test('Mobile CI pulls the locked OCI payload before stage, generation, drift, an
   assert.match(journeySteps, /version: 1\.3\.3/);
   assert.match(journeySteps, /oras pull "\$\{journey_contract_subject\}" --output "\$JOURNEY_PULL_ROOT"/);
   assert.match(journeySteps, /node tools\/mobile\/stage-journey-v3-contract\.mjs/);
+  assert.match(
+    journeySteps,
+    /--receipt tools\/mobile\/fixtures\/journey-v3-contract-v2\/journey-v3-contract-bundle-v2-receipt\.json/,
+  );
   assert.match(journeySteps, /node tools\/mobile\/generate-journey-v3-client\.mjs/);
   assert.doesNotMatch(journeySteps, /mobile-source-sha|GITHUB_SHA/);
   assert.equal((journeySteps.match(/node tools\/mobile\/verify-journey-v3-client-drift\.mjs/g) ?? []).length, 2);

@@ -7,37 +7,12 @@ import 'data/get_off_alarm_state_repository.dart';
 import 'exact_alarm_permission.dart';
 import 'get_off_alarm_notifier.dart';
 import 'get_off_alarm_policy.dart';
+import 'get_off_alarm_port.dart';
 import 'get_off_alarm_schedule_mode.dart';
 import 'get_off_alarm_scheduler.dart';
 import 'get_off_alarm_subscription.dart';
 
-/// 하차 알림의 현재 상태(화면 표시용).
-@immutable
-class GetOffAlarmState {
-  const GetOffAlarmState({
-    this.enabled = false,
-    this.activeRouteId,
-    this.activeJourneyIdentity,
-    this.scheduleMode,
-    this.inexactNotice,
-    this.permissionNotice,
-    this.scheduledCount = 0,
-  });
-
-  final bool enabled;
-  final String? activeRouteId;
-  final JourneyAlarmSubscriptionIdentity? activeJourneyIdentity;
-  final GetOffAlarmScheduleMode? scheduleMode;
-
-  /// 부정확 예약으로 강등됐을 때의 오차 고지 문구(없으면 null).
-  final String? inexactNotice;
-
-  /// 휴대전화 알림 권한이 거부됐을 때의 사용자 안내 문구(없으면 null).
-  final String? permissionNotice;
-  final int scheduledCount;
-
-  static const GetOffAlarmState off = GetOffAlarmState();
-}
+export 'get_off_alarm_port.dart' show GetOffAlarmPort, GetOffAlarmState;
 
 enum GetOffAlarmRefreshResult { refreshed, routeMismatch, skipped }
 
@@ -47,7 +22,7 @@ enum GetOffAlarmRefreshResult { refreshed, routeMismatch, skipped }
 /// 예약 어댑터([GetOffAlarmNotifier])·영속 저장([GetOffAlarmStateRepository])을
 /// 조합만 한다. 결과 화면의 진입점(#1704 타임라인)이 [enable]/[disable]을
 /// 호출하고, 포그라운드 복귀 시 [refresh]로 실시간 보정 재예약을 트리거한다.
-class GetOffAlarmController extends ChangeNotifier {
+class GetOffAlarmController extends ChangeNotifier implements GetOffAlarmPort {
   static const String notificationPermissionDeniedNotice =
       '휴대전화 알림 권한을 허용해 주세요.';
 
@@ -85,6 +60,7 @@ class GetOffAlarmController extends ChangeNotifier {
   Future<void> _mutationTail = Future<void>.value();
   bool _disposed = false;
 
+  @override
   GetOffAlarmState get state => _state;
 
   /// 앱 시작 시 영속 구독과 OS 알림 상태를 프롬프트 없이 다시 맞춘다.
@@ -238,6 +214,7 @@ class GetOffAlarmController extends ChangeNotifier {
   );
 
   /// Journey V3에서 선택한 exact identity와 함께 하차 알림을 켠다.
+  @override
   Future<void> enableJourney({
     required JourneyAlarmSubscriptionIdentity identity,
     required List<GetOffAlarmStop> stops,
@@ -393,10 +370,12 @@ class GetOffAlarmController extends ChangeNotifier {
 
   /// 하차 알림을 끈다: 예약을 취소하고 영속 상태를 지운다. 경로 안내 종료·새
   /// 경로 탐색 시 호출한다.
+  @override
   Future<void> disable() => _enqueueMutation(_disable);
 
   /// 비동기 Journey enable이 낡아진 뒤 해당 identity가 여전히 active일 때만
   /// 보상 해제한다. 뒤이어 활성화된 다른 Journey는 건드리지 않는다.
+  @override
   Future<void> disableJourneyIfActive(
     JourneyAlarmSubscriptionIdentity identity,
   ) => _enqueueMutation(() async {

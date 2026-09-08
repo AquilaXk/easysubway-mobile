@@ -12,7 +12,6 @@ const resourcePaths = [
   'contracts/api/journey-v3-session-integrity.json',
   'contracts/api/journey-v3.openapi.yaml',
 ];
-const publishedPublicationReceiptSha256 = 'f514dc7a3f5374133682b29457c82bf51dba1a05991a35af29081848d2fb2b20';
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`stage-journey-v3-contract: ${message}`); };
 
@@ -110,6 +109,22 @@ function validatePayload(payload, lock, bytes) {
   });
 }
 
+function validatePublicationReceipt(receipt, lock, bytes) {
+  exactKeys(receipt, ['schemaVersion', 'component', 'bundleVersion', 'producer', 'artifact', 'payload'], 'publication receipt');
+  exactKeys(receipt.producer, ['repository', 'gitSha'], 'publication receipt.producer');
+  exactKeys(receipt.artifact, ['repository', 'manifestDigest', 'artifactType'], 'publication receipt.artifact');
+  exactKeys(receipt.payload, ['fileName', 'mediaType', 'sha256'], 'publication receipt.payload');
+  if (sha256(bytes) !== lock.publicationReceiptSha256
+    || receipt.schemaVersion !== 1
+    || receipt.component !== lock.component
+    || receipt.bundleVersion !== lock.bundleVersion
+    || JSON.stringify(receipt.producer) !== JSON.stringify(lock.producer)
+    || JSON.stringify(receipt.artifact) !== JSON.stringify(lock.artifact)
+    || JSON.stringify(receipt.payload) !== JSON.stringify(lock.payload)) {
+    fail('publication receipt does not match lock identity');
+  }
+}
+
 function prepareOutput(output, allowedBuildRoot) {
   if (!isAbsolute(output)) fail('output must be absolute');
   const resolvedBuildRoot = resolve(allowedBuildRoot); const resolved = resolve(output); const fromBuild = relative(resolvedBuildRoot, resolved);
@@ -122,16 +137,17 @@ function prepareOutput(output, allowedBuildRoot) {
 }
 
 function parseArguments(argv) {
-  if (argv.length !== 6 || argv[0] !== '--lock' || argv[2] !== '--input' || argv[4] !== '--output') fail('usage is --lock <lock> --input <payload> --output <absent-directory-below-build>');
-  return { lock: argv[1], input: argv[3], output: argv[5] };
+  if (argv.length !== 8 || argv[0] !== '--lock' || argv[2] !== '--input' || argv[4] !== '--receipt' || argv[6] !== '--output') fail('usage is --lock <lock> --input <payload> --receipt <publication-receipt> --output <absent-directory-below-build>');
+  return { lock: argv[1], input: argv[3], receipt: argv[5], output: argv[7] };
 }
 
-function stage({ lockPath, inputPath, outputPath, enforceTrackedLock, allowedBuildRoot = buildRoot, expectedPublicationReceiptSha256 = publishedPublicationReceiptSha256 }) {
+function stage({ lockPath, inputPath, receiptPath, outputPath, enforceTrackedLock, allowedBuildRoot = buildRoot }) {
   if (enforceTrackedLock && resolve(lockPath) !== trackedLockPath) fail('lock must be the tracked journey-v3-client lock');
   const lockBytes = readRegular(lockPath, 'lock');
   const inputBytes = readRegular(inputPath, 'input');
+  const publicationReceiptBytes = readRegular(receiptPath, 'publication receipt');
   const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock);
-  if (expectedPublicationReceiptSha256 !== undefined && lock.publicationReceiptSha256 !== expectedPublicationReceiptSha256) fail('lock publication receipt SHA-256 does not match the expected receipt');
+  validatePublicationReceipt(duplicateFreeJson(publicationReceiptBytes.toString('utf8'), 'publication receipt'), lock, publicationReceiptBytes);
   if (basename(inputPath) !== lock.payload.fileName) fail('input file name does not match locked payload');
   const resources = validatePayload(duplicateFreeJson(inputBytes.toString('utf8'), 'payload'), lock, inputBytes);
   const output = prepareOutput(outputPath, allowedBuildRoot);
@@ -147,7 +163,7 @@ export function stageJourneyV3ContractForTest(options) { return stage({ ...optio
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) try {
   const arguments_ = parseArguments(process.argv.slice(2));
-  stage({ lockPath: arguments_.lock, inputPath: arguments_.input, outputPath: arguments_.output, enforceTrackedLock: true });
+  stage({ lockPath: arguments_.lock, inputPath: arguments_.input, receiptPath: arguments_.receipt, outputPath: arguments_.output, enforceTrackedLock: true });
 } catch (error) {
   process.stderr.write(`${error.message}\n`); process.exitCode = 1;
 }

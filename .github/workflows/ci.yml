@@ -60,6 +60,7 @@ jobs:
           node tools/mobile/stage-journey-v3-contract.mjs \
             --lock contracts/mobile/journey-v3-client.lock.json \
             --input "$JOURNEY_PULL_ROOT/journey-v3-contract-bundle-v2.json" \
+            --receipt tools/mobile/fixtures/journey-v3-contract-v2/journey-v3-contract-bundle-v2-receipt.json \
             --output "$JOURNEY_STAGE_ROOT"
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
@@ -203,6 +204,7 @@ jobs:
           node --test \
             tools/ci/check-google-play-api-access.test.mjs \
             tools/ci/filter-mobile-lcov.test.mjs \
+            tools/ci/mobile-cross-feature-boundary-ratchet.test.mjs \
             tools/ci/mobile-coverage-ratchet.test.mjs \
             tools/ci/lib/google-play-auth.test.mjs \
             tools/ci/mobile-changed-path-classifier.test.mjs \
@@ -212,11 +214,13 @@ jobs:
             tools/mobile/automerge-queue.test.mjs \
             tools/mobile/check-android-aab-16kb-page-size.test.mjs \
             tools/mobile/datapack-contract.test.mjs \
+            tools/mobile/play-installed-release-contract.test.mjs \
             tools/mobile/release-contract-reference-integrity.test.mjs \
             tools/mobile/stage-generic-mobile-consumer-bundle.test.mjs \
             tools/mobile/store-release-preflight.test.mjs \
             tools/mobile/status-voice-inventory.test.mjs \
             tools/release/hash-android-bundle-payload.test.mjs
+          node tools/ci/mobile-cross-feature-boundary-ratchet.mjs
           node tools/ci/audit-mobile-datapack-assets.mjs \
             --index apps/mobile/assets/datapacks/index.json \
             --root apps/mobile

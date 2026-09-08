@@ -5,16 +5,11 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
-import '../../facility_report/presentation/facility_report_screen.dart';
-import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../ads/active_ad_banner.dart';
-import '../../ads/ad_repository.dart';
-import '../../facility_report/domain/facility_report_location.dart';
-import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
+import '../../route_draft/domain/route_draft.dart';
+import '../data/server_station_timetable_repository.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
@@ -24,7 +19,6 @@ import 'station_exit_section.dart';
 import 'station_facility_card.dart';
 import 'station_facility_status_summary.dart';
 import 'station_info_basis_disclosure.dart';
-import 'station_internal_route_guidance.dart';
 import 'station_layout_summary.dart';
 import 'station_line_badges.dart';
 import 'station_realtime_summary.dart';
@@ -51,14 +45,12 @@ class StationDetailBody extends StatelessWidget {
   const StationDetailBody({
     required this.state,
     required this.onRetryRealtime,
-    required this.reportRepository,
-    this.internalRouteState,
+    required this.onOpenFacilityReport,
     this.favoriteController,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.routeDraftController,
     this.locationProvider,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
-    this.facilityReportDraftTargetStore,
     this.timetableRepository,
     this.showContextChrome = false,
     this.showRealtimeSection = true,
@@ -72,14 +64,12 @@ class StationDetailBody extends StatelessWidget {
 
   final StationDetailState state;
   final VoidCallback onRetryRealtime;
-  final InternalRouteState? internalRouteState;
-  final FacilityReportRepository reportRepository;
+  final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
   final StationFavoriteToggleController? favoriteController;
-  final AdRepository? adRepository;
-  final RouteDraftController? routeDraftController;
+  final WidgetBuilder? bottomAdBuilder;
+  final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
-  final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final StationTimetableRepository? timetableRepository;
   final bool showContextChrome;
 
@@ -114,14 +104,12 @@ class StationDetailBody extends StatelessWidget {
         layoutSummarySemanticLabel: state.layoutSummarySemanticLabel,
         realtimeSnapshot: state.realtimeSnapshot,
         onRetryRealtime: onRetryRealtime,
-        internalRouteState: internalRouteState,
-        reportRepository: reportRepository,
+        onOpenFacilityReport: onOpenFacilityReport,
         favoriteController: favoriteController,
-        adRepository: adRepository,
+        bottomAdBuilder: bottomAdBuilder,
         routeDraftController: routeDraftController,
         locationProvider: locationProvider,
         mapLauncher: mapLauncher,
-        facilityReportDraftTargetStore: facilityReportDraftTargetStore,
         timetableRepository: timetableRepository,
         showContextChrome: showContextChrome,
         showRealtimeSection: showRealtimeSection,
@@ -169,14 +157,12 @@ class _StationDetailContent extends StatelessWidget {
     required this.layoutSummarySemanticLabel,
     required this.realtimeSnapshot,
     required this.onRetryRealtime,
-    required this.internalRouteState,
-    required this.reportRepository,
+    required this.onOpenFacilityReport,
     required this.favoriteController,
-    required this.adRepository,
+    required this.bottomAdBuilder,
     required this.routeDraftController,
     required this.locationProvider,
     required this.mapLauncher,
-    required this.facilityReportDraftTargetStore,
     required this.timetableRepository,
     required this.showContextChrome,
     required this.showRealtimeSection,
@@ -196,14 +182,12 @@ class _StationDetailContent extends StatelessWidget {
   final String layoutSummarySemanticLabel;
   final RealtimeSnapshot realtimeSnapshot;
   final VoidCallback onRetryRealtime;
-  final InternalRouteState? internalRouteState;
-  final FacilityReportRepository reportRepository;
+  final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
   final StationFavoriteToggleController? favoriteController;
-  final AdRepository? adRepository;
-  final RouteDraftController? routeDraftController;
+  final WidgetBuilder? bottomAdBuilder;
+  final RouteDraftPort? routeDraftController;
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
-  final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final StationTimetableRepository? timetableRepository;
   final bool showContextChrome;
   final bool showRealtimeSection;
@@ -248,11 +232,6 @@ class _StationDetailContent extends StatelessWidget {
       _StationTimetableEntry(detail: detail, repository: timetableRepository),
     ];
 
-    final internalRouteStateValue = internalRouteState;
-    final hasInternalRouteGuidance =
-        internalRouteStateValue != null &&
-        internalRouteStateValue.status != InternalRouteViewStatus.unavailable;
-
     final hasExits = exits.isNotEmpty;
     final hasFacilities =
         facilities.isNotEmpty || facilityAttentionSummary.isNotEmpty;
@@ -284,7 +263,7 @@ class _StationDetailContent extends StatelessWidget {
           StationFacilityCard(
             facility: facility,
             station: detail,
-            onReportTap: () => _openFacilityReport(context, facility),
+            onReportTap: () => _openFacilityReport(facility),
           ),
         const SizedBox(height: 12),
       ],
@@ -318,7 +297,7 @@ class _StationDetailContent extends StatelessWidget {
           height: 1.2,
         ),
       ),
-      if (layoutSummaryItems.isNotEmpty || hasInternalRouteGuidance) ...[
+      if (layoutSummaryItems.isNotEmpty) ...[
         const SizedBox(height: 16),
         const _StationDetailSectionTitle(title: '역 안 이동'),
         const SizedBox(height: 12),
@@ -327,10 +306,7 @@ class _StationDetailContent extends StatelessWidget {
             items: layoutSummaryItems,
             semanticLabel: layoutSummarySemanticLabel,
           ),
-          if (hasInternalRouteGuidance) const SizedBox(height: 16),
         ],
-        if (hasInternalRouteGuidance)
-          StationInternalRouteGuidance(state: internalRouteState!),
       ],
       const SizedBox(height: 16),
       StationInfoBasisDisclosure(
@@ -339,13 +315,9 @@ class _StationDetailContent extends StatelessWidget {
           '마지막 확인 ${stationVerifiedRelativeLabel(detail.lastVerifiedAt)}',
         ],
       ),
-      if (adRepository case final repository?) ...[
+      if (bottomAdBuilder case final builder?) ...[
         const SizedBox(height: 24),
-        ActiveAdBanner(
-          key: const Key('stationDetailBottomAdBanner'),
-          repository: repository,
-          placement: AdPlacement.stationDetailBottom,
-        ),
+        builder(context),
       ],
     ];
 
@@ -377,64 +349,19 @@ class _StationDetailContent extends StatelessWidget {
     );
   }
 
-  void _openFacilityReport(BuildContext context, StationFacilityInfo facility) {
+  void _openFacilityReport(StationFacilityInfo facility) {
     unawaited(
-      Navigator.of(context).push(
-        MaterialPageRoute<void>(
-          builder: (_) => FacilityReportScreen(
-            repository: reportRepository,
-            locationLoader: _locationLoader(),
-            needsLocationPermissionRequest: _locationPermissionRequestChecker(),
-            openLocationSettings: _locationSettingsOpener(),
-            draftTargetStore: facilityReportDraftTargetStore,
-            target: FacilityReportTarget(
-              stationId: detail.id,
-              stationName: detail.nameKo,
-              facilityId: facility.id,
-              facilityName: facility.name,
-              facilityTypeLabel: facility.typeLabel,
-              facilityStatusLabel: facility.statusLabel,
-            ),
-          ),
+      onOpenFacilityReport(
+        FacilityReportTarget(
+          stationId: detail.id,
+          stationName: detail.nameKo,
+          facilityId: facility.id,
+          facilityName: facility.name,
+          facilityTypeLabel: facility.typeLabel,
+          facilityStatusLabel: facility.statusLabel,
         ),
       ),
     );
-  }
-
-  FacilityReportLocationLoader? _locationLoader() {
-    final provider = locationProvider;
-    if (provider == null) {
-      return null;
-    }
-    return () async {
-      final CurrentLocation location;
-      try {
-        location = await provider.currentLocation();
-      } on CurrentLocationException catch (error) {
-        throw FacilityReportLocationException(error.message);
-      }
-      return FacilityReportLocation(
-        latitude: location.latitude,
-        longitude: location.longitude,
-      );
-    };
-  }
-
-  FacilityReportLocationPermissionRequestChecker?
-  _locationPermissionRequestChecker() {
-    final provider = locationProvider;
-    if (provider == null) {
-      return null;
-    }
-    return provider.needsLocationPermissionRequest;
-  }
-
-  FacilityReportLocationSettingsOpener? _locationSettingsOpener() {
-    final provider = locationProvider;
-    if (provider == null) {
-      return null;
-    }
-    return provider.openLocationSettings;
   }
 }
 
@@ -598,6 +525,7 @@ class _StationTimetableEntry extends StatefulWidget {
 
 class _StationTimetableEntryState extends State<_StationTimetableEntry> {
   StationTimetable? _timetable;
+  bool _unavailable = false;
 
   @override
   void initState() {
@@ -613,16 +541,45 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     List<StationSearchLine> lines,
   ) async {
     try {
-      final timetable = await loadFirstAvailableStationTimetable(
-        stationId: widget.detail.id,
-        lines: lines,
-        repository: repository,
-        date: debugStationVerifiedClock(),
-      );
-      if (mounted && timetable != null) {
-        setState(() => _timetable = timetable);
+      final date = debugStationVerifiedClock();
+      StationTimetable? unavailable;
+      for (final line in lines) {
+        final timetable = await repository.loadStationTimetableForDate(
+          stationId: widget.detail.id,
+          date: date,
+          lineId: line.id,
+        );
+        if (timetable.isAvailable) {
+          if (mounted) {
+            setState(() {
+              _timetable = timetable;
+              _unavailable = false;
+            });
+          }
+          return;
+        }
+        unavailable ??= timetable;
+      }
+      if (mounted) {
+        setState(() {
+          _timetable = unavailable;
+          _unavailable = true;
+        });
+      }
+    } on StationTimetableUnavailable {
+      if (mounted) {
+        setState(() {
+          _timetable = null;
+          _unavailable = true;
+        });
       }
     } catch (error, stackTrace) {
+      if (mounted) {
+        setState(() {
+          _timetable = null;
+          _unavailable = true;
+        });
+      }
       reportMobileError(
         error,
         stackTrace,
@@ -637,7 +594,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 로컬 coverage가 없으면 준비 중 문구 대신 요약 줄을 그리지 않는다(#2078).
+        // 서버가 시간표를 제공하지 않으면 요약 줄을 그리지 않는다.
         // '시간표 보기' 버튼은 남겨 전체 시간표 화면으로 진입할 수 있게 한다.
         if (timetable != null && timetable.isAvailable) ...[
           for (final direction in timetable.directions)
@@ -650,6 +607,11 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
             ),
           const SizedBox(height: 4),
         ],
+        if (_unavailable)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 4),
+            child: Text('시간표를 확인할 수 없어요.'),
+          ),
         TextButton.icon(
           key: const Key('stationTimetableButton'),
           onPressed: () => Navigator.of(context).push(

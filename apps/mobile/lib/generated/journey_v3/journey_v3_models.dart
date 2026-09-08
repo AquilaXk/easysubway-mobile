@@ -569,3 +569,210 @@ class JourneySearchSuccess {
     'journeys': journeys.map((v) => v.toJson()).toList(growable: false),
   };
 }
+
+sealed class StationTimetableSelector {
+  const StationTimetableSelector();
+  Map<String, Object?> toJson();
+  static StationTimetableSelector fromJson(Map<String, Object?> json) => switch (StationTimetableSelectorKindWire.fromWire(json['kind'])) {
+    StationTimetableSelectorKind.serviceDate => StationTimetableServiceDateSelector.fromJson(json),
+    StationTimetableSelectorKind.dayType => StationTimetableDayTypeSelector.fromJson(json),
+    StationTimetableSelectorKind.nextDepartures => StationTimetableNextDeparturesSelector.fromJson(json),
+  };
+}
+
+class StationTimetableServiceDateSelector extends StationTimetableSelector {
+  final JourneyDate serviceDate;
+  const StationTimetableServiceDateSelector(this.serviceDate);
+  factory StationTimetableServiceDateSelector.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'kind', 'serviceDate'});
+    if (StationTimetableSelectorKindWire.fromWire(json['kind']) != StationTimetableSelectorKind.serviceDate) throw const FormatException('selector kind');
+    return StationTimetableServiceDateSelector(JourneyDate.parse(json['serviceDate']));
+  }
+  @override
+  Map<String, Object?> toJson() => {'kind': StationTimetableSelectorKind.serviceDate.wire, 'serviceDate': serviceDate.toString()};
+}
+
+class StationTimetableDayTypeSelector extends StationTimetableSelector {
+  final StationTimetableDayType dayType;
+  final JourneyDate referenceDate;
+  const StationTimetableDayTypeSelector({required this.dayType, required this.referenceDate});
+  factory StationTimetableDayTypeSelector.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'kind', 'dayType', 'referenceDate'});
+    if (StationTimetableSelectorKindWire.fromWire(json['kind']) != StationTimetableSelectorKind.dayType) throw const FormatException('selector kind');
+    return StationTimetableDayTypeSelector(dayType: StationTimetableDayTypeWire.fromWire(json['dayType']), referenceDate: JourneyDate.parse(json['referenceDate']));
+  }
+  @override
+  Map<String, Object?> toJson() => {'kind': StationTimetableSelectorKind.dayType.wire, 'dayType': dayType.wire, 'referenceDate': referenceDate.toString()};
+}
+
+class StationTimetableNextDeparturesSelector extends StationTimetableSelector {
+  final DateTime asOf;
+  final int horizonDays;
+  const StationTimetableNextDeparturesSelector({required this.asOf, required this.horizonDays});
+  factory StationTimetableNextDeparturesSelector.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'kind', 'asOf', 'horizonDays'});
+    if (StationTimetableSelectorKindWire.fromWire(json['kind']) != StationTimetableSelectorKind.nextDepartures) throw const FormatException('selector kind');
+    return StationTimetableNextDeparturesSelector(asOf: JourneyV3Validation.rfc3339(json['asOf'], 'asOf'), horizonDays: JourneyV3Validation.integer(json['horizonDays'], 'horizonDays', 1, 8));
+  }
+  @override
+  Map<String, Object?> toJson() => {'kind': StationTimetableSelectorKind.nextDepartures.wire, 'asOf': JourneyV3Validation.rfc3339Wire(asOf), 'horizonDays': horizonDays};
+}
+
+class StationTimetableSearchRequest {
+  final String stationId;
+  final String lineId;
+  final StationTimetableSelector selector;
+  const StationTimetableSearchRequest({required this.stationId, required this.lineId, required this.selector});
+  factory StationTimetableSearchRequest.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'stationId', 'lineId', 'selector'});
+    final selector = json['selector'];
+    if (selector is! Map<String, Object?>) throw const FormatException('selector must be object');
+    return StationTimetableSearchRequest(
+      stationId: JourneyV3Validation.nonBlank(json['stationId'], 'stationId'),
+      lineId: JourneyV3Validation.nonBlank(json['lineId'], 'lineId'),
+      selector: StationTimetableSelector.fromJson(selector),
+    );
+  }
+  Map<String, Object?> toJson() => {'stationId': stationId, 'lineId': lineId, 'selector': selector.toJson()};
+}
+
+class StationTimetableDeparture {
+  final JourneyDate serviceDate;
+  final int secondsFromServiceDayStart;
+  final DateTime departureAt;
+  final StationTimetableServicePattern servicePattern;
+  final StationTimetableServiceClass serviceClass;
+  const StationTimetableDeparture({required this.serviceDate, required this.secondsFromServiceDayStart, required this.departureAt, required this.servicePattern, required this.serviceClass});
+  factory StationTimetableDeparture.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'serviceDate', 'secondsFromServiceDayStart', 'departureAt', 'servicePattern', 'serviceClass'});
+    return StationTimetableDeparture(
+      serviceDate: JourneyDate.parse(json['serviceDate']),
+      secondsFromServiceDayStart: JourneyV3Validation.integer(json['secondsFromServiceDayStart'], 'secondsFromServiceDayStart', 0, 107999),
+      departureAt: JourneyV3Validation.rfc3339(json['departureAt'], 'departureAt'),
+      servicePattern: StationTimetableServicePatternWire.fromWire(json['servicePattern']),
+      serviceClass: StationTimetableServiceClassWire.fromWire(json['serviceClass']),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'serviceDate': serviceDate.toString(),
+    'secondsFromServiceDayStart': secondsFromServiceDayStart,
+    'departureAt': JourneyV3Validation.rfc3339Wire(departureAt),
+    'servicePattern': servicePattern.wire,
+    'serviceClass': serviceClass.wire,
+  };
+}
+
+class StationTimetableDirectionGroup {
+  final String directionName;
+  final List<StationTimetableDeparture> departures;
+  const StationTimetableDirectionGroup({required this.directionName, required this.departures});
+  factory StationTimetableDirectionGroup.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'directionName', 'departures'});
+    return StationTimetableDirectionGroup(
+      directionName: JourneyV3Validation.nonBlank(json['directionName'], 'directionName'),
+      departures: JourneyV3Validation.list(json['departures'], 'departures', (v) {
+        if (v is! Map<String, Object?>) throw const FormatException('departure must be object');
+        return StationTimetableDeparture.fromJson(v);
+      }),
+    );
+  }
+  Map<String, Object?> toJson() => {'directionName': directionName, 'departures': departures.map((v) => v.toJson()).toList(growable: false)};
+}
+
+class StationTimetableSourceIdentity {
+  final String timetableArtifactId;
+  final String timetableSnapshotSha256;
+  final String canonicalStationVersion;
+  final String canonicalStationSetSha256;
+  final String sourceLineageSha256;
+  final String evidenceHash;
+  final DateTime freshUntil;
+  const StationTimetableSourceIdentity({
+    required this.timetableArtifactId,
+    required this.timetableSnapshotSha256,
+    required this.canonicalStationVersion,
+    required this.canonicalStationSetSha256,
+    required this.sourceLineageSha256,
+    required this.evidenceHash,
+    required this.freshUntil,
+  });
+  factory StationTimetableSourceIdentity.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {
+      'timetableArtifactId',
+      'timetableSnapshotSha256',
+      'canonicalStationVersion',
+      'canonicalStationSetSha256',
+      'sourceLineageSha256',
+      'evidenceHash',
+      'freshUntil',
+    });
+    return StationTimetableSourceIdentity(
+      timetableArtifactId: JourneyV3Validation.nonBlank(json['timetableArtifactId'], 'timetableArtifactId'),
+      timetableSnapshotSha256: JourneyV3Validation.sha256(json['timetableSnapshotSha256'], 'timetableSnapshotSha256'),
+      canonicalStationVersion: JourneyV3Validation.nonBlank(json['canonicalStationVersion'], 'canonicalStationVersion'),
+      canonicalStationSetSha256: JourneyV3Validation.sha256(json['canonicalStationSetSha256'], 'canonicalStationSetSha256'),
+      sourceLineageSha256: JourneyV3Validation.sha256(json['sourceLineageSha256'], 'sourceLineageSha256'),
+      evidenceHash: JourneyV3Validation.sha256(json['evidenceHash'], 'evidenceHash'),
+      freshUntil: JourneyV3Validation.rfc3339(json['freshUntil'], 'freshUntil'),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'timetableArtifactId': timetableArtifactId,
+    'timetableSnapshotSha256': timetableSnapshotSha256,
+    'canonicalStationVersion': canonicalStationVersion,
+    'canonicalStationSetSha256': canonicalStationSetSha256,
+    'sourceLineageSha256': sourceLineageSha256,
+    'evidenceHash': evidenceHash,
+    'freshUntil': JourneyV3Validation.rfc3339Wire(freshUntil),
+  };
+}
+
+class StationTimetableSearchSuccess {
+  final StationTimetableSearchContractVersion contractVersion;
+  final String stationId;
+  final String lineId;
+  final StationTimetableSelector selector;
+  final StationTimetableDayType resolvedDayType;
+  final StationTimetableServiceTimezone serviceTimezone;
+  final List<StationTimetableDirectionGroup> directionGroups;
+  final StationTimetableSourceIdentity sourceIdentity;
+  const StationTimetableSearchSuccess({
+    required this.contractVersion,
+    required this.stationId,
+    required this.lineId,
+    required this.selector,
+    required this.resolvedDayType,
+    required this.serviceTimezone,
+    required this.directionGroups,
+    required this.sourceIdentity,
+  });
+  factory StationTimetableSearchSuccess.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'contractVersion', 'stationId', 'lineId', 'selector', 'resolvedDayType', 'serviceTimezone', 'directionGroups', 'sourceIdentity'});
+    final selector = json['selector'];
+    final sourceIdentity = json['sourceIdentity'];
+    if (selector is! Map<String, Object?> || sourceIdentity is! Map<String, Object?>) throw const FormatException('nested timetable object');
+    return StationTimetableSearchSuccess(
+      contractVersion: StationTimetableSearchContractVersionWire.fromWire(json['contractVersion']),
+      stationId: JourneyV3Validation.nonBlank(json['stationId'], 'stationId'),
+      lineId: JourneyV3Validation.nonBlank(json['lineId'], 'lineId'),
+      selector: StationTimetableSelector.fromJson(selector),
+      resolvedDayType: StationTimetableDayTypeWire.fromWire(json['resolvedDayType']),
+      serviceTimezone: StationTimetableServiceTimezoneWire.fromWire(json['serviceTimezone']),
+      directionGroups: JourneyV3Validation.list(json['directionGroups'], 'directionGroups', (v) {
+        if (v is! Map<String, Object?>) throw const FormatException('direction group must be object');
+        return StationTimetableDirectionGroup.fromJson(v);
+      }),
+      sourceIdentity: StationTimetableSourceIdentity.fromJson(sourceIdentity),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'contractVersion': contractVersion.wire,
+    'stationId': stationId,
+    'lineId': lineId,
+    'selector': selector.toJson(),
+    'resolvedDayType': resolvedDayType.wire,
+    'serviceTimezone': serviceTimezone.wire,
+    'directionGroups': directionGroups.map((v) => v.toJson()).toList(growable: false),
+    'sourceIdentity': sourceIdentity.toJson(),
+  };
+}

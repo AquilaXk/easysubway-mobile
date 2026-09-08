@@ -4,7 +4,6 @@ import 'package:drift/drift.dart';
 
 import '../../../core/database/catalog/canonical_station_id.dart';
 import '../../../core/database/catalog/catalog_database.dart';
-import '../../../core/database/catalog/station_timetable_query.dart';
 import '../../../core/perf/easy_subway_perf.dart';
 import '../../network_map/domain/network_map_models.dart';
 import '../domain/station_line.dart';
@@ -17,12 +16,8 @@ class DriftStationRepository
         StationSearchRepository,
         StationSearchCache,
         StationLineFilterRepository,
-        StationTimetableRepository,
         NetworkMapRepository {
   DriftStationRepository({required this.database});
-
-  /// 지하철(`SUBWAY`) 출발에 허용되는 운행종별. 이 외 값은 경계에서 실패시킨다.
-  static const _validSubwayServicePatterns = {'LOCAL', 'EXPRESS'};
 
   /// 짧은 검색어가 전 역을 펼치면 목록·배지 빌드가 메인 스레드를 막는다.
   static const _maxSearchResults = 40;
@@ -184,103 +179,6 @@ class DriftStationRepository
         for (final station in stations) station.toIndexRow(),
       ]);
     });
-  }
-
-  @override
-  Future<StationTimetable> loadStationTimetable({
-    required String stationId,
-    required String lineId,
-    required StationTimetableDayType dayType,
-    required DateTime referenceDate,
-  }) async {
-    stationId = await database.resolveCanonicalStationId(stationId);
-    final catalogDayType = switch (dayType) {
-      StationTimetableDayType.weekday => CatalogTimetableDayType.weekday,
-      StationTimetableDayType.saturday => CatalogTimetableDayType.saturday,
-      StationTimetableDayType.sundayHoliday =>
-        CatalogTimetableDayType.sundayHoliday,
-    };
-    final rows = await CatalogStationTimetableQuery(database).loadDepartures(
-      stationId: stationId,
-      lineId: lineId,
-      dayType: catalogDayType,
-      referenceDate: referenceDate,
-    );
-    return _stationTimetable(
-      stationId: stationId,
-      lineId: lineId,
-      dayType: dayType,
-      rows: rows,
-    );
-  }
-
-  @override
-  Future<StationTimetable> loadStationTimetableForDate({
-    required String stationId,
-    required String lineId,
-    required DateTime date,
-  }) async {
-    stationId = await database.resolveCanonicalStationId(stationId);
-    final timetable = await CatalogStationTimetableQuery(
-      database,
-    ).loadDeparturesForDate(stationId: stationId, lineId: lineId, date: date);
-    final dayType = switch (timetable.dayType) {
-      CatalogTimetableDayType.weekday => StationTimetableDayType.weekday,
-      CatalogTimetableDayType.saturday => StationTimetableDayType.saturday,
-      CatalogTimetableDayType.sundayHoliday =>
-        StationTimetableDayType.sundayHoliday,
-    };
-    return _stationTimetable(
-      stationId: stationId,
-      lineId: lineId,
-      dayType: dayType,
-      rows: timetable.departures,
-    );
-  }
-
-  StationTimetable _stationTimetable({
-    required String stationId,
-    required String lineId,
-    required StationTimetableDayType dayType,
-    required List<CatalogStationDeparture> rows,
-  }) {
-    final grouped = <String, List<StationTimetableDeparture>>{};
-    for (final row in rows) {
-      final directionName = row.directionName;
-      final servicePattern = row.servicePattern.trim().toUpperCase();
-      final serviceClass = row.serviceClass.trim().toUpperCase();
-      // 지하철 운행종별이 LOCAL/EXPRESS가 아니면(공백·미상) 일반으로 추정하지 않고
-      // 경계에서 실패시킨다(fail closed) — 잘못된 급행/일반 표기를 원천 차단한다.
-      if (serviceClass == 'SUBWAY' &&
-          !_validSubwayServicePatterns.contains(servicePattern)) {
-        throw StateError(
-          '알 수 없는 지하철 운행종별입니다: "${row.servicePattern}" '
-          '(station=$stationId, line=$lineId)',
-        );
-      }
-      grouped
-          .putIfAbsent(directionName, () => <StationTimetableDeparture>[])
-          .add(
-            StationTimetableDeparture(
-              directionName: directionName,
-              seconds: row.seconds,
-              servicePattern: servicePattern,
-              serviceClass: serviceClass,
-            ),
-          );
-    }
-    return StationTimetable(
-      stationId: stationId,
-      lineId: lineId,
-      dayType: dayType,
-      directions: [
-        for (final entry in grouped.entries)
-          StationTimetableDirection(
-            name: entry.key,
-            departures: List.unmodifiable(entry.value),
-          ),
-      ],
-    );
   }
 
   @override

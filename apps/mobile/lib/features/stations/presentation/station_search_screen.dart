@@ -5,15 +5,12 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
-import '../../../internal_route.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../../search_field.dart';
-import '../../ads/ad_repository.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
-import '../../network_map/presentation/region_menu.dart';
+import '../../../core/ui/region_menu.dart';
 import '../../realtime/realtime_repository.dart';
-import '../../route_draft/application/route_draft_controller.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../application/station_search_controller.dart';
 import '../domain/station_line.dart';
@@ -43,12 +40,11 @@ class StationSearchScreen extends StatefulWidget {
     required this.repository,
     required this.reportRepository,
     this.favoriteRepository,
-    this.adRepository,
+    this.bottomAdBuilder,
     this.searchHistoryRepository,
     this.realtimeRepository,
     this.facilityReportDraftTargetStore,
-    this.internalRouteRepository,
-    this.internalRouteMobilityType = 'SENIOR',
+    this.onOpenFacilityReport,
     this.routeDraftController,
     this.pickSlot,
     required this.regionLabel,
@@ -61,13 +57,13 @@ class StationSearchScreen extends StatefulWidget {
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
   final FavoriteStationRepository? favoriteRepository;
-  final AdRepository? adRepository;
+  final WidgetBuilder? bottomAdBuilder;
   final SearchHistoryRepository? searchHistoryRepository;
   final RealtimeRepository? realtimeRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
-  final InternalRouteRepository? internalRouteRepository;
-  final String internalRouteMobilityType;
-  final RouteDraftController? routeDraftController;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
+  final RouteDraftPort? routeDraftController;
 
   /// 특정 칸(출발/도착)을 채우려고 검색을 연 경우의 대상 칸. 지정되면 결과를 한 번
   /// 탭하는 즉시 [routeDraftController]의 해당 칸을 설정하고 이 화면을 닫는다. 지도
@@ -704,13 +700,12 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         repository: widget.repository,
         reportRepository: widget.reportRepository,
         favoriteRepository: widget.favoriteRepository,
-        adRepository: widget.adRepository,
+        bottomAdBuilder: widget.bottomAdBuilder,
         realtimeRepository: widget.realtimeRepository,
         stationId: result.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
-        internalRouteRepository: widget.internalRouteRepository,
-        internalRouteMobilityType: widget.internalRouteMobilityType,
         routeDraftController: widget.routeDraftController,
+        onOpenFacilityReport: widget.onOpenFacilityReport,
       ),
     );
   }

@@ -68,14 +68,19 @@
     "keys": [
       {
         "nginxVariable": "$binary_remote_addr",
-        "scopes": ["session", "search"],
+        "scopes": [
+          "session",
+          "search"
+        ],
         "processing": "nginx-shared-memory-rate-limit-key",
         "persistedToDatabase": false,
         "includedInAccessLog": false
       },
       {
         "nginxVariable": "$http_authorization",
-        "scopes": ["search"],
+        "scopes": [
+          "search"
+        ],
         "processing": "nginx-shared-memory-rate-limit-key",
         "persistedToDatabase": false,
         "includedInAccessLog": false
@@ -89,8 +94,15 @@
   },
   "crashAnrProviderDecision": {
     "separateCrashProvider": false,
-    "sourceOfTruth": ["Android vitals", "Google Play pre-launch report", "mobile runtime error reporter"],
-    "requiredEvidence": ["no-crash-sdk-dependency-scan", "android-vitals-or-play-pre-launch-report-export"],
+    "sourceOfTruth": [
+      "Android vitals",
+      "Google Play pre-launch report",
+      "mobile runtime error reporter"
+    ],
+    "requiredEvidence": [
+      "no-crash-sdk-dependency-scan",
+      "android-vitals-or-play-pre-launch-report-export"
+    ],
     "privacyAnswerKo": "Android v1은 별도 crash SDK를 사용하지 않고 Android vitals와 Play pre-launch report를 충돌/ANR 기준 증거로 삼는다."
   },
   "dataTypes": [
@@ -107,7 +119,9 @@
         "Nginx limit_req_zone route_search_ip",
         "Nginx limit_req_zone route_search_token"
       ],
-      "storageLocations": ["nginx-shared-memory"],
+      "storageLocations": [
+        "nginx-shared-memory"
+      ],
       "retentionKo": "요청 종료 뒤에도 shared memory에 남을 수 있으며 고정 TTL은 없음. zone 메모리가 부족할 때 LRU 방식으로 퇴출되고, 최종적으로 gateway process 또는 shared-memory zone 수명 종료 시 삭제",
       "deletionKo": "사용자 계정 DB나 access log에는 저장하지 않으며, zone 메모리 압박에 따른 LRU 퇴출 또는 gateway process·shared-memory zone 수명 종료로 자동 삭제",
       "deletionImplementation": "Nginx limit_req_zone이 IP 이진 표현과 Authorization bearer session token별 요청 상태를 shared memory에서 관리한다. zone 용량 10m은 보관 기간이 아니며 별도 고정 TTL은 없다.",
@@ -119,7 +133,10 @@
       "lastVerifiedAt": "2026-07-16",
       "sharedWithThirdParties": false,
       "usedForTracking": false,
-      "gatewayKeyFields": ["$binary_remote_addr", "$http_authorization"],
+      "gatewayKeyFields": [
+        "$binary_remote_addr",
+        "$http_authorization"
+      ],
       "retention": {
         "fixedTtl": false,
         "zoneSizeIsRetention": false,
@@ -153,7 +170,9 @@
         "FacilityReportAbuseControlLimiter in-memory ConcurrentHashMap counters",
         "FacilityReportClientIdentityResolver ip:remoteAddr key"
       ],
-      "storageLocations": ["backend-jvm-memory"],
+      "storageLocations": [
+        "backend-jvm-memory"
+      ],
       "retentionKo": "고정 TTL은 없다. 요청 IP별 카운터는 JVM 프로세스 heap의 ConcurrentHashMap에만 존재하며 기본 60초 window 단위로 카운트가 재설정된다. 다음 window의 새 키가 삽입될 때 이전 window 항목이 일괄 제거되고, 최대 키 수(기본 4096)를 넘으면 새 키를 저장하지 않고 요청을 거절한다. 최종적으로 JVM 프로세스 종료 시 모두 사라진다.",
       "deletionKo": "요청 IP는 사용자 계정 DB나 access log에 저장하지 않으며 이 filter 자체가 IP를 로그로 남기지 않는다. window 롤오버·다음 키 삽입 시 이전 window 항목 제거, 용량 초과 시 거절, JVM 프로세스 종료로 자동 삭제된다. 사용자가 직접 삭제를 요청할 수 있는 영속 저장소가 아니다.",
       "deletionImplementation": "FacilityReportAbuseControlLimiter가 (ReportAbuseGroup, ip:clientIdentity) 키별 WindowCounter를 JVM heap ConcurrentHashMap에서 관리한다. 새 키 생성 시 이전 window 카운터를 removeIf로 제거하고 maxCounterKeys(기본 4096) 초과 시 저장 대신 요청을 거절한다. DB나 access log에는 기록하지 않는다. store-mode는 local만 허용하며 분산 저장소는 구현되어 있지 않다.",
@@ -210,7 +229,9 @@
         "TrainSearchRateLimiter in-memory ConcurrentHashMap counters",
         "TrainSearchClientIdentityResolver ip:remoteAddr key"
       ],
-      "storageLocations": ["backend-jvm-memory"],
+      "storageLocations": [
+        "backend-jvm-memory"
+      ],
       "retentionKo": "고정 TTL은 없다. 역 검색 limiter는 요청 IP별 카운터를 다음 60초 window까지, 열차 검색 limiter는 분당·일일 비용 카운터를 다음 Asia/Seoul 날짜까지 JVM heap에 보관한다. limiter별 최대 4096개를 넘으면 새 IP 요청을 거절하며, 최종적으로 JVM 프로세스 종료 시 모두 삭제된다.",
       "deletionKo": "요청 IP는 사용자 계정 DB나 access log에 저장하지 않고 filter도 IP를 로그로 남기지 않는다. 역 검색 상태는 다음 60초 window, 열차 검색 상태는 다음 Asia/Seoul 날짜의 첫 요청 또는 JVM 프로세스 종료 시 자동 삭제되며, 사용자가 직접 삭제할 영속 저장소는 없다.",
       "deletionImplementation": "TrainSearchRateLimiter가 ip:clientIdentity별 WindowCounter를 역 검색과 열차 검색용 JVM heap ConcurrentHashMap에서 각각 관리한다. 역 검색 limiter는 60초 window, 열차 검색 limiter는 Asia/Seoul 일일 window 변경을 감지한 첫 요청이 map을 한 번 clear하고, maxKeys(기본 4096) 초과 시 저장 대신 요청을 거절한다.",
@@ -261,8 +282,18 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "사용자가 가까운 역 검색, 시설 신고 위치 첨부, 출구 도보 길안내를 실행할 때만 사용",
-      "backendTableOrService": ["stationSearch.currentLocation", "externalMap.walkingRoute.startCoordinate", "facility_reports.latitude", "facility_reports.longitude"],
-      "storageLocations": ["mobile-memory", "external-map-deeplink", "backend-report", "restricted-operations-backup"],
+      "backendTableOrService": [
+        "stationSearch.currentLocation",
+        "externalMap.walkingRoute.startCoordinate",
+        "facility_reports.latitude",
+        "facility_reports.longitude"
+      ],
+      "storageLocations": [
+        "mobile-memory",
+        "external-map-deeplink",
+        "backend-report",
+        "restricted-operations-backup"
+      ],
       "retentionKo": "주변 역 검색과 출구 도보 길안내 시작 좌표는 앱이 저장하지 않는다. 시설 신고 위치는 운영 데이터에서 접수일부터 최대 1년, 제한된 운영 백업에서 생성일부터 30일 보관 후 자동 삭제 또는 익명화한다.",
       "deletionKo": "운영 데이터는 접수일부터 최대 1년 뒤, 제한된 운영 백업은 생성일부터 30일 뒤 자동 파기하며 그 전 데이터 삭제 요청 시 신고자 연결과 위치를 삭제 또는 익명화",
       "deletionImplementation": "UserDataDeletionService와 FacilityReportPersonalDataPurgeScheduler가 운영 데이터의 신고 위치 연결을 제거하고, prune-sensitive-backups.mjs 및 sensitive-backup-retention workflow가 만료 백업을 매일 삭제한다.",
@@ -316,8 +347,13 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "사용자가 역명, 초성, 노선 검색어를 입력할 때 요청 본문과 서버 요청 로그에 포함",
-      "backendTableOrService": ["apps/mobile/lib/station_search.dart", "TransitMasterController station search request"],
-      "storageLocations": ["backend-request"],
+      "backendTableOrService": [
+        "apps/mobile/lib/station_search.dart",
+        "TransitMasterController station search request"
+      ],
+      "storageLocations": [
+        "backend-request"
+      ],
       "retentionKo": "요청 처리와 운영 오류 분석에 필요한 최소 기간만 보관",
       "deletionKo": "데이터 삭제 요청 시 사용자 식별자와 연결된 검색 기록을 삭제 또는 익명화",
       "deletionImplementation": "사용자 식별자와 연결된 서버 요청 기록은 데이터 삭제 요청 처리 기준에 따라 삭제 또는 익명화한다.",
@@ -358,7 +394,9 @@
         "TrainSearchService",
         "TrainSearchScheduler"
       ],
-      "storageLocations": ["backend-database"],
+      "storageLocations": [
+        "backend-database"
+      ],
       "persistedFields": [
         "departureStationId",
         "arrivalStationId",
@@ -409,14 +447,20 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "사용자가 역, 경로, 시설 즐겨찾기를 저장할 때 인증 사용자 식별자와 함께 저장",
-      "backendTableOrService": ["favorite_stations", "favorite_routes", "favorite_facilities"],
-      "storageLocations": ["backend-database"],
+      "backendTableOrService": [
+        "favorite_stations",
+        "favorite_routes",
+        "favorite_facilities"
+      ],
+      "storageLocations": [
+        "backend-database"
+      ],
       "retentionKo": "사용자가 삭제하거나 데이터 삭제를 요청할 때까지 보관",
       "deletionKo": "앱 기능 또는 데이터 삭제 요청으로 삭제",
       "deletionImplementation": "UserDataDeletionService가 즐겨찾기 역, 경로, 시설 삭제 포트를 호출해 사용자 연결 데이터를 삭제한다.",
       "evidence": [
         "apps/mobile/lib/station_search.dart",
-        "apps/mobile/lib/favorite_facility.dart",
+        "apps/mobile/lib/features/favorites/favorite_facility.dart",
         "apps/mobile/lib/internal_route.dart",
         "backend/src/main/java/com/easysubway/user/application/service/UserDataDeletionService.java"
       ],
@@ -448,8 +492,16 @@
       "introducedInVersion": "1.0.2",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "사용자가 경로 피드백 화면에서 도움됨 또는 맞지 않음 버튼을 눌러 명시적으로 제출할 때만 저장",
-      "backendTableOrService": ["route_feedbacks.itinerary_id", "route_feedbacks.mobility_type", "route_feedbacks.constraint_mode", "route_feedbacks.eta_source", "route_feedbacks.eta_offset_bucket"],
-      "storageLocations": ["backend-database"],
+      "backendTableOrService": [
+        "route_feedbacks.itinerary_id",
+        "route_feedbacks.mobility_type",
+        "route_feedbacks.constraint_mode",
+        "route_feedbacks.eta_source",
+        "route_feedbacks.eta_offset_bucket"
+      ],
+      "storageLocations": [
+        "backend-database"
+      ],
       "retentionKo": "운영 품질 분석과 board/transfer slack 기본값 검토 기간 동안 bucket 집계로만 사용",
       "deletionKo": "데이터 삭제 요청 시 사용자 식별자와 자유 입력 코멘트를 익명화하고, bucket 집계용 값은 개인 식별 없이 유지",
       "deletionImplementation": "AnonymizeUserRouteFeedbackPort가 route_feedbacks.user_id와 comment를 익명화하고 ETA offset은 bucket enum 값만 보존한다.",
@@ -492,7 +544,10 @@
         "route_v2_sessions.token_sha256/scope/issued_at/expires_at/request_count",
         "route_v2_nonce_replays.nonce_sha256/expires_at"
       ],
-      "storageLocations": ["google-play-integrity-processing", "backend-database"],
+      "storageLocations": [
+        "google-play-integrity-processing",
+        "backend-database"
+      ],
       "retentionKo": "Google Play Integrity 처리 정보는 Google의 고정 보관 정책을 따름. 서버 논리 만료는 세션 10분·nonce SHA-256 2분이고 5분 주기 purge로 물리 파기는 각각 발급 후 약 15분·수신 후 약 7분 이내",
       "deletionKo": "서버의 세션·nonce 해시는 논리 만료 뒤 5분 이내 물리 삭제하며 backend 데이터는 사용자·기기·계정 식별자와 연결하지 않음",
       "deletionImplementation": "RouteV2AccessStore.purgeExpired가 논리 만료된 nonce replay와 세션 레코드를 RouteV2StatePurgeScheduler의 기본 5분 주기마다 삭제한다.",
@@ -521,10 +576,22 @@
         "sharedOnward": false,
         "retention": "fixed-by-google-play-integrity-policy"
       },
-      "mobileToBackendFields": ["integrityToken", "128-bit clientNonce"],
-      "backendToGoogleFields": ["rawIntegrityToken"],
+      "mobileToBackendFields": [
+        "integrityToken",
+        "128-bit clientNonce"
+      ],
+      "backendToGoogleFields": [
+        "rawIntegrityToken"
+      ],
       "googleDecodeEndpoint": "https://playintegrity.googleapis.com/v1/com.easysubway.app:decodeIntegrityToken",
-      "backendStoredFields": ["tokenSha256", "scope", "issuedAt", "expiresAt", "requestCount", "nonceSha256"],
+      "backendStoredFields": [
+        "tokenSha256",
+        "scope",
+        "issuedAt",
+        "expiresAt",
+        "requestCount",
+        "nonceSha256"
+      ],
       "retention": {
         "sessionLogicalExpiry": "10 minutes",
         "sessionPhysicalDeletionWithin": "approximately 15 minutes from issuance",
@@ -563,7 +630,10 @@
         "RouteSearchV2Request mobilityType/mobilityPreset/constraintMode",
         "route_v2_states.itinerary_json legs.appliedPreset"
       ],
-      "storageLocations": ["backend-request-memory", "backend-database-itinerary-json"],
+      "storageLocations": [
+        "backend-request-memory",
+        "backend-database-itinerary-json"
+      ],
       "retentionKo": "mobilityPreset은 계산된 itinerary의 appliedPreset으로 저장되어 경로 상태 expiresAt 뒤 5분 이내 삭제. mobilityType과 constraintMode는 raw 필드로 저장하지 않지만 계산 결과에 반영",
       "deletionKo": "별도 사용자·기기·계정 연결 없이 경로 상태와 함께 expiresAt 뒤 5분 이내 삭제",
       "deletionImplementation": "ProductionRouteV2Support가 계산 itinerary를 저장하고 RouteV2StatePurgeScheduler가 기본 5분 주기로 만료 경로 상태를 삭제한다.",
@@ -577,7 +647,11 @@
       "lastVerifiedAt": "2026-07-16",
       "sharedWithThirdParties": false,
       "usedForTracking": false,
-      "routeRequestFields": ["mobilityType", "mobilityPreset", "constraintMode"],
+      "routeRequestFields": [
+        "mobilityType",
+        "mobilityPreset",
+        "constraintMode"
+      ],
       "persistedRepresentation": {
         "mobilityPreset": "itinerary_json[].legs[].appliedPreset",
         "mobilityTypeAndConstraintMode": "computed-itinerary-only"
@@ -607,7 +681,10 @@
         "Route V2 search request",
         "route_v2_states.origin_station_id/destination_station_id/transport_scope/requested_departure_at/itinerary_json/timetable_artifact_id/created_at/planned_arrival_at/expires_at"
       ],
-      "storageLocations": ["backend-request-memory", "backend-database"],
+      "storageLocations": [
+        "backend-request-memory",
+        "backend-database"
+      ],
       "retentionKo": "논리 만료는 생성 시각부터 최소 30분, 도착 예정 시각 30분 뒤까지 필요하되 생성 시각부터 최대 6시간. 5분 주기 purge로 물리 파기는 expiresAt 뒤 5분 이내",
       "deletionKo": "경로 상태는 논리 expiresAt 뒤 5분 이내 물리 삭제하며 사용자·기기·계정 식별자와 연결하지 않음",
       "deletionImplementation": "RouteV2EphemeralStateService가 expiresAt을 계산하고 RouteV2AccessStore.purgeExpired가 RouteV2StatePurgeScheduler의 기본 5분 주기마다 만료 상태를 삭제한다.",
@@ -650,7 +727,10 @@
         "physicalDeletionWithin": "expiresAt+5m",
         "purgeInterval": "5 minutes"
       },
-      "notSentOrStoredByRouteV2": ["rawSearchText", "coordinates"],
+      "notSentOrStoredByRouteV2": [
+        "rawSearchText",
+        "coordinates"
+      ],
       "responseCacheControl": "private, no-store",
       "googlePlayDataSafety": {
         "dataType": "App activity",
@@ -673,14 +753,18 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile",
       "collectionTrigger": "온보딩 또는 설정에서 이동 조건을 선택하고 저장할 때",
-      "backendTableOrService": ["mobile secure storage"],
-      "storageLocations": ["mobile-secure-storage"],
+      "backendTableOrService": [
+        "mobile secure storage"
+      ],
+      "storageLocations": [
+        "mobile-secure-storage"
+      ],
       "retentionKo": "사용자가 변경하거나 앱 데이터를 삭제할 때까지 단말에 보관",
       "deletionKo": "온보딩 재설정 또는 앱 데이터 삭제로 단말에서 삭제",
       "deletionImplementation": "SecureOnboardingResultStore가 단말에 저장된 이동 조건을 삭제한다. 이동 조건은 서버로 전송하거나 저장하지 않으므로 삭제할 서버 데이터가 없다.",
       "evidence": [
         "apps/mobile/lib/features/mobility_profile/mobility_preset_labels.dart",
-        "apps/mobile/lib/onboarding.dart"
+        "apps/mobile/lib/features/onboarding/onboarding.dart"
       ],
       "lastVerifiedAt": "2026-06-19",
       "sharedWithThirdParties": false,
@@ -710,8 +794,15 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "사용자가 시설 신고를 제출할 때 선택 항목과 자유 입력 내용이 저장",
-      "backendTableOrService": ["facility_reports.description", "facility_reports.report_type", "facility_reports.status"],
-      "storageLocations": ["backend-database", "restricted-operations-backup"],
+      "backendTableOrService": [
+        "facility_reports.description",
+        "facility_reports.report_type",
+        "facility_reports.status"
+      ],
+      "storageLocations": [
+        "backend-database",
+        "restricted-operations-backup"
+      ],
       "retentionKo": "운영 데이터는 접수일부터 최대 1년, 제한된 운영 백업은 생성일부터 30일 보관 후 자동 파기 작업으로 사용자 연결과 자유 입력 내용을 삭제 또는 익명화",
       "deletionKo": "운영 데이터는 접수일부터 최대 1년 뒤, 제한된 운영 백업은 생성일부터 30일 뒤 자동 파기하며 그 전 데이터 삭제 요청 시 신고자 연결과 자유 입력 내용을 삭제 또는 익명화",
       "deletionImplementation": "UserDataDeletionService와 FacilityReportPersonalDataPurgeScheduler가 운영 데이터를 익명화하고, prune-sensitive-backups.mjs 및 sensitive-backup-retention workflow가 만료 백업을 매일 삭제한다.",
@@ -800,8 +891,14 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "사용자가 시설 신고 대상 위치를 확인하고 신고를 제출할 때",
-      "backendTableOrService": ["facility_reports.latitude", "facility_reports.longitude"],
-      "storageLocations": ["backend-database", "restricted-operations-backup"],
+      "backendTableOrService": [
+        "facility_reports.latitude",
+        "facility_reports.longitude"
+      ],
+      "storageLocations": [
+        "backend-database",
+        "restricted-operations-backup"
+      ],
       "retentionKo": "운영 데이터는 접수일부터 최대 1년, 제한된 운영 백업은 생성일부터 30일 보관 후 자동 파기 작업으로 좌표를 삭제 또는 익명화",
       "deletionKo": "운영 데이터는 접수일부터 최대 1년 뒤, 제한된 운영 백업은 생성일부터 30일 뒤 자동 파기하며 그 전 데이터 삭제 요청 시 위치를 삭제 또는 익명화",
       "deletionImplementation": "UserDataDeletionService와 FacilityReportPersonalDataPurgeScheduler가 운영 신고 위치를 사용자 식별자와 분리하고, prune-sensitive-backups.mjs 및 sensitive-backup-retention workflow가 만료 백업을 매일 삭제한다.",
@@ -841,8 +938,14 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "앱 오류 처리 경로가 사용자 메시지와 내부 리포터를 분리할 때",
-      "backendTableOrService": ["mobile runtime error reporter", "backend sanitized error response"],
-      "storageLocations": ["mobile-runtime", "backend-log"],
+      "backendTableOrService": [
+        "mobile runtime error reporter",
+        "backend sanitized error response"
+      ],
+      "storageLocations": [
+        "mobile-runtime",
+        "backend-log"
+      ],
       "retentionKo": "운영 장애 분석에 필요한 최소 기간만 보관",
       "deletionKo": "데이터 삭제 요청 시 사용자 식별자와 연결된 충돌 로그를 삭제 또는 익명화",
       "deletionImplementation": "모바일 오류 리포터와 백엔드 공통 예외 응답은 사용자 화면과 내부 진단 정보를 분리하고, 사용자 연결 로그는 운영 보관 정책에 따라 삭제 또는 익명화한다.",
@@ -879,8 +982,15 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "앱 오류 처리, API 오류 응답, 운영 지표 집계가 발생할 때",
-      "backendTableOrService": ["mobile runtime error reporter", "user activity metrics", "backend logs"],
-      "storageLocations": ["mobile-runtime", "backend-log"],
+      "backendTableOrService": [
+        "mobile runtime error reporter",
+        "user activity metrics",
+        "backend logs"
+      ],
+      "storageLocations": [
+        "mobile-runtime",
+        "backend-log"
+      ],
       "retentionKo": "운영 장애 분석에 필요한 최소 기간만 보관",
       "deletionKo": "데이터 삭제 요청 시 사용자 식별자와 연결된 진단 로그를 삭제 또는 익명화",
       "deletionImplementation": "운영 지표와 로그는 사용자 식별자 연결을 최소화하고, 삭제 요청 시 사용자 연결 값을 삭제 또는 익명화한다.",
@@ -922,14 +1032,19 @@
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
       "collectionTrigger": "기본 릴리즈에서는 수집하지 않으며 EASYSUBWAY_ENABLE_PUSH_NOTIFICATIONS=true 빌드에서만 알림 권한 허용 후 등록",
-      "backendTableOrService": ["registered_devices.device_token", "push_notification_outbox.device_token"],
-      "storageLocations": ["excluded-from-default-release"],
+      "backendTableOrService": [
+        "registered_devices.device_token",
+        "push_notification_outbox.device_token"
+      ],
+      "storageLocations": [
+        "excluded-from-default-release"
+      ],
       "retentionKo": "기본 릴리즈 범위에서는 보관하지 않음",
       "deletionKo": "기능 활성화 빌드에서는 데이터 삭제 요청 시 등록 기기와 푸시 outbox 연결을 삭제",
       "deletionImplementation": "UserDataDeletionService가 DeleteUserNotificationPreferencePort와 DeleteUserPushNotificationPort를 호출해 등록 기기와 푸시 outbox 연결을 삭제한다.",
       "evidence": [
         "apps/mobile/lib/main.dart",
-        "apps/mobile/lib/notification_settings.dart",
+        "apps/mobile/lib/features/notifications/notification_settings.dart",
         "apps/mobile/ios/Runner/Runner-Release.entitlements",
         "apps/mobile/ios/Runner/PrivacyInfo.xcprivacy",
         "backend/src/main/java/com/easysubway/user/application/service/UserDataDeletionService.java"

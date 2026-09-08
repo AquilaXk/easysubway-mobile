@@ -10,7 +10,8 @@ import '../core/datapack/data_pack_metered_consent_gate.dart';
 import '../core/datapack/data_pack_update_state.dart';
 import '../design_tokens.dart';
 import '../features/facility_report/presentation/facility_report_screen.dart';
-import '../favorite_facility.dart';
+import '../features/favorites/favorite_facility.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../features/account/presentation/user_data_deletion_screen.dart';
 import '../features/ads/ad_repository.dart';
 import '../features/facility_report/domain/facility_report_location.dart';
@@ -18,23 +19,24 @@ import '../features/facility_report/domain/facility_report_photo.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
 import '../features/facility_report/domain/facility_report_target.dart';
 import '../features/get_off_alarm/get_off_alarm_controller.dart';
-import '../features/home/presentation/home_screen.dart';
+import 'home_screen.dart';
 import '../features/mobility_profile/mobility_profile_policy.dart';
 import '../features/realtime/realtime_repository.dart';
 import '../features/service_notice/data/notice_repository.dart';
+import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/journey_session_provider.dart';
 import '../features/journey/domain/journey_repository.dart';
-import '../internal_route.dart';
 import '../legacy_credential_cleanup.dart';
 import '../mobile_error_reporter.dart';
 import '../features/network_map/domain/network_map_models.dart';
-import '../notification_settings.dart';
-import '../onboarding.dart';
-import '../route_search.dart';
-import '../station_search.dart';
-import '../user_data_deletion.dart';
+import '../features/notifications/notification_settings.dart';
+import '../features/onboarding/onboarding.dart';
+import '../features/stations/domain/station_models.dart';
+import '../features/stations/domain/station_repositories.dart';
+import '../features/account/user_data_deletion.dart';
 import 'accessibility_theme.dart';
 import 'app_components.dart';
 import 'app_dependencies.dart';
@@ -107,13 +109,11 @@ class EasySubwayApp extends StatelessWidget {
     super.key,
   }) : repository = dependencies.repository,
        reportRepository = dependencies.reportRepository,
-       routeFeedbackRepository = dependencies.routeFeedbackRepository,
        favoriteRepository = dependencies.favoriteRepository,
        favoriteFacilityRepository = dependencies.favoriteFacilityRepository,
        favoriteRouteRepository = dependencies.favoriteRouteRepository,
        adRepository = dependencies.adRepository,
        searchHistoryRepository = dependencies.searchHistoryRepository,
-       internalRouteRepository = dependencies.internalRouteRepository,
        networkMapRepository = dependencies.networkMapRepository,
        networkMapViewportRepository = dependencies.networkMapViewportRepository,
        realtimeRepository = dependencies.realtimeRepository,
@@ -126,17 +126,17 @@ class EasySubwayApp extends StatelessWidget {
        getOffAlarmController = dependencies.getOffAlarmController,
        noticeRepository = dependencies.noticeRepository,
        journeyRepository = dependencies.journeyRepository,
-       journeyAttestor = dependencies.journeyAttestor;
+       journeyAttestor = dependencies.journeyAttestor,
+       journeySessionProvider = dependencies.journeySessionProvider,
+       stationTimetableRepository = dependencies.stationTimetableRepository;
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
-  final RouteFeedbackRepository? routeFeedbackRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;
@@ -149,6 +149,8 @@ class EasySubwayApp extends StatelessWidget {
   final NoticeRepository? noticeRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository stationTimetableRepository;
   final OnboardingState initialOnboardingState;
   final OnboardingResultStore? onboardingStore;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
@@ -264,14 +266,14 @@ class EasySubwayApp extends StatelessWidget {
           reportRepository: reportRepository,
           journeyRepository: journeyRepository,
           journeyAttestor: journeyAttestor,
-          routeFeedbackRepository: routeFeedbackRepository,
+          journeySessionProvider: journeySessionProvider,
+          stationTimetableRepository: stationTimetableRepository,
           getOffAlarmController: getOffAlarmController,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: favoriteRouteRepository,
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
-          internalRouteRepository: internalRouteRepository,
           networkMapRepository: networkMapRepository,
           networkMapViewportRepository: networkMapViewportRepository,
           realtimeRepository: realtimeRepository,
@@ -392,14 +394,14 @@ class _EasySubwayHome extends StatefulWidget {
     required this.reportRepository,
     required this.journeyRepository,
     required this.journeyAttestor,
-    required this.routeFeedbackRepository,
+    required this.journeySessionProvider,
+    required this.stationTimetableRepository,
     required this.getOffAlarmController,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
     required this.adRepository,
     required this.searchHistoryRepository,
-    required this.internalRouteRepository,
     required this.networkMapRepository,
     required this.networkMapViewportRepository,
     required this.realtimeRepository,
@@ -424,14 +426,14 @@ class _EasySubwayHome extends StatefulWidget {
   final FacilityReportRepository reportRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
-  final RouteFeedbackRepository? routeFeedbackRepository;
+  final JourneySessionProvider journeySessionProvider;
+  final StationTimetableRepository stationTimetableRepository;
   final GetOffAlarmController? getOffAlarmController;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
   final AdRepository? adRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final InternalRouteRepository internalRouteRepository;
   final NetworkMapRepository networkMapRepository;
   final NetworkMapViewportRepository? networkMapViewportRepository;
   final RealtimeRepository realtimeRepository;
@@ -536,14 +538,14 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         reportRepository: widget.reportRepository,
         journeyRepository: widget.journeyRepository,
         journeyAttestor: widget.journeyAttestor,
-        routeFeedbackRepository: widget.routeFeedbackRepository,
+        journeySessionProvider: widget.journeySessionProvider,
+        timetableRepository: widget.stationTimetableRepository,
         getOffAlarmController: widget.getOffAlarmController,
         favoriteRepository: widget.favoriteRepository,
         favoriteFacilityRepository: widget.favoriteFacilityRepository,
         favoriteRouteRepository: widget.favoriteRouteRepository,
         adRepository: widget.adRepository,
         searchHistoryRepository: widget.searchHistoryRepository,
-        internalRouteRepository: widget.internalRouteRepository,
         networkMapRepository: widget.networkMapRepository,
         networkMapViewportRepository: widget.networkMapViewportRepository,
         realtimeRepository: widget.realtimeRepository,

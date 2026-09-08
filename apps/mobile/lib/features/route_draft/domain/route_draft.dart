@@ -1,6 +1,21 @@
+import 'package:flutter/foundation.dart';
+
 /// 길찾기 draft에서 채우려는 칸(출발/도착). 지도 탭·텍스트 검색 어느 경로든
 /// 같은 칸을 지정해 동일한 [RouteDraft] 상태로 수렴시키기 위해 쓴다.
 enum RouteDraftSlot { origin, destination, waypoint }
+
+/// 다른 feature가 route draft를 읽고 갱신할 때 사용하는 typed domain 경계.
+abstract interface class RouteDraftPort implements Listenable {
+  RouteDraft get draft;
+
+  void clear();
+
+  void setOrigin(RouteDraftStation station);
+
+  void setDestination(RouteDraftStation station);
+
+  void setWaypoint(RouteDraftStation station);
+}
 
 class RouteDraftStation {
   const RouteDraftStation({

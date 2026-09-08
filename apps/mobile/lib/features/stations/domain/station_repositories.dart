@@ -227,6 +227,13 @@ abstract class StationTimetableRepository {
     required String lineId,
     required DateTime date,
   });
+
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  });
 }
 
 abstract class CurrentLocationProvider {

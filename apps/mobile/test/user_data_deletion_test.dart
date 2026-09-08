@@ -4,7 +4,7 @@ import 'dart:io';
 import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
-import 'package:easysubway_mobile/user_data_deletion.dart';
+import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

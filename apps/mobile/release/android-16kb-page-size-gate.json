@@ -31,13 +31,14 @@
   "runtimeSmoke": {
     "script": "tools/mobile/run-android-16kb-page-size-smoke.sh",
     "requiredDevice": "local_android_emulator_with_getconf_PAGE_SIZE_16384",
+    "localEmulatorEvidenceRole": "diagnostic-only",
     "requiredEvidence": [
       "adb-getconf-page-size-16384",
       "app-launch-logcat-no-crash",
       "sqlite-gzip-datapack-smoke",
       "photo-picker-route-map-report-upload-smoke"
     ],
-    "passCriteriaKo": "로컬 Android emulator의 `adb shell getconf PAGE_SIZE`가 16384이고 RC 또는 Play-installed build 핵심 smoke가 통과해야 한다."
+    "passCriteria": "Local Android emulator smoke is diagnostic-only; release-blocking GO requires the exact current-RC Play-installed build to pass the required 16 KB smoke."
   },
   "evidencePolicy": {
     "localOnlyEvidenceRoot": ".codex/evidence/release/android-16kb-page-size/<rc-or-run>/",

@@ -6,12 +6,11 @@ import 'package:flutter/widgets.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
-import '../favorite_facility.dart';
-import '../internal_route.dart';
+import '../features/favorites/favorite_facility.dart';
+import '../features/favorites/domain/favorite_route.dart';
 import '../mobile_error_reporter.dart';
-import '../notification_settings.dart';
-import '../route_search.dart';
-import '../station_search.dart';
+import '../features/notifications/notification_settings.dart';
+import '../features/stations/domain/station_repositories.dart';
 import '../core/datapack/data_pack_client.dart';
 import '../core/datapack/bundled_data_pack_freshness.dart';
 import '../core/datapack/data_pack_installer.dart';
@@ -20,7 +19,7 @@ import '../core/datapack/data_pack_updater.dart';
 import '../core/datapack/emergency_override_repository.dart';
 import '../core/datapack/network_condition_source.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
-import '../user_data_deletion.dart';
+import '../features/account/user_data_deletion.dart';
 import '../core/database/catalog/catalog_database.dart';
 import '../core/database/catalog/catalog_database_opener.dart';
 import '../core/database/user/user_database.dart';
@@ -59,12 +58,10 @@ class AppBootstrap {
     AssetBundle? assetBundle,
     StationSearchRepository? repository,
     FacilityReportRepository? reportRepository,
-    RouteFeedbackRepository? routeFeedbackRepository,
     FavoriteStationRepository? favoriteRepository,
     FavoriteFacilityRepository? favoriteFacilityRepository,
     FavoriteRouteRepository? favoriteRouteRepository,
     SearchHistoryRepository? searchHistoryRepository,
-    InternalRouteRepository? internalRouteRepository,
     NotificationSettingsRepository? notificationRepository,
     NotificationPermissionProvider? notificationPermissionProvider,
     CurrentLocationProvider? locationProvider,
@@ -110,12 +107,10 @@ class AppBootstrap {
       final dependencies = AppDependencies.resolve(
         repository: repository,
         reportRepository: reportRepository,
-        routeFeedbackRepository: routeFeedbackRepository,
         favoriteRepository: favoriteRepository,
         favoriteFacilityRepository: favoriteFacilityRepository,
         favoriteRouteRepository: favoriteRouteRepository,
         searchHistoryRepository: searchHistoryRepository,
-        internalRouteRepository: internalRouteRepository,
         notificationRepository: notificationRepository,
         notificationPermissionProvider: notificationPermissionProvider,
         locationProvider: locationProvider,

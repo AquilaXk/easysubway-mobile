@@ -8,7 +8,7 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_notifier.
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_schedule_mode.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_scheduler.dart';
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscription.dart';
-import 'package:easysubway_mobile/features/home/presentation/home_screen.dart';
+import 'package:easysubway_mobile/app/home_screen.dart';
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
@@ -16,6 +16,8 @@ import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
+import 'package:easysubway_mobile/core/crashlytics/crash_report_redaction.dart';
+import 'package:easysubway_mobile/core/crashlytics/crashlytics_gateway.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -174,6 +176,100 @@ void main() {
     expect(repository.requests.last.walkingPace, WalkingPace.fast);
     expect(repository.requests, hasLength(3));
     semantics.dispose();
+  });
+
+  testWidgets('출발 시간은 exact SCHEDULED requestedAt으로 전송하고 모드 변경 시 이전 결과를 지운다', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    final alarm = _AlarmHarness();
+    addTearDown(alarm.dispose);
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      getOffAlarmController: alarm.controller,
+      stationNameResolver: (stationId) async => '$stationId 이름',
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+    await alarm.controller.enable(
+      routeId: 'scheduled-selection-alarm',
+      stops: [
+        GetOffAlarmStop(
+          stationId: 'station-destination',
+          stationName: '춘천',
+          arrivalAt: DateTime.utc(2026, 8, 12),
+          kind: GetOffAlarmKind.destination,
+        ),
+      ],
+      transferAlarmEnabled: false,
+    );
+
+    final scheduled = find.byKey(const Key('journey-departure-scheduled'));
+    expect(tester.getSize(scheduled).height, greaterThanOrEqualTo(48));
+    await tester.tap(scheduled);
+    await tester.pumpAndSettle();
+
+    expect(alarm.notifier.cancelAllCount, 1);
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(
+      tester.getSemantics(scheduled).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
+          .onPressed,
+      isNull,
+    );
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('출발 시간 선택'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    expect(find.text('출발 시간 선택'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('출발 시간 2026-08-12 09:00'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    final departure = repository.requests.last.departure;
+    expect(departure, isA<JourneyDepartureScheduled>());
+    expect(
+      (departure as JourneyDepartureScheduled).requestedAt,
+      DateTime.utc(2026, 8, 12),
+    );
+
+    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('journey-departure-now')));
+    await tester.pumpAndSettle();
+    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(find.byKey(const Key('journey-scheduled-time')), findsNothing);
   });
 
   testWidgets('계단 회피 profile은 REQUIRE_STEP_FREE로 전송한다', (tester) async {
@@ -400,6 +496,9 @@ void main() {
     );
     final repository = _Repository()..failuresRemaining = 1;
     final alarm = _AlarmHarness();
+    final crashlytics = _RecordingCrashlytics();
+    replaceCrashlyticsGatewayForTest(crashlytics);
+    addTearDown(resetCrashlyticsGateway);
     addTearDown(alarm.dispose);
     await _pumpScreen(
       tester,
@@ -417,6 +516,13 @@ void main() {
       greaterThanOrEqualTo(48),
     );
     expect(tester.takeException(), isNull);
+    expect(crashlytics.errors, hasLength(1));
+    expect(crashlytics.fatalFlags, <bool>[false]);
+    expect(crashlytics.errors.single, isA<SanitizedCrashException>());
+    expect(crashlytics.payload, contains('subsystem=app-report'));
+    expect(crashlytics.payload, isNot(contains('private')));
+    expect(crashlytics.payload, isNot(contains('station-origin')));
+    expect(crashlytics.payload, isNot(contains('station-destination')));
 
     await alarm.controller.enable(
       routeId: 'retry-alarm',
@@ -456,6 +562,42 @@ void main() {
       Tristate.isTrue,
     );
   });
+}
+
+class _RecordingCrashlytics implements CrashlyticsGateway {
+  final errors = <Object>[];
+  final fatalFlags = <bool>[];
+  final payloadLines = <String>[];
+
+  String get payload => payloadLines.join('\n');
+
+  @override
+  bool get isCollectionEnabled => false;
+
+  @override
+  Future<void> recordError(
+    Object error,
+    StackTrace stackTrace, {
+    bool fatal = false,
+    String? reason,
+  }) async {
+    errors.add(error);
+    fatalFlags.add(fatal);
+    payloadLines.addAll(<String>[
+      error.toString(),
+      stackTrace.toString(),
+      reason ?? '',
+    ]);
+  }
+
+  @override
+  Future<void> recordFlutterFatalError(FlutterErrorDetails details) async {}
+
+  @override
+  Future<void> setCollectionEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setCustomKey(String key, String value) async {}
 }
 
 Future<void> _pumpScreen(
@@ -535,6 +677,15 @@ class _Repository implements JourneyRepository {
     }
     return _success(request, journeyIds, now: responseNow);
   }
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async => throw const JourneyTransportFailure(
+    JourneyOperation.searchStationTimetables,
+    'unused in journey screen test',
+  );
 }
 
 JourneySessionResponse _sessionResponse([DateTime? issuedAt]) {

@@ -5,8 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../accessible_design.dart';
 import '../../../mobile_error_reporter.dart';
-import '../../attribution/presentation/data_source_attribution_screen.dart';
-import '../../support/presentation/support_access_screen.dart';
+import '../../support/support_access.dart';
 import 'open_source_licenses_screen.dart';
 
 typedef SupportsInAppBrowser = Future<bool> Function();
@@ -15,6 +14,7 @@ typedef LaunchInAppBrowser = Future<bool> Function(Uri uri);
 class ServiceInfoScreen extends StatelessWidget {
   const ServiceInfoScreen({
     required this.accessInfo,
+    required this.onOpenDataSourceAttribution,
     this.supportsInAppBrowser,
     this.launchInAppBrowser,
     this.licenseEntriesLoader,
@@ -22,6 +22,7 @@ class ServiceInfoScreen extends StatelessWidget {
   });
 
   final SupportAccessInfo accessInfo;
+  final VoidCallback onOpenDataSourceAttribution;
   final SupportsInAppBrowser? supportsInAppBrowser;
   final LaunchInAppBrowser? launchInAppBrowser;
   final LicenseEntriesLoader? licenseEntriesLoader;
@@ -47,15 +48,7 @@ class ServiceInfoScreen extends StatelessWidget {
       _ServiceInfoActionTile(
         key: const Key('dataSourceAttributionItem'),
         title: '정보제공처',
-        onTap: () {
-          unawaited(
-            Navigator.of(context).push(
-              MaterialPageRoute<void>(
-                builder: (_) => const DataSourceAttributionScreen(),
-              ),
-            ),
-          );
-        },
+        onTap: onOpenDataSourceAttribution,
       ),
       _ServiceInfoActionTile(
         key: const Key('openSourceLicensesItem'),

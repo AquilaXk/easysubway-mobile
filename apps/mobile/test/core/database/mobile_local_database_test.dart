@@ -15,10 +15,8 @@ import 'package:easysubway_mobile/core/datapack/bundled_data_pack_freshness.dart
 import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_updater.dart';
 import 'package:easysubway_mobile/core/datapack/emergency_override_repository.dart';
-import 'package:easysubway_mobile/features/routes/data/local_route_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
-import 'package:easysubway_mobile/route_search.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -541,7 +539,7 @@ void main() {
     );
   });
 
-  test('내장 데이터팩은 #2135 ITX topology만 포함하고 timetable은 포함하지 않는다', () async {
+  test('내장 데이터팩은 current ITX topology만 포함하고 timetable은 포함하지 않는다', () async {
     final directory = await Directory.systemTemp.createTemp(
       'easysubway-itx-topology-',
     );
@@ -573,14 +571,14 @@ void main() {
           WHERE service_class = 'ITX_CHEONGCHUN'
           ''').getSingle();
 
-    expect(topology.read<int>('edge_count'), 48);
+    expect(topology.read<int>('edge_count'), 64);
     expect(topology.read<int>('from_node_count'), greaterThan(0));
     expect(topology.read<int>('min_duration'), 0);
     expect(topology.read<int>('max_duration'), 0);
     expect(timetable.read<int>('trip_count'), 0);
     expect(admission.read<String>('admission_status'), 'ADMITTED');
     expect(admission.read<int>('admission_eligible'), 1);
-    expect(admission.read<String>('fresh_until'), '2026-07-27T00:00:00+09:00');
+    expect(admission.read<String>('fresh_until'), '2026-09-07T00:00:00+09:00');
     expect(admission.read<int>('source_issue'), 2135);
   });
 
@@ -875,17 +873,8 @@ void main() {
         'exit-sadang-seoul-4'
       )
     ''').getSingle();
-    final route = await LocalRouteRepository(catalogDatabase: database)
-        .searchRoute(
-          const RouteSearchRequest(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-          ),
-        );
 
     expect(accessEdgeCount.read<int>('count'), 0);
-    expect(route.status, 'UNKNOWN');
   });
 
   test('catalog opener는 부분 적용된 current pack access edge를 보존한다', () async {
@@ -1005,18 +994,9 @@ void main() {
         SELECT COUNT(*) AS count
         FROM fare_rules
       ''').getSingle();
-      final route = await LocalRouteRepository(catalogDatabase: database)
-          .searchRoute(
-            const RouteSearchRequest(
-              originStationId: 'station-sangnoksu',
-              destinationStationId: 'station-sadang',
-              mobilityType: 'WHEELCHAIR',
-            ),
-          );
 
       expect(accessEdgeCount.read<int>('count'), 0);
       expect(fareRuleCount.read<int>('count'), 0);
-      expect(route.status, 'UNKNOWN');
     },
   );
 
@@ -1144,17 +1124,8 @@ void main() {
             'exit-sadang-seoul-4'
           )
           ''').getSingle();
-    final route = await LocalRouteRepository(catalogDatabase: database)
-        .searchRoute(
-          const RouteSearchRequest(
-            originStationId: 'station-sangnoksu',
-            destinationStationId: 'station-sadang',
-            mobilityType: 'WHEELCHAIR',
-          ),
-        );
 
     expect(accessEdgeCount.read<int>('count'), 0);
-    expect(route.status, 'UNKNOWN');
   });
 
   test('catalog opener는 current pointer가 없어도 emergency override를 연다', () async {

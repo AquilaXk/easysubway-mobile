@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../../facility_status.dart';
+import '../domain/facility_status.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../realtime/realtime_repository.dart';
 import '../domain/station_models.dart';

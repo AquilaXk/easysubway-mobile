@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
-import '../../route_draft/application/route_draft_controller.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_models.dart';
@@ -20,7 +19,7 @@ class StationDetailRouteActions extends StatelessWidget {
   });
 
   final StationDetail detail;
-  final RouteDraftController? routeDraftController;
+  final RouteDraftPort? routeDraftController;
   final StationFavoriteToggleController? favoriteController;
 
   @override

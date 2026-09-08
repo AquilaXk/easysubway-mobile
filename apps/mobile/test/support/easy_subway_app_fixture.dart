@@ -2,36 +2,34 @@ import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/app/easy_subway_app.dart';
 import 'package:easysubway_mobile/core/datapack/bundled_data_pack_freshness.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
-import 'package:easysubway_mobile/favorite_facility.dart';
+import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_photo.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
+import 'package:easysubway_mobile/features/support/support_access.dart';
 import 'package:easysubway_mobile/features/support/presentation/support_access_screen.dart';
-import 'package:easysubway_mobile/internal_route.dart';
 import 'package:easysubway_mobile/legacy_credential_cleanup.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
-import 'package:easysubway_mobile/notification_settings.dart';
-import 'package:easysubway_mobile/onboarding.dart';
-import 'package:easysubway_mobile/route_search.dart';
-import 'package:easysubway_mobile/station_search.dart';
-import 'package:easysubway_mobile/user_data_deletion.dart';
+import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
+import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:flutter/material.dart';
 
 EasySubwayApp buildEasySubwayTestApp({
   AppDependencies? dependencies,
   StationSearchRepository? repository,
   FacilityReportRepository? reportRepository,
-  RouteFeedbackRepository? routeFeedbackRepository,
   FavoriteStationRepository? favoriteRepository,
   FavoriteFacilityRepository? favoriteFacilityRepository,
   FavoriteRouteRepository? favoriteRouteRepository,
   AdRepository? adRepository,
   Future<List<FavoriteRoute>>? recentRoutesFuture,
   SearchHistoryRepository? searchHistoryRepository,
-  InternalRouteRepository? internalRouteRepository,
   NetworkMapRepository? networkMapRepository,
   NetworkMapViewportRepository? networkMapViewportRepository,
   RealtimeRepository? realtimeRepository,
@@ -65,6 +63,10 @@ EasySubwayApp buildEasySubwayTestApp({
         final NetworkMapRepository dualPortRepository => dualPortRepository,
         _ => null,
       };
+  final fixtureStationTimetableRepository = switch (repository) {
+    final StationTimetableRepository dualPortRepository => dualPortRepository,
+    _ => null,
+  };
 
   return EasySubwayApp(
     dependencies:
@@ -72,14 +74,13 @@ EasySubwayApp buildEasySubwayTestApp({
         AppDependencies.resolve(
           repository: repository,
           reportRepository: reportRepository,
-          routeFeedbackRepository: routeFeedbackRepository,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: favoriteRouteRepository,
           adRepository: adRepository,
           searchHistoryRepository: searchHistoryRepository,
-          internalRouteRepository: internalRouteRepository,
           networkMapRepository: fixtureNetworkMapRepository,
+          stationTimetableRepository: fixtureStationTimetableRepository,
           networkMapViewportRepository: networkMapViewportRepository,
           realtimeRepository: realtimeRepository,
           notificationRepository: notificationRepository,

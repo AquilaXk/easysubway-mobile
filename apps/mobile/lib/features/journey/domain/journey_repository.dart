@@ -7,6 +7,11 @@ abstract interface class JourneyRepository {
     JourneySearchRequest request, {
     required String sessionToken,
   });
+
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  });
 }
 
 sealed class JourneyRepositoryFailure implements Exception {
