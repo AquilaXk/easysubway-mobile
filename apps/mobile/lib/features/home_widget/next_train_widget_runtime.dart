@@ -380,6 +380,15 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
     }
   }
 
+  @override
+  Future<void> onTaskStopped(String taskName, int stopReason) async {}
+
+  @override
+  Future<void> onProgressUpdate(
+    String uniqueName,
+    Map<String?, Object?>? progress,
+  ) async {}
+
   static Future<bool> _defaultRunGetOffAlarmReconcile() async {
     WidgetsFlutterBinding.ensureInitialized();
     DartPluginRegistrant.ensureInitialized();

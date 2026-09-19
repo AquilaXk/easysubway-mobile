@@ -88,21 +88,19 @@ test("known incompatible releases are ignored narrowly instead of hiding update 
   const pubUpdate = indentedBlock(dependabot, '  - package-ecosystem: "pub"');
   const ignored = indentedBlock(pubUpdate, "    ignore:");
 
-  assert.equal((ignored.match(/^      - dependency-name:/gmu) ?? []).length, 4);
+  assert.equal((ignored.match(/^      - dependency-name:/gmu) ?? []).length, 2);
   assert.doesNotMatch(ignored, /dependency-name: "\*"/u);
   assert.doesNotMatch(ignored, /update-types:/u);
   assertLines(ignored, [
     '      - dependency-name: "build_runner"\n        versions:\n          - "2.16.0"',
     '      - dependency-name: "meta"\n        versions:\n          - "1.19.0"',
-    '      - dependency-name: "workmanager_android"\n        versions:\n          - "0.9.3"',
-    '      - dependency-name: "workmanager_platform_interface"\n        versions:\n          - "0.9.4"',
   ]);
 });
 
 test("current Flutter and native compatibility pins stay exact and CI-owned", () => {
   assert.match(pubspec, /^  meta: 1\.18\.0$/mu);
-  assert.match(pubspec, /^  workmanager_android: 0\.9\.0\+2$/mu);
-  assert.match(pubspec, /^  workmanager_platform_interface: 0\.9\.1\+1$/mu);
+  assert.match(pubspec, /^  workmanager_android: 0\.10\.8$/mu);
+  assert.match(pubspec, /^  workmanager_platform_interface: 0\.10\.4$/mu);
   assert.match(pubspec, /^  build_runner: 2\.15\.1$/mu);
   assert.match(workflow, /^            tools\/ci\/mobile-dependabot-policy\.test\.mjs \\$/mu);
 });
