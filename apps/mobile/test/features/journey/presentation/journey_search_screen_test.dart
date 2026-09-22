@@ -562,6 +562,64 @@ void main() {
       Tristate.isTrue,
     );
   });
+
+  testWidgets('노외 환승은 시간에 따라 3단계 배지(녹색, 주황색, 빨간색) 및 분리 요금을 렌더링한다', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    repository.journeyIds = <String>[
+      'journey-oos-green',
+      'journey-oos-amber',
+      'journey-oos-red',
+    ];
+    await _pumpScreen(tester, repository: repository);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('out-of-station-badge-green')), findsWidgets);
+    expect(find.text('노외 환승 (여유)'), findsWidgets);
+    expect(find.byKey(const Key('out-of-station-badge-amber')), findsWidgets);
+    expect(find.text('노외 환승 (주의)'), findsWidgets);
+    expect(find.byKey(const Key('out-of-station-badge-red')), findsWidgets);
+    expect(find.text('노외 환승 (시간 초과)'), findsWidgets);
+
+    final redCandidate = find.byKey(
+      const Key('journey-candidate-journey-oos-red'),
+    );
+    await tester.ensureVisible(redCandidate);
+    await tester.tap(redCandidate);
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('out-of-station-fare-breakdown')),
+      findsOneWidget,
+    );
+    expect(find.text('추가 요금 +1,400원'), findsOneWidget);
+  });
+
+  testWidgets(
+    '기후동행카드 등 정기권 보유 시(hasUnlimitedTransitPass: true) 빨간색 배지 대신 우회 텍스트를 렌더링한다',
+    (tester) async {
+      final repository = _Repository();
+      repository.journeyIds = <String>['journey-oos-red'];
+      await _pumpScreen(
+        tester,
+        repository: repository,
+        hasUnlimitedTransitPass: true,
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+
+      expect(find.byKey(const Key('out-of-station-badge-red')), findsNothing);
+      expect(
+        find.byKey(const Key('out-of-station-badge-pass-override')),
+        findsWidgets,
+      );
+      expect(find.text('노외 환승 (기후동행카드 적용)'), findsWidgets);
+    },
+  );
 }
 
 class _RecordingCrashlytics implements CrashlyticsGateway {
@@ -610,6 +668,7 @@ Future<void> _pumpScreen(
   Future<String> Function(String stationId)? stationNameResolver,
   DateTime Function()? getOffAlarmNow,
   DateTime Function()? journeyNow,
+  bool hasUnlimitedTransitPass = false,
 }) {
   return tester.pumpWidget(
     MaterialApp(
@@ -624,6 +683,7 @@ Future<void> _pumpScreen(
         stationNameResolver: stationNameResolver,
         getOffAlarmNow: getOffAlarmNow,
         journeyNow: journeyNow ?? () => DateTime.utc(2026, 8, 12),
+        hasUnlimitedTransitPass: hasUnlimitedTransitPass,
       ),
     ),
   );
@@ -734,47 +794,82 @@ JourneySearchSuccess _success(
   );
 }
 
-Journey _journey(String id, DateTime now) => Journey(
-  journeyId: id,
-  status: JourneyStatus.found,
-  planSource: JourneyPlanSource.serverTimetableRaptor,
-  plannedDepartureTime: now,
-  plannedArrivalTime: now.add(const Duration(minutes: 5)),
-  realtimeDepartureTime: null,
-  realtimeArrivalTime: null,
-  durationSeconds: 300,
-  transferCount: id == 'journey-1' ? 2 : 0,
-  walkingDistanceMeters: 0,
-  timeSource: JourneyTimeSource.timetable,
-  accessibility: const JourneyAccessibility(
-    result: JourneyAccessibilityResult.verified,
-    stairFree: false,
-    reasonCodes: <String>[],
-  ),
-  legs: <JourneyLeg>[
-    const JourneyEntryLeg(fromStationId: 'station-origin', durationSeconds: 60),
-    JourneyRideLeg(
-      lineId: 'line-private',
-      tripId: 'trip-private',
-      directionStationId: 'station-direction',
-      fromStationId: 'station-origin',
-      toStationId: 'station-transfer',
-      plannedDepartureTime: now,
-      plannedArrivalTime: now.add(const Duration(minutes: 3)),
-      realtimeDepartureTime: null,
-      realtimeArrivalTime: null,
-    ),
-    const JourneyTransferLeg(
+Journey _journey(String id, DateTime now) {
+  final JourneyTransferLeg transferLeg;
+  if (id == 'journey-oos-green') {
+    transferLeg = const JourneyTransferLeg(
+      fromStationId: 'station-transfer',
+      toStationId: 'station-destination',
+      durationSeconds: 15 * 60,
+      transferType: 'OUT_OF_STATION',
+    );
+  } else if (id == 'journey-oos-amber') {
+    transferLeg = const JourneyTransferLeg(
+      fromStationId: 'station-transfer',
+      toStationId: 'station-destination',
+      durationSeconds: 25 * 60,
+      transferType: 'OUT_OF_STATION',
+    );
+  } else if (id == 'journey-oos-red') {
+    transferLeg = const JourneyTransferLeg(
+      fromStationId: 'station-transfer',
+      toStationId: 'station-destination',
+      durationSeconds: 40 * 60,
+      transferType: 'OUT_OF_STATION',
+      farePenaltyApplies: true,
+      additionalFareWon: 1400,
+    );
+  } else {
+    transferLeg = const JourneyTransferLeg(
       fromStationId: 'station-transfer',
       toStationId: 'station-destination',
       durationSeconds: 60,
+    );
+  }
+
+  return Journey(
+    journeyId: id,
+    status: JourneyStatus.found,
+    planSource: JourneyPlanSource.serverTimetableRaptor,
+    plannedDepartureTime: now,
+    plannedArrivalTime: now.add(const Duration(minutes: 5)),
+    realtimeDepartureTime: null,
+    realtimeArrivalTime: null,
+    durationSeconds: id.startsWith('journey-oos-') ? 1800 : 300,
+    transferCount: id == 'journey-1'
+        ? 2
+        : (id.startsWith('journey-oos-') ? 1 : 0),
+    walkingDistanceMeters: 0,
+    timeSource: JourneyTimeSource.timetable,
+    accessibility: const JourneyAccessibility(
+      result: JourneyAccessibilityResult.verified,
+      stairFree: false,
+      reasonCodes: <String>[],
     ),
-    const JourneyExitLeg(
-      fromStationId: 'station-destination',
-      durationSeconds: 60,
-    ),
-  ],
-);
+    legs: <JourneyLeg>[
+      const JourneyEntryLeg(
+        fromStationId: 'station-origin',
+        durationSeconds: 60,
+      ),
+      JourneyRideLeg(
+        lineId: 'line-private',
+        tripId: 'trip-private',
+        directionStationId: 'station-direction',
+        fromStationId: 'station-origin',
+        toStationId: 'station-transfer',
+        plannedDepartureTime: now,
+        plannedArrivalTime: now.add(const Duration(minutes: 3)),
+        realtimeDepartureTime: null,
+        realtimeArrivalTime: null,
+      ),
+      transferLeg,
+      const JourneyExitLeg(
+        fromStationId: 'station-destination',
+        durationSeconds: 60,
+      ),
+    ],
+  );
+}
 
 class _AlarmHarness {
   _AlarmHarness() {
