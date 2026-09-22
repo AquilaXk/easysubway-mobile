@@ -13,6 +13,7 @@ import '../domain/journey_repository.dart';
 import 'journey_get_off_alarm_toggle.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
 import '../../../core/crashlytics/mobile_crash_reporting.dart';
+import '../../../accessible_design.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
 
@@ -152,16 +153,18 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         key: const Key('out-of-station-badge-pass-override'),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
         decoration: BoxDecoration(
-          color: Colors.blue.shade50,
+          color: EasySubwayAccessibleColors.statusInfoSurface,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: Colors.blue.shade700),
+          border: Border.all(
+            color: EasySubwayAccessibleColors.statusInfoContent,
+          ),
         ),
-        child: Text(
+        child: const Text(
           '노외 환승 (기후동행카드 적용)',
           style: TextStyle(
             fontSize: 11,
             fontWeight: FontWeight.bold,
-            color: Colors.blue.shade900,
+            color: EasySubwayAccessibleColors.statusInfoContent,
           ),
         ),
       );
@@ -174,21 +177,21 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final Key key;
 
     if (minutes <= 18) {
-      bgColor = Colors.green.shade50;
-      textColor = Colors.green.shade900;
-      borderColor = Colors.green.shade700;
+      bgColor = EasySubwayAccessibleColors.statusSuccessSurface;
+      textColor = EasySubwayAccessibleColors.statusSuccessContent;
+      borderColor = EasySubwayAccessibleColors.statusSuccessContent;
       label = '노외 환승 (여유)';
       key = const Key('out-of-station-badge-green');
     } else if (minutes <= 30) {
-      bgColor = Colors.amber.shade50;
-      textColor = Colors.amber.shade900;
-      borderColor = Colors.amber.shade700;
+      bgColor = EasySubwayAccessibleColors.statusWarningSurface;
+      textColor = EasySubwayAccessibleColors.statusWarningContent;
+      borderColor = EasySubwayAccessibleColors.statusWarningContent;
       label = '노외 환승 (주의)';
       key = const Key('out-of-station-badge-amber');
     } else {
-      bgColor = Colors.red.shade50;
-      textColor = Colors.red.shade900;
-      borderColor = Colors.red.shade700;
+      bgColor = EasySubwayAccessibleColors.statusDangerSurface;
+      textColor = EasySubwayAccessibleColors.statusDangerContent;
+      borderColor = EasySubwayAccessibleColors.statusDangerContent;
       label = '노외 환승 (시간 초과)';
       key = const Key('out-of-station-badge-red');
     }
@@ -228,12 +231,15 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       key: const Key('out-of-station-fare-breakdown'),
       padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: EasySubwayAccessibleColors.surfaceSubtle,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
         '추가 요금 +${buffer.toString()}원',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+        style: const TextStyle(
+          fontSize: 11,
+          color: EasySubwayAccessibleColors.contentSecondary,
+        ),
       ),
     );
   }
