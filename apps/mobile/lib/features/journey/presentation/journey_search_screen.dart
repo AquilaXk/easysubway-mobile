@@ -31,6 +31,7 @@ class JourneySearchScreen extends StatefulWidget {
     this.stationNameResolver,
     this.getOffAlarmNow,
     this.journeyNow,
+    this.hasUnlimitedTransitPass = false,
     super.key,
   }) : assert((getOffAlarmController == null) == (stationNameResolver == null));
 
@@ -45,6 +46,7 @@ class JourneySearchScreen extends StatefulWidget {
   final JourneyStationNameResolver? stationNameResolver;
   final DateTime Function()? getOffAlarmNow;
   final DateTime Function()? journeyNow;
+  final bool hasUnlimitedTransitPass;
 
   @override
   State<JourneySearchScreen> createState() => _JourneySearchScreenState();
@@ -140,6 +142,102 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   String _durationLabel(int seconds) => '${(seconds + 59) ~/ 60}분';
 
+  Widget? _outOfStationTransferBadge(JourneyTransferLeg leg) {
+    if (leg.transferType != 'OUT_OF_STATION') return null;
+    final minutes = (leg.durationSeconds + 59) ~/ 60;
+
+    if (widget.hasUnlimitedTransitPass &&
+        (minutes > 30 || leg.farePenaltyApplies)) {
+      return Container(
+        key: const Key('out-of-station-badge-pass-override'),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade50,
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.blue.shade700),
+        ),
+        child: Text(
+          '노외 환승 (기후동행카드 적용)',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+            color: Colors.blue.shade900,
+          ),
+        ),
+      );
+    }
+
+    final Color bgColor;
+    final Color textColor;
+    final Color borderColor;
+    final String label;
+    final Key key;
+
+    if (minutes <= 18) {
+      bgColor = Colors.green.shade50;
+      textColor = Colors.green.shade900;
+      borderColor = Colors.green.shade700;
+      label = '노외 환승 (여유)';
+      key = const Key('out-of-station-badge-green');
+    } else if (minutes <= 30) {
+      bgColor = Colors.amber.shade50;
+      textColor = Colors.amber.shade900;
+      borderColor = Colors.amber.shade700;
+      label = '노외 환승 (주의)';
+      key = const Key('out-of-station-badge-amber');
+    } else {
+      bgColor = Colors.red.shade50;
+      textColor = Colors.red.shade900;
+      borderColor = Colors.red.shade700;
+      label = '노외 환승 (시간 초과)';
+      key = const Key('out-of-station-badge-red');
+    }
+
+    return Container(
+      key: key,
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: bgColor,
+        borderRadius: BorderRadius.circular(4),
+        border: Border.all(color: borderColor),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.bold,
+          color: textColor,
+        ),
+      ),
+    );
+  }
+
+  Widget? _outOfStationFareBreakdown(JourneyTransferLeg leg) {
+    if (leg.transferType != 'OUT_OF_STATION') return null;
+    if (!leg.farePenaltyApplies && leg.additionalFareWon <= 0) return null;
+    final amount = leg.additionalFareWon > 0 ? leg.additionalFareWon : 1400;
+    final s = amount.toString();
+    final buffer = StringBuffer();
+    for (int i = 0; i < s.length; i++) {
+      if (i > 0 && (s.length - i) % 3 == 0) {
+        buffer.write(',');
+      }
+      buffer.write(s[i]);
+    }
+    return Container(
+      key: const Key('out-of-station-fare-breakdown'),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade100,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        '추가 요금 +${buffer.toString()}원',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+      ),
+    );
+  }
+
   Widget _candidateRow(BuildContext context, Journey journey) {
     final selected = _controller.state.selectedJourneyId == journey.journeyId;
     final durationMinutes = (journey.durationSeconds + 59) ~/ 60;
@@ -149,6 +247,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final accessibility = journey.accessibility.stairFree
         ? '무단차 경로'
         : '무단차 경로 아님';
+    JourneyTransferLeg? outOfStationLeg;
+    for (final leg in journey.legs) {
+      if (leg is JourneyTransferLeg && leg.transferType == 'OUT_OF_STATION') {
+        outOfStationLeg = leg;
+        break;
+      }
+    }
     final summary =
         '$durationMinutes분, $transfer, 도보 ${journey.walkingDistanceMeters}m, ${_arrivalTime(journey)} 도착, $accessibility';
     final color = Theme.of(context).colorScheme.primary;
@@ -179,13 +284,20 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      '$durationMinutes분',
-                      style: selected
-                          ? Theme.of(context).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            )
-                          : Theme.of(context).textTheme.titleMedium,
+                    Row(
+                      children: [
+                        Text(
+                          '$durationMinutes분',
+                          style: selected
+                              ? Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.bold)
+                              : Theme.of(context).textTheme.titleMedium,
+                        ),
+                        if (outOfStationLeg != null) ...[
+                          const SizedBox(width: 8),
+                          _outOfStationTransferBadge(outOfStationLeg)!,
+                        ],
+                      ],
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -272,6 +384,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   Widget _detailLeg(int index, JourneyLeg leg) {
     final (title, detail) = _legLabel(leg);
+    final badge = leg is JourneyTransferLeg
+        ? _outOfStationTransferBadge(leg)
+        : null;
+    final fare = leg is JourneyTransferLeg
+        ? _outOfStationFareBreakdown(leg)
+        : null;
     return Semantics(
       label: '$title, $detail',
       child: ExcludeSemantics(
@@ -281,8 +399,22 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           padding: const EdgeInsets.symmetric(vertical: 8),
           child: Row(
             children: [
-              Expanded(child: Text(title)),
-              Text(detail),
+              Expanded(
+                child: Row(
+                  children: [
+                    Text(title),
+                    if (badge != null) ...[const SizedBox(width: 8), badge],
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(detail),
+                  if (fare != null) ...[const SizedBox(height: 2), fare],
+                ],
+              ),
             ],
           ),
         ),
