@@ -249,6 +249,7 @@ Future<void> main() async {
           onDataPackMeteredConsent: bootstrap.acceptMeteredDataPackUpdate,
           dataPackUpdate: bootstrap.dataPackUpdate,
           bundledDataPackFreshness: bootstrap.bundledDataPackFreshness,
+          isUsingBundledDataPack: bootstrap.isUsingBundledDataPack,
         ),
       ),
     ),

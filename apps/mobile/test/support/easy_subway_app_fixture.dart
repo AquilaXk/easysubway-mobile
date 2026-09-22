@@ -53,6 +53,7 @@ EasySubwayApp buildEasySubwayTestApp({
   BundledDataPackFreshness? bundledDataPackFreshness,
   OnboardingState initialOnboardingState = const OnboardingState.initial(),
   bool enablePushNotifications = false,
+  bool isUsingBundledDataPack = false,
   GlobalKey<NavigatorState>? navigatorKey,
   Key? key,
 }) {
@@ -101,6 +102,7 @@ EasySubwayApp buildEasySubwayTestApp({
     onDataPackMeteredConsent: onDataPackMeteredConsent,
     dataPackUpdate: dataPackUpdate,
     bundledDataPackFreshness: bundledDataPackFreshness,
+    isUsingBundledDataPack: isUsingBundledDataPack,
     initialOnboardingState: initialOnboardingState,
     navigatorKey: navigatorKey,
     key: key,

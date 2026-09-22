@@ -50,6 +50,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
   required NearbyAdjacentStations adjacentStations,
   VoidCallback? onOpenStationDetail,
   ValueChanged<StationDetailNeighbor>? onSelectNeighbor,
+  VoidCallback? onSelectTimetable,
 }) {
   final primary = results.first;
   final selectedLine = networkMapNearbySelectedLine(primary, selectedLineId);
@@ -96,6 +97,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             lineColor: lineColor,
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
+            onSelectTimetable: onSelectTimetable,
           )
         : NearbyTimetablePanel(
             data: _networkMapNearbyTimetablePanelData(timetable),

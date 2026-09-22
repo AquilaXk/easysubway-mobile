@@ -40,6 +40,7 @@ class NearbyArrivalPanel extends StatelessWidget {
     required this.lineColor,
     required this.leftName,
     required this.rightName,
+    this.onSelectTimetable,
     super.key,
   });
 
@@ -47,6 +48,7 @@ class NearbyArrivalPanel extends StatelessWidget {
   final Color lineColor;
   final String? leftName;
   final String? rightName;
+  final VoidCallback? onSelectTimetable;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +74,39 @@ class NearbyArrivalPanel extends StatelessWidget {
       leftName: leftName,
       rightName: rightName,
     );
+    final isUnavailable = data.status == NearbyArrivalPanelStatus.unavailable;
     if (slots.isEmpty) {
+      if (isUnavailable) {
+        return Column(
+          key: const Key('networkMapNearbyArrivalSkeleton'),
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              '실시간 도착 정보를 불러올 수 없습니다.',
+              style: TextStyle(
+                color: EasySubwayAccessibleColors.statusDangerContent,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            if (onSelectTimetable != null) ...[
+              const SizedBox(height: 4),
+              TextButton(
+                key: const Key('nearbyArrivalPanelSelectTimetableButton'),
+                onPressed: onSelectTimetable,
+                style: TextButton.styleFrom(
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                ),
+                child: const Text('시간표 보기'),
+              ),
+            ],
+            const SizedBox(height: 6),
+            const NearbyDataUnavailable(),
+          ],
+        );
+      }
       return const NearbyDataUnavailable();
     }
 
@@ -120,6 +154,30 @@ class NearbyArrivalPanel extends StatelessWidget {
       key: hasData ? null : const Key('networkMapNearbyArrivalSkeleton'),
       mainAxisSize: MainAxisSize.min,
       children: [
+        if (isUnavailable) ...[
+          const Text(
+            '실시간 도착 정보를 불러올 수 없습니다.',
+            style: TextStyle(
+              color: EasySubwayAccessibleColors.statusDangerContent,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          if (onSelectTimetable != null) ...[
+            const SizedBox(height: 4),
+            TextButton(
+              key: const Key('nearbyArrivalPanelSelectTimetableButton'),
+              onPressed: onSelectTimetable,
+              style: TextButton.styleFrom(
+                minimumSize: Size.zero,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text('시간표 보기'),
+            ),
+          ],
+          const SizedBox(height: 6),
+        ],
         if (isStale) ...[
           Text(
             data.receivedAt.trim().isEmpty
