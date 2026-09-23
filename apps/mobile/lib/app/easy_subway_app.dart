@@ -588,6 +588,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
                 key: const Key('bundledDataPackOfflineBanner'),
                 backgroundColor:
                     EasySubwayAccessibleColors.statusWarningSurface,
+                margin: EdgeInsets.zero,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 4,
