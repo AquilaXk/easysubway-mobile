@@ -1,4 +1,5 @@
 import '../../../generated/journey_v3/journey_v3_contract.dart';
+import 'journey_profile_models.dart';
 
 abstract interface class JourneyRepository {
   Future<JourneySessionResponse> issueSession(JourneySessionRequest request);
@@ -10,6 +11,11 @@ abstract interface class JourneyRepository {
 
   Future<StationTimetableSearchSuccess> searchStationTimetables(
     StationTimetableSearchRequest request, {
+    required String sessionToken,
+  });
+
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
     required String sessionToken,
   });
 }
