@@ -21,16 +21,22 @@ const supportedFeatures = ['array', 'boolean', 'closed-object', 'enum', 'integer
 const expectedOperations = new Map([
   ['/api/v3/journeys/session', { id: 'issueJourneySession', responses: ['200', '400', '403', '503'], request: 'JourneySessionRequest', success: 'JourneySessionResponse' }],
   ['/api/v3/journeys/search', { id: 'searchJourneys', responses: ['200', '400', '404', '422', '503', '504', '401', '429'], request: 'JourneySearchRequest', success: 'JourneySearchSuccess' }],
+  ['/api/v3/journeys/profile', { id: 'profileJourneys', responses: ['200', '400', '404', '422', '503', '504', '401', '429'], request: 'JourneyProfileRequest', success: 'JourneyProfileSuccess' }],
   ['/api/v3/station-timetables/search', { id: 'searchStationTimetables', responses: ['200', '400', '404', '503', '401', '429'], request: 'StationTimetableSearchRequest', success: 'StationTimetableSearchSuccess' }],
 ]);
 const expectedErrorTuples = [
-  ['searchJourneys', 400, 'INVALID_JOURNEY_REQUEST'], ['searchJourneys', 404, 'STATION_NOT_FOUND'], ['searchJourneys', 422, 'ROUTE_NOT_FOUND'], ['searchJourneys', 422, 'ACCESSIBILITY_CONSTRAINT_UNSATISFIED'], ['searchJourneys', 503, 'ROUTING_BUNDLE_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_BUNDLE_STALE'], ['searchJourneys', 503, 'TIMETABLE_UNAVAILABLE'], ['searchJourneys', 503, 'TIMETABLE_STALE'], ['searchJourneys', 503, 'REALTIME_REQUIRED_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_IDENTITY_MISMATCH'], ['searchJourneys', 503, 'ROUTE_SERVICE_UNAVAILABLE'], ['searchJourneys', 504, 'JOURNEY_SEARCH_TIMEOUT'], ['searchJourneys', 401, 'ROUTE_SESSION_REQUIRED'], ['searchJourneys', 429, 'ROUTE_RATE_LIMITED'], ['issueJourneySession', 400, 'INVALID_JOURNEY_SESSION_REQUEST'], ['issueJourneySession', 403, 'ROUTE_SESSION_ATTESTATION_REJECTED'], ['issueJourneySession', 503, 'ROUTE_SESSION_ATTESTATION_UNAVAILABLE'],
-  ['searchStationTimetables', 400, 'INVALID_JOURNEY_REQUEST'], ['searchStationTimetables', 404, 'STATION_LINE_NOT_FOUND'], ['searchStationTimetables', 404, 'TIMETABLE_NOT_COVERED'], ['searchStationTimetables', 503, 'TIMETABLE_UNAVAILABLE'], ['searchStationTimetables', 503, 'TIMETABLE_STALE'], ['searchStationTimetables', 503, 'TIMETABLE_IDENTITY_MISMATCH'], ['searchStationTimetables', 401, 'ROUTE_SESSION_REQUIRED'], ['searchStationTimetables', 429, 'ROUTE_RATE_LIMITED'],
+  ['searchJourneys', 400, 'INVALID_JOURNEY_REQUEST'], ['searchJourneys', 404, 'STATION_NOT_FOUND'], ['searchJourneys', 422, 'ROUTE_NOT_FOUND'], ['searchJourneys', 422, 'ACCESSIBILITY_CONSTRAINT_UNSATISFIED'], ['searchJourneys', 503, 'ROUTING_BUNDLE_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_BUNDLE_STALE'], ['searchJourneys', 503, 'TIMETABLE_UNAVAILABLE'], ['searchJourneys', 503, 'TIMETABLE_STALE'], ['searchJourneys', 503, 'REALTIME_REQUIRED_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_IDENTITY_MISMATCH'], ['searchJourneys', 503, 'ROUTE_SERVICE_UNAVAILABLE'], ['searchJourneys', 504, 'JOURNEY_SEARCH_TIMEOUT'],
+  ['searchStationTimetables', 400, 'INVALID_JOURNEY_REQUEST'], ['searchStationTimetables', 404, 'STATION_LINE_NOT_FOUND'], ['searchStationTimetables', 404, 'TIMETABLE_NOT_COVERED'], ['searchStationTimetables', 503, 'TIMETABLE_UNAVAILABLE'], ['searchStationTimetables', 503, 'TIMETABLE_STALE'], ['searchStationTimetables', 503, 'TIMETABLE_IDENTITY_MISMATCH'],
+  ['profileJourneys', 400, 'INVALID_TEMPORAL_QUERY'], ['profileJourneys', 400, 'TEMPORAL_WINDOW_TOO_LARGE'], ['profileJourneys', 404, 'STATION_NOT_FOUND'], ['profileJourneys', 422, 'NO_SERVICE_IN_DEPARTURE_WINDOW'], ['profileJourneys', 422, 'NO_ROUTE_ARRIVING_BY_DEADLINE'], ['profileJourneys', 422, 'NO_LAST_CONNECTION'], ['profileJourneys', 422, 'REALTIME_NOT_APPLICABLE_TO_TEMPORAL_QUERY'], ['profileJourneys', 422, 'TEMPORAL_QUERY_TOO_COMPLEX'], ['profileJourneys', 503, 'REALTIME_REQUIRED_UNAVAILABLE'], ['profileJourneys', 503, 'ROUTING_BUNDLE_UNAVAILABLE'], ['profileJourneys', 503, 'ROUTING_BUNDLE_STALE'], ['profileJourneys', 503, 'ROUTING_IDENTITY_MISMATCH'], ['profileJourneys', 503, 'RAPTOR_FRONTIER_CAPACITY_EXCEEDED'], ['profileJourneys', 504, 'JOURNEY_PROFILE_TIMEOUT'],
+  ['searchJourneys', 401, 'ROUTE_SESSION_REQUIRED'], ['searchJourneys', 429, 'ROUTE_RATE_LIMITED'],
+  ['searchStationTimetables', 401, 'ROUTE_SESSION_REQUIRED'], ['searchStationTimetables', 429, 'ROUTE_RATE_LIMITED'],
+  ['profileJourneys', 401, 'ROUTE_SESSION_REQUIRED'], ['profileJourneys', 429, 'ROUTE_RATE_LIMITED'],
+  ['issueJourneySession', 400, 'INVALID_JOURNEY_SESSION_REQUEST'], ['issueJourneySession', 403, 'ROUTE_SESSION_ATTESTATION_REJECTED'], ['issueJourneySession', 503, 'ROUTE_SESSION_ATTESTATION_UNAVAILABLE']
 ];
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = '2fd5f6106faee5b1faff6e4a7241d30a188a89d8e55f135326fe34deee596d98';
+const expectedSchemasProjectionSha256 = '97e4ed7ef406491716a5e8b7527a8c586761edbc75953914d68146f871a2055f';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -85,19 +91,45 @@ function parseScalar(raw, label) {
   if (raw === 'true') return true; if (raw === 'false') return false; if (raw === 'null') return null;
   if (/^-?(?:0|[1-9]\d*)$/.test(raw)) return Number(raw);
   if (raw.startsWith('"')) { try { const parsed = JSON.parse(raw); if (typeof parsed !== 'string') throw new Error(); return parsed; } catch { fail(`${label} has invalid quoted scalar`); } }
-  if (raw.startsWith('[') && raw.endsWith(']')) { const inner = raw.slice(1, -1); if (inner === '') return []; if (/[{}]/.test(inner)) fail(`${label} has unsupported inline construct`); return inner.split(',').map((part) => { const item = part.trim(); if (!item || item !== part.trim()) fail(`${label} has noncanonical inline array`); return parseScalar(item, label); }); }
+  if (raw.startsWith('[') && raw.endsWith(']')) {
+    const inner = raw.slice(1, -1).trim();
+    if (inner === '') return [];
+    if (/[{}]/.test(inner)) fail(`${label} has unsupported inline construct`);
+    const items = [];
+    let cur = '', inQuotes = false;
+    for (let i = 0; i < inner.length; i++) {
+      const ch = inner[i];
+      if (ch === '"') inQuotes = !inQuotes;
+      if (ch === ',' && !inQuotes) {
+        items.push(cur.trim());
+        cur = '';
+      } else {
+        cur += ch;
+      }
+    }
+    items.push(cur.trim());
+    return items.map((part) => parseScalar(part, label));
+  }
   if (/^[^\s][^#{}[\]]*$/.test(raw)) return raw;
   fail(`${label} has unsupported YAML scalar`);
 }
 
 function parseYaml(text) {
-  if (!text.endsWith('\n') || /\t|(^|\s)[&*!]|(^|\s)<<:|(^|\s)[>|]/m.test(text)) fail('OpenAPI has unsupported YAML construct');
+  if (!text.endsWith('\n') || /\t|(^|\s)[&*!]|(^|\s)<<:|(^|\s)(?:\||>[^-]|\>[\r\n])/m.test(text)) fail('OpenAPI has unsupported YAML construct');
   const lines = text.split('\n').slice(0, -1).map((line, index) => ({ line, number: index + 1 }));
   if (lines.some(({ line }) => line === '' || /[ \t]$/.test(line))) fail('OpenAPI has noncanonical YAML whitespace');
   let index = 0;
   const current = () => lines[index];
   const indentOf = (line) => line.match(/^ */)[0].length;
   const keyValue = (body, label) => { const match = /^("(?:[^"\\]|\\.)+"|\$ref|\/[A-Za-z0-9_./{}-]*|[A-Za-z][A-Za-z0-9_./$-]*):(?: ?(.*))?$/.exec(body); if (!match) fail(`${label} has unsupported YAML mapping`); const key = match[1].startsWith('"') ? parseScalar(match[1], label) : match[1]; return [key, match[2] ?? '']; };
+  const foldedScalar = (parentIndent) => {
+    const parts = [];
+    while (current() && indentOf(current().line) > parentIndent) {
+      parts.push(current().line.trim());
+      index += 1;
+    }
+    return parts.join(' ');
+  };
   const block = (indent) => {
     if (!current() || indentOf(current().line) !== indent) fail(`OpenAPI line ${current()?.number ?? 'EOF'} has noncanonical indentation`);
     const sequence = current().line.slice(indent).startsWith('-'); const result = sequence ? [] : {};
@@ -106,9 +138,29 @@ function parseYaml(text) {
       if (sequence) {
         if (!body.startsWith('- ') || body === '-') fail(`OpenAPI line ${current().number} has unsupported YAML sequence`);
         const rest = body.slice(2); index += 1;
-        if (/^[A-Za-z$][A-Za-z0-9_$-]*:/.test(rest)) { const [key, raw] = keyValue(rest, `OpenAPI line ${lines[index - 1].number}`); const entry = {}; if (raw === '') entry[key] = current() && indentOf(current().line) > indent ? block(indent + 2) : fail(`OpenAPI line ${lines[index - 1].number} needs child`); else entry[key] = parseScalar(raw, `OpenAPI line ${lines[index - 1].number}`); if (current() && indentOf(current().line) === indent + 2 && !current().line.slice(indent + 2).startsWith('-')) { const tail = block(indent + 2); for (const [tailKey, tailValue] of Object.entries(tail)) { if (tailKey in entry) fail(`OpenAPI line ${current()?.number ?? 'EOF'} has duplicate key ${tailKey}`); entry[tailKey] = tailValue; } } result.push(entry); } else result.push(parseScalar(rest, `OpenAPI line ${lines[index - 1].number}`));
+        if (/^[A-Za-z$][A-Za-z0-9_$-]*:/.test(rest)) {
+          const [key, raw] = keyValue(rest, `OpenAPI line ${lines[index - 1].number}`);
+          const entry = {};
+          if (raw === '') entry[key] = current() && indentOf(current().line) > indent ? block(indent + 2) : fail(`OpenAPI line ${lines[index - 1].number} needs child`);
+          else if (raw === '>-') entry[key] = foldedScalar(indent);
+          else entry[key] = parseScalar(raw, `OpenAPI line ${lines[index - 1].number}`);
+          if (current() && indentOf(current().line) === indent + 2 && !current().line.slice(indent + 2).startsWith('-')) {
+            const tail = block(indent + 2);
+            for (const [tailKey, tailValue] of Object.entries(tail)) {
+              if (tailKey in entry) fail(`OpenAPI line ${current()?.number ?? 'EOF'} has duplicate key ${tailKey}`);
+              entry[tailKey] = tailValue;
+            }
+          }
+          result.push(entry);
+        } else result.push(parseScalar(rest, `OpenAPI line ${lines[index - 1].number}`));
       } else {
-        if (body.startsWith('- ')) fail(`OpenAPI line ${current().number} mixes YAML sequence and mapping`); const [key, raw] = keyValue(body, `OpenAPI line ${current().number}`); if (key in result) fail(`OpenAPI line ${current().number} has duplicate key ${key}`); index += 1; result[key] = raw === '' ? (current() && indentOf(current().line) > indent ? block(indent + 2) : fail(`OpenAPI line ${lines[index - 1].number} needs child`)) : parseScalar(raw, `OpenAPI line ${lines[index - 1].number}`);
+        if (body.startsWith('- ')) fail(`OpenAPI line ${current().number} mixes YAML sequence and mapping`);
+        const [key, raw] = keyValue(body, `OpenAPI line ${current().number}`);
+        if (key in result) fail(`OpenAPI line ${current().number} has duplicate key ${key}`);
+        index += 1;
+        if (raw === '') result[key] = (current() && indentOf(current().line) > indent ? block(indent + 2) : fail(`OpenAPI line ${lines[index - 1].number} needs child`));
+        else if (raw === '>-') result[key] = foldedScalar(indent);
+        else result[key] = parseScalar(raw, `OpenAPI line ${lines[index - 1].number}`);
       }
       if (current() && indentOf(current().line) > indent && !sequence) fail(`OpenAPI line ${current().number} has noncanonical indentation`);
     }
@@ -152,8 +204,69 @@ function assertAllowed(value, keys, label) { if (!isObject(value) || Object.keys
 function validateSchemas(schemas, enforceSchemasProjection) {
   if (!isObject(schemas) || Object.keys(schemas).length === 0) fail('components.schemas must be nonempty'); const state = new Map();
   const visit = (name) => { if (!(name in schemas)) fail(`unresolved schema reference ${name}`); if (state.get(name) === 'visiting') fail(`cyclic schema reference ${name}`); if (state.get(name) === 'done') return; state.set(name, 'visiting'); schema(schemas[name], name); state.set(name, 'done'); };
-  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime']);
-  const schema = (value, label) => { if (!isObject(value)) fail(`${label} must be a schema object`); if ('$ref' in value) { assertAllowed(value, ['$ref'], label); visit(ref(value.$ref, label)); return; } if ('oneOf' in value) { assertAllowed(value, ['oneOf'], label); const descriptor = { JourneyDeparture: { tag: 'mode', refs: ['JourneyDepartureNow', 'JourneyDepartureScheduled'] }, JourneyLeg: { tag: 'type', refs: ['JourneyEntryLeg', 'JourneyRideLeg', 'JourneyTransferLeg', 'JourneyExitLeg'] }, StationTimetableSelector: { tag: 'kind', refs: ['StationTimetableServiceDateSelector', 'StationTimetableDayTypeSelector', 'StationTimetableNextDeparturesSelector'] } }[label]; if (!descriptor || value.oneOf.length !== descriptor.refs.length) fail(`${label} must be the exact closed tagged oneOf`); const tags = new Set(); for (const [index, part] of value.oneOf.entries()) { if (!isObject(part) || Object.keys(part).length !== 1 || ref(part.$ref, label) !== descriptor.refs[index]) fail(`${label} oneOf is unsupported`); const target = descriptor.refs[index]; visit(target); const tag = schemas[target]?.properties?.[descriptor.tag]?.enum; if (!Array.isArray(tag) || tag.length !== 1 || tags.has(tag[0])) fail(`${label} oneOf is not tagged by ${descriptor.tag}`); tags.add(tag[0]); } return; } if (value.type === 'object') { assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not'], label); const isOptionalAllowed = label === 'JourneyTransferLeg'; if (value.additionalProperties !== false || !Array.isArray(value.required) || !isObject(value.properties) || new Set(value.required).size !== value.required.length || (!isOptionalAllowed && Object.keys(value.properties).length !== value.required.length) || value.required.some((key) => !(key in value.properties))) fail(`${label} must have an exact closed required property set`); for (const [key, child] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) fail(`${label} has unsupported property`); schema(child, `${label}.${key}`); } if ('not' in value && (!isObject(value.not) || !Array.isArray(value.not.required) || !isObject(value.not.properties))) fail(`${label} has unsupported not constraint`); return; } if (value.type === 'string') { assertAllowed(value, ['type', 'minLength', 'maxLength', 'pattern', 'format', 'enum', 'nullable'], label); for (const key of ['minLength', 'maxLength']) if (key in value && (!Number.isInteger(value[key]) || value[key] < 0)) fail(`${label} has invalid ${key}`); if ('minLength' in value && 'maxLength' in value && value.minLength > value.maxLength) fail(`${label} has unordered lengths`); if ('pattern' in value) { if (typeof value.pattern !== 'string' || value.pattern.length === 0) fail(`${label} has invalid pattern`); try { new RegExp(value.pattern); } catch { fail(`${label} has invalid pattern`); } } if ('format' in value && !['date', 'date-time'].includes(value.format)) fail(`${label} has unsupported string format`); if ('enum' in value && (!Array.isArray(value.enum) || value.enum.length === 0 || value.enum.some((item) => typeof item !== 'string') || new Set(value.enum).size !== value.enum.length)) fail(`${label} has invalid string enum`); if ('nullable' in value && (value.nullable !== true || !nullableFields.has(label))) fail(`${label} has unsupported nullable string`); return; } if (value.type === 'integer') { assertAllowed(value, ['type', 'minimum', 'maximum', 'default'], label); for (const key of ['minimum', 'maximum']) if (key in value && (!Number.isInteger(value[key]))) fail(`${label} has invalid ${key}`); if ('minimum' in value && 'maximum' in value && value.minimum > value.maximum) fail(`${label} has unordered integer bounds`); return; } if (value.type === 'boolean') { assertAllowed(value, ['type', 'default'], label); return; } if (value.type === 'array') { assertAllowed(value, ['type', 'minItems', 'maxItems', 'uniqueItems', 'items'], label); for (const key of ['minItems', 'maxItems']) if (key in value && (!Number.isInteger(value[key]) || value[key] < 0)) fail(`${label} has invalid ${key}`); if ('minItems' in value && 'maxItems' in value && value.minItems > value.maxItems) fail(`${label} has unordered array bounds`); if ('uniqueItems' in value && typeof value.uniqueItems !== 'boolean') fail(`${label} has invalid uniqueItems`); if (!('items' in value)) fail(`${label} array items are required`); schema(value.items, `${label}.items`); return; } fail(`${label} has unsupported schema type`); };
+  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'JourneyProfileSourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime']);
+  const schema = (value, label) => {
+    if (!isObject(value)) fail(`${label} must be a schema object`);
+    if ('$ref' in value) { assertAllowed(value, ['$ref'], label); visit(ref(value.$ref, label)); return; }
+    if ('oneOf' in value) {
+      assertAllowed(value, ['oneOf', 'description'], label);
+      const descriptor = { JourneyDeparture: { tag: 'mode', refs: ['JourneyDepartureNow', 'JourneyDepartureScheduled'] }, JourneyLeg: { tag: 'type', refs: ['JourneyEntryLeg', 'JourneyRideLeg', 'JourneyTransferLeg', 'JourneyExitLeg'] }, StationTimetableSelector: { tag: 'kind', refs: ['StationTimetableServiceDateSelector', 'StationTimetableDayTypeSelector', 'StationTimetableNextDeparturesSelector'] } }[label];
+      if (!descriptor) {
+        for (const part of value.oneOf) {
+          if (!isObject(part) || Object.keys(part).length !== 1 || !('$ref' in part)) fail(`${label} oneOf is unsupported`);
+          visit(ref(part.$ref, label));
+        }
+        return;
+      }
+      if (value.oneOf.length !== descriptor.refs.length) fail(`${label} must be the exact closed tagged oneOf`);
+      const tags = new Set();
+      for (const [index, part] of value.oneOf.entries()) {
+        if (!isObject(part) || Object.keys(part).length !== 1 || ref(part.$ref, label) !== descriptor.refs[index]) fail(`${label} oneOf is unsupported`);
+        const target = descriptor.refs[index]; visit(target); const tag = schemas[target]?.properties?.[descriptor.tag]?.enum;
+        if (!Array.isArray(tag) || tag.length !== 1 || tags.has(tag[0])) fail(`${label} oneOf is not tagged by ${descriptor.tag}`);
+        tags.add(tag[0]);
+      }
+      return;
+    }
+    if (value.type === 'object') {
+      assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not', 'description'], label);
+      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest';
+      if (value.additionalProperties !== false || !Array.isArray(value.required) || !isObject(value.properties) || new Set(value.required).size !== value.required.length || (!isOptionalAllowed && Object.keys(value.properties).length !== value.required.length) || value.required.some((key) => !(key in value.properties))) fail(`${label} must have an exact closed required property set`);
+      for (const [key, child] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) fail(`${label} has unsupported property`); schema(child, `${label}.${key}`); }
+      if ('not' in value && (!isObject(value.not) || !Array.isArray(value.not.required) || !isObject(value.not.properties))) fail(`${label} has unsupported not constraint`);
+      return;
+    }
+    if (value.type === 'string') {
+      assertAllowed(value, ['type', 'minLength', 'maxLength', 'pattern', 'format', 'enum', 'nullable', 'description'], label);
+      for (const key of ['minLength', 'maxLength']) if (key in value && (!Number.isInteger(value[key]) || value[key] < 0)) fail(`${label} has invalid ${key}`);
+      if ('minLength' in value && 'maxLength' in value && value.minLength > value.maxLength) fail(`${label} has unordered lengths`);
+      if ('pattern' in value) { if (typeof value.pattern !== 'string' || value.pattern.length === 0) fail(`${label} has invalid pattern`); try { new RegExp(value.pattern); } catch { fail(`${label} has invalid pattern`); } }
+      if ('format' in value && !['date', 'date-time'].includes(value.format)) fail(`${label} has unsupported string format`);
+      if ('enum' in value && (!Array.isArray(value.enum) || value.enum.length === 0 || value.enum.some((item) => typeof item !== 'string') || new Set(value.enum).size !== value.enum.length)) fail(`${label} has invalid string enum`);
+      if ('nullable' in value && (value.nullable !== true || !nullableFields.has(label))) fail(`${label} has unsupported nullable string`);
+      return;
+    }
+    if (value.type === 'integer') {
+      assertAllowed(value, ['type', 'minimum', 'maximum', 'default', 'description'], label);
+      for (const key of ['minimum', 'maximum']) if (key in value && (!Number.isInteger(value[key]))) fail(`${label} has invalid ${key}`);
+      if ('minimum' in value && 'maximum' in value && value.minimum > value.maximum) fail(`${label} has unordered integer bounds`);
+      return;
+    }
+    if (value.type === 'boolean') {
+      assertAllowed(value, ['type', 'default', 'description'], label);
+      return;
+    }
+    if (value.type === 'array') {
+      assertAllowed(value, ['type', 'minItems', 'maxItems', 'uniqueItems', 'items', 'description'], label);
+      for (const key of ['minItems', 'maxItems']) if (key in value && (!Number.isInteger(value[key]) || value[key] < 0)) fail(`${label} has invalid ${key}`);
+      if ('minItems' in value && 'maxItems' in value && value.minItems > value.maxItems) fail(`${label} has unordered array bounds`);
+      if ('uniqueItems' in value && typeof value.uniqueItems !== 'boolean') fail(`${label} has invalid uniqueItems`);
+      if (!('items' in value)) fail(`${label} array items are required`);
+      schema(value.items, `${label}.items`);
+      return;
+    }
+    fail(`${label} has unsupported schema type`);
+  };
   for (const name of Object.keys(schemas)) visit(name);
   if (enforceSchemasProjection) {
     const projectionSha256 = sha256(Buffer.from(canonicalJson(schemas), 'utf8'));
@@ -170,10 +283,20 @@ function validateOperations(document) {
   for (const [path, expectation] of expectedOperations) {
     const item = document.paths[path]; if (!isObject(item) || Object.keys(item).length !== 1 || !isObject(item.post)) fail(`${path} must contain only POST`);
     const operation = item.post; const protectedOperation = expectation.id !== 'issueJourneySession';
-    assertAllowed(operation, ['operationId', 'summary', ...(protectedOperation ? ['security'] : []), ...(expectation.id === 'searchJourneys' ? ['x-easysubway-time-policy-contract'] : []), 'requestBody', 'responses'], path);
+    const allowedKeys = ['operationId', 'summary', 'description', ...(protectedOperation ? ['security'] : []), 'requestBody', 'responses'];
+    if (expectation.id === 'searchJourneys' || expectation.id === 'profileJourneys') {
+      allowedKeys.push('x-easysubway-time-policy-contract');
+    }
+    if (expectation.id === 'profileJourneys') {
+      allowedKeys.push('x-easysubway-cache-control');
+    }
+    assertAllowed(operation, allowedKeys, path);
     if (operation.operationId !== expectation.id || !isObject(operation.requestBody) || operation.requestBody.required !== true || responseSchema({ content: operation.requestBody.content }, `${path} request`) !== expectation.request || !isObject(operation.responses) || expectation.responses.some((status) => !(status in operation.responses)) || Object.keys(operation.responses).length !== expectation.responses.length) fail(`${path} operation contract is unsupported`);
     if (protectedOperation && (!Array.isArray(operation.security) || operation.security.length !== 1 || JSON.stringify(operation.security[0]) !== JSON.stringify({ JourneySessionBearer: [] }))) fail(`${expectation.id} must require JourneySessionBearer`);
-    if (expectation.id === 'searchJourneys') { exactKeys(operation['x-easysubway-time-policy-contract'], ['TIMETABLE_REQUIRED', 'REALTIME_REQUIRED'], 'search time policy'); if (operation['x-easysubway-time-policy-contract'].TIMETABLE_REQUIRED !== 'realtime-fields-null' || operation['x-easysubway-time-policy-contract'].REALTIME_REQUIRED !== 'realtime-fields-required-non-null') fail('search time policy values are unsupported'); }
+    if (expectation.id === 'searchJourneys' || expectation.id === 'profileJourneys') {
+      exactKeys(operation['x-easysubway-time-policy-contract'], ['TIMETABLE_REQUIRED', 'REALTIME_REQUIRED'], `${expectation.id} time policy`);
+      if (operation['x-easysubway-time-policy-contract'].TIMETABLE_REQUIRED !== 'realtime-fields-null' || operation['x-easysubway-time-policy-contract'].REALTIME_REQUIRED !== 'realtime-fields-required-non-null') fail(`${expectation.id} time policy values are unsupported`);
+    }
     const responseNames = expectation.responses.map((status) => ({ status, schema: responseSchema(operation.responses[status], `${path} ${status}`) }));
     if (responseNames[0].schema !== expectation.success || responseNames.slice(1).some(({ schema }) => schema !== 'JourneyError')) fail(`${path} responses must use JourneyError`);
     operations.push({ path, id: expectation.id, responses: responseNames });
@@ -302,7 +425,53 @@ function renderValidatedRequestModels() {
   source = replaceRequired(source, 'departure: departure, timePolicy: timePolicy, mobilityProfile: mobilityProfile', 'departure: departure, timePolicy: timePolicy, walkingPace: walkingPace, mobilityProfile: mobilityProfile', 'search request walking pace construction');
   source = replaceRequired(source, "'departure', 'timePolicy', 'mobilityProfile'", "'departure', 'timePolicy', 'walkingPace', 'mobilityProfile'", 'search request walking pace JSON keys');
   source = replaceRequired(source, "timePolicy: TimePolicyWire.fromWire(json['timePolicy']), mobilityProfile: mobilityProfile", "timePolicy: TimePolicyWire.fromWire(json['timePolicy']), walkingPace: WalkingPaceWire.fromWire(json['walkingPace']), mobilityProfile: mobilityProfile", 'search request walking pace JSON parsing');
-  return replaceRequired(source, "'timePolicy': timePolicy.wire, 'mobilityProfile': mobilityProfile.wire", "'timePolicy': timePolicy.wire, 'walkingPace': walkingPace.wire, 'mobilityProfile': mobilityProfile.wire", 'search request walking pace JSON encoding');
+  source = replaceRequired(source, "'timePolicy': timePolicy.wire, 'mobilityProfile': mobilityProfile.wire", "'timePolicy': timePolicy.wire, 'walkingPace': walkingPace.wire, 'mobilityProfile': mobilityProfile.wire", 'search request walking pace JSON encoding');
+  source = replaceRequired(source, 'final String destinationStationId; final JourneyDeparture departure;', 'final String destinationStationId; final String? viaStationId; final JourneyDeparture departure;', 'search request viaStationId field');
+  source = replaceRequired(source, 'required this.destinationStationId, required this.departure,', 'required this.destinationStationId, this.viaStationId, required this.departure,', 'search request viaStationId constructor');
+  source = replaceRequired(source, 'required String destinationStationId, required JourneyDeparture departure,', 'required String destinationStationId, String? viaStationId, required JourneyDeparture departure,', 'search request viaStationId factory');
+  source = replaceRequired(
+    source,
+    "if (mobilityProfile == MobilityProfile.noStairs && constraintMode == ConstraintMode.none) throw const FormatException('NO_STAIRS plus NONE is forbidden');",
+    `if (mobilityProfile == MobilityProfile.noStairs && constraintMode == ConstraintMode.none) throw const FormatException('NO_STAIRS plus NONE is forbidden');
+    if (viaStationId != null) {
+      if (viaStationId.trim().isEmpty) throw const FormatException('viaStationId must not be blank');
+      if (viaStationId == originStationId || viaStationId == destinationStationId) {
+        throw const FormatException('viaStationId cannot be originStationId or destinationStationId');
+      }
+    }`,
+    'search request viaStationId validation'
+  );
+  source = replaceRequired(source, "destinationStationId: JourneyV3Validation.nonBlank(destinationStationId, 'destinationStationId'), departure: departure,", "destinationStationId: JourneyV3Validation.nonBlank(destinationStationId, 'destinationStationId'), viaStationId: viaStationId, departure: departure,", 'search request viaStationId constructor call');
+  source = replaceRequired(
+    source,
+    "JourneyV3Validation.exactKeys(json, {'requestId', 'originStationId', 'destinationStationId', 'departure',",
+    `final expectedKeys = {'requestId', 'originStationId', 'destinationStationId', if (json.containsKey('viaStationId')) 'viaStationId', 'departure',`,
+    'search request viaStationId expectedKeys'
+  );
+  source = replaceRequired(
+    source,
+    "maxTransfers', 'alternativeCount'});",
+    "maxTransfers', 'alternativeCount'};\n    JourneyV3Validation.exactKeys(json, expectedKeys);",
+    'search request viaStationId exactKeys call'
+  );
+  source = replaceRequired(
+    source,
+    "final departureValue = json['departure']; if (departureValue is! Map<String, Object?>) throw const FormatException('departure must be object');",
+    "final departureValue = json['departure']; if (departureValue is! Map<String, Object?>) throw const FormatException('departure must be object');\n    final rawVia = json['viaStationId'];",
+    'search request viaStationId rawVia'
+  );
+  source = replaceRequired(
+    source,
+    "destinationStationId: JourneyV3Validation.nonBlank(json['destinationStationId'], 'destinationStationId'), departure: JourneyDeparture.fromJson(departureValue),",
+    "destinationStationId: JourneyV3Validation.nonBlank(json['destinationStationId'], 'destinationStationId'), viaStationId: rawVia == null ? null : JourneyV3Validation.nonBlank(rawVia, 'viaStationId'), departure: JourneyDeparture.fromJson(departureValue),",
+    'search request fromJson viaStationId'
+  );
+  return replaceRequired(
+    source,
+    "'destinationStationId': destinationStationId, 'departure': departure.toJson(),",
+    "'destinationStationId': destinationStationId, if (viaStationId != null) 'viaStationId': viaStationId, 'departure': departure.toJson(),",
+    'search request toJson viaStationId'
+  );
 }
 export function renderJourneyV3ValidationAndEnumsForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); return Object.freeze({ validation: renderStrictValidation(), enums: renderDartEnums(ir) }); }
 export function renderJourneyV3RequestModelsForTest(options) { validate({ ...options, enforceTrackedLock: false }); return renderValidatedRequestModels(); }
