@@ -621,9 +621,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   JourneySearchCommand? _searchCommand() {
     final origin = widget.draft.origin;
     final destination = widget.draft.destination;
+    final waypoint = widget.draft.waypoint;
     if (origin == null ||
         destination == null ||
-        widget.draft.waypoint != null ||
+        origin.id == destination.id ||
+        (waypoint != null &&
+            (waypoint.id == origin.id || waypoint.id == destination.id)) ||
         (_departureSelection == _JourneyDepartureSelection.scheduled &&
             _scheduledRequestedAt == null)) {
       return null;
@@ -649,6 +652,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     return JourneySearchCommand(
       originStationId: origin.id,
       destinationStationId: destination.id,
+      viaStationId: waypoint?.id,
       departure: switch (_departureSelection) {
         _JourneyDepartureSelection.now => const JourneyDepartureNow(),
         _JourneyDepartureSelection.scheduled => JourneyDepartureScheduled(
@@ -916,10 +920,15 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   @override
   Widget build(BuildContext context) {
     final state = _controller.state;
+    final origin = widget.draft.origin;
+    final destination = widget.draft.destination;
+    final waypoint = widget.draft.waypoint;
     final valid =
-        widget.draft.origin != null &&
-        widget.draft.destination != null &&
-        widget.draft.waypoint == null;
+        origin != null &&
+        destination != null &&
+        origin.id != destination.id &&
+        (waypoint == null ||
+            (waypoint.id != origin.id && waypoint.id != destination.id));
     final controlsEnabled =
         valid &&
         state.status != JourneySearchStatus.searching &&
@@ -936,14 +945,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text(widget.draft.originLabel),
+              if (waypoint != null) Text(widget.draft.waypointLabel),
               Text(widget.draft.destinationLabel),
-              if (widget.draft.waypoint != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '경유역 경로는 현재 지원되지 않아요. 경유역을 해제해 주세요.',
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
-                ),
-              ],
               if (!valid) const Text('출발역과 도착역을 다시 확인해 주세요.'),
               const SizedBox(height: 12),
               _departureControl(controlsEnabled),
