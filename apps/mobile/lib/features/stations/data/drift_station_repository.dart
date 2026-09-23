@@ -225,8 +225,9 @@ class DriftStationRepository
     final latDelta = radiusMeters / 111000.0;
     final latRad = _degreesToRadians(location.latitude);
     final cosLat = math.cos(latRad).abs();
-    final lonDelta =
-        cosLat > 0.01 ? radiusMeters / (111000.0 * cosLat) : radiusMeters / 50000.0;
+    final lonDelta = cosLat > 0.01
+        ? radiusMeters / (111000.0 * cosLat)
+        : radiusMeters / 50000.0;
     final minLat = location.latitude - latDelta;
     final maxLat = location.latitude + latDelta;
     final minLon = location.longitude - lonDelta;
