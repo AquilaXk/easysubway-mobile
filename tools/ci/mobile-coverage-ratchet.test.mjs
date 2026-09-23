@@ -32,14 +32,14 @@ test("Phase 2 canonical policy와 reviewed line-oriented baseline을 닫힌 계�
       CONTRACT_ARTIFACT_IDENTITY: 7119,
     },
   });
-  assert.equal(baseline.paths.length, 187);
+  assert.equal(baseline.paths.length, 162);
   assert.deepEqual(baseline.criticalBoundaries.map(({ id }) => id), Object.keys(policy.thresholds.criticalBoundaryLineBasisPoints));
   assert.deepEqual(baseline.paths.reduce((summary, source) => ({
     sources: summary.sources + 1,
     included: summary.included + Number(!source.path.endsWith(".g.dart")),
     excluded: summary.excluded + Number(source.path.endsWith(".g.dart")),
     lcovPresent: summary.lcovPresent + Number(source.lcovPresent),
-  }), { sources: 0, included: 0, excluded: 0, lcovPresent: 0 }), { sources: 187, included: 185, excluded: 2, lcovPresent: 183 });
+  }), { sources: 0, included: 0, excluded: 0, lcovPresent: 0 }), { sources: 162, included: 160, excluded: 2, lcovPresent: 158 });
   const ordinaryMissing = baseline.paths.filter((source) => source.absenceDisposition?.kind === "EXISTING_UNINSTRUMENTED_BASELINE");
   assert.deepEqual(ordinaryMissing.map(({ path: sourcePath }) => sourcePath), [
     "apps/mobile/lib/features/network_map/domain/route_map_major_stations.dart",
