@@ -620,6 +620,94 @@ void main() {
       expect(find.text('노외 환승 (기후동행카드 적용)'), findsWidgets);
     },
   );
+
+  testWidgets(
+    '선택 경로 상세(selected-journey-detail)는 각 ride leg의 노선과 승하차역을 바인딩한다',
+    (tester) async {
+      final repository = _Repository();
+      await _pumpScreen(
+        tester,
+        repository: repository,
+        stationNameResolver: (stationId) async => switch (stationId) {
+          'station-origin' => '시청역',
+          'station-transfer' => '종로3가역',
+          'station-destination' => '동대문역',
+          _ => '$stationId 이름',
+        },
+      );
+
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+
+      // 후보 카드에 노선 식별자가 렌더링되는지 확인
+      expect(
+        find.byKey(const Key('journey-candidate-line-journey-1')),
+        findsOneWidget,
+      );
+      expect(find.text('2호선'), findsOneWidget);
+      expect(find.text('line-private'), findsWidgets);
+
+      await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+      await tester.pumpAndSettle();
+
+      expect(find.text('선택 경로 상세'), findsOneWidget);
+      // 승하차역 바인딩 확인 (시청역 → 종로3가역)
+      expect(find.textContaining('시청역 → 종로3가역'), findsOneWidget);
+      // 노선명 바인딩 확인
+      expect(find.text('2호선'), findsWidgets);
+    },
+  );
+
+  testWidgets(
+    '백엔드 거절 응답(JourneyRejectedFailure) 시 canonicalKoreanCopy를 노출하고 FORBIDDEN 처분이면 재시도를 차단한다',
+    (tester) async {
+      final repository = _Repository();
+      final error = JourneyV3Error(
+        contractVersion: JourneyErrorContractVersion.journeyErrorV1,
+        requestId: '01K1Y000000000000000000000',
+        code: JourneyErrorCode.stationNotFound,
+        retryable: false,
+        occurredAt: DateTime.utc(2026, 8, 12),
+      );
+      final disposition = JourneyErrorDispositions.lookup(
+        JourneyOperation.searchJourneys,
+        404,
+        JourneyErrorCode.stationNotFound,
+      );
+      repository.rejectionToThrow = JourneyRejectedFailure(
+        JourneyOperation.searchJourneys,
+        statusCode: 404,
+        error: error,
+        disposition: disposition,
+      );
+
+      await _pumpScreen(tester, repository: repository);
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+
+      // 서버의 정규화된 한국어 오류 메시지 노출 확인
+      expect(find.text('선택한 역 정보를 찾을 수 없어요.'), findsOneWidget);
+      // FORBIDDEN 처분이므로 '다시 시도' 버튼은 노출되지 않음
+      expect(find.widgetWithText(FilledButton, '다시 시도'), findsNothing);
+      // 대신 홈으로 돌아가거나 조건을 재선택하는 액션 버튼 노출
+      expect(
+        find.byKey(const Key('journey-failure-action-button')),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('waypoint draft는 경유역 미지원 안내를 명확히 노출한다', (tester) async {
+    final repository = _Repository();
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      draft: _completeDraft(waypoint: _station('station-waypoint', '경유역')),
+    );
+
+    expect(find.text('경유역 경로는 현재 지원되지 않아요. 경유역을 해제해 주세요.'), findsOneWidget);
+    expect(find.text('출발역과 도착역을 다시 확인해 주세요.'), findsOneWidget);
+  });
 }
 
 class _RecordingCrashlytics implements CrashlyticsGateway {
@@ -709,6 +797,7 @@ class _Attestor implements JourneyV3IntegrityAttestor {
 class _Repository implements JourneyRepository {
   int sessionRequests = 0;
   int failuresRemaining = 0;
+  JourneyRejectedFailure? rejectionToThrow;
   Completer<JourneySessionResponse>? sessionCompleter;
   DateTime? responseNow;
   List<String> journeyIds = <String>['journey-2', 'journey-1'];
@@ -728,6 +817,11 @@ class _Repository implements JourneyRepository {
     required String sessionToken,
   }) async {
     requests.add(request);
+    if (rejectionToThrow != null) {
+      final rejection = rejectionToThrow!;
+      rejectionToThrow = null;
+      throw rejection;
+    }
     if (failuresRemaining > 0) {
       failuresRemaining--;
       throw const JourneyTransportFailure(
@@ -852,7 +946,7 @@ Journey _journey(String id, DateTime now) {
         durationSeconds: 60,
       ),
       JourneyRideLeg(
-        lineId: 'line-private',
+        lineId: id == 'journey-1' ? 'line-2' : 'line-private',
         tripId: 'trip-private',
         directionStationId: 'station-direction',
         fromStationId: 'station-origin',
