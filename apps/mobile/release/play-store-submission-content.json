@@ -233,7 +233,7 @@
       },
       {
         "dataType": "App activity",
-        "inventoryDataIds": ["search_queries", "train_search_queries", "favorite_stations_routes_facilities", "route_eta_feedback", "route_v2_itx_request_state"],
+        "inventoryDataIds": ["search_queries", "train_search_queries", "favorite_stations_routes_facilities", "route_eta_feedback"],
         "containsCollectedData": true,
         "containsRequiredData": true,
         "containsOptionalData": true,
@@ -252,7 +252,7 @@
       },
       {
         "dataType": "Personal info",
-        "inventoryDataIds": ["mobility_profile", "route_v2_itx_mobility_preferences"],
+        "inventoryDataIds": ["mobility_profile"],
         "containsCollectedData": true,
         "containsRequiredData": false,
         "containsOptionalData": true,
@@ -329,7 +329,7 @@
       },
       {
         "dataType": "Device or other IDs",
-        "inventoryDataIds": ["route_v2_itx_integrity", "route_v2_gateway_abuse_rate_limit_state", "facility_report_abuse_rate_limit_state", "train_search_abuse_rate_limit_state"],
+        "inventoryDataIds": ["facility_report_abuse_rate_limit_state", "train_search_abuse_rate_limit_state"],
         "containsCollectedData": true,
         "containsRequiredData": false,
         "containsOptionalData": true,
@@ -353,11 +353,7 @@
       "facility report location",
       "mobility profile",
       "favorites",
-      "ITX Route V2 integrity session",
-      "ITX Route V2 gateway abuse prevention state",
-      "train search abuse prevention state",
-      "ITX Route V2 mobility preferences",
-      "ITX Route V2 route request and state"
+      "train search abuse prevention state"
     ],
     "binaryTraceMatchRequired": true,
     "linkedInventory": "apps/mobile/release/store-privacy-inventory.json",

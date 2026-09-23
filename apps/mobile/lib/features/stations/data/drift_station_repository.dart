@@ -222,6 +222,17 @@ class DriftStationRepository
       return const [];
     }
 
+    final latDelta = radiusMeters / 111000.0;
+    final latRad = _degreesToRadians(location.latitude);
+    final cosLat = math.cos(latRad).abs();
+    final lonDelta = cosLat > 0.01
+        ? radiusMeters / (111000.0 * cosLat)
+        : radiusMeters / 50000.0;
+    final minLat = location.latitude - latDelta;
+    final maxLat = location.latitude + latDelta;
+    final minLon = location.longitude - lonDelta;
+    final maxLon = location.longitude + lonDelta;
+
     final stations = await _listStationSummaries();
     final nearby =
         stations
@@ -229,6 +240,12 @@ class DriftStationRepository
               final latitude = station.latitude;
               final longitude = station.longitude;
               if (latitude == null || longitude == null) {
+                return null;
+              }
+              if (latitude < minLat ||
+                  latitude > maxLat ||
+                  longitude < minLon ||
+                  longitude > maxLon) {
                 return null;
               }
               final distanceMeters = _distanceMeters(

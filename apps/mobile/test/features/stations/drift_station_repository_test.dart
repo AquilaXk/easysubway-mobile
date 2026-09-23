@@ -246,6 +246,21 @@ void main() {
     expect(results.single.distanceMeters, isNotNull);
   });
 
+  test('주변 역 검색은 극지방 좌표(cosLat <= 0.01)에서도 안전하게 바운딩 박스를 계산한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final results = await repository.searchNearbyStations(
+      const CurrentLocation(latitude: 89.9, longitude: 0.0),
+      radiusMeters: 1000,
+      limit: 10,
+    );
+
+    expect(results, isEmpty);
+  });
+
   test('노선도 데이터는 label polygon metadata를 보존한다', () async {
     final database = CatalogDatabase.memory();
     addTearDown(database.close);

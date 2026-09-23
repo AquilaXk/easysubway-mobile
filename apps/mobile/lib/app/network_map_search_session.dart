@@ -78,6 +78,10 @@ class NetworkMapSearchSessionState extends State<NetworkMapSearchSession> {
   @override
   void didUpdateWidget(covariant NetworkMapSearchSession oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.searchQueryController != widget.searchQueryController) {
+      oldWidget.searchQueryController.removeListener(_handleSearchQueryChanged);
+      widget.searchQueryController.addListener(_handleSearchQueryChanged);
+    }
     if (oldWidget.regionLabel == widget.regionLabel) {
       return;
     }
