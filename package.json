@@ -1,0 +1,13 @@
+{
+  "name": "@easysubway/mobile",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tools/mobile/*.test.mjs tools/ci/*.test.mjs tools/release/*.test.mjs",
+    "test:mobile": "node --test tools/mobile/*.test.mjs",
+    "test:ci": "node --test tools/ci/*.test.mjs",
+    "check:fragment": "node tools/ci/check-documentation-fragment-sync.mjs --base origin/main",
+    "refresh:fragment": "node tools/repo/refresh-documentation-fragment.mjs --worktree"
+  }
+}
