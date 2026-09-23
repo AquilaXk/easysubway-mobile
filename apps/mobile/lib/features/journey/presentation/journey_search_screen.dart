@@ -34,7 +34,7 @@ class JourneySearchScreen extends StatefulWidget {
     this.journeyNow,
     this.hasUnlimitedTransitPass = false,
     super.key,
-  }) : assert((getOffAlarmController == null) == (stationNameResolver == null));
+  }) : assert(getOffAlarmController == null || stationNameResolver != null);
 
   final JourneyRepository repository;
   final JourneyV3IntegrityAttestor attestor;
@@ -65,6 +65,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       _JourneyDepartureSelection.now;
   DateTime? _scheduledRequestedAt;
 
+  final Map<String, String> _resolvedStationNames = {};
+
   @override
   void initState() {
     super.initState();
@@ -78,6 +80,54 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       },
     )..addListener(_changed);
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  void _resolveStationNames(JourneySearchSuccess response) {
+    final resolver = widget.stationNameResolver;
+    if (resolver == null) return;
+    for (final journey in response.journeys) {
+      for (final leg in journey.legs) {
+        final stationIds = switch (leg) {
+          JourneyEntryLeg(:final fromStationId) => [fromStationId],
+          JourneyRideLeg(
+            :final fromStationId,
+            :final toStationId,
+            :final directionStationId,
+          ) =>
+            [fromStationId, toStationId, directionStationId],
+          JourneyTransferLeg(:final fromStationId, :final toStationId) => [
+            fromStationId,
+            toStationId,
+          ],
+          JourneyExitLeg(:final fromStationId) => [fromStationId],
+        };
+        for (final stationId in stationIds) {
+          if (!_resolvedStationNames.containsKey(stationId)) {
+            _resolvedStationNames[stationId] = stationId;
+            unawaited(
+              resolver(stationId)
+                  .then((name) {
+                    if (mounted && _resolvedStationNames[stationId] != name) {
+                      setState(() => _resolvedStationNames[stationId] = name);
+                    }
+                  })
+                  .catchError((_) {}),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  String _stationName(String stationId) =>
+      _resolvedStationNames[stationId] ?? stationId;
+
+  String _formatLineName(String lineId) {
+    final clean = lineId.replaceAll(RegExp(r'^line-|^seoul-'), '');
+    if (int.tryParse(clean) != null) {
+      return '$clean호선';
+    }
+    return lineId;
   }
 
   @override
@@ -100,15 +150,19 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     if (!mounted) {
       return;
     }
-    setState(() {});
     final state = _controller.state;
+    if (state.response case final response?) {
+      _resolveStationNames(response);
+    }
+    setState(() {});
     if (state.status == _lastAnnouncedStatus) return;
     _lastAnnouncedStatus = state.status;
     final message = <JourneySearchStatus, String Function()>{
       JourneySearchStatus.searching: () => '경로를 찾고 있어요.',
       JourneySearchStatus.success: () =>
           '경로 ${state.response!.journeys.length}개를 찾았어요.',
-      JourneySearchStatus.failure: () => '경로를 찾지 못했어요.',
+      JourneySearchStatus.failure: () =>
+          state.rejection?.disposition.canonicalKoreanCopy ?? '경로를 찾지 못했어요.',
     }[state.status]?.call();
     if (message != null) {
       unawaited(
@@ -260,6 +314,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         break;
       }
     }
+    final rideLegs = journey.legs.whereType<JourneyRideLeg>().toList(
+      growable: false,
+    );
     final summary =
         '$durationMinutes분, $transfer, 도보 ${journey.walkingDistanceMeters}m, ${_arrivalTime(journey)} 도착, $accessibility';
     final color = Theme.of(context).colorScheme.primary;
@@ -299,6 +356,37 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                                     ?.copyWith(fontWeight: FontWeight.bold)
                               : Theme.of(context).textTheme.titleMedium,
                         ),
+                        if (rideLegs.isNotEmpty) ...[
+                          const SizedBox(width: 8),
+                          for (final ride in rideLegs) ...[
+                            Container(
+                              key: Key(
+                                'journey-candidate-line-${journey.journeyId}',
+                              ),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Text(
+                                _formatLineName(ride.lineId),
+                                style: Theme.of(context).textTheme.labelSmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                        ],
                         if (outOfStationLeg != null) ...[
                           const SizedBox(width: 8),
                           _outOfStationTransferBadge(outOfStationLeg)!,
@@ -396,22 +484,83 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final fare = leg is JourneyTransferLeg
         ? _outOfStationFareBreakdown(leg)
         : null;
+    final rideLeg = leg is JourneyRideLeg ? leg : null;
+    final lineLabel = rideLeg != null ? _formatLineName(rideLeg.lineId) : null;
+    final subtitle = rideLeg != null
+        ? '${_stationName(rideLeg.fromStationId)} → ${_stationName(rideLeg.toStationId)}'
+        : null;
+    final semanticsLabel = rideLeg != null
+        ? '$title, $lineLabel, $subtitle, $detail'
+        : '$title, $detail';
+
     return Semantics(
-      label: '$title, $detail',
+      label: semanticsLabel,
       child: ExcludeSemantics(
         child: Container(
           key: Key('selected-journey-leg-$index'),
           constraints: const BoxConstraints(minHeight: 48),
-          padding: const EdgeInsets.symmetric(vertical: 8),
+          padding: const EdgeInsets.symmetric(vertical: 6),
           child: Row(
             children: [
               Expanded(
-                child: Row(
-                  children: [
-                    Text(title),
-                    if (badge != null) ...[const SizedBox(width: 8), badge],
-                  ],
-                ),
+                child: rideLeg == null
+                    ? Row(
+                        children: [
+                          Text(title),
+                          if (badge != null) ...[
+                            const SizedBox(width: 8),
+                            badge,
+                          ],
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            children: [
+                              Text(title),
+                              if (lineLabel != null) ...[
+                                const SizedBox(width: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primaryContainer,
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    lineLabel,
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .labelSmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onPrimaryContainer,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            subtitle!,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ),
               ),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
@@ -788,6 +937,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             children: [
               Text(widget.draft.originLabel),
               Text(widget.draft.destinationLabel),
+              if (widget.draft.waypoint != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  '경유역 경로는 현재 지원되지 않아요. 경유역을 해제해 주세요.',
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ],
               if (!valid) const Text('출발역과 도착역을 다시 확인해 주세요.'),
               const SizedBox(height: 12),
               _departureControl(controlsEnabled),
@@ -818,14 +974,49 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     ),
                   ),
                 ),
-              if (state.status == JourneySearchStatus.failure)
-                FilledButton(
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(48),
-                  ),
-                  onPressed: _isAlarmTransitioning ? null : _retry,
-                  child: const Text('다시 시도'),
+              if (state.status == JourneySearchStatus.failure) ...[
+                Builder(
+                  builder: (context) {
+                    final disposition = state.rejection?.disposition;
+                    final copy =
+                        disposition?.canonicalKoreanCopy ??
+                        '경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.';
+                    final canRetry =
+                        disposition == null ||
+                        disposition.retryDisposition != 'FORBIDDEN';
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          copy,
+                          key: const Key('journey-failure-message'),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.error,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        if (canRetry)
+                          FilledButton(
+                            style: FilledButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                            onPressed: _isAlarmTransitioning ? null : _retry,
+                            child: const Text('다시 시도'),
+                          )
+                        else
+                          OutlinedButton(
+                            key: const Key('journey-failure-action-button'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(48),
+                            ),
+                            onPressed: widget.onShellBackToHome,
+                            child: const Text('출발·도착역 다시 선택'),
+                          ),
+                      ],
+                    );
+                  },
                 ),
+              ],
               if (state.status == JourneySearchStatus.success) ...[
                 Text('경로 후보 ${state.response!.journeys.length}개'),
                 const SizedBox(height: 8),

@@ -148,6 +148,7 @@ class JourneySearchState {
     this.response,
     this.failure,
     this.selectedSnapshot,
+    this.rejection,
   });
 
   const JourneySearchState.idle() : this._(status: JourneySearchStatus.idle);
@@ -164,13 +165,20 @@ class JourneySearchState {
          selectedSnapshot: selectedSnapshot,
        );
 
-  const JourneySearchState.failure(JourneySearchFailure failure)
-    : this._(status: JourneySearchStatus.failure, failure: failure);
+  const JourneySearchState.failure(
+    JourneySearchFailure failure, {
+    JourneyRejectedFailure? rejection,
+  }) : this._(
+         status: JourneySearchStatus.failure,
+         failure: failure,
+         rejection: rejection,
+       );
 
   final JourneySearchStatus status;
   final JourneySearchSuccess? response;
   final JourneySearchFailure? failure;
   final JourneySelectedSnapshot? selectedSnapshot;
+  final JourneyRejectedFailure? rejection;
 
   String? get selectedJourneyId => selectedSnapshot?.journey.journeyId;
 }
@@ -326,7 +334,10 @@ class JourneySearchController extends ChangeNotifier {
       if (_isSessionAuthenticationFailure(error)) {
         _sessionProvider.invalidate();
       }
-      _state = JourneySearchState.failure(_safeFailure(error));
+      _state = JourneySearchState.failure(
+        _safeFailure(error),
+        rejection: error is JourneyRejectedFailure ? error : null,
+      );
       _safeNotify();
       _reportNonFatalErrorFireAndContain(error, stackTrace);
     } finally {
