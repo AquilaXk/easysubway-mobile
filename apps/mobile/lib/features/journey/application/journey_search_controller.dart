@@ -4,8 +4,10 @@ import 'package:flutter/foundation.dart';
 
 import '../../../generated/journey_v3/journey_v3_contract.dart';
 import '../journey_session_provider.dart';
+import '../domain/journey_profile_models.dart';
 import '../domain/journey_repository.dart';
 
+export '../domain/journey_profile_models.dart';
 export '../journey_session_provider.dart'
     show JourneySessionProvider, JourneyV3IntegrityAttestor;
 
@@ -103,6 +105,7 @@ class JourneySearchCommand {
     required this.constraintMode,
     required this.maxTransfers,
     required this.alternativeCount,
+    this.profileTemporalQuery,
   });
 
   final String originStationId;
@@ -115,6 +118,7 @@ class JourneySearchCommand {
   final ConstraintMode constraintMode;
   final int maxTransfers;
   final int alternativeCount;
+  final JourneyTemporalQuery? profileTemporalQuery;
 
   @override
   bool operator ==(Object other) =>
@@ -128,7 +132,9 @@ class JourneySearchCommand {
       mobilityProfile == other.mobilityProfile &&
       constraintMode == other.constraintMode &&
       maxTransfers == other.maxTransfers &&
-      alternativeCount == other.alternativeCount;
+      alternativeCount == other.alternativeCount &&
+      profileTemporalQuery?.toJson().toString() ==
+          other.profileTemporalQuery?.toJson().toString();
 
   @override
   int get hashCode => Object.hash(
@@ -142,6 +148,7 @@ class JourneySearchCommand {
     constraintMode,
     maxTransfers,
     alternativeCount,
+    profileTemporalQuery?.toJson().toString(),
   );
 }
 
@@ -305,23 +312,51 @@ class JourneySearchController extends ChangeNotifier {
     try {
       final session = await _sessionProvider.session();
       if (!_isCurrent(generation)) return;
-      final request = JourneySearchRequest(
-        requestId: _requestIdGenerator(),
-        originStationId: command.originStationId,
-        destinationStationId: command.destinationStationId,
-        viaStationId: command.viaStationId,
-        departure: command.departure,
-        timePolicy: command.timePolicy,
-        walkingPace: command.walkingPace,
-        mobilityProfile: command.mobilityProfile,
-        constraintMode: command.constraintMode,
-        maxTransfers: command.maxTransfers,
-        alternativeCount: command.alternativeCount,
-      );
-      final response = await repository.searchJourneys(
-        request,
-        sessionToken: session.token,
-      );
+      final JourneySearchSuccess response;
+      if (command.profileTemporalQuery case final profileQuery?) {
+        final request = JourneyProfileRequest(
+          requestId: _requestIdGenerator(),
+          originStationId: command.originStationId,
+          destinationStationId: command.destinationStationId,
+          temporalQuery: profileQuery,
+          timePolicy: command.timePolicy,
+          walkingPace: command.walkingPace,
+          mobilityProfile: command.mobilityProfile,
+          constraintMode: command.constraintMode,
+          maxTransfers: command.maxTransfers,
+          alternativeCount: command.alternativeCount,
+        );
+        final profileSuccess = await repository.profileJourneys(
+          request,
+          sessionToken: session.token,
+        );
+        response = profileSuccess.toSearchSuccess(
+          timePolicy: command.timePolicy,
+          walkingPace: command.walkingPace,
+          mobilityProfile: command.mobilityProfile,
+          constraintMode: command.constraintMode,
+          maxTransfers: command.maxTransfers,
+          alternativeCount: command.alternativeCount,
+        );
+      } else {
+        final request = JourneySearchRequest(
+          requestId: _requestIdGenerator(),
+          originStationId: command.originStationId,
+          destinationStationId: command.destinationStationId,
+          viaStationId: command.viaStationId,
+          departure: command.departure,
+          timePolicy: command.timePolicy,
+          walkingPace: command.walkingPace,
+          mobilityProfile: command.mobilityProfile,
+          constraintMode: command.constraintMode,
+          maxTransfers: command.maxTransfers,
+          alternativeCount: command.alternativeCount,
+        );
+        response = await repository.searchJourneys(
+          request,
+          sessionToken: session.token,
+        );
+      }
       if (_isCurrent(generation)) {
         final observedAt = _now();
         if (!response.validUntil.isAfter(observedAt)) {

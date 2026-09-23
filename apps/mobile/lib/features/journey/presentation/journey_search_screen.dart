@@ -17,7 +17,12 @@ import '../../../accessible_design.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
 
-enum _JourneyDepartureSelection { now, scheduled }
+enum _JourneyDepartureSelection {
+  now,
+  scheduled,
+  departureWindow,
+  lastConnection,
+}
 
 class JourneySearchScreen extends StatefulWidget {
   const JourneySearchScreen({
@@ -64,6 +69,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   _JourneyDepartureSelection _departureSelection =
       _JourneyDepartureSelection.now;
   DateTime? _scheduledRequestedAt;
+  DateTime? _windowRequestedAt;
+  DateTime? _lastConnectionDate;
 
   final Map<String, String> _resolvedStationNames = {};
 
@@ -628,7 +635,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         (waypoint != null &&
             (waypoint.id == origin.id || waypoint.id == destination.id)) ||
         (_departureSelection == _JourneyDepartureSelection.scheduled &&
-            _scheduledRequestedAt == null)) {
+            _scheduledRequestedAt == null) ||
+        (_departureSelection == _JourneyDepartureSelection.departureWindow &&
+            _windowRequestedAt == null) ||
+        (_departureSelection == _JourneyDepartureSelection.lastConnection &&
+            _lastConnectionDate == null)) {
       return null;
     }
     final preset =
@@ -649,22 +660,45 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         ConstraintMode.requireStepFree,
       ),
     };
+    final JourneyTemporalQuery? temporalQuery;
+    final JourneyDeparture departure;
+    switch (_departureSelection) {
+      case _JourneyDepartureSelection.now:
+        departure = const JourneyDepartureNow();
+        temporalQuery = null;
+      case _JourneyDepartureSelection.scheduled:
+        departure = JourneyDepartureScheduled(_scheduledRequestedAt!);
+        temporalQuery = null;
+      case _JourneyDepartureSelection.departureWindow:
+        final start = _windowRequestedAt!;
+        final end = start.add(const Duration(minutes: 30));
+        departure = JourneyDepartureScheduled(start);
+        temporalQuery = JourneyDepartBetweenQuery(
+          earliestReadyAt: start,
+          latestReadyAt: end,
+        );
+      case _JourneyDepartureSelection.lastConnection:
+        final date = _lastConnectionDate!;
+        final seoul = date.toUtc().add(const Duration(hours: 9));
+        final serviceDateStr =
+            '${seoul.year.toString().padLeft(4, '0')}-'
+            '${seoul.month.toString().padLeft(2, '0')}-'
+            '${seoul.day.toString().padLeft(2, '0')}';
+        departure = JourneyDepartureScheduled(date);
+        temporalQuery = JourneyLastConnectionQuery(serviceDate: serviceDateStr);
+    }
     return JourneySearchCommand(
       originStationId: origin.id,
       destinationStationId: destination.id,
       viaStationId: waypoint?.id,
-      departure: switch (_departureSelection) {
-        _JourneyDepartureSelection.now => const JourneyDepartureNow(),
-        _JourneyDepartureSelection.scheduled => JourneyDepartureScheduled(
-          _scheduledRequestedAt!,
-        ),
-      },
+      departure: departure,
       timePolicy: TimePolicy.timetableRequired,
       walkingPace: _walkingPace,
       mobilityProfile: profile,
       constraintMode: constraint,
       maxTransfers: 3,
       alternativeCount: 3,
+      profileTemporalQuery: temporalQuery,
     );
   }
 
@@ -768,6 +802,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       _departureSelection = selection;
       if (selection == _JourneyDepartureSelection.now) {
         _scheduledRequestedAt = null;
+        _windowRequestedAt = null;
+        _lastConnectionDate = null;
       }
     });
     _controller.reset();
@@ -803,9 +839,64 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     _controller.reset();
   }
 
+  Future<void> _selectWindowTime() async {
+    if (_isAlarmTransitioning) return;
+    final initial = _seoulWallTime(
+      _windowRequestedAt ?? (widget.journeyNow?.call() ?? DateTime.now()),
+    );
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1, 1, 1),
+      lastDate: DateTime(9999, 12, 31),
+    );
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(initial),
+    );
+    if (time == null || !mounted) return;
+    final requestedAt = DateTime.utc(
+      date.year,
+      date.month,
+      date.day,
+      time.hour,
+      time.minute,
+    ).subtract(const Duration(hours: 9));
+    if (requestedAt == _windowRequestedAt) return;
+    if (!await _prepareForTemporalChange() || !mounted) return;
+    setState(() => _windowRequestedAt = requestedAt);
+    _controller.reset();
+  }
+
+  Future<void> _selectLastConnectionDate() async {
+    if (_isAlarmTransitioning) return;
+    final initial = _seoulWallTime(
+      _lastConnectionDate ?? (widget.journeyNow?.call() ?? DateTime.now()),
+    );
+    final date = await showDatePicker(
+      context: context,
+      initialDate: initial,
+      firstDate: DateTime(1, 1, 1),
+      lastDate: DateTime(9999, 12, 31),
+    );
+    if (date == null || !mounted) return;
+    final selectedDate = DateTime.utc(date.year, date.month, date.day);
+    if (selectedDate == _lastConnectionDate) return;
+    if (!await _prepareForTemporalChange() || !mounted) return;
+    setState(() => _lastConnectionDate = selectedDate);
+    _controller.reset();
+  }
+
   Widget _departureControl(bool enabled) {
-    final scheduled =
+    final isNow = _departureSelection == _JourneyDepartureSelection.now;
+    final isScheduled =
         _departureSelection == _JourneyDepartureSelection.scheduled;
+    final isWindow =
+        _departureSelection == _JourneyDepartureSelection.departureWindow;
+    final isLastConnection =
+        _departureSelection == _JourneyDepartureSelection.lastConnection;
+
     final requestedAt = _scheduledRequestedAt;
     final selectedWallTime = requestedAt == null
         ? null
@@ -813,6 +904,19 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final selectedLabel = selectedWallTime == null
         ? '출발 시간 선택'
         : '출발 시간 ${selectedWallTime.year.toString().padLeft(4, '0')}-${selectedWallTime.month.toString().padLeft(2, '0')}-${selectedWallTime.day.toString().padLeft(2, '0')} ${selectedWallTime.hour.toString().padLeft(2, '0')}:${selectedWallTime.minute.toString().padLeft(2, '0')}';
+
+    final windowAt = _windowRequestedAt;
+    final windowWallTime = windowAt == null ? null : _seoulWallTime(windowAt);
+    final windowLabel = windowWallTime == null
+        ? '출발 대안 시간대 선택'
+        : '대안 시간대 ${windowWallTime.year.toString().padLeft(4, '0')}-${windowWallTime.month.toString().padLeft(2, '0')}-${windowWallTime.day.toString().padLeft(2, '0')} ${windowWallTime.hour.toString().padLeft(2, '0')}:${windowWallTime.minute.toString().padLeft(2, '0')} (+30분)';
+
+    final lastDate = _lastConnectionDate;
+    final lastDateWallTime = lastDate == null ? null : _seoulWallTime(lastDate);
+    final lastConnectionLabel = lastDateWallTime == null
+        ? '안심 막차 운행일 선택'
+        : '막차 운행일 ${lastDateWallTime.year.toString().padLeft(4, '0')}-${lastDateWallTime.month.toString().padLeft(2, '0')}-${lastDateWallTime.day.toString().padLeft(2, '0')}';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -829,7 +933,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     width: double.infinity,
                     child: Text('지금 출발', textAlign: TextAlign.center),
                   ),
-                  selected: !scheduled,
+                  selected: isNow,
                   onSelected: !enabled
                       ? null
                       : (selected) {
@@ -844,7 +948,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 ),
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(minHeight: 48),
@@ -854,7 +958,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     width: double.infinity,
                     child: Text('출발 시간', textAlign: TextAlign.center),
                   ),
-                  selected: scheduled,
+                  selected: isScheduled,
                   onSelected: !enabled
                       ? null
                       : (selected) {
@@ -869,9 +973,67 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 ),
               ),
             ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: ChoiceChip(
+                  key: const Key('journey-departure-window'),
+                  label: const SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      '출발 대안',
+                      textAlign: TextAlign.center,
+                      semanticsLabel: '특정 시간대 출발 대안 보기',
+                    ),
+                  ),
+                  selected: isWindow,
+                  onSelected: !enabled
+                      ? null
+                      : (selected) {
+                          if (selected) {
+                            unawaited(
+                              _selectDepartureSelection(
+                                _JourneyDepartureSelection.departureWindow,
+                              ),
+                            );
+                          }
+                        },
+                ),
+              ),
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: ChoiceChip(
+                  key: const Key('journey-departure-last-connection'),
+                  label: const SizedBox(
+                    width: double.infinity,
+                    child: Text(
+                      '안심 막차',
+                      textAlign: TextAlign.center,
+                      semanticsLabel: '교통약자 안심 막차 찾기(Last Connection)',
+                    ),
+                  ),
+                  selected: isLastConnection,
+                  onSelected: !enabled
+                      ? null
+                      : (selected) {
+                          if (selected) {
+                            unawaited(
+                              _selectDepartureSelection(
+                                _JourneyDepartureSelection.lastConnection,
+                              ),
+                            );
+                          }
+                        },
+                ),
+              ),
+            ),
           ],
         ),
-        if (scheduled) ...[
+        if (isScheduled) ...[
           const SizedBox(height: 8),
           OutlinedButton(
             key: const Key('journey-scheduled-time'),
@@ -880,6 +1042,28 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             ),
             onPressed: enabled ? _selectScheduledTime : null,
             child: Text(selectedLabel),
+          ),
+        ],
+        if (isWindow) ...[
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('journey-window-time'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+            onPressed: enabled ? _selectWindowTime : null,
+            child: Text(windowLabel),
+          ),
+        ],
+        if (isLastConnection) ...[
+          const SizedBox(height: 8),
+          OutlinedButton(
+            key: const Key('journey-last-connection-date'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(48),
+            ),
+            onPressed: enabled ? _selectLastConnectionDate : null,
+            child: Text(lastConnectionLabel),
           ),
         ],
       ],

@@ -1,5 +1,6 @@
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/features/journey/data/journey_api_repository.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -837,5 +838,100 @@ void main() {
       throwsA(isA<JourneyProtocolFailure>()),
     );
     expect(blankTokenClient.posts, isEmpty);
+  });
+
+  group('JourneyApiRepository profileJourneys', () {
+    final profileRequest = JourneyProfileRequest(
+      requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      originStationId: 'station-origin',
+      destinationStationId: 'station-destination',
+      temporalQuery: JourneyDepartBetweenQuery(
+        earliestReadyAt: DateTime.parse('2026-08-11T09:00:00.000Z'),
+        latestReadyAt: DateTime.parse('2026-08-11T10:00:00.000Z'),
+      ),
+      timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
+      mobilityProfile: MobilityProfile.standard,
+      constraintMode: ConstraintMode.none,
+      maxTransfers: 2,
+      alternativeCount: 2,
+    );
+
+    test('succeeds and parses profile journey response', () async {
+      final journeyJson =
+          (_successJson()['journeys'] as List).first as Map<String, Object?>;
+      final successMap = {
+        'contractVersion': 'JOURNEY_PROFILE_V1',
+        'requestId': '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+        'queryId': 'q-1',
+        'calculatedAt': '2026-08-11T08:50:00.000Z',
+        'validUntil': '2026-08-11T09:50:00.000Z',
+        'temporalQuery': {
+          'kind': 'DEPART_BETWEEN',
+          'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+          'latestReadyAt': '2026-08-11T10:00:00.000Z',
+        },
+        'journeys': [
+          {
+            'journeyId': 'j-1',
+            'readyAt': '2026-08-11T09:00:00.000Z',
+            'journeyStartTime': '2026-08-11T09:02:00.000Z',
+            'firstBoardingTime': '2026-08-11T09:05:00.000Z',
+            'arrivalAtPlatform': '2026-08-11T09:20:00.000Z',
+            'arrivalAtDestination': '2026-08-11T09:25:00.000Z',
+            'objectiveTags': ['FASTEST'],
+            'journey': journeyJson,
+          },
+        ],
+        'sourceIdentity': {
+          'routeBundleId': 'rb-1',
+          'routeBundleSha256': 'a' * 64,
+          'timetableSnapshotId': 'tt-1',
+          'accessibilitySnapshotId': 'acc-1',
+          'realtimeSnapshotId': null,
+        },
+      };
+      final client = _StubApiClient([
+        ApiResponse(statusCode: 200, jsonBody: successMap),
+      ]);
+      final repository = JourneyApiRepository(client);
+
+      final result = await repository.profileJourneys(
+        profileRequest,
+        sessionToken: 'valid-token',
+      );
+      expect(result.requestId, '01ARZ3NDEKTSV4RRFFQ69G5FAV');
+      expect(result.journeys.length, 1);
+      expect(client.posts, hasLength(1));
+      expect(client.posts.first.path, '/api/v3/journeys/profile');
+      expect(client.posts.first.headers['Authorization'], 'Bearer valid-token');
+    });
+
+    test('throws JourneyProtocolFailure when session token is blank', () async {
+      final client = _StubApiClient(const []);
+      final repository = JourneyApiRepository(client);
+
+      await expectLater(
+        repository.profileJourneys(profileRequest, sessionToken: '   '),
+        throwsA(isA<JourneyProtocolFailure>()),
+      );
+      expect(client.posts, isEmpty);
+    });
+
+    test('throws JourneyProtocolFailure when body fails to parse', () async {
+      final client = _StubApiClient([
+        const ApiResponse(
+          statusCode: 200,
+          jsonBody: {'contractVersion': 'WRONG_PROFILE_V2'},
+        ),
+      ]);
+      final repository = JourneyApiRepository(client);
+
+      await expectLater(
+        repository.profileJourneys(profileRequest, sessionToken: 'valid-token'),
+        throwsA(isA<JourneyProtocolFailure>()),
+      );
+      expect(client.posts, hasLength(1));
+    });
   });
 }

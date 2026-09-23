@@ -39,6 +39,7 @@
     "apps/mobile/lib/features/journey/application/journey_get_off_alarm_binding.dart",
     "apps/mobile/lib/features/journey/application/journey_search_controller.dart",
     "apps/mobile/lib/features/journey/data/journey_api_repository.dart",
+    "apps/mobile/lib/features/journey/domain/journey_profile_models.dart",
     "apps/mobile/lib/features/journey/domain/journey_repository.dart",
     "apps/mobile/lib/features/journey/journey_session_provider.dart",
     "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart",

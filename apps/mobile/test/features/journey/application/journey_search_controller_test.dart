@@ -926,6 +926,15 @@ class _Repository implements JourneyRepository {
     'unused in journey controller test',
   );
 
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) async => throw const JourneyTransportFailure(
+    JourneyOperation.searchJourneys,
+    'unused in journey controller test',
+  );
+
   void completeSession() {
     completeSessionAt(0);
   }

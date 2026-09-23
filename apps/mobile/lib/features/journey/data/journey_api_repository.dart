@@ -1,5 +1,6 @@
 import '../../../core/network/api_client.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
+import '../domain/journey_profile_models.dart';
 import '../domain/journey_repository.dart';
 
 class JourneyApiRepository implements JourneyRepository {
@@ -8,6 +9,7 @@ class JourneyApiRepository implements JourneyRepository {
 
   static const _sessionPath = '/api/v3/journeys/session';
   static const _searchPath = '/api/v3/journeys/search';
+  static const _profilePath = '/api/v3/journeys/profile';
   static const _stationTimetableSearchPath =
       '/api/v3/station-timetables/search';
 
@@ -95,6 +97,37 @@ class JourneyApiRepository implements JourneyRepository {
     } on FormatException catch (error) {
       throw JourneyProtocolFailure(
         JourneyOperation.searchStationTimetables,
+        cause: error,
+        statusCode: response.statusCode,
+      );
+    }
+  }
+
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) async {
+    if (sessionToken.trim().isEmpty) {
+      throw const JourneyProtocolFailure(
+        JourneyOperation.searchJourneys,
+        cause: FormatException('Journey session token must be nonblank'),
+      );
+    }
+    final response = await _post(
+      JourneyOperation.searchJourneys,
+      _profilePath,
+      request.toJson(),
+      headers: {'Authorization': 'Bearer $sessionToken'},
+      expectedRequestId: request.requestId,
+    );
+    final body = _successBody(JourneyOperation.searchJourneys, response);
+    try {
+      final success = JourneyProfileSuccess.fromJson(body);
+      return success;
+    } on FormatException catch (error) {
+      throw JourneyProtocolFailure(
+        JourneyOperation.searchJourneys,
         cause: error,
         statusCode: response.statusCode,
       );

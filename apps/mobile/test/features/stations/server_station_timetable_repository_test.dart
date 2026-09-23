@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
@@ -415,6 +416,12 @@ class _FakeJourneyRepository implements JourneyRepository {
     if (failure != null) throw failure!;
     return timetable!;
   }
+
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) => throw UnimplementedError();
 }
 
 class _Attestor implements JourneyV3IntegrityAttestor {
