@@ -10,14 +10,14 @@ part 'catalog_database.g.dart';
 
 const catalogDatabaseSchemaVersion = 18;
 
-/// `transit_feed_info.feed_end_date`의 `YYYYMMDD` 형식 판정(#2530).
+/// `transit_feed_info.feed_end_date`의 `YYYYMMDD` 형식 판정.
 ///
 /// 형식을 통과하지 못한 값(`NULL`·`2026-12-31` 등)은 유효기간 비교에서 어떤
 /// 기준일에도 참이 될 수 없다. 값 존재 판정과 조립되는 필터가 같은 조건을 써야
 /// "행은 있는데 결과만 사라지는" 상태가 생기지 않는다.
 const transitFeedEndDateGlob = '[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]';
 
-/// drift 선언 밖에서 raw SQL로만 읽는 카탈로그 테이블(#2527).
+/// drift 선언 밖에서 raw SQL로만 읽는 카탈로그 테이블.
 ///
 /// `@DriftDatabase(tables: [...])`에 없으므로 `allTables`에 잡히지 않는다. 판정 기준집합을
 /// drift 선언으로만 잡으면 이 세 테이블의 결측은 게이트도 구제도 거부도 하지 못한 채 통과한다.
@@ -32,7 +32,7 @@ const rawSqlCatalogTableNames = <String>{
   'transit_feed_info',
 };
 
-/// 팩에 없어도 앱이 빈 테이블로 만들어 여는 카탈로그 테이블(#2527).
+/// 팩에 없어도 앱이 빈 테이블로 만들어 여는 카탈로그 테이블.
 ///
 /// 팩의 `PRAGMA user_version`이 [catalogDatabaseSchemaVersion]과 같으면 drift는 onCreate도
 /// onUpgrade도 돌리지 않는다. 즉 팩이 빠뜨린 테이블은 앱이 만들 기회를 영영 얻지 못한다.
@@ -67,16 +67,16 @@ const rescuableCatalogTableNames = <String>{
   'route_map_line_tracks',
 };
 
-/// 없어도 팩을 거부하지 않지만 빈 테이블로 만들어서도 안 되는 카탈로그 테이블(#2527).
+/// 없어도 팩을 거부하지 않지만 빈 테이블로 만들어서도 안 되는 카탈로그 테이블.
 ///
 /// `transit_feed_info`가 유일하다. 빈 테이블을 만들면 시간표 쿼리가 붙이는 유효기간 필터가
 /// 어떤 기준일에도 참이 될 수 없어 시간표가 전부 사라지므로 구제 대상이 될 수 없다. 반대로
 /// 결측을 이유로 팩 전체를 거부하면 과잉 대응이다 — 결측 시 필터를 생략하는 쿼리 가드
-/// 대칭화는 #2530이 [hasTransitFeedValidityWindow]로 이미 넣었다. 그래서 "만들지도 않고
+/// 대칭화는 [hasTransitFeedValidityWindow]로 이미 지원한다. 그래서 "만들지도 않고
 /// 막지도 않는" 제3의 분류로 둔다.
 const absenceTolerantCatalogTableNames = <String>{'transit_feed_info'};
 
-/// 팩에 없는 필수 카탈로그 테이블을 처리 방식별로 나눈 결과(#2527).
+/// 팩에 없는 필수 카탈로그 테이블을 처리 방식별로 나눈 결과.
 class CatalogSchemaRescuePlan {
   const CatalogSchemaRescuePlan({
     required this.rescuableMissingTables,
@@ -167,7 +167,7 @@ class CatalogDatabase extends _$CatalogDatabase {
   Set<String> get routeNetworkEdgeColumnNames => _routeNetworkEdgeColumnNames;
   Set<String> get routeFacilityColumnNames => _routeFacilityColumnNames;
 
-  /// 이 세션이 연 파일에 drift 스키마 DDL을 실행했는지(#2532).
+  /// 이 세션이 연 파일에 drift 스키마 DDL을 실행했는지 여부.
   ///
   /// 팩 `user_version`이 앱보다 낮으면 여는 것만으로 파일 내용이 바뀐다. 열기 경로가
   /// 이 신호로 무결성 기준선 갱신 여부를 판정한다.
@@ -287,7 +287,7 @@ class CatalogDatabase extends _$CatalogDatabase {
     _routeFacilityColumnNames = await _tableColumnNames('facilities');
   }
 
-  /// 이 카탈로그에서 읽을 수 있는 피드 종료일(`YYYYMMDD`)을 돌려준다(#2530).
+  /// 이 카탈로그에서 읽을 수 있는 피드 종료일(`YYYYMMDD`)을 반환한다.
   ///
   /// `transit_feed_info`는 데이터팩만 제공하는 테이블이라 앱 drift 선언에 없다.
   /// 테이블이 없거나, `feed_end_date` 열이 없거나, `YYYYMMDD` 형식 행이 하나도
@@ -317,7 +317,7 @@ class CatalogDatabase extends _$CatalogDatabase {
     }
   }
 
-  /// 피드 유효기간 필터를 걸 수 있는지 알린다(#2530).
+  /// 피드 유효기간 필터를 걸 수 있는지 여부를 반환한다.
   ///
   /// `transitFeedEndDate()`가 `null`이면 호출자는 유효기간 필터를 조립하지 않는다.
   Future<bool> hasTransitFeedValidityWindow() async {
@@ -344,7 +344,7 @@ class CatalogDatabase extends _$CatalogDatabase {
     return Set.unmodifiable({for (final row in rows) row.read<String>('name')});
   }
 
-  /// 앱이 팩에 있기를 요구하는 카탈로그 테이블 전체(#2527).
+  /// 앱이 팩에 있기를 요구하는 카탈로그 테이블 전체.
   ///
   /// drift 선언만으로는 raw SQL로 읽는 테이블이 빠지므로 [rawSqlCatalogTableNames]를 합친다.
   Set<String> get requiredCatalogTableNames => {
@@ -352,7 +352,7 @@ class CatalogDatabase extends _$CatalogDatabase {
     ...rawSqlCatalogTableNames,
   };
 
-  /// 팩에 없는 필수 카탈로그 테이블을 구제/허용/거부로 분류한다(#2527).
+  /// 팩에 없는 필수 카탈로그 테이블을 구제/허용/거부로 분류한다.
   ///
   /// 읽기 전용이다. 호출자가 이 팩을 활성화할지 먼저 판정하고, 활성화가 확정된 뒤에만
   /// [rescueMissingCatalogTables]로 실제 DDL을 실행한다.
@@ -383,7 +383,7 @@ class CatalogDatabase extends _$CatalogDatabase {
     );
   }
 
-  /// 구제 가능한 결측 테이블을 빈 테이블로 만든다(#2527).
+  /// 구제 가능한 결측 테이블을 빈 테이블로 만든다.
   ///
   /// 번들 경로와 설치 경로 양쪽에서 같은 함수를 호출한다. 구제 불가 결측이 함께 있어도
   /// 구제 가능분은 만든다 — 무관한 테이블 하나의 결측이 요금 테이블 생성과 그 뒤의 baseline
@@ -421,7 +421,7 @@ class CatalogDatabase extends _$CatalogDatabase {
     }
   }
 
-  /// 구제한 테이블에는 `onCreate`가 그 테이블에 만들어 주는 인덱스만 만든다(#2527).
+  /// 구제한 테이블에는 `onCreate`가 그 테이블에 만들어 주는 인덱스만 만든다.
   ///
   /// `route_map_line_tracks`는 `onCreate`도 인덱스를 만들지 않으므로 여기서도 만들지 않는다.
   /// 팩 스키마 원본이 선언한 `idx_route_map_line_tracks_region_line` 결측은 팩 재빌드로 푼다.

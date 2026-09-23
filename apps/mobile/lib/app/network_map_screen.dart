@@ -1088,7 +1088,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     _nearbyTimetableInFlightGeneration = null;
   }
 
-  /// 실시간과 시간표를 같은 요청 키로 병렬 로드한다. 실시간 실패 시 즉시 시간표로 넘긴다.
+  /// 실시간과 시간표를 같은 요청 키로 병렬 로드한다.
   void _startNearbyPanelDataLoads(
     StationSearchResult station,
     StationSearchLine line,
@@ -1199,30 +1199,23 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         snapshot.arrivals.isNotEmpty;
   }
 
-  /// 현재 실시간 탭 + 최신 요청의 unavailable/empty/timeout일 때만 시간표로 전환한다.
-  /// 시간표 탭 prefetch 실패·이전 역/호선·닫힌 패널은 no-op.
+  /// 실시간 요청의 unavailable/empty/timeout 시 침묵형 시간표 전환(fallback) 대신
+  /// 실시간 패널 상태를 unavailable로 기록하여 사용자 명시적 선택(CTA)을 유도한다.
   Future<void> _handleNearbyRealtimeUnavailable(
     StationSearchResult station,
     StationSearchLine line, {
     required NearbyPanelRequestKey request,
   }) async {
-    final shouldFallbackToTimetable =
-        mounted &&
-        _isCurrentNearbyRequest(request) &&
-        _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime;
-    if (!shouldFallbackToTimetable) {
+    if (!mounted || !_isCurrentNearbyRequest(request)) {
       return;
     }
-    final hasTimetable = _nearbyTimetableDisplayMatchesCurrent();
     setState(() {
-      _nearbyDataSource = NetworkMapNearbyPanelDataSource.timetable;
-      if (!hasTimetable) {
-        _markNearbyTimetableInFlight(request);
-      }
+      _nearbyRealtimeDisplay = NetworkMapNearbyRealtimeDisplay(
+        stationId: request.stationId,
+        lineId: request.lineId,
+        snapshot: const RealtimeSnapshot.unavailable(),
+      );
     });
-    if (!hasTimetable) {
-      await _loadNearbyTimetable(station, line, request: request);
-    }
   }
 
   Future<void> _loadNearbyTimetable(
@@ -1372,6 +1365,12 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       _nearbyRealtimeInFlightGeneration = null;
     });
     unawaited(_loadNearbyTimetable(station, line, request: request));
+  }
+
+  void _selectNearbyTimetable() {
+    if (_nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime) {
+      _toggleNearbyDataSource();
+    }
   }
 
   void _hideNearbyPanel() {
@@ -1721,6 +1720,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
               ? null
               : _nearbyStationDetailAction,
           onSelectNeighbor: _selectNearbyNeighborStation,
+          onSelectTimetable: _selectNearbyTimetable,
         ),
       ),
       expandedDetail: expandedDetail,

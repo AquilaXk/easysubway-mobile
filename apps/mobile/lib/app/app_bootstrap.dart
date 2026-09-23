@@ -43,6 +43,7 @@ class AppBootstrap {
     required this.resumeDataPackUpdate,
     required this.acceptMeteredDataPackUpdate,
     required this.bundledDataPackFreshness,
+    this.isUsingBundledDataPack = false,
   });
 
   final AppDependencies dependencies;
@@ -52,6 +53,7 @@ class AppBootstrap {
   final Future<void> Function() resumeDataPackUpdate;
   final Future<void> Function() acceptMeteredDataPackUpdate;
   final BundledDataPackFreshness? bundledDataPackFreshness;
+  final bool isUsingBundledDataPack;
 
   static Future<AppBootstrap> initialize({
     Directory? databaseDirectory,
@@ -139,6 +141,7 @@ class AppBootstrap {
           trigger: UpdateTrigger.userConsent,
         ),
         bundledDataPackFreshness: bundledDataPackFreshness,
+        isUsingBundledDataPack: catalogDatabaseOpener.openedBundledDataPack,
       );
     } catch (error, stackTrace) {
       await dataPackUpdate;

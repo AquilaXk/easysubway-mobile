@@ -64,6 +64,7 @@ class EasySubwayApp extends StatelessWidget {
     Future<void> Function()? onDataPackMeteredConsent,
     Future<void>? dataPackUpdate,
     BundledDataPackFreshness? bundledDataPackFreshness,
+    bool isUsingBundledDataPack = false,
     OnboardingState initialOnboardingState = const OnboardingState.initial(),
     GlobalKey<NavigatorState>? navigatorKey,
     Key? key,
@@ -82,6 +83,7 @@ class EasySubwayApp extends StatelessWidget {
          onDataPackMeteredConsent: onDataPackMeteredConsent,
          dataPackUpdate: dataPackUpdate,
          bundledDataPackFreshness: bundledDataPackFreshness,
+         isUsingBundledDataPack: isUsingBundledDataPack,
          recentRoutesFuture:
              recentRoutesFuture ??
              (defaultDemoHomeDataEnabled
@@ -104,6 +106,7 @@ class EasySubwayApp extends StatelessWidget {
     required this.onDataPackMeteredConsent,
     required this.dataPackUpdate,
     required this.bundledDataPackFreshness,
+    this.isUsingBundledDataPack = false,
     required this.recentRoutesFuture,
     this.navigatorKey,
     super.key,
@@ -162,6 +165,7 @@ class EasySubwayApp extends StatelessWidget {
   final Future<void> Function()? onDataPackMeteredConsent;
   final Future<void>? dataPackUpdate;
   final BundledDataPackFreshness? bundledDataPackFreshness;
+  final bool isUsingBundledDataPack;
   final Future<List<FavoriteRoute>>? recentRoutesFuture;
   final GlobalKey<NavigatorState>? navigatorKey;
 
@@ -292,6 +296,7 @@ class EasySubwayApp extends StatelessWidget {
           noticeRepository: noticeRepository,
           recentRoutesFuture: recentRoutesFuture,
           bundledDataPackFreshness: bundledDataPackFreshness,
+          isUsingBundledDataPack: isUsingBundledDataPack,
         ),
       ),
     );
@@ -420,6 +425,7 @@ class _EasySubwayHome extends StatefulWidget {
     required this.noticeRepository,
     required this.recentRoutesFuture,
     required this.bundledDataPackFreshness,
+    this.isUsingBundledDataPack = false,
   });
 
   final StationSearchRepository repository;
@@ -452,6 +458,7 @@ class _EasySubwayHome extends StatefulWidget {
   final NoticeRepository? noticeRepository;
   final Future<List<FavoriteRoute>>? recentRoutesFuture;
   final BundledDataPackFreshness? bundledDataPackFreshness;
+  final bool isUsingBundledDataPack;
 
   @override
   State<_EasySubwayHome> createState() => _EasySubwayHomeState();
@@ -531,7 +538,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         onboardingResult?.preferences ??
         const OnboardingViewPreferences.defaults();
 
-    return OnboardingPreferenceScope(
+    final home = OnboardingPreferenceScope(
       preferences: preferences,
       child: HomeScreen(
         repository: widget.repository,
@@ -570,6 +577,34 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         onViewPreferencesChanged: _saveViewPreferences,
       ),
     );
+
+    if (widget.isUsingBundledDataPack) {
+      return Scaffold(
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              MaterialBanner(
+                key: const Key('bundledDataPackOfflineBanner'),
+                backgroundColor:
+                    EasySubwayAccessibleColors.statusWarningSurface,
+                content: const Text(
+                  '⚠️ 오프라인 모드: 앱에 내장된 초기 노선도를 사용 중입니다. 최신 정보 반영을 위해 네트워크 연결을 확인해주세요.',
+                  style: TextStyle(
+                    color: EasySubwayAccessibleColors.contentPrimary,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                actions: const [SizedBox.shrink()],
+              ),
+              Expanded(child: home),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return home;
   }
 
   @override

@@ -6490,7 +6490,9 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('실시간 unavailable 시 시간표로 자동 전환한다', (tester) async {
+  testWidgets('실시간 unavailable 시 시간표로 자동 전환하지 않고 실패 상태와 CTA를 제공한다', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(320, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -6542,12 +6544,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 수동 실시간 선택이어도 최신 요청 unavailable이면 시간표로 돌아온다.
+    // 수동 실시간 선택이어도 최신 요청 unavailable이면 시간표로 자동 전환하지 않고 실패 메시지와 시간표 보기 CTA를 노출한다.
+    expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
+    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsOneWidget);
+    expect(
+      find.byKey(const Key('nearbyArrivalPanelSelectTimetableButton')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const Key('nearbyArrivalPanelSelectTimetableButton')),
+    );
+    await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('시간표 선택됨'), findsOneWidget);
     expect(find.text(departure.timeLabel), findsOneWidget);
   });
 
-  testWidgets('실시간 empty 시 시간표로 자동 전환한다', (tester) async {
+  testWidgets('실시간 empty 시 시간표로 자동 전환하지 않고 실패 상태와 CTA를 제공한다', (tester) async {
     tester.view.physicalSize = const Size(320, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -6598,11 +6611,22 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
+    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsOneWidget);
+    expect(
+      find.byKey(const Key('nearbyArrivalPanelSelectTimetableButton')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const Key('nearbyArrivalPanelSelectTimetableButton')),
+    );
+    await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('시간표 선택됨'), findsOneWidget);
     expect(find.text(departure.timeLabel), findsOneWidget);
   });
 
-  testWidgets('실시간 timeout 시 시간표로 자동 전환한다', (tester) async {
+  testWidgets('실시간 timeout 시 시간표로 자동 전환하지 않고 실패 상태와 CTA를 제공한다', (tester) async {
     tester.view.physicalSize = const Size(320, 1200);
     tester.view.devicePixelRatio = 1;
     addTearDown(() {
@@ -6655,10 +6679,21 @@ void main() {
     await tester.pump();
     expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
 
-    // 패널 실시간 timeout 상수(2초)를 실제로 흘려 폴백을 검증한다.
+    // 패널 실시간 timeout 상수(2초)를 실제로 흘려 폴백 없이 실패 상태와 CTA를 검증한다.
     await tester.pump(const Duration(seconds: 2));
     await tester.pumpAndSettle();
 
+    expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
+    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsOneWidget);
+    expect(
+      find.byKey(const Key('nearbyArrivalPanelSelectTimetableButton')),
+      findsOneWidget,
+    );
+
+    await tester.tap(
+      find.byKey(const Key('nearbyArrivalPanelSelectTimetableButton')),
+    );
+    await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('시간표 선택됨'), findsOneWidget);
     expect(find.text(departure.timeLabel), findsOneWidget);
   });

@@ -118,6 +118,7 @@ void main() {
     ]) {
       final selectedNeighbors = <String>[];
       var detailTaps = 0;
+      var timetableTaps = 0;
       final content = buildNetworkMapNearbyPanelSuccessContent(
         results: [
           _station(const [_catalogLine]),
@@ -129,6 +130,7 @@ void main() {
         adjacentStations: _adjacentStations,
         onOpenStationDetail: () => detailTaps += 1,
         onSelectNeighbor: (neighbor) => selectedNeighbors.add(neighbor.nameKo),
+        onSelectTimetable: () => timetableTaps += 1,
       );
 
       final stationBar = content.stationBar as NearbyStationLineBar;
@@ -146,7 +148,9 @@ void main() {
       stationBar.onStationNameTap?.call();
       stationBar.onLeftNameTap?.call();
       stationBar.onRightNameTap?.call();
+      arrivalPanel.onSelectTimetable?.call();
       expect(detailTaps, 1);
+      expect(timetableTaps, 1);
       expect(selectedNeighbors, ['이전', '다음']);
     }
   });
