@@ -95,6 +95,7 @@ class JourneySearchCommand {
   const JourneySearchCommand({
     required this.originStationId,
     required this.destinationStationId,
+    this.viaStationId,
     required this.departure,
     required this.timePolicy,
     required this.walkingPace,
@@ -106,6 +107,7 @@ class JourneySearchCommand {
 
   final String originStationId;
   final String destinationStationId;
+  final String? viaStationId;
   final JourneyDeparture departure;
   final TimePolicy timePolicy;
   final WalkingPace walkingPace;
@@ -119,6 +121,7 @@ class JourneySearchCommand {
       other is JourneySearchCommand &&
       originStationId == other.originStationId &&
       destinationStationId == other.destinationStationId &&
+      viaStationId == other.viaStationId &&
       departure.toJson().toString() == other.departure.toJson().toString() &&
       timePolicy == other.timePolicy &&
       walkingPace == other.walkingPace &&
@@ -131,6 +134,7 @@ class JourneySearchCommand {
   int get hashCode => Object.hash(
     originStationId,
     destinationStationId,
+    viaStationId,
     departure.toJson().toString(),
     timePolicy,
     walkingPace,
@@ -305,6 +309,7 @@ class JourneySearchController extends ChangeNotifier {
         requestId: _requestIdGenerator(),
         originStationId: command.originStationId,
         destinationStationId: command.destinationStationId,
+        viaStationId: command.viaStationId,
         departure: command.departure,
         timePolicy: command.timePolicy,
         walkingPace: command.walkingPace,
