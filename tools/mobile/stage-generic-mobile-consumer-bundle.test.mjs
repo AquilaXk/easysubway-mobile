@@ -75,7 +75,7 @@ test("exact Hub permanent bundle lock validates and pins the published identitie
   const lock = validateGenericMobileConsumerBundleLock(await exactLock());
   assert.deepEqual(
     [lock.producer.repository, lock.producer.gitSha],
-    ["AquilaXk/easysubway", "978260c3bedfca8b7a2c35f07b3e780eee0fa4ec"]
+    ["AquilaXk/easysubway", "604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3"]
   );
   assert.deepEqual(
     [lock.bundle.path, lock.bundle.rawSha256, lock.bundle.sizeBytes],

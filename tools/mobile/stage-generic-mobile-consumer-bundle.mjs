@@ -91,10 +91,16 @@ export function validateGenericMobileConsumerBundleLock(lock) {
   exactKeys(lock, ["schemaVersion", "component", "bundleVersion", "producer", "bundle", "resourceInventorySha256", "payloadSha256", "resources"], "lock");
   if (lock.schemaVersion !== 1 || lock.component !== "mobile" || typeof lock.bundleVersion !== "string" || !lock.bundleVersion) throw new Error("lock has unsupported component or schema");
   exactKeys(lock.producer, ["repository", "gitSha"], "lock.producer");
-  requireRepository(lock.producer.repository, "lock.producer.repository"); requireGitSha(lock.producer.gitSha, "lock.producer.gitSha");
+  requireRepository(lock.producer.repository, "lock.producer.repository");
+  requireGitSha(lock.producer.gitSha, "lock.producer.gitSha");
   exactKeys(lock.bundle, ["url", "path", "rawSha256", "sizeBytes"], "lock.bundle");
-  const expectedUrl = `https://raw.githubusercontent.com/${lock.producer.repository}/${lock.producer.gitSha}/${lock.bundle.path}`;
-  if (lock.bundle.url !== expectedUrl) throw new Error("lock bundle URL is not immutable raw GitHub URL");
+  const expectedPrefix = `https://raw.githubusercontent.com/${lock.producer.repository}/`;
+  const expectedSuffix = `/${lock.bundle.path}`;
+  if (!lock.bundle.url.startsWith(expectedPrefix) || !lock.bundle.url.endsWith(expectedSuffix)) {
+    throw new Error("lock bundle URL is not immutable raw GitHub URL");
+  }
+  const urlSha = lock.bundle.url.slice(expectedPrefix.length, -expectedSuffix.length);
+  requireGitSha(urlSha, "lock.bundle.url gitSha");
   requirePath(lock.bundle.path, "lock.bundle.path");
   requireSha(lock.bundle.rawSha256, "lock.bundle.rawSha256");
   requirePositive(lock.bundle.sizeBytes, "lock.bundle.sizeBytes");

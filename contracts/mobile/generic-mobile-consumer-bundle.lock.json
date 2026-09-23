@@ -4,7 +4,7 @@
   "bundleVersion": "1.0.0",
   "producer": {
     "repository": "AquilaXk/easysubway",
-    "gitSha": "978260c3bedfca8b7a2c35f07b3e780eee0fa4ec"
+    "gitSha": "604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3"
   },
   "bundle": {
     "url": "https://raw.githubusercontent.com/AquilaXk/easysubway/978260c3bedfca8b7a2c35f07b3e780eee0fa4ec/contracts/bundles/generic-mobile-consumer-bundle-v1.json",
