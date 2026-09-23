@@ -1031,6 +1031,36 @@ void main() {
     expect(favoriteRouteRepository.listCount, greaterThanOrEqualTo(1));
   });
 
+  testWidgets('저장 탭 빈 상태에서 지하철역 검색하러 가기 탭 시 홈 탭으로 이동하고 검색을 연다', (tester) async {
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(favorites: const []),
+        favoriteFacilityRepository: FakeFavoriteFacilityRepository(
+          favorites: const [],
+        ),
+        favoriteRouteRepository: FakeFavoriteRouteRepository(
+          favorites: const [],
+        ),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _openSavedItemsScreen(tester);
+    expect(
+      find.byKey(const Key('favoriteHomeSearchStationButton')),
+      findsOneWidget,
+    );
+
+    await tester.tap(find.byKey(const Key('favoriteHomeSearchStationButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('stationSearchScreen')), findsOneWidget);
+  });
+
   testWidgets('저장 탭은 복원 불가 경로에 다시 검색 필요를 표시한다', (tester) async {
     final favoriteRouteRepository = FakeFavoriteRouteRepository(
       favorites: [_favoriteRoute(needsResearch: true, lineName: '')],

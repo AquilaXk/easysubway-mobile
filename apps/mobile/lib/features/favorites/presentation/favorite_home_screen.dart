@@ -396,13 +396,7 @@ class _FavoriteHomeEmptyState extends StatelessWidget {
             const SizedBox(height: EasySubwaySpacing.lg),
             FilledButton.icon(
               key: const Key('favoriteHomeSearchStationButton'),
-              onPressed: () {
-                if (onSearchStation != null) {
-                  onSearchStation!();
-                } else if (Navigator.of(context).canPop()) {
-                  Navigator.of(context).pop();
-                }
-              },
+              onPressed: onSearchStation,
               icon: const Icon(Icons.search, size: 20),
               label: const Text('지하철역 검색하러 가기'),
             ),
