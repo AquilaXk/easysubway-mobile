@@ -55,9 +55,7 @@ void main() {
     );
     await tester.pump();
 
-    final bannerFinder = find.byKey(
-      const Key('bundledDataPackOfflineBanner'),
-    );
+    final bannerFinder = find.byKey(const Key('bundledDataPackOfflineBanner'));
     expect(bannerFinder, findsOneWidget);
     expect(
       find.text(
@@ -84,9 +82,6 @@ void main() {
     );
     await tester.pump();
 
-    expect(
-      find.byKey(const Key('bundledDataPackOfflineBanner')),
-      findsNothing,
-    );
+    expect(find.byKey(const Key('bundledDataPackOfflineBanner')), findsNothing);
   });
 }
