@@ -31,6 +31,11 @@ jobs:
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
         with:
           node-version: "24"
+      - name: Check documentation fragment preflight sync
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.event.pull_request.base.sha }}
+        run: node tools/ci/check-documentation-fragment-sync.mjs --base "${BASE_REF}"
       - name: Set up ORAS
         uses: oras-project/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d
         with:
