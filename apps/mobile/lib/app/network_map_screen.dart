@@ -724,19 +724,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   static List<NetworkMapRegion> _mergeWithDefaultRegions(
     List<NetworkMapRegion> regions,
   ) {
-    final seen = <String>{};
-    final result = <NetworkMapRegion>[];
-    for (final region in _defaultMetropolitanRegions) {
-      if (seen.add(region.displayName)) {
-        result.add(region);
-      }
+    if (regions.isEmpty ||
+        (regions.length == 1 && regions.first.displayName == '수도권')) {
+      return _defaultMetropolitanRegions;
     }
-    for (final region in regions) {
-      if (seen.add(region.displayName)) {
-        result.add(region);
-      }
-    }
-    return result;
+    return regions;
   }
 
   void _cacheAvailableRegionLabels(List<NetworkMapRegion> regions) {

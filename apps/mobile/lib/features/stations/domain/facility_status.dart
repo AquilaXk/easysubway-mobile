@@ -116,9 +116,6 @@ String facilityStatusDisplayLabel({
   if (statusLabel == severityLabel || statusLabel.contains(severityLabel)) {
     return statusLabel;
   }
-  if (severityLabel.contains(statusLabel)) {
-    return severityLabel;
-  }
   return '$severityLabel · $statusLabel';
 }
 
@@ -128,9 +125,6 @@ String facilityStatusSemanticLabel({
 }) {
   if (statusLabel == severityLabel || statusLabel.contains(severityLabel)) {
     return statusLabel;
-  }
-  if (severityLabel.contains(statusLabel)) {
-    return severityLabel;
   }
   return '$statusLabel, $severityLabel';
 }

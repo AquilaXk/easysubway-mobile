@@ -79,17 +79,5 @@ void main() {
       ),
       '설치 확인 · 운행상태 미확인',
     );
-    expect(
-      facilityStatusDisplayLabel(statusLabel: '고장', severityLabel: '고장·폐쇄'),
-      '고장·폐쇄',
-    );
-    expect(
-      facilityStatusDisplayLabel(statusLabel: '폐쇄', severityLabel: '고장·폐쇄'),
-      '고장·폐쇄',
-    );
-    expect(
-      facilityStatusSemanticLabel(statusLabel: '고장', severityLabel: '고장·폐쇄'),
-      '고장·폐쇄',
-    );
   });
 }
