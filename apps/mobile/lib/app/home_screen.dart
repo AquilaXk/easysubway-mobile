@@ -834,7 +834,15 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onShellBack: openPreviousTabOrHome,
           onSearchStation: () {
             openHomeTab();
-            unawaited(openStationSearch('수도권', const ['수도권']));
+            unawaited(
+              openStationSearch(_currentRegionLabel, const [
+                '수도권',
+                '광주',
+                '대구',
+                '대전',
+                '부산',
+              ]),
+            );
           },
         ),
       );

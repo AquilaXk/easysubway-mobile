@@ -100,4 +100,77 @@ void main() {
     // 노선도는 수도권으로 안전하게 유지됨
     expect(find.text('수도권'), findsWidgets);
   });
+
+  testWidgets(
+    '복수 지역(수도권, 부산) 제공 시에도 5대 대도시권(수도권, 광주, 대구, 대전, 부산) 전체가 드롭다운에 유지된다',
+    (tester) async {
+      final repository = _TwoRegionNetworkMapRepository();
+      final routeDraftController = RouteDraftController();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NetworkMapScreen(
+              repository: repository,
+              routeDraftController: routeDraftController,
+              onOpenStationSearch: (_, _) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('networkMapRegionDropdown')));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const ValueKey('networkMapRegionMenuRow_광주')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('networkMapRegionMenuRow_대구')),
+        findsOneWidget,
+      );
+      expect(
+        find.byKey(const ValueKey('networkMapRegionMenuRow_대전')),
+        findsOneWidget,
+      );
+    },
+  );
+}
+
+class _TwoRegionNetworkMapRepository implements NetworkMapRepository {
+  @override
+  Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
+    return const NetworkMapData(
+      regions: [
+        NetworkMapRegion(name: '수도권'),
+        NetworkMapRegion(name: '부산'),
+      ],
+      selectedRegion: '수도권',
+      lines: [],
+      stations: [
+        NetworkMapStation(
+          id: 'station-1',
+          nameKo: '시청',
+          nameEn: 'City Hall',
+          region: '수도권',
+          lineId: 'line-1',
+          stationCode: '100',
+          sequence: 1,
+          position: NetworkMapPosition(
+            x: 100,
+            y: 100,
+            labelDx: 0,
+            labelDy: 0,
+            upPath: '',
+            downPath: '',
+            sourceId: 'src-1',
+          ),
+        ),
+      ],
+      edges: [],
+      positionSources: [],
+    );
+  }
 }

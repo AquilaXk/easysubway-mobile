@@ -1059,6 +1059,12 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('stationSearchScreen')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('stationSearchRegionDropdown')));
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('networkMapRegionMenuRow_부산')),
+      findsOneWidget,
+    );
   });
 
   testWidgets('저장 탭은 복원 불가 경로에 다시 검색 필요를 표시한다', (tester) async {
