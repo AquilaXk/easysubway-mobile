@@ -75,7 +75,7 @@ test("exact Hub permanent bundle lock validates and pins the published identitie
   const lock = validateGenericMobileConsumerBundleLock(await exactLock());
   assert.deepEqual(
     [lock.producer.repository, lock.producer.gitSha],
-    ["AquilaXk/easysubway", "604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3"]
+    ["AquilaXk/easysubway", "978260c3bedfca8b7a2c35f07b3e780eee0fa4ec"]
   );
   assert.deepEqual(
     [lock.bundle.path, lock.bundle.rawSha256, lock.bundle.sizeBytes],
@@ -87,7 +87,7 @@ test("exact Hub permanent bundle lock validates and pins the published identitie
   );
   assert.equal(
     lock.bundle.url,
-    "https://raw.githubusercontent.com/AquilaXk/easysubway/604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3/contracts/bundles/generic-mobile-consumer-bundle-v1.json"
+    "https://raw.githubusercontent.com/AquilaXk/easysubway/978260c3bedfca8b7a2c35f07b3e780eee0fa4ec/contracts/bundles/generic-mobile-consumer-bundle-v1.json"
   );
   assert.deepEqual(lock.resources, [
     {

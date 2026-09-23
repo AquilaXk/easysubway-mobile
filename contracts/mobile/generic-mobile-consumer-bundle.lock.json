@@ -4,10 +4,10 @@
   "bundleVersion": "1.0.0",
   "producer": {
     "repository": "AquilaXk/easysubway",
-    "gitSha": "604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3"
+    "gitSha": "978260c3bedfca8b7a2c35f07b3e780eee0fa4ec"
   },
   "bundle": {
-    "url": "https://raw.githubusercontent.com/AquilaXk/easysubway/604a2ae525cc20b3bdcd3cbe2e22f93de19fefc3/contracts/bundles/generic-mobile-consumer-bundle-v1.json",
+    "url": "https://raw.githubusercontent.com/AquilaXk/easysubway/978260c3bedfca8b7a2c35f07b3e780eee0fa4ec/contracts/bundles/generic-mobile-consumer-bundle-v1.json",
     "path": "contracts/bundles/generic-mobile-consumer-bundle-v1.json",
     "rawSha256": "7f666d016119591e5c958e7d55c936fffb5e753898e69ec28e4f0cb50b5555ff",
     "sizeBytes": 4415
