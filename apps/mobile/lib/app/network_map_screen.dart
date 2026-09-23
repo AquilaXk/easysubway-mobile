@@ -1368,39 +1368,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 
   void _selectNearbyTimetable() {
-    if (_nearbyDataSource == NetworkMapNearbyPanelDataSource.timetable) {
-      return;
+    if (_nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime) {
+      _toggleNearbyDataSource();
     }
-    if (_nearbyPanelData.results.isEmpty) {
-      return;
-    }
-    final station = _nearbyPanelData.results.first;
-    final line = station.lines
-        .where((candidate) => candidate.id == _nearbySelectedLineId)
-        .firstOrNull;
-    if (line == null) {
-      return;
-    }
-    setState(() {
-      _nearbyDataSource = NetworkMapNearbyPanelDataSource.timetable;
-    });
-    if (_nearbyTimetableDisplayMatchesCurrent()) {
-      return;
-    }
-    if (_nearbyTimetableRequestInFlight) {
-      return;
-    }
-    final request = NearbyPanelRequestKey(
-      stationId: station.id,
-      lineId: line.id,
-      generation: ++_nearbyDataRequestToken,
-    );
-    setState(() {
-      _markNearbyTimetableInFlight(request);
-      _nearbyRealtimeRequestInFlight = false;
-      _nearbyRealtimeInFlightGeneration = null;
-    });
-    unawaited(_loadNearbyTimetable(station, line, request: request));
   }
 
   void _hideNearbyPanel() {

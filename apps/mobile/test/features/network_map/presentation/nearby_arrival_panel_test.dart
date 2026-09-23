@@ -139,4 +139,28 @@ void main() {
 
     expect(timetableClicked, isTrue);
   });
+
+  testWidgets('unavailable에 방면 슬롯이 없을 때도 에러 문구와 시간표 보기 CTA를 노출한다', (
+    tester,
+  ) async {
+    var timetableClicked = false;
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.unavailable,
+        ),
+        leftName: null,
+        rightName: null,
+        onSelectTimetable: () => timetableClicked = true,
+      ),
+    );
+
+    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsOneWidget);
+    expect(find.text('시간표 보기'), findsOneWidget);
+
+    await tester.tap(find.text('시간표 보기'));
+    await tester.pump();
+
+    expect(timetableClicked, isTrue);
+  });
 }
