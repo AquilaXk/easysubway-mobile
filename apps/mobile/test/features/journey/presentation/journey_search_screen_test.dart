@@ -731,6 +731,99 @@ void main() {
     );
     expect(repository.requests, isEmpty);
   });
+
+  testWidgets(
+    '특정 시간대 출발 대안 보기(departureWindow) 선택 시 Profile V1 DEPART_BETWEEN 쿼리를 실행한다',
+    (tester) async {
+      final repository = _Repository();
+      await _pumpScreen(tester, repository: repository);
+
+      final windowChip = find.byKey(const Key('journey-departure-window'));
+      expect(tester.getSize(windowChip).height, greaterThanOrEqualTo(48));
+      await tester.tap(windowChip);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(windowChip).flagsCollection.isSelected,
+        Tristate.isTrue,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(find.byKey(const Key('journey-window-time')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'OK'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'OK'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('대안 시간대'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+
+      expect(repository.profileRequests, hasLength(1));
+      final profileReq = repository.profileRequests.single;
+      expect(profileReq.originStationId, 'station-origin');
+      expect(profileReq.destinationStationId, 'station-destination');
+      expect(profileReq.temporalQuery, isA<JourneyDepartBetweenQuery>());
+      final temporal = profileReq.temporalQuery as JourneyDepartBetweenQuery;
+      expect(
+        temporal.latestReadyAt,
+        temporal.earliestReadyAt.add(const Duration(minutes: 30)),
+      );
+      expect(find.text('경로 후보 2개'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '교통약자 안심 막차 찾기(Last Connection) 선택 시 Profile V1 LAST_CONNECTION 쿼리를 실행한다',
+    (tester) async {
+      final repository = _Repository();
+      await _pumpScreen(tester, repository: repository);
+
+      final lastConnChip = find.byKey(
+        const Key('journey-departure-last-connection'),
+      );
+      expect(tester.getSize(lastConnChip).height, greaterThanOrEqualTo(48));
+      await tester.tap(lastConnChip);
+      await tester.pumpAndSettle();
+
+      expect(
+        tester.getSemantics(lastConnChip).flagsCollection.isSelected,
+        Tristate.isTrue,
+      );
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
+            .onPressed,
+        isNull,
+      );
+
+      await tester.tap(find.byKey(const Key('journey-last-connection-date')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(TextButton, 'OK'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('막차 운행일'), findsOneWidget);
+
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+
+      expect(repository.profileRequests, hasLength(1));
+      final profileReq = repository.profileRequests.single;
+      expect(profileReq.originStationId, 'station-origin');
+      expect(profileReq.destinationStationId, 'station-destination');
+      expect(profileReq.temporalQuery, isA<JourneyLastConnectionQuery>());
+      final temporal = profileReq.temporalQuery as JourneyLastConnectionQuery;
+      expect(temporal.serviceDate, '2026-08-12');
+      expect(find.text('경로 후보 2개'), findsOneWidget);
+    },
+  );
 }
 
 class _RecordingCrashlytics implements CrashlyticsGateway {
@@ -825,6 +918,7 @@ class _Repository implements JourneyRepository {
   DateTime? responseNow;
   List<String> journeyIds = <String>['journey-2', 'journey-1'];
   final List<JourneySearchRequest> requests = <JourneySearchRequest>[];
+  final List<JourneyProfileRequest> profileRequests = <JourneyProfileRequest>[];
 
   @override
   Future<JourneySessionResponse> issueSession(
@@ -853,6 +947,51 @@ class _Repository implements JourneyRepository {
       );
     }
     return _success(request, journeyIds, now: responseNow);
+  }
+
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) async {
+    profileRequests.add(request);
+    if (rejectionToThrow != null) {
+      final rejection = rejectionToThrow!;
+      rejectionToThrow = null;
+      throw rejection;
+    }
+    if (failuresRemaining > 0) {
+      failuresRemaining--;
+      throw const JourneyTransportFailure(
+        JourneyOperation.searchJourneys,
+        'private transport detail',
+      );
+    }
+    final responseTime = responseNow ?? DateTime.utc(2026, 8, 12);
+    return JourneyProfileSuccess(
+      contractVersion: 'JOURNEY_PROFILE_V1',
+      requestId: request.requestId,
+      queryId: 'profile-query-1',
+      calculatedAt: responseTime,
+      validUntil: responseTime.add(const Duration(minutes: 5)),
+      temporalQuery: request.temporalQuery,
+      journeys: journeyIds
+          .map(
+            (id) => JourneyProfileJourneyCandidate(
+              journeyId: id,
+              readyAt: responseTime,
+              journeyStartTime: responseTime,
+              firstBoardingTime: responseTime,
+              arrivalAtPlatform: responseTime.add(const Duration(minutes: 5)),
+              arrivalAtDestination: responseTime.add(
+                const Duration(minutes: 5),
+              ),
+              objectiveTags: const ['PROFILE_TEST'],
+              journey: _journey(id, responseTime),
+            ),
+          )
+          .toList(),
+    );
   }
 
   @override

@@ -17,6 +17,7 @@ import 'package:easysubway_mobile/features/service_notice/data/notice_repository
 import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
 import 'package:easysubway_mobile/features/train_search/domain/train_search_models.dart';
 import 'package:easysubway_mobile/main.dart' as app;
+import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -228,6 +229,27 @@ void main() {
           originStationId: 'station-origin',
           destinationStationId: 'station-destination',
           departure: const JourneyDepartureNow(),
+          timePolicy: TimePolicy.timetableRequired,
+          walkingPace: WalkingPace.standard,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 3,
+          alternativeCount: 3,
+        ),
+        sessionToken: 'unused',
+      ),
+      throwsA(isA<JourneyTransportFailure>()),
+    );
+    await expectLater(
+      dependencies.journeyRepository.profileJourneys(
+        JourneyProfileRequest(
+          requestId: '01J00000000000000000000000',
+          originStationId: 'station-origin',
+          destinationStationId: 'station-destination',
+          temporalQuery: JourneyDepartBetweenQuery(
+            earliestReadyAt: DateTime.parse('2026-08-11T09:00:00Z'),
+            latestReadyAt: DateTime.parse('2026-08-11T10:00:00Z'),
+          ),
           timePolicy: TimePolicy.timetableRequired,
           walkingPace: WalkingPace.standard,
           mobilityProfile: MobilityProfile.standard,
