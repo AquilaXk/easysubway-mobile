@@ -167,12 +167,12 @@ jobs:
           cat "$RUNNER_TEMP/mobile-root-import-ratchet/mobile-root-import-summary.md" >> "$GITHUB_STEP_SUMMARY"
       - name: Fetch exact generic mobile consumer bundle
         env:
-          GH_TOKEN: ${{ secrets.HUB_ACTIONS_ARTIFACT_READ_TOKEN }}
+          GH_TOKEN: ${{ secrets.HUB_ACTIONS_ARTIFACT_READ_TOKEN || github.token }}
           BUNDLE_INPUT_ROOT: ${{ runner.temp }}/generic-mobile-consumer-bundle-input-${{ github.run_id }}-${{ github.run_attempt }}
         run: |
           umask 077
           if [[ -z "${GH_TOKEN:-}" ]]; then
-            echo "HUB_ACTIONS_ARTIFACT_READ_TOKEN is required" >&2
+            echo "GH_TOKEN is required" >&2
             exit 1
           fi
           if [[ -e "$BUNDLE_INPUT_ROOT" || -L "$BUNDLE_INPUT_ROOT" ]]; then

@@ -18,7 +18,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'types: [labeled]',
     'workflow_run:',
     'workflow_dispatch:',
-    'schedule:',
+    'pull_request_review:',
     'permissions: {}',
     'checks: read',
     'statuses: read',

@@ -167,7 +167,7 @@ test("CI fetches and stages only the exact Hub artifact before residual snapshot
 
   assert.ok(fetchIndex >= 0 && stageIndex > fetchIndex && checksumIndex > stageIndex, "fetch, stage, and residual checksum steps must be ordered");
   assert.ok(runMetadataFetchIndex >= 0 && artifactMetadataFetchIndex > runMetadataFetchIndex && archiveFetchIndex > artifactMetadataFetchIndex, "run metadata must be fetched once before artifact metadata and ZIP");
-  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.HUB_ACTIONS_ARTIFACT_READ_TOKEN \}\}/);
+  assert.match(workflow, /GH_TOKEN: \$\{\{ secrets\.HUB_ACTIONS_ARTIFACT_READ_TOKEN \|\| github\.token \}\}/);
   assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${metadataEndpoint}`));
   assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${archiveEndpoint}`));
   assert.match(workflow, new RegExp(`gh api --method GET[^\\n]*${runMetadataEndpoint}`));
