@@ -146,12 +146,13 @@ extension JourneyLegTypeWire on JourneyLegType {
   }
 }
 
-enum JourneyOperation { issueJourneySession, searchJourneys, searchStationTimetables }
+enum JourneyOperation { issueJourneySession, searchJourneys, profileJourneys, searchStationTimetables }
 
 extension JourneyOperationWire on JourneyOperation {
   String get wire => switch (this) {
     JourneyOperation.issueJourneySession => "issueJourneySession",
     JourneyOperation.searchJourneys => "searchJourneys",
+    JourneyOperation.profileJourneys => "profileJourneys",
     JourneyOperation.searchStationTimetables => "searchStationTimetables",
   };
   static JourneyOperation fromWire(Object? value) {
@@ -159,6 +160,7 @@ extension JourneyOperationWire on JourneyOperation {
     return switch (value) {
       "issueJourneySession" => JourneyOperation.issueJourneySession,
       "searchJourneys" => JourneyOperation.searchJourneys,
+      "profileJourneys" => JourneyOperation.profileJourneys,
       "searchStationTimetables" => JourneyOperation.searchStationTimetables,
       _ => throw const FormatException('unrecognized wire value'),
     };
@@ -424,6 +426,15 @@ enum JourneyErrorCode {
   stationLineNotFound,
   timetableNotCovered,
   timetableIdentityMismatch,
+  invalidTemporalQuery,
+  temporalWindowTooLarge,
+  noServiceInDepartureWindow,
+  noRouteArrivingByDeadline,
+  noLastConnection,
+  realtimeNotApplicableToTemporalQuery,
+  temporalQueryTooComplex,
+  raptorFrontierCapacityExceeded,
+  journeyProfileTimeout,
   routeSessionRequired,
   routeRateLimited,
   invalidJourneySessionRequest,
@@ -448,6 +459,15 @@ extension JourneyErrorCodeWire on JourneyErrorCode {
     JourneyErrorCode.stationLineNotFound => "STATION_LINE_NOT_FOUND",
     JourneyErrorCode.timetableNotCovered => "TIMETABLE_NOT_COVERED",
     JourneyErrorCode.timetableIdentityMismatch => "TIMETABLE_IDENTITY_MISMATCH",
+    JourneyErrorCode.invalidTemporalQuery => "INVALID_TEMPORAL_QUERY",
+    JourneyErrorCode.temporalWindowTooLarge => "TEMPORAL_WINDOW_TOO_LARGE",
+    JourneyErrorCode.noServiceInDepartureWindow => "NO_SERVICE_IN_DEPARTURE_WINDOW",
+    JourneyErrorCode.noRouteArrivingByDeadline => "NO_ROUTE_ARRIVING_BY_DEADLINE",
+    JourneyErrorCode.noLastConnection => "NO_LAST_CONNECTION",
+    JourneyErrorCode.realtimeNotApplicableToTemporalQuery => "REALTIME_NOT_APPLICABLE_TO_TEMPORAL_QUERY",
+    JourneyErrorCode.temporalQueryTooComplex => "TEMPORAL_QUERY_TOO_COMPLEX",
+    JourneyErrorCode.raptorFrontierCapacityExceeded => "RAPTOR_FRONTIER_CAPACITY_EXCEEDED",
+    JourneyErrorCode.journeyProfileTimeout => "JOURNEY_PROFILE_TIMEOUT",
     JourneyErrorCode.routeSessionRequired => "ROUTE_SESSION_REQUIRED",
     JourneyErrorCode.routeRateLimited => "ROUTE_RATE_LIMITED",
     JourneyErrorCode.invalidJourneySessionRequest => "INVALID_JOURNEY_SESSION_REQUEST",
@@ -472,6 +492,15 @@ extension JourneyErrorCodeWire on JourneyErrorCode {
       "STATION_LINE_NOT_FOUND" => JourneyErrorCode.stationLineNotFound,
       "TIMETABLE_NOT_COVERED" => JourneyErrorCode.timetableNotCovered,
       "TIMETABLE_IDENTITY_MISMATCH" => JourneyErrorCode.timetableIdentityMismatch,
+      "INVALID_TEMPORAL_QUERY" => JourneyErrorCode.invalidTemporalQuery,
+      "TEMPORAL_WINDOW_TOO_LARGE" => JourneyErrorCode.temporalWindowTooLarge,
+      "NO_SERVICE_IN_DEPARTURE_WINDOW" => JourneyErrorCode.noServiceInDepartureWindow,
+      "NO_ROUTE_ARRIVING_BY_DEADLINE" => JourneyErrorCode.noRouteArrivingByDeadline,
+      "NO_LAST_CONNECTION" => JourneyErrorCode.noLastConnection,
+      "REALTIME_NOT_APPLICABLE_TO_TEMPORAL_QUERY" => JourneyErrorCode.realtimeNotApplicableToTemporalQuery,
+      "TEMPORAL_QUERY_TOO_COMPLEX" => JourneyErrorCode.temporalQueryTooComplex,
+      "RAPTOR_FRONTIER_CAPACITY_EXCEEDED" => JourneyErrorCode.raptorFrontierCapacityExceeded,
+      "JOURNEY_PROFILE_TIMEOUT" => JourneyErrorCode.journeyProfileTimeout,
       "ROUTE_SESSION_REQUIRED" => JourneyErrorCode.routeSessionRequired,
       "ROUTE_RATE_LIMITED" => JourneyErrorCode.routeRateLimited,
       "INVALID_JOURNEY_SESSION_REQUEST" => JourneyErrorCode.invalidJourneySessionRequest,
