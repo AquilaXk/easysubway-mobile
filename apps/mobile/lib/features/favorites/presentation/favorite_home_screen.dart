@@ -25,6 +25,7 @@ class FavoriteHomeScreen extends StatefulWidget {
     required this.onOpenFavoriteRoute,
     this.onShellBack,
     this.bottomNavigationBar,
+    this.onSearchStation,
     super.key,
   });
 
@@ -38,6 +39,7 @@ class FavoriteHomeScreen extends StatefulWidget {
   /// 루트 탭으로 열린 즐겨찾기에서 Navigator.pop이 안 될 때 이전 탭(없으면 홈)으로 돌아간다.
   final VoidCallback? onShellBack;
   final Widget? bottomNavigationBar;
+  final VoidCallback? onSearchStation;
 
   @override
   State<FavoriteHomeScreen> createState() => _FavoriteHomeScreenState();
@@ -142,7 +144,9 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
                           data.isEmpty)
                         SizedBox(
                           height: viewportHeight,
-                          child: const _FavoriteHomeEmptyState(),
+                          child: _FavoriteHomeEmptyState(
+                            onSearchStation: widget.onSearchStation,
+                          ),
                         )
                       else ...[
                         // 카테고리 카드·개수 없이 저장한 항목을 바로 나열한다.
@@ -359,7 +363,9 @@ class _FavoriteHomeRowDivider extends StatelessWidget {
 }
 
 class _FavoriteHomeEmptyState extends StatelessWidget {
-  const _FavoriteHomeEmptyState();
+  const _FavoriteHomeEmptyState({this.onSearchStation});
+
+  final VoidCallback? onSearchStation;
 
   // 역 검색 최근 검색 빈 상태와 동일 토큰(아이콘 56·글자 16·disclosure·정렬 -0.55).
   static const _iconSize = 56.0;
@@ -386,6 +392,13 @@ class _FavoriteHomeEmptyState extends StatelessWidget {
                 height: 1.35,
                 fontSize: 16,
               ),
+            ),
+            const SizedBox(height: EasySubwaySpacing.lg),
+            FilledButton.icon(
+              key: const Key('favoriteHomeSearchStationButton'),
+              onPressed: onSearchStation,
+              icon: const Icon(Icons.search, size: 20),
+              label: const Text('지하철역 검색하러 가기'),
             ),
           ],
         ),

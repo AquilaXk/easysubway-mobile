@@ -495,6 +495,33 @@ void main() {
     await tester.pumpAndSettle();
     expect(opened, isTrue);
   });
+
+  testWidgets('가는 날 탭 시 입력 포커스를 해제하고 즉시 캘린더 피커를 띄운다', (tester) async {
+    final repository = _FakeTrainSearchRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 출발역 텍스트 입력으로 포커스 활성화
+    await tester.enterText(
+      find.byKey(const Key('trainSearchDepartureField')),
+      '서',
+    );
+    await tester.pump();
+
+    // 날짜 버튼 탭
+    await tester.tap(find.byKey(const Key('trainSearchDepartureDateButton')));
+    await tester.pumpAndSettle();
+
+    // 캘린더 DatePickerDialog가 열려야 함
+    expect(find.byType(DatePickerDialog), findsOneWidget);
+  });
 }
 
 class _EmptyNetworkMapRepository implements NetworkMapRepository {

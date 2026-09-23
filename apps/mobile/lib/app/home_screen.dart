@@ -671,8 +671,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                           key: const Key('bundledDataPackStaleBanner'),
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 20,
-                            vertical: 10,
+                            horizontal: 16,
+                            vertical: 5,
                           ),
                           decoration: const BoxDecoration(
                             border: Border(
@@ -832,6 +832,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             openRouteTab(favorite.mobilityType);
           },
           onShellBack: openPreviousTabOrHome,
+          onSearchStation: () {
+            openHomeTab();
+            unawaited(openStationSearch('수도권', const ['수도권']));
+          },
         ),
       );
     }

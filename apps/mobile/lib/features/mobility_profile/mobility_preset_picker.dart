@@ -42,7 +42,7 @@ Future<MobilityPreset?> showMobilityPresetSheet(
                 child: Semantics(
                   header: true,
                   child: Text(
-                    '걷는 속도',
+                    '이동 조건',
                     style: textTheme.titleMedium?.copyWith(
                       color: EasySubwayAccessibleColors.text,
                       fontWeight: FontWeight.w700,

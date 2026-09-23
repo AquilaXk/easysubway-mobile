@@ -27,6 +27,20 @@ class FacilityDetailScreen extends StatelessWidget {
     final statusColor = _facilityStatusNoticeIconColor(
       facility.statusPresentation.severity,
     );
+    final statusTitle = _facilityStatusTitle(facility);
+    final displayLabel = facilityStatusDisplayLabel(
+      statusLabel: facility.statusLabel,
+      severityLabel: facility.severityLabel,
+    );
+    final showDisplayLabel =
+        displayLabel != statusTitle &&
+        !statusTitle.contains(displayLabel) &&
+        !displayLabel.contains(statusTitle);
+    final description = _facilityDetailStatusDescription(facility);
+    final semanticsLabel = showDisplayLabel
+        ? '$statusTitle, $displayLabel, $description'
+        : '$statusTitle, $description';
+
     return Scaffold(
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: EasySubwayFamilyAppBar(
@@ -46,10 +60,7 @@ class FacilityDetailScreen extends StatelessWidget {
             _FacilityDetailSectionTitle(title: '상태'),
             const SizedBox(height: 12),
             Semantics(
-              label:
-                  '${_facilityStatusTitle(facility)}, '
-                  '${facilityStatusDisplayLabel(statusLabel: facility.statusLabel, severityLabel: facility.severityLabel)}, '
-                  '${_facilityDetailStatusDescription(facility)}',
+              label: semanticsLabel,
               child: ExcludeSemantics(
                 child: Padding(
                   key: Key('facilityDetailStatusNotice-${facility.id}'),
@@ -74,7 +85,7 @@ class FacilityDetailScreen extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              _facilityStatusTitle(facility),
+                              statusTitle,
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
                                     color: statusColor,
@@ -82,22 +93,22 @@ class FacilityDetailScreen extends StatelessWidget {
                                     height: 1.25,
                                   ),
                             ),
-                            const SizedBox(height: 3),
-                            Text(
-                              facilityStatusDisplayLabel(
-                                statusLabel: facility.statusLabel,
-                                severityLabel: facility.severityLabel,
+                            if (showDisplayLabel) ...[
+                              const SizedBox(height: 3),
+                              Text(
+                                displayLabel,
+                                style: Theme.of(context).textTheme.bodyMedium
+                                    ?.copyWith(
+                                      color:
+                                          EasySubwayAccessibleColors.mutedText,
+                                      fontWeight: FontWeight.w700,
+                                      height: 1.3,
+                                    ),
                               ),
-                              style: Theme.of(context).textTheme.bodyMedium
-                                  ?.copyWith(
-                                    color: EasySubwayAccessibleColors.mutedText,
-                                    fontWeight: FontWeight.w700,
-                                    height: 1.3,
-                                  ),
-                            ),
+                            ],
                             const SizedBox(height: 3),
                             Text(
-                              _facilityDetailStatusDescription(facility),
+                              description,
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: EasySubwayAccessibleColors.mutedText,

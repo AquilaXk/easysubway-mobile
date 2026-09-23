@@ -85,8 +85,8 @@ class NetworkMapChrome extends StatelessWidget {
           ),
         if (!inSearchMode && !nearbyPanelExpanded)
           Positioned(
-            right: 16,
-            bottom: nearbyPanelVisible ? 280 : 26,
+            right: 20,
+            bottom: nearbyPanelVisible ? 280 : 32,
             child: NetworkMapCurrentLocationButton(onTap: onCurrentLocationTap),
           ),
       ],
