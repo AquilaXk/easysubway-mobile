@@ -464,6 +464,35 @@ void main() {
     expect(root, isNot(contains('class _NetworkMapSearchSession')));
     expect(root, isNot(contains('class _NetworkMapSearchSessionState')));
   });
+
+  testWidgets('searchQueryController 교체 시 리스너를 정상 이전한다', (tester) async {
+    final oldController = TextEditingController();
+    final newController = TextEditingController();
+    final routeDraftController = RouteDraftController();
+    final stationRepository = _RecordingStationSearchRepository();
+
+    await tester.pumpWidget(
+      _session(
+        queryController: oldController,
+        routeDraftController: routeDraftController,
+        stationRepository: stationRepository,
+      ),
+    );
+    await tester.pump();
+
+    await tester.pumpWidget(
+      _session(
+        queryController: newController,
+        routeDraftController: routeDraftController,
+        stationRepository: stationRepository,
+      ),
+    );
+    await tester.pump();
+
+    newController.text = '강남';
+    await tester.pump();
+    expect(stationRepository.requests, isNotEmpty);
+  });
 }
 
 class _RecordingStationSearchRepository implements StationSearchRepository {
