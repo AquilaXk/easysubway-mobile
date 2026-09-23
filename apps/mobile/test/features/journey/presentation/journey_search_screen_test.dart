@@ -644,6 +644,8 @@ void main() {
         find.byKey(const Key('journey-candidate-line-journey-1')),
         findsOneWidget,
       );
+      expect(find.text('2호선'), findsOneWidget);
+      expect(find.text('line-private'), findsWidgets);
 
       await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
       await tester.pumpAndSettle();
@@ -652,7 +654,7 @@ void main() {
       // 승하차역 바인딩 확인 (시청역 → 종로3가역)
       expect(find.textContaining('시청역 → 종로3가역'), findsOneWidget);
       // 노선명 바인딩 확인
-      expect(find.textContaining('line-private'), findsWidgets);
+      expect(find.text('2호선'), findsWidgets);
     },
   );
 
@@ -944,7 +946,7 @@ Journey _journey(String id, DateTime now) {
         durationSeconds: 60,
       ),
       JourneyRideLeg(
-        lineId: 'line-private',
+        lineId: id == 'journey-1' ? 'line-2' : 'line-private',
         tripId: 'trip-private',
         directionStationId: 'station-direction',
         fromStationId: 'station-origin',
