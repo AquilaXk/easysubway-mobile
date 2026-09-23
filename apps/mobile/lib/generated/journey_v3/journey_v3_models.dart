@@ -78,7 +78,6 @@ class JourneySearchRequest {
   final String requestId;
   final String originStationId;
   final String destinationStationId;
-  final String? viaStationId;
   final JourneyDeparture departure;
   final TimePolicy timePolicy;
   final WalkingPace walkingPace;
@@ -90,7 +89,6 @@ class JourneySearchRequest {
     required this.requestId,
     required this.originStationId,
     required this.destinationStationId,
-    this.viaStationId,
     required this.departure,
     required this.timePolicy,
     required this.walkingPace,
@@ -103,7 +101,6 @@ class JourneySearchRequest {
     required String requestId,
     required String originStationId,
     required String destinationStationId,
-    String? viaStationId,
     required JourneyDeparture departure,
     required TimePolicy timePolicy,
     required WalkingPace walkingPace,
@@ -113,17 +110,10 @@ class JourneySearchRequest {
     required int alternativeCount,
   }) {
     if (mobilityProfile == MobilityProfile.noStairs && constraintMode == ConstraintMode.none) throw const FormatException('NO_STAIRS plus NONE is forbidden');
-    if (viaStationId != null) {
-      if (viaStationId.trim().isEmpty) throw const FormatException('viaStationId must not be blank');
-      if (viaStationId == originStationId || viaStationId == destinationStationId) {
-        throw const FormatException('viaStationId cannot be originStationId or destinationStationId');
-      }
-    }
     return JourneySearchRequest._(
       requestId: JourneyV3Validation.ulid(requestId, 'requestId'),
       originStationId: JourneyV3Validation.nonBlank(originStationId, 'originStationId'),
       destinationStationId: JourneyV3Validation.nonBlank(destinationStationId, 'destinationStationId'),
-      viaStationId: viaStationId,
       departure: departure,
       timePolicy: timePolicy,
       walkingPace: walkingPace,
@@ -134,11 +124,10 @@ class JourneySearchRequest {
     );
   }
   factory JourneySearchRequest.fromJson(Map<String, Object?> json) {
-    final expectedKeys = {
+    JourneyV3Validation.exactKeys(json, {
       'requestId',
       'originStationId',
       'destinationStationId',
-      if (json.containsKey('viaStationId')) 'viaStationId',
       'departure',
       'timePolicy',
       'walkingPace',
@@ -146,19 +135,16 @@ class JourneySearchRequest {
       'constraintMode',
       'maxTransfers',
       'alternativeCount',
-    };
-    JourneyV3Validation.exactKeys(json, expectedKeys);
+    });
     final mobilityProfile = MobilityProfileWire.fromWire(json['mobilityProfile']);
     final constraintMode = ConstraintModeWire.fromWire(json['constraintMode']);
     if (mobilityProfile == MobilityProfile.noStairs && constraintMode == ConstraintMode.none) throw const FormatException('NO_STAIRS plus NONE is forbidden');
     final departureValue = json['departure'];
     if (departureValue is! Map<String, Object?>) throw const FormatException('departure must be object');
-    final rawVia = json['viaStationId'];
     return JourneySearchRequest(
       requestId: JourneyV3Validation.ulid(json['requestId'], 'requestId'),
       originStationId: JourneyV3Validation.nonBlank(json['originStationId'], 'originStationId'),
       destinationStationId: JourneyV3Validation.nonBlank(json['destinationStationId'], 'destinationStationId'),
-      viaStationId: rawVia == null ? null : JourneyV3Validation.nonBlank(rawVia, 'viaStationId'),
       departure: JourneyDeparture.fromJson(departureValue),
       timePolicy: TimePolicyWire.fromWire(json['timePolicy']),
       walkingPace: WalkingPaceWire.fromWire(json['walkingPace']),
@@ -172,7 +158,6 @@ class JourneySearchRequest {
     'requestId': requestId,
     'originStationId': originStationId,
     'destinationStationId': destinationStationId,
-    if (viaStationId != null) 'viaStationId': viaStationId,
     'departure': departure.toJson(),
     'timePolicy': timePolicy.wire,
     'walkingPace': walkingPace.wire,

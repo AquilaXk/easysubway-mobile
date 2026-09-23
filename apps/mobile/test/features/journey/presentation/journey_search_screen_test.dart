@@ -451,7 +451,7 @@ void main() {
     expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
   });
 
-  testWidgets('incomplete draft는 request를 만들지 않는다', (tester) async {
+  testWidgets('incomplete 또는 waypoint draft는 request를 만들지 않는다', (tester) async {
     final incomplete = _Repository();
     await _pumpScreen(
       tester,
@@ -464,36 +464,19 @@ void main() {
       isNull,
     );
     expect(incomplete.requests, isEmpty);
+
+    final waypoint = _Repository();
+    await _pumpScreen(
+      tester,
+      repository: waypoint,
+      draft: _completeDraft(waypoint: _station('station-waypoint', '서울')),
+    );
+    expect(
+      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
+      isNull,
+    );
+    expect(waypoint.requests, isEmpty);
   });
-
-  testWidgets(
-    'waypoint draft는 viaStationId를 포함하여 request를 전송하고 waypointLabel을 렌더링한다',
-    (tester) async {
-      final waypoint = _Repository();
-      await _pumpScreen(
-        tester,
-        repository: waypoint,
-        draft: _completeDraft(waypoint: _station('station-waypoint', '서울')),
-      );
-      expect(find.text('경유 서울역'), findsOneWidget);
-      expect(find.text('출발역과 도착역을 다시 확인해 주세요.'), findsNothing);
-      expect(
-        tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-        isNotNull,
-      );
-
-      await tester.tap(find.byType(FilledButton));
-      await tester.pumpAndSettle();
-
-      expect(waypoint.requests, hasLength(1));
-      expect(waypoint.requests.single.viaStationId, 'station-waypoint');
-      expect(waypoint.requests.single.originStationId, 'station-origin');
-      expect(
-        waypoint.requests.single.destinationStationId,
-        'station-destination',
-      );
-    },
-  );
 
   testWidgets('failure는 안전한 retry만 노출하고 명시 retry가 새 search를 실행한다', (
     tester,
@@ -714,22 +697,16 @@ void main() {
     },
   );
 
-  testWidgets('origin 또는 destination과 동일한 waypoint draft는 request를 차단한다', (
-    tester,
-  ) async {
+  testWidgets('waypoint draft는 경유역 미지원 안내를 명확히 노출한다', (tester) async {
     final repository = _Repository();
     await _pumpScreen(
       tester,
       repository: repository,
-      draft: _completeDraft(waypoint: _station('station-origin', '출발역과동일')),
+      draft: _completeDraft(waypoint: _station('station-waypoint', '경유역')),
     );
 
+    expect(find.text('경유역 경로는 현재 지원되지 않아요. 경유역을 해제해 주세요.'), findsOneWidget);
     expect(find.text('출발역과 도착역을 다시 확인해 주세요.'), findsOneWidget);
-    expect(
-      tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
-      isNull,
-    );
-    expect(repository.requests, isEmpty);
   });
 }
 
