@@ -502,6 +502,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
   }
 
   Future<void> _pickDate({required bool returnDate}) async {
+    _stationDebounce?.cancel();
+    FocusScope.of(context).unfocus();
     final serviceDay = _currentServiceDay();
     final initialDate = returnDate
         ? (_returnDate ?? _departureDate)
@@ -513,6 +515,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           ? _departureDate
           : serviceDay,
       lastDate: DateTime(serviceDay.year + 1, serviceDay.month, serviceDay.day),
+      initialEntryMode: DatePickerEntryMode.calendarOnly,
     );
     if (selected == null || !mounted) return;
     setState(() {

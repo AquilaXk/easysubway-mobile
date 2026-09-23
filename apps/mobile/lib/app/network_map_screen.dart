@@ -625,7 +625,19 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       }
     }
     var data = await widget.repository.getNetworkMap(region: requestedRegion);
-    if (restoringSavedRegion &&
+    final requestedDisplayName = requestedRegion == null
+        ? null
+        : routeMapDisplayRegionName(requestedRegion);
+    final isRequestedRegionUnavailable =
+        requestedDisplayName != null &&
+        requestedDisplayName != '수도권' &&
+        (data.stations.isEmpty ||
+            !data.regions.any(
+              (region) => region.displayName == requestedDisplayName,
+            ));
+    if (isRequestedRegionUnavailable) {
+      data = await widget.repository.getNetworkMap(region: '수도권');
+    } else if (restoringSavedRegion &&
         !data.regions.any(
           (region) =>
               region.displayName ==
@@ -635,6 +647,16 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     }
     if (generation != _mapLoadGeneration) {
       return NetworkMapLoadResult(data: data, initialViewport: null);
+    }
+    if (isRequestedRegionUnavailable && mounted) {
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '$requestedDisplayName 지역은 내장된 오프라인 데이터가 없어 수도권 노선도로 유지됩니다.',
+          ),
+        ),
+      );
     }
     // #2082/#2083 후속: 저장된(persisted) 지역이 있는 사용자는 세션 중
     // 지역 선택기를 조작하지 않는 한 _selectedRegion이 계속 null이라, 로드된
@@ -691,10 +713,40 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     }
   }
 
+  static const _defaultMetropolitanRegions = <NetworkMapRegion>[
+    NetworkMapRegion(name: '수도권'),
+    NetworkMapRegion(name: '광주'),
+    NetworkMapRegion(name: '대구'),
+    NetworkMapRegion(name: '대전'),
+    NetworkMapRegion(name: '부산'),
+  ];
+
+  static List<NetworkMapRegion> _mergeWithDefaultRegions(
+    List<NetworkMapRegion> regions,
+  ) {
+    if (regions.isEmpty) {
+      return _defaultMetropolitanRegions;
+    }
+    final seen = <String>{};
+    final merged = <NetworkMapRegion>[];
+    for (final r in regions) {
+      if (seen.add(r.displayName)) {
+        merged.add(r);
+      }
+    }
+    for (final d in _defaultMetropolitanRegions) {
+      if (seen.add(d.displayName)) {
+        merged.add(d);
+      }
+    }
+    return merged;
+  }
+
   void _cacheAvailableRegionLabels(List<NetworkMapRegion> regions) {
-    _availableRegionLabels = regions.isEmpty
-        ? const ['수도권']
-        : regions.map((region) => region.displayName).toList(growable: false);
+    final merged = _mergeWithDefaultRegions(regions);
+    _availableRegionLabels = merged
+        .map((region) => region.displayName)
+        .toList(growable: false);
   }
 
   void _reload({String? region}) {
@@ -735,7 +787,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
           builder: (context, snapshot) {
             if (snapshot.connectionState != ConnectionState.done) {
               return _buildNetworkMapChrome(
-                regions: const [NetworkMapRegion(name: '수도권')],
+                regions: _mergeWithDefaultRegions(
+                  _latestMapData?.regions ?? const [],
+                ),
                 selectedRegion: _selectedRegion ?? '수도권',
                 adjacentStations: const NearbyAdjacentStations(),
                 child: const Center(child: CircularProgressIndicator()),
@@ -743,7 +797,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             }
             if (snapshot.hasError || !snapshot.hasData) {
               return _buildNetworkMapChrome(
-                regions: const [NetworkMapRegion(name: '수도권')],
+                regions: _mergeWithDefaultRegions(
+                  _latestMapData?.regions ?? const [],
+                ),
                 selectedRegion: _selectedRegion ?? '수도권',
                 adjacentStations: const NearbyAdjacentStations(),
                 child: NetworkMapLoadFailure(onRetry: () => _reload()),
@@ -757,7 +813,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             _startInitialNearbyFocus();
             _latestMapData = data;
             return _buildNetworkMapChrome(
-              regions: data.regions,
+              regions: _mergeWithDefaultRegions(data.regions),
               selectedRegion: data.selectedRegion,
               adjacentStations: _adjacentStationsFor(data),
               // #1933: _setOriginStation은 routeDraftController만 갱신하고 이

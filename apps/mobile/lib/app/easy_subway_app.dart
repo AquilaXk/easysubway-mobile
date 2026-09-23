@@ -588,6 +588,10 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
                 key: const Key('bundledDataPackOfflineBanner'),
                 backgroundColor:
                     EasySubwayAccessibleColors.statusWarningSurface,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
                 content: const Text(
                   '⚠️ 오프라인 모드: 앱에 내장된 초기 노선도를 사용 중입니다. 최신 정보 반영을 위해 네트워크 연결을 확인해주세요.',
                   style: TextStyle(

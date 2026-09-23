@@ -65,5 +65,19 @@ void main() {
       facilityStatusSemanticLabel(statusLabel: '점검 중', severityLabel: '미확인'),
       '점검 중, 미확인',
     );
+    expect(
+      facilityStatusDisplayLabel(
+        statusLabel: '설치 확인 · 운행상태 미확인',
+        severityLabel: '미확인',
+      ),
+      '설치 확인 · 운행상태 미확인',
+    );
+    expect(
+      facilityStatusSemanticLabel(
+        statusLabel: '설치 확인 · 운행상태 미확인',
+        severityLabel: '미확인',
+      ),
+      '설치 확인 · 운행상태 미확인',
+    );
   });
 }
