@@ -636,7 +636,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
               (region) => region.displayName == requestedDisplayName,
             ));
     if (isRequestedRegionUnavailable) {
-      data = await widget.repository.getNetworkMap(region: '수도권');
+      data = await widget.repository.getNetworkMap();
     } else if (restoringSavedRegion &&
         !data.regions.any(
           (region) =>
@@ -648,7 +648,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (generation != _mapLoadGeneration) {
       return NetworkMapLoadResult(data: data, initialViewport: null);
     }
-    if (isRequestedRegionUnavailable && mounted) {
+    if (isRequestedRegionUnavailable && !restoringSavedRegion && mounted) {
       ScaffoldMessenger.of(context).hideCurrentSnackBar();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -724,22 +724,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   static List<NetworkMapRegion> _mergeWithDefaultRegions(
     List<NetworkMapRegion> regions,
   ) {
-    if (regions.isEmpty) {
+    if (regions.isEmpty ||
+        (regions.length == 1 && regions.first.displayName == '수도권')) {
       return _defaultMetropolitanRegions;
     }
-    final seen = <String>{};
-    final merged = <NetworkMapRegion>[];
-    for (final r in regions) {
-      if (seen.add(r.displayName)) {
-        merged.add(r);
-      }
-    }
-    for (final d in _defaultMetropolitanRegions) {
-      if (seen.add(d.displayName)) {
-        merged.add(d);
-      }
-    }
-    return merged;
+    return regions;
   }
 
   void _cacheAvailableRegionLabels(List<NetworkMapRegion> regions) {
