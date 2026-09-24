@@ -346,15 +346,13 @@ void main() {
                  includes_stairs, accessibility_status, reliability_score,
                  facility_id, last_verified_at, distance_meters
           FROM network_edges
-          WHERE id IN (
-            'edge-sangnoksu-sadang-seoul-4',
-            'edge-sadang-sangnoksu-seoul-4'
-          )
+          WHERE from_node_id = 'station-sangnoksu:seoul-4'
           ORDER BY id
           ''').get();
-    final internalRouteEdges = await database.customSelect('''
+    final stationPathwayEdges = await database.customSelect('''
           SELECT id, edge_type, accessibility_status
-          FROM internal_route_edges
+          FROM station_pathway_edges
+          WHERE id LIKE '%sadang%'
           ORDER BY id
           ''').get();
     final routeMapPosition = await database.customSelect('''
@@ -459,7 +457,7 @@ void main() {
     );
     expect(
       networkEdges.map((row) => row.read<int>('reliability_score')).toSet(),
-      {90},
+      {100},
     );
     expect(
       networkEdges
@@ -471,11 +469,11 @@ void main() {
       networkEdges
           .map((row) => row.readNullable<int>('last_verified_at'))
           .toSet(),
-      {null},
+      {1788542958},
     );
     expect(
       networkEdges.map((row) => row.read<int>('distance_meters')).toSet(),
-      {18600},
+      {1500, 1600},
     );
     expect(
       networkEdges
@@ -486,12 +484,12 @@ void main() {
           )
           .toSet(),
       {
-        'station-sangnoksu:seoul-4->station-sadang:seoul-4',
-        'station-sadang:seoul-4->station-sangnoksu:seoul-4',
+        'station-sangnoksu:seoul-4->station-a2965d7b56d7:seoul-4',
+        'station-sangnoksu:seoul-4->station-b495e35152ea:seoul-4',
       },
     );
     expect(
-      internalRouteEdges
+      stationPathwayEdges
           .map((row) => row.read<String>('accessibility_status'))
           .toSet(),
       {'UNKNOWN'},
@@ -591,7 +589,7 @@ void main() {
     final opener = CatalogDatabaseOpener(
       databaseDirectory: directory,
       assetBundle: rootBundle,
-      now: () => DateTime.utc(2026, 8, 2, 15),
+      now: () => DateTime.utc(2026, 10, 9, 3, 16, 8, 98),
     );
     final database = await opener.open();
     expect(opener.openedBundledDataPack, isTrue);
@@ -609,14 +607,14 @@ void main() {
     expect(state['status'], 'STALE');
     expect(state['reasonCode'], 'BUNDLED_PACK_EXPIRED');
     expect(state['labelKo'], '저장된 데이터 기준 · 갱신 필요');
-    expect(state['freshnessExpiresAt'], '2026-08-02T15:00:00.000Z');
+    expect(state['freshnessExpiresAt'], '2026-10-09T03:16:08.098Z');
     final freshness = await BundledDataPackFreshness.read(directory);
     expect(freshness.staleLabel, '저장된 데이터 기준 · 갱신 필요');
 
     final reopened = await CatalogDatabaseOpener(
       databaseDirectory: directory,
       assetBundle: rootBundle,
-      now: () => DateTime.utc(2026, 8, 2, 15),
+      now: () => DateTime.utc(2026, 10, 9, 3, 16, 8, 98),
     ).open();
     addTearDown(reopened.close);
     expect(sha256.convert(await installedPack.readAsBytes()), firstHash);
@@ -1243,7 +1241,7 @@ void main() {
     final activePack = await bootstrap.catalogDatabase.customSelect('''
       SELECT value FROM catalog_metadata WHERE key = 'activePack'
       ''').getSingle();
-    expect(activePack.read<String>('value'), 'capital');
+    expect(activePack.read<String>('value'), 'nationwide');
   });
 
   test('앱 부트스트랩은 설치된 current pack의 manifest expiry를 stale 상태로 전달한다', () async {

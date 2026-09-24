@@ -14,10 +14,13 @@ void main() {
     final index = DataPackIndex.fromJson(decoded);
 
     expect(index.schemaVersion, 1);
-    expect(index.builtAt, DateTime.utc(2026, 7, 29, 0, 47, 36, 105));
-    expect(index.qualityAsOf, DateTime.utc(2026, 7, 28, 18, 45, 3, 338));
-    expect(index.freshnessExpiresAt, DateTime.utc(2026, 8, 2, 15));
-    expect(index.sourceSnapshotSetHash, hasLength(64));
+    expect(index.builtAt, DateTime.utc(2026, 9, 24, 3, 34, 28));
+    expect(index.qualityAsOf, DateTime.utc(2026, 9, 9, 3, 16, 8, 98));
+    expect(index.freshnessExpiresAt, DateTime.utc(2026, 10, 9, 3, 16, 8, 98));
+    expect(
+      index.sourceSnapshotSetHash,
+      'a7b44bed6999142d6b716814a22071f890af2b341e2f27d898ebeb2e55d5716f',
+    );
     expect(index.schemaIdentity, 'catalog-schema-v1');
     expect(index.packs.map((pack) => pack.id), contains('nationwide'));
   });
