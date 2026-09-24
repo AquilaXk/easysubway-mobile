@@ -255,4 +255,3 @@ IconData facilityConstraintIcon(FacilityConstraint constraint) {
       return Icons.accessible_forward_rounded;
   }
 }
-

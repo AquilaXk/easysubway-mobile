@@ -227,7 +227,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     super.initState();
     _mobilityType = widget.initialMobilityType;
     final initialPreset =
-        mobilityPresetFromRepresentativeMobilityType(widget.initialMobilityType) ??
+        mobilityPresetFromRepresentativeMobilityType(
+          widget.initialMobilityType,
+        ) ??
         MobilityPreset.standard;
     _walkingPace = walkingPaceFromPreset(initialPreset);
     _routeDraftController = RouteDraftController();

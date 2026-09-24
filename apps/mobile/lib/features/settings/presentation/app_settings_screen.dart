@@ -68,7 +68,8 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
     super.initState();
     _preset = widget.currentPreset;
     _viewPreferences = widget.viewPreferences;
-    _walkingPace = widget.initialWalkingPace ??
+    _walkingPace =
+        widget.initialWalkingPace ??
         walkingPaceFromPreset(widget.currentPreset);
     _facilityConstraint = facilityConstraintFromPreset(widget.currentPreset);
   }
@@ -364,10 +365,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
 }
 
 class _AppSettingsSectionHeader extends StatelessWidget {
-  const _AppSettingsSectionHeader({
-    required this.title,
-    super.key,
-  });
+  const _AppSettingsSectionHeader({required this.title, super.key});
 
   final String title;
 
@@ -418,8 +416,7 @@ class _MobilityHeroBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final summaryName =
-        _summaryTitle(preset, walkingPace, facilityConstraint);
+    final summaryName = _summaryTitle(preset, walkingPace, facilityConstraint);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -463,7 +460,11 @@ class _MobilityHeroBlock extends StatelessWidget {
                             ),
                             alignment: Alignment.center,
                             child: Icon(
-                              _heroIcon(preset, walkingPace, facilityConstraint),
+                              _heroIcon(
+                                preset,
+                                walkingPace,
+                                facilityConstraint,
+                              ),
                               size: 18,
                               color: EasySubwayAccessibleColors.primary,
                             ),
@@ -609,8 +610,9 @@ class _MobilityHeroBlock extends StatelessWidget {
                     title: '계단 없이',
                     subtitle: '에스컬레이터·승강기',
                     selected: facilityConstraint == FacilityConstraint.noStairs,
-                    onTap: () =>
-                        onFacilityConstraintSelected(FacilityConstraint.noStairs),
+                    onTap: () => onFacilityConstraintSelected(
+                      FacilityConstraint.noStairs,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 6),
@@ -694,8 +696,9 @@ class _SegmentButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final primaryColor = EasySubwayAccessibleColors.primary;
-    final borderColor =
-        selected ? primaryColor : EasySubwayAccessibleColors.line;
+    final borderColor = selected
+        ? primaryColor
+        : EasySubwayAccessibleColors.line;
     final backgroundColor = selected
         ? EasySubwayAccessibleColors.surfaceBrandChrome
         : EasySubwayAccessibleColors.surface;
@@ -749,8 +752,9 @@ class _SegmentButton extends StatelessWidget {
                         color: selected
                             ? primaryColor
                             : EasySubwayAccessibleColors.text,
-                        fontWeight:
-                            selected ? FontWeight.w700 : FontWeight.w600,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w600,
                         fontSize: 12,
                         height: 1.15,
                       ),
@@ -769,8 +773,9 @@ class _SegmentButton extends StatelessWidget {
                             ? primaryColor
                             : EasySubwayAccessibleColors.mutedText,
                         fontSize: 9.5,
-                        fontWeight:
-                            selected ? FontWeight.w600 : FontWeight.w500,
+                        fontWeight: selected
+                            ? FontWeight.w600
+                            : FontWeight.w500,
                         height: 1.1,
                       ),
                     ),
@@ -913,7 +918,8 @@ class _AppSettingsPreferenceTile extends StatelessWidget {
                   onChanged: onChanged,
                   activeThumbColor:
                       EasySubwayAccessibleColors.interactionOnPrimary,
-                  activeTrackColor: EasySubwayAccessibleColors.switchActiveTrack,
+                  activeTrackColor:
+                      EasySubwayAccessibleColors.switchActiveTrack,
                   inactiveThumbColor:
                       EasySubwayAccessibleColors.interactionOnPrimary,
                   inactiveTrackColor:

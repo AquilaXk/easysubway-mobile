@@ -648,9 +648,9 @@ class _NotificationSettingsScreenState
     _controller = NotificationSettingsController(repository: widget.repository);
     _controller.onSaveError = (message) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
     };
     unawaited(_controller.load());
   }
@@ -902,10 +902,11 @@ class _NotificationSettingsContent extends StatelessWidget {
                         const SizedBox(width: 8),
                         Text(
                           '저장 중...',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: EasySubwayAccessibleColors.secondaryText,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: EasySubwayAccessibleColors.secondaryText,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ] else ...[
                         const Icon(
@@ -916,10 +917,11 @@ class _NotificationSettingsContent extends StatelessWidget {
                         const SizedBox(width: 6),
                         Text(
                           '변경 시 자동으로 저장됩니다',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: EasySubwayAccessibleColors.secondaryText,
-                            fontWeight: FontWeight.w600,
-                          ),
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: EasySubwayAccessibleColors.secondaryText,
+                                fontWeight: FontWeight.w600,
+                              ),
                         ),
                       ],
                     ],

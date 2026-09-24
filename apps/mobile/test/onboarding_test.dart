@@ -486,10 +486,7 @@ void main() {
     final backButton = tester.widget<IconButton>(
       find.byKey(const Key('onboardingBackButton')),
     );
-    expect(
-      backButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-      isNull,
-    );
+    expect(backButton.style?.backgroundColor?.resolve(<WidgetState>{}), isNull);
     expect(
       backButton.style?.minimumSize?.resolve(<WidgetState>{}),
       const Size.square(EasySubwayTouchTarget.general),

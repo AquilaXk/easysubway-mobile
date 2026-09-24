@@ -9222,7 +9222,9 @@ void main() {
     expect(find.text('이동 조건을 저장하지 못했어요. 이전 조건으로 되돌렸어요.'), findsOneWidget);
   });
 
-  testWidgets('설정 화면 이동 조건 1-tap 세그먼트 버튼으로 보행 속도와 시설 제약을 직접 변경한다', (tester) async {
+  testWidgets('설정 화면 이동 조건 1-tap 세그먼트 버튼으로 보행 속도와 시설 제약을 직접 변경한다', (
+    tester,
+  ) async {
     final onboardingStore = MemoryOnboardingResultStore(
       initialResult: OnboardingResult(
         preset: MobilityPreset.standard,
@@ -9245,7 +9247,10 @@ void main() {
     // 기본: 보통 걸음, 일반 (계단 포함)
     expect(find.byKey(const Key('settingsHeroBlock-mobility')), findsOneWidget);
     expect(find.byKey(const Key('walkingSpeedSegment-slow')), findsOneWidget);
-    expect(find.byKey(const Key('walkingSpeedSegment-standard')), findsOneWidget);
+    expect(
+      find.byKey(const Key('walkingSpeedSegment-standard')),
+      findsOneWidget,
+    );
     expect(find.byKey(const Key('walkingSpeedSegment-fast')), findsOneWidget);
     expect(find.byKey(const Key('facilitySegment-standard')), findsOneWidget);
     expect(find.byKey(const Key('facilitySegment-noStairs')), findsOneWidget);

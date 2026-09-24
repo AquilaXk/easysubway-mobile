@@ -134,9 +134,18 @@ void main() {
   group('2차원 차원 헬퍼 (보행 속도 및 시설 제약)', () {
     test('walkingPaceFromPreset이 프리셋별 기본 속도를 정확히 반환한다', () {
       expect(walkingPaceFromPreset(MobilityPreset.slow), WalkingPace.slow);
-      expect(walkingPaceFromPreset(MobilityPreset.standard), WalkingPace.standard);
-      expect(walkingPaceFromPreset(MobilityPreset.noStairs), WalkingPace.standard);
-      expect(walkingPaceFromPreset(MobilityPreset.stepFree), WalkingPace.standard);
+      expect(
+        walkingPaceFromPreset(MobilityPreset.standard),
+        WalkingPace.standard,
+      );
+      expect(
+        walkingPaceFromPreset(MobilityPreset.noStairs),
+        WalkingPace.standard,
+      );
+      expect(
+        walkingPaceFromPreset(MobilityPreset.stepFree),
+        WalkingPace.standard,
+      );
     });
 
     test('facilityConstraintFromPreset이 프리셋별 시설 제약을 정확히 반환한다', () {
@@ -193,7 +202,10 @@ void main() {
         MobilityPreset.stepFree,
       );
       expect(
-        presetFromDimensions(WalkingPace.standard, FacilityConstraint.elevatorOnly),
+        presetFromDimensions(
+          WalkingPace.standard,
+          FacilityConstraint.elevatorOnly,
+        ),
         MobilityPreset.stepFree,
       );
       expect(
@@ -214,12 +226,24 @@ void main() {
 
     test('시설 제약 라벨 및 부가설명', () {
       expect(facilityConstraintDisplayName(FacilityConstraint.none), '일반');
-      expect(facilityConstraintDisplayName(FacilityConstraint.noStairs), '계단 없이');
-      expect(facilityConstraintDisplayName(FacilityConstraint.elevatorOnly), '휠체어·유모차');
+      expect(
+        facilityConstraintDisplayName(FacilityConstraint.noStairs),
+        '계단 없이',
+      );
+      expect(
+        facilityConstraintDisplayName(FacilityConstraint.elevatorOnly),
+        '휠체어·유모차',
+      );
 
       expect(facilityConstraintDescription(FacilityConstraint.none), '계단 포함');
-      expect(facilityConstraintDescription(FacilityConstraint.noStairs), '에스컬레이터·승강기');
-      expect(facilityConstraintDescription(FacilityConstraint.elevatorOnly), '승강기 전용');
+      expect(
+        facilityConstraintDescription(FacilityConstraint.noStairs),
+        '에스컬레이터·승강기',
+      );
+      expect(
+        facilityConstraintDescription(FacilityConstraint.elevatorOnly),
+        '승강기 전용',
+      );
     });
   });
 }

@@ -185,15 +185,13 @@ class _StartScreenState extends State<StartScreen>
         curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
       ),
     );
-    _glyphSlide = Tween<Offset>(
-      begin: const Offset(0, 0.15),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
-      ),
-    );
+    _glyphSlide = Tween<Offset>(begin: const Offset(0, 0.15), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+          ),
+        );
 
     _titleOpacity = Tween<double>(begin: 0.001, end: 1.0).animate(
       CurvedAnimation(
@@ -201,15 +199,13 @@ class _StartScreenState extends State<StartScreen>
         curve: const Interval(0.2, 0.7, curve: Curves.easeOut),
       ),
     );
-    _titleSlide = Tween<Offset>(
-      begin: const Offset(0, 0.1),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.2, 0.7, curve: Curves.easeOut),
-      ),
-    );
+    _titleSlide = Tween<Offset>(begin: const Offset(0, 0.1), end: Offset.zero)
+        .animate(
+          CurvedAnimation(
+            parent: _controller,
+            curve: const Interval(0.2, 0.7, curve: Curves.easeOut),
+          ),
+        );
 
     _buttonOpacity = Tween<double>(begin: 0.001, end: 1.0).animate(
       CurvedAnimation(
@@ -301,8 +297,8 @@ class _StartScreenState extends State<StartScreen>
                                   ],
                                 ),
                                 style: const TextStyle(
-                                  color: EasySubwayAccessibleColors
-                                      .secondaryText,
+                                  color:
+                                      EasySubwayAccessibleColors.secondaryText,
                                   fontSize: 40,
                                   fontWeight: FontWeight.w800,
                                   height: 1.18,
@@ -321,8 +317,8 @@ class _StartScreenState extends State<StartScreen>
                               key: const Key('startScreenStartButton'),
                               onPressed: widget.onStart,
                               style: FilledButton.styleFrom(
-                                backgroundColor: EasySubwayAccessibleColors
-                                    .brandSignature,
+                                backgroundColor:
+                                    EasySubwayAccessibleColors.brandSignature,
                                 foregroundColor:
                                     EasySubwayAccessibleColors.surface,
                                 minimumSize: const Size.fromHeight(58),
