@@ -7,7 +7,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/structured_r
     show routeMapLineBadgeLabel, routeMapStationLabel;
 import 'package:sqlite3/sqlite3.dart';
 
-/// capital 팩(assets/datapacks/capital.sqlite.gz)을 직접 열어 프로덕션과 같은
+/// nationwide 팩(assets/datapacks/nationwide.sqlite.gz)을 직접 열어 프로덕션과 같은
 /// buildStructuredRouteMap 입력으로 실데이터 노선도를 만든다 — 실데이터 계약
 /// 테스트(#1789 스펙 R3) 전용. flutter test의 CWD는 apps/mobile이다.
 class CapitalRouteMapFixture {
@@ -32,11 +32,11 @@ class CapitalRouteMapFixture {
 }
 
 /// [packAssetPath]는 flutter test CWD(apps/mobile) 기준 상대 경로다. 기본값은
-/// 커밋된 capital 팩이고, S0 스파이크 golden은 route-map-defs의 스파이크 팩을
+/// 커밋된 nationwide 팩이고, S0 스파이크 golden은 route-map-defs의 스파이크 팩을
 /// 리포 루트 상대(`../../tools/...`)로 넘겨 재사용한다.
 CapitalRouteMapFixture loadCapitalRouteMapFixture({
   String region = '수도권',
-  String packAssetPath = 'assets/datapacks/capital.sqlite.gz',
+  String packAssetPath = 'assets/datapacks/nationwide.sqlite.gz',
 }) {
   final gzBytes = File(packAssetPath).readAsBytesSync();
   final dir = Directory.systemTemp.createTempSync('capital-pack-');

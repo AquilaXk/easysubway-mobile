@@ -9,7 +9,7 @@ import '../../../support/capital_route_map_fixture.dart';
 // 비수도권 4권역(부산·대구·대전·광주) 라벨 겹침 기계 게이트 (#1952 작업 1).
 // 수도권 게이트(capital_label_overlap_gate_test.dart)와 동일 측정 방식·동일 보수
 // 근사(한글 전각 폭 ≈ 폰트 px/자)를 재사용해 "게이트=실기기 체감" 정합을 권역
-// 확장한다. 팩(assets/datapacks/capital.sqlite.gz)의 route_map_positions에는
+// 확장한다. 팩(assets/datapacks/nationwide.sqlite.gz)의 route_map_positions에는
 // 수도권 외 4권역이 이미 수록돼 있어(부산권 158·대구권 101·대전권 22·광주권 20
 // positions) 동일 fixture 로더를 region 인자만 바꿔 재사용한다.
 //

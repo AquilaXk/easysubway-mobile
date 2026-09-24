@@ -531,10 +531,10 @@ void main() {
     expect(fareTableCounts.read<int>('station_fare_zone_count'), 0);
     expect(
       File('${directory.path}/datapacks/core.sqlite').existsSync(),
-      isTrue,
+      isFalse,
     );
     expect(
-      File('${directory.path}/datapacks/capital.sqlite').existsSync(),
+      File('${directory.path}/datapacks/nationwide.sqlite').existsSync(),
       isTrue,
     );
   });
@@ -595,7 +595,7 @@ void main() {
     );
     final database = await opener.open();
     expect(opener.openedBundledDataPack, isTrue);
-    final installedPack = File('${directory.path}/datapacks/capital.sqlite');
+    final installedPack = File('${directory.path}/datapacks/nationwide.sqlite');
     final firstHash = sha256.convert(await installedPack.readAsBytes());
     await database.close();
     final state =
@@ -762,11 +762,11 @@ void main() {
     );
     addTearDown(() => directory.delete(recursive: true));
 
-    final installedCapitalPack = File(
-      '${directory.path}/datapacks/capital.sqlite',
+    final installedNationwidePack = File(
+      '${directory.path}/datapacks/nationwide.sqlite',
     );
-    await installedCapitalPack.create(recursive: true);
-    await installedCapitalPack.writeAsString('broken sqlite file');
+    await installedNationwidePack.create(recursive: true);
+    await installedNationwidePack.writeAsString('broken sqlite file');
 
     final opener = CatalogDatabaseOpener(
       databaseDirectory: directory,
@@ -783,7 +783,7 @@ void main() {
 
     expect(metadata.read<String>('value'), '1');
     expect(
-      await installedCapitalPack.openRead(0, 16).first,
+      await installedNationwidePack.openRead(0, 16).first,
       'SQLite format 3'.codeUnits.followedBy([0]).toList(),
     );
   });
@@ -1684,7 +1684,7 @@ void main() {
         );
     await first.close();
 
-    final catalogFile = File('${directory.path}/datapacks/capital.sqlite');
+    final catalogFile = File('${directory.path}/datapacks/nationwide.sqlite');
     await catalogFile.create(recursive: true);
     await catalogFile.writeAsString('replaced catalog pack');
 

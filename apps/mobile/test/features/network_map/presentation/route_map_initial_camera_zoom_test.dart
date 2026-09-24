@@ -36,7 +36,7 @@ import 'package:sqlite3/sqlite3.dart';
 // 실제 역 라벨 기준으로 5배 넘게 과확대된다. 그래서 이 권역 route_map_positions
 // 에 실제로 있는 역명과 매칭되는 엔트리만 모집단으로 쓴다.
 //
-// 이 테스트는 합성 fixture가 아니라 실 datapack(capital.sqlite.gz)의 권역 데이터
+// 이 테스트는 합성 fixture가 아니라 실 datapack(nationwide.sqlite.gz)의 권역 데이터
 // + 실 sidecar 콘텐츠로 NetworkMapScreen을 끝까지 마운트해 실행 중인 위젯의
 // 카메라를 직접 실측한다(route_map_gwangju_owner_label_geometry_test와 동일
 // 인프라 — sidecar는 rootBundle.load() 바이트로 읽어 직접 디코드한 뒤
@@ -59,7 +59,9 @@ const _regionsUnderTest = <String, String>{
 };
 
 _RegionFixture _loadRegionFixture(String storedRegion) {
-  final gzBytes = File('assets/datapacks/capital.sqlite.gz').readAsBytesSync();
+  final gzBytes = File(
+    'assets/datapacks/nationwide.sqlite.gz',
+  ).readAsBytesSync();
   final dir = Directory.systemTemp.createTempSync('initial-camera-zoom-');
   try {
     final sqliteFile = File('${dir.path}/pack.sqlite')
@@ -80,7 +82,7 @@ _RegionFixture _loadRegionFixture(String storedRegion) {
         [storedRegion],
       );
       if (stationRows.isEmpty) {
-        fail('$storedRegion 실데이터가 capital.sqlite.gz에 없다 — fixture 쿼리 확인');
+        fail('$storedRegion 실데이터가 nationwide.sqlite.gz에 없다 — fixture 쿼리 확인');
       }
       final trackRows = db.select(
         'SELECT line_id, path FROM route_map_line_tracks '

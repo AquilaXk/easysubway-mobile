@@ -905,7 +905,8 @@ class CatalogDatabase extends _$CatalogDatabase {
          FROM fare_rules
          WHERE id = 'capital-integrated-standard') AS standard_additional_steps_json
     ''').getSingle();
-    return row.readNullable<String>('active_pack') == 'capital' &&
+    final activePack = row.readNullable<String>('active_pack');
+    return (activePack == 'capital' || activePack == 'nationwide') &&
         row.read<int>('station_line_count') > 0 &&
         (row.read<int>('fare_rule_count') == 0 ||
             row.readNullable<String>('standard_additional_steps_json') !=
@@ -1102,7 +1103,8 @@ class CatalogDatabase extends _$CatalogDatabase {
            'edge-sadang-sangnoksu-seoul-4'
          )) AS match_count
     ''').getSingle();
-    if (row.readNullable<String>('active_pack') != 'capital') {
+    final activePack = row.readNullable<String>('active_pack');
+    if (activePack != 'capital' && activePack != 'nationwide') {
       return false;
     }
     if (row.read<int>('match_count') != 4) {

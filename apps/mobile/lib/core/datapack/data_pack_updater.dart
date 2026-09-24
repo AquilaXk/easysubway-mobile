@@ -22,7 +22,7 @@ class DataPackUpdater {
     required this.client,
     required this.installer,
     this.emergencyOverrideRepository,
-    this.activePackId = 'capital',
+    this.activePackId = 'nationwide',
     this.networkConditionSource = const FixedNetworkConditionSource(
       NetworkCondition.unmetered,
     ),

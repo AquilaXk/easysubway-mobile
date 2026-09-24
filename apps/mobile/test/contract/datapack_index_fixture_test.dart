@@ -19,7 +19,7 @@ void main() {
     expect(index.freshnessExpiresAt, DateTime.utc(2026, 8, 2, 15));
     expect(index.sourceSnapshotSetHash, hasLength(64));
     expect(index.schemaIdentity, 'catalog-schema-v1');
-    expect(index.packs.map((pack) => pack.id), contains('capital'));
+    expect(index.packs.map((pack) => pack.id), contains('nationwide'));
   });
 
   test('schemaVersion 2 인덱스는 명시적으로 거부한다', () {

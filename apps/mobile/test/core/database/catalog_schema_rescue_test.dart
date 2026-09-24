@@ -137,8 +137,8 @@ void main() {
 
   test('구제 불가 결측이 있어도 구제 가능 테이블과 요금 backfill은 살아 있다', () async {
     final directory = await _temporaryDirectory('rescue-blocked-fare-');
-    final file = File('${directory.path}/capital.sqlite');
-    await _buildInstalledPack(file, activePack: 'capital');
+    final file = File('${directory.path}/nationwide.sqlite');
+    await _buildInstalledPack(file, activePack: 'nationwide');
     // 번들 경로는 blocked여도 팩을 그대로 연다. 무관한 테이블 하나의 결측이 요금 도메인을
     // 함께 끄지 않아야 한다.
     _dropTables(file, [
@@ -174,8 +174,8 @@ void main() {
 
   test('결측을 허용하는 테이블은 만들지도 막지도 않는다', () async {
     final directory = await _temporaryDirectory('rescue-tolerated-');
-    final file = File('${directory.path}/capital.sqlite');
-    await _buildInstalledPack(file, activePack: 'capital');
+    final file = File('${directory.path}/nationwide.sqlite');
+    await _buildInstalledPack(file, activePack: 'nationwide');
     _dropTables(file, ['transit_feed_info']);
 
     final database = CatalogDatabase.file(file);
@@ -191,8 +191,8 @@ void main() {
 
   test('노선도 테이블 결측은 구제하고 다른 도메인 데이터는 그대로 둔다', () async {
     final directory = await _temporaryDirectory('rescue-route-map-');
-    final file = File('${directory.path}/capital.sqlite');
-    await _buildInstalledPack(file, activePack: 'capital');
+    final file = File('${directory.path}/nationwide.sqlite');
+    await _buildInstalledPack(file, activePack: 'nationwide');
     _dropTables(file, ['route_map_positions', 'route_map_line_tracks']);
 
     final database = CatalogDatabase.file(file);

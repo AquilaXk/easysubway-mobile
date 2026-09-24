@@ -31,7 +31,7 @@ import 'package:sqlite3/sqlite3.dart';
 // 수정: canvas owner의 _geometryFor·_buildStructuredRouteMapCanvas 양쪽 조회를
 // kRouteMapBasemapRegionToId[routeMapDisplayRegionName(selectedRegion)]로 정규화.
 //
-// 이 테스트는 실제 capital.sqlite.gz의 광주권(route_map_positions.region=
+// 이 테스트는 실제 nationwide.sqlite.gz의 광주권(route_map_positions.region=
 // '광주권') 실데이터로 NetworkMapScreen을 프로덕션과 동일한 저장형 region으로
 // 끝까지 마운트하고, 실제 labels.json sidecar 콘텐츠(파싱 결과)를 프로덕션과
 // 동일한 오너 라벨 캐시 슬롯에 주입해, 초기 카메라의 source bounds가 오너 라벨
@@ -60,7 +60,9 @@ class _GwangjuFixture {
 const _gwangjuStoredRegion = '광주권'; // route_map_positions 저장형.
 
 _GwangjuFixture _loadGwangjuFixture() {
-  final gzBytes = File('assets/datapacks/capital.sqlite.gz').readAsBytesSync();
+  final gzBytes = File(
+    'assets/datapacks/nationwide.sqlite.gz',
+  ).readAsBytesSync();
   final dir = Directory.systemTemp.createTempSync(
     'gwangju-owner-label-geometry-',
   );
@@ -83,7 +85,7 @@ _GwangjuFixture _loadGwangjuFixture() {
         [_gwangjuStoredRegion],
       );
       if (stationRows.isEmpty) {
-        fail('광주권 실데이터가 capital.sqlite.gz에 없다 — fixture 쿼리 확인');
+        fail('광주권 실데이터가 nationwide.sqlite.gz에 없다 — fixture 쿼리 확인');
       }
       final trackRows = db.select(
         'SELECT line_id, path FROM route_map_line_tracks '

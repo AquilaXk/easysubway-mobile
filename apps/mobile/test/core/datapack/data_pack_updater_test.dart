@@ -70,11 +70,11 @@ void main() {
     addTearDown(userDatabase.close);
     final catalogDirectory = Directory('${directory.path}/catalog');
     await catalogDirectory.create(recursive: true);
-    final oldPack = File('${catalogDirectory.path}/capital-v17.sqlite');
+    final oldPack = File('${catalogDirectory.path}/nationwide-v17.sqlite');
     await oldPack.writeAsString('old pack');
     await File('${catalogDirectory.path}/current.json').writeAsString(
       jsonEncode({
-        'id': 'capital',
+        'id': 'nationwide',
         'version': '17',
         'path': oldPack.path,
         'sha256': 'old-sha',
@@ -93,9 +93,9 @@ void main() {
               'ttlSeconds': 60,
               'packs': [
                 {
-                  'id': 'capital',
+                  'id': 'nationwide',
                   'version': '18',
-                  'url': 'capital-v18.sqlite.gz',
+                  'url': 'nationwide-v18.sqlite.gz',
                   'sha256': sha256.convert(corruptBytes).toString(),
                   'sqliteSha256': '1' * 64,
                   'sizeBytes': corruptBytes.length,
@@ -1343,9 +1343,9 @@ void main() {
                 'ttlSeconds': 60,
                 'packs': [
                   _packJson(
-                    id: 'capital',
+                    id: 'nationwide',
                     version: '19',
-                    url: 'catalog/capital-v19.sqlite.gz',
+                    url: 'catalog/nationwide-v19.sqlite.gz',
                     compressedBytes: activeCompressedBytes,
                     sqliteBytes: activeSqliteBytes,
                     dependencies: const [
@@ -1363,7 +1363,7 @@ void main() {
               }),
             );
           await request.response.close();
-        case '/datapacks/catalog/capital-v19.sqlite.gz':
+        case '/datapacks/catalog/nationwide-v19.sqlite.gz':
           request.response
             ..statusCode = HttpStatus.ok
             ..add(activeCompressedBytes);
@@ -1398,11 +1398,11 @@ void main() {
 
     expect(
       results.map((result) => result.pointer?.id).whereType<String>().toList(),
-      ['capital', 'common'],
+      ['nationwide', 'common'],
     );
     expect(requestedPaths, [
       '/datapacks/catalog/current.json',
-      '/datapacks/catalog/capital-v19.sqlite.gz',
+      '/datapacks/catalog/nationwide-v19.sqlite.gz',
       '/datapacks/catalog/common-v1.sqlite.gz',
     ]);
   });
@@ -1494,11 +1494,11 @@ void main() {
     addTearDown(userDatabase.close);
     final catalogDirectory = Directory('${directory.path}/catalog');
     await catalogDirectory.create(recursive: true);
-    final oldPack = File('${catalogDirectory.path}/capital-v17.sqlite');
+    final oldPack = File('${catalogDirectory.path}/nationwide-v17.sqlite');
     await oldPack.writeAsString('old pack');
     await File('${catalogDirectory.path}/current.json').writeAsString(
       jsonEncode({
-        'id': 'capital',
+        'id': 'nationwide',
         'version': '17',
         'path': oldPack.path,
         'sha256': 'old-sha',
@@ -1592,7 +1592,7 @@ void main() {
     expect(pointer?.version, '17');
     expect(await oldPack.exists(), isTrue);
     expect(
-      await File('${catalogDirectory.path}/capital-v18.sqlite').exists(),
+      await File('${catalogDirectory.path}/nationwide-v18.sqlite').exists(),
       isTrue,
     );
     expect(await stateRepository.readManifestCache(), isNull);
@@ -1698,7 +1698,7 @@ void main() {
     var now = DateTime.utc(2026, 6, 21, 5);
     var manifestJson = <String, Object?>{
       'ttlSeconds': 1,
-      'activePack': {'id': 'capital', 'version': '19'},
+      'activePack': {'id': 'nationwide', 'version': '19'},
       'packs': [
         _packJson(
           version: '18',
@@ -1766,7 +1766,7 @@ void main() {
 
     manifestJson = {
       'ttlSeconds': 1,
-      'activePack': {'id': 'capital', 'version': '18'},
+      'activePack': {'id': 'nationwide', 'version': '18'},
       'packs': const [],
     };
     now = now.add(const Duration(seconds: 2));
@@ -1783,11 +1783,11 @@ void main() {
     expect(rollbackResults, isEmpty);
     expect(rollbackPointer?.version, '18');
     expect(
-      await File('${catalogDirectory.path}/capital-v18.sqlite').exists(),
+      await File('${catalogDirectory.path}/nationwide-v18.sqlite').exists(),
       isTrue,
     );
     expect(
-      await File('${catalogDirectory.path}/capital-v19.sqlite').exists(),
+      await File('${catalogDirectory.path}/nationwide-v19.sqlite').exists(),
       isTrue,
     );
     expect(requestedPaths.skip(requestCountAfterInstall), [
@@ -1987,7 +1987,7 @@ void main() {
       var now = DateTime.utc(2026, 6, 21, 6);
       var manifestJson = <String, Object?>{
         'ttlSeconds': 1,
-        'activePack': {'id': 'capital', 'version': '19'},
+        'activePack': {'id': 'nationwide', 'version': '19'},
         'packs': [
           _packJson(
             version: '017',
@@ -2051,7 +2051,7 @@ void main() {
 
       manifestJson = {
         'ttlSeconds': 1,
-        'activePack': {'id': 'capital', 'version': '17'},
+        'activePack': {'id': 'nationwide', 'version': '17'},
         'packs': const [],
       };
       now = now.add(const Duration(seconds: 2));
@@ -2059,7 +2059,7 @@ void main() {
       final rollbackPointer = await installer.readCurrentPointer();
 
       expect(rollbackPointer?.version, '017');
-      expect(rollbackPointer?.path.endsWith('capital-v017.sqlite'), isTrue);
+      expect(rollbackPointer?.path.endsWith('nationwide-v017.sqlite'), isTrue);
     },
   );
 
@@ -2088,7 +2088,7 @@ void main() {
             ..write(
               jsonEncode({
                 'ttlSeconds': 60,
-                'activePack': {'id': 'capital', 'version': '017'},
+                'activePack': {'id': 'nationwide', 'version': '017'},
                 'packs': [
                   _packJson(
                     version: '19',
@@ -2160,15 +2160,15 @@ void main() {
     );
     expect(pointer?.version, '017');
     expect(
-      await File('${catalogDirectory.path}/capital-v017.sqlite').exists(),
+      await File('${catalogDirectory.path}/nationwide-v017.sqlite').exists(),
       isTrue,
     );
     expect(
-      await File('${catalogDirectory.path}/capital-v18.sqlite').exists(),
+      await File('${catalogDirectory.path}/nationwide-v18.sqlite').exists(),
       isTrue,
     );
     expect(
-      await File('${catalogDirectory.path}/capital-v19.sqlite').exists(),
+      await File('${catalogDirectory.path}/nationwide-v19.sqlite').exists(),
       isTrue,
     );
   });
@@ -2185,7 +2185,7 @@ void main() {
     );
     await overrideRepository.saveOverride(
       const EmergencyDataPackOverride(
-        id: 'capital',
+        id: 'nationwide',
         version: '17',
         reason: '시설 상태 긴급 정정',
       ),
@@ -2204,7 +2204,7 @@ void main() {
                 'ttlSeconds': 60,
                 'packs': [
                   {
-                    'id': 'capital',
+                    'id': 'nationwide',
                     'version': '18',
                     'url': 'catalog/capital-v18.sqlite.gz',
                     'sha256': sha256.convert(corruptBytes).toString(),
@@ -2364,14 +2364,14 @@ void main() {
                   'keyId': 'test-key',
                   'ttlSeconds': 60,
                   'emergencyOverride': {
-                    'id': 'capital',
+                    'id': 'nationwide',
                     'version': '18',
                     'reason': '테스트 긴급 정정',
                   },
                   'packs': [
                     // 일반 팩(v19) — rollout heldOut으로 건너뜀
                     {
-                      'id': 'capital',
+                      'id': 'nationwide',
                       'version': '19',
                       'url': 'catalog/capital-v19.sqlite.gz',
                       'sha256': '0' * 64,
@@ -2382,7 +2382,7 @@ void main() {
                     },
                     // override 팩(v18) — rollout 무관, 항상 채택
                     {
-                      'id': 'capital',
+                      'id': 'nationwide',
                       'version': '18',
                       'url': 'catalog/capital-v18.sqlite.gz',
                       'sha256': overrideCompressedSha256,
@@ -2432,10 +2432,10 @@ void main() {
 
     // override 팩(v18)만 채택됨
     expect(results.single.status, DataPackInstallStatus.installed);
-    expect(results.single.pointer?.id, 'capital');
+    expect(results.single.pointer?.id, 'nationwide');
     expect(results.single.pointer?.version, '18');
     // emergencyOverride 저장됨
-    expect(override?.id, 'capital');
+    expect(override?.id, 'nationwide');
     expect(override?.version, '18');
   });
 
@@ -2680,7 +2680,7 @@ void main() {
     await fixture.updater.checkForUpdates();
     final override = await fixture.overrideRepository.readOverride();
 
-    expect(override?.id, 'capital');
+    expect(override?.id, 'nationwide');
     expect(override?.version, '18');
     expect(override?.reason, '이전 세션 긴급 정정');
   });
@@ -2847,7 +2847,7 @@ Future<_OverrideIntegrityFixture> _overrideIntegrityFixture(
   );
   await overrideRepository.saveOverride(
     const EmergencyDataPackOverride(
-      id: 'capital',
+      id: 'nationwide',
       version: '18',
       reason: '이전 세션 긴급 정정',
     ),
@@ -2855,7 +2855,7 @@ Future<_OverrideIntegrityFixture> _overrideIntegrityFixture(
   final catalogDirectory = Directory('${directory.path}/catalog');
   await catalogDirectory.create(recursive: true);
   final sqliteBytes = await _validCatalogSqliteBytes(directory);
-  final overridePack = File('${catalogDirectory.path}/capital-v18.sqlite');
+  final overridePack = File('${catalogDirectory.path}/nationwide-v18.sqlite');
   await overridePack.writeAsBytes(sqliteBytes, flush: true);
   final activeCompressedBytes = gzip.encode(sqliteBytes);
   final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
@@ -2869,9 +2869,9 @@ Future<_OverrideIntegrityFixture> _overrideIntegrityFixture(
           ..write(
             jsonEncode({
               'ttlSeconds': 60,
-              'activePack': {'id': 'capital', 'version': '19'},
+              'activePack': {'id': 'nationwide', 'version': '19'},
               'emergencyOverride': {
-                'id': 'capital',
+                'id': 'nationwide',
                 'version': '18',
                 'reason': '테스트 긴급 정정',
               },
@@ -2919,7 +2919,7 @@ Future<_OverrideIntegrityFixture> _overrideIntegrityFixture(
 }
 
 Map<String, Object?> _packJson({
-  String id = 'capital',
+  String id = 'nationwide',
   required String version,
   required String url,
   required List<int> compressedBytes,
@@ -2949,7 +2949,7 @@ Map<String, Object?> _packJson({
 }
 
 Map<String, Object?> _fixtureManifestMetadata({
-  String id = 'capital',
+  String id = 'nationwide',
   required String version,
   required String compressedSha256,
   required String sqliteSha256,
@@ -3067,7 +3067,7 @@ Map<String, Object?> _signedV2PackManifest({
     'expiresAt': '2099-01-01T00:00:00.000Z',
     'keyId': 'fixture-key',
     'ttlSeconds': 1,
-    'activePack': {'id': 'capital', 'version': version},
+    'activePack': {'id': 'nationwide', 'version': version},
     'rollbackProvenance': ?rollbackProvenance,
     'packs': [pack],
   });

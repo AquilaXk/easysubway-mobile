@@ -58,7 +58,7 @@ class CatalogDatabaseOpener {
     final index = await _installBundledDataPacks(datapackDirectory);
 
     final database = CatalogDatabase.file(
-      File(p.join(datapackDirectory.path, 'capital.sqlite')),
+      File(p.join(datapackDirectory.path, 'nationwide.sqlite')),
     );
     // 번들 경로도 설치 경로와 같은 구제를 거친다(#2527). 번들 팩은 마지막 대안이라
     // 거부할 상위 팩이 없으므로 구제만 하고 강등 판정은 하지 않는다.
@@ -67,7 +67,7 @@ class CatalogDatabaseOpener {
     await _writeBundledFreshness(datapackDirectory, index);
     _openedBundledDataPack = true;
     _openedArtifactIdentity = p.normalize(
-      File(p.join(datapackDirectory.path, 'capital.sqlite')).absolute.path,
+      File(p.join(datapackDirectory.path, 'nationwide.sqlite')).absolute.path,
     );
     return database;
   }

@@ -7,15 +7,8 @@
   "schemaIdentity": "catalog-schema-v1",
   "packs": [
     {
-      "id": "core",
-      "asset": "assets/datapacks/core.sqlite.gz",
-      "sha256": "858474f6b3340c69aff2ca287179164ec307bb848c28ea69e94d8dc213125f06",
-      "sqliteSha256": "da8f967abf6333c3156c15212bc8f65317a6abfe722f01d9167a119408913221",
-      "byteSize": 183594
-    },
-    {
-      "id": "capital",
-      "asset": "assets/datapacks/capital.sqlite.gz",
+      "id": "nationwide",
+      "asset": "assets/datapacks/nationwide.sqlite.gz",
       "sha256": "ef572c9456024d35cfea8c13d4608f259ff67ad10358def4e13df4e9d72f863f",
       "sqliteSha256": "95fad7670a041944eb8cd1c60c31be86e47a8a5b7e268cd2bba3a2e55263f3c5",
       "byteSize": 490850
