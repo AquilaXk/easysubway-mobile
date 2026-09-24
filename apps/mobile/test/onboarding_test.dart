@@ -8,6 +8,7 @@ import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'fake_secure_key_value_storage.dart';
@@ -59,6 +60,15 @@ void main() {
     expect(find.text('빠른 길보다\n갈 수 있는 길을\n안내합니다'), findsOneWidget);
     expect(find.byKey(const Key('startScreenStartButton')), findsOneWidget);
     expect(find.text('시작하기'), findsOneWidget);
+    final customPaint = tester.widget<CustomPaint>(
+      find.byWidgetPredicate(
+        (w) =>
+            w is CustomPaint &&
+            w.painter != null &&
+            w.size == const Size(54, 20),
+      ),
+    );
+    expect(customPaint.painter!.shouldRepaint(customPaint.painter!), isFalse);
     // #2081: 상단 브랜드 심볼/워드마크는 제거됐다 — 시작 화면에는 워드마크가 없다.
     expect(find.text('쉬운 지하철'), findsNothing);
     expect(find.bySemanticsLabel('쉬운 지하철'), findsNothing);
@@ -66,6 +76,16 @@ void main() {
     expect(find.textContaining('먼저 안내해요'), findsNothing);
     expect(find.textContaining('엘리베이터와 출구까지'), findsNothing);
     expect(find.text('계단 없는 길을\n먼저 찾습니다'), findsNothing);
+  });
+
+  testWidgets('시작 화면은 애니메이션 비활성화 환경에서 즉시 완료 상태가 된다', (tester) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(disableAnimations: true),
+        child: MaterialApp(home: StartScreen(onStart: () {})),
+      ),
+    );
+    expect(find.byKey(const Key('startScreenStartButton')), findsOneWidget);
   });
 
   testWidgets('시작 화면 가치 타이틀은 header 시맨틱스로 노출되는 카피 3행이다', (tester) async {
@@ -467,7 +487,7 @@ void main() {
     );
   });
 
-  testWidgets('권한 화면 이전 버튼은 큰 글자 스크롤 위에서 불투명 표면을 유지한다', (tester) async {
+  testWidgets('권한 화면 이전 버튼은 접근성 터치 영역을 보장하고 투명 배경을 유지한다', (tester) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -486,10 +506,7 @@ void main() {
     final backButton = tester.widget<IconButton>(
       find.byKey(const Key('onboardingBackButton')),
     );
-    expect(
-      backButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-      EasySubwayAccessibleColors.surface,
-    );
+    expect(backButton.style?.backgroundColor?.resolve(<WidgetState>{}), isNull);
     expect(
       backButton.style?.minimumSize?.resolve(<WidgetState>{}),
       const Size.square(EasySubwayTouchTarget.general),
@@ -651,6 +668,44 @@ void main() {
     expect(locationProvider.requestCount, 0);
     expect(notificationPermissionProvider.requestCount, 1);
     expect(completedResult?.preset, MobilityPreset.slow);
+  });
+
+  testWidgets('온보딩 권한 단계 행과 시맨틱스 탭 시 스위치 상태가 토글된다', (tester) async {
+    final semanticsHandle = tester.ensureSemantics();
+    try {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: OnboardingScreen(
+            notificationPermissionProvider:
+                _FakeNotificationPermissionProvider(),
+            onCompleted: (_) {},
+          ),
+        ),
+      );
+      await _moveToPermissionStep(tester);
+
+      // Initial semantics is "현재 위치 꺼짐"
+      final locationSemantics = tester.getSemantics(
+        find.bySemanticsLabel('현재 위치 꺼짐'),
+      );
+      expect(
+        locationSemantics.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+      );
+      // Trigger semantics onTap (line 533)
+      locationSemantics.owner!.performAction(
+        locationSemantics.id,
+        SemanticsAction.tap,
+      );
+      await tester.pumpAndSettle();
+
+      // Now it became "현재 위치 켜짐", tap row text to toggle back via GestureDetector (line 509)
+      await tester.tap(find.text('현재 위치'));
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('현재 위치 꺼짐'), findsOneWidget);
+    } finally {
+      semanticsHandle.dispose();
+    }
   });
 
   testWidgets('온보딩 권한 단계는 위치만 켜면 위치 provider만 호출한다', (tester) async {

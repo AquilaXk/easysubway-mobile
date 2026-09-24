@@ -475,7 +475,10 @@ class NotificationSettingsController extends ChangeNotifier {
   final NotificationSettingsRepository repository;
 
   NotificationSettingsState _state = const NotificationSettingsState.loading();
+  NotificationSettings? _lastSavedSettings;
+  Timer? _debounceTimer;
   bool _isDisposed = false;
+  void Function(String message)? onSaveError;
 
   NotificationSettingsState get state => _state;
 
@@ -484,6 +487,7 @@ class NotificationSettingsController extends ChangeNotifier {
 
     try {
       final settings = await repository.getNotificationSettings();
+      _lastSavedSettings = settings;
       _emitState(
         NotificationSettingsState(
           status: NotificationSettingsStatus.ready,
@@ -523,6 +527,7 @@ class NotificationSettingsController extends ChangeNotifier {
   }
 
   Future<void> save() async {
+    _debounceTimer?.cancel();
     final settings = _state.settings;
     if (settings == null || _state.isSaving) {
       return;
@@ -537,34 +542,38 @@ class NotificationSettingsController extends ChangeNotifier {
 
     try {
       final savedSettings = await repository.saveNotificationSettings(settings);
+      _lastSavedSettings = savedSettings;
       _emitState(
         NotificationSettingsState(
           status: NotificationSettingsStatus.ready,
           settings: savedSettings,
-          message: '알림 설정을 저장했습니다.',
         ),
       );
     } on NotificationSettingsException catch (error) {
+      final rollback = _lastSavedSettings ?? settings;
       _emitState(
         NotificationSettingsState(
           status: NotificationSettingsStatus.ready,
-          settings: settings,
+          settings: rollback,
           message: error.message,
         ),
       );
+      onSaveError?.call(error.message);
     } catch (error, stackTrace) {
       reportMobileError(
         error,
         stackTrace,
         context: '알림 설정 화면 저장 처리 중 예외가 발생했습니다.',
       );
+      final rollback = _lastSavedSettings ?? settings;
       _emitState(
         NotificationSettingsState(
           status: NotificationSettingsStatus.ready,
-          settings: settings,
+          settings: rollback,
           message: _notificationSettingsSaveErrorMessage,
         ),
       );
+      onSaveError?.call(_notificationSettingsSaveErrorMessage);
     }
   }
 
@@ -581,6 +590,10 @@ class NotificationSettingsController extends ChangeNotifier {
         settings: update(settings),
       ),
     );
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      unawaited(save());
+    });
   }
 
   void _emitFailure(String message) {
@@ -602,6 +615,7 @@ class NotificationSettingsController extends ChangeNotifier {
 
   @override
   void dispose() {
+    _debounceTimer?.cancel();
     _isDisposed = true;
     super.dispose();
   }
@@ -632,6 +646,12 @@ class _NotificationSettingsScreenState
   void initState() {
     super.initState();
     _controller = NotificationSettingsController(repository: widget.repository);
+    _controller.onSaveError = (message) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(message)));
+    };
     unawaited(_controller.load());
   }
 
@@ -859,17 +879,56 @@ class _NotificationSettingsContent extends StatelessWidget {
         const SizedBox(height: 12),
         Semantics(
           label: isSaving ? '알림 설정 저장 중' : '알림 설정 저장',
-          child: FilledButton.icon(
+          button: true,
+          excludeSemantics: true,
+          child: GestureDetector(
             key: const Key('notificationSettingsSaveButton'),
-            onPressed: isSaving ? null : onSave,
-            icon: isSaving
-                ? const SizedBox(
-                    width: 22,
-                    height: 22,
-                    child: CircularProgressIndicator(strokeWidth: 3),
-                  )
-                : const Icon(Icons.save_outlined),
-            label: Text(isSaving ? '저장 중' : '저장'),
+            behavior: HitTestBehavior.opaque,
+            onTap: isSaving ? null : onSave,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isSaving) ...[
+                        const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '저장 중...',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: EasySubwayAccessibleColors.secondaryText,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ] else ...[
+                        const Icon(
+                          Icons.check_circle_outline,
+                          size: 16,
+                          color: EasySubwayAccessibleColors.secondaryText,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          '변경 시 자동으로 저장됩니다',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: EasySubwayAccessibleColors.secondaryText,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ),
         ),
       ],

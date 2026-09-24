@@ -5,7 +5,10 @@
 /// gradient·리플을 두지 않는다(#1703 디자인 제약).
 library;
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../accessible_design.dart';
 import '../../core/ui/selectable_option_row.dart';
@@ -23,6 +26,11 @@ Future<MobilityPreset?> showMobilityPresetSheet(
     context: context,
     isScrollControlled: true,
     backgroundColor: EasySubwayAccessibleColors.surface,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(
+        top: Radius.circular(EasySubwayRadius.control),
+      ),
+    ),
     builder: (sheetContext) {
       final textTheme = Theme.of(sheetContext).textTheme;
       return SafeArea(
@@ -32,6 +40,18 @@ Future<MobilityPreset?> showMobilityPresetSheet(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              Center(
+                child: Container(
+                  key: const Key('presetSheetDragHandle'),
+                  width: 36,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: EasySubwaySpacing.sm),
+                  decoration: BoxDecoration(
+                    color: EasySubwayAccessibleColors.line,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   EasySubwaySpacing.xl,
@@ -124,7 +144,10 @@ class MobilityPresetRow extends StatelessWidget {
       title: mobilityPresetDisplayName(preset),
       description: mobilityPresetDescription(preset),
       selected: selected,
-      onTap: onTap,
+      onTap: () {
+        unawaited(HapticFeedback.selectionClick());
+        onTap();
+      },
       showDescription: showDescription,
       showBrandRadio: showBrandRadio,
       radioKey: Key('mobilityPresetRadio-${preset.name}'),

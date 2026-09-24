@@ -130,4 +130,120 @@ void main() {
       );
     });
   });
+
+  group('2차원 차원 헬퍼 (보행 속도 및 시설 제약)', () {
+    test('walkingPaceFromPreset이 프리셋별 기본 속도를 정확히 반환한다', () {
+      expect(walkingPaceFromPreset(MobilityPreset.slow), WalkingPace.slow);
+      expect(
+        walkingPaceFromPreset(MobilityPreset.standard),
+        WalkingPace.standard,
+      );
+      expect(
+        walkingPaceFromPreset(MobilityPreset.noStairs),
+        WalkingPace.standard,
+      );
+      expect(
+        walkingPaceFromPreset(MobilityPreset.stepFree),
+        WalkingPace.standard,
+      );
+    });
+
+    test('facilityConstraintFromPreset이 프리셋별 시설 제약을 정확히 반환한다', () {
+      expect(
+        facilityConstraintFromPreset(MobilityPreset.standard),
+        FacilityConstraint.none,
+      );
+      expect(
+        facilityConstraintFromPreset(MobilityPreset.slow),
+        FacilityConstraint.none,
+      );
+      expect(
+        facilityConstraintFromPreset(MobilityPreset.noStairs),
+        FacilityConstraint.noStairs,
+      );
+      expect(
+        facilityConstraintFromPreset(MobilityPreset.stepFree),
+        FacilityConstraint.elevatorOnly,
+      );
+    });
+
+    test('presetFromDimensions가 2차원 조합을 가장 가까운 프리셋으로 매핑한다', () {
+      // 일반 시설 제약: 속도에 따라 분기
+      expect(
+        presetFromDimensions(WalkingPace.slow, FacilityConstraint.none),
+        MobilityPreset.slow,
+      );
+      expect(
+        presetFromDimensions(WalkingPace.standard, FacilityConstraint.none),
+        MobilityPreset.standard,
+      );
+      expect(
+        presetFromDimensions(WalkingPace.fast, FacilityConstraint.none),
+        MobilityPreset.standard,
+      );
+
+      // 계단 없이
+      expect(
+        presetFromDimensions(WalkingPace.slow, FacilityConstraint.noStairs),
+        MobilityPreset.noStairs,
+      );
+      expect(
+        presetFromDimensions(WalkingPace.standard, FacilityConstraint.noStairs),
+        MobilityPreset.noStairs,
+      );
+      expect(
+        presetFromDimensions(WalkingPace.fast, FacilityConstraint.noStairs),
+        MobilityPreset.noStairs,
+      );
+
+      // 승강기 전용 (휠체어·유모차)
+      expect(
+        presetFromDimensions(WalkingPace.slow, FacilityConstraint.elevatorOnly),
+        MobilityPreset.stepFree,
+      );
+      expect(
+        presetFromDimensions(
+          WalkingPace.standard,
+          FacilityConstraint.elevatorOnly,
+        ),
+        MobilityPreset.stepFree,
+      );
+      expect(
+        presetFromDimensions(WalkingPace.fast, FacilityConstraint.elevatorOnly),
+        MobilityPreset.stepFree,
+      );
+    });
+
+    test('보행 속도 라벨 및 수치', () {
+      expect(walkingPaceDisplayName(WalkingPace.slow), '느린 걸음');
+      expect(walkingPaceDisplayName(WalkingPace.standard), '보통 걸음');
+      expect(walkingPaceDisplayName(WalkingPace.fast), '빠른 걸음');
+
+      expect(walkingPaceSpeedLabel(WalkingPace.slow), '3.5km/h');
+      expect(walkingPaceSpeedLabel(WalkingPace.standard), '4.5km/h');
+      expect(walkingPaceSpeedLabel(WalkingPace.fast), '6.0km/h');
+    });
+
+    test('시설 제약 라벨 및 부가설명', () {
+      expect(facilityConstraintDisplayName(FacilityConstraint.none), '일반');
+      expect(
+        facilityConstraintDisplayName(FacilityConstraint.noStairs),
+        '계단 없이',
+      );
+      expect(
+        facilityConstraintDisplayName(FacilityConstraint.elevatorOnly),
+        '휠체어·유모차',
+      );
+
+      expect(facilityConstraintDescription(FacilityConstraint.none), '계단 포함');
+      expect(
+        facilityConstraintDescription(FacilityConstraint.noStairs),
+        '에스컬레이터·승강기',
+      );
+      expect(
+        facilityConstraintDescription(FacilityConstraint.elevatorOnly),
+        '승강기 전용',
+      );
+    });
+  });
 }

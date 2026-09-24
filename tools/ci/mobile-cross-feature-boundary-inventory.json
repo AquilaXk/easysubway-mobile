@@ -43,6 +43,7 @@
     "apps/mobile/lib/features/journey/domain/journey_repository.dart",
     "apps/mobile/lib/features/journey/journey_session_provider.dart",
     "apps/mobile/lib/features/journey/presentation/journey_search_screen.dart",
+    "apps/mobile/lib/features/mobility_profile/mobility_preset_labels.dart",
     "apps/mobile/lib/features/stations/data/server_station_timetable_repository.dart"
   ],
   "publicApis": [
