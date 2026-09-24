@@ -1,4 +1,3 @@
-import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/app/app_bootstrap.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
@@ -44,7 +43,7 @@ void main() {
     expect(bootstrap.isUsingBundledDataPack, isTrue);
   });
 
-  testWidgets('EasySubwayApp은 번들 DB 기동 시 영구 고정 오프라인 경고 배너를 렌더링한다', (
+  testWidgets('EasySubwayApp은 번들 DB 기동 시에도 오프라인 경고 배너를 절대 렌더링하지 않는다', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -56,19 +55,14 @@ void main() {
     await tester.pump();
 
     final bannerFinder = find.byKey(const Key('bundledDataPackOfflineBanner'));
-    expect(bannerFinder, findsOneWidget);
+    expect(bannerFinder, findsNothing);
     expect(
       find.text(
         '⚠️ 오프라인 모드: 앱에 내장된 초기 노선도를 사용 중입니다. 최신 정보 반영을 위해 네트워크 연결을 확인해주세요.',
       ),
-      findsOneWidget,
+      findsNothing,
     );
-
-    final banner = tester.widget<MaterialBanner>(bannerFinder);
-    expect(
-      banner.backgroundColor,
-      EasySubwayAccessibleColors.statusWarningSurface,
-    );
+    expect(find.textContaining('오프라인 모드'), findsNothing);
   });
 
   testWidgets('isUsingBundledDataPack이 false이면 오프라인 배너를 렌더링하지 않는다', (
