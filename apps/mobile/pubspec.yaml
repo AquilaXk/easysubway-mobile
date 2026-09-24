@@ -96,8 +96,7 @@ flutter:
     - assets/illustrations/empty_recent_search_warning.png
     - assets/illustrations/map_draft_pin.png
     - assets/datapacks/index.json
-    - assets/datapacks/core.sqlite.gz
-    - assets/datapacks/capital.sqlite.gz
+    - assets/datapacks/nationwide.sqlite.gz
     - assets/datapacks/source-inventory.json
     - assets/datapacks/metro_map_pack/manifest.json
     - assets/datapacks/metro_map_pack/SOURCE_URLS.txt
