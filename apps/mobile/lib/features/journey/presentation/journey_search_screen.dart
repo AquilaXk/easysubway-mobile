@@ -32,6 +32,7 @@ class JourneySearchScreen extends StatefulWidget {
     required this.draft,
     required this.mobilityType,
     required this.onShellBackToHome,
+    this.initialWalkingPace,
     this.shareInvoker,
     this.getOffAlarmController,
     this.stationNameResolver,
@@ -46,6 +47,7 @@ class JourneySearchScreen extends StatefulWidget {
   final JourneySessionProvider? sessionProvider;
   final RouteDraft draft;
   final String mobilityType;
+  final WalkingPace? initialWalkingPace;
   final VoidCallback onShellBackToHome;
   final JourneyShareInvoker? shareInvoker;
   final GetOffAlarmPort? getOffAlarmController;
@@ -77,6 +79,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   @override
   void initState() {
     super.initState();
+    if (widget.initialWalkingPace != null) {
+      _walkingPace = widget.initialWalkingPace!;
+    }
     _controller = JourneySearchController(
       repository: widget.repository,
       attestor: widget.attestor,

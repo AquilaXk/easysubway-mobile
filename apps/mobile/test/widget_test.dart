@@ -8842,7 +8842,6 @@ void main() {
       // '저장된 안내'(인터넷 없이 이용·데이터 출처) 섹션은 제거됐다(#1570).
       expect(find.text('저장된 안내'), findsNothing);
       expect(find.text('천천히'), findsWidgets);
-      expect(find.text('여유 있는 걸음 속도로 시간을 계산해요.'), findsOneWidget);
       expect(find.text('큰 글자'), findsNothing);
       expect(find.text('고대비'), findsOneWidget);
       expect(find.text('간편 보기'), findsOneWidget);
@@ -8881,19 +8880,19 @@ void main() {
       expect(find.byKey(const Key('mobilityProfileButton')), findsOneWidget);
       expect(
         settingsActionSemantics(
-          '천천히, 여유 있는 걸음 속도로 시간을 계산해요.',
+          '천천히',
         ).getSemanticsData().hasAction(SemanticsAction.tap),
         isTrue,
       );
       expect(
         settingsActionSemantics(
-          '간편 보기, 꺼짐, 필수 행동과 상태 안내를 먼저 보여줘요, 두 번 탭해 켜기',
+          '간편 보기, 꺼짐, 두 번 탭해 켜기',
         ).getSemanticsData().hasAction(SemanticsAction.tap),
         isTrue,
       );
       expect(
         settingsActionSemantics(
-          '고대비, 켜짐, 버튼과 상태 문구의 대비를 더 강하게 보여줘요, 두 번 탭해 끄기',
+          '고대비, 켜짐, 두 번 탭해 끄기',
         ).getSemanticsData().hasAction(SemanticsAction.tap),
         isTrue,
       );
@@ -8903,10 +8902,6 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text('휠체어 이용'), findsWidgets);
-      expect(
-        find.text('엘리베이터로만 이동하는 길을 안내해요.\n유모차와 함께일 때도 좋아요.'),
-        findsOneWidget,
-      );
 
       await tester.scrollUntilVisible(
         find.byKey(const Key('notificationSettingsButton')),
@@ -9235,6 +9230,100 @@ void main() {
 
     expect(onboardingStore.saveCount, 1);
     // 저장 실패로 이전 프리셋(천천히)으로 되돌아간다 — 새 프리셋(휠체어 이용)은 저장되지 않는다.
+    expect(find.text('이동 조건을 저장하지 못했어요. 이전 조건으로 되돌렸어요.'), findsOneWidget);
+  });
+
+  testWidgets('설정 화면 이동 조건 1-tap 세그먼트 버튼으로 보행 속도와 시설 제약을 직접 변경한다', (
+    tester,
+  ) async {
+    final onboardingStore = MemoryOnboardingResultStore(
+      initialResult: OnboardingResult(
+        preset: MobilityPreset.standard,
+        preferences: const OnboardingViewPreferences.defaults(),
+      ),
+    );
+
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        onboardingStore: onboardingStore,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _openSettingsScreen(tester);
+
+    // 기본: 보통 걸음, 일반 (계단 포함)
+    expect(find.byKey(const Key('settingsHeroBlock-mobility')), findsOneWidget);
+    expect(find.byKey(const Key('walkingSpeedSegment-slow')), findsOneWidget);
+    expect(
+      find.byKey(const Key('walkingSpeedSegment-standard')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('walkingSpeedSegment-fast')), findsOneWidget);
+    expect(find.byKey(const Key('facilitySegment-standard')), findsOneWidget);
+    expect(find.byKey(const Key('facilitySegment-noStairs')), findsOneWidget);
+    expect(find.byKey(const Key('facilitySegment-stepFree')), findsOneWidget);
+
+    // 1. 느린 걸음 탭
+    await tester.tap(find.byKey(const Key('walkingSpeedSegment-slow')));
+    await tester.pumpAndSettle();
+    expect(find.text('천천히 조건으로 변경했습니다'), findsOneWidget);
+    expect(onboardingStore.savedResult?.preset, MobilityPreset.slow);
+
+    // 2. 빠른 걸음 탭 -> 요약 제목이 "빠른 걸음"으로 표시되고 standard 프리셋으로 저장됨
+    await tester.tap(find.byKey(const Key('walkingSpeedSegment-fast')));
+    await tester.pumpAndSettle();
+    expect(find.text('보통 걸음 조건으로 변경했습니다'), findsOneWidget);
+    expect(onboardingStore.savedResult?.preset, MobilityPreset.standard);
+    expect(find.text('빠른 걸음'), findsWidgets);
+
+    // 3. 계단 없이 탭
+    await tester.tap(find.byKey(const Key('facilitySegment-noStairs')));
+    await tester.pumpAndSettle();
+    expect(find.text('계단 없이 조건으로 변경했습니다'), findsOneWidget);
+    expect(onboardingStore.savedResult?.preset, MobilityPreset.noStairs);
+
+    // 4. 휠체어·유모차 탭
+    await tester.tap(find.byKey(const Key('facilitySegment-stepFree')));
+    await tester.pumpAndSettle();
+    expect(find.text('휠체어 이용 조건으로 변경했습니다'), findsOneWidget);
+    expect(onboardingStore.savedResult?.preset, MobilityPreset.stepFree);
+  });
+
+  testWidgets('설정 화면 이동 조건 세그먼트 버튼 저장 실패는 이전 선택으로 되돌린다', (tester) async {
+    final previousOnError = FlutterError.onError;
+    FlutterError.onError = (details) {
+      if (!details.exceptionAsString().contains('save failed')) {
+        previousOnError?.call(details);
+      }
+    };
+    addTearDown(() => FlutterError.onError = previousOnError);
+    final onboardingStore = MemoryOnboardingResultStore(
+      initialResult: OnboardingResult(
+        preset: MobilityPreset.standard,
+        preferences: const OnboardingViewPreferences.defaults(),
+      ),
+      saveError: StateError('save failed'),
+    );
+
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        onboardingStore: onboardingStore,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await _openSettingsScreen(tester);
+
+    await tester.tap(find.byKey(const Key('facilitySegment-stepFree')));
+    await tester.pumpAndSettle();
+
     expect(find.text('이동 조건을 저장하지 못했어요. 이전 조건으로 되돌렸어요.'), findsOneWidget);
   });
 
@@ -9593,15 +9682,17 @@ void main() {
     expect(find.byKey(const Key('homeTripControlPanel')), findsNothing);
     await _openSettingsScreen(tester);
 
-    expect(find.text('여유 있는 걸음 속도로 시간을 계산해요.'), findsOneWidget);
+    expect(find.text('천천히'), findsWidgets);
+
+    await _openMobilityProfileFromSettings(tester);
+    await tester.tap(find.byKey(const Key('mobilityPresetRow-standard')));
+    await tester.pumpAndSettle();
+    expect(find.text('보통 걸음'), findsWidgets);
 
     await _openMobilityProfileFromSettings(tester);
     await tester.tap(find.byKey(const Key('mobilityPresetRow-stepFree')));
     await tester.pumpAndSettle();
-    expect(
-      find.text('엘리베이터로만 이동하는 길을 안내해요.\n유모차와 함께일 때도 좋아요.'),
-      findsOneWidget,
-    );
+    expect(find.text('휠체어 이용'), findsWidgets);
     semanticsHandle.dispose();
   });
 
@@ -10360,8 +10451,8 @@ void main() {
         notificationRepository.savedSettings.single.reportStatusAlerts,
         isTrue,
       );
-      expect(find.text('알림 설정을 저장했습니다.'), findsOneWidget);
-      expect(find.bySemanticsLabel('알림 설정을 저장했습니다.'), findsOneWidget);
+      expect(find.text('변경 시 자동으로 저장됩니다'), findsOneWidget);
+      expect(find.bySemanticsLabel('알림 설정 저장'), findsOneWidget);
 
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
       await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));

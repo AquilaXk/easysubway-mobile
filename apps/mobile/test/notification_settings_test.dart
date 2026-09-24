@@ -347,7 +347,7 @@ void main() {
       isFalse,
     );
     expect(repository.savedSettings.single.favoriteRouteFacilityAlerts, isTrue);
-    expect(controller.state.message, '알림 설정을 저장했습니다.');
+    expect(controller.state.message, isEmpty);
   });
 
   test(

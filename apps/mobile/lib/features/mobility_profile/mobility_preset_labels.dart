@@ -7,7 +7,10 @@ library;
 
 import 'package:flutter/material.dart';
 
+import '../../generated/journey_v3/journey_v3_enums.dart';
 import 'mobility_profile_policy.dart';
+
+export '../../generated/journey_v3/journey_v3_enums.dart' show WalkingPace;
 
 /// 선택 UI에 노출하는 프리셋 순서(표준 → 천천히 → 계단 없이 → 휠체어).
 const List<MobilityPreset> mobilityPresetDisplayOrder = <MobilityPreset>[
@@ -124,16 +127,131 @@ MobilityPreset? mobilityPresetFromLegacyProfileId(String profileId) {
   return null;
 }
 
-/// 프리셋 행 아이콘(무채색 라인, 4개 시각 구분).
+/// 프리셋 행 아이콘(4개 시각 구분).
 IconData mobilityPresetIcon(MobilityPreset preset) {
   switch (preset) {
     case MobilityPreset.standard:
-      return Icons.directions_walk;
+      return Icons.directions_walk_rounded;
     case MobilityPreset.slow:
-      return Icons.hiking;
+      return Icons.nordic_walking_rounded;
     case MobilityPreset.noStairs:
-      return Icons.elevator;
+      return Icons.elevator_rounded;
     case MobilityPreset.stepFree:
-      return Icons.accessible;
+      return Icons.accessible_forward_rounded;
+  }
+}
+
+/// 프리셋 → 기본 보행 속도.
+WalkingPace walkingPaceFromPreset(MobilityPreset preset) {
+  switch (preset) {
+    case MobilityPreset.slow:
+      return WalkingPace.slow;
+    case MobilityPreset.standard:
+    case MobilityPreset.noStairs:
+    case MobilityPreset.stepFree:
+      return WalkingPace.standard;
+  }
+}
+
+/// 프리셋 → 시설 제약.
+FacilityConstraint facilityConstraintFromPreset(MobilityPreset preset) {
+  switch (preset) {
+    case MobilityPreset.standard:
+    case MobilityPreset.slow:
+      return FacilityConstraint.none;
+    case MobilityPreset.noStairs:
+      return FacilityConstraint.noStairs;
+    case MobilityPreset.stepFree:
+      return FacilityConstraint.elevatorOnly;
+  }
+}
+
+/// 2차원(보행 속도, 시설 제약) → 가장 가까운 MobilityPreset으로 매핑.
+MobilityPreset presetFromDimensions(
+  WalkingPace pace,
+  FacilityConstraint constraint,
+) {
+  switch (constraint) {
+    case FacilityConstraint.elevatorOnly:
+      return MobilityPreset.stepFree;
+    case FacilityConstraint.noStairs:
+      return MobilityPreset.noStairs;
+    case FacilityConstraint.none:
+      if (pace == WalkingPace.slow) {
+        return MobilityPreset.slow;
+      }
+      return MobilityPreset.standard;
+  }
+}
+
+/// 보행 속도 표시명.
+String walkingPaceDisplayName(WalkingPace pace) {
+  switch (pace) {
+    case WalkingPace.slow:
+      return '느린 걸음';
+    case WalkingPace.standard:
+      return '보통 걸음';
+    case WalkingPace.fast:
+      return '빠른 걸음';
+  }
+}
+
+/// 보행 속도 수치 라벨.
+String walkingPaceSpeedLabel(WalkingPace pace) {
+  switch (pace) {
+    case WalkingPace.slow:
+      return '3.5km/h';
+    case WalkingPace.standard:
+      return '4.5km/h';
+    case WalkingPace.fast:
+      return '6.0km/h';
+  }
+}
+
+/// 보행 속도 아이콘.
+IconData walkingPaceIcon(WalkingPace pace) {
+  switch (pace) {
+    case WalkingPace.slow:
+      return Icons.nordic_walking_rounded;
+    case WalkingPace.standard:
+      return Icons.directions_walk_rounded;
+    case WalkingPace.fast:
+      return Icons.directions_run_rounded;
+  }
+}
+
+/// 시설 제약 표시명.
+String facilityConstraintDisplayName(FacilityConstraint constraint) {
+  switch (constraint) {
+    case FacilityConstraint.none:
+      return '일반';
+    case FacilityConstraint.noStairs:
+      return '계단 없이';
+    case FacilityConstraint.elevatorOnly:
+      return '휠체어·유모차';
+  }
+}
+
+/// 시설 제약 부가설명.
+String facilityConstraintDescription(FacilityConstraint constraint) {
+  switch (constraint) {
+    case FacilityConstraint.none:
+      return '계단 포함';
+    case FacilityConstraint.noStairs:
+      return '에스컬레이터·승강기';
+    case FacilityConstraint.elevatorOnly:
+      return '승강기 전용';
+  }
+}
+
+/// 시설 제약 아이콘.
+IconData facilityConstraintIcon(FacilityConstraint constraint) {
+  switch (constraint) {
+    case FacilityConstraint.none:
+      return Icons.directions_walk_rounded;
+    case FacilityConstraint.noStairs:
+      return Icons.elevator_rounded;
+    case FacilityConstraint.elevatorOnly:
+      return Icons.accessible_forward_rounded;
   }
 }
