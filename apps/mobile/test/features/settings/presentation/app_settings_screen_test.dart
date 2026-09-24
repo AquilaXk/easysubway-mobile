@@ -128,15 +128,15 @@ void main() {
   testWidgets('요약 히어로 카드를 탭하면 onOpenMobilityProfile이 호출되고 선택 결과가 반영된다', (
     tester,
   ) async {
-    var heroTapped = false;
-    const profileResult = MobilityPreset.stepFree;
+    var heroTappedCount = 0;
+    MobilityPreset? nextResult = MobilityPreset.stepFree;
 
     await tester.pumpWidget(
       buildTestHost(
         currentPreset: MobilityPreset.standard,
         onOpenMobilityProfile: () async {
-          heroTapped = true;
-          return profileResult;
+          heroTappedCount++;
+          return nextResult;
         },
       ),
     );
@@ -145,8 +145,22 @@ void main() {
     await tester.tap(find.byKey(const Key('mobilityProfileButton')));
     await tester.pumpAndSettle();
 
-    expect(heroTapped, isTrue);
+    expect(heroTappedCount, 1);
     expect(find.text('휠체어 이용'), findsWidgets);
+
+    // Profile returns slow -> covers line 111 (_walkingPace = WalkingPace.slow)
+    nextResult = MobilityPreset.slow;
+    await tester.tap(find.byKey(const Key('mobilityProfileButton')));
+    await tester.pumpAndSettle();
+    expect(heroTappedCount, 2);
+    expect(find.text('천천히'), findsWidgets);
+
+    // Profile returns standard while pace is slow -> covers lines 113-114 (_walkingPace = WalkingPace.standard)
+    nextResult = MobilityPreset.standard;
+    await tester.tap(find.byKey(const Key('mobilityProfileButton')));
+    await tester.pumpAndSettle();
+    expect(heroTappedCount, 3);
+    expect(find.text('보통 걸음'), findsWidgets);
   });
 
   testWidgets('onPresetChanged가 실패(false)하면 이전 상태로 롤백된다', (tester) async {
@@ -249,5 +263,13 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('천천히'), findsWidgets);
+
+    // Transition back to standard while pace is slow -> covers line 99 (_walkingPace = WalkingPace.standard)
+    await tester.pumpWidget(
+      buildTestHost(currentPreset: MobilityPreset.standard),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('보통 걸음'), findsWidgets);
   });
 }

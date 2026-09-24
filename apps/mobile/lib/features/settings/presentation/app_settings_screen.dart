@@ -167,9 +167,6 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
           if (rollbackConstraint != null) {
             _facilityConstraint = rollbackConstraint;
           }
-          if (rollbackPace == null && rollbackConstraint == null) {
-            _syncDimensionsFromPreset(previousPreset);
-          }
         });
       }
     }

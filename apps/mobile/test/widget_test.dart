@@ -9674,6 +9674,11 @@ void main() {
     expect(find.text('천천히'), findsWidgets);
 
     await _openMobilityProfileFromSettings(tester);
+    await tester.tap(find.byKey(const Key('mobilityPresetRow-standard')));
+    await tester.pumpAndSettle();
+    expect(find.text('보통 걸음'), findsWidgets);
+
+    await _openMobilityProfileFromSettings(tester);
     await tester.tap(find.byKey(const Key('mobilityPresetRow-stepFree')));
     await tester.pumpAndSettle();
     expect(find.text('휠체어 이용'), findsWidgets);
