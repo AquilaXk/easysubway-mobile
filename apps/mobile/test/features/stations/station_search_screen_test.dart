@@ -794,6 +794,47 @@ void main() {
     await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
     await expectLater(tester, meetsGuideline(iOSTapTargetGuideline));
   });
+
+  testWidgets('역 검색 후 결과를 선택하면 검색어 단편("1") 대신 역 정식 명칭을 최근 검색어로 기록한다', (
+    tester,
+  ) async {
+    final repository = _EmptyStationSearchRepository(
+      queryResults: {
+        '1': [_stationResult()],
+      },
+    );
+    final searchHistoryRepository = _MemorySearchHistoryRepository(const []);
+    final draftController = RouteDraftController();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationSearchScreen(
+          repository: repository,
+          reportRepository: const UnavailableFacilityReportRepository(),
+          searchHistoryRepository: searchHistoryRepository,
+          routeDraftController: draftController,
+          pickSlot: RouteDraftSlot.origin,
+          regionLabel: '수도권',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final input = find.byKey(const Key('stationSearchInput'));
+    await tester.enterText(input, '1');
+    await tester.pumpAndSettle();
+
+    final resultFinder = find.byKey(
+      const Key('stationSearchResult-station-sangnoksu-seoul-4'),
+    );
+    expect(resultFinder, findsOneWidget);
+
+    await tester.tap(resultFinder);
+    await tester.pumpAndSettle();
+
+    expect(searchHistoryRepository.recordedQueries, contains('상록수'));
+    expect(searchHistoryRepository.recordedQueries, isNot(contains('1')));
+  });
 }
 
 class _EmptyStationSearchRepository implements StationSearchRepository {

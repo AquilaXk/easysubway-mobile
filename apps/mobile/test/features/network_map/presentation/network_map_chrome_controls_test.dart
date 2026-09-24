@@ -204,6 +204,14 @@ void main() {
       find.byKey(const Key('networkMapNotificationAction')),
       findsOneWidget,
     );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const Key('networkMapNotificationAction')))
+          .dx,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('networkMapMenuButton'))).dx,
+      ),
+    );
     final semantics = tester.ensureSemantics();
     expect(find.bySemanticsLabel('지역: 부산, 지역 변경'), findsOneWidget);
     await tester.tap(find.byKey(const Key('networkMapMenuButton')));

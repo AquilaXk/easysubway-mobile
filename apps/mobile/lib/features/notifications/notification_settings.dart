@@ -22,7 +22,7 @@ const _notificationPermissionErrorMessage = '알림을 켤 수 있는지 확인�
 const _notificationRegistrationFailureNextAction =
     '휴대전화 알림 설정과 인터넷 연결을 확인한 뒤 다시 시도해 주세요.';
 const _notificationSwitchTileRadius = BorderRadius.all(Radius.circular(16));
-const _notificationSettingsContentPadding = EdgeInsets.fromLTRB(20, 20, 20, 32);
+const _notificationSettingsContentPadding = EdgeInsets.fromLTRB(16, 12, 16, 20);
 const _notificationSettingsFailurePadding = EdgeInsets.fromLTRB(20, 32, 20, 32);
 
 abstract class NotificationSettingsRepository {
@@ -404,7 +404,9 @@ class NotificationSettings {
         json,
         'favoriteRouteFacilityAlerts',
       ),
-      reportStatusAlerts: _requiredBool(json, 'reportStatusAlerts'),
+      reportStatusAlerts: json['reportStatusAlerts'] is bool
+          ? json['reportStatusAlerts']! as bool
+          : true,
       dataQualityAlerts: _requiredBool(json, 'dataQualityAlerts'),
       updatedAt: _requiredString(json, 'updatedAt'),
     );
@@ -417,7 +419,9 @@ class NotificationSettings {
   final bool dataQualityAlerts;
   final String updatedAt;
 
-  Map<String, Object?> toRequestJson() {
+  Map<String, Object?> toRequestJson() => toJson();
+
+  Map<String, Object?> toJson() {
     return {
       'userId': userId,
       'favoriteStationFacilityAlerts': favoriteStationFacilityAlerts,
@@ -475,6 +479,8 @@ class NotificationSettingsController extends ChangeNotifier {
   final NotificationSettingsRepository repository;
 
   NotificationSettingsState _state = const NotificationSettingsState.loading();
+  bool? _masterPushAlertsOverride;
+  NotificationSettings? _previousEnabledSettings;
   NotificationSettings? _lastSavedSettings;
   Timer? _debounceTimer;
   bool _isDisposed = false;
@@ -482,7 +488,70 @@ class NotificationSettingsController extends ChangeNotifier {
 
   NotificationSettingsState get state => _state;
 
+  bool isMasterPushAlertsEnabled(NotificationSettings settings) {
+    if (_masterPushAlertsOverride != null) {
+      return _masterPushAlertsOverride!;
+    }
+    return _hasAnyActivePushAlerts(settings);
+  }
+
+  static bool _hasAnyActivePushAlerts(NotificationSettings settings) {
+    return settings.favoriteStationFacilityAlerts ||
+        settings.favoriteRouteFacilityAlerts ||
+        settings.dataQualityAlerts;
+  }
+
+  void updateMasterPushAlerts(bool value) {
+    final settings = _state.settings;
+    if (settings == null || _state.isSaving) {
+      return;
+    }
+    _masterPushAlertsOverride = value;
+    if (!value) {
+      if (_hasAnyActivePushAlerts(settings)) {
+        _previousEnabledSettings = settings;
+      }
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: settings.copyWith(
+            favoriteStationFacilityAlerts: false,
+            favoriteRouteFacilityAlerts: false,
+            dataQualityAlerts: false,
+          ),
+        ),
+      );
+    } else {
+      final restored = _previousEnabledSettings;
+      final nextSettings =
+          (restored != null && _hasAnyActivePushAlerts(restored))
+          ? settings.copyWith(
+              favoriteStationFacilityAlerts:
+                  restored.favoriteStationFacilityAlerts,
+              favoriteRouteFacilityAlerts: restored.favoriteRouteFacilityAlerts,
+              dataQualityAlerts: restored.dataQualityAlerts,
+            )
+          : settings.copyWith(
+              favoriteStationFacilityAlerts: true,
+              favoriteRouteFacilityAlerts: true,
+              dataQualityAlerts: true,
+            );
+      _emitState(
+        NotificationSettingsState(
+          status: NotificationSettingsStatus.ready,
+          settings: nextSettings,
+        ),
+      );
+    }
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      unawaited(save());
+    });
+  }
+
   Future<void> load() async {
+    _masterPushAlertsOverride = null;
+    _previousEnabledSettings = null;
     _emitState(const NotificationSettingsState.loading());
 
     try {
@@ -507,30 +576,42 @@ class NotificationSettingsController extends ChangeNotifier {
   }
 
   void updateFavoriteStationFacilityAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
     _updateSettings(
       (settings) => settings.copyWith(favoriteStationFacilityAlerts: value),
     );
   }
 
   void updateFavoriteRouteFacilityAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
     _updateSettings(
       (settings) => settings.copyWith(favoriteRouteFacilityAlerts: value),
     );
   }
 
   void updateReportStatusAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
     _updateSettings((settings) => settings.copyWith(reportStatusAlerts: value));
   }
 
   void updateDataQualityAlerts(bool value) {
+    _masterPushAlertsOverride ??= true;
     _updateSettings((settings) => settings.copyWith(dataQualityAlerts: value));
   }
 
   Future<void> save() async {
     _debounceTimer?.cancel();
-    final settings = _state.settings;
+    var settings = _state.settings;
     if (settings == null || _state.isSaving) {
       return;
+    }
+
+    if (!isMasterPushAlertsEnabled(settings)) {
+      settings = settings.copyWith(
+        favoriteStationFacilityAlerts: false,
+        favoriteRouteFacilityAlerts: false,
+        dataQualityAlerts: false,
+      );
     }
 
     _emitState(
@@ -543,6 +624,7 @@ class NotificationSettingsController extends ChangeNotifier {
     try {
       final savedSettings = await repository.saveNotificationSettings(settings);
       _lastSavedSettings = savedSettings;
+      _masterPushAlertsOverride = null;
       _emitState(
         NotificationSettingsState(
           status: NotificationSettingsStatus.ready,
@@ -551,6 +633,7 @@ class NotificationSettingsController extends ChangeNotifier {
       );
     } on NotificationSettingsException catch (error) {
       final rollback = _lastSavedSettings ?? settings;
+      _masterPushAlertsOverride = null;
       _emitState(
         NotificationSettingsState(
           status: NotificationSettingsStatus.ready,
@@ -566,6 +649,7 @@ class NotificationSettingsController extends ChangeNotifier {
         context: '알림 설정 화면 저장 처리 중 예외가 발생했습니다.',
       );
       final rollback = _lastSavedSettings ?? settings;
+      _masterPushAlertsOverride = null;
       _emitState(
         NotificationSettingsState(
           status: NotificationSettingsStatus.ready,
@@ -689,11 +773,14 @@ class _NotificationSettingsScreenState
                   _isRequestingNotificationPermission,
               notificationPermissionMessage: _notificationPermissionMessage,
               onRequestNotificationPermission: _requestNotificationPermission,
+              onMasterPushAlertsChanged: _controller.updateMasterPushAlerts,
+              isMasterPushAlertsEnabled: _controller.isMasterPushAlertsEnabled(
+                settings,
+              ),
               onFavoriteStationFacilityAlertsChanged:
                   _controller.updateFavoriteStationFacilityAlerts,
               onFavoriteRouteFacilityAlertsChanged:
                   _controller.updateFavoriteRouteFacilityAlerts,
-              onReportStatusAlertsChanged: _controller.updateReportStatusAlerts,
               onDataQualityAlertsChanged: _controller.updateDataQualityAlerts,
               onSave: _controller.save,
             );
@@ -784,9 +871,10 @@ class _NotificationSettingsContent extends StatelessWidget {
     required this.isRequestingNotificationPermission,
     required this.notificationPermissionMessage,
     required this.onRequestNotificationPermission,
+    required this.onMasterPushAlertsChanged,
+    required this.isMasterPushAlertsEnabled,
     required this.onFavoriteStationFacilityAlertsChanged,
     required this.onFavoriteRouteFacilityAlertsChanged,
-    required this.onReportStatusAlertsChanged,
     required this.onDataQualityAlertsChanged,
     required this.onSave,
   });
@@ -796,9 +884,10 @@ class _NotificationSettingsContent extends StatelessWidget {
   final bool isRequestingNotificationPermission;
   final String notificationPermissionMessage;
   final VoidCallback onRequestNotificationPermission;
+  final ValueChanged<bool> onMasterPushAlertsChanged;
+  final bool isMasterPushAlertsEnabled;
   final ValueChanged<bool> onFavoriteStationFacilityAlertsChanged;
   final ValueChanged<bool> onFavoriteRouteFacilityAlertsChanged;
-  final ValueChanged<bool> onReportStatusAlertsChanged;
   final ValueChanged<bool> onDataQualityAlertsChanged;
   final VoidCallback onSave;
 
@@ -806,6 +895,7 @@ class _NotificationSettingsContent extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = state.settings!;
     final isSaving = state.isSaving;
+    final subOptionsEnabled = !isSaving && isMasterPushAlertsEnabled;
 
     return ListView(
       padding: _notificationSettingsContentPadding,
@@ -845,33 +935,47 @@ class _NotificationSettingsContent extends StatelessWidget {
         _NotificationSwitchGroup(
           tiles: [
             _NotificationSwitchTile(
+              key: const Key('notificationSwitch-masterPushAlerts'),
+              title: '푸시 알림 받기',
+              subtitle: '앱의 주요 상태 및 소식 알림을 받아요',
+              value: isMasterPushAlertsEnabled,
+              enabled: !isSaving,
+              onChanged: onMasterPushAlertsChanged,
+            ),
+          ],
+        ),
+        const _NotificationSectionHeader(title: '이용 및 시설 알림'),
+        _NotificationSwitchGroup(
+          tiles: [
+            _NotificationSwitchTile(
               key: const Key(
                 'notificationSwitch-favoriteStationFacilityAlerts',
               ),
               title: '역 시설 알림',
+              subtitle: '즐겨찾는 역의 승강기·리프트 고장 및 점검 소식',
               value: settings.favoriteStationFacilityAlerts,
-              enabled: !isSaving,
+              enabled: subOptionsEnabled,
               onChanged: onFavoriteStationFacilityAlertsChanged,
             ),
             _NotificationSwitchTile(
               key: const Key('notificationSwitch-favoriteRouteFacilityAlerts'),
               title: '경로 시설 알림',
+              subtitle: '저장한 이동 경로의 환승 편의시설 운행 상태 안내',
               value: settings.favoriteRouteFacilityAlerts,
-              enabled: !isSaving,
+              enabled: subOptionsEnabled,
               onChanged: onFavoriteRouteFacilityAlertsChanged,
             ),
-            _NotificationSwitchTile(
-              key: const Key('notificationSwitch-reportStatusAlerts'),
-              title: '제보 진행 알림',
-              value: settings.reportStatusAlerts,
-              enabled: !isSaving,
-              onChanged: onReportStatusAlertsChanged,
-            ),
+          ],
+        ),
+        const _NotificationSectionHeader(title: '공지 및 서비스 안내'),
+        _NotificationSwitchGroup(
+          tiles: [
             _NotificationSwitchTile(
               key: const Key('notificationSwitch-dataQualityAlerts'),
               title: '최신 안내 알림',
+              subtitle: '서비스 점검 및 중요한 지하철 운행 공지 안내',
               value: settings.dataQualityAlerts,
-              enabled: !isSaving,
+              enabled: subOptionsEnabled,
               onChanged: onDataQualityAlertsChanged,
             ),
           ],
@@ -936,6 +1040,30 @@ class _NotificationSettingsContent extends StatelessWidget {
   }
 }
 
+class _NotificationSectionHeader extends StatelessWidget {
+  const _NotificationSectionHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, top: 12, bottom: 4),
+      child: Semantics(
+        header: true,
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: EasySubwayAccessibleColors.secondaryText,
+            fontWeight: FontWeight.w700,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _NotificationSettingsMessage extends StatelessWidget {
   const _NotificationSettingsMessage({required this.message});
 
@@ -996,12 +1124,14 @@ class _NotificationSwitchTile extends StatelessWidget {
   const _NotificationSwitchTile({
     required super.key,
     required this.title,
+    this.subtitle,
     required this.value,
     required this.enabled,
     required this.onChanged,
   });
 
   final String title;
+  final String? subtitle;
   final bool value;
   final bool enabled;
   final ValueChanged<bool> onChanged;
@@ -1014,23 +1144,37 @@ class _NotificationSwitchTile extends StatelessWidget {
       container: true,
       excludeSemantics: true,
       label: '$title ${value ? '켜짐' : '꺼짐'}',
+      hint: subtitle,
       toggled: value,
       enabled: enabled,
       onTap: enabled ? () => onChanged(!value) : null,
       child: SwitchListTile.adaptive(
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
         activeThumbColor: colorScheme.primary,
         title: Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: EasySubwayAccessibleColors.text,
+            color: enabled
+                ? EasySubwayAccessibleColors.text
+                : EasySubwayAccessibleColors.mutedText,
             fontWeight: FontWeight.w700,
             height: 1.35,
           ),
         ),
+        subtitle: subtitle == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(top: 2),
+                child: Text(
+                  subtitle!,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: enabled
+                        ? EasySubwayAccessibleColors.secondaryText
+                        : EasySubwayAccessibleColors.mutedText,
+                    height: 1.35,
+                  ),
+                ),
+              ),
         value: value,
         onChanged: enabled ? onChanged : null,
       ),

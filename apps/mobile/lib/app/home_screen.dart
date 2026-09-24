@@ -63,8 +63,6 @@ WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
   );
 }
 
-const _mainIconControlRadius = BorderRadius.all(Radius.circular(12));
-
 /// 역 검색 화면 지역 메뉴에 노선도가 아는 지역을 모두 담는다(#2419 리뷰
 /// finding). 기본 목록 5개를 우선 유지하고, 맵에만 있는 지역 표시명이 있으면
 /// 뒤에 이어붙인다(기본 목록에 없는 지역은 id도 표시명 그대로 쓴다).
@@ -1024,27 +1022,24 @@ class _HomeNotificationButton extends StatelessWidget {
       child: ExcludeSemantics(
         child: Tooltip(
           message: '알림',
-          child: Badge(
-            isLabelVisible: hasNotificationItems,
-            smallSize: 10,
-            backgroundColor: EasySubwayAccessibleColors.red,
-            offset: const Offset(-10, 10),
-            child: IconButton.filledTonal(
-              onPressed: onPressed,
-              iconSize: 26,
-              style: IconButton.styleFrom(
-                minimumSize: const Size.square(48),
-                backgroundColor: EasySubwayAccessibleColors.surfaceDefault,
-                foregroundColor: EasySubwayAccessibleColors.secondaryText,
-                side: const BorderSide(
-                  color: EasySubwayAccessibleColors.line,
-                  width: 1.5,
-                ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: _mainIconControlRadius,
-                ),
+          child: IconButton(
+            onPressed: onPressed,
+            iconSize: 26,
+            style: IconButton.styleFrom(
+              minimumSize: const Size.square(EasySubwayTouchTarget.general),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              padding: EdgeInsets.zero,
+            ),
+            icon: Badge(
+              isLabelVisible: hasNotificationItems,
+              smallSize: 8,
+              backgroundColor: EasySubwayAccessibleColors.red,
+              offset: const Offset(2, -2),
+              child: const Icon(
+                Icons.notifications_none,
+                size: 26,
+                color: EasySubwayAccessibleColors.contentPrimary,
               ),
-              icon: const Icon(Icons.notifications_none),
             ),
           ),
         ),

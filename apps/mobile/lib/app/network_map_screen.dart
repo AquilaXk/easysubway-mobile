@@ -1515,7 +1515,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
         return SlideTransition(
-          position: Tween<Offset>(begin: const Offset(-1, 0), end: Offset.zero)
+          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
               .animate(
                 CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
               ),

@@ -116,4 +116,14 @@ void main() {
       isEmpty,
     );
   });
+
+  test('환경변수 미주입 시 SupportAccessInfo.fromEnvironment는 기본 폴백 값을 제공한다', () {
+    const env = SupportAccessInfo.fromEnvironment();
+    expect(env.supportEmail, 'support@easysubway.app');
+    expect(env.securityEmail, 'security@easysubway.app');
+    expect(env.dataDeletionEmail, 'privacy@easysubway.app');
+    expect(env.termsOfServiceUrl, 'https://easysubway.app/terms');
+    expect(env.privacyPolicyUrl, 'https://easysubway.app/privacy');
+    expect(env.locationTermsUrl, 'https://easysubway.app/location-terms');
+  });
 }

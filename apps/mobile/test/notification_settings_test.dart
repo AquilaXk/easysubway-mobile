@@ -349,6 +349,160 @@ void main() {
     expect(repository.savedSettings.single.favoriteRouteFacilityAlerts, isTrue);
     expect(controller.state.message, isEmpty);
   });
+
+  test(
+    '알림 설정 컨트롤러는 마스터 푸시 알림 토글을 끄면 모든 하위 알림을 끄고 저장하되 제보 진행 알림 값은 보존한다',
+    () async {
+      final repository = FakeNotificationSettingsRepository();
+      final controller = NotificationSettingsController(repository: repository);
+
+      await controller.load();
+      expect(
+        controller.isMasterPushAlertsEnabled(controller.state.settings!),
+        isTrue,
+      );
+
+      controller.updateMasterPushAlerts(false);
+      expect(
+        controller.isMasterPushAlertsEnabled(controller.state.settings!),
+        isFalse,
+      );
+      expect(controller.state.settings?.favoriteStationFacilityAlerts, isFalse);
+      expect(controller.state.settings?.favoriteRouteFacilityAlerts, isFalse);
+      expect(controller.state.settings?.reportStatusAlerts, isTrue);
+      expect(controller.state.settings?.dataQualityAlerts, isFalse);
+
+      await controller.save();
+      expect(
+        repository.savedSettings.single.favoriteStationFacilityAlerts,
+        isFalse,
+      );
+      expect(
+        repository.savedSettings.single.favoriteRouteFacilityAlerts,
+        isFalse,
+      );
+      expect(repository.savedSettings.single.reportStatusAlerts, isTrue);
+      expect(repository.savedSettings.single.dataQualityAlerts, isFalse);
+    },
+  );
+
+  test(
+    '알림 설정 컨트롤러는 기존 사용자의 reportStatusAlerts가 false일 때도 마스터 토글 조작 시 그 값을 보존한다',
+    () async {
+      final repository = FakeNotificationSettingsRepository();
+      repository.settings = repository.settings.copyWith(
+        reportStatusAlerts: false,
+      );
+      final controller = NotificationSettingsController(repository: repository);
+
+      await controller.load();
+      controller.updateMasterPushAlerts(false);
+      expect(controller.state.settings?.reportStatusAlerts, isFalse);
+
+      controller.updateMasterPushAlerts(true);
+      expect(controller.state.settings?.reportStatusAlerts, isFalse);
+
+      await controller.save();
+      expect(repository.savedSettings.single.reportStatusAlerts, isFalse);
+    },
+  );
+
+  test('알림 설정 컨트롤러는 마스터 푸시 알림 토글을 다시 켜면 이전 알림을 복원한다', () async {
+    final repository = FakeNotificationSettingsRepository();
+    final controller = NotificationSettingsController(repository: repository);
+
+    await controller.load();
+    controller.updateFavoriteStationFacilityAlerts(false);
+    controller.updateFavoriteRouteFacilityAlerts(true);
+    controller.updateDataQualityAlerts(false);
+    controller.updateMasterPushAlerts(false);
+    expect(
+      controller.isMasterPushAlertsEnabled(controller.state.settings!),
+      isFalse,
+    );
+    expect(controller.state.settings?.favoriteStationFacilityAlerts, isFalse);
+    expect(controller.state.settings?.favoriteRouteFacilityAlerts, isFalse);
+    expect(controller.state.settings?.dataQualityAlerts, isFalse);
+
+    controller.updateMasterPushAlerts(true);
+    expect(
+      controller.isMasterPushAlertsEnabled(controller.state.settings!),
+      isTrue,
+    );
+    expect(controller.state.settings?.favoriteStationFacilityAlerts, isFalse);
+    expect(controller.state.settings?.favoriteRouteFacilityAlerts, isTrue);
+    expect(controller.state.settings?.dataQualityAlerts, isFalse);
+
+    final emptyRepo = FakeNotificationSettingsRepository();
+    emptyRepo.settings = emptyRepo.settings.copyWith(
+      favoriteStationFacilityAlerts: false,
+      favoriteRouteFacilityAlerts: false,
+      dataQualityAlerts: false,
+    );
+    final emptyController = NotificationSettingsController(
+      repository: emptyRepo,
+    );
+    await emptyController.load();
+    emptyController.updateMasterPushAlerts(false);
+    expect(
+      emptyController.state.settings?.favoriteStationFacilityAlerts,
+      isFalse,
+    );
+
+    emptyController.updateMasterPushAlerts(true);
+    expect(
+      emptyController.state.settings?.favoriteStationFacilityAlerts,
+      isTrue,
+    );
+    expect(emptyController.state.settings?.favoriteRouteFacilityAlerts, isTrue);
+    expect(emptyController.state.settings?.dataQualityAlerts, isTrue);
+  });
+
+  test('알림 설정 컨트롤러는 개별 옵션 상태별 마스터 토글 판단 및 제보 알림 업데이트를 처리한다', () async {
+    final repository = FakeNotificationSettingsRepository();
+    final controller = NotificationSettingsController(repository: repository);
+    await controller.load();
+
+    // 1. 역 알림 false, 경로 알림 true
+    final s1 = controller.state.settings!.copyWith(
+      favoriteStationFacilityAlerts: false,
+      favoriteRouteFacilityAlerts: true,
+      dataQualityAlerts: false,
+    );
+    expect(controller.isMasterPushAlertsEnabled(s1), isTrue);
+
+    // 2. 역/경로 false, 공지 true
+    final s2 = controller.state.settings!.copyWith(
+      favoriteStationFacilityAlerts: false,
+      favoriteRouteFacilityAlerts: false,
+      dataQualityAlerts: true,
+    );
+    expect(controller.isMasterPushAlertsEnabled(s2), isTrue);
+
+    // 3. 모두 false
+    final s3 = controller.state.settings!.copyWith(
+      favoriteStationFacilityAlerts: false,
+      favoriteRouteFacilityAlerts: false,
+      dataQualityAlerts: false,
+    );
+    expect(controller.isMasterPushAlertsEnabled(s3), isFalse);
+
+    controller.updateReportStatusAlerts(false);
+    expect(controller.state.settings?.reportStatusAlerts, isFalse);
+
+    // 4. 이전 설정 없는 상태에서 마스터 켜기 (기본값 all true 폴백)
+    final freshController = NotificationSettingsController(
+      repository: repository,
+    );
+    await freshController.load();
+    freshController.updateMasterPushAlerts(true);
+    expect(
+      freshController.state.settings?.favoriteStationFacilityAlerts,
+      isTrue,
+    );
+    expect(freshController.state.settings?.favoriteRouteFacilityAlerts, isTrue);
+    expect(freshController.state.settings?.dataQualityAlerts, isTrue);
+  });
 }
 
 class RetryAuthorizationHeaderProvider implements AuthorizationHeaderProvider {
