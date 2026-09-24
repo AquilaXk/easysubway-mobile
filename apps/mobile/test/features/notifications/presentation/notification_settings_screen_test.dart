@@ -157,15 +157,15 @@ void main() {
     await tester.tap(find.byKey(const Key('notificationSettingsSaveButton')));
     await tester.pumpAndSettle();
 
-    expect(repository.savedHistory, hasLength(1));
+    expect(repository.savedHistory, isNotEmpty);
     expect(
-      repository.savedHistory.single.favoriteStationFacilityAlerts,
+      repository.savedHistory.last.favoriteStationFacilityAlerts,
       isFalse,
     );
-    expect(repository.savedHistory.single.favoriteRouteFacilityAlerts, isFalse);
-    expect(repository.savedHistory.single.reportStatusAlerts, isTrue);
-    expect(repository.savedHistory.single.dataQualityAlerts, isFalse);
-    expect(find.text('알림 설정을 저장했습니다.'), findsOneWidget);
+    expect(repository.savedHistory.last.favoriteRouteFacilityAlerts, isFalse);
+    expect(repository.savedHistory.last.reportStatusAlerts, isTrue);
+    expect(repository.savedHistory.last.dataQualityAlerts, isFalse);
+    expect(find.text('변경 시 자동으로 저장됩니다'), findsOneWidget);
 
     // 마스터 토글을 다시 켜면 활성화 복원
     await tester.tap(
