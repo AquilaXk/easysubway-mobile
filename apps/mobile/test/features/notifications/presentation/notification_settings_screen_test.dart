@@ -158,10 +158,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(repository.savedHistory, isNotEmpty);
-    expect(
-      repository.savedHistory.last.favoriteStationFacilityAlerts,
-      isFalse,
-    );
+    expect(repository.savedHistory.last.favoriteStationFacilityAlerts, isFalse);
     expect(repository.savedHistory.last.favoriteRouteFacilityAlerts, isFalse);
     expect(repository.savedHistory.last.reportStatusAlerts, isTrue);
     expect(repository.savedHistory.last.dataQualityAlerts, isFalse);
