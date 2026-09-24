@@ -302,4 +302,79 @@ void main() {
       expect(inkWellFinder, findsOneWidget);
     },
   );
+
+  testWidgets('StationFacilityCard은 위치 라벨 정제 로직을 통해 미설치 및 n대 설치를 자연어로 정제한다', (
+    tester,
+  ) async {
+    const facilities = [
+      ('미설치 (count=0) 공공데이터 API 기준', '미설치'),
+      ('3대 설치 (현황 기준)', '3대 설치'),
+      ('1번 출구 앞 (count=2) 현장 검증됨 관리자 검수', '1번 출구 앞'),
+    ];
+
+    for (final (rawDesc, expected) in facilities) {
+      final f = StationFacilityInfo(
+        id: 'facility-clean-test',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-1',
+        type: 'ELEVATOR',
+        name: '테스트 엘리베이터',
+        floorFrom: 'B1',
+        floorTo: '1F',
+        description: rawDesc,
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-06-12',
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StationFacilityCard(
+              facility: f,
+              station: testStation,
+              onReportTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text(expected), findsOneWidget);
+    }
+  });
+
+  testWidgets('StationFacilityCard 탭 시 시설 상세 화면으로 네비게이션한다', (tester) async {
+    const elevator = StationFacilityInfo(
+      id: 'facility-tap-test',
+      stationId: 'station-sangnoksu',
+      exitId: 'exit-1',
+      type: 'ELEVATOR',
+      name: '1번 출구 엘리베이터',
+      floorFrom: 'B1',
+      floorTo: '1F',
+      description: '1번 출구 앞',
+      status: 'NORMAL',
+      dataConfidence: 'HIGH',
+      lastUpdatedAt: '2026-06-12',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationFacilityCard(
+            facility: elevator,
+            station: testStation,
+            onReportTap: () {},
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(
+      find.byKey(const Key('stationFacilityCard-facility-tap-test')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(FacilityDetailScreen), findsOneWidget);
+  });
 }

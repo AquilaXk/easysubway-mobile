@@ -52,11 +52,10 @@ class StationFacilityCard extends StatelessWidget {
               container: true,
               label: facility.semanticLabel,
               button: true,
-              onTap: () => _openFacilityDetail(context),
-              child: ExcludeSemantics(
-                child: InkWell(
-                  key: Key('stationFacilityCard-${facility.id}'),
-                  onTap: () => _openFacilityDetail(context),
+              child: InkWell(
+                key: Key('stationFacilityCard-${facility.id}'),
+                onTap: () => _openFacilityDetail(context),
+                child: ExcludeSemantics(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
                     child: Row(

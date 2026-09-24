@@ -790,25 +790,14 @@ String _fieldVerificationStatusLabel(String fieldValidationStatus) => '';
 String _facilityUserLocationLabel(String description) {
   var label = description.trim();
   // 정적 데이터팩의 개발자·감사용 로그성 문자열 정제(미설치(count=0) 등)
-  if (label.contains('미설치') &&
-      (label.contains('count=0') ||
-          label.contains('기록이며') ||
-          label.contains('현황 기준') ||
-          label.contains('API 기준') ||
-          label.contains('실시간 운행 상태가 아닙니다'))) {
+  if (label.contains('미설치')) {
     return '미설치';
   }
   // 공공데이터 API/운영기관 기준 n대 설치 정보 정제
   final countMatch = RegExp(r'(\d+대\s*설치)').firstMatch(label);
-  if (countMatch != null &&
-      (label.contains('기록이며') ||
-          label.contains('정보이며') ||
-          label.contains('현황 기준') ||
-          label.contains('API 기준') ||
-          label.contains('실시간 운행 상태가 아닙니다'))) {
+  if (countMatch != null) {
     return countMatch.group(1)!;
   }
-  label = label.replaceAll(RegExp(r'미설치\s*\(\s*count\s*=\s*0\s*\)'), '미설치');
   label = label.replaceAll(RegExp(r'\(?\s*count\s*=\s*\d+\s*\)?'), '');
   label = label.replaceAll(RegExp(r'현장\s*(검[증]됨|검[증] 전|재확인\s*필요)'), '');
   label = label.replaceAll(RegExp(r'관리자\s*검[수]'), '');

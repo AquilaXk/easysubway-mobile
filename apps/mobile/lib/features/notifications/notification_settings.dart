@@ -501,9 +501,7 @@ class NotificationSettingsController extends ChangeNotifier {
     }
     _masterPushAlertsOverride = value;
     if (!value) {
-      if (settings.favoriteStationFacilityAlerts ||
-          settings.favoriteRouteFacilityAlerts ||
-          settings.dataQualityAlerts) {
+      if (isMasterPushAlertsEnabled(settings)) {
         _previousEnabledSettings = settings;
       }
       _emitState(
@@ -519,10 +517,7 @@ class NotificationSettingsController extends ChangeNotifier {
     } else {
       final restored = _previousEnabledSettings;
       final nextSettings =
-          (restored != null &&
-              (restored.favoriteStationFacilityAlerts ||
-                  restored.favoriteRouteFacilityAlerts ||
-                  restored.dataQualityAlerts))
+          (restored != null && isMasterPushAlertsEnabled(restored))
           ? settings.copyWith(
               favoriteStationFacilityAlerts:
                   restored.favoriteStationFacilityAlerts,
