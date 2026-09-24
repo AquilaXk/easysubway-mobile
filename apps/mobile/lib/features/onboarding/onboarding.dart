@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -152,10 +153,87 @@ class OnboardingState {
 /// #2081: 상단 브랜드 심볼/워드마크를 걷어내고 카피만으로 화면을 세운다.
 /// 가치 카피 3행을 크게 두고 Spacer로 CTA를 하단에 고정하며, 상단 여백을 비워
 /// 타이틀이 화면 상단 1/4~1/3 지점에서 시작하는 세로 리듬을 유지한다.
-class StartScreen extends StatelessWidget {
+class StartScreen extends StatefulWidget {
   const StartScreen({required this.onStart, super.key});
 
   final VoidCallback onStart;
+
+  @override
+  State<StartScreen> createState() => _StartScreenState();
+}
+
+class _StartScreenState extends State<StartScreen>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _glyphOpacity;
+  late final Animation<Offset> _glyphSlide;
+  late final Animation<double> _titleOpacity;
+  late final Animation<Offset> _titleSlide;
+  late final Animation<double> _buttonOpacity;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
+    );
+
+    _glyphOpacity = Tween<double>(begin: 0.001, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+      ),
+    );
+    _glyphSlide = Tween<Offset>(
+      begin: const Offset(0, 0.15),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 0.4, curve: Curves.easeOut),
+      ),
+    );
+
+    _titleOpacity = Tween<double>(begin: 0.001, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.2, 0.7, curve: Curves.easeOut),
+      ),
+    );
+    _titleSlide = Tween<Offset>(
+      begin: const Offset(0, 0.1),
+      end: Offset.zero,
+    ).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.2, 0.7, curve: Curves.easeOut),
+      ),
+    );
+
+    _buttonOpacity = Tween<double>(begin: 0.001, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.5, 1.0, curve: Curves.easeOut),
+      ),
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.disableAnimationsOf(context)) {
+      _controller.value = 1.0;
+    } else if (!_controller.isAnimating && !_controller.isCompleted) {
+      unawaited(_controller.forward());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -164,13 +242,7 @@ class StartScreen extends StatelessWidget {
       body: SafeArea(
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // 상단 여백을 비워 타이틀이 화면 상단 1/4~1/3 지점에서 시작하게 한다.
-            // 심볼 제거(#2081)로 세로 여백을 조금 넉넉히 잡아 타이틀 묶음을 앉힌다.
             final topGap = (constraints.maxHeight * 0.28).clamp(72.0, 200.0);
-            // SafeArea(bottom: true) 자손이라 하단 인셋은 SafeArea가 이미 적용한다.
-            // viewPadding.bottom을 또 더하면 이중 가산이므로 토큰 여백만 쓴다.
-            // #2089(오너 실기기 검수): CTA가 화면 최하단에 과하게 붙어 있어
-            // 하단 여백을 xxl의 2배로 늘려 버튼을 세로 리듬 안에서 위로 올린다.
             const bottomGap = EasySubwaySpacing.xxl * 2;
             return SingleChildScrollView(
               child: ConstrainedBox(
@@ -187,61 +259,85 @@ class StartScreen extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SizedBox(height: topGap),
-                        Semantics(
-                          header: true,
-                          child: Text.rich(
-                            // 핵심 가치 카피 3행(#2081). #2089: 2행 중 "갈 수 있는
-                            // 길"까지만 시그니처 브랜드 색으로 강조하고, 조사 "을"과
-                            // 1·3행은 기존 잉크 토큰을 유지한다(오너 실기기 검수).
-                            // 스크린리더가 읽는 전체 문자열은 그대로 보존된다.
-                            const TextSpan(
-                              children: [
-                                TextSpan(text: '빠른 길보다\n'),
-                                TextSpan(
-                                  text: '갈 수 있는 길',
-                                  style: TextStyle(
-                                    color: EasySubwayAccessibleColors
-                                        .brandSignature,
-                                  ),
+                        FadeTransition(
+                          opacity: _glyphOpacity,
+                          child: SlideTransition(
+                            position: _glyphSlide,
+                            child: const Padding(
+                              padding: EdgeInsets.only(
+                                bottom: EasySubwaySpacing.lg,
+                              ),
+                              child: CustomPaint(
+                                size: Size(54, 20),
+                                painter: _RouteGlyphMotifPainter(
+                                  lineColor:
+                                      EasySubwayAccessibleColors.brandSignature,
+                                  stationColor:
+                                      EasySubwayAccessibleColors.surface,
                                 ),
-                                TextSpan(text: '을\n안내합니다'),
-                              ],
+                              ),
                             ),
-                            style: const TextStyle(
-                              color: EasySubwayAccessibleColors.secondaryText,
-                              fontSize: 40,
-                              fontWeight: FontWeight.w800,
-                              height: 1.18,
+                          ),
+                        ),
+                        FadeTransition(
+                          opacity: _titleOpacity,
+                          alwaysIncludeSemantics: true,
+                          child: SlideTransition(
+                            position: _titleSlide,
+                            child: Semantics(
+                              header: true,
+                              child: Text.rich(
+                                const TextSpan(
+                                  children: [
+                                    TextSpan(text: '빠른 길보다\n'),
+                                    TextSpan(
+                                      text: '갈 수 있는 길',
+                                      style: TextStyle(
+                                        color: EasySubwayAccessibleColors
+                                            .brandSignature,
+                                      ),
+                                    ),
+                                    TextSpan(text: '을\n안내합니다'),
+                                  ],
+                                ),
+                                style: const TextStyle(
+                                  color: EasySubwayAccessibleColors
+                                      .secondaryText,
+                                  fontSize: 40,
+                                  fontWeight: FontWeight.w800,
+                                  height: 1.18,
+                                ),
+                              ),
                             ),
                           ),
                         ),
                         const Spacer(),
-                        SizedBox(
-                          width: double.infinity,
-                          child: FilledButton(
-                            key: const Key('startScreenStartButton'),
-                            onPressed: onStart,
-                            style: FilledButton.styleFrom(
-                              // #2089: 시작 CTA만 시그니처 브랜드 색 채움 +
-                              // 흰 글자(대비 5.7:1, AA 통과).
-                              backgroundColor:
-                                  EasySubwayAccessibleColors.brandSignature,
-                              foregroundColor:
-                                  EasySubwayAccessibleColors.surface,
-                              minimumSize: const Size.fromHeight(58),
-                              // #2089(오너 실기기 검수 2차): 58px 버튼 대비 라벨이
-                              // 여전히 작아 보여 글자를 더 키운다(22/w700, 가독 우선).
-                              textStyle: const TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.w700,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(
-                                  EasySubwayRadius.control,
+                        FadeTransition(
+                          opacity: _buttonOpacity,
+                          alwaysIncludeSemantics: true,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: FilledButton(
+                              key: const Key('startScreenStartButton'),
+                              onPressed: widget.onStart,
+                              style: FilledButton.styleFrom(
+                                backgroundColor: EasySubwayAccessibleColors
+                                    .brandSignature,
+                                foregroundColor:
+                                    EasySubwayAccessibleColors.surface,
+                                minimumSize: const Size.fromHeight(58),
+                                textStyle: const TextStyle(
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    EasySubwayRadius.control,
+                                  ),
                                 ),
                               ),
+                              child: const Text('시작하기'),
                             ),
-                            child: const Text('시작하기'),
                           ),
                         ),
                       ],
@@ -255,6 +351,63 @@ class StartScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _RouteGlyphMotifPainter extends CustomPainter {
+  const _RouteGlyphMotifPainter({
+    required this.lineColor,
+    required this.stationColor,
+  });
+
+  final Color lineColor;
+  final Color stationColor;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final linePaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 3.0
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final startPoint = Offset(4, size.height * 0.7);
+    final midPoint1 = Offset(size.width * 0.42, size.height * 0.7);
+    final midPoint2 = Offset(size.width * 0.62, size.height * 0.3);
+    final endPoint = Offset(size.width - 4, size.height * 0.3);
+
+    final path = Path()
+      ..moveTo(startPoint.dx, startPoint.dy)
+      ..lineTo(midPoint1.dx, midPoint1.dy)
+      ..cubicTo(
+        size.width * 0.50,
+        size.height * 0.7,
+        size.width * 0.54,
+        size.height * 0.3,
+        midPoint2.dx,
+        midPoint2.dy,
+      )
+      ..lineTo(endPoint.dx, endPoint.dy);
+
+    canvas.drawPath(path, linePaint);
+
+    final fillPaint = Paint()
+      ..color = stationColor
+      ..style = PaintingStyle.fill;
+
+    final ringPaint = Paint()
+      ..color = lineColor
+      ..strokeWidth = 2.5
+      ..style = PaintingStyle.stroke;
+
+    canvas.drawCircle(startPoint, 4.0, fillPaint);
+    canvas.drawCircle(startPoint, 4.0, ringPaint);
+
+    canvas.drawCircle(endPoint, 4.0, fillPaint);
+    canvas.drawCircle(endPoint, 4.0, ringPaint);
+  }
+
+  @override
+  bool shouldRepaint(_RouteGlyphMotifPainter oldDelegate) => false;
 }
 
 /// 진행 인디케이터 — 점 2개. 블록/박스 아님(#1936).
@@ -308,7 +461,6 @@ class _PermissionInfoList extends StatelessWidget {
   final bool notificationSelected;
   final ValueChanged<bool> onLocationChanged;
   final ValueChanged<bool> onNotificationChanged;
-  // 알림 기능이 이 빌드에서 제공되지 않으면 켜라고 요청하지 않는다(#1579).
   final bool notificationAvailable;
 
   @override
@@ -318,7 +470,6 @@ class _PermissionInfoList extends StatelessWidget {
         _PermissionInfoRow(
           icon: Icons.location_on_outlined,
           title: '현재 위치',
-          subtitle: '가까운 역 찾기',
           value: locationSelected,
           onChanged: onLocationChanged,
         ),
@@ -331,7 +482,6 @@ class _PermissionInfoList extends StatelessWidget {
           _PermissionInfoRow(
             icon: Icons.notifications_none,
             title: '알림',
-            subtitle: '시설 고장·복구 알림',
             value: notificationSelected,
             onChanged: onNotificationChanged,
           ),
@@ -341,84 +491,67 @@ class _PermissionInfoList extends StatelessWidget {
   }
 }
 
-/// 권한 행 — 무채색 라인 아이콘 + 라벨 + 짧은 한 줄 + 우측 켜기 스위치.
-///
-/// 프로필 프리셋 행과 같은 톤: 좌측 아이콘은 잉크(무채색), 라벨은 bodyLarge,
-/// 보조 한 줄은 mutedText. 박스 없음, 높이는 접근성 터치 기준(≥56)을 지킨다.
+/// 권한 행 — 무채색 라인 아이콘 + 라벨 + 우측 스위치.
 class _PermissionInfoRow extends StatelessWidget {
   const _PermissionInfoRow({
     required this.icon,
     required this.title,
-    required this.subtitle,
     required this.value,
     required this.onChanged,
   });
 
   final IconData icon;
   final String title;
-  final String subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 60),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10),
-        child: Row(
-          children: [
-            // 무채색 라인 아이콘 — 프로필 리스트와 같은 시각 리듬(색 없음).
-            Icon(icon, color: EasySubwayAccessibleColors.mutedText, size: 24),
-            const SizedBox(width: EasySubwaySpacing.lg),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title,
-                    style: textTheme.bodyLarge?.copyWith(
-                      color: EasySubwayAccessibleColors.text,
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
-                      height: 1.25,
-                    ),
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => onChanged(!value),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 60),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Row(
+            children: [
+              Icon(icon, color: EasySubwayAccessibleColors.mutedText, size: 24),
+              const SizedBox(width: EasySubwaySpacing.lg),
+              Expanded(
+                child: Text(
+                  title,
+                  style: textTheme.bodyLarge?.copyWith(
+                    color: EasySubwayAccessibleColors.text,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 18,
+                    height: 1.25,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    subtitle,
-                    style: textTheme.bodyMedium?.copyWith(
-                      color: EasySubwayAccessibleColors.mutedText,
-                      fontWeight: FontWeight.w600,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(width: EasySubwaySpacing.md),
-            Semantics(
-              label: '$title ${value ? '켜짐' : '꺼짐'}',
-              toggled: value,
-              onTap: () => onChanged(!value),
-              child: ExcludeSemantics(
-                child: Switch(
-                  value: value,
-                  onChanged: onChanged,
-                  activeThumbColor:
-                      EasySubwayAccessibleColors.interactionOnPrimary,
-                  activeTrackColor: EasySubwayAccessibleColors.brandSignature,
-                  inactiveThumbColor:
-                      EasySubwayAccessibleColors.interactionOnPrimary,
-                  inactiveTrackColor:
-                      EasySubwayAccessibleColors.switchInactiveTrack,
-                  materialTapTargetSize: MaterialTapTargetSize.padded,
                 ),
               ),
-            ),
-          ],
+              const SizedBox(width: EasySubwaySpacing.md),
+              Semantics(
+                label: '$title ${value ? '켜짐' : '꺼짐'}',
+                toggled: value,
+                onTap: () => onChanged(!value),
+                child: ExcludeSemantics(
+                  child: Switch(
+                    value: value,
+                    onChanged: onChanged,
+                    activeThumbColor:
+                        EasySubwayAccessibleColors.interactionOnPrimary,
+                    activeTrackColor: EasySubwayAccessibleColors.brandSignature,
+                    inactiveThumbColor:
+                        EasySubwayAccessibleColors.interactionOnPrimary,
+                    inactiveTrackColor:
+                        EasySubwayAccessibleColors.switchInactiveTrack,
+                    materialTapTargetSize: MaterialTapTargetSize.padded,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -661,11 +794,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                     key: const Key(
                                       'onboardingPermissionAllowButton',
                                     ),
-                                    onPressed:
-                                        _locationPermissionSelected ||
-                                            _notificationPermissionSelected
-                                        ? _handlePermissionAllow
-                                        : null,
+                                    onPressed: _handlePermissionAllow,
                                     style: FilledButton.styleFrom(
                                       backgroundColor:
                                           EasySubwayAccessibleColors
@@ -719,7 +848,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   tooltip: '이전 단계',
                   onPressed: _goBack,
                   style: IconButton.styleFrom(
-                    backgroundColor: EasySubwayAccessibleColors.surface,
                     foregroundColor: EasySubwayAccessibleColors.text,
                     minimumSize: const Size.square(
                       EasySubwayTouchTarget.general,

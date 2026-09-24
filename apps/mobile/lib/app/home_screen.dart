@@ -196,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   /// 설정 탭 뒤로가기용. 직전에 보던 탭(없으면 홈).
   int? _previousTabIndex;
   late String _mobilityType;
+  late WalkingPace _walkingPace;
   String? _routeTabMobilityType;
   RouteTransportScope _routeTabTransportScope = RouteTransportScope.subway;
   late final RouteDraftController _routeDraftController;
@@ -225,6 +226,10 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void initState() {
     super.initState();
     _mobilityType = widget.initialMobilityType;
+    final initialPreset =
+        mobilityPresetFromRepresentativeMobilityType(widget.initialMobilityType) ??
+        MobilityPreset.standard;
+    _walkingPace = walkingPaceFromPreset(initialPreset);
     _routeDraftController = RouteDraftController();
     _routeDraftController.addListener(_handleRouteDraftChanged);
     final facilitiesFuture = _loadNotificationFacilities();
@@ -780,6 +785,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           sessionProvider: widget.journeySessionProvider,
           draft: _routeDraftController.draft,
           mobilityType: _routeTabMobilityType ?? initialMobilityType,
+          initialWalkingPace: _walkingPace,
           onShellBackToHome: closeRouteTab,
           getOffAlarmController: widget.getOffAlarmController,
           stationNameResolver: journeyAlarmStationNameResolver(repository),
@@ -852,11 +858,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       return rootTab(
         AppSettingsScreen(
           currentPreset: currentPreset,
+          initialWalkingPace: _walkingPace,
           viewPreferences: widget.viewPreferences,
           notificationRepository: notificationRepository,
           notificationPermissionProvider: notificationPermissionProvider,
           onViewPreferencesChanged: widget.onViewPreferencesChanged,
           onOpenMobilityProfile: _openMobilityProfile,
+          onPresetChanged: _applyMobilityPreset,
+          onWalkingPaceChanged: (pace) {
+            setState(() {
+              _walkingPace = pace;
+            });
+          },
           onOpenSupportAccess: openSupportAccess,
           onOpenInquiry: openInquiry,
           onOpenServiceInfo: openServiceInfo,
@@ -936,36 +949,57 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     if (selectedPreset == currentPreset) {
       return null;
     }
+    final success = await _applyMobilityPreset(selectedPreset);
+    return success ? selectedPreset : null;
+  }
+
+  Future<bool> _applyMobilityPreset(MobilityPreset selectedPreset) async {
+    final currentPreset =
+        mobilityPresetFromRepresentativeMobilityType(_mobilityType) ??
+        MobilityPreset.standard;
+    if (selectedPreset == currentPreset) {
+      return true;
+    }
     final previousMobilityType = _mobilityType;
+    final previousWalkingPace = _walkingPace;
     setState(() {
       _mobilityType = mobilityPresetRepresentativeMobilityType(selectedPreset);
+      if (selectedPreset == MobilityPreset.slow) {
+        _walkingPace = WalkingPace.slow;
+      } else if (selectedPreset == MobilityPreset.standard &&
+          _walkingPace == WalkingPace.slow) {
+        _walkingPace = WalkingPace.standard;
+      }
     });
     try {
       await widget.onMobilityProfileChanged?.call(selectedPreset);
     } catch (error, stackTrace) {
       reportMobileError(error, stackTrace, context: '이동 조건 저장 중 예외가 발생했습니다.');
       if (!mounted) {
-        return null;
+        return false;
       }
       setState(() {
         _mobilityType = previousMobilityType;
+        _walkingPace = previousWalkingPace;
       });
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('이동 조건을 저장하지 못했어요. 이전 조건으로 되돌렸어요.')),
       );
-      return null;
+      return false;
     }
     if (!mounted) {
-      return null;
+      return true;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
       SnackBar(
         content: Text(
           '${mobilityPresetDisplayName(selectedPreset)} 조건으로 변경했습니다',
         ),
       ),
     );
-    return selectedPreset;
+    return true;
   }
 }
 

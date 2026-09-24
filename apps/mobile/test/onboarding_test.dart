@@ -467,7 +467,7 @@ void main() {
     );
   });
 
-  testWidgets('권한 화면 이전 버튼은 큰 글자 스크롤 위에서 불투명 표면을 유지한다', (tester) async {
+  testWidgets('권한 화면 이전 버튼은 접근성 터치 영역을 보장하고 투명 배경을 유지한다', (tester) async {
     tester.view.physicalSize = const Size(360, 640);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -488,7 +488,7 @@ void main() {
     );
     expect(
       backButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-      EasySubwayAccessibleColors.surface,
+      isNull,
     );
     expect(
       backButton.style?.minimumSize?.resolve(<WidgetState>{}),
