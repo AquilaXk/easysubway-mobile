@@ -202,16 +202,16 @@ Future<void> main() async {
           stationId: stationId,
           facilityReportDraftTargetStore: draftTargetStore,
           onOpenFacilityReport: (target) {
+            final locationProvider = bootstrap.dependencies.locationProvider;
             return navigatorKey.currentState!.push(
               MaterialPageRoute<void>(
                 builder: (_) => FacilityReportScreen(
                   repository: bootstrap.dependencies.reportRepository,
+                  draftTargetStore: draftTargetStore,
+                  target: target,
                   locationLoader: () async {
                     try {
-                      final location = await bootstrap
-                          .dependencies
-                          .locationProvider
-                          .currentLocation();
+                      final location = await locationProvider.currentLocation();
                       return FacilityReportLocation(
                         latitude: location.latitude,
                         longitude: location.longitude,
@@ -220,16 +220,9 @@ Future<void> main() async {
                       throw FacilityReportLocationException(error.message);
                     }
                   },
-                  needsLocationPermissionRequest: bootstrap
-                      .dependencies
-                      .locationProvider
-                      .needsLocationPermissionRequest,
-                  openLocationSettings: bootstrap
-                      .dependencies
-                      .locationProvider
-                      .openLocationSettings,
-                  draftTargetStore: draftTargetStore,
-                  target: target,
+                  needsLocationPermissionRequest:
+                      locationProvider.needsLocationPermissionRequest,
+                  openLocationSettings: locationProvider.openLocationSettings,
                 ),
               ),
             );

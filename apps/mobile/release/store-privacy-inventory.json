@@ -277,36 +277,28 @@
     {
       "id": "precise_location",
       "displayNameKo": "현재 위치",
-      "purposeKo": "가까운 역 검색, 시설 신고 위치 확인, 외부 지도 도보 길안내",
-      "implementationStatus": "collected",
+      "purposeKo": "가까운 역 검색(단말 내 계산), 외부 지도 도보 길안내 연동",
+      "implementationStatus": "on-device-only",
       "introducedInVersion": "0.1.0",
-      "codeOwner": "mobile/backend",
-      "collectionTrigger": "사용자가 가까운 역 검색, 시설 신고 위치 첨부, 출구 도보 길안내를 실행할 때만 사용",
+      "codeOwner": "mobile",
+      "collectionTrigger": "사용자가 가까운 역 검색 또는 출구 도보 길안내를 실행할 때만 단말 내에서 일시적 사용",
       "backendTableOrService": [
         "stationSearch.currentLocation",
-        "externalMap.walkingRoute.startCoordinate",
-        "facility_reports.latitude",
-        "facility_reports.longitude"
+        "externalMap.walkingRoute.startCoordinate"
       ],
       "storageLocations": [
         "mobile-memory",
-        "external-map-deeplink",
-        "backend-report",
-        "restricted-operations-backup"
+        "external-map-deeplink"
       ],
-      "retentionKo": "주변 역 검색과 출구 도보 길안내 시작 좌표는 앱이 저장하지 않는다. 시설 신고 위치는 운영 데이터에서 접수일부터 최대 1년, 제한된 운영 백업에서 생성일부터 30일 보관 후 자동 삭제 또는 익명화한다.",
-      "deletionKo": "운영 데이터는 접수일부터 최대 1년 뒤, 제한된 운영 백업은 생성일부터 30일 뒤 자동 파기하며 그 전 데이터 삭제 요청 시 신고자 연결과 위치를 삭제 또는 익명화",
-      "deletionImplementation": "UserDataDeletionService와 FacilityReportPersonalDataPurgeScheduler가 운영 데이터의 신고 위치 연결을 제거하고, prune-sensitive-backups.mjs 및 sensitive-backup-retention workflow가 만료 백업을 매일 삭제한다.",
+      "retentionKo": "주변 역 검색과 출구 도보 길안내 시작 좌표는 서버로 전송되거나 저장되지 않으며 단말기 메모리에서만 일시적으로 처리된 후 즉시 소멸한다.",
+      "deletionKo": "서버에 위치정보를 수집·저장하지 않으므로 영구 저장된 위치 데이터가 존재하지 않는다.",
+      "deletionImplementation": "단말기 메모리 외 영구 저장소가 없으며 서버 전송이 원천 차단되어 별도의 파기 작업 불필요.",
       "evidence": [
-        "apps/mobile/lib/station_search.dart",
-        "apps/mobile/lib/facility_report.dart",
-        "apps/mobile/release/external-map-deeplink-policy.json",
-        "backend/src/main/java/com/easysubway/user/application/service/UserDataDeletionService.java",
-        "backend/src/main/java/com/easysubway/report/adapter/in/scheduler/FacilityReportPersonalDataPurgeScheduler.java",
-        "tools/ops/prune-sensitive-backups.mjs",
-        ".github/workflows/sensitive-backup-retention.yml"
+        "apps/mobile/lib/features/stations/data/drift_station_repository.dart",
+        "apps/mobile/lib/features/stations/presentation/station_exit_card.dart",
+        "apps/mobile/release/external-map-deeplink-policy.json"
       ],
-      "lastVerifiedAt": "2026-07-16",
+      "lastVerifiedAt": "2026-09-24",
       "sharedWithThirdParties": true,
       "thirdPartySharingKo": "출구 정보가 표시되면 카카오맵 미리보기를 자동으로 불러오며 공개 역·출구 좌표와 지도 화면 범위를 카카오에 전달하지만 현재 위치는 사용하지 않는다. 사용자가 출구 도보 길안내를 명시적으로 누르면 카카오맵 앱/웹을 열며 앱에는 현재 위치 시작 좌표와 목적지 좌표를, 웹에는 목적지 좌표만 전달한다. 이 외부 지도 전달 좌표는 운영자 서버로 전송하거나 앱에 저장하지 않고 tracking에 사용하지 않는다.",
       "userInitiatedSharingException": {
@@ -324,19 +316,19 @@
       "usedForTracking": false,
       "googlePlayDataSafety": {
         "dataType": "Location",
-        "collected": true,
-        "collectionType": "user-triggered",
+        "collected": false,
+        "collectionType": "none",
         "purpose": "App functionality",
-        "linkedToUser": true,
-        "encryptedInTransit": true,
+        "linkedToUser": false,
+        "encryptedInTransit": false,
         "optional": true,
         "required": false,
-        "deletionSupported": true
+        "deletionSupported": false
       },
       "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypePreciseLocation",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+        "dataType": "None",
+        "linkedToUser": false,
+        "purpose": "NotCollected"
       }
     },
     {
@@ -886,48 +878,37 @@
     {
       "id": "facility_report_location",
       "displayNameKo": "시설 신고 위치",
-      "purposeKo": "신고 대상 시설 주변의 실제 위치를 운영 검수에 참고",
-      "implementationStatus": "collected",
+      "purposeKo": "위치정보사업자 미적용에 따른 서버 수집 비활성화(미수집)",
+      "implementationStatus": "disabled",
       "introducedInVersion": "0.1.0",
       "codeOwner": "mobile/backend",
-      "collectionTrigger": "사용자가 시설 신고 대상 위치를 확인하고 신고를 제출할 때",
-      "backendTableOrService": [
-        "facility_reports.latitude",
-        "facility_reports.longitude"
-      ],
-      "storageLocations": [
-        "backend-database",
-        "restricted-operations-backup"
-      ],
-      "retentionKo": "운영 데이터는 접수일부터 최대 1년, 제한된 운영 백업은 생성일부터 30일 보관 후 자동 파기 작업으로 좌표를 삭제 또는 익명화",
-      "deletionKo": "운영 데이터는 접수일부터 최대 1년 뒤, 제한된 운영 백업은 생성일부터 30일 뒤 자동 파기하며 그 전 데이터 삭제 요청 시 위치를 삭제 또는 익명화",
-      "deletionImplementation": "UserDataDeletionService와 FacilityReportPersonalDataPurgeScheduler가 운영 신고 위치를 사용자 식별자와 분리하고, prune-sensitive-backups.mjs 및 sensitive-backup-retention workflow가 만료 백업을 매일 삭제한다.",
+      "collectionTrigger": "비활성화됨 (클라이언트에서 위치 좌표를 첨부하거나 전송하지 않음)",
+      "backendTableOrService": [],
+      "storageLocations": [],
+      "retentionKo": "위치 정보를 수집하지 않는다.",
+      "deletionKo": "수집하지 않으므로 파기 대상 없음",
+      "deletionImplementation": "수집 비활성화",
       "evidence": [
-        "apps/mobile/lib/facility_report.dart",
-        "backend/src/main/java/com/easysubway/report/domain/FacilityReport.java",
-        "backend/src/main/java/com/easysubway/user/application/service/UserDataDeletionService.java",
-        "backend/src/main/java/com/easysubway/report/adapter/in/scheduler/FacilityReportPersonalDataPurgeScheduler.java",
-        "tools/ops/prune-sensitive-backups.mjs",
-        ".github/workflows/sensitive-backup-retention.yml"
+        "apps/mobile/lib/features/facility_report/presentation/facility_report_screen.dart"
       ],
-      "lastVerifiedAt": "2026-07-16",
+      "lastVerifiedAt": "2026-09-24",
       "sharedWithThirdParties": false,
       "usedForTracking": false,
       "googlePlayDataSafety": {
         "dataType": "Location",
-        "collected": true,
-        "collectionType": "user-triggered",
+        "collected": false,
+        "collectionType": "none",
         "purpose": "App functionality",
-        "linkedToUser": true,
-        "encryptedInTransit": true,
-        "optional": true,
+        "linkedToUser": false,
+        "encryptedInTransit": false,
+        "optional": false,
         "required": false,
-        "deletionSupported": true
+        "deletionSupported": false
       },
       "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypePreciseLocation",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+        "dataType": "None",
+        "linkedToUser": false,
+        "purpose": "NotCollected"
       }
     },
     {

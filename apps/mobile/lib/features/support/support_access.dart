@@ -12,21 +12,39 @@ class SupportAccessInfo {
     this.securityEmail = '',
   });
 
+  static const defaultTermsOfServiceUrl = 'https://easysubway.app/terms';
+  static const defaultPrivacyPolicyUrl = 'https://easysubway.app/privacy';
+  static const defaultLocationTermsUrl =
+      'https://easysubway.app/location-terms';
+  static const defaultSupportEmail = 'support@easysubway.app';
+  static const defaultDataDeletionEmail = 'privacy@easysubway.app';
+  static const defaultSecurityEmail = 'security@easysubway.app';
+
   const SupportAccessInfo.fromEnvironment()
     : termsOfServiceUrl = const String.fromEnvironment(
         'EASYSUBWAY_TERMS_OF_SERVICE_URL',
+        defaultValue: defaultTermsOfServiceUrl,
       ),
       privacyPolicyUrl = const String.fromEnvironment(
         'EASYSUBWAY_PRIVACY_POLICY_URL',
+        defaultValue: defaultPrivacyPolicyUrl,
       ),
       locationTermsUrl = const String.fromEnvironment(
         'EASYSUBWAY_LOCATION_TERMS_URL',
+        defaultValue: defaultLocationTermsUrl,
       ),
-      supportEmail = const String.fromEnvironment('EASYSUBWAY_SUPPORT_EMAIL'),
+      supportEmail = const String.fromEnvironment(
+        'EASYSUBWAY_SUPPORT_EMAIL',
+        defaultValue: defaultSupportEmail,
+      ),
       dataDeletionEmail = const String.fromEnvironment(
         'EASYSUBWAY_DATA_DELETION_EMAIL',
+        defaultValue: defaultDataDeletionEmail,
       ),
-      securityEmail = const String.fromEnvironment('EASYSUBWAY_SECURITY_EMAIL');
+      securityEmail = const String.fromEnvironment(
+        'EASYSUBWAY_SECURITY_EMAIL',
+        defaultValue: defaultSecurityEmail,
+      );
 
   final String termsOfServiceUrl;
   final String privacyPolicyUrl;

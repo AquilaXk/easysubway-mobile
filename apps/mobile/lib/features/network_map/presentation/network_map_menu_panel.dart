@@ -28,7 +28,7 @@ class NetworkMapMenuPanel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Align(
-      alignment: Alignment.centerLeft,
+      alignment: Alignment.centerRight,
       child: Material(
         key: const Key('networkMapMenuPanel'),
         elevation: 0,

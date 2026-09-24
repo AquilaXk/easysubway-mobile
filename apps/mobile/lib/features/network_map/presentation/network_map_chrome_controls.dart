@@ -225,7 +225,7 @@ class NetworkMapTopBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
         child: Row(
           children: [
-            if (searchMode)
+            if (searchMode) ...[
               IconButton(
                 key: const Key('networkMapSearchBackButton'),
                 tooltip: '뒤로',
@@ -240,24 +240,12 @@ class NetworkMapTopBar extends StatelessWidget {
                   size: 26,
                   color: EasySubwayAccessibleColors.contentPrimary,
                 ),
-              )
-            else
-              IconButton(
-                key: const Key('networkMapMenuButton'),
-                tooltip: '메뉴',
-                onPressed: onMenuTap,
-                style: IconButton.styleFrom(
-                  minimumSize: const Size.square(EasySubwayTouchTarget.general),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: EdgeInsets.zero,
-                ),
-                icon: const Icon(
-                  Icons.menu,
-                  size: 26,
-                  color: EasySubwayAccessibleColors.contentPrimary,
-                ),
               ),
-            const SizedBox(width: 4),
+              const SizedBox(width: 4),
+            ] else if (notificationAction != null) ...[
+              notificationAction!,
+              const SizedBox(width: 4),
+            ],
             Expanded(
               child: searchMode
                   ? EasySubwaySearchField(
@@ -332,9 +320,23 @@ class NetworkMapTopBar extends StatelessWidget {
                 );
               },
             ),
-            if (notificationAction != null) ...[
-              const SizedBox(width: 8),
-              notificationAction!,
+            if (!searchMode) ...[
+              const SizedBox(width: 4),
+              IconButton(
+                key: const Key('networkMapMenuButton'),
+                tooltip: '메뉴',
+                onPressed: onMenuTap,
+                style: IconButton.styleFrom(
+                  minimumSize: const Size.square(EasySubwayTouchTarget.general),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: EdgeInsets.zero,
+                ),
+                icon: const Icon(
+                  Icons.menu,
+                  size: 26,
+                  color: EasySubwayAccessibleColors.contentPrimary,
+                ),
+              ),
             ],
           ],
         ),

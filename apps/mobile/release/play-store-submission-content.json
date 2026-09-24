@@ -48,11 +48,11 @@
     "publicUserSignIn": false,
     "accountCreation": false,
     "backgroundLocation": false,
-    "preciseLocation": "optional_user_triggered_nearby_station_report_location_and_exit_walk_route",
+    "preciseLocation": "on_device_only_nearby_station_and_exit_walk_route",
     "cameraOrPhoto": "optional_user_triggered_report_attachment_only",
     "restrictedContent": false,
     "targetAudience": "all_users_not_child_directed",
-    "reviewerAccessNotesKo": "로그인 없는 앱입니다. 위치 권한은 주변 역 찾기, 신고 위치 확인, 출구 도보 길안내에서만 선택적으로 사용합니다. 자체 서빙 비개인화 광고 landing은 사용자가 명시적으로 누를 때만 외부 브라우저로 엽니다."
+    "reviewerAccessNotesKo": "로그인 없는 앱입니다. 위치 권한은 주변 역 찾기 및 출구 도보 길안내에서 단말 내(On-Device)에서만 일시적으로 사용하며 서버로 전송하지 않습니다. 자체 서빙 비개인화 광고 landing은 사용자가 명시적으로 누를 때만 외부 브라우저로 엽니다."
   },
   "requiredScreenshotSet": [
     {
@@ -202,7 +202,6 @@
       "deletionSupported"
     ],
     "requiredCollectedDataTypes": [
-      "Location",
       "App activity",
       "Personal info",
       "User-generated content",
@@ -215,9 +214,9 @@
         "dataType": "Location",
         "inventoryDataIds": ["precise_location", "facility_report_location"],
         "excludedInventoryDataIds": ["embedded_map_preview_public_coordinates"],
-        "containsCollectedData": true,
+        "containsCollectedData": false,
         "containsRequiredData": false,
-        "containsOptionalData": true,
+        "containsOptionalData": false,
         "containsDeletionUnsupportedData": false,
         "requiredConsoleFields": [
           "collected",
@@ -348,9 +347,7 @@
       }
     ],
     "optionalUserTriggeredData": [
-      "precise location for nearby station search",
       "facility report photo",
-      "facility report location",
       "mobility profile",
       "favorites",
       "train search abuse prevention state"

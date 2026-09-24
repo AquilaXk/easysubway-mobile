@@ -177,6 +177,7 @@ class EasySubwayApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       scrollBehavior: const EasySubwayScrollBehavior(),
       theme: ThemeData(
+        fontFamily: 'Pretendard',
         // fromSeed 파생색 대신 시그니처 역할색을 명시해 JSON 색 계약을 유지한다.
         colorScheme:
             ColorScheme.fromSeed(
@@ -201,7 +202,9 @@ class EasySubwayApp extends StatelessWidget {
               onErrorContainer: EasySubwayAccessibleColors.statusDangerContent,
             ),
         extensions: const [EasySubwayTokens.light],
-        textTheme: easySubwayTextTheme(ThemeData(useMaterial3: true).textTheme),
+        textTheme: easySubwayTextTheme(
+          ThemeData(useMaterial3: true).textTheme,
+        ).apply(fontFamily: 'Pretendard'),
         scaffoldBackgroundColor: EasySubwayAccessibleColors.surfaceScaffold,
         appBarTheme: const AppBarTheme(
           centerTitle: false,

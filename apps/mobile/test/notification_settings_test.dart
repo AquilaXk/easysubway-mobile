@@ -349,6 +349,84 @@ void main() {
     expect(repository.savedSettings.single.favoriteRouteFacilityAlerts, isTrue);
     expect(controller.state.message, '알림 설정을 저장했습니다.');
   });
+
+  test(
+    '알림 설정 컨트롤러는 마스터 푸시 알림 토글을 끄면 모든 하위 알림을 끄고 저장하되 제보 진행 알림 값은 보존한다',
+    () async {
+      final repository = FakeNotificationSettingsRepository();
+      final controller = NotificationSettingsController(repository: repository);
+
+      await controller.load();
+      expect(
+        controller.isMasterPushAlertsEnabled(controller.state.settings!),
+        isTrue,
+      );
+
+      controller.updateMasterPushAlerts(false);
+      expect(
+        controller.isMasterPushAlertsEnabled(controller.state.settings!),
+        isFalse,
+      );
+      expect(controller.state.settings?.favoriteStationFacilityAlerts, isFalse);
+      expect(controller.state.settings?.favoriteRouteFacilityAlerts, isFalse);
+      expect(controller.state.settings?.reportStatusAlerts, isTrue);
+      expect(controller.state.settings?.dataQualityAlerts, isFalse);
+
+      await controller.save();
+      expect(
+        repository.savedSettings.single.favoriteStationFacilityAlerts,
+        isFalse,
+      );
+      expect(
+        repository.savedSettings.single.favoriteRouteFacilityAlerts,
+        isFalse,
+      );
+      expect(repository.savedSettings.single.reportStatusAlerts, isTrue);
+      expect(repository.savedSettings.single.dataQualityAlerts, isFalse);
+    },
+  );
+
+  test(
+    '알림 설정 컨트롤러는 기존 사용자의 reportStatusAlerts가 false일 때도 마스터 토글 조작 시 그 값을 보존한다',
+    () async {
+      final repository = FakeNotificationSettingsRepository();
+      repository.settings = repository.settings.copyWith(
+        reportStatusAlerts: false,
+      );
+      final controller = NotificationSettingsController(repository: repository);
+
+      await controller.load();
+      controller.updateMasterPushAlerts(false);
+      expect(controller.state.settings?.reportStatusAlerts, isFalse);
+
+      controller.updateMasterPushAlerts(true);
+      expect(controller.state.settings?.reportStatusAlerts, isFalse);
+
+      await controller.save();
+      expect(repository.savedSettings.single.reportStatusAlerts, isFalse);
+    },
+  );
+
+  test('알림 설정 컨트롤러는 마스터 푸시 알림 토글을 다시 켜면 이전 알림을 복원한다', () async {
+    final repository = FakeNotificationSettingsRepository();
+    final controller = NotificationSettingsController(repository: repository);
+
+    await controller.load();
+    controller.updateFavoriteRouteFacilityAlerts(true);
+    controller.updateMasterPushAlerts(false);
+    expect(
+      controller.isMasterPushAlertsEnabled(controller.state.settings!),
+      isFalse,
+    );
+
+    controller.updateMasterPushAlerts(true);
+    expect(
+      controller.isMasterPushAlertsEnabled(controller.state.settings!),
+      isTrue,
+    );
+    expect(controller.state.settings?.favoriteStationFacilityAlerts, isTrue);
+    expect(controller.state.settings?.favoriteRouteFacilityAlerts, isTrue);
+  });
 }
 
 class RetryAuthorizationHeaderProvider implements AuthorizationHeaderProvider {

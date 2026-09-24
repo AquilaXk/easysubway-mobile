@@ -652,9 +652,8 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
       return;
     }
     final selected = line ?? result.lines.firstOrNull;
-    // 명시 검색과 같은 query 키를 써야 최근 목록이 중복되지 않는다.
-    final typedQuery = _queryController.text.trim();
-    final historyQuery = typedQuery.isNotEmpty ? typedQuery : result.nameKo;
+    // 검색 결과에서 역을 선택할 때는 입력한 검색어 단편(예: "1")이 아닌 역 정식 명칭을 최근 검색어로 저장한다.
+    final historyQuery = result.nameKo;
     try {
       await repository.recordSearch(
         historyQuery,

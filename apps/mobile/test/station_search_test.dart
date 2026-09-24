@@ -1667,6 +1667,23 @@ void main() {
     expect(uncheckedDescription.locationLabel, '이동 보조 시설');
     expect(uncheckedDescription.semanticLabel, isNot(contains('현장 검증')));
     expect(metadataOnlyDescription.locationLabel, 'B1-1F');
+
+    final uninstalledWithLogDesc = _stationFacility(
+      description:
+          '광주교통공사 역사별 장애인 편의시설 현황 기준 휠체어리프트 미설치(count=0) 기록이며 실시간 운행 상태가 아닙니다.',
+    );
+    expect(uninstalledWithLogDesc.locationLabel, '미설치');
+
+    final uninstalledShortLogDesc = _stationFacility(
+      description: '휠체어리프트 미설치(count=0)',
+    );
+    expect(uninstalledShortLogDesc.locationLabel, '미설치');
+
+    final installedWithLogDesc = _stationFacility(
+      description:
+          '인천교통공사 역사별 장애인 편의시설 현황 기준 엘리베이터 2대 설치 정보이며 실시간 운행 상태가 아닙니다.',
+    );
+    expect(installedWithLogDesc.locationLabel, '2대 설치');
   });
 
   test('확인 시점 상대 표현은 오늘/어제/n일 전/n주 전 버킷을 만든다', () {
@@ -1789,6 +1806,7 @@ StationFacilityInfo _stationFacility({
   String type = 'ELEVATOR',
   String exitId = 'exit-sangnoksu-1',
   String status = 'NORMAL',
+  String description = '1번 출구와 대합실을 연결합니다.',
 }) {
   return StationFacilityInfo(
     id: id,
@@ -1798,7 +1816,7 @@ StationFacilityInfo _stationFacility({
     name: name,
     floorFrom: '지상',
     floorTo: '대합실',
-    description: '1번 출구와 대합실을 연결합니다.',
+    description: description,
     status: status,
     dataConfidence: 'HIGH',
     lastUpdatedAt: '2026-06-12',

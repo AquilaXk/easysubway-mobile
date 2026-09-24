@@ -1527,7 +1527,7 @@ void main() {
     expect(nearbyButtonRect.right, lessThanOrEqualTo(1280));
   });
 
-  testWidgets('홈 우측 상단 알림 버튼은 알림함으로 이동한다', (tester) async {
+  testWidgets('홈 상단 알림 버튼은 깔끔한 아이콘으로 알림함으로 이동한다', (tester) async {
     await tester.pumpWidget(
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
@@ -1554,8 +1554,19 @@ void main() {
         matching: find.byType(Badge),
       ),
     );
-    expect(notificationButtonSide?.color, EasySubwayAccessibleColors.line);
-    expect(notificationButtonSide?.width, 1.5);
+    expect(notificationButtonSide, isNull);
+    expect(
+      notificationButton.style?.backgroundColor?.resolve(<WidgetState>{}),
+      isNull,
+    );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const Key('homeNotificationActionButton')))
+          .dx,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('networkMapMenuButton'))).dx,
+      ),
+    );
     expect(notificationBadge.isLabelVisible, isFalse);
     expect(find.bySemanticsLabel('알림, 새 알림이 없어요'), findsOneWidget);
     expect(find.bySemanticsLabel('알림, 확인할 알림 있음'), findsNothing);
@@ -10317,9 +10328,11 @@ void main() {
       await _openNotificationSettings(tester);
 
       expect(find.text('알림 설정'), findsOneWidget);
+      expect(find.text('이용 및 시설 알림'), findsOneWidget);
+      expect(find.text('공지 및 서비스 안내'), findsOneWidget);
       expect(find.text('역 시설 알림'), findsOneWidget);
       expect(find.text('경로 시설 알림'), findsOneWidget);
-      expect(find.text('제보 진행 알림'), findsOneWidget);
+      expect(find.text('제보 진행 알림'), findsNothing);
       expect(find.text('정보 갱신 알림'), findsNothing);
       expect(find.text('최신 안내 알림'), findsOneWidget);
       expect(find.bySemanticsLabel('역 시설 알림 켜짐'), findsOneWidget);
@@ -10341,6 +10354,10 @@ void main() {
       );
       expect(
         notificationRepository.savedSettings.single.dataQualityAlerts,
+        isTrue,
+      );
+      expect(
+        notificationRepository.savedSettings.single.reportStatusAlerts,
         isTrue,
       );
       expect(find.text('알림 설정을 저장했습니다.'), findsOneWidget);

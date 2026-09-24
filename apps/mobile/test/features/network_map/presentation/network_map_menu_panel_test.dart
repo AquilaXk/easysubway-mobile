@@ -83,6 +83,14 @@ void main() {
 
     final panel = find.byKey(const Key('networkMapMenuPanel'));
     expect(panel, findsOneWidget);
+    expect(
+      tester
+          .widget<Align>(
+            find.ancestor(of: panel, matching: find.byType(Align)).first,
+          )
+          .alignment,
+      Alignment.centerRight,
+    );
     expect(tester.getSize(panel).width, 256);
     expect(
       tester.getSize(find.byKey(const Key('networkMapMenuHeader'))).height,
