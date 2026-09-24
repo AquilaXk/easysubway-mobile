@@ -492,6 +492,10 @@ class NotificationSettingsController extends ChangeNotifier {
     if (_masterPushAlertsOverride != null) {
       return _masterPushAlertsOverride!;
     }
+    return _hasAnyActivePushAlerts(settings);
+  }
+
+  static bool _hasAnyActivePushAlerts(NotificationSettings settings) {
     return settings.favoriteStationFacilityAlerts ||
         settings.favoriteRouteFacilityAlerts ||
         settings.dataQualityAlerts;
@@ -504,7 +508,7 @@ class NotificationSettingsController extends ChangeNotifier {
     }
     _masterPushAlertsOverride = value;
     if (!value) {
-      if (isMasterPushAlertsEnabled(settings)) {
+      if (_hasAnyActivePushAlerts(settings)) {
         _previousEnabledSettings = settings;
       }
       _emitState(
@@ -520,7 +524,7 @@ class NotificationSettingsController extends ChangeNotifier {
     } else {
       final restored = _previousEnabledSettings;
       final nextSettings =
-          (restored != null && isMasterPushAlertsEnabled(restored))
+          (restored != null && _hasAnyActivePushAlerts(restored))
           ? settings.copyWith(
               favoriteStationFacilityAlerts:
                   restored.favoriteStationFacilityAlerts,

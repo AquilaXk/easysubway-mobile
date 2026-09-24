@@ -412,20 +412,50 @@ void main() {
     final controller = NotificationSettingsController(repository: repository);
 
     await controller.load();
+    controller.updateFavoriteStationFacilityAlerts(false);
     controller.updateFavoriteRouteFacilityAlerts(true);
+    controller.updateDataQualityAlerts(false);
     controller.updateMasterPushAlerts(false);
     expect(
       controller.isMasterPushAlertsEnabled(controller.state.settings!),
       isFalse,
     );
+    expect(controller.state.settings?.favoriteStationFacilityAlerts, isFalse);
+    expect(controller.state.settings?.favoriteRouteFacilityAlerts, isFalse);
+    expect(controller.state.settings?.dataQualityAlerts, isFalse);
 
     controller.updateMasterPushAlerts(true);
     expect(
       controller.isMasterPushAlertsEnabled(controller.state.settings!),
       isTrue,
     );
-    expect(controller.state.settings?.favoriteStationFacilityAlerts, isTrue);
+    expect(controller.state.settings?.favoriteStationFacilityAlerts, isFalse);
     expect(controller.state.settings?.favoriteRouteFacilityAlerts, isTrue);
+    expect(controller.state.settings?.dataQualityAlerts, isFalse);
+
+    final emptyRepo = FakeNotificationSettingsRepository();
+    emptyRepo.settings = emptyRepo.settings.copyWith(
+      favoriteStationFacilityAlerts: false,
+      favoriteRouteFacilityAlerts: false,
+      dataQualityAlerts: false,
+    );
+    final emptyController = NotificationSettingsController(
+      repository: emptyRepo,
+    );
+    await emptyController.load();
+    emptyController.updateMasterPushAlerts(false);
+    expect(
+      emptyController.state.settings?.favoriteStationFacilityAlerts,
+      isFalse,
+    );
+
+    emptyController.updateMasterPushAlerts(true);
+    expect(
+      emptyController.state.settings?.favoriteStationFacilityAlerts,
+      isTrue,
+    );
+    expect(emptyController.state.settings?.favoriteRouteFacilityAlerts, isTrue);
+    expect(emptyController.state.settings?.dataQualityAlerts, isTrue);
   });
 
   test('알림 설정 컨트롤러는 개별 옵션 상태별 마스터 토글 판단 및 제보 알림 업데이트를 처리한다', () async {
