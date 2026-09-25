@@ -133,4 +133,37 @@ void main() {
 
     expect(find.byType(EasySubwayRegionMenuPanel), findsNothing);
   });
+
+  testWidgets('지역 목록이 비어 있으면 기본 수도권 항목이 제공된다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: Builder(
+              builder: (ctx) => TextButton(
+                key: const Key('openEmptyRegionMenuButton'),
+                onPressed: () {
+                  unawaited(
+                    showEasySubwayRegionMenu(
+                      triggerContext: ctx,
+                      regions: const [],
+                      selectedRegion: '수도권',
+                      onRegionSelected: (_) {},
+                    ),
+                  );
+                },
+                child: const Text('수도권 ⌵'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.tap(find.byKey(const Key('openEmptyRegionMenuButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byType(EasySubwayRegionMenuPanel), findsOneWidget);
+    expect(find.text('수도권'), findsWidgets);
+  });
 }

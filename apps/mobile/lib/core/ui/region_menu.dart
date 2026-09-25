@@ -87,19 +87,7 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
   final ValueChanged<String> onRegionSelected;
 
   bool _isSelected(EasySubwayRegionMenuItem region) {
-    if (region.id == selectedRegion || region.label == selectedRegion) {
-      return true;
-    }
-    final cleanSelected = selectedRegion.endsWith('권')
-        ? selectedRegion.substring(0, selectedRegion.length - 1)
-        : selectedRegion;
-    final cleanLabel = region.label.endsWith('권')
-        ? region.label.substring(0, region.label.length - 1)
-        : region.label;
-    final cleanId = region.id.endsWith('권')
-        ? region.id.substring(0, region.id.length - 1)
-        : region.id;
-    return cleanSelected == cleanLabel || cleanSelected == cleanId;
+    return region.id == selectedRegion || region.label == selectedRegion;
   }
 
   @override

@@ -127,30 +127,27 @@ class _RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @override
   Widget build(BuildContext context) {
     _ensureAttributionPainter();
-    return RepaintBoundary(
-      child: RouteMapSvgViewport(
-        region: widget.region,
-        camera: widget.camera,
-        sourceOrigin: widget.sourceOrigin,
-        onUnavailable: widget.onUnavailable ?? () {},
-        onFramePresented: widget.onFramePresented,
-        overlay: Stack(
-          fit: StackFit.expand,
-          children: [
-            IgnorePointer(
-              child: RepaintBoundary(
-                child: CustomPaint(
-                  size: widget.camera.viewportSize,
-                  painter: RouteMapBasemapPainter(
-                    attributionText: widget.attributionText,
-                    attributionPainter: _attributionPainter,
-                  ),
-                ),
+    return RouteMapSvgViewport(
+      key: ValueKey(widget.region),
+      region: widget.region,
+      camera: widget.camera,
+      sourceOrigin: widget.sourceOrigin,
+      onUnavailable: widget.onUnavailable ?? () {},
+      onFramePresented: widget.onFramePresented,
+      overlay: Stack(
+        fit: StackFit.expand,
+        children: [
+          IgnorePointer(
+            child: CustomPaint(
+              size: widget.camera.viewportSize,
+              painter: RouteMapBasemapPainter(
+                attributionText: widget.attributionText,
+                attributionPainter: _attributionPainter,
               ),
             ),
-            ?widget.overlay,
-          ],
-        ),
+          ),
+          ?widget.overlay,
+        ],
       ),
     );
   }

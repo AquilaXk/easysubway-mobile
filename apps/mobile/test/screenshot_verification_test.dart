@@ -173,6 +173,11 @@ void main() {
             body: Align(
               alignment: Alignment.centerRight,
               child: NetworkMapMenuPanel(
+                bottomBanner: const SizedBox(
+                  key: Key('networkMapMenuAdBanner'),
+                  height: 50,
+                ),
+                onOpenStationSearch: () {},
                 onOpenSavedItems: () {},
                 onOpenTrainSearch: () {},
                 onOpenServiceNotices: () {},

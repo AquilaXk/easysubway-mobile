@@ -14,14 +14,9 @@ class DriftNetworkMapViewportRepository
   DriftNetworkMapViewportRepository({required this.userDatabase});
 
   final user_db.UserDatabase userDatabase;
-  final Map<String, Rect> _viewportCache = {};
-  String? _selectedRegionCache;
 
   @override
   Future<String?> loadSelectedRegion() async {
-    if (_selectedRegionCache != null) {
-      return _selectedRegionCache;
-    }
     final row = await userDatabase
         .customSelect(
           'SELECT value FROM app_preferences WHERE key = ?',
@@ -30,9 +25,7 @@ class DriftNetworkMapViewportRepository
         )
         .getSingleOrNull();
     final region = row?.read<String>('value').trim();
-    final result = region == null || region.isEmpty ? null : region;
-    _selectedRegionCache = result;
-    return result;
+    return region == null || region.isEmpty ? null : region;
   }
 
   @override
@@ -41,7 +34,6 @@ class DriftNetworkMapViewportRepository
     if (value.isEmpty) {
       throw ArgumentError.value(region, 'region', 'must not be empty');
     }
-    _selectedRegionCache = value;
     await userDatabase
         .into(userDatabase.appPreferences)
         .insertOnConflictUpdate(
@@ -55,14 +47,10 @@ class DriftNetworkMapViewportRepository
 
   @override
   Future<Rect?> loadViewport(String region) async {
-    final key = _storageKey(region);
-    if (_viewportCache.containsKey(key)) {
-      return _viewportCache[key];
-    }
     final row = await userDatabase
         .customSelect(
           'SELECT value FROM app_preferences WHERE key = ?',
-          variables: [Variable.withString(key)],
+          variables: [Variable.withString(_storageKey(region))],
           readsFrom: {userDatabase.appPreferences},
         )
         .getSingleOrNull();
@@ -88,9 +76,7 @@ class DriftNetworkMapViewportRepository
     if (right <= left || bottom <= top) {
       return null;
     }
-    final rect = Rect.fromLTRB(left, top, right, bottom);
-    _viewportCache[key] = rect;
-    return rect;
+    return Rect.fromLTRB(left, top, right, bottom);
   }
 
   @override
@@ -98,14 +84,12 @@ class DriftNetworkMapViewportRepository
     required String region,
     required Rect viewport,
   }) async {
-    final key = _storageKey(region);
-    _viewportCache[key] = viewport;
     final now = DateTime.now().toUtc();
     await userDatabase
         .into(userDatabase.appPreferences)
         .insertOnConflictUpdate(
           user_db.AppPreferencesCompanion.insert(
-            key: key,
+            key: _storageKey(region),
             value: jsonEncode({
               'left': viewport.left,
               'top': viewport.top,

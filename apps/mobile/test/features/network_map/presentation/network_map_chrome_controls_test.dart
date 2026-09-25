@@ -250,6 +250,58 @@ void main() {
     draftChanges.dispose();
   });
 
+  testWidgets('top-bar searchMode는 뒤로가기 버튼과 검색 입력필드를 렌더한다', (tester) async {
+    var searchBackCount = 0;
+    var submittedQuery = '';
+    var clearCount = 0;
+    final controller = TextEditingController(text: '강남');
+    final focusNode = FocusNode();
+
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 520,
+          child: NetworkMapTopBar(
+            regions: const [NetworkMapRegion(name: '수도권')],
+            selectedRegion: '수도권',
+            searchMode: true,
+            searchQueryController: controller,
+            searchFocusNode: focusNode,
+            onSearchBack: () => searchBackCount += 1,
+            onSearchSubmitted: (q) => submittedQuery = q,
+            onSearchClear: () => clearCount += 1,
+            onMenuTap: _noop,
+            onSearchTap: _noop,
+            onRegionSelected: (_) {},
+            routeDraftListenable: ValueNotifier(0),
+            routeDraft: () => const RouteDraft.empty(),
+            isWaypointRowVisible: () => false,
+            onClearDraft: _noop,
+            onOpenWaypointSlot: _noop,
+            onClearOrigin: _noop,
+            onClearDestination: _noop,
+            onClearWaypoint: _noop,
+            onReorderDraft: (_, _) {},
+            roleColorForSlot: (_) => Colors.black,
+            lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.byKey(const Key('networkMapSearchBackButton')), findsOneWidget);
+    expect(find.byType(EasySubwaySearchField), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('networkMapSearchBackButton')));
+    expect(searchBackCount, 1);
+
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    expect(submittedQuery, '강남');
+
+    controller.dispose();
+    focusNode.dispose();
+  });
+
   testWidgets('outer chrome shell은 map/search와 overlay 가시성을 보존한다', (
     tester,
   ) async {

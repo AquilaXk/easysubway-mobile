@@ -117,9 +117,9 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   MapCameraState? _pendingCamera;
   MapCameraState? _requestedRendererCamera;
   MapCameraState? _presentedRendererCamera;
-  DateTime? _lastRendererCameraRequestAt;
   final _requestedRendererCamerasByRevision = <int, MapCameraState>{};
   bool _routeMapBasemapFailed = false;
+  DateTime? _lastRendererCameraRequestAt;
   bool _cameraFrameCallbackScheduled = false;
   bool _forceRendererCameraCommit = false;
   bool _gestureActive = false;
@@ -410,52 +410,56 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
             return const OriginalRouteMapUnavailable();
           }
           final presentedRendererCamera = _presentedRendererCamera;
-          final gestureCamera = camera;
           final interactionCamera = presentedRendererCamera == null
               ? null
-              : camera;
+              : networkMapRendererTransformVisualCamera(
+                  rendererCamera: presentedRendererCamera,
+                  visualCamera: camera,
+                );
+          final gestureCamera = interactionCamera;
           return Stack(
             children: [
               Positioned.fill(
                 child: _buildStructuredRouteMapCanvas(camera, geometry.origin),
               ),
-              Positioned.fill(
-                child: Semantics(
-                  label: '노선도',
-                  hint: '역을 누르면 출발, 도착, 역 정보 action을 볼 수 있어요',
-                  child: Listener(
-                    onPointerCancel: (_) => _endScaleGesture(),
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.translucent,
-                      onScaleStart: (details) {
-                        if (!_gestureActive) {
-                          setState(() {
-                            _gestureActive = true;
-                            _clearSelectionAndNotify();
-                          });
-                        }
-                        _gestureStartCamera = gestureCamera;
-                        _gestureStartFocalPoint = details.localFocalPoint;
-                      },
-                      onScaleUpdate: (details) {
-                        _updateCameraForGesture(details);
-                      },
-                      onScaleEnd: (_) {
-                        _endScaleGesture();
-                      },
-                      onTapUp: interactionCamera == null
-                          ? null
-                          : (details) {
-                              _openNearestStation(
-                                details.localPosition,
-                                hitGeometry,
-                                interactionCamera,
-                              );
-                            },
+              if (gestureCamera != null)
+                Positioned.fill(
+                  child: Semantics(
+                    label: '노선도',
+                    hint: '역을 누르면 출발, 도착, 역 정보 action을 볼 수 있어요',
+                    child: Listener(
+                      onPointerCancel: (_) => _endScaleGesture(),
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.translucent,
+                        onScaleStart: (details) {
+                          if (!_gestureActive) {
+                            setState(() {
+                              _gestureActive = true;
+                              _clearSelectionAndNotify();
+                            });
+                          }
+                          _gestureStartCamera = gestureCamera;
+                          _gestureStartFocalPoint = details.localFocalPoint;
+                        },
+                        onScaleUpdate: (details) {
+                          _updateCameraForGesture(details);
+                        },
+                        onScaleEnd: (_) {
+                          _endScaleGesture();
+                        },
+                        onTapUp: interactionCamera == null
+                            ? null
+                            : (details) {
+                                _openNearestStation(
+                                  details.localPosition,
+                                  hitGeometry,
+                                  interactionCamera,
+                                );
+                              },
+                      ),
                     ),
                   ),
                 ),
-              ),
               if (interactionCamera != null && !_gestureActive)
                 for (final station in hitGeometry.visibleCanonicalStations(
                   camera: interactionCamera,
@@ -919,31 +923,29 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     final lineColors = _structuredLineColorsCache!;
     final labelTextByStationId = _structuredLabelTextCache!;
     final lineBadgeLabelByLineId = _structuredLineBadgeLabelCache!;
-    return RepaintBoundary(
-      child: Transform(
-        alignment: Alignment.topLeft,
-        transform: networkMapRendererFrameTransform(
-          rendererCamera: displayedRendererCamera,
-          visualCamera: transformedVisualCamera,
-        ),
-        child: RouteMapBasemapView(
-          key: ValueKey(_layoutKey),
-          region: routeMapDisplayRegionName(widget.data.selectedRegion),
+    return Transform(
+      alignment: Alignment.topLeft,
+      transform: networkMapRendererFrameTransform(
+        rendererCamera: displayedRendererCamera,
+        visualCamera: transformedVisualCamera,
+      ),
+      child: RouteMapBasemapView(
+        key: ValueKey(_layoutKey),
+        region: routeMapDisplayRegionName(widget.data.selectedRegion),
+        camera: rendererCamera,
+        sourceOrigin: sourceOrigin,
+        attributionText: attribution,
+        onUnavailable: _markRouteMapBasemapUnavailable,
+        onFramePresented: _acceptRouteMapFrame,
+        overlay: StructuredRouteMapView(
+          map: map,
           camera: rendererCamera,
+          lineColors: lineColors,
+          labelTextByStationId: labelTextByStationId,
+          lineBadgeLabelByLineId: lineBadgeLabelByLineId,
+          drawLines: false,
+          drawStationSymbols: false,
           sourceOrigin: sourceOrigin,
-          attributionText: attribution,
-          onUnavailable: _markRouteMapBasemapUnavailable,
-          onFramePresented: _acceptRouteMapFrame,
-          overlay: StructuredRouteMapView(
-            map: map,
-            camera: displayedRendererCamera,
-            lineColors: lineColors,
-            labelTextByStationId: labelTextByStationId,
-            lineBadgeLabelByLineId: lineBadgeLabelByLineId,
-            drawLines: false,
-            drawStationSymbols: false,
-            sourceOrigin: sourceOrigin,
-          ),
         ),
       ),
     );
