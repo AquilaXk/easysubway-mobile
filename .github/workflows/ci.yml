@@ -71,7 +71,7 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
-          flutter-version: "3.44.0"
+          flutter-version-file: .fvmrc
           cache: true
       - name: Generate and verify Journey V3 client
         shell: bash
@@ -325,7 +325,7 @@ jobs:
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
           channel: stable
-          flutter-version: "3.44.0"
+          flutter-version-file: .fvmrc
           cache: true
       - name: Install Flutter dependencies
         working-directory: apps/mobile
