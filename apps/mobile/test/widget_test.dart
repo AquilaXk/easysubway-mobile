@@ -3785,91 +3785,90 @@ void main() {
     }
   });
 
-  testWidgets(
-    '광주송정역 native 2D canvas는 중복 semantics 없이 station action을 유지한다',
-    (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      primeNetworkMapOwnerLabelsCacheForTest(const {});
-      try {
-        await tester.pumpWidget(
-          buildEasySubwayTestApp(
-            repository: FakeStationSearchRepository(
-              networkMapRegionNames: const ['광주'],
-              networkMapData: const NetworkMapData(
-                regions: [NetworkMapRegion(name: '광주')],
-                selectedRegion: '광주',
-                lines: [
-                  NetworkMapLine(
-                    id: 'gwangju-1',
-                    name: '광주 1호선',
-                    color: '#009088',
-                    region: '광주',
+  testWidgets('광주송정역 native 2D canvas는 중복 semantics 없이 station action을 유지한다', (
+    tester,
+  ) async {
+    final semanticsHandle = tester.ensureSemantics();
+    primeNetworkMapOwnerLabelsCacheForTest(const {});
+    try {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: FakeStationSearchRepository(
+            networkMapRegionNames: const ['광주'],
+            networkMapData: const NetworkMapData(
+              regions: [NetworkMapRegion(name: '광주')],
+              selectedRegion: '광주',
+              lines: [
+                NetworkMapLine(
+                  id: 'gwangju-1',
+                  name: '광주 1호선',
+                  color: '#009088',
+                  region: '광주',
+                ),
+              ],
+              stations: [
+                NetworkMapStation(
+                  id: 'station-gwangju-songjeong',
+                  nameKo: '광주송정역',
+                  nameEn: 'Gwangju Songjeong',
+                  region: '광주',
+                  lineId: 'gwangju-1',
+                  stationCode: '100',
+                  sequence: 1,
+                  position: NetworkMapPosition(
+                    x: 160,
+                    y: 160,
+                    labelDx: 0,
+                    labelDy: 0,
+                    upPath: '',
+                    downPath: '',
+                    sourceId: 'task-2571-gwangju-semantics',
                   ),
-                ],
-                stations: [
-                  NetworkMapStation(
-                    id: 'station-gwangju-songjeong',
-                    nameKo: '광주송정역',
-                    nameEn: 'Gwangju Songjeong',
-                    region: '광주',
-                    lineId: 'gwangju-1',
-                    stationCode: '100',
-                    sequence: 1,
-                    position: NetworkMapPosition(
-                      x: 160,
-                      y: 160,
-                      labelDx: 0,
-                      labelDy: 0,
-                      upPath: '',
-                      downPath: '',
-                      sourceId: 'task-2571-gwangju-semantics',
-                    ),
-                  ),
-                ],
-                edges: [],
-                positionSources: [
-                  NetworkMapPositionSource(
-                    id: 'task-2571-gwangju-semantics',
-                    name: 'Task 2571 Gwangju semantics fixture',
-                    licenseStatus: 'fixture-only',
-                  ),
-                ],
-                stationLineMemberships: [
-                  NetworkMapStationLineMembership(
-                    stationId: 'station-gwangju-songjeong',
-                    lineId: 'gwangju-1',
-                  ),
-                ],
-              ),
+                ),
+              ],
+              edges: [],
+              positionSources: [
+                NetworkMapPositionSource(
+                  id: 'task-2571-gwangju-semantics',
+                  name: 'Task 2571 Gwangju semantics fixture',
+                  licenseStatus: 'fixture-only',
+                ),
+              ],
+              stationLineMemberships: [
+                NetworkMapStationLineMembership(
+                  stationId: 'station-gwangju-songjeong',
+                  lineId: 'gwangju-1',
+                ),
+              ],
             ),
-            reportRepository: FakeFacilityReportRepository(),
-            notificationRepository: FakeNotificationSettingsRepository(),
-            initialOnboardingState: _completedOnboardingState(),
           ),
-        );
-        await tester.pumpAndSettle();
+          reportRepository: FakeFacilityReportRepository(),
+          notificationRepository: FakeNotificationSettingsRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        expect(find.byType(RouteMapBasemapView), findsOneWidget);
-        final station = find.bySemanticsLabel('광주송정역');
-        expect(station, findsOneWidget);
-        expect(find.bySemanticsLabel(RegExp('광주송정역역')), findsNothing);
-        expect(
-          tester
-              .getSemantics(station)
-              .getSemanticsData()
-              .hasAction(SemanticsAction.tap),
-          isTrue,
-        );
+      expect(find.byType(RouteMapBasemapView), findsOneWidget);
+      final station = find.bySemanticsLabel('광주송정역');
+      expect(station, findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('광주송정역역')), findsNothing);
+      expect(
+        tester
+            .getSemantics(station)
+            .getSemanticsData()
+            .hasAction(SemanticsAction.tap),
+        isTrue,
+      );
 
-        tester.semantics.tap(find.semantics.byLabel('광주송정역'));
-        await tester.pumpAndSettle();
-        expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-      } finally {
-        semanticsHandle.dispose();
-        resetNetworkMapOwnerLabelsCacheForTest();
-      }
-    },
-  );
+      tester.semantics.tap(find.semantics.byLabel('광주송정역'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
+    } finally {
+      semanticsHandle.dispose();
+      resetNetworkMapOwnerLabelsCacheForTest();
+    }
+  });
 
   // #2099 WP2: 노선도의 일반/급행 뷰 토글과 급행 전용 필터 데이터 경로는
   // 제거됐다(일반/급행은 선택 UI가 아니라 실제 운행 정보). 노선도에 선택 control이

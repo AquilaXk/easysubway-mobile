@@ -152,8 +152,18 @@ class RouteMapBasemapView extends StatefulWidget {
 }
 
 class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
-  final Map<String, ui.Picture> _pictureCache = {};
-  final Map<String, Future<ui.Picture>> _pendingLoads = {};
+  static final Map<String, ui.Picture> _globalPictureCache = {};
+  static final Map<String, Future<ui.Picture>> _globalPendingLoads = {};
+
+  @visibleForTesting
+  static void clearPictureCacheForTest() {
+    for (final picture in _globalPictureCache.values) {
+      picture.dispose();
+    }
+    _globalPictureCache.clear();
+    _globalPendingLoads.clear();
+  }
+
   ui.Picture? _picture;
   String? _loadedAsset;
   // 진행 중 로드 토큰. region이 로드 완료 전에 바뀌면 stale 결과를 버린다.
@@ -162,10 +172,10 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   String? _attributionPainterText;
 
   @visibleForTesting
-  Map<String, ui.Picture> get debugPictureCache => _pictureCache;
+  Map<String, ui.Picture> get debugPictureCache => _globalPictureCache;
 
   @visibleForTesting
-  Map<String, Future<ui.Picture>> get debugPendingLoads => _pendingLoads;
+  Map<String, Future<ui.Picture>> get debugPendingLoads => _globalPendingLoads;
 
   @override
   void didChangeDependencies() {
@@ -201,7 +211,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
       return;
     }
 
-    final cached = _pictureCache[asset];
+    final cached = _globalPictureCache[asset];
     if (cached != null) {
       _loadToken = null;
       _loadedAsset = asset;
@@ -221,7 +231,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   }
 
   Future<void> _loadBasemapAsset(String asset, Object token) async {
-    final existingLoad = _pendingLoads[asset];
+    final existingLoad = _globalPendingLoads[asset];
     if (existingLoad != null) {
       try {
         final picture = await existingLoad;
@@ -238,13 +248,13 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     }
 
     final completer = Completer<ui.Picture>();
-    _pendingLoads[asset] = completer.future;
+    _globalPendingLoads[asset] = completer.future;
 
     try {
       final info = await vg.loadPicture(AssetBytesLoader(asset), null);
       final picture = info.picture;
-      unawaited(_pendingLoads.remove(asset));
-      _pictureCache[asset] = picture;
+      _globalPendingLoads.remove(asset)?.ignore();
+      _globalPictureCache[asset] = picture;
       completer.complete(picture);
       if (!mounted || !identical(_loadToken, token)) {
         return;
@@ -253,7 +263,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
         _picture = picture;
       });
     } catch (error, stack) {
-      unawaited(_pendingLoads.remove(asset));
+      _globalPendingLoads.remove(asset)?.ignore();
       completer.completeError(error, stack);
       if (!mounted || !identical(_loadToken, token)) {
         return;
@@ -293,11 +303,6 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @override
   void dispose() {
     _loadToken = null;
-    for (final picture in _pictureCache.values) {
-      picture.dispose();
-    }
-    _pictureCache.clear();
-    _pendingLoads.clear();
     _picture = null;
     _attributionPainter?.dispose();
     super.dispose();

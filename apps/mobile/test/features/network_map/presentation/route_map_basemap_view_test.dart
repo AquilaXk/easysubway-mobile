@@ -101,14 +101,13 @@ void main() {
   });
 
   group('RouteMapBasemapView 위젯 및 캐시 수명주기', () {
+    tearDown(RouteMapBasemapViewState.clearPictureCacheForTest);
+
     testWidgets('매핑에 없는 권역은 바탕을 그리지 않고 안전하게 유지한다', (tester) async {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(
-            region: '알 수 없음',
-            camera: camera,
-          ),
+          child: RouteMapBasemapView(region: '알 수 없음', camera: camera),
         ),
       );
       await tester.pumpAndSettle();
@@ -124,10 +123,7 @@ void main() {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(
-            region: '대전',
-            camera: camera,
-          ),
+          child: RouteMapBasemapView(region: '대전', camera: camera),
         ),
       );
       await tester.pumpAndSettle();
@@ -144,10 +140,7 @@ void main() {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(
-            region: '광주',
-            camera: camera,
-          ),
+          child: RouteMapBasemapView(region: '광주', camera: camera),
         ),
       );
       await tester.pumpAndSettle();
@@ -160,10 +153,7 @@ void main() {
       await tester.pumpWidget(
         const Directionality(
           textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(
-            region: '대전',
-            camera: camera,
-          ),
+          child: RouteMapBasemapView(region: '대전', camera: camera),
         ),
       );
       expect(state.debugPendingLoads.containsKey(daejeonAsset), isFalse);
