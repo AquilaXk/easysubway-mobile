@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
-import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
 import 'package:easysubway_mobile/features/network_map/application/network_map_nearby_panel_state.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_nearby_panel_content.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
@@ -108,11 +107,9 @@ final class _MapRepository implements NetworkMapRepository {
 
 void main() {
   setUp(() {
-    debugRouteMapSvgViewportPresentImmediately = true;
     primeNetworkMapOwnerLabelsCacheForTest(const {});
   });
   tearDown(() {
-    debugRouteMapSvgViewportPresentImmediately = false;
     resetNetworkMapOwnerLabelsCacheForTest();
   });
 

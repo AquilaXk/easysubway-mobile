@@ -82,13 +82,6 @@ class MainActivity : FlutterActivity() {
             "com.easysubway.easysubway_mobile/original_route_map_asset",
             OriginalRouteMapAssetViewFactory(StandardMessageCodec.INSTANCE),
         )
-        flutterEngine.platformViewsController.registry.registerViewFactory(
-            "com.easysubway.easysubway_mobile/route_map_viewport_webview",
-            RouteMapViewportWebViewFactory(
-                StandardMessageCodec.INSTANCE,
-                flutterEngine.dartExecutor.binaryMessenger,
-            ),
-        )
     }
 
     private fun openLocationSettings(result: MethodChannel.Result) {
