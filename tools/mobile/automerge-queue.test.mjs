@@ -5,6 +5,10 @@ import { readFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import {
+  canonicalPatchDigest,
+  verifyAutomergeReviewClosure,
+} from './verify-automerge-review-closure.mjs';
 
 const workflowUrl = new URL(
   '../../.github/workflows/automerge-queue.yml',
@@ -1056,4 +1060,439 @@ test('automerge coordinator fails closed around the native merge queue', async (
       1,
     );
   }
+});
+
+test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile #277)', () => {
+  const currentHead = '1'.repeat(40);
+  const previousHead = '2'.repeat(40);
+  const rebasedCommitSha = '3'.repeat(40);
+
+  const trustedHumanReview = (id, state, commitId, body = '', overrides = {}) => ({
+    id,
+    state,
+    commit_id: commitId,
+    author_association: 'OWNER',
+    submitted_at: '2026-08-01T00:00:00Z',
+    body,
+    user: { login: 'owner', id: 1, type: 'User' },
+    ...overrides,
+  });
+
+  const canonicalCodexBody = (findings = 0) =>
+    `**Actionable comments posted: ${findings}**\n<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->`;
+
+  const canonicalMarker = (headSha = currentHead) => ({
+    body: `<!-- Automerge frozen discovery authorization: ${headSha} -->`,
+    user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+  });
+
+  const validPatch = 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void main() {}\n';
+
+  // 1. current-head trusted APPROVED 통과
+  assert.equal(
+    verifyAutomergeReviewClosure({
+      head: currentHead,
+      reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
+      comments: [],
+    }).ok,
+    true,
+  );
+
+  // 2. rebase-equivalent reviewed prefix + inline finding path 수정 + selected test 수정 + exact marker 통과
+  const rebasePrefixPatch = 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void oldRoute() {}\n';
+  const closureFindingPatch = 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void fixedRoute() {}\n';
+  const closureTestPatch = 'diff --git a/apps/mobile/test/route_test.dart b/apps/mobile/test/route_test.dart\n+test();\n';
+
+  assert.equal(
+    verifyAutomergeReviewClosure({
+      head: currentHead,
+      reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalCodexBody(1))],
+      comments: [canonicalMarker(currentHead)],
+      reviewThreads: {
+        pageInfo: { hasNextPage: false },
+        nodes: [{ isResolved: true, path: 'apps/mobile/lib/route.dart' }],
+      },
+      reviewedCommits: [{ sha: previousHead, patch: rebasePrefixPatch }],
+      currentCommits: [
+        { sha: rebasedCommitSha, patch: rebasePrefixPatch },
+        { sha: currentHead, patch: closureFindingPatch },
+      ],
+      closureFiles: [
+        { filename: 'apps/mobile/lib/route.dart', status: 'modified' },
+        { filename: 'apps/mobile/test/route_test.dart', status: 'modified' },
+      ],
+      selectedTestPaths: ['apps/mobile/test/route_test.dart'],
+    }).ok,
+    true,
+  );
+
+  // 3. previous-head live APPROVED의 rebase-only 통과
+  assert.equal(
+    verifyAutomergeReviewClosure({
+      head: currentHead,
+      reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+      comments: [canonicalMarker(currentHead)],
+      reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+      currentCommits: [{ sha: currentHead, patch: validPatch }],
+      closureFiles: [],
+    }).ok,
+    true,
+  );
+
+  // 4. unrelated Review, patch tamper/누락/재정렬/squash 차단
+  // 누락 (squash되어 commit 수가 줄어듦)
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+        comments: [canonicalMarker(currentHead)],
+        reviewedCommits: [
+          { sha: 'a'.repeat(40), patch: validPatch },
+          { sha: previousHead, patch: validPatch },
+        ],
+        currentCommits: [{ sha: currentHead, patch: validPatch }],
+        closureFiles: [],
+      }),
+    /current commit series is shorter/,
+  );
+
+  // Patch tamper (내용 변경)
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+        comments: [canonicalMarker(currentHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: validPatch + '+tampered\n' }],
+        closureFiles: [],
+      }),
+    /commit series mismatch/,
+  );
+
+  // Merge commit 차단
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+        comments: [canonicalMarker(currentHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: validPatch, parents: ['1', '2'] }],
+        closureFiles: [],
+      }),
+    /merge commit detected/,
+  );
+
+  // Empty commit 차단
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+        comments: [canonicalMarker(currentHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: '' }],
+        closureFiles: [],
+      }),
+    /empty commit detected/,
+  );
+
+  // 5. selected 밖 production/test path와 add/delete/rename/binary/submodule 차단
+  const baseClosureSetup = {
+    head: currentHead,
+    reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalCodexBody(1))],
+    comments: [canonicalMarker(currentHead)],
+    reviewThreads: {
+      pageInfo: { hasNextPage: false },
+      nodes: [{ isResolved: true, path: 'apps/mobile/lib/route.dart' }],
+    },
+    reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+    currentCommits: [{ sha: previousHead, patch: validPatch }, { sha: currentHead, patch: validPatch }],
+    selectedTestPaths: ['apps/mobile/test/route_test.dart'],
+  };
+
+  // selected 밖 production path
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        ...baseClosureSetup,
+        closureFiles: [{ filename: 'apps/mobile/lib/other.dart', status: 'modified' }],
+      }),
+    /production path outside original inline finding paths/,
+  );
+
+  // selected 밖 test path
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        ...baseClosureSetup,
+        closureFiles: [
+          { filename: 'apps/mobile/lib/route.dart', status: 'modified' },
+          { filename: 'apps/mobile/test/unselected_test.dart', status: 'modified' },
+        ],
+      }),
+    /test path outside review-selected test paths/,
+  );
+
+  // add/delete/rename status 차단
+  for (const status of ['added', 'deleted', 'renamed']) {
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          ...baseClosureSetup,
+          closureFiles: [{ filename: 'apps/mobile/lib/route.dart', status }],
+        }),
+      new RegExp(`forbidden file status '${status}'`),
+    );
+  }
+
+  // binary 차단
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        ...baseClosureSetup,
+        closureFiles: [{ filename: 'apps/mobile/lib/route.dart', status: 'modified', isBinary: true }],
+      }),
+    /binary changes forbidden/,
+  );
+
+  // submodule 차단
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        ...baseClosureSetup,
+        closureFiles: [{ filename: 'apps/mobile/lib/route.dart', status: 'modified', isSubmodule: true }],
+      }),
+    /submodule changes forbidden/,
+  );
+
+  // mode change 차단
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        ...baseClosureSetup,
+        closureFiles: [{ filename: 'apps/mobile/lib/route.dart', status: 'modified', modeChanged: true }],
+      }),
+    /mode changes forbidden/,
+  );
+
+  // workflow / dependency 파일 변경 차단
+  for (const protectedFile of ['.github/workflows/ci.yml', 'package.json', 'pubspec.yaml']) {
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          ...baseClosureSetup,
+          closureFiles: [{ filename: protectedFile, status: 'modified' }],
+        }),
+      /protected workflow or dependency file modified/,
+    );
+  }
+
+  // 6. finding 0 + closure delta 차단
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalCodexBody(0))],
+        comments: [canonicalMarker(currentHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: previousHead, patch: validPatch }, { sha: currentHead, patch: validPatch }],
+        closureFiles: [{ filename: 'apps/mobile/lib/route.dart', status: 'modified' }],
+      }),
+    /finding 0 requires diff 0/,
+  );
+
+  // 7. Review 0, 임의 COMMENTED, malformed canonical body, wrong actor 차단
+  // Review 0
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [],
+        comments: [canonicalMarker(currentHead)],
+      }),
+    /no trusted reviews found/,
+  );
+
+  // 임의 COMMENTED
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [
+          {
+            id: 1,
+            state: 'COMMENTED',
+            commit_id: previousHead,
+            author_association: 'NONE',
+            body: 'random comment',
+            user: { login: 'stranger', id: 999, type: 'User' },
+          },
+        ],
+        comments: [canonicalMarker(currentHead)],
+      }),
+    /no trusted reviews found/,
+  );
+
+  // malformed canonical body
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, 'Not a canonical codex body')],
+        comments: [canonicalMarker(currentHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: validPatch }],
+      }),
+    /no eligible previous-head discovery review found/,
+  );
+
+  // wrong actor for CodeRabbit
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [
+          {
+            id: 1,
+            state: 'COMMENTED',
+            commit_id: previousHead,
+            author_association: 'NONE',
+            body: 'CodeRabbit review',
+            user: { login: 'impostor[bot]', id: 136622811, type: 'Bot' },
+          },
+        ],
+        comments: [canonicalMarker(currentHead)],
+      }),
+    /no trusted reviews found/,
+  );
+
+  // 8. active CHANGES_REQUESTED, unresolved/paginated thread 차단
+  // active CHANGES_REQUESTED
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [
+          trustedHumanReview(1, 'APPROVED', currentHead),
+          trustedHumanReview(2, 'CHANGES_REQUESTED', previousHead, '', {
+            user: { login: 'reviewer-two', id: 2, type: 'User' },
+          }),
+        ],
+        comments: [],
+      }),
+    /active CHANGES_REQUESTED remains/,
+  );
+
+  // unresolved review thread
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
+        comments: [],
+        reviewThreads: {
+          pageInfo: { hasNextPage: false },
+          nodes: [{ isResolved: false, path: 'apps/mobile/lib/route.dart' }],
+        },
+      }),
+    /unresolved review thread/,
+  );
+
+  // paginated review thread
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
+        comments: [],
+        reviewThreads: {
+          pageInfo: { hasNextPage: true },
+          nodes: [{ isResolved: true, path: 'apps/mobile/lib/route.dart' }],
+        },
+      }),
+    /paginated review threads not allowed/,
+  );
+
+  // 9. stale/wrong/multiple marker 차단
+  // stale marker
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+        comments: [canonicalMarker(previousHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: validPatch }],
+      }),
+    /stale or wrong marker/,
+  );
+
+  // multiple markers
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+        comments: [canonicalMarker(currentHead), canonicalMarker(previousHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: validPatch }],
+      }),
+    /multiple canonical markers found/,
+  );
+
+  // missing marker
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', previousHead)],
+        comments: [],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: validPatch }],
+      }),
+    /missing automerge frozen discovery authorization marker/,
+  );
+
+  // 10. missing/pending/failing required context 차단
+  const required = [{ context: 'Mobile CI', integration_id: null }];
+
+  // missing
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
+        requiredContexts: required,
+        checks: [],
+        statuses: [],
+      }),
+    /missing required context/,
+  );
+
+  // pending
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
+        requiredContexts: required,
+        checks: [{ name: 'Mobile CI', conclusion: null, started_at: '2026-08-01T00:00:00Z' }],
+      }),
+    /required check 'Mobile CI' is not successful/,
+  );
+
+  // failing
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
+        requiredContexts: required,
+        checks: [{ name: 'Mobile CI', conclusion: 'failure', started_at: '2026-08-01T00:00:00Z' }],
+      }),
+    /required check 'Mobile CI' is not successful/,
+  );
 });
