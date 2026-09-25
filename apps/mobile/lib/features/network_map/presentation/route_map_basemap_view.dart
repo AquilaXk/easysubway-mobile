@@ -118,7 +118,7 @@ class RouteMapBasemapPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(RouteMapBasemapPainter oldDelegate) {
-    return oldDelegate.camera.revision != camera.revision ||
+    return oldDelegate.camera != camera ||
         !identical(oldDelegate.picture, picture) ||
         oldDelegate.sourceOrigin != sourceOrigin ||
         oldDelegate.attributionText != attributionText ||
@@ -148,16 +148,24 @@ class RouteMapBasemapView extends StatefulWidget {
   final String? attributionText;
 
   @override
-  State<RouteMapBasemapView> createState() => _RouteMapBasemapViewState();
+  State<RouteMapBasemapView> createState() => RouteMapBasemapViewState();
 }
 
-class _RouteMapBasemapViewState extends State<RouteMapBasemapView> {
+class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
+  final Map<String, ui.Picture> _pictureCache = {};
+  final Map<String, Future<ui.Picture>> _pendingLoads = {};
   ui.Picture? _picture;
   String? _loadedAsset;
   // 진행 중 로드 토큰. region이 로드 완료 전에 바뀌면 stale 결과를 버린다.
   Object? _loadToken;
   TextPainter? _attributionPainter;
   String? _attributionPainterText;
+
+  @visibleForTesting
+  Map<String, ui.Picture> get debugPictureCache => _pictureCache;
+
+  @visibleForTesting
+  Map<String, Future<ui.Picture>> get debugPendingLoads => _pendingLoads;
 
   @override
   void didChangeDependencies() {
@@ -177,54 +185,88 @@ class _RouteMapBasemapViewState extends State<RouteMapBasemapView> {
 
   void _ensureBasemap() {
     final asset = routeMapBasemapAssetForRegion(widget.region);
-    if (_loadedAsset == asset && (asset == null || _picture != null)) {
-      return;
-    }
     // 매핑에 없는 region: 바탕 미표시로 안전 폴백(크래시 금지).
     if (asset == null) {
       _loadToken = null;
       _loadedAsset = null;
-      final previous = _picture;
-      _picture = null;
-      previous?.dispose();
+      if (_picture != null) {
+        setState(() {
+          _picture = null;
+        });
+      }
       return;
     }
+
+    if (_loadedAsset == asset && _picture != null) {
+      return;
+    }
+
+    final cached = _pictureCache[asset];
+    if (cached != null) {
+      _loadToken = null;
+      _loadedAsset = asset;
+      if (_picture != cached) {
+        setState(() {
+          _picture = cached;
+        });
+      }
+      return;
+    }
+
     final token = Object();
     _loadToken = token;
     _loadedAsset = asset;
-    final previous = _picture;
-    _picture = null;
-    previous?.dispose();
-    // context=null: 바탕은 정적 도식이라 locale/textDirection 의존이 없고, null을
-    // 넘겨 inherited widget 의존(및 그로 인한 재로드)을 피한다(플랫폼 로케일·LTR 폴백).
-    unawaited(
-      vg
-          .loadPicture(AssetBytesLoader(asset), null)
-          .then((info) {
-            if (!mounted || !identical(_loadToken, token)) {
-              info.picture.dispose();
-              return;
-            }
-            setState(() {
-              _picture?.dispose();
-              _picture = info.picture;
-            });
-          })
-          .catchError((Object error, StackTrace stack) {
-            if (!mounted || !identical(_loadToken, token)) {
-              return;
-            }
-            // 로드 실패 시 바탕만 비고 인터랙션은 계속 동작한다(무해 폴백).
-            FlutterError.reportError(
-              FlutterErrorDetails(
-                exception: error,
-                stack: stack,
-                library: 'network_map',
-                context: ErrorDescription('노선도 바탕 .vec 로드 실패($asset)'),
-              ),
-            );
-          }),
-    );
+
+    unawaited(_loadBasemapAsset(asset, token));
+  }
+
+  Future<void> _loadBasemapAsset(String asset, Object token) async {
+    final existingLoad = _pendingLoads[asset];
+    if (existingLoad != null) {
+      try {
+        final picture = await existingLoad;
+        if (!mounted || !identical(_loadToken, token)) {
+          return;
+        }
+        setState(() {
+          _picture = picture;
+        });
+      } catch (_) {
+        // 이미 진행 중인 로드 실패는 원래 핸들러가 처리한다.
+      }
+      return;
+    }
+
+    final completer = Completer<ui.Picture>();
+    _pendingLoads[asset] = completer.future;
+
+    try {
+      final info = await vg.loadPicture(AssetBytesLoader(asset), null);
+      final picture = info.picture;
+      unawaited(_pendingLoads.remove(asset));
+      _pictureCache[asset] = picture;
+      completer.complete(picture);
+      if (!mounted || !identical(_loadToken, token)) {
+        return;
+      }
+      setState(() {
+        _picture = picture;
+      });
+    } catch (error, stack) {
+      unawaited(_pendingLoads.remove(asset));
+      completer.completeError(error, stack);
+      if (!mounted || !identical(_loadToken, token)) {
+        return;
+      }
+      FlutterError.reportError(
+        FlutterErrorDetails(
+          exception: error,
+          stack: stack,
+          library: 'network_map',
+          context: ErrorDescription('노선도 바탕 .vec 로드 실패($asset)'),
+        ),
+      );
+    }
   }
 
   void _ensureAttributionPainter() {
@@ -251,7 +293,12 @@ class _RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @override
   void dispose() {
     _loadToken = null;
-    _picture?.dispose();
+    for (final picture in _pictureCache.values) {
+      picture.dispose();
+    }
+    _pictureCache.clear();
+    _pendingLoads.clear();
+    _picture = null;
     _attributionPainter?.dispose();
     super.dispose();
   }
