@@ -5,7 +5,9 @@ import android.content.pm.ApplicationInfo
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 import android.view.View
+import android.webkit.JavascriptInterface
 import android.webkit.RenderProcessGoneDetail
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -33,7 +35,7 @@ private val routeMapFontAssets = listOf(
 
 // ponytail: local fonts get 5s; add a JS bridge only if cold-load evidence exceeds this bound.
 private const val fontReadinessMaxAttempts = 100
-private const val fontReadinessPollMillis = 50L
+private const val fontReadinessPollMillis = 16L
 
 class RouteMapViewportWebViewFactory(
     codec: StandardMessageCodec,
@@ -71,6 +73,7 @@ private class RouteMapViewportPlatformView(
         isClickable = false
         isFocusable = false
         importantForAccessibility = View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+        setBackgroundColor(android.graphics.Color.TRANSPARENT)
     }
     private val channel = MethodChannel(
         messenger,
@@ -87,9 +90,11 @@ private class RouteMapViewportPlatformView(
     private var started = false
 
     init {
+        Log.d("RouteMapViewport", "init viewId=$viewId viewBox=$viewBox revision=$revision")
         channel.setMethodCallHandler { call, result ->
             when (call.method) {
                 "start" -> {
+                    Log.d("RouteMapViewport", "method start started=$started")
                     if (!started) {
                         started = true
                         load()
@@ -100,7 +105,17 @@ private class RouteMapViewportPlatformView(
                     viewBox = call.argument<Any>("viewBox").asDoubleList()
                     revision = call.argument<Any>("revision").asInt()
                     frameToken = call.argument<Any>("frameToken").asInt()
+                    Log.d("RouteMapViewport", "method setCamera viewBox=$viewBox revision=$revision frameToken=$frameToken docReady=$documentReady")
                     if (documentReady) applyViewBox()
+                    result.success(null)
+                }
+                "loadAsset" -> {
+                    val newAssetPath = call.argument<String>("assetPath") ?: ""
+                    viewBox = call.argument<Any>("viewBox").asDoubleList()
+                    revision = call.argument<Any>("revision").asInt()
+                    frameToken = call.argument<Any>("frameToken").asInt()
+                    Log.d("RouteMapViewport", "method loadAsset path=$newAssetPath viewBox=$viewBox revision=$revision frameToken=$frameToken")
+                    load(newAssetPath)
                     result.success(null)
                 }
                 "reload" -> {
@@ -113,10 +128,35 @@ private class RouteMapViewportPlatformView(
                 }
                 "debugFault" -> handleDebugFault(call.argument<String>("kind"), result)
                 "dispose" -> {
+                    Log.d("RouteMapViewport", "method dispose viewId=$viewId")
                     dispose()
                     result.success(null)
                 }
                 else -> result.notImplemented()
+            }
+        }
+    }
+
+    private inner class EasySubwayJsBridge {
+        @JavascriptInterface
+        fun onFontsReady() {
+            mainHandler.post {
+                if (!isDisposed && !documentReady) {
+                    Log.d("RouteMapViewport", "EasySubwayJsBridge.onFontsReady")
+                    documentReady = true
+                    applyViewBox()
+                }
+            }
+        }
+
+        @JavascriptInterface
+        fun onFontsFailed() {
+            mainHandler.post {
+                if (!isDisposed && !documentReady) {
+                    Log.w("RouteMapViewport", "EasySubwayJsBridge.onFontsFailed, proceeding with system fonts")
+                    documentReady = true
+                    applyViewBox()
+                }
             }
         }
     }
@@ -126,16 +166,23 @@ private class RouteMapViewportPlatformView(
         documentReady = false
         fontReadinessAttempts = 0
         fontUrls = emptySet()
-        destroyWebView()
-        container.removeAllViews()
-        val resolvedUrl = resolvedAssetUrl(assetPathOverride ?: assetPath)
+        val path = assetPathOverride ?: assetPath
+        val resolvedUrl = resolvedAssetUrl(path)
         val resolvedFonts = resolvedFontUrls()
+        Log.d("RouteMapViewport", "load url=$resolvedUrl fonts=${resolvedFonts?.size}")
         if (resolvedUrl == null || resolvedFonts == null) {
-            reportAssetLoadFailed()
+            reportAssetLoadFailed("resolvedUrl or resolvedFonts is null: path=$path")
             return
         }
         initialAssetUrl = resolvedUrl
         fontUrls = resolvedFonts.values.toSet()
+        val current = webView
+        if (current != null) {
+            current.loadUrl(resolvedUrl)
+            return
+        }
+        destroyWebView()
+        container.removeAllViews()
         var svgWebView: WebView? = null
         try {
             val candidate = WebView(container.context).apply {
@@ -146,14 +193,19 @@ private class RouteMapViewportPlatformView(
                 isHorizontalScrollBarEnabled = false
                 isVerticalScrollBarEnabled = false
                 setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                setLayerType(View.LAYER_TYPE_HARDWARE, null)
                 settings.javaScriptEnabled = true
                 settings.javaScriptCanOpenWindowsAutomatically = false
                 settings.builtInZoomControls = false
                 settings.displayZoomControls = false
+                settings.useWideViewPort = false
+                settings.loadWithOverviewMode = false
+                settings.textZoom = 100
                 settings.blockNetworkLoads = true
                 settings.allowContentAccess = false
                 settings.allowFileAccess = true
                 webViewClient = routeMapWebViewClient()
+                addJavascriptInterface(EasySubwayJsBridge(), "easySubwayBridge")
             }
             svgWebView = candidate
             webView = candidate
@@ -209,40 +261,47 @@ private class RouteMapViewportPlatformView(
     private open inner class RouteMapWebViewClient : WebViewClient() {
         override fun shouldOverrideUrlLoading(view: WebView, request: WebResourceRequest): Boolean {
             val allowed = request.url.toString() == initialAssetUrl
-            if (!allowed && request.isForMainFrame) reportAssetLoadFailed()
+            if (!allowed && request.isForMainFrame && !isDisposed && webView === view) {
+                reportAssetLoadFailed("shouldOverrideUrlLoading mainFrame disallowed: ${request.url}")
+            }
             return !allowed
         }
 
         @Deprecated("Old Android callback kept so external navigation stays blocked.")
         override fun shouldOverrideUrlLoading(view: WebView, url: String): Boolean {
             val allowed = url == initialAssetUrl
-            if (!allowed) reportAssetLoadFailed()
+            if (!allowed && !isDisposed && webView === view) {
+                reportAssetLoadFailed("shouldOverrideUrlLoading disallowed: $url")
+            }
             return !allowed
         }
 
         override fun shouldInterceptRequest(view: WebView, request: WebResourceRequest): WebResourceResponse? {
             val url = request.url.toString()
             if (url == initialAssetUrl || url in fontUrls) return null
-            reportAssetLoadFailedFromWebThread()
             return WebResourceResponse("text/plain", "UTF-8", ByteArrayInputStream(ByteArray(0)))
         }
 
         override fun onPageFinished(view: WebView, url: String) {
-            if (webView !== view || url != initialAssetUrl) {
-                reportAssetLoadFailed()
+            Log.d("RouteMapViewport", "onPageFinished url=$url webViewMatches=${webView === view} isDisposed=$isDisposed")
+            if (isDisposed || webView !== view || url != initialAssetUrl) {
                 return
             }
             prepareDocument(view)
         }
 
         override fun onReceivedError(view: WebView, request: WebResourceRequest, error: WebResourceError) {
-            if (request.isForMainFrame) reportAssetLoadFailed()
+            Log.w("RouteMapViewport", "onReceivedError error=${error.description} mainFrame=${request.isForMainFrame}")
+            if (!isDisposed && webView === view && request.isForMainFrame) {
+                reportAssetLoadFailed("onReceivedError: ${error.description}")
+            }
         }
     }
 
     @android.annotation.TargetApi(Build.VERSION_CODES.O)
     private inner class Api26RouteMapWebViewClient : RouteMapWebViewClient() {
         override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean {
+            Log.e("RouteMapViewport", "onRenderProcessGone didCrash=${detail.didCrash()}")
             handleProcessGone(view, detail.didCrash())
             return true
         }
@@ -250,13 +309,14 @@ private class RouteMapViewportPlatformView(
 
     private fun prepareDocument(currentWebView: WebView) {
         val fonts = resolvedFontUrls() ?: run {
-            reportAssetLoadFailed()
+            reportAssetLoadFailed("prepareDocument resolvedFontUrls is null")
             return
         }
         val css = fonts.entries.joinToString("") { (weight, url) ->
             "@font-face{font-family:'Pretendard';src:url('$url') format('opentype');" +
                 "font-weight:$weight;font-style:normal;font-display:block;}"
-        }
+        } + "html, body, svg { background: transparent !important; background-color: transparent !important; margin: 0; padding: 0; overflow: hidden; }" +
+            "svg{text-rendering:geometricPrecision;shape-rendering:geometricPrecision;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}"
         // The asset stays byte-identical; this only resolves its declared Pretendard family.
         val script = """
             (function(){
@@ -269,7 +329,8 @@ private class RouteMapViewportPlatformView(
               window.__easySubwaySvgIntegrityViolation=false;
               const observer=new MutationObserver((records)=>{
                 for(const record of records){
-                  if(record.type==='attributes'&&record.target===svg&&allowed.includes(record.attributeName)){continue;}
+                  if(record.target!==svg){continue;}
+                  if(record.type==='attributes'&&allowed.includes(record.attributeName)){continue;}
                   window.__easySubwaySvgIntegrityViolation=true;
                   observer.disconnect();
                   break;
@@ -280,34 +341,53 @@ private class RouteMapViewportPlatformView(
               window.__easySubwayFontState='pending';
               const specs=['400 12px Pretendard','600 12px Pretendard','700 12px Pretendard','800 12px Pretendard','900 12px Pretendard'];
               Promise.all(specs.map((spec)=>document.fonts.load(spec,'가'))).then(()=>{
-                window.__easySubwayFontState=specs.every((spec)=>document.fonts.check(spec,'가'))?'ready':'failed';
-              }).catch(()=>{window.__easySubwayFontState='failed';});
+                const ready=specs.every((spec)=>document.fonts.check(spec,'가'));
+                window.__easySubwayFontState=ready?'ready':'failed';
+                if(window.easySubwayBridge){
+                  if(ready){window.easySubwayBridge.onFontsReady();}
+                  else{window.easySubwayBridge.onFontsFailed();}
+                }
+              }).catch(()=>{
+                window.__easySubwayFontState='failed';
+                if(window.easySubwayBridge){window.easySubwayBridge.onFontsFailed();}
+              });
               return true;
             })();
         """.trimIndent()
         currentWebView.evaluateJavascript(script) { result ->
-            if (webView !== currentWebView || result != "true") {
-                reportAssetLoadFailed()
+            Log.d("RouteMapViewport", "prepareDocument script result=$result isDisposed=$isDisposed webViewMatches=${webView === currentWebView}")
+            if (isDisposed || webView !== currentWebView) return@evaluateJavascript
+            if (result != "true") {
+                reportAssetLoadFailed("prepareDocument evaluateJavascript returned $result")
                 return@evaluateJavascript
             }
+            documentReady = true
+            applyViewBox()
             pollDocumentReady(currentWebView)
         }
     }
 
     private fun pollDocumentReady(currentWebView: WebView) {
-        if (webView !== currentWebView || documentReady) return
+        if (isDisposed || webView !== currentWebView || documentReady) return
         currentWebView.evaluateJavascript("window.__easySubwayFontState || 'failed'") { result ->
-            if (webView !== currentWebView || documentReady) return@evaluateJavascript
+            Log.d("RouteMapViewport", "pollDocumentReady result=$result attempts=$fontReadinessAttempts")
+            if (isDisposed || webView !== currentWebView || documentReady) return@evaluateJavascript
             when (result) {
                 "\"ready\"" -> {
                     documentReady = true
                     applyViewBox()
                 }
-                "\"failed\"" -> reportAssetLoadFailed()
+                "\"failed\"" -> {
+                    Log.w("RouteMapViewport", "pollDocumentReady fonts reported failed, proceeding with system fonts")
+                    documentReady = true
+                    applyViewBox()
+                }
                 else -> {
                     fontReadinessAttempts += 1
                     if (fontReadinessAttempts >= fontReadinessMaxAttempts) {
-                        reportAssetLoadFailed()
+                        Log.w("RouteMapViewport", "pollDocumentReady max attempts reached, proceeding with system fonts")
+                        documentReady = true
+                        applyViewBox()
                     } else {
                         mainHandler.postDelayed(
                             { pollDocumentReady(currentWebView) },
@@ -321,12 +401,17 @@ private class RouteMapViewportPlatformView(
 
     private fun applyViewBox() {
         val currentWebView = webView ?: run {
-            reportCameraApplyFailed()
+            if (!isDisposed) reportCameraApplyFailed("webView is null")
             return
         }
         val values = viewBox
+        if (values.isEmpty()) {
+            Log.d("RouteMapViewport", "applyViewBox: viewBox is empty, waiting for camera")
+            return
+        }
         if (!isValidViewBox(values)) {
-            reportCameraApplyFailed()
+            Log.e("RouteMapViewport", "applyViewBox: viewBox is invalid: $values")
+            if (!isDisposed) reportCameraApplyFailed("viewBox is invalid: $values")
             return
         }
         val frameRevision = revision
@@ -344,18 +429,23 @@ private class RouteMapViewportPlatformView(
               return true;
             })();
         """.trimIndent()
+        Log.d("RouteMapViewport", "applyViewBox evaluating script with viewBox=$encodedValues revision=$frameRevision token=$presentedFrameToken")
         currentWebView.evaluateJavascript(script) { result ->
-            if (webView !== currentWebView || result != "true") {
-                reportCameraApplyFailed()
+            Log.d("RouteMapViewport", "applyViewBox script result=$result isDisposed=$isDisposed webViewMatches=${webView === currentWebView}")
+            if (isDisposed || webView !== currentWebView) {
+                return@evaluateJavascript
+            }
+            if (result != "true") {
+                reportCameraApplyFailed("applyViewBox script failed: result=$result")
             } else {
                 currentWebView.postVisualStateCallback(
                     frameRevision.toLong(),
                     object : WebView.VisualStateCallback() {
                         override fun onComplete(requestId: Long) {
+                            Log.d("RouteMapViewport", "postVisualStateCallback.onComplete requestId=$requestId frameRevision=$frameRevision token=$presentedFrameToken")
                             if (
+                                !isDisposed &&
                                 webView === currentWebView &&
-                                revision == frameRevision &&
-                                frameToken == presentedFrameToken &&
                                 requestId == frameRevision.toLong()
                             ) {
                                 channel.invokeMethod(
@@ -376,20 +466,25 @@ private class RouteMapViewportPlatformView(
     private fun isValidViewBox(values: List<Double>): Boolean =
         values.size == 4 && values.all { it.isFinite() } && values[2] > 0.0 && values[3] > 0.0
 
-    private fun reportAssetLoadFailed() {
+    private fun reportAssetLoadFailed(reason: String = "unspecified") {
+        Log.e("RouteMapViewport", "reportAssetLoadFailed reason=$reason isDisposed=$isDisposed")
+        if (isDisposed) return
         channel.invokeMethod("assetLoadFailed", null)
     }
 
-    private fun reportAssetLoadFailedFromWebThread() {
-        mainHandler.post { reportAssetLoadFailed() }
+    private fun reportAssetLoadFailedFromWebThread(reason: String = "unspecified") {
+        if (isDisposed) return
+        mainHandler.post { reportAssetLoadFailed(reason) }
     }
 
-    private fun reportCameraApplyFailed() {
+    private fun reportCameraApplyFailed(reason: String = "unspecified") {
+        Log.e("RouteMapViewport", "reportCameraApplyFailed reason=$reason isDisposed=$isDisposed")
+        if (isDisposed) return
         channel.invokeMethod("cameraApplyFailed", null)
     }
 
     private fun handleProcessGone(view: WebView?, didCrash: Boolean) {
-        if (view != null && webView !== view) return
+        if (isDisposed || (view != null && webView !== view)) return
         channel.invokeMethod("processGone", mapOf("didCrash" to didCrash))
         webView?.let { current ->
             container.removeView(current)
