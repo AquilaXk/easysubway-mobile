@@ -34,9 +34,7 @@ void main() {
 
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(
-            body: StationDetailHeader(detail: station),
-          ),
+          home: Scaffold(body: StationDetailHeader(detail: station)),
         ),
       );
 
@@ -59,9 +57,7 @@ void main() {
 
       await tester.pumpWidget(
         const MaterialApp(
-          home: Scaffold(
-            body: StationDetailHeader(detail: station),
-          ),
+          home: Scaffold(body: StationDetailHeader(detail: station)),
         ),
       );
 
