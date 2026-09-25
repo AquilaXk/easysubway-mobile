@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
@@ -404,11 +405,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('networkMapMenuButton')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('networkMapMenuStationSearchButton')),
+    final networkMap = tester.widget<NetworkMapScreen>(
+      find.byType(NetworkMapScreen),
     );
+    networkMap.onOpenStationSearch('수도권', const ['수도권']);
     await tester.pumpAndSettle();
 
     expect(
@@ -427,11 +427,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('networkMapMenuButton')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('networkMapMenuStationSearchButton')),
+    final networkMap = tester.widget<NetworkMapScreen>(
+      find.byType(NetworkMapScreen),
     );
+    networkMap.onOpenStationSearch('수도권', const ['수도권']);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('nearbyStationSearchButton')), findsNothing);
@@ -485,11 +484,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('networkMapMenuButton')));
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('networkMapMenuStationSearchButton')),
+    final networkMap = tester.widget<NetworkMapScreen>(
+      find.byType(NetworkMapScreen),
     );
+    networkMap.onOpenStationSearch('수도권', const ['수도권']);
     await tester.pumpAndSettle();
 
     expect(tester.takeException(), isNull);

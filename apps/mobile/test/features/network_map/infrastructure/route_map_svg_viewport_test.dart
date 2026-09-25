@@ -97,6 +97,48 @@ void main() {
     controller.dispose();
   });
 
+  test('loadAsset은 새로운 assetPath와 camera를 전송한다', () async {
+    final calls = <MethodCall>[];
+    const channelName =
+        'com.easysubway.easysubway_mobile/route_map_viewport_webview/45';
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(const MethodChannel(channelName), (
+      call,
+    ) async {
+      calls.add(call);
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(
+        const MethodChannel(channelName),
+        null,
+      ),
+    );
+
+    final controller = RouteMapSvgViewportController(onUnavailable: () {});
+    await controller.attach(viewId: 45);
+    await controller.loadAsset(
+      assetPath: 'assets/datapacks/metro_map_pack/basemap/busan.svg',
+      camera: camera.copyWith(revision: 10),
+      sourceOrigin: origin,
+      frameToken: 2,
+    );
+
+    expect(calls.map((call) => call.method), ['start', 'loadAsset']);
+    expect(calls.last.arguments, <String, Object>{
+      'assetPath': 'assets/datapacks/metro_map_pack/basemap/busan.svg',
+      'viewBox': routeMapSvgViewportCameraPayload(
+        camera: camera.copyWith(revision: 10),
+        sourceOrigin: origin,
+        frameToken: 2,
+      )['viewBox']!,
+      'revision': 10,
+      'frameToken': 2,
+    });
+    controller.dispose();
+  });
+
   test('attach 전 최신 camera는 native start 전에 적용한다', () async {
     final calls = <MethodCall>[];
     const channelName =
@@ -255,7 +297,7 @@ void main() {
     }
   });
 
-  testWidgets('pending camera는 native SVG만 유지하고 overlay는 ack까지 숨긴다', (
+  testWidgets('pending camera 갱신 중에도 native SVG와 overlay는 언마운트되지 않고 항시 유지된다', (
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.android;
@@ -329,6 +371,7 @@ void main() {
         tester.widget<Visibility>(find.byType(Visibility)).visible,
         isTrue,
       );
+      expect(find.text('overlay-3'), findsOneWidget);
 
       final nextCamera = camera.copyWith(revision: 4);
       await tester.pumpWidget(
@@ -349,7 +392,7 @@ void main() {
       );
       expect(find.byType(AndroidView), findsOneWidget);
       expect(find.text('overlay-3'), findsNothing);
-      expect(find.text('overlay-4'), findsNothing);
+      expect(find.text('overlay-4'), findsOneWidget);
       expect(calls.last.method, 'setCamera');
       expect((calls.last.arguments as Map)['frameToken'], 1);
 
@@ -367,7 +410,7 @@ void main() {
       );
       expect(find.text('overlay-3'), findsNothing);
       expect(find.text('overlay-4'), findsNothing);
-      expect(find.text('overlay-4b'), findsNothing);
+      expect(find.text('overlay-4b'), findsOneWidget);
 
       await messenger.handlePlatformMessage(
         channelName,
@@ -381,7 +424,7 @@ void main() {
       );
       await tester.pump();
       expect(find.text('overlay-3'), findsNothing);
-      expect(find.text('overlay-4b'), findsNothing);
+      expect(find.text('overlay-4b'), findsOneWidget);
 
       await messenger.handlePlatformMessage(
         channelName,
@@ -399,7 +442,7 @@ void main() {
         isTrue,
       );
       expect(find.text('overlay-3'), findsNothing);
-      expect(find.text('overlay-4'), findsNothing);
+      expect(find.text('overlay-4b'), findsOneWidget);
 
       await messenger.handlePlatformMessage(
         channelName,
@@ -422,6 +465,89 @@ void main() {
       expect(find.text('overlay-3'), findsNothing);
       expect(find.text('overlay-4'), findsNothing);
       expect(find.text('overlay-4b'), findsOneWidget);
+    } finally {
+      messenger.setMockMethodCallHandler(
+        const MethodChannel(channelName),
+        null,
+      );
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('권역(region) 변경 시 AndroidView를 파괴하지 않고 loadAsset으로 재활용한다', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    final calls = <MethodCall>[];
+    const viewId = 99;
+    const channelName =
+        'com.easysubway.easysubway_mobile/route_map_viewport_webview/$viewId';
+    messenger.setMockMethodCallHandler(const MethodChannel(channelName), (
+      call,
+    ) async {
+      calls.add(call);
+      return null;
+    });
+
+    try {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: RouteMapSvgViewport(
+            region: '수도권',
+            camera: camera,
+            sourceOrigin: origin,
+            onUnavailable: () {},
+          ),
+        ),
+      );
+
+      final androidView = tester.widget<AndroidView>(find.byType(AndroidView));
+      androidView.onPlatformViewCreated!(viewId);
+      await messenger.handlePlatformMessage(
+        channelName,
+        const StandardMethodCodec().encodeMethodCall(
+          MethodCall('framePresented', <String, Object>{
+            'revision': 3,
+            'frameToken': 0,
+          }),
+        ),
+        (_) {},
+      );
+      await tester.pump();
+      expect(
+        tester.widget<Visibility>(find.byType(Visibility)).visible,
+        isTrue,
+      );
+
+      calls.clear();
+
+      final busanCamera = camera.copyWith(revision: 11);
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: RouteMapSvgViewport(
+            region: '부산',
+            camera: busanCamera,
+            sourceOrigin: origin,
+            onUnavailable: () {},
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(calls.any((call) => call.method == 'loadAsset'), isTrue);
+      final loadAssetCall = calls.firstWhere(
+        (call) => call.method == 'loadAsset',
+      );
+      expect(
+        loadAssetCall.arguments['assetPath'],
+        'assets/datapacks/metro_map_pack/basemap/busan.svg',
+      );
+      expect(loadAssetCall.arguments['revision'], 11);
+      expect(loadAssetCall.arguments['frameToken'], 1);
     } finally {
       messenger.setMockMethodCallHandler(
         const MethodChannel(channelName),

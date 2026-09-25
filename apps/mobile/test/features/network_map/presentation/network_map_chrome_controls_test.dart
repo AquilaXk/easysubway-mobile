@@ -200,14 +200,15 @@ void main() {
 
     expect(find.byKey(const Key('networkMapTopBar')), findsOneWidget);
     expect(find.text('부산'), findsOneWidget);
+    expect(find.byKey(const Key('networkMapNotificationAction')), findsNothing);
     expect(
-      find.byKey(const Key('networkMapNotificationAction')),
-      findsOneWidget,
+      tester.getTopLeft(find.byKey(const Key('networkMapRegionDropdown'))).dx,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('stationSearchButton'))).dx,
+      ),
     );
     expect(
-      tester
-          .getTopLeft(find.byKey(const Key('networkMapNotificationAction')))
-          .dx,
+      tester.getTopLeft(find.byKey(const Key('stationSearchButton'))).dx,
       lessThan(
         tester.getTopLeft(find.byKey(const Key('networkMapMenuButton'))).dx,
       ),

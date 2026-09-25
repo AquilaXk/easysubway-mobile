@@ -167,6 +167,8 @@ class NetworkMapScreen extends StatefulWidget {
 
 class _NetworkMapScreenState extends State<NetworkMapScreen> {
   String? _selectedRegion;
+  NetworkMapLoadResult? _activeLoadResult;
+  final Map<String, NetworkMapLoadResult> _loadResultCache = {};
   // #2419 리뷰 finding: 역 검색 메뉴가 항상 기본 지역 목록만 알아, 이 지도에만
   // 있는 지역이 검색 화면 지역 메뉴에서 빠졌다. 로드된 지도의 지역 표시명을
   // 캐싱해 검색을 열 때 함께 넘긴다.
@@ -289,6 +291,16 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             const <String, Map<String, List<RouteMapOwnerLabelEntry>>>{},
       ),
     );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(
+          precacheImage(
+            const AssetImage('assets/branding/app_icon/app_icon.png'),
+            context,
+          ),
+        );
+      }
+    });
   }
 
   void _selectRegionFromBridge(String region) {
@@ -669,7 +681,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (mounted) {
       _notifyRegionLabelChanged();
     }
-    await _saveSelectedRegion(data.selectedRegion);
+    unawaited(_saveSelectedRegion(data.selectedRegion));
     final viewport = await _loadSavedViewport(data.selectedRegion);
     return NetworkMapLoadResult(data: data, initialViewport: viewport);
   }
@@ -744,8 +756,16 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       return;
     }
     _nearestStationRequestToken++;
+    final nextRegion = region ?? _selectedRegion;
+    final cached = nextRegion != null
+        ? (_loadResultCache[nextRegion] ??
+              _loadResultCache[routeMapDisplayRegionName(nextRegion)])
+        : null;
     setState(() {
-      _selectedRegion = region ?? _selectedRegion;
+      _selectedRegion = nextRegion;
+      if (cached != null) {
+        _activeLoadResult = cached;
+      }
       _resetNearbyPanelState();
       _initialNearbyFocusStarted = false;
       _future = _startMapLoad();
@@ -774,17 +794,26 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         body: FutureBuilder<NetworkMapLoadResult>(
           future: _future,
           builder: (context, snapshot) {
-            if (snapshot.connectionState != ConnectionState.done) {
-              return _buildNetworkMapChrome(
-                regions: _mergeWithDefaultRegions(
-                  _latestMapData?.regions ?? const [],
-                ),
-                selectedRegion: _selectedRegion ?? '수도권',
-                adjacentStations: const NearbyAdjacentStations(),
-                child: const Center(child: CircularProgressIndicator()),
-              );
+            if (snapshot.connectionState == ConnectionState.done &&
+                snapshot.hasData) {
+              _activeLoadResult = snapshot.data!;
+              final data = snapshot.data!.data;
+              _loadResultCache[data.selectedRegion] = snapshot.data!;
+              _loadResultCache[routeMapDisplayRegionName(data.selectedRegion)] =
+                  snapshot.data!;
             }
-            if (snapshot.hasError || !snapshot.hasData) {
+            final activeLoadResult = snapshot.data ?? _activeLoadResult;
+            if (activeLoadResult == null) {
+              if (snapshot.connectionState != ConnectionState.done) {
+                return _buildNetworkMapChrome(
+                  regions: _mergeWithDefaultRegions(
+                    _latestMapData?.regions ?? const [],
+                  ),
+                  selectedRegion: _selectedRegion ?? '수도권',
+                  adjacentStations: const NearbyAdjacentStations(),
+                  child: const Center(child: CircularProgressIndicator()),
+                );
+              }
               return _buildNetworkMapChrome(
                 regions: _mergeWithDefaultRegions(
                   _latestMapData?.regions ?? const [],
@@ -794,7 +823,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                 child: NetworkMapLoadFailure(onRetry: () => _reload()),
               );
             }
-            final loadResult = snapshot.data!;
+            final loadResult = activeLoadResult;
             final data = loadResult.data;
             // #2068: 노선도는 일반/급행 선택 없는 단일 통합 지도다. LOCAL/EXPRESS는
             // 시간표·길찾기 trip 속성으로만 유지되고, 지도는 항상 원본 data 전체를
@@ -803,7 +832,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             _latestMapData = data;
             return _buildNetworkMapChrome(
               regions: _mergeWithDefaultRegions(data.regions),
-              selectedRegion: data.selectedRegion,
+              selectedRegion: _selectedRegion ?? data.selectedRegion,
               adjacentStations: _adjacentStationsFor(data),
               // #1933: _setOriginStation은 routeDraftController만 갱신하고 이
               // State에서 setState를 호출하지 않으므로, canvas를 좁게
@@ -812,31 +841,33 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
               child: ListenableBuilder(
                 listenable: widget.routeDraftController,
                 builder: (context, _) {
-                  return NetworkMapCanvas(
-                    data: data,
-                    initialViewport: loadResult.initialViewport,
-                    focusedStationId:
-                        _searchFanMenuStationId ?? _nearbySelectedStationId,
-                    preserveFocusedStationScale: _preserveFocusedStationScale,
-                    selectedStationId: _searchFanMenuStationId,
-                    selectionClearRevision: _selectionClearRevision,
-                    onSelectionDismissed: _dismissSearchFanMenu,
-                    onStationTapped: _handleCanvasStationTapped,
-                    originStationId:
-                        widget.routeDraftController.draft.origin?.id,
-                    waypointStationId:
-                        widget.routeDraftController.draft.waypoint?.id,
-                    destinationStationId:
-                        widget.routeDraftController.draft.destination?.id,
-                    onSetOrigin: _setOriginStation,
-                    onSetWaypoint: _setWaypointStation,
-                    onSetDestination: _setDestinationStation,
-                    onClearOrigin: _clearOriginStation,
-                    onClearWaypoint: _clearWaypointStation,
-                    onClearDestination: _clearDestinationStation,
-                    onViewportChanged: (viewport) {
-                      _saveRecentViewport(data.selectedRegion, viewport);
-                    },
+                  return RepaintBoundary(
+                    child: NetworkMapCanvas(
+                      data: data,
+                      initialViewport: loadResult.initialViewport,
+                      focusedStationId:
+                          _searchFanMenuStationId ?? _nearbySelectedStationId,
+                      preserveFocusedStationScale: _preserveFocusedStationScale,
+                      selectedStationId: _searchFanMenuStationId,
+                      selectionClearRevision: _selectionClearRevision,
+                      onSelectionDismissed: _dismissSearchFanMenu,
+                      onStationTapped: _handleCanvasStationTapped,
+                      originStationId:
+                          widget.routeDraftController.draft.origin?.id,
+                      waypointStationId:
+                          widget.routeDraftController.draft.waypoint?.id,
+                      destinationStationId:
+                          widget.routeDraftController.draft.destination?.id,
+                      onSetOrigin: _setOriginStation,
+                      onSetWaypoint: _setWaypointStation,
+                      onSetDestination: _setDestinationStation,
+                      onClearOrigin: _clearOriginStation,
+                      onClearWaypoint: _clearWaypointStation,
+                      onClearDestination: _clearDestinationStation,
+                      onViewportChanged: (viewport) {
+                        _saveRecentViewport(data.selectedRegion, viewport);
+                      },
+                    ),
                   );
                 },
               ),
@@ -1492,36 +1523,56 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       routeMapDisplayRegionName(_selectedRegion ?? '수도권');
 
   Future<void> _openMapMenu() {
-    return showGeneralDialog<void>(
-      context: context,
-      barrierDismissible: true,
-      barrierLabel: '메뉴 닫기',
-      barrierColor: const Color(0x99000000),
-      transitionDuration: const Duration(milliseconds: 180),
-      pageBuilder: (context, animation, secondaryAnimation) {
-        return NetworkMapMenuPanel(
-          bottomBanner: const AdBannerSlot(
-            slotKey: Key('networkMapMenuAdBanner'),
-          ),
-          onOpenStationSearch: () => widget.onOpenStationSearch(
-            _currentRegionDisplayName,
-            _availableRegionLabels,
-          ),
-          onOpenSavedItems: widget.onOpenSavedItems,
-          onOpenTrainSearch: widget.onOpenTrainSearch,
-          onOpenServiceNotices: widget.onOpenServiceNotices,
-          onOpenSettings: widget.onOpenSettings,
-        );
-      },
-      transitionBuilder: (context, animation, secondaryAnimation, child) {
-        return SlideTransition(
-          position: Tween<Offset>(begin: const Offset(1, 0), end: Offset.zero)
-              .animate(
-                CurvedAnimation(parent: animation, curve: Curves.easeOutCubic),
+    return Navigator.of(context).push<void>(
+      PageRouteBuilder<void>(
+        opaque: false,
+        barrierDismissible: true,
+        barrierLabel: '메뉴 닫기',
+        barrierColor: Colors.transparent,
+        transitionDuration: const Duration(milliseconds: 320),
+        reverseTransitionDuration: const Duration(milliseconds: 250),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return NetworkMapMenuPanel(
+            onOpenSavedItems: widget.onOpenSavedItems,
+            onOpenTrainSearch: widget.onOpenTrainSearch,
+            onOpenServiceNotices: widget.onOpenServiceNotices,
+            onOpenSettings: widget.onOpenSettings,
+          );
+        },
+        transitionsBuilder: (context, animation, secondaryAnimation, child) {
+          final curvedAnimation = CurvedAnimation(
+            parent: animation,
+            curve: Curves.easeOutCubic,
+            reverseCurve: Curves.easeInCubic,
+          );
+          return Stack(
+            children: [
+              GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => Navigator.of(context).pop(),
+                child: FadeTransition(
+                  key: const Key('networkMapMenuBackdrop'),
+                  opacity: curvedAnimation,
+                  child: const ColoredBox(
+                    color: Color(0x99000000),
+                    child: SizedBox.expand(),
+                  ),
+                ),
               ),
-          child: child,
-        );
-      },
+              Align(
+                alignment: Alignment.centerRight,
+                child: SlideTransition(
+                  position: Tween<Offset>(
+                    begin: const Offset(1, 0),
+                    end: Offset.zero,
+                  ).animate(curvedAnimation),
+                  child: RepaintBoundary(child: child),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 

@@ -752,18 +752,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                     );
                   },
                 ),
-          notificationAction: notificationRepository == null
-              ? null
-              : FutureBuilder<bool>(
-                  future: _hasNotificationItemsFuture,
-                  builder: (context, snapshot) {
-                    return _HomeNotificationButton(
-                      key: const Key('homeNotificationActionButton'),
-                      hasNotificationItems: snapshot.data ?? false,
-                      onPressed: openNotificationInbox,
-                    );
-                  },
-                ),
           focusStationRequest: _mapFocusStationRequest,
           onFocusStationRequestHandled: () =>
               setState(() => _mapFocusStationRequest = null),
@@ -1000,50 +988,5 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       ),
     );
     return true;
-  }
-}
-
-class _HomeNotificationButton extends StatelessWidget {
-  const _HomeNotificationButton({
-    required this.hasNotificationItems,
-    required this.onPressed,
-    super.key,
-  });
-
-  final bool hasNotificationItems;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      label: hasNotificationItems ? '알림, 확인할 알림 있음' : '알림, 새 알림이 없어요',
-      onTap: onPressed,
-      child: ExcludeSemantics(
-        child: Tooltip(
-          message: '알림',
-          child: IconButton(
-            onPressed: onPressed,
-            iconSize: 26,
-            style: IconButton.styleFrom(
-              minimumSize: const Size.square(EasySubwayTouchTarget.general),
-              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-              padding: EdgeInsets.zero,
-            ),
-            icon: Badge(
-              isLabelVisible: hasNotificationItems,
-              smallSize: 8,
-              backgroundColor: EasySubwayAccessibleColors.red,
-              offset: const Offset(2, -2),
-              child: const Icon(
-                Icons.notifications_none,
-                size: 26,
-                color: EasySubwayAccessibleColors.contentPrimary,
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
   }
 }

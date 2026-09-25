@@ -106,6 +106,39 @@ class RouteMapSvgViewportController {
     await _invokeSetCamera(payload);
   }
 
+  Future<void> loadAsset({
+    required String assetPath,
+    required MapCameraState camera,
+    required Offset sourceOrigin,
+    int frameToken = 0,
+  }) async {
+    if (!_hasValidViewBox(camera, sourceOrigin)) {
+      _fail();
+      return;
+    }
+    final payload = routeMapSvgViewportCameraPayload(
+      camera: camera,
+      sourceOrigin: sourceOrigin,
+      frameToken: frameToken,
+    );
+    final channel = _channel;
+    if (channel == null) {
+      _pendingCameraPayload = payload;
+      return;
+    }
+    if (_unavailable) return;
+    try {
+      await channel.invokeMethod<void>('loadAsset', <String, Object>{
+        'assetPath': assetPath,
+        ...payload,
+      });
+    } on PlatformException {
+      _fail();
+    } on MissingPluginException {
+      await _invokeSetCamera(payload);
+    }
+  }
+
   Future<void> _invokeSetCamera(Map<String, Object> payload) async {
     final channel = _channel;
     if (channel == null || _unavailable) return;
@@ -174,45 +207,16 @@ class RouteMapSvgViewport extends StatefulWidget {
 
 class _RouteMapSvgViewportState extends State<RouteMapSvgViewport> {
   late final RouteMapSvgViewportController _controller;
-  bool _framePresented = false;
   bool _hasPresentedFrame = false;
   bool _failed = false;
   int _frameToken = 0;
-  Widget? _presentedOverlay;
+  String? _loadedRegion;
   int? _debugPresentedRevision;
-  ({
-    int revision,
-    int token,
-    double left,
-    double top,
-    double width,
-    double height,
-  })?
-  _presentedFrame;
-
-  ({
-    int revision,
-    int token,
-    double left,
-    double top,
-    double width,
-    double height,
-  })
-  get _frame {
-    final rect = widget.camera.visibleSourceRect.shift(widget.sourceOrigin);
-    return (
-      revision: widget.camera.revision,
-      token: _frameToken,
-      left: rect.left,
-      top: rect.top,
-      width: rect.width,
-      height: rect.height,
-    );
-  }
 
   @override
   void initState() {
     super.initState();
+    _loadedRegion = widget.region;
     _controller = RouteMapSvgViewportController(
       onUnavailable: _fail,
       onFramePresented: (revision, frameToken) {
@@ -220,19 +224,23 @@ class _RouteMapSvgViewportState extends State<RouteMapSvgViewport> {
             revision == widget.camera.revision &&
             frameToken == _frameToken) {
           setState(() {
-            _framePresented = true;
             _hasPresentedFrame = true;
-            _presentedFrame = _frame;
-            _presentedOverlay = widget.overlay;
           });
           widget.onFramePresented?.call(revision);
         }
       },
     );
+    if (_hasValidViewBox(widget.camera, widget.sourceOrigin)) {
+      unawaited(
+        _controller.update(
+          widget.camera,
+          sourceOrigin: widget.sourceOrigin,
+          frameToken: _frameToken,
+        ),
+      );
+    }
     if (!debugRouteMapSvgViewportPresentImmediately &&
-        (!_isSupported ||
-            routeMapSvgAssetForRegion(widget.region) == null ||
-            !_hasValidViewBox(widget.camera, widget.sourceOrigin))) {
+        (!_isSupported || routeMapSvgAssetForRegion(widget.region) == null)) {
       WidgetsBinding.instance.addPostFrameCallback((_) => _fail());
     }
   }
@@ -245,19 +253,38 @@ class _RouteMapSvgViewportState extends State<RouteMapSvgViewport> {
   @override
   void didUpdateWidget(RouteMapSvgViewport oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.camera != widget.camera ||
+    final regionChanged =
+        oldWidget.region != widget.region || _loadedRegion != widget.region;
+    if (regionChanged) {
+      final asset = routeMapSvgAssetForRegion(widget.region);
+      if (asset == null) {
+        _fail();
+        return;
+      }
+      if (_hasValidViewBox(widget.camera, widget.sourceOrigin)) {
+        _loadedRegion = widget.region;
+        _frameToken += 1;
+        unawaited(
+          _controller.loadAsset(
+            assetPath: asset,
+            camera: widget.camera,
+            sourceOrigin: widget.sourceOrigin,
+            frameToken: _frameToken,
+          ),
+        );
+      }
+    } else if (oldWidget.camera != widget.camera ||
         oldWidget.sourceOrigin != widget.sourceOrigin) {
-      _frameToken += 1;
-      _framePresented = false;
-      unawaited(
-        _controller.update(
-          widget.camera,
-          sourceOrigin: widget.sourceOrigin,
-          frameToken: _frameToken,
-        ),
-      );
-    } else if (_framePresented && _presentedFrame == _frame) {
-      _presentedOverlay = widget.overlay;
+      if (_hasValidViewBox(widget.camera, widget.sourceOrigin)) {
+        _frameToken += 1;
+        unawaited(
+          _controller.update(
+            widget.camera,
+            sourceOrigin: widget.sourceOrigin,
+            frameToken: _frameToken,
+          ),
+        );
+      }
     }
   }
 
@@ -328,17 +355,15 @@ class _RouteMapSvgViewportState extends State<RouteMapSvgViewport> {
       _ => const SizedBox.expand(),
     };
     final nativeView = ExcludeSemantics(
-      child: IgnorePointer(child: platformView),
+      child: IgnorePointer(child: RepaintBoundary(child: platformView)),
     );
-    final overlay = _framePresented ? _presentedOverlay : null;
+    final overlay = widget.overlay;
     return Visibility(
       visible: _hasPresentedFrame,
       maintainState: true,
       maintainAnimation: true,
       maintainSize: true,
-      child: overlay == null
-          ? nativeView
-          : Stack(fit: StackFit.expand, children: [nativeView, overlay]),
+      child: Stack(fit: StackFit.expand, children: [nativeView, ?overlay]),
     );
   }
 }

@@ -15,6 +15,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/presentation/my_facility_reports_screens.dart';
 import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
+import 'package:easysubway_mobile/core/ui/region_menu.dart';
 import 'package:easysubway_mobile/core/datapack/bundled_data_pack_freshness.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/features/ads/active_ad_banner.dart';
@@ -43,6 +44,7 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscript
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
+import 'package:easysubway_mobile/features/notifications/presentation/notification_inbox_screen.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_body.dart';
@@ -480,9 +482,10 @@ Future<void> _openSavedItemsScreen(WidgetTester tester) async {
 /// 하단 팝오버를 띄운다(상세를 열지 않는다). 역 상세/시설 화면을 열려면 좌측 메뉴의
 /// "역 검색"으로 탭 진입형 [StationSearchScreen]을 연다(정상 탭 = 상세 열기 유지).
 Future<void> _openStationSearchScreenViaMenu(WidgetTester tester) async {
-  await tester.tap(find.byKey(const Key('networkMapMenuButton')));
-  await tester.pumpAndSettle();
-  await tester.tap(find.byKey(const Key('networkMapMenuStationSearchButton')));
+  final networkMap = tester.widget<NetworkMapScreen>(
+    find.byType(NetworkMapScreen),
+  );
+  networkMap.onOpenStationSearch('수도권', const ['수도권', '부산', '대구', '광주', '대전']);
   await tester.pumpAndSettle();
 }
 
@@ -1319,8 +1322,9 @@ void main() {
       expect(find.widgetWithText(OutlinedButton, '도움말'), findsNothing);
       expect(
         find.byKey(const Key('homeNotificationActionButton')),
-        findsOneWidget,
+        findsNothing,
       );
+      expect(find.byKey(const Key('networkMapRegionDropdown')), findsOneWidget);
       expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
       expect(find.byKey(const Key('bottomNavHome')), findsNothing);
       expect(find.byKey(const Key('bottomNavMap')), findsNothing);
@@ -1350,15 +1354,15 @@ void main() {
 
       await tester.tap(find.byKey(const Key('networkMapMenuButton')));
       await tester.pumpAndSettle();
-      // #1933 요구 3: 별도 길찾기 폼 페이지를 없앴으므로 좌측 메뉴 "길찾기" 항목은
-      // 제거됐다. 역 검색은 그대로 남는다.
+      // #1933 / #360: 별도 길찾기 폼 페이지를 없앴으므로 좌측 메뉴 "길찾기" 항목은
+      // 제거됐다. 역 검색도 상단바 검색과 중복으로 메뉴에서 제거됐다.
       expect(
         find.byKey(const Key('networkMapMenuRouteSearchButton')),
         findsNothing,
       );
       expect(
         find.byKey(const Key('networkMapMenuStationSearchButton')),
-        findsOneWidget,
+        findsNothing,
       );
       expect(find.text('최근 경로'), findsNothing);
       expect(find.text('저장한 경로가 없습니다'), findsNothing);
@@ -1409,7 +1413,7 @@ void main() {
     expect(find.text('공지사항'), findsOneWidget);
     expect(
       tester.getSize(find.byKey(const Key('networkMapMenuHeader'))).height,
-      60,
+      76,
     );
 
     // 노선도·메뉴만 mapChrome 짧은 드롭(카카오 페이드 환산). 선 톤은 전 화면 공통.
@@ -1453,14 +1457,14 @@ void main() {
     final internalDividers = tester.widgetList<Divider>(
       find.descendant(of: panel, matching: find.byType(Divider)),
     );
-    expect(internalDividers, hasLength(2));
+    expect(internalDividers, hasLength(3));
     expect(
       internalDividers.map((divider) => divider.color),
       everyElement(EasySubwayAccessibleColors.line),
     );
     expect(
       find.descendant(of: panel, matching: find.byType(Divider)),
-      findsNWidgets(2),
+      findsNWidgets(3),
     );
   });
 
@@ -1527,7 +1531,7 @@ void main() {
     expect(nearbyButtonRect.right, lessThanOrEqualTo(1280));
   });
 
-  testWidgets('홈 상단 알림 버튼은 깔끔한 아이콘으로 알림함으로 이동한다', (tester) async {
+  testWidgets('홈 상단바는 좌측에 지역 선택 드롭다운, 우측에 메뉴 버튼을 배치한다', (tester) async {
     await tester.pumpWidget(
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
@@ -1539,43 +1543,23 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final notificationButton = tester.widget<IconButton>(
-      find.descendant(
-        of: find.byKey(const Key('homeNotificationActionButton')),
-        matching: find.byType(IconButton),
+    expect(find.byKey(const Key('homeNotificationActionButton')), findsNothing);
+    expect(find.byKey(const Key('networkMapRegionDropdown')), findsOneWidget);
+    expect(find.byKey(const Key('stationSearchButton')), findsOneWidget);
+    expect(find.byKey(const Key('networkMapMenuButton')), findsOneWidget);
+
+    expect(
+      tester.getTopLeft(find.byKey(const Key('networkMapRegionDropdown'))).dx,
+      lessThan(
+        tester.getTopLeft(find.byKey(const Key('stationSearchButton'))).dx,
       ),
     );
-    final notificationButtonSide = notificationButton.style?.side?.resolve(
-      <WidgetState>{},
-    );
-    final notificationBadge = tester.widget<Badge>(
-      find.descendant(
-        of: find.byKey(const Key('homeNotificationActionButton')),
-        matching: find.byType(Badge),
-      ),
-    );
-    expect(notificationButtonSide, isNull);
     expect(
-      notificationButton.style?.backgroundColor?.resolve(<WidgetState>{}),
-      isNull,
-    );
-    expect(
-      tester
-          .getTopLeft(find.byKey(const Key('homeNotificationActionButton')))
-          .dx,
+      tester.getTopLeft(find.byKey(const Key('stationSearchButton'))).dx,
       lessThan(
         tester.getTopLeft(find.byKey(const Key('networkMapMenuButton'))).dx,
       ),
     );
-    expect(notificationBadge.isLabelVisible, isFalse);
-    expect(find.bySemanticsLabel('알림, 새 알림이 없어요'), findsOneWidget);
-    expect(find.bySemanticsLabel('알림, 확인할 알림 있음'), findsNothing);
-
-    await tester.tap(find.byKey(const Key('homeNotificationActionButton')));
-    await tester.pumpAndSettle();
-
-    expect(find.text('알림'), findsOneWidget);
-    expect(find.text('새 알림이 없습니다'), findsOneWidget);
   });
 
   testWidgets('알림함은 로드 실패를 빈 알림으로 숨기지 않는다', (tester) async {
@@ -1585,17 +1569,16 @@ void main() {
 
     await runWithMobileErrorReporter(reportedErrors.add, () async {
       await tester.pumpWidget(
-        buildEasySubwayTestApp(
-          repository: FakeStationSearchRepository(),
-          reportRepository: reportRepository,
-          favoriteRepository: FakeFavoriteStationRepository(),
-          notificationRepository: FakeNotificationSettingsRepository(),
-          initialOnboardingState: _completedOnboardingState(),
+        MaterialApp(
+          home: NotificationInboxScreen(
+            reportRepository: reportRepository,
+            favoriteFacilityRepository: FakeFavoriteFacilityRepository(),
+            notificationRepository: FakeNotificationSettingsRepository(),
+            notificationPermissionProvider: null,
+            onOpenReport: (_) {},
+          ),
         ),
       );
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byKey(const Key('homeNotificationActionButton')));
       await tester.pumpAndSettle();
 
       expect(
@@ -1621,7 +1604,7 @@ void main() {
     expect(reportedErrors, isNotEmpty);
   });
 
-  testWidgets('홈 알림 버튼은 확인할 알림이 있으면 배지와 상태를 알려준다', (tester) async {
+  testWidgets('홈 알림 바는 확인할 알림이 있으면 바를 표시한다', (tester) async {
     final favoriteFacilityRepository = FakeFavoriteFacilityRepository(
       favorites: [_favoriteFacility(status: 'USER_REPORTED')],
     );
@@ -1638,15 +1621,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final notificationBadge = tester.widget<Badge>(
-      find.descendant(
-        of: find.byKey(const Key('homeNotificationActionButton')),
-        matching: find.byType(Badge),
-      ),
-    );
-    expect(notificationBadge.isLabelVisible, isTrue);
-    expect(find.bySemanticsLabel('알림, 확인할 알림 있음'), findsOneWidget);
-    expect(find.bySemanticsLabel('알림, 새 알림이 없어요'), findsNothing);
+    expect(find.byKey(const Key('homeNotificationActionButton')), findsNothing);
+    expect(find.byKey(const Key('newNotificationBar')), findsOneWidget);
+    expect(find.text('새로운 알림이 있어요'), findsOneWidget);
+    expect(find.text('알림 보기'), findsOneWidget);
     expect(favoriteFacilityRepository.listCount, 1);
   });
 
@@ -2027,7 +2005,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('homeNotificationActionButton')));
+    await tester.tap(find.byKey(const Key('newNotificationBar')));
     await tester.pumpAndSettle();
 
     expect(find.text('상록수역 1번 출구 엘리베이터'), findsOneWidget);
@@ -2307,7 +2285,9 @@ void main() {
     expect(find.text('부산'), findsOneWidget);
   });
 
-  testWidgets('노선도 지역 메뉴는 흰 표면·구분선·화면 우측 밀착으로 뜬다 (#1933)', (tester) async {
+  testWidgets('노선도 지역 메뉴는 상단바 버튼 바로 아래에 정갈한 드롭다운 패널로 뜬다 (#360)', (
+    tester,
+  ) async {
     final repository = FakeStationSearchRepository(
       networkMapRegionNames: const ['테스트권', '부산'],
     );
@@ -2321,145 +2301,29 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('테스트권'));
+    final triggerFinder = find.byKey(const Key('networkMapRegionDropdown'));
+    final triggerRect = tester.getRect(triggerFinder);
+
+    await tester.tap(triggerFinder);
     await tester.pumpAndSettle();
 
-    // 구분선: 지역 2개 → 행 사이 구분선은 정확히 1개(마지막 행 뒤에는 없음).
-    final dividerFinder = find.byKey(const Key('networkMapRegionMenuDivider'));
-    expect(dividerFinder, findsOneWidget);
-    // 인셋 구분선: 색은 line, 두께 1, 좌우 16 인셋(full-width 절단형 아님).
-    final dividerLine = tester.widget<ColoredBox>(
-      find.descendant(of: dividerFinder, matching: find.byType(ColoredBox)),
-    );
-    expect(dividerLine.color, EasySubwayAccessibleColors.line);
-    final dividerLineSize = tester.getSize(
-      find.descendant(of: dividerFinder, matching: find.byType(ColoredBox)),
-    );
-    expect(dividerLineSize.height, 1);
-    final dividerBoxWidth = tester.getSize(dividerFinder).width;
-    // 인셋(좌16+우16=32)만큼 컬러 라인이 구분선 박스보다 좁아야 한다.
-    expect(dividerLineSize.width, closeTo(dividerBoxWidth - 32, 0.5));
+    final panelFinder = find.byType(EasySubwayRegionMenuPanel);
+    expect(panelFinder, findsOneWidget);
 
-    // 메뉴 패널의 Material은 '부산' 텍스트의 조상 중 실제로 color/elevation/shape가
-    // 세팅된 것(내부 wrapper Material은 color가 null이라 구분해야 함).
-    final menuMaterials = find.ancestor(
-      of: find.text('부산'),
-      matching: find.byType(Material),
-    );
-    final menuMaterialWidgets = tester
-        .widgetList<Material>(menuMaterials)
-        .toList();
-    final menuMaterialIndex = menuMaterialWidgets.indexWhere(
-      (material) => material.color != null,
-    );
-    final menuMaterialElement = menuMaterialWidgets[menuMaterialIndex];
-    final menuRect = tester.getRect(menuMaterials.at(menuMaterialIndex));
+    final panelRect = tester.getRect(panelFinder);
+    expect(panelRect.top, greaterThanOrEqualTo(triggerRect.bottom));
 
-    // 메뉴 우측이 화면 우측 끝에 완전 밀착되어 노선도 삐짐이 없어야 한다 —
-    // right=0으로 설정하여 overlay 우측과 일치시킨다.
-    final screenWidth =
-        tester.view.physicalSize.width / tester.view.devicePixelRatio;
-    expect(menuRect.right, closeTo(screenWidth, 1.0));
+    // 선택 행 체크마크(✓) 검증
+    final checkmarkFinder = find.byKey(const Key('regionSelectedCheckmark'));
+    expect(checkmarkFinder, findsOneWidget);
 
-    // 표면 스타일: 흰 표면, elevation 0, 라운드 8(좌측만) + line 색 테두리.
-    // clipBehavior로 선택 행 배경이 위쪽 라운드를 덮어 각져 보이지 않게 한다.
-    expect(menuMaterialElement.elevation, 0);
-    expect(menuMaterialElement.clipBehavior, Clip.antiAlias);
-    expect(menuMaterialElement.color, EasySubwayAccessibleColors.surface);
-    final shape = menuMaterialElement.shape as RoundedRectangleBorder;
-    expect(
-      shape.borderRadius,
-      const BorderRadius.only(
-        topLeft: Radius.circular(8),
-        bottomLeft: Radius.circular(8),
-        topRight: Radius.zero,
-        bottomRight: Radius.zero,
-      ),
-    );
-    expect((shape.side.color), EasySubwayAccessibleColors.line);
-
-    // 행 높이 = 상단바 터치 타깃(56) + 콘텐츠 자연폭(극단 협폭만 방지).
-    final rowSize = tester.getSize(
-      find.byKey(const ValueKey('networkMapRegionMenuRow_부산')),
-    );
-    expect(rowSize.height, EasySubwayTouchTarget.general);
-    expect(menuRect.width, greaterThanOrEqualTo(120));
-
-    // 딤 스크림: barrierColor가 투명이 아니라 앱 다이얼로그 관례값과 동일한
-    // 딤이어야 한다(참고 07에서 차용하는 것은 주변을 어둡게 하는 스크림뿐).
-    final dimBarrier = find.byWidgetPredicate(
-      (w) => w is ModalBarrier && w.color == const Color(0x99000000),
-    );
-    expect(dimBarrier, findsOneWidget);
-
-    // 선택 이중 부호화: 배경 틴트 + 굵기·액센트 색 + ✓.
-    // 기본 행은 16sp·w500·투명 배경. 선택 행(초기=테스트권)은 w700.
-    final selectedRow = find.byKey(
-      const ValueKey('networkMapRegionMenuRow_테스트권'),
-    );
-    final busanRow = find.byKey(const ValueKey('networkMapRegionMenuRow_부산'));
-    final selectedFill = tester.widget<ColoredBox>(
-      find.descendant(of: selectedRow, matching: find.byType(ColoredBox)).first,
-    );
-    expect(
-      selectedFill.color,
-      EasySubwayAccessibleColors.brandSignatureSurface,
-    );
-    final busanFill = tester.widget<ColoredBox>(
-      find.descendant(of: busanRow, matching: find.byType(ColoredBox)).first,
-    );
-    expect(busanFill.color, Colors.transparent);
-    final selectedText = tester.widget<Text>(
-      find.descendant(of: selectedRow, matching: find.text('테스트권')),
-    );
-    expect(selectedText.style?.fontSize, 16);
-    expect(selectedText.style?.fontWeight, FontWeight.w700);
-    expect(
-      selectedText.style?.color,
-      EasySubwayAccessibleColors.interactionOnBrand,
-    );
-    final busanText = tester.widget<Text>(
-      find.descendant(of: busanRow, matching: find.text('부산')),
-    );
-    expect(busanText.style?.fontSize, 16);
-    expect(busanText.style?.fontWeight, FontWeight.w500);
-    expect(busanText.style?.color, EasySubwayAccessibleColors.listRowText);
-
-    // ✓ 트레일링: 선택 행에만 체크가 있고, 라벨 오른쪽(트레일링)에 위치한다.
-    final checkFinder = find.descendant(
-      of: selectedRow,
-      matching: find.byIcon(Icons.check),
-    );
-    expect(checkFinder, findsOneWidget);
-    expect(
-      tester.widget<Icon>(checkFinder).color,
-      EasySubwayAccessibleColors.interactionOnBrand,
-    );
-    expect(
-      find.descendant(of: busanRow, matching: find.byIcon(Icons.check)),
-      findsNothing,
-    );
-    // 체크는 라벨보다 오른쪽에 있어야 한다(트레일링 배치).
-    final labelRight = tester
-        .getRect(find.descendant(of: selectedRow, matching: find.text('테스트권')))
-        .right;
-    final checkLeft = tester.getRect(checkFinder).left;
-    expect(checkLeft, greaterThanOrEqualTo(labelRight));
-
-    await tester.tap(find.text('부산'));
+    await tester.tap(find.byKey(const ValueKey('networkMapRegionMenuRow_부산')));
     await tester.pumpAndSettle();
+
+    expect(find.byType(EasySubwayRegionMenuPanel), findsNothing);
   });
 
-  testWidgets('#2082 저장된 지역(부산)으로 로드된 뒤 역 검색을 열면 지역 표시가 부산을 따른다', (
-    tester,
-  ) async {
-    // 회귀 방지: _currentRegionDisplayName이 _selectedRegion(세션 중 지역
-    // 선택기를 조작해야만 채워지는 상태)에만 의존하면, 저장된 지역이 부산인
-    // 사용자가 재시작 후 지역 선택기를 건드리지 않고 검색을 열 때 '수도권'이
-    // 잘못 표시된다. getNetworkMap(region: null) 호출이 저장된 지역(부산)을
-    // 반환하도록 페이크를 구성해, 로드 완료 후 지역 표시가 실제 로드된 지역을
-    // 따르는지 검증한다.
-    String? openedRegionLabel;
+  testWidgets('메뉴 패널에는 상단바와 중복되는 역 검색 타일이 제거되어 노출되지 않는다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: NetworkMapScreen(
@@ -2467,9 +2331,7 @@ void main() {
             networkMapRegionNames: const ['부산'],
           ),
           routeDraftController: RouteDraftController(),
-          onOpenStationSearch: (regionLabel, _) {
-            openedRegionLabel = regionLabel;
-          },
+          onOpenStationSearch: (_, _) {},
         ),
       ),
     );
@@ -2477,12 +2339,11 @@ void main() {
 
     await tester.tap(find.byKey(const Key('networkMapMenuButton')));
     await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('networkMapMenuStationSearchButton')),
-    );
-    await tester.pumpAndSettle();
 
-    expect(openedRegionLabel, '부산');
+    expect(
+      find.byKey(const Key('networkMapMenuStationSearchButton')),
+      findsNothing,
+    );
   });
 
   testWidgets('노선도 로드 실패는 재시도만 보여준다', (tester) async {
@@ -7985,7 +7846,7 @@ void main() {
     );
   });
 
-  testWidgets('노선도 좌측 메뉴 하단에 광고 슬롯이 있다', (tester) async {
+  testWidgets('노선도 우측 메뉴 하단에 푸터 정보가 있고 중복 광고 슬롯은 없다', (tester) async {
     await tester.pumpWidget(
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
@@ -8002,9 +7863,8 @@ void main() {
     await tester.tap(find.byKey(const Key('networkMapMenuButton')));
     await tester.pumpAndSettle();
 
-    // debug 빌드에서는 자리 확인용 슬롯이 패널 하단에 렌더링된다.
-    // (release에서는 실광고가 없으면 collapse — 노출 규칙은 #1485)
-    expect(find.byKey(const Key('networkMapMenuAdBanner')), findsOneWidget);
+    expect(find.byKey(const Key('networkMapMenuAdBanner')), findsNothing);
+    expect(find.byKey(const Key('networkMapMenuFooter')), findsOneWidget);
   });
 
   testWidgets('노선도 chrome은 시스템 글자 크기를 따른다', (tester) async {

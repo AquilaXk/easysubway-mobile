@@ -98,7 +98,7 @@ class NetworkMapTopBar extends StatelessWidget {
   const NetworkMapTopBar({
     required this.regions,
     required this.selectedRegion,
-    required this.notificationAction,
+    this.notificationAction,
     required this.onMenuTap,
     required this.onSearchTap,
     this.searchMode = false,
@@ -242,23 +242,7 @@ class NetworkMapTopBar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 4),
-            ] else if (notificationAction != null) ...[
-              notificationAction!,
-              const SizedBox(width: 4),
             ],
-            Expanded(
-              child: searchMode
-                  ? EasySubwaySearchField(
-                      controller: searchQueryController,
-                      focusNode: searchFocusNode,
-                      hintText: '역 이름을 입력해 주세요',
-                      autofocus: true,
-                      onSubmitted: onSearchSubmitted,
-                      onClear: onSearchClear,
-                    )
-                  : NetworkMapSearchEntryButton(onTap: onSearchTap),
-            ),
-            const SizedBox(width: 8),
             Builder(
               builder: (regionContext) {
                 // 검색 행은 draft가 비었을 때만 렌더되지만, 경로 칸이 생기면
@@ -276,42 +260,51 @@ class NetworkMapTopBar extends StatelessWidget {
                       : '지역: $currentRegion',
                   onTap: onRegionTap,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 148),
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                      maxWidth: 148,
+                    ),
                     child: ExcludeSemantics(
                       child: InkWell(
                         key: const Key('networkMapRegionDropdown'),
                         onTap: onRegionTap,
-                        splashFactory: NoSplash.splashFactory,
-                        splashColor: Colors.transparent,
-                        highlightColor: Colors.transparent,
-                        child: SizedBox(
-                          height: EasySubwayTouchTarget.general,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Flexible(
-                                child: Text(
-                                  currentRegion,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(
-                                    color: EasySubwayAccessibleColors
-                                        .contentSecondary,
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w600,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Center(
+                          widthFactor: 1.0,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    currentRegion,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                      color: EasySubwayAccessibleColors
+                                          .contentPrimary,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: -0.2,
+                                    ),
                                   ),
                                 ),
-                              ),
-                              if (canChangeRegion) ...[
-                                const SizedBox(width: 2),
-                                const Icon(
-                                  Icons.keyboard_arrow_down,
-                                  color: EasySubwayAccessibleColors
-                                      .contentSecondary,
-                                  size: 22,
-                                ),
+                                if (canChangeRegion) ...[
+                                  const SizedBox(width: 2),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: EasySubwayAccessibleColors
+                                        .contentSecondary,
+                                    size: 20,
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
                         ),
                       ),
@@ -319,6 +312,19 @@ class NetworkMapTopBar extends StatelessWidget {
                   ),
                 );
               },
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: searchMode
+                  ? EasySubwaySearchField(
+                      controller: searchQueryController,
+                      focusNode: searchFocusNode,
+                      hintText: '역 이름을 입력해 주세요',
+                      autofocus: true,
+                      onSubmitted: onSearchSubmitted,
+                      onClear: onSearchClear,
+                    )
+                  : NetworkMapSearchEntryButton(onTap: onSearchTap),
             ),
             if (!searchMode) ...[
               const SizedBox(width: 4),

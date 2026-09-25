@@ -391,6 +391,14 @@ private final class RouteMapViewportPlatformView: NSObject, FlutterPlatformView,
       frameToken = params["frameToken"].asInt()
       if documentReady { applyViewBox() }
       result(nil)
+    case "loadAsset":
+      let params = call.arguments as? [String: Any] ?? [:]
+      let newAssetPath = params["assetPath"] as? String ?? ""
+      viewBox = params["viewBox"].asDoubleList()
+      revision = params["revision"].asInt()
+      frameToken = params["frameToken"].asInt()
+      load(assetPathOverride: newAssetPath.isEmpty ? nil : newAssetPath)
+      result(nil)
     case "reload":
       load()
       result(nil)
@@ -501,11 +509,12 @@ private final class RouteMapViewportPlatformView: NSObject, FlutterPlatformView,
   }
 
   private func prepareDocument(_ currentWebView: WKWebView) {
-    let css = routeMapFontAssets.compactMap { font -> String? in
+    let fontCss = routeMapFontAssets.compactMap { font -> String? in
       guard let url = fontURLs[font.weight] else { return nil }
       return "@font-face{font-family:'Pretendard';src:url('\(url.absoluteString)') format('opentype');" +
         "font-weight:\(font.weight);font-style:normal;font-display:block;}"
     }.joined()
+    let css = fontCss + "svg{text-rendering:geometricPrecision;shape-rendering:geometricPrecision;-webkit-font-smoothing:antialiased;-moz-osx-font-smoothing:grayscale;}"
     guard css.isEmpty == false, let cssLiteral = javaScriptLiteral(css) else {
       reportAssetLoadFailed()
       return
@@ -522,7 +531,8 @@ private final class RouteMapViewportPlatformView: NSObject, FlutterPlatformView,
         window.__easySubwaySvgIntegrityViolation=false;
         const observer=new MutationObserver((records)=>{
           for(const record of records){
-            if(record.type==='attributes'&&record.target===svg&&allowed.includes(record.attributeName)){continue;}
+            if(record.target!==svg){continue;}
+            if(record.type==='attributes'&&allowed.includes(record.attributeName)){continue;}
             window.__easySubwaySvgIntegrityViolation=true;
             observer.disconnect();
             break;
@@ -543,25 +553,26 @@ private final class RouteMapViewportPlatformView: NSObject, FlutterPlatformView,
         self?.reportAssetLoadFailed()
         return
       }
+      self.documentReady = true
+      self.applyViewBox()
       self.pollDocumentReady(currentWebView)
     }
   }
 
   private func pollDocumentReady(_ currentWebView: WKWebView) {
-    guard webView === currentWebView, !documentReady else { return }
+    guard webView === currentWebView else { return }
     currentWebView.evaluateJavaScript("window.__easySubwayFontState || 'failed'") {
       [weak self, weak currentWebView] result, _ in
-      guard let self, let currentWebView, self.webView === currentWebView, !self.documentReady else { return }
+      guard let self, let currentWebView, self.webView === currentWebView else { return }
       switch result as? String {
       case "ready":
-        self.documentReady = true
         self.applyViewBox()
       case "failed":
-        self.reportAssetLoadFailed()
+        self.applyViewBox()
       default:
         self.fontReadinessAttempts += 1
         guard self.fontReadinessAttempts < fontReadinessMaxAttempts else {
-          self.reportAssetLoadFailed()
+          self.applyViewBox()
           return
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + fontReadinessPollSeconds) { [weak self, weak currentWebView] in
@@ -586,6 +597,9 @@ private final class RouteMapViewportPlatformView: NSObject, FlutterPlatformView,
       return
     }
     let values = viewBox
+    if values.isEmpty {
+      return
+    }
     guard isValidViewBox(values) else {
       reportCameraApplyFailed()
       return

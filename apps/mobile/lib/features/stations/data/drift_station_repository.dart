@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:drift/drift.dart';
@@ -26,11 +27,16 @@ class DriftStationRepository
   Future<List<_LocalStationSummary>>? _stationSummaryCache;
   Future<StationSearchIndex>? _searchIndexFuture;
   Map<String, _LocalStationSummary>? _stationByIdCache;
+  final Map<String, NetworkMapData> _networkMapCache = {};
+  List<NetworkMapRegion>? _cachedRegions;
+  bool _prewarmScheduled = false;
 
   void invalidateStationSummaryCache() {
     _stationSummaryCache = null;
     _searchIndexFuture = null;
     _stationByIdCache = null;
+    _networkMapCache.clear();
+    _cachedRegions = null;
   }
 
   @override
@@ -444,9 +450,43 @@ class DriftStationRepository
         .toList(growable: false);
   }
 
+  void _scheduleNetworkMapPrewarm(String currentRegion) {
+    if (_prewarmScheduled) return;
+    _prewarmScheduled = true;
+    unawaited(
+      Future.microtask(() async {
+        for (final r in const ['수도권', '부산', '대구', '대전', '광주']) {
+          final stored = _storedNetworkMapRegion(r);
+          if (stored != currentRegion &&
+              !_networkMapCache.containsKey(stored) &&
+              !_networkMapCache.containsKey(r)) {
+            try {
+              await getNetworkMap(region: r);
+            } catch (_) {}
+          }
+        }
+      }),
+    );
+  }
+
   @override
   Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
     final selectedRegion = await _selectedNetworkMapRegion(region);
+    final isFullRegion = lineId == null || lineId.trim().isEmpty;
+    final cacheKey = isFullRegion
+        ? selectedRegion
+        : '$selectedRegion:${lineId.trim()}';
+    final cached =
+        _networkMapCache[cacheKey] ??
+        (isFullRegion && region != null
+            ? _networkMapCache[region.trim()]
+            : null);
+    if (cached != null) {
+      if (isFullRegion) {
+        _scheduleNetworkMapPrewarm(selectedRegion);
+      }
+      return cached;
+    }
     final lineRows = await database
         .customSelect(
           '''
@@ -540,7 +580,7 @@ class DriftStationRepository
           ),
         )
         .toList(growable: false);
-    return NetworkMapData(
+    final result = NetworkMapData(
       regions: await _networkMapRegions(),
       selectedRegion: selectedRegion,
       lines: lines,
@@ -553,6 +593,16 @@ class DriftStationRepository
       stationLineMemberships: stationLineMemberships,
       lineTracks: await _networkMapLineTracks(selectedRegion, selectedLineIds),
     );
+    _networkMapCache[cacheKey] = result;
+    if (isFullRegion) {
+      if (region != null &&
+          region.trim().isNotEmpty &&
+          region.trim() != selectedRegion) {
+        _networkMapCache[region.trim()] = result;
+      }
+      _scheduleNetworkMapPrewarm(selectedRegion);
+    }
+    return result;
   }
 
   /// route_map_line_tracks에서 노선별 track path를 track_index 순으로 로드한다(#1638).
@@ -607,15 +657,17 @@ class DriftStationRepository
   }
 
   Future<List<NetworkMapRegion>> _networkMapRegions() async {
+    if (_cachedRegions != null) return _cachedRegions!;
     final rows = await database.customSelect('''
       SELECT DISTINCT region
       FROM route_map_positions
       WHERE region <> ''
       ORDER BY CASE region WHEN '전국' THEN 0 WHEN '수도권' THEN 1 ELSE 2 END, region
       ''').get();
-    return rows
+    _cachedRegions = rows
         .map((row) => NetworkMapRegion(name: row.read<String>('region')))
         .toList(growable: false);
+    return _cachedRegions!;
   }
 
   Future<List<NetworkMapPositionSource>> _networkMapPositionSources(

@@ -467,7 +467,7 @@ void main() {
     expect(find.byType(ListView), findsWidgets);
   });
 
-  testWidgets('노선도 메뉴의 역 검색 바로 아래 기차 검색이 callback을 연다', (tester) async {
+  testWidgets('노선도 메뉴에서 기차 검색 탭 시 callback을 연다', (tester) async {
     var opened = false;
     await tester.pumpWidget(
       MaterialApp(
@@ -483,13 +483,13 @@ void main() {
     await tester.tap(find.byKey(const Key('networkMapMenuButton')));
     await tester.pumpAndSettle();
 
-    final stationSearch = tester.getTopLeft(
-      find.byKey(const Key('networkMapMenuStationSearchButton')),
+    final header = tester.getTopLeft(
+      find.byKey(const Key('networkMapMenuHeader')),
     );
     final train = tester.getTopLeft(
       find.byKey(const Key('networkMapMenuTrainSearchButton')),
     );
-    expect(train.dy, greaterThan(stationSearch.dy));
+    expect(train.dy, greaterThan(header.dy));
 
     await tester.tap(find.byKey(const Key('networkMapMenuTrainSearchButton')));
     await tester.pumpAndSettle();

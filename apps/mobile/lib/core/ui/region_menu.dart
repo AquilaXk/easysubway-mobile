@@ -1,7 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../accessible_design.dart';
-import '../../design_tokens.dart';
 
 /// 노선도·역 검색 상단바가 공유하는 지역 메뉴 항목.
 class EasySubwayRegionMenuItem {
@@ -14,7 +16,7 @@ class EasySubwayRegionMenuItem {
   final String label;
 }
 
-/// 트리거 바로 아래·화면 우측 밀착으로 지역 메뉴를 연다.
+/// 트리거 버튼 바로 아래·화면 좌측 벽에 밀착하여 콤팩트한 지역 드롭다운 메뉴를 연다.
 Future<void> showEasySubwayRegionMenu({
   required BuildContext triggerContext,
   required List<EasySubwayRegionMenuItem> regions,
@@ -22,19 +24,27 @@ Future<void> showEasySubwayRegionMenu({
   required ValueChanged<String> onRegionSelected,
 }) async {
   final available = regions.isEmpty
-      ? const [EasySubwayRegionMenuItem(id: '수도권', label: '수도권')]
+      ? const [
+          EasySubwayRegionMenuItem(id: '수도권', label: '수도권'),
+          EasySubwayRegionMenuItem(id: '부산', label: '부산'),
+          EasySubwayRegionMenuItem(id: '대구', label: '대구'),
+          EasySubwayRegionMenuItem(id: '광주', label: '광주'),
+          EasySubwayRegionMenuItem(id: '대전', label: '대전'),
+        ]
       : regions;
+
   final RenderBox? triggerBox = triggerContext.findRenderObject() as RenderBox?;
   final RenderBox? overlayBox =
       Overlay.of(triggerContext).context.findRenderObject() as RenderBox?;
   if (triggerBox == null || overlayBox == null) {
     return;
   }
-  final topRight = triggerBox.localToGlobal(
-    triggerBox.size.bottomRight(Offset.zero),
+  final bottomLeft = triggerBox.localToGlobal(
+    triggerBox.size.bottomLeft(Offset.zero),
     ancestor: overlayBox,
   );
-  await showGeneralDialog<String>(
+
+  await showGeneralDialog<void>(
     context: triggerContext,
     barrierDismissible: true,
     barrierLabel: '지역 메뉴 닫기',
@@ -50,8 +60,8 @@ Future<void> showEasySubwayRegionMenu({
             ),
           ),
           Positioned(
-            top: topRight.dy,
-            right: 0,
+            top: bottomLeft.dy,
+            left: 0,
             child: EasySubwayRegionMenuPanel(
               availableRegions: available,
               selectedRegion: selectedRegion,
@@ -77,109 +87,104 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
   final ValueChanged<String> onRegionSelected;
 
   bool _isSelected(EasySubwayRegionMenuItem region) {
-    return region.id == selectedRegion || region.label == selectedRegion;
+    if (region.id == selectedRegion || region.label == selectedRegion) {
+      return true;
+    }
+    final cleanSelected = selectedRegion.endsWith('권')
+        ? selectedRegion.substring(0, selectedRegion.length - 1)
+        : selectedRegion;
+    final cleanLabel = region.label.endsWith('권')
+        ? region.label.substring(0, region.label.length - 1)
+        : region.label;
+    final cleanId = region.id.endsWith('권')
+        ? region.id.substring(0, region.id.length - 1)
+        : region.id;
+    return cleanSelected == cleanLabel || cleanSelected == cleanId;
   }
 
   @override
   Widget build(BuildContext context) {
-    final rows = <Widget>[];
-    for (var i = 0; i < availableRegions.length; i++) {
-      final region = availableRegions[i];
+    final tiles = <Widget>[];
+    for (final region in availableRegions) {
       final isSelected = _isSelected(region);
-      rows.add(
-        InkWell(
-          key: ValueKey('networkMapRegionMenuRow_${region.id}'),
-          splashFactory: NoSplash.splashFactory,
-          splashColor: Colors.transparent,
-          highlightColor: Colors.transparent,
-          onTap: () {
-            onRegionSelected(region.id);
-            Navigator.of(context).pop();
-          },
-          child: ColoredBox(
-            color: isSelected
-                ? EasySubwayAccessibleColors.surfaceSignature
-                : Colors.transparent,
+
+      tiles.add(
+        Material(
+          color: Colors.transparent,
+          elevation: 0,
+          child: InkWell(
+            key: ValueKey('networkMapRegionMenuRow_${region.id}'),
+            borderRadius: const BorderRadius.only(
+              topRight: Radius.circular(6),
+              bottomRight: Radius.circular(6),
+            ),
+            onTap: () {
+              unawaited(HapticFeedback.lightImpact());
+              Navigator.of(context).pop();
+              onRegionSelected(region.id);
+            },
             child: SizedBox(
-              height: EasySubwayTouchTarget.general,
-              child: Semantics(
-                button: true,
-                selected: isSelected,
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          region.label,
-                          style: TextStyle(
-                            color: isSelected
-                                ? EasySubwayAccessibleColors.interactionOnBrand
-                                : EasySubwayAccessibleColors.listRowText,
-                            fontSize: 16,
-                            fontWeight: isSelected
-                                ? FontWeight.w700
-                                : FontWeight.w500,
-                          ),
+              height: 48,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        region.label,
+                        style: TextStyle(
+                          color: isSelected
+                              ? EasySubwayAccessibleColors.interactionPrimary
+                              : EasySubwayAccessibleColors.listRowText,
+                          fontSize: 16,
+                          fontWeight: isSelected
+                              ? FontWeight.w700
+                              : FontWeight.w600,
+                          letterSpacing: -0.2,
                         ),
                       ),
-                      if (isSelected) ...[
-                        const SizedBox(width: 12),
-                        const Icon(
-                          Icons.check,
-                          color: EasySubwayAccessibleColors.interactionOnBrand,
-                          size: 20,
-                        ),
-                      ],
-                    ],
-                  ),
+                    ),
+                    if (isSelected)
+                      const Icon(
+                        Icons.check_rounded,
+                        key: Key('regionSelectedCheckmark'),
+                        color: EasySubwayAccessibleColors.interactionPrimary,
+                        size: 20,
+                      ),
+                  ],
                 ),
               ),
             ),
           ),
         ),
       );
-      if (i != availableRegions.length - 1) {
-        rows.add(const _EasySubwayRegionMenuDivider());
-      }
     }
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minWidth: 120),
-      child: IntrinsicWidth(
-        child: Material(
-          elevation: 0,
-          color: EasySubwayAccessibleColors.surfaceDefault,
-          surfaceTintColor: Colors.transparent,
-          clipBehavior: Clip.antiAlias,
-          shape: RoundedRectangleBorder(
-            side: const BorderSide(
-              color: EasySubwayAccessibleColors.borderSubtle,
-            ),
-            borderRadius: BorderRadius.only(
-              topLeft: Radius.circular(EasySubwayRadius.control),
-              bottomLeft: Radius.circular(EasySubwayRadius.control),
-              topRight: Radius.zero,
-              bottomRight: Radius.zero,
-            ),
-          ),
-          child: Column(mainAxisSize: MainAxisSize.min, children: rows),
+
+    return Material(
+      color: EasySubwayAccessibleColors.surfaceDefault,
+      elevation: 0,
+      shape: const RoundedRectangleBorder(
+        side: BorderSide(
+          color: EasySubwayAccessibleColors.borderSubtle,
+          width: 1,
+        ),
+        borderRadius: BorderRadius.only(
+          topLeft: Radius.zero,
+          bottomLeft: Radius.zero,
+          topRight: Radius.circular(8),
+          bottomRight: Radius.circular(8),
         ),
       ),
-    );
-  }
-}
-
-class _EasySubwayRegionMenuDivider extends StatelessWidget {
-  const _EasySubwayRegionMenuDivider();
-
-  @override
-  Widget build(BuildContext context) {
-    return const Padding(
-      key: Key('networkMapRegionMenuDivider'),
-      padding: EdgeInsets.symmetric(horizontal: 16),
       child: SizedBox(
-        height: 1,
-        child: ColoredBox(color: EasySubwayAccessibleColors.line),
+        width: 124,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: tiles,
+          ),
+        ),
       ),
     );
   }
