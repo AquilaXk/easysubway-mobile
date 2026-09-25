@@ -78,6 +78,12 @@ dev_dependencies:
   # 2.16.0은 analyzer/meta 요구사항이 Flutter 3.44.0과 해석되지 않는다(#260).
   build_runner: 2.15.1
 
+# Flutter 3.44.0 SDK의 flutter_test가 meta: 1.18.0으로 핀되어 있어
+# 의존성 해석 시 version solving 충돌을 방지하기 위해 오버라이드한다(#361).
+dependency_overrides:
+  meta: 1.18.0
+
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 
