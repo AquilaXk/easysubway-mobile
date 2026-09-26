@@ -66,6 +66,42 @@ void main() {
       expect(rightTaps, 1);
     });
 
+    testWidgets('이전 역은 "< 역명", 다음 역은 "역명 >" 꺽쇠를 표기하고 Semantics는 유지한다', (tester) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _hostBar(
+          lineColor: _line2Green,
+          leftName: '반월',
+          stationName: '상록수',
+          rightName: '한대앞',
+          badgeText: '4',
+        ),
+      );
+
+      expect(find.text('< 반월'), findsOneWidget);
+      expect(find.text('한대앞 >'), findsOneWidget);
+      expect(find.text('상록수'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('이전역 반월, 현재역 4 상록수, 다음역 한대앞'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('시종착역(인접역 null)은 해당 쪽 꺽쇠를 표기하지 않는다', (tester) async {
+      await tester.pumpWidget(
+        _hostBar(
+          lineColor: _line2Green,
+          leftName: null,
+          stationName: '당고개',
+          rightName: '상계',
+        ),
+      );
+
+      expect(find.textContaining('<'), findsNothing);
+      expect(find.text('상계 >'), findsOneWidget);
+    });
+
     testWidgets('2호선 선택 시 좌우 바가 모두 동일 노선색(#00A84D)이다', (tester) async {
       await tester.pumpWidget(_hostBar(lineColor: _line2Green));
 

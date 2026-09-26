@@ -91,6 +91,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
                     destination: arrival.destination,
                     etaSeconds: arrival.etaSeconds,
                     message: arrival.message,
+                    positionMessage: arrival.positionMessage,
                   ),
               ],
             ),

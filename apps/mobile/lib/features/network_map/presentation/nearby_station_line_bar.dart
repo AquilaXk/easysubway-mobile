@@ -232,8 +232,9 @@ class _SideName extends StatelessWidget {
     if (value == null || value.isEmpty) {
       return const SizedBox.shrink();
     }
+    final displayText = semanticsPrefix == '이전역' ? '< $value' : '$value >';
     final label = Text(
-      value,
+      displayText,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
       textAlign: TextAlign.center,

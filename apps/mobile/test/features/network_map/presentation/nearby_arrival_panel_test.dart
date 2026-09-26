@@ -70,6 +70,65 @@ void main() {
     );
   });
 
+  testWidgets('eta가 0이어도 상세 위치 메시지가 있으면 메시지를 우선 표시한다 (코레일 구간 방어)', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '건대입구 방면',
+              destination: '당고개',
+              etaSeconds: 0,
+              message: '[3]번째 전역',
+            ),
+            NearbyArrivalData(
+              direction: '한양대 방면',
+              destination: '오이도',
+              etaSeconds: 0,
+              message: '',
+            ),
+          ],
+        ),
+      ),
+    );
+
+    expect(find.text('[3]번째 전역'), findsOneWidget);
+    expect(find.text('곧 도착'), findsOneWidget);
+  });
+
+  testWidgets(
+    'message가 "곧 도착"이고 positionMessage가 있으면 positionMessage를 우선 표시한다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '건대입구 방면',
+                destination: '오이도',
+                etaSeconds: null,
+                message: '곧 도착',
+                positionMessage: '신길온천',
+              ),
+              NearbyArrivalData(
+                direction: '한양대 방면',
+                destination: '당고개',
+                etaSeconds: 0,
+                message: '곧 도착',
+                positionMessage: '고잔',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('신길온천'), findsOneWidget);
+      expect(find.text('고잔'), findsOneWidget);
+    },
+  );
+
   testWidgets('stale 정보의 수신 시각을 표시한다', (tester) async {
     await tester.pumpWidget(
       subject(

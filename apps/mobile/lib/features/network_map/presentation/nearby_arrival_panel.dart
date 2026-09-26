@@ -12,12 +12,14 @@ class NearbyArrivalData {
     required this.destination,
     required this.etaSeconds,
     required this.message,
+    this.positionMessage = '',
   });
 
   final String direction;
   final String destination;
   final int? etaSeconds;
   final String message;
+  final String positionMessage;
 }
 
 class NearbyArrivalPanelData {
@@ -160,7 +162,12 @@ String _formatArrivalEta(NearbyArrivalData arrival) {
     final minutes = (eta / 60).round();
     return minutes <= 0 ? '곧 도착' : '약 $minutes분';
   }
-  return arrival.message.trim();
+  final pos = arrival.positionMessage.trim();
+  final msg = arrival.message.trim();
+  if (msg == '곧 도착' && pos.isNotEmpty) {
+    return pos; // e.g. "신길온천", "고잔", "반월"
+  }
+  return msg.isNotEmpty ? msg : '곧 도착';
 }
 
 String _arrivalDirectionLabel(NearbyArrivalData arrival) {
