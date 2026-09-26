@@ -7,7 +7,10 @@ import 'package:easysubway_mobile/features/stations/domain/station_repositories.
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeServerTimetableRepository implements StationTimetableRepository {
-  _FakeServerTimetableRepository({this.timetableToReturn, this.shouldThrow = false});
+  _FakeServerTimetableRepository({
+    this.timetableToReturn,
+    this.shouldThrow = false,
+  });
 
   StationTimetable? timetableToReturn;
   bool shouldThrow;
@@ -19,7 +22,9 @@ class _FakeServerTimetableRepository implements StationTimetableRepository {
     required StationTimetableDayType dayType,
     required DateTime referenceDate,
   }) async {
-    if (shouldThrow) throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    if (shouldThrow) {
+      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    }
     return timetableToReturn ??
         StationTimetable(
           stationId: stationId,
@@ -35,7 +40,9 @@ class _FakeServerTimetableRepository implements StationTimetableRepository {
     required String lineId,
     required DateTime date,
   }) async {
-    if (shouldThrow) throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    if (shouldThrow) {
+      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    }
     return timetableToReturn ??
         StationTimetable(
           stationId: stationId,
@@ -52,7 +59,9 @@ class _FakeServerTimetableRepository implements StationTimetableRepository {
     required DateTime asOf,
     int horizonDays = 1,
   }) async {
-    if (shouldThrow) throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    if (shouldThrow) {
+      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    }
     return timetableToReturn ??
         StationTimetable(
           stationId: stationId,
@@ -95,108 +104,129 @@ void main() {
 
     tearDown(() => database.close());
 
-    test('DriftStationTimetableRepository loads weekday timetable from catalog', () async {
-      final localRepo = DriftStationTimetableRepository(database: database);
-      final timetable = await localRepo.loadStationTimetable(
-        stationId: 'station-sangnoksu',
-        lineId: 'seoul-4',
-        dayType: StationTimetableDayType.weekday,
-        referenceDate: DateTime.utc(2026, 9, 25),
-      );
-
-      expect(timetable.isAvailable, isTrue);
-      expect(timetable.directions, hasLength(2));
-      expect(timetable.directions.map((d) => d.name), containsAll(['오이도 방면', '진접 방면']));
-      expect(timetable.directions.first.departures, hasLength(1));
-    });
-
-    test('DriftStationTimetableRepository throws when station line is not covered', () async {
-      final localRepo = DriftStationTimetableRepository(database: database);
-      expect(
-        () => localRepo.loadStationTimetable(
-          stationId: 'station-unknown',
-          lineId: 'seoul-4',
-          dayType: StationTimetableDayType.weekday,
-          referenceDate: DateTime.utc(2026, 9, 25),
-        ),
-        throwsA(isA<StationTimetableUnavailable>()),
-      );
-    });
-
-    test('CompositeStationTimetableRepository returns server timetable when available', () async {
-      final serverRepo = _FakeServerTimetableRepository(
-        timetableToReturn: StationTimetable(
-          stationId: 'station-itx',
-          lineId: 'line-itx',
-          dayType: StationTimetableDayType.weekday,
-          directions: [
-            StationTimetableDirection(
-              name: '춘천 방면',
-              departures: [
-                StationTimetableDeparture(
-                  directionName: '춘천 방면',
-                  seconds: 36000,
-                  serviceClass: 'ITX_CHEONGCHUN',
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-      final localRepo = DriftStationTimetableRepository(database: database);
-      final composite = CompositeStationTimetableRepository(
-        serverRepository: serverRepo,
-        localRepository: localRepo,
-      );
-
-      final timetable = await composite.loadStationTimetableForDate(
-        stationId: 'station-itx',
-        lineId: 'line-itx',
-        date: DateTime.utc(2026, 9, 25),
-      );
-      expect(timetable.isAvailable, isTrue);
-      expect(timetable.directions.first.name, '춘천 방면');
-    });
-
-    test('CompositeStationTimetableRepository falls back to local when server throws', () async {
-      final serverRepo = _FakeServerTimetableRepository(shouldThrow: true);
-      final localRepo = DriftStationTimetableRepository(database: database);
-      final composite = CompositeStationTimetableRepository(
-        serverRepository: serverRepo,
-        localRepository: localRepo,
-      );
-
-      final timetable = await composite.loadStationTimetableForDate(
-        stationId: 'station-sangnoksu',
-        lineId: 'seoul-4',
-        date: DateTime.utc(2026, 9, 25),
-      );
-      expect(timetable.isAvailable, isTrue);
-      expect(timetable.directions.map((d) => d.name), containsAll(['오이도 방면', '진접 방면']));
-    });
-
-    test('CompositeStationTimetableRepository falls back to local when server returns empty', () async {
-      final serverRepo = _FakeServerTimetableRepository(
-        timetableToReturn: StationTimetable(
+    test(
+      'DriftStationTimetableRepository loads weekday timetable from catalog',
+      () async {
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final timetable = await localRepo.loadStationTimetable(
           stationId: 'station-sangnoksu',
           lineId: 'seoul-4',
           dayType: StationTimetableDayType.weekday,
-          directions: const [],
-        ),
-      );
-      final localRepo = DriftStationTimetableRepository(database: database);
-      final composite = CompositeStationTimetableRepository(
-        serverRepository: serverRepo,
-        localRepository: localRepo,
-      );
+          referenceDate: DateTime.utc(2026, 9, 25),
+        );
 
-      final timetable = await composite.loadStationTimetableForDate(
-        stationId: 'station-sangnoksu',
-        lineId: 'seoul-4',
-        date: DateTime.utc(2026, 9, 25),
-      );
-      expect(timetable.isAvailable, isTrue);
-      expect(timetable.directions, hasLength(2));
-    });
+        expect(timetable.isAvailable, isTrue);
+        expect(timetable.directions, hasLength(2));
+        expect(
+          timetable.directions.map((d) => d.name),
+          containsAll(['오이도 방면', '진접 방면']),
+        );
+        expect(timetable.directions.first.departures, hasLength(1));
+      },
+    );
+
+    test(
+      'DriftStationTimetableRepository throws when station line is not covered',
+      () async {
+        final localRepo = DriftStationTimetableRepository(database: database);
+        expect(
+          () => localRepo.loadStationTimetable(
+            stationId: 'station-unknown',
+            lineId: 'seoul-4',
+            dayType: StationTimetableDayType.weekday,
+            referenceDate: DateTime.utc(2026, 9, 25),
+          ),
+          throwsA(isA<StationTimetableUnavailable>()),
+        );
+      },
+    );
+
+    test(
+      'CompositeStationTimetableRepository returns server timetable when available',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(
+          timetableToReturn: StationTimetable(
+            stationId: 'station-itx',
+            lineId: 'line-itx',
+            dayType: StationTimetableDayType.weekday,
+            directions: [
+              StationTimetableDirection(
+                name: '춘천 방면',
+                departures: [
+                  StationTimetableDeparture(
+                    directionName: '춘천 방면',
+                    seconds: 36000,
+                    serviceClass: 'ITX_CHEONGCHUN',
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: localRepo,
+        );
+
+        final timetable = await composite.loadStationTimetableForDate(
+          stationId: 'station-itx',
+          lineId: 'line-itx',
+          date: DateTime.utc(2026, 9, 25),
+        );
+        expect(timetable.isAvailable, isTrue);
+        expect(timetable.directions.first.name, '춘천 방면');
+      },
+    );
+
+    test(
+      'CompositeStationTimetableRepository falls back to local when server throws',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(shouldThrow: true);
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: localRepo,
+        );
+
+        final timetable = await composite.loadStationTimetableForDate(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          date: DateTime.utc(2026, 9, 25),
+        );
+        expect(timetable.isAvailable, isTrue);
+        expect(
+          timetable.directions.map((d) => d.name),
+          containsAll(['오이도 방면', '진접 방면']),
+        );
+      },
+    );
+
+    test(
+      'CompositeStationTimetableRepository falls back to local when server returns empty',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(
+          timetableToReturn: StationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            dayType: StationTimetableDayType.weekday,
+            directions: const [],
+          ),
+        );
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: localRepo,
+        );
+
+        final timetable = await composite.loadStationTimetableForDate(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          date: DateTime.utc(2026, 9, 25),
+        );
+        expect(timetable.isAvailable, isTrue);
+        expect(timetable.directions, hasLength(2));
+      },
+    );
   });
 }

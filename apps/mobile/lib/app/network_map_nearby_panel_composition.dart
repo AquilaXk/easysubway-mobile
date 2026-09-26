@@ -51,6 +51,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
   VoidCallback? onOpenStationDetail,
   ValueChanged<StationDetailNeighbor>? onSelectNeighbor,
   VoidCallback? onSelectTimetable,
+  DateTime? now,
 }) {
   final primary = results.first;
   final selectedLine = networkMapNearbySelectedLine(primary, selectedLineId);
@@ -67,6 +68,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
       stationName: primary.nameKo,
       badgeText: selectedLine?.badgeText ?? '',
       lineColor: lineColor,
+      line: selectedLine,
       onStationNameTap: onOpenStationDetail,
       onLeftNameTap: selectNeighbor == null || previous == null
           ? null
@@ -99,6 +101,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
             onSelectTimetable: onSelectTimetable,
+            now: now,
           )
         : NearbyTimetablePanel(
             data: _networkMapNearbyTimetablePanelData(timetable),
@@ -106,6 +109,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
             expressBadgeBuilder: () => const ServicePatternBadge.express(),
+            now: now,
           ),
   );
 }

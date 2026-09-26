@@ -24,8 +24,9 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       StationTimetableDayType.sundayHoliday => 'sundayHoliday',
     };
 
-    final rows = await database.customSelect(
-      '''
+    final rows = await database
+        .customSelect(
+          '''
       SELECT DISTINCT r.direction_name, st.departure_seconds,
              t.service_pattern, t.service_class
       FROM transit_stop_times st
@@ -42,14 +43,15 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
         )
       ORDER BY r.direction_name, st.departure_seconds
       ''',
-      variables: [
-        Variable.withString(stationId),
-        Variable.withString(lineId),
-        Variable.withString(dayKey),
-        Variable.withString(dayKey),
-        Variable.withString(dayKey),
-      ],
-    ).get();
+          variables: [
+            Variable.withString(stationId),
+            Variable.withString(lineId),
+            Variable.withString(dayKey),
+            Variable.withString(dayKey),
+            Variable.withString(dayKey),
+          ],
+        )
+        .get();
 
     final directionsMap = <String, List<StationTimetableDeparture>>{};
     for (final row in rows) {
@@ -64,23 +66,27 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
         referenceDate.day,
       ).add(Duration(seconds: seconds));
 
-      directionsMap.putIfAbsent(directionName, () => []).add(
-        StationTimetableDeparture(
-          directionName: directionName,
-          seconds: seconds,
-          departureAt: departureAt,
-          servicePattern: servicePattern,
-          serviceClass: serviceClass,
-        ),
-      );
+      directionsMap
+          .putIfAbsent(directionName, () => [])
+          .add(
+            StationTimetableDeparture(
+              directionName: directionName,
+              seconds: seconds,
+              departureAt: departureAt,
+              servicePattern: servicePattern,
+              serviceClass: serviceClass,
+            ),
+          );
     }
 
-    final directions = directionsMap.entries.map((entry) {
-      return StationTimetableDirection(
-        name: entry.key,
-        departures: List.unmodifiable(entry.value),
-      );
-    }).toList(growable: false);
+    final directions = directionsMap.entries
+        .map((entry) {
+          return StationTimetableDirection(
+            name: entry.key,
+            departures: List.unmodifiable(entry.value),
+          );
+        })
+        .toList(growable: false);
 
     if (directions.isEmpty) {
       throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
@@ -129,10 +135,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
           .toList(growable: false);
       if (upcoming.isNotEmpty) {
         filteredDirections.add(
-          StationTimetableDirection(
-            name: dir.name,
-            departures: upcoming,
-          ),
+          StationTimetableDirection(name: dir.name, departures: upcoming),
         );
       }
     }
@@ -145,18 +148,21 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
   }
 
   Future<StationTimetableDayType> _resolveDayTypeForDate(DateTime date) async {
-    final dateKey = '${date.year.toString().padLeft(4, '0')}'
+    final dateKey =
+        '${date.year.toString().padLeft(4, '0')}'
         '${date.month.toString().padLeft(2, '0')}'
         '${date.day.toString().padLeft(2, '0')}';
 
-    final holidayExceptionRows = await database.customSelect(
-      '''
+    final holidayExceptionRows = await database
+        .customSelect(
+          '''
       SELECT 1 FROM service_calendar_dates
       WHERE date = ? AND exception_type = 1
       LIMIT 1
       ''',
-      variables: [Variable.withString(dateKey)],
-    ).get();
+          variables: [Variable.withString(dateKey)],
+        )
+        .get();
 
     if (holidayExceptionRows.isNotEmpty || date.weekday == DateTime.sunday) {
       return StationTimetableDayType.sundayHoliday;

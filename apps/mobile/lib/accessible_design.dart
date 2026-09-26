@@ -79,6 +79,7 @@ class EasySubwayAccessibleColors {
       EasySubwayColorPrimitives.statusWarningSoft;
   static const statusDangerContent = EasySubwayColorPrimitives.statusDanger;
   static const statusDangerSurface = EasySubwayColorPrimitives.statusDangerSoft;
+  static const statusDestructive = statusDangerContent;
   static const statusInfoContent = EasySubwayColorPrimitives.statusInfo;
   static const statusInfoSurface = EasySubwayColorPrimitives.statusInfoSoft;
 

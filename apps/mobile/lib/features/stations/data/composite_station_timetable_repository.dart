@@ -5,7 +5,8 @@ import 'server_station_timetable_repository.dart';
 /// Timetable repository that delegates to [serverRepository] first,
 /// and falls back to [localRepository] when the server does not cover the station
 /// or is temporarily unavailable.
-class CompositeStationTimetableRepository implements StationTimetableRepository {
+class CompositeStationTimetableRepository
+    implements StationTimetableRepository {
   const CompositeStationTimetableRepository({
     required this.serverRepository,
     this.localRepository,

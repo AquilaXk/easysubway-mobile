@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../stations/domain/station_line.dart';
+import '../../stations/presentation/station_line_badges.dart';
 
 /// 주변역 패널의 이전-현재-다음역 노선 표시 바 (오너 스펙 2026-07-16, #2200).
 ///
@@ -15,6 +17,7 @@ class NearbyStationLineBar extends StatelessWidget {
     required this.stationName,
     required this.badgeText,
     required this.lineColor,
+    this.line,
     this.onStationNameTap,
     this.onLeftNameTap,
     this.onRightNameTap,
@@ -26,6 +29,7 @@ class NearbyStationLineBar extends StatelessWidget {
   final String stationName;
   final String badgeText;
   final Color lineColor;
+  final StationSearchLine? line;
 
   /// 현재 역 이름 탭 → 역 상세. null이면 이름만 표시한다.
   final VoidCallback? onStationNameTap;
@@ -87,7 +91,7 @@ class NearbyStationLineBar extends StatelessWidget {
         final endRadius = barHeight / 2;
         final capsuleWidth = centerWidth;
         final capsuleHeight = capsuleWidth * 41 / 129;
-        final badgeDiameter = capsuleWidth * 0.18;
+        final badgeDiameter = (capsuleHeight * 0.62).clamp(24.0, 28.0);
         final stationNameSize = (capsuleHeight * 0.42).clamp(16.0, 20.0);
         final bar = Padding(
           padding: const EdgeInsets.only(top: 18),
@@ -145,11 +149,12 @@ class NearbyStationLineBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (badgeText.isNotEmpty) ...[
+                        if (badgeText.isNotEmpty || line != null) ...[
                           _LineBadge(
                             diameter: badgeDiameter,
                             color: lineColor,
                             text: badgeText,
+                            line: line,
                           ),
                           const SizedBox(width: 7),
                         ],
@@ -278,35 +283,25 @@ class _LineBadge extends StatelessWidget {
     required this.diameter,
     required this.color,
     required this.text,
+    this.line,
   });
 
   final double diameter;
   final Color color;
   final String text;
+  final StationSearchLine? line;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: diameter,
-      height: diameter,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Padding(
-        padding: EdgeInsets.all(diameter * 0.12),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            text,
-            maxLines: 1,
-            style: const TextStyle(
-              color: EasySubwayAccessibleColors.interactionOnPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              height: 1.0,
-            ),
-          ),
-        ),
-      ),
-    );
+    final effectiveLine =
+        line ??
+        StationSearchLine(
+          id: text,
+          name: text,
+          color:
+              '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
+          stationCode: '',
+        );
+    return StationLineBadge(line: effectiveLine, size: diameter);
   }
 }

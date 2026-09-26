@@ -118,4 +118,64 @@ void main() {
       findsOneWidget,
     );
   });
+
+  group('StationLineBadgeTab', () {
+    const testLine = StationSearchLine(
+      id: 'suin-bundang',
+      name: '수도권 수인분당선',
+      color: '#EBA900',
+      stationCode: 'K240',
+    );
+
+    testWidgets('기본 크기는 32이며 48x48 탭 컨테이너 내에서 수직 중앙 정렬된다', (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StationLineBadgeTab(
+              line: testLine,
+              selected: true,
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      final tabFinder = find.byKey(
+        const Key('stationLineBadgeTab-suin-bundang'),
+      );
+      expect(tabFinder, findsOneWidget);
+      expect(tester.getSize(tabFinder), const Size(48, 48));
+
+      final badgeFinder = find.byKey(
+        const Key('stationLineBadge-suin-bundang'),
+      );
+      expect(badgeFinder, findsOneWidget);
+      expect(tester.getSize(badgeFinder), const Size(32, 32));
+
+      // 탭의 center y와 배지의 center y가 48의 절반(24)으로 일치 (수직 중앙 정렬)
+      final tabCenter = tester.getCenter(tabFinder);
+      final badgeCenter = tester.getCenter(badgeFinder);
+      expect(badgeCenter.dy, tabCenter.dy);
+    });
+
+    testWidgets('선택 상태에 따라 하단 인디케이터가 표시된다', (tester) async {
+      var tapped = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StationLineBadgeTab(
+              line: testLine,
+              selected: false,
+              onTap: () => tapped = true,
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(
+        find.byKey(const Key('stationLineBadgeTab-suin-bundang')),
+      );
+      expect(tapped, isTrue);
+    });
+  });
 }

@@ -43,6 +43,7 @@ class NearbyArrivalPanel extends StatelessWidget {
     required this.leftName,
     required this.rightName,
     this.onSelectTimetable,
+    this.now,
     super.key,
   });
 
@@ -51,6 +52,7 @@ class NearbyArrivalPanel extends StatelessWidget {
   final String? leftName;
   final String? rightName;
   final VoidCallback? onSelectTimetable;
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context) {
@@ -96,7 +98,7 @@ class NearbyArrivalPanel extends StatelessWidget {
             for (final arrival in visible)
               NearbyArrivalRow(
                 destination: arrival.destination.trim(),
-                eta: _formatArrivalEta(arrival),
+                eta: _formatArrivalEta(arrival, now: now),
               ),
           ],
         ),
@@ -107,7 +109,7 @@ class NearbyArrivalPanel extends StatelessWidget {
           arrival.destination.trim().isEmpty
               ? ''
               : '${arrival.destination.trim()}행',
-          _formatArrivalEta(arrival),
+          _formatArrivalEta(arrival, now: now),
         ].where((part) => part.isNotEmpty).join(' ');
         if (part.isNotEmpty) {
           semanticParts.add(part);
@@ -156,16 +158,30 @@ class NearbyArrivalPanel extends StatelessWidget {
   }
 }
 
-String _formatArrivalEta(NearbyArrivalData arrival) {
+String _formatArrivalEta(NearbyArrivalData arrival, {DateTime? now}) {
   final eta = arrival.etaSeconds;
-  if (eta != null && eta > 0) {
-    final minutes = (eta / 60).round();
-    return minutes <= 0 ? '곧 도착' : '약 $minutes분';
-  }
   final pos = arrival.positionMessage.trim();
   final msg = arrival.message.trim();
+
+  if (eta != null && eta > 0) {
+    if (eta < 60) {
+      return '곧 도착';
+    }
+    if (eta <= 600) {
+      final minutes = (eta / 60).round();
+      return minutes <= 0 ? '곧 도착' : '$minutes분뒤 도착';
+    }
+    final arrivalTime = (now ?? DateTime.now()).add(Duration(seconds: eta));
+    final hh = arrivalTime.hour.toString().padLeft(2, '0');
+    final mm = arrivalTime.minute.toString().padLeft(2, '0');
+    return '$hh:$mm';
+  }
+
   if (msg == '곧 도착' && pos.isNotEmpty) {
     return pos; // e.g. "신길온천", "고잔", "반월"
+  }
+  if (pos.isNotEmpty && msg.isEmpty) {
+    return pos;
   }
   return msg.isNotEmpty ? msg : '곧 도착';
 }
