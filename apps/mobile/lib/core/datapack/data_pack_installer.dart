@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -11,6 +12,13 @@ import '../database/user/user_database.dart' as user_db;
 import 'atomic_file_replace.dart';
 import 'data_pack_file_integrity.dart';
 import 'data_pack_manifest.dart';
+
+class DataPackLateCompletionException implements Exception {
+  const DataPackLateCompletionException(this.message);
+  final String message;
+  @override
+  String toString() => 'DataPackLateCompletionException: $message';
+}
 
 /// Enforces the data-pack pointer contract.
 ///
@@ -28,6 +36,65 @@ class DataPackInstaller {
   final user_db.UserDatabase userDatabase;
   final DateTime Function() _now;
 
+  int _activeTransactionId = 0;
+  int _lastCommittedTransactionId = 0;
+  Future<void>? _activeMutation;
+  final Set<int> _pinnedGenerations = <int>{};
+  final Map<int, String> _pinnedVersions = <int, String>{};
+
+  void pinGeneration(int generation, {String? version}) {
+    _pinnedGenerations.add(generation);
+    if (version != null) {
+      _pinnedVersions[generation] = version;
+    }
+  }
+
+  void unpinGeneration(int generation) {
+    _pinnedGenerations.remove(generation);
+    _pinnedVersions.remove(generation);
+  }
+
+  Set<int> get pinnedGenerations => Set.unmodifiable(_pinnedGenerations);
+
+  Future<T> _synchronizedMutation<T>(
+    Future<T> Function(int transactionId) action,
+  ) async {
+    while (_activeMutation != null) {
+      try {
+        await _activeMutation;
+      } catch (_) {
+        // 이전 mutation 실패가 후속 트랜잭션을 영구 차단하지 않도록 보호
+      }
+    }
+    final transactionId = ++_activeTransactionId;
+    final completer = Completer<void>();
+    _activeMutation = completer.future;
+    try {
+      return await action(transactionId);
+    } finally {
+      completer.complete();
+      _activeMutation = null;
+    }
+  }
+
+  Future<void> cleanStalePartials() async {
+    if (!await catalogDirectory.exists()) {
+      return;
+    }
+    await restoreInterruptedReplacements(catalogDirectory);
+    final entities = await catalogDirectory.list().toList();
+    for (final entity in entities) {
+      if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      if (name.endsWith('.tmp') ||
+          name.endsWith('.downloading') ||
+          name.endsWith('.gz.tmp') ||
+          name.endsWith('.sqlite.tmp')) {
+        await _safeDelete(entity);
+      }
+    }
+  }
+
   Future<DataPackInstallResult> install({
     required DataPackManifestEntry pack,
     required List<int> compressedBytes,
@@ -41,13 +108,17 @@ class DataPackInstaller {
         '${pack.id}-v${pack.version}.sqlite.gz.tmp',
       ),
     );
-    await compressedFile.writeAsBytes(compressedBytes, flush: true);
-    return installFromCompressedFile(
-      pack: pack,
-      compressedFile: compressedFile,
-      protectedVersions: protectedVersions,
-      activateCurrent: activateCurrent,
-    );
+    try {
+      await compressedFile.writeAsBytes(compressedBytes, flush: true);
+      return await installFromCompressedFile(
+        pack: pack,
+        compressedFile: compressedFile,
+        protectedVersions: protectedVersions,
+        activateCurrent: activateCurrent,
+      );
+    } finally {
+      await _safeDelete(compressedFile);
+    }
   }
 
   Future<DataPackInstallResult> installFromCompressedFile({
@@ -56,6 +127,7 @@ class DataPackInstaller {
     Set<String> protectedVersions = const {},
     bool activateCurrent = true,
   }) async {
+    final transactionId = ++_activeTransactionId;
     await catalogDirectory.create(recursive: true);
     final expectedSizeBytes = pack.sizeBytes;
     final compressedLength = await compressedFile.length();
@@ -78,72 +150,81 @@ class DataPackInstaller {
     final temporary = File(
       p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite.tmp'),
     );
-    final sqliteHash = await _inflateGzipToFile(
-      compressedFile: compressedFile,
-      targetFile: temporary,
-    );
-    await _deleteIfExists(compressedFile);
-    if (sqliteHash == null) {
-      await _deleteIfExists(temporary);
-      return const DataPackInstallResult(
-        status: DataPackInstallStatus.rejected,
-        reason: DataPackInstallRejectionReason.invalidArchive,
+    try {
+      final sqliteHash = await _inflateGzipToFile(
+        compressedFile: compressedFile,
+        targetFile: temporary,
       );
-    }
-
-    if (sqliteHash != pack.sqliteSha256) {
-      await _deleteIfExists(temporary);
-      return const DataPackInstallResult(
-        status: DataPackInstallStatus.rejected,
-        reason: DataPackInstallRejectionReason.sqliteSha256Mismatch,
-      );
-    }
-
-    final target = File(
-      p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite'),
-    );
-    final rejection = await _validateSqlite(temporary, pack);
-    if (rejection != null) {
-      await _deleteIfExists(temporary);
-      return DataPackInstallResult(
-        status: DataPackInstallStatus.rejected,
-        reason: rejection,
-      );
-    }
-
-    await _replaceFile(temporary, target);
-    // 재활성화 대조의 기준선(#2532). 매니페스트가 선언하고 방금 실제 파일과 대조한 값이다.
-    await writeInstalledPackBaseline(target, pack.sqliteSha256);
-    final pointer = InstalledDataPackPointer(
-      id: pack.id,
-      version: pack.version,
-      path: target.path,
-      sha256: pack.sqliteSha256,
-      installedAt: _now().toUtc(),
-    );
-    if (activateCurrent) {
-      await activateCurrentPointer(pointer);
-      await pruneObsoletePacks(
-        pack.id,
-        keepVersionCount: 2,
-        protectedVersions: protectedVersions,
-      );
-    }
-    await userDatabase
-        .into(userDatabase.installedDataPacks)
-        .insertOnConflictUpdate(
-          user_db.InstalledDataPacksCompanion.insert(
-            packId: pack.id,
-            version: pack.version,
-            sha256: pack.sqliteSha256,
-            installedAt: pointer.installedAt!,
-          ),
+      await _deleteIfExists(compressedFile);
+      if (sqliteHash == null) {
+        await _deleteIfExists(temporary);
+        return const DataPackInstallResult(
+          status: DataPackInstallStatus.rejected,
+          reason: DataPackInstallRejectionReason.invalidArchive,
         );
+      }
 
-    return DataPackInstallResult(
-      status: DataPackInstallStatus.installed,
-      pointer: pointer,
-    );
+      if (sqliteHash != pack.sqliteSha256) {
+        await _deleteIfExists(temporary);
+        return const DataPackInstallResult(
+          status: DataPackInstallStatus.rejected,
+          reason: DataPackInstallRejectionReason.sqliteSha256Mismatch,
+        );
+      }
+
+      final target = File(
+        p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite'),
+      );
+      final rejection = await _validateSqlite(temporary, pack);
+      if (rejection != null) {
+        await _deleteIfExists(temporary);
+        return DataPackInstallResult(
+          status: DataPackInstallStatus.rejected,
+          reason: rejection,
+        );
+      }
+
+      await _replaceFile(temporary, target);
+      // 재활성화 대조의 기준선(#2532). 매니페스트가 선언하고 방금 실제 파일과 대조한 값이다.
+      await writeInstalledPackBaseline(target, pack.sqliteSha256);
+      final pointer = InstalledDataPackPointer(
+        id: pack.id,
+        version: pack.version,
+        path: target.path,
+        sha256: pack.sqliteSha256,
+        installedAt: _now().toUtc(),
+      );
+      var resolvedPointer = pointer;
+      if (activateCurrent) {
+        resolvedPointer = await activateCurrentPointer(
+          pointer,
+          transactionId: transactionId,
+        );
+        await pruneObsoletePacks(
+          pack.id,
+          keepVersionCount: 2,
+          protectedVersions: protectedVersions,
+        );
+      }
+      await userDatabase
+          .into(userDatabase.installedDataPacks)
+          .insertOnConflictUpdate(
+            user_db.InstalledDataPacksCompanion.insert(
+              packId: pack.id,
+              version: pack.version,
+              sha256: pack.sqliteSha256,
+              installedAt: resolvedPointer.installedAt!,
+            ),
+          );
+
+      return DataPackInstallResult(
+        status: DataPackInstallStatus.installed,
+        pointer: resolvedPointer,
+      );
+    } finally {
+      await _safeDelete(temporary);
+      await _safeDelete(compressedFile);
+    }
   }
 
   Future<InstalledDataPackPointer?> readCurrentPointer() async {
@@ -152,11 +233,15 @@ class DataPackInstaller {
     if (!await file.exists()) {
       return null;
     }
-    final decoded = jsonDecode(await file.readAsString());
-    if (decoded is! Map<String, Object?>) {
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, Object?>) {
+        return null;
+      }
+      return InstalledDataPackPointer.fromJson(decoded);
+    } on Object {
       return null;
     }
-    return InstalledDataPackPointer.fromJson(decoded);
   }
 
   /// 이미 설치된 팩을 다시 가리킬 때 쓸 pointer(#2532).
@@ -317,14 +402,19 @@ class DataPackInstaller {
     }
   }
 
-  Future<void> activateCurrentPointer(InstalledDataPackPointer pointer) async {
-    await _writeCurrentPointer(pointer);
+  Future<InstalledDataPackPointer> activateCurrentPointer(
+    InstalledDataPackPointer pointer, {
+    int? transactionId,
+  }) async {
+    return _synchronizedMutation(
+      (_) => _writeCurrentPointer(pointer, transactionId: transactionId),
+    );
   }
 
   Future<void> recoverInstallJournal() async {
     // 교체가 중단돼 남은 잔재를 먼저 정리한다(#2532). pointer·설치 팩·기준선이 모두
     // 대상이라 이름별로 부르지 않고 카탈로그 디렉토리를 한 번 훑는다.
-    await restoreInterruptedReplacements(catalogDirectory);
+    await cleanStalePartials();
     final journal = File(
       p.join(catalogDirectory.path, 'current.json.installing'),
     );
@@ -348,6 +438,19 @@ class DataPackInstaller {
           expectedSha256 != await sha256OfFile(file)) {
         await _deleteIfExists(journal);
         return;
+      }
+      if (pointer.isPair) {
+        final companionFile = File(pointer.companionPath!);
+        if (!await companionFile.exists()) {
+          await _deleteIfExists(journal);
+          return;
+        }
+        final expectedCompanionSha256 = pointer.companionSha256;
+        if (expectedCompanionSha256 != null &&
+            expectedCompanionSha256 != await sha256OfFile(companionFile)) {
+          await _deleteIfExists(journal);
+          return;
+        }
       }
       await _replaceFile(
         journal,
@@ -429,11 +532,33 @@ class DataPackInstaller {
     return null;
   }
 
-  Future<void> _writeCurrentPointer(InstalledDataPackPointer pointer) async {
+  Future<InstalledDataPackPointer> _writeCurrentPointer(
+    InstalledDataPackPointer pointer, {
+    int? transactionId,
+  }) async {
+    if (transactionId != null && transactionId < _lastCommittedTransactionId) {
+      throw DataPackLateCompletionException(
+        'Transaction #$transactionId is stale; latest committed is #$_lastCommittedTransactionId',
+      );
+    }
+    final existingPointer = await _readStoredPointer();
+    final nextGeneration =
+        pointer.generation ?? ((existingPointer?.generation ?? 0) + 1);
+    final pointerWithGeneration = pointer.copyWith(generation: nextGeneration);
+
     final target = File(p.join(catalogDirectory.path, 'current.json'));
     final temporary = File('${target.path}.installing');
-    await temporary.writeAsString(jsonEncode(pointer.toJson()), flush: true);
+    await temporary.writeAsString(
+      jsonEncode(pointerWithGeneration.toJson()),
+      flush: true,
+    );
     await _replaceFile(temporary, target);
+    if (transactionId != null) {
+      _lastCommittedTransactionId = transactionId;
+    } else {
+      _lastCommittedTransactionId = ++_activeTransactionId;
+    }
+    return pointerWithGeneration;
   }
 
   Future<void> _pruneObsoletePacks(
@@ -441,6 +566,10 @@ class DataPackInstaller {
     required int keepVersionCount,
     required Set<String> protectedVersions,
   }) async {
+    final allProtectedVersions = {
+      ...protectedVersions,
+      ..._pinnedVersions.values,
+    };
     final packFiles = await catalogDirectory
         .list()
         .where((entity) => entity is File)
@@ -454,7 +583,7 @@ class DataPackInstaller {
     var keptUnprotectedCount = 0;
     for (final file in packFiles) {
       final version = _versionNumber(file.path).toString();
-      if (protectedVersions.contains(version)) {
+      if (allProtectedVersions.contains(version)) {
         continue;
       }
       keptUnprotectedCount++;
@@ -480,8 +609,9 @@ Future<String?> _inflateGzipToFile({
 }) async {
   final output = Sha256DigestSink();
   final input = sha256.startChunkedConversion(output);
-  final sink = targetFile.openWrite();
+  IOSink? sink;
   try {
+    sink = targetFile.openWrite();
     await for (final chunk in compressedFile.openRead().transform(
       gzip.decoder,
     )) {
@@ -490,11 +620,17 @@ Future<String?> _inflateGzipToFile({
     }
     await sink.flush();
     await sink.close();
+    sink = null;
     input.close();
     return output.value.toString();
   } on FormatException {
-    await sink.close();
     return null;
+  } finally {
+    if (sink != null) {
+      try {
+        await sink.close();
+      } catch (_) {}
+    }
   }
 }
 
@@ -560,10 +696,20 @@ class InstalledDataPackPointer {
     this.sha256,
     this.installedAt,
     this.reason,
+    this.generation,
+    this.stationSetSha256,
+    this.companionPackId,
+    this.companionVersion,
+    this.companionPath,
+    this.companionSha256,
+    this.releaseSequence,
+    this.manifestSha256,
   });
 
   factory InstalledDataPackPointer.fromJson(Map<String, Object?> json) {
     final installedAt = json['installedAt'];
+    final generation = json['generation'];
+    final releaseSequence = json['releaseSequence'];
     return InstalledDataPackPointer(
       id: _readString(json, 'id'),
       version: _readString(json, 'version'),
@@ -573,6 +719,30 @@ class InstalledDataPackPointer {
           ? DateTime.tryParse(installedAt)
           : null,
       reason: json['reason'] is String ? json['reason'] as String : null,
+      generation: generation is int
+          ? generation
+          : (generation is String ? int.tryParse(generation) : null),
+      stationSetSha256: json['stationSetSha256'] is String
+          ? json['stationSetSha256'] as String
+          : null,
+      companionPackId: json['companionPackId'] is String
+          ? json['companionPackId'] as String
+          : null,
+      companionVersion: json['companionVersion'] is String
+          ? json['companionVersion'] as String
+          : null,
+      companionPath: json['companionPath'] is String
+          ? json['companionPath'] as String
+          : null,
+      companionSha256: json['companionSha256'] is String
+          ? json['companionSha256'] as String
+          : null,
+      releaseSequence: releaseSequence is int
+          ? releaseSequence
+          : (releaseSequence is String ? int.tryParse(releaseSequence) : null),
+      manifestSha256: json['manifestSha256'] is String
+          ? json['manifestSha256'] as String
+          : null,
     );
   }
 
@@ -582,6 +752,50 @@ class InstalledDataPackPointer {
   final String? sha256;
   final DateTime? installedAt;
   final String? reason;
+  final int? generation;
+  final String? stationSetSha256;
+  final String? companionPackId;
+  final String? companionVersion;
+  final String? companionPath;
+  final String? companionSha256;
+  final int? releaseSequence;
+  final String? manifestSha256;
+
+  bool get isPair => companionPackId != null && companionPath != null;
+
+  InstalledDataPackPointer copyWith({
+    String? id,
+    String? version,
+    String? path,
+    String? sha256,
+    DateTime? installedAt,
+    String? reason,
+    int? generation,
+    String? stationSetSha256,
+    String? companionPackId,
+    String? companionVersion,
+    String? companionPath,
+    String? companionSha256,
+    int? releaseSequence,
+    String? manifestSha256,
+  }) {
+    return InstalledDataPackPointer(
+      id: id ?? this.id,
+      version: version ?? this.version,
+      path: path ?? this.path,
+      sha256: sha256 ?? this.sha256,
+      installedAt: installedAt ?? this.installedAt,
+      reason: reason ?? this.reason,
+      generation: generation ?? this.generation,
+      stationSetSha256: stationSetSha256 ?? this.stationSetSha256,
+      companionPackId: companionPackId ?? this.companionPackId,
+      companionVersion: companionVersion ?? this.companionVersion,
+      companionPath: companionPath ?? this.companionPath,
+      companionSha256: companionSha256 ?? this.companionSha256,
+      releaseSequence: releaseSequence ?? this.releaseSequence,
+      manifestSha256: manifestSha256 ?? this.manifestSha256,
+    );
+  }
 
   Map<String, Object?> toJson() {
     return {
@@ -591,6 +805,14 @@ class InstalledDataPackPointer {
       if (sha256 != null) 'sha256': sha256,
       if (installedAt != null) 'installedAt': installedAt!.toIso8601String(),
       if (reason != null) 'reason': reason,
+      if (generation != null) 'generation': generation,
+      if (stationSetSha256 != null) 'stationSetSha256': stationSetSha256,
+      if (companionPackId != null) 'companionPackId': companionPackId,
+      if (companionVersion != null) 'companionVersion': companionVersion,
+      if (companionPath != null) 'companionPath': companionPath,
+      if (companionSha256 != null) 'companionSha256': companionSha256,
+      if (releaseSequence != null) 'releaseSequence': releaseSequence,
+      if (manifestSha256 != null) 'manifestSha256': manifestSha256,
     };
   }
 }
@@ -606,6 +828,16 @@ String _quotedSqlIdentifier(String value) => '"${value.replaceAll('"', '""')}"';
 Future<void> _deleteIfExists(File file) async {
   if (await file.exists()) {
     await file.delete();
+  }
+}
+
+Future<void> _safeDelete(File file) async {
+  try {
+    if (await file.exists()) {
+      await file.delete();
+    }
+  } catch (_) {
+    // 1차 예외(primary failure) 보전을 위해 정리 실패 예외는 덮지 않는다.
   }
 }
 
