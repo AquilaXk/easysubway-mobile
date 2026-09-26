@@ -70,6 +70,29 @@ class NetworkMapData {
     );
   }
 
+  NetworkMapData copyWith({
+    List<NetworkMapRegion>? regions,
+    String? selectedRegion,
+    List<NetworkMapLine>? lines,
+    List<NetworkMapStation>? stations,
+    List<NetworkMapEdge>? edges,
+    List<NetworkMapPositionSource>? positionSources,
+    List<NetworkMapStationLineMembership>? stationLineMemberships,
+    List<NetworkMapLineTrack>? lineTracks,
+  }) {
+    return NetworkMapData(
+      regions: regions ?? this.regions,
+      selectedRegion: selectedRegion ?? this.selectedRegion,
+      lines: lines ?? this.lines,
+      stations: stations ?? this.stations,
+      edges: edges ?? this.edges,
+      positionSources: positionSources ?? this.positionSources,
+      stationLineMemberships:
+          stationLineMemberships ?? this.stationLineMemberships,
+      lineTracks: lineTracks ?? this.lineTracks,
+    );
+  }
+
   /// 구조화 노선도 레이어(#1636 스키마 기준)를 파생한다. native canvas
   /// 렌더러(#1641)가 소비하는 line geometry / transfer group / label·LOD를
   /// route_map_positions 필드에서 계산한다.
@@ -246,6 +269,28 @@ class NetworkMapStation {
       ),
     );
   }
+
+  NetworkMapStation copyWith({
+    String? id,
+    String? nameKo,
+    String? nameEn,
+    String? region,
+    String? lineId,
+    String? stationCode,
+    int? sequence,
+    NetworkMapPosition? position,
+  }) {
+    return NetworkMapStation(
+      id: id ?? this.id,
+      nameKo: nameKo ?? this.nameKo,
+      nameEn: nameEn ?? this.nameEn,
+      region: region ?? this.region,
+      lineId: lineId ?? this.lineId,
+      stationCode: stationCode ?? this.stationCode,
+      sequence: sequence ?? this.sequence,
+      position: position ?? this.position,
+    );
+  }
 }
 
 class NetworkMapPosition {
@@ -268,6 +313,28 @@ class NetworkMapPosition {
   final String upPath;
   final String downPath;
   final String sourceId;
+
+  NetworkMapPosition copyWith({
+    int? x,
+    int? y,
+    int? labelDx,
+    int? labelDy,
+    String? labelPolygon,
+    String? upPath,
+    String? downPath,
+    String? sourceId,
+  }) {
+    return NetworkMapPosition(
+      x: x ?? this.x,
+      y: y ?? this.y,
+      labelDx: labelDx ?? this.labelDx,
+      labelDy: labelDy ?? this.labelDy,
+      labelPolygon: labelPolygon ?? this.labelPolygon,
+      upPath: upPath ?? this.upPath,
+      downPath: downPath ?? this.downPath,
+      sourceId: sourceId ?? this.sourceId,
+    );
+  }
 
   factory NetworkMapPosition.fromJson(Map<String, Object?> json) {
     return NetworkMapPosition(
