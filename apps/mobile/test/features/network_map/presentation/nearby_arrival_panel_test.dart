@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_arrival_panel.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_columns.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -118,32 +119,30 @@ void main() {
     expect(find.bySemanticsLabel('한양대 방면 정보 없음'), findsOneWidget);
   });
 
-  testWidgets('unavailable은 에러 문구와 시간표 보기 CTA 버튼을 노출하고 콜백을 호출한다', (
+  testWidgets('unavailable은 AI 슬롭 문구 없이 방면 대시 스켈레톤을 노출한다', (
     tester,
   ) async {
-    var timetableClicked = false;
     await tester.pumpWidget(
       subject(
         data: const NearbyArrivalPanelData(
           status: NearbyArrivalPanelStatus.unavailable,
         ),
-        onSelectTimetable: () => timetableClicked = true,
       ),
     );
 
-    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsOneWidget);
-    expect(find.text('시간표 보기'), findsOneWidget);
-
-    await tester.tap(find.text('시간표 보기'));
-    await tester.pump();
-
-    expect(timetableClicked, isTrue);
+    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsNothing);
+    expect(find.text('시간표 보기'), findsNothing);
+    expect(
+      find.byKey(const Key('networkMapNearbyArrivalSkeleton')),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('건대입구 방면 정보 없음'), findsOneWidget);
+    expect(find.bySemanticsLabel('한양대 방면 정보 없음'), findsOneWidget);
   });
 
-  testWidgets('unavailable에 방면 슬롯이 없을 때도 에러 문구와 시간표 보기 CTA를 노출한다', (
+  testWidgets('unavailable에 방면 슬롯이 없을 때도 에러 문구 없이 NearbyDataUnavailable을 노출한다', (
     tester,
   ) async {
-    var timetableClicked = false;
     await tester.pumpWidget(
       subject(
         data: const NearbyArrivalPanelData(
@@ -151,16 +150,11 @@ void main() {
         ),
         leftName: null,
         rightName: null,
-        onSelectTimetable: () => timetableClicked = true,
       ),
     );
 
-    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsOneWidget);
-    expect(find.text('시간표 보기'), findsOneWidget);
-
-    await tester.tap(find.text('시간표 보기'));
-    await tester.pump();
-
-    expect(timetableClicked, isTrue);
+    expect(find.text('실시간 도착 정보를 불러올 수 없습니다.'), findsNothing);
+    expect(find.text('시간표 보기'), findsNothing);
+    expect(find.byType(NearbyDataUnavailable), findsOneWidget);
   });
 }
