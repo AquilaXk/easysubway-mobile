@@ -31,9 +31,60 @@ class RouteMapOwnerNodeEntry {
 
   /// [Offset] 좌표.
   Offset get position => Offset(x.toDouble(), y.toDouble());
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RouteMapOwnerNodeEntry &&
+          runtimeType == other.runtimeType &&
+          stationId == other.stationId &&
+          lineId == other.lineId &&
+          name == other.name &&
+          x == other.x &&
+          y == other.y;
+
+  @override
+  int get hashCode => Object.hash(stationId, lineId, name, x, y);
+
+  @override
+  String toString() =>
+      'RouteMapOwnerNodeEntry($name, $stationId, $lineId, x: $x, y: $y)';
 }
 
-/// 동명이역(예: 신촌, 양평) 후보 중 역의 호선/속성에 가장 적합한 노드 엔트리를 선택한다.
+/// 경의중앙선 식별: 정규 카탈로그 ID(line-6e39be0cb6e2) 또는 친화 식별자(경의/gyeongui)
+bool isGyeonguiLineId(String lineId) {
+  final l = lineId.toLowerCase();
+  return l == 'line-6e39be0cb6e2' || l.contains('gyeongui') || l.contains('경의');
+}
+
+/// 2호선 식별: 'seoul-2', 'line-2', '2호선' 등
+bool isLine2(String lineId) {
+  final l = lineId.toLowerCase();
+  return l == 'seoul-2' || l == 'line-2' || l == '2' || l.contains('2호선');
+}
+
+/// 5호선 식별: 'line-80fc4d5350d4', 'line-5', '5호선' 등
+bool isLine5(String lineId) {
+  final l = lineId.toLowerCase();
+  return l == 'line-80fc4d5350d4' ||
+      l == 'line-5' ||
+      l == '5' ||
+      l.contains('5호선');
+}
+
+/// 동해선 식별 (부산): 'line-f52eb59d8497', 'donghae', '동해'
+bool isDonghaeLineId(String lineId) {
+  final l = lineId.toLowerCase();
+  return l == 'line-f52eb59d8497' || l.contains('donghae') || l.contains('동해');
+}
+
+/// 부산 1호선 식별: 'line-ab1a041f6266', 'busan-1', '1호선' 등
+bool isBusanLine1(String lineId) {
+  final l = lineId.toLowerCase();
+  return l == 'line-ab1a041f6266' || l == 'busan-1' || l.contains('1호선');
+}
+
+/// 동명이역(예: 신촌, 양평, 부산 부전/좌천/동래) 후보 중 역의 호선/속성에 가장 적합한 노드 엔트리를 선택한다.
 RouteMapOwnerNodeEntry matchBestNodeEntry(
   NetworkMapStation station,
   List<RouteMapOwnerNodeEntry> entries,
@@ -44,36 +95,76 @@ RouteMapOwnerNodeEntry matchBestNodeEntry(
   if (entries.length == 1) {
     return entries.first;
   }
-  // 신촌: 2호선 vs 경의중앙선
-  if (station.nameKo.contains('신촌')) {
-    final lineId = station.lineId.toLowerCase();
-    final isGyeongui = lineId.contains('gyeongui') || lineId.contains('경의');
+
+  // 1. 동일 라인 완전 일치 우선 (station.lineId == entry.lineId)
+  if (station.lineId.isNotEmpty) {
     for (final entry in entries) {
-      final entryLineId = entry.lineId.toLowerCase();
-      final isEntryGyeongui =
-          entryLineId.contains('gyeongui') || entryLineId.contains('경의');
-      if (isGyeongui == isEntryGyeongui) {
+      if (entry.lineId == station.lineId) {
         return entry;
       }
     }
   }
-  // 양평: 5호선(도심, y > 1000) vs 경의중앙선(양평군, y < 1000)
+
+  // 2. 신촌: 2호선(seoul-2, y > 1200) vs 경의중앙선(line-6e39be0cb6e2, y < 1200)
+  if (station.nameKo.contains('신촌')) {
+    final isGyeongui = isGyeonguiLineId(station.lineId);
+    final isL2 = isLine2(station.lineId);
+    if (isGyeongui || isL2) {
+      for (final entry in entries) {
+        final isEntryGyeongui =
+            isGyeonguiLineId(entry.lineId) || entry.y < 1200;
+        if (isGyeongui == isEntryGyeongui) {
+          return entry;
+        }
+      }
+    }
+    final prefersGyeongui = station.position.y > 0 && station.position.y < 1200;
+    for (final entry in entries) {
+      final isEntryNorthern = entry.y < 1200;
+      if (prefersGyeongui == isEntryNorthern) {
+        return entry;
+      }
+    }
+  }
+
+  // 3. 양평: 5호선(도심 영등포, line-80fc4d5350d4, y > 1000) vs 경의중앙선(양평군, line-6e39be0cb6e2, y < 1000)
   if (station.nameKo.contains('양평')) {
-    final lineId = station.lineId.toLowerCase();
-    final isGyeongui = lineId.contains('gyeongui') || lineId.contains('경의');
+    final isGyeongui = isGyeonguiLineId(station.lineId);
+    final isL5 = isLine5(station.lineId);
+    if (isGyeongui || isL5) {
+      for (final entry in entries) {
+        final isEntryGyeongui =
+            isGyeonguiLineId(entry.lineId) || entry.y < 1000;
+        if (isGyeongui == isEntryGyeongui) {
+          return entry;
+        }
+      }
+    }
+    final prefersNorthern = station.position.y > 0 && station.position.y < 1000;
     for (final entry in entries) {
       final isNorthern = entry.y < 1000;
-      if (isGyeongui == isNorthern) {
+      if (prefersNorthern == isNorthern) {
         return entry;
       }
     }
   }
-  // 동일 라인 매칭 우선
-  for (final entry in entries) {
-    if (entry.lineId == station.lineId) {
-      return entry;
+
+  // 4. 부산 동명이역 (부전, 좌천, 동래): 동해선(line-f52eb59d8497) vs 1호선/4호선
+  if (station.nameKo.contains('부전') ||
+      station.nameKo.contains('좌천') ||
+      station.nameKo.contains('동래')) {
+    final isDonghae = isDonghaeLineId(station.lineId);
+    final isL1 = isBusanLine1(station.lineId);
+    if (isDonghae || isL1) {
+      for (final entry in entries) {
+        final isEntryDonghae = isDonghaeLineId(entry.lineId);
+        if (isDonghae == isEntryDonghae) {
+          return entry;
+        }
+      }
     }
   }
+
   return entries.first;
 }
 

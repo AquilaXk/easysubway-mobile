@@ -150,6 +150,19 @@ void main() {
       );
       expect(matchedYangpyeongK.position.dy, closeTo(409.5, 0.1));
 
+      // 카탈로그 lineId(line-6e39be0cb6e2)로도 경의중앙선 정상 매칭 확인
+      final matchedYangpyeongKCatalog = matchBestOwnerEntry(
+        yangpyeongK.copyWith(lineId: 'line-6e39be0cb6e2'),
+        yangpyeongEntries,
+      );
+      expect(matchedYangpyeongKCatalog.position.dy, closeTo(409.5, 0.1));
+
+      final matchedSinchonKCatalog = matchBestOwnerEntry(
+        sinchonGyeongui.copyWith(lineId: 'line-6e39be0cb6e2'),
+        entries,
+      );
+      expect(matchedSinchonKCatalog.position.dx, closeTo(1398.7, 0.1));
+
       // 신촌/양평 외의 다중 엔트리인 경우 첫 번째 엔트리로 fallback
       final genericStation = const NetworkMapStation(
         id: 'station-generic',
@@ -241,63 +254,286 @@ void main() {
       // 단일 엔트리 바로 반환
       expect(matchBestNodeEntry(dummyStation, [nodeEntry]), nodeEntry);
 
-      // 신촌 2호선 vs 경의선 분기
+      // RouteMapOwnerNodeEntry equality, hashCode, toString
+      final nodeEntryClone = const RouteMapOwnerNodeEntry(
+        stationId: 's1',
+        lineId: 'l1',
+        name: '역',
+        x: 100,
+        y: 200,
+      );
+      final nodeEntryDiff = const RouteMapOwnerNodeEntry(
+        stationId: 'station-2',
+        lineId: 'line-2',
+        name: '서울역',
+        x: 100,
+        y: 200,
+      );
+      expect(nodeEntry == nodeEntryClone, isTrue);
+      expect(nodeEntry == nodeEntryDiff, isFalse);
+      expect(
+        nodeEntry ==
+            const RouteMapOwnerNodeEntry(
+              stationId: 's1',
+              lineId: 'l2',
+              name: '역',
+              x: 100,
+              y: 200,
+            ),
+        isFalse,
+      );
+      expect(
+        nodeEntry ==
+            const RouteMapOwnerNodeEntry(
+              stationId: 's1',
+              lineId: 'l1',
+              name: '다른역',
+              x: 100,
+              y: 200,
+            ),
+        isFalse,
+      );
+      expect(
+        nodeEntry ==
+            const RouteMapOwnerNodeEntry(
+              stationId: 's1',
+              lineId: 'l1',
+              name: '역',
+              x: 999,
+              y: 200,
+            ),
+        isFalse,
+      );
+      expect(
+        nodeEntry ==
+            const RouteMapOwnerNodeEntry(
+              stationId: 's1',
+              lineId: 'l1',
+              name: '역',
+              x: 100,
+              y: 999,
+            ),
+        isFalse,
+      );
+      expect(nodeEntry.hashCode, nodeEntryClone.hashCode);
+      expect(nodeEntry.toString(), contains('역'));
+
+      // 라인 식별 헬퍼 테스트
+      expect(isGyeonguiLineId('line-6e39be0cb6e2'), isTrue);
+      expect(isGyeonguiLineId('line-gyeongui-jungang'), isTrue);
+      expect(isGyeonguiLineId('경의중앙선'), isTrue);
+      expect(isGyeonguiLineId('seoul-2'), isFalse);
+
+      expect(isLine2('seoul-2'), isTrue);
+      expect(isLine2('line-2'), isTrue);
+      expect(isLine2('2호선'), isTrue);
+      expect(isLine2('line-5'), isFalse);
+
+      expect(isLine5('line-80fc4d5350d4'), isTrue);
+      expect(isLine5('line-5'), isTrue);
+      expect(isLine5('5호선'), isTrue);
+      expect(isLine5('seoul-2'), isFalse);
+
+      expect(isDonghaeLineId('line-f52eb59d8497'), isTrue);
+      expect(isDonghaeLineId('donghae'), isTrue);
+      expect(isDonghaeLineId('동해선'), isTrue);
+      expect(isDonghaeLineId('busan-1'), isFalse);
+
+      expect(isBusanLine1('line-ab1a041f6266'), isTrue);
+      expect(isBusanLine1('busan-1'), isTrue);
+      expect(isBusanLine1('1호선'), isTrue);
+      expect(isBusanLine1('donghae'), isFalse);
+
+      // 신촌 2호선 vs 경의선 분기 (실제 nodes.json 순서: 경의선이 먼저인 경우와 2호선이 먼저인 경우 모두 검증)
       final sinchon2Node = const RouteMapOwnerNodeEntry(
-        stationId: 's-sinchon-2',
+        stationId: 'station-4e123a19a88f',
         lineId: 'seoul-2',
         name: '신촌',
         x: 1369,
         y: 1227,
       );
       final sinchonKNode = const RouteMapOwnerNodeEntry(
-        stationId: 's-sinchon-k',
-        lineId: 'line-gyeongui-jungang',
+        stationId: 'station-d6935359840d',
+        lineId: 'line-6e39be0cb6e2',
         name: '신촌',
         x: 1398,
         y: 1148,
       );
-      final sinchonList = [sinchon2Node, sinchonKNode];
+      // nodes.json 실측 순서(경의선이 먼저)
+      final sinchonListKFirst = [sinchonKNode, sinchon2Node];
+      final sinchonList2First = [sinchon2Node, sinchonKNode];
 
+      for (final list in [sinchonListKFirst, sinchonList2First]) {
+        // 정확한 카탈로그 lineId 매칭
+        expect(
+          matchBestNodeEntry(
+            dummyStation.copyWith(nameKo: '신촌', lineId: 'seoul-2'),
+            list,
+          ),
+          sinchon2Node,
+        );
+        expect(
+          matchBestNodeEntry(
+            dummyStation.copyWith(nameKo: '신촌', lineId: 'line-6e39be0cb6e2'),
+            list,
+          ),
+          sinchonKNode,
+        );
+        // 친화 라인 식별자 매칭
+        expect(
+          matchBestNodeEntry(
+            dummyStation.copyWith(nameKo: '신촌', lineId: 'line-2'),
+            list,
+          ),
+          sinchon2Node,
+        );
+        expect(
+          matchBestNodeEntry(
+            dummyStation.copyWith(
+              nameKo: '신촌',
+              lineId: 'line-gyeongui-jungang',
+            ),
+            list,
+          ),
+          sinchonKNode,
+        );
+      }
+
+      // 신촌: lineId 없을 때 y 좌표 기반 판별
       expect(
         matchBestNodeEntry(
-          dummyStation.copyWith(lineId: 'line-2'),
-          sinchonList,
-        ),
-        sinchon2Node,
-      );
-      expect(
-        matchBestNodeEntry(
-          dummyStation.copyWith(lineId: 'line-gyeongui-jungang'),
-          sinchonList,
+          dummyStation.copyWith(
+            nameKo: '신촌',
+            lineId: '',
+            position: dummyStation.position.copyWith(y: 1150),
+          ),
+          sinchonListKFirst,
         ),
         sinchonKNode,
       );
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(
+            nameKo: '신촌',
+            lineId: '',
+            position: dummyStation.position.copyWith(y: 1250),
+          ),
+          sinchonListKFirst,
+        ),
+        sinchon2Node,
+      );
 
-      // 양평 5호선 vs 경의중앙선 분기
+      // 양평 5호선 vs 경의중앙선 분기 (실제 nodes.json 순서: 경의선 y=419, 5호선 y=1568)
       final yangpyeong5Node = const RouteMapOwnerNodeEntry(
-        stationId: 's-yp-5',
-        lineId: 'line-5',
+        stationId: 'station-d5909895c7d7',
+        lineId: 'line-80fc4d5350d4',
         name: '양평',
         x: 1234,
         y: 1568,
       );
       final yangpyeongKNode = const RouteMapOwnerNodeEntry(
-        stationId: 's-yp-k',
-        lineId: 'line-gyeongui',
+        stationId: 'station-7bbe244e2071',
+        lineId: 'line-6e39be0cb6e2',
         name: '양평',
         x: 3338,
         y: 419,
       );
-      final ypList = [yangpyeong5Node, yangpyeongKNode];
+      final ypListKFirst = [yangpyeongKNode, yangpyeong5Node];
+      final ypList5First = [yangpyeong5Node, yangpyeongKNode];
 
       final ypStation = dummyStation.copyWith(nameKo: '양평');
+      for (final list in [ypListKFirst, ypList5First]) {
+        // 정확한 카탈로그 lineId 매칭
+        expect(
+          matchBestNodeEntry(
+            ypStation.copyWith(lineId: 'line-80fc4d5350d4'),
+            list,
+          ),
+          yangpyeong5Node,
+        );
+        expect(
+          matchBestNodeEntry(
+            ypStation.copyWith(lineId: 'line-6e39be0cb6e2'),
+            list,
+          ),
+          yangpyeongKNode,
+        );
+        // 친화 라인 식별자 매칭
+        expect(
+          matchBestNodeEntry(ypStation.copyWith(lineId: 'line-5'), list),
+          yangpyeong5Node,
+        );
+        expect(
+          matchBestNodeEntry(ypStation.copyWith(lineId: 'line-gyeongui'), list),
+          yangpyeongKNode,
+        );
+      }
+
+      // 양평: lineId 없을 때 y 좌표 기반 판별
       expect(
-        matchBestNodeEntry(ypStation.copyWith(lineId: 'line-5'), ypList),
-        yangpyeong5Node,
+        matchBestNodeEntry(
+          ypStation.copyWith(
+            lineId: '',
+            position: dummyStation.position.copyWith(y: 400),
+          ),
+          ypListKFirst,
+        ),
+        yangpyeongKNode,
       );
       expect(
-        matchBestNodeEntry(ypStation.copyWith(lineId: 'line-gyeongui'), ypList),
-        yangpyeongKNode,
+        matchBestNodeEntry(
+          ypStation.copyWith(
+            lineId: '',
+            position: dummyStation.position.copyWith(y: 1500),
+          ),
+          ypListKFirst,
+        ),
+        yangpyeong5Node,
+      );
+
+      // 부산 동명이역 (부전, 좌천, 동래): 동해선 vs 1호선
+      final bujeonL1Node = const RouteMapOwnerNodeEntry(
+        stationId: 'station-9acc028dded4',
+        lineId: 'line-ab1a041f6266',
+        name: '부전',
+        x: 6233,
+        y: 4157,
+      );
+      final bujeonDhNode = const RouteMapOwnerNodeEntry(
+        stationId: 'station-ee8407a487c2',
+        lineId: 'line-f52eb59d8497',
+        name: '부전',
+        x: 5817,
+        y: 3938,
+      );
+      final bjList = [bujeonL1Node, bujeonDhNode];
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(nameKo: '부전', lineId: 'line-f52eb59d8497'),
+          bjList,
+        ),
+        bujeonDhNode,
+      );
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(nameKo: '부전', lineId: 'donghae'),
+          bjList,
+        ),
+        bujeonDhNode,
+      );
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(nameKo: '부전', lineId: 'line-ab1a041f6266'),
+          bjList,
+        ),
+        bujeonL1Node,
+      );
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(nameKo: '부전', lineId: '1호선'),
+          bjList,
+        ),
+        bujeonL1Node,
       );
 
       // 라인 ID 직접 일치 우선

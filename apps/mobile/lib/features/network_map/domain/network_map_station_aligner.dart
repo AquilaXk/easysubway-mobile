@@ -28,8 +28,7 @@ RouteMapOwnerLabelEntry matchBestOwnerEntry(
   }
   // 신촌: 2호선 vs 경의중앙선
   if (station.nameKo.contains('신촌')) {
-    final lineId = station.lineId.toLowerCase();
-    final isGyeongui = lineId.contains('gyeongui') || lineId.contains('경의');
+    final isGyeongui = isGyeonguiLineId(station.lineId);
     for (final entry in entries) {
       final isEntryGyeongui = entry.lines.any(
         (line) => line.text.contains('경의'),
@@ -41,8 +40,7 @@ RouteMapOwnerLabelEntry matchBestOwnerEntry(
   }
   // 양평: 5호선(도심, y > 1000) vs 경의중앙선(양평군, y < 1000)
   if (station.nameKo.contains('양평')) {
-    final lineId = station.lineId.toLowerCase();
-    final isGyeongui = lineId.contains('gyeongui') || lineId.contains('경의');
+    final isGyeongui = isGyeonguiLineId(station.lineId);
     for (final entry in entries) {
       final isNorthern = entry.position.dy < 1000;
       if (isGyeongui == isNorthern) {
