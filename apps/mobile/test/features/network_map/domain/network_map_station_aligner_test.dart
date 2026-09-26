@@ -200,5 +200,90 @@ void main() {
         expect(identical(otherRegionData, unalignedData), isTrue);
       },
     );
+
+    test(
+      'NetworkMapStation and NetworkMapPosition copyWith covers all fields and defaults',
+      () {
+        const pos = NetworkMapPosition(
+          x: 10,
+          y: 20,
+          labelDx: 1,
+          labelDy: 2,
+          labelPolygon: '1,2 3,4',
+          upPath: 'M0 0',
+          downPath: 'M1 1',
+          sourceId: 'src',
+        );
+
+        final posDefault = pos.copyWith();
+        expect(posDefault.x, 10);
+        expect(posDefault.y, 20);
+        expect(posDefault.labelDx, 1);
+        expect(posDefault.labelDy, 2);
+        expect(posDefault.labelPolygon, '1,2 3,4');
+        expect(posDefault.upPath, 'M0 0');
+        expect(posDefault.downPath, 'M1 1');
+        expect(posDefault.sourceId, 'src');
+
+        final posReplaced = pos.copyWith(
+          x: 100,
+          y: 200,
+          labelDx: 11,
+          labelDy: 22,
+          labelPolygon: '5,6 7,8',
+          upPath: 'M2 2',
+          downPath: 'M3 3',
+          sourceId: 'src2',
+        );
+        expect(posReplaced.x, 100);
+        expect(posReplaced.y, 200);
+        expect(posReplaced.labelDx, 11);
+        expect(posReplaced.labelDy, 22);
+        expect(posReplaced.labelPolygon, '5,6 7,8');
+        expect(posReplaced.upPath, 'M2 2');
+        expect(posReplaced.downPath, 'M3 3');
+        expect(posReplaced.sourceId, 'src2');
+
+        const station = NetworkMapStation(
+          id: 's1',
+          nameKo: '역1',
+          nameEn: 'Station1',
+          region: '수도권',
+          lineId: 'line-1',
+          stationCode: '101',
+          sequence: 1,
+          position: pos,
+        );
+
+        final stationDefault = station.copyWith();
+        expect(stationDefault.id, 's1');
+        expect(stationDefault.nameKo, '역1');
+        expect(stationDefault.nameEn, 'Station1');
+        expect(stationDefault.region, '수도권');
+        expect(stationDefault.lineId, 'line-1');
+        expect(stationDefault.stationCode, '101');
+        expect(stationDefault.sequence, 1);
+        expect(stationDefault.position.x, 10);
+
+        final stationReplaced = station.copyWith(
+          id: 's2',
+          nameKo: '역2',
+          nameEn: 'Station2',
+          region: '부산',
+          lineId: 'line-2',
+          stationCode: '202',
+          sequence: 2,
+          position: posReplaced,
+        );
+        expect(stationReplaced.id, 's2');
+        expect(stationReplaced.nameKo, '역2');
+        expect(stationReplaced.nameEn, 'Station2');
+        expect(stationReplaced.region, '부산');
+        expect(stationReplaced.lineId, 'line-2');
+        expect(stationReplaced.stationCode, '202');
+        expect(stationReplaced.sequence, 2);
+        expect(stationReplaced.position.x, 100);
+      },
+    );
   });
 }
