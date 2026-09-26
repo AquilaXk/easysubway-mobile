@@ -46,7 +46,13 @@ class NetworkMapGeometry {
     var maxY = 0.0;
     final stationXs = <double>[];
     final stationYs = <double>[];
-    for (final station in stations) {
+    final validStations = stations.where(
+      (s) => s.position.x <= 12000 && s.position.y <= 12000,
+    );
+    final targetStations = validStations.isNotEmpty
+        ? validStations.toList()
+        : stations;
+    for (final station in targetStations) {
       stationXs.add(station.position.x.toDouble());
       stationYs.add(station.position.y.toDouble());
       final point = Rect.fromCircle(
@@ -68,20 +74,24 @@ class NetworkMapGeometry {
           continue;
         }
         final bounds = cachedRouteMapPath(pathData, Offset.zero).bounds;
-        minX = math.min(minX, bounds.left);
-        minY = math.min(minY, bounds.top);
-        maxX = math.max(maxX, bounds.right);
-        maxY = math.max(maxY, bounds.bottom);
+        if (bounds.right <= 12000 && bounds.bottom <= 12000) {
+          minX = math.min(minX, bounds.left);
+          minY = math.min(minY, bounds.top);
+          maxX = math.max(maxX, bounds.right);
+          maxY = math.max(maxY, bounds.bottom);
+        }
       }
       final labelPolygon = parseRouteMapLabelPolygon(
         station.position.labelPolygon,
       );
       if (labelPolygon != null) {
         final bounds = networkMapPolygonBounds(labelPolygon);
-        minX = math.min(minX, bounds.left);
-        minY = math.min(minY, bounds.top);
-        maxX = math.max(maxX, bounds.right);
-        maxY = math.max(maxY, bounds.bottom);
+        if (bounds.right <= 12000 && bounds.bottom <= 12000) {
+          minX = math.min(minX, bounds.left);
+          minY = math.min(minY, bounds.top);
+          maxX = math.max(maxX, bounds.right);
+          maxY = math.max(maxY, bounds.bottom);
+        }
       }
     }
     for (final rect in ownerLabelSourceRects) {
@@ -116,12 +126,12 @@ class NetworkMapGeometry {
       height: geometry.height,
       initialBounds: _readableBoundsFor(
         geometry,
-        stationCount: stations.length,
+        stationCount: targetStations.length,
       ),
     );
     return result.copyWith(
       stationIndex: NetworkMapStationSpatialIndex.fromStations(
-        stations,
+        targetStations,
         sourceBoundsForStation: (station) =>
             stationSourceBoundsFor(station, result),
         stationKeyFor: stationKeyFor,

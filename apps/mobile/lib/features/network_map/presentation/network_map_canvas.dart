@@ -11,12 +11,15 @@ import '../../../mobile_error_reporter.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../data/network_map_attribution_cache.dart';
 import '../data/network_map_owner_labels_cache.dart';
+import '../data/network_map_owner_nodes_cache.dart';
 import '../domain/map_camera.dart';
 import '../domain/network_map_models.dart';
+import '../domain/network_map_station_aligner.dart';
 import '../domain/network_map_station_selection.dart';
 import '../domain/route_map_design_space.dart';
 import '../domain/route_map_min_scale.dart';
 import '../domain/route_map_owner_labels.dart';
+import '../domain/route_map_owner_nodes.dart';
 import '../domain/structured_route_map.dart';
 import 'network_map_camera_policy.dart';
 import 'network_map_draft_pin.dart';
@@ -142,11 +145,45 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   // canonical SVG 바탕층이 담당한다(#2068 SVG 충실도). 로드 전·실패 시 null →
   // 두 소비처 모두 기존(라벨 미반영) 동작으로 안전 폴백한다.
   Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>? _ownerLabelsByRegion;
+  Map<String, RouteMapOwnerNodesLookup>? _ownerNodesByRegion;
   // 초기 카메라 가독 배율(#2068 트랙 QA 후속) 캐시 — _readableInitialMapScaleFor.
   double? _readableInitialMapScaleCache;
   String? _readableInitialMapScaleCacheKey;
   // onTapUp 경로에서만 쓰는 stationLinesById를 매 build(팬 프레임)마다 재계산하지 않도록
   // region·stations identity로 캐시한다(#1973). 800역/24노선 재계산이 build 스파이크 원인.
+  NetworkMapData? _alignedDataCache;
+  Object? _alignedDataInput;
+  Object? _alignedDataOwnerNodes;
+  Object? _alignedDataOwnerEntries;
+
+  NetworkMapData _alignedData(NetworkMapData data) {
+    final basemapAssetId =
+        kRouteMapBasemapRegionToId[routeMapDisplayRegionName(
+          data.selectedRegion,
+        )];
+    final ownerNodes = basemapAssetId == null
+        ? null
+        : _ownerNodesByRegion?[basemapAssetId];
+    final ownerEntries = basemapAssetId == null
+        ? null
+        : _ownerLabelsByRegion?[basemapAssetId];
+    if (identical(_alignedDataInput, data) &&
+        identical(_alignedDataOwnerNodes, ownerNodes) &&
+        identical(_alignedDataOwnerEntries, ownerEntries) &&
+        _alignedDataCache != null) {
+      return _alignedDataCache!;
+    }
+    final aligned = alignNetworkMapDataForBasemap(
+      data,
+      ownerNodes: ownerNodes,
+      ownerEntries: ownerEntries,
+    );
+    _alignedDataInput = data;
+    _alignedDataOwnerNodes = ownerNodes;
+    _alignedDataOwnerEntries = ownerEntries;
+    _alignedDataCache = aligned;
+    return aligned;
+  }
 
   @override
   void initState() {
@@ -166,6 +203,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     _ownerLabelsByRegion = cachedNetworkMapOwnerLabelsByRegion;
     if (_ownerLabelsByRegion == null) {
       unawaited(_loadOwnerLabels());
+    }
+    _ownerNodesByRegion = cachedNetworkMapOwnerNodesByRegion;
+    if (_ownerNodesByRegion == null) {
+      unawaited(_loadOwnerNodes());
     }
   }
 
@@ -209,6 +250,23 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     }
   }
 
+  Future<void> _loadOwnerNodes() async {
+    try {
+      final byRegion = await loadNetworkMapOwnerNodesByRegion();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _ownerNodesByRegion = byRegion);
+    } catch (error, stackTrace) {
+      invalidateNetworkMapOwnerNodesLoad();
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '노선도 오너 노드 sidecar를 불러오는 중 예외가 발생했습니다.',
+      );
+    }
+  }
+
   @override
   void dispose() {
     if (!kReleaseMode) {
@@ -236,7 +294,8 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         if (!mounted || widget.selectedStationId != selectedId) {
           return;
         }
-        final station = networkMapStationById(widget.data.stations, selectedId);
+        final data = _alignedData(widget.data);
+        final station = networkMapStationById(data.stations, selectedId);
         if (station != null) {
           _panCameraToRevealFanMenu(station);
         }
@@ -253,7 +312,8 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final geometry = _geometryFor(widget.data);
+          final data = _alignedData(widget.data);
+          final geometry = _geometryFor(data);
           final hitGeometry = NetworkMapStationHitGeometry(geometry: geometry);
           final fullBounds = Rect.fromLTWH(
             0,
@@ -265,7 +325,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           // 콘텐츠 중앙을 오너 라벨이 읽히는 배율로 연다. 오너 라벨 sidecar는
           // 비동기 로드라 로드 전후로 가독 배율이 바뀌므로 layoutKey에 포함해
           // 로드 완료 시 초기 카메라가 다시 계산되게 한다.
-          final readableScale = _readableInitialMapScaleFor(widget.data);
+          final readableScale = _readableInitialMapScaleFor(data);
           final initialCameraBounds = networkMapInitialCameraBounds(
             fullBounds: fullBounds,
             regionInitialBounds: geometry.initialBounds,
@@ -279,30 +339,37 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           // 않게 한다 — sidecar 미로드 프레임처럼 초기 배율이 하한보다 낮은
           // 상태가 있고, 거기서 밀어올리면 #1764 E·#2062 계약이 깨진다.
           final minScale = networkMapMinimumScaleForRegion(
-            widget.data.selectedRegion,
+            data.selectedRegion,
             initialFitScale: networkMapContainFitScale(
               initialCameraBounds,
               constraints,
             ),
           );
+          final effectiveInitialViewport =
+              (widget.initialViewport != null &&
+                  widget.initialViewport!.overlaps(fullBounds.inflate(100)) &&
+                  widget.initialViewport!.width <= fullBounds.width * 2 &&
+                  widget.initialViewport!.height <= fullBounds.height * 2)
+              ? widget.initialViewport!
+              : initialCameraBounds;
           final initialCamera = networkMapCameraForBounds(
-            widget.initialViewport ?? initialCameraBounds,
+            effectiveInitialViewport,
             constraints,
             sourceBounds: fullBounds,
             contain: true,
             minScale: minScale,
           );
           final layoutKey =
-              '${widget.data.selectedRegion}:${geometry.width}:${geometry.height}:${constraints.maxWidth}:${constraints.maxHeight}:$readableScale';
+              '${data.selectedRegion}:${geometry.width}:${geometry.height}:${constraints.maxWidth}:${constraints.maxHeight}:$readableScale';
           if (_layoutKey != layoutKey) {
             final previousCamera = _camera;
             final preserveCamera =
                 widget.preserveFocusedStationScale &&
                 widget.focusedStationId != null &&
-                _layoutRegion == widget.data.selectedRegion &&
+                _layoutRegion == data.selectedRegion &&
                 previousCamera != null;
             _layoutKey = layoutKey;
-            _layoutRegion = widget.data.selectedRegion;
+            _layoutRegion = data.selectedRegion;
             _pendingCamera = null;
             _gestureActive = false;
             _cameraFocusedStationKey = null;
@@ -328,32 +395,23 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           // 같은 build에서 새 layoutKey의 카메라를 항상 초기화한다.
           var camera = _camera!;
           final selectedStation =
-              networkMapStationByIdentity(
-                widget.data.stations,
-                _selectedStation,
-              ) ??
-              networkMapStationById(
-                widget.data.stations,
-                widget.selectedStationId,
-              );
+              networkMapStationByIdentity(data.stations, _selectedStation) ??
+              networkMapStationById(data.stations, widget.selectedStationId);
           final originStation = networkMapStationById(
-            widget.data.stations,
+            data.stations,
             widget.originStationId,
           );
           final waypointStation = networkMapStationById(
-            widget.data.stations,
+            data.stations,
             widget.waypointStationId,
           );
           final destinationStation = networkMapStationById(
-            widget.data.stations,
+            data.stations,
             widget.destinationStationId,
           );
           final focusedStation = widget.focusedStationId == null
               ? null
-              : networkMapStationById(
-                  widget.data.stations,
-                  widget.focusedStationId,
-                );
+              : networkMapStationById(data.stations, widget.focusedStationId);
           final focusedStationKey = focusedStation == null
               ? null
               : (focusedStation.id, widget.preserveFocusedStationScale);
@@ -392,13 +450,17 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           } else if (focusedStation == null) {
             _cameraFocusedStationKey = null;
           }
-          if (widget.data.stations.isEmpty) {
+          if (data.stations.isEmpty) {
             return const OriginalRouteMapUnavailable();
           }
           return Stack(
             children: [
               Positioned.fill(
-                child: _buildStructuredRouteMapCanvas(camera, geometry.origin),
+                child: _buildStructuredRouteMapCanvas(
+                  camera,
+                  geometry.origin,
+                  data,
+                ),
               ),
               Positioned.fill(
                 child: Semantics(
@@ -781,9 +843,12 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     if (camera == null) {
       return;
     }
-    final geometry = _geometryFor(widget.data);
+    final data = _alignedData(widget.data);
+    final geometry = _geometryFor(data);
+    final alignedStation =
+        networkMapStationById(data.stations, station.id) ?? station;
     final stationPoint = camera.sourceToViewportPoint(
-      _fanMenuTailAnchorSource(station, geometry),
+      _fanMenuTailAnchorSource(alignedStation, geometry),
     );
     const margin = kFanMenuViewportMargin;
     // #2109: 배치 bbox는 build와 동일하게 fanMenuPlacement가 계산한다
@@ -825,9 +890,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   Widget _buildStructuredRouteMapCanvas(
     MapCameraState camera,
     Offset sourceOrigin,
+    NetworkMapData data,
   ) {
-    final attribution = _attributionTextByRegion?[widget.data.selectedRegion];
-    _ensureStructuredRouteMap();
+    final attribution = _attributionTextByRegion?[data.selectedRegion];
+    _ensureStructuredRouteMap(data);
     final map = _structuredRouteMapCache!;
     final lineColors = _structuredLineColorsCache!;
     final labelTextByStationId = _structuredLabelTextCache!;
@@ -836,8 +902,8 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       fit: StackFit.expand,
       children: [
         RouteMapBasemapView(
-          key: ValueKey(routeMapDisplayRegionName(widget.data.selectedRegion)),
-          region: routeMapDisplayRegionName(widget.data.selectedRegion),
+          key: ValueKey(routeMapDisplayRegionName(data.selectedRegion)),
+          region: routeMapDisplayRegionName(data.selectedRegion),
           camera: camera,
           sourceOrigin: sourceOrigin,
           attributionText: attribution,
@@ -856,8 +922,8 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     );
   }
 
-  void _ensureStructuredRouteMap() {
-    final data = widget.data;
+  void _ensureStructuredRouteMap([NetworkMapData? dataOverride]) {
+    final data = dataOverride ?? _alignedData(widget.data);
     // geometry 캐시와 동일하게 identityHashCode를 포함해, 같은 region·같은 개수라도
     // data 인스턴스가 바뀌면(좌표 수정/노선 교체) 재계산되게 한다(overlay와 정합).
     final key =
@@ -917,11 +983,14 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     NetworkMapGeometry geometry,
   ) {
     _ensureStructuredRouteMap();
+    final data = _alignedData(widget.data);
+    final alignedStation =
+        networkMapStationById(data.stations, station.id) ?? station;
     final tapped = Offset(
-      station.position.x.toDouble(),
-      station.position.y.toDouble(),
+      alignedStation.position.x.toDouble(),
+      alignedStation.position.y.toDouble(),
     );
-    final group = _structuredTransferGroupCache?[station.id];
+    final group = _structuredTransferGroupCache?[alignedStation.id];
     final center = group == null
         ? tapped
         : fanMenuTransferAnchor(

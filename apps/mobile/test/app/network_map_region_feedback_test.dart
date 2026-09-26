@@ -1,6 +1,9 @@
 import 'package:easysubway_mobile/app/network_map_screen.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -99,5 +102,39 @@ void main() {
 
     // 노선도는 수도권으로 안전하게 유지됨
     expect(find.text('수도권'), findsWidgets);
+  });
+
+  testWidgets('오너 노드 sidecar 로드 실패 시에도 NetworkMapScreen은 정상 초기화된다', (
+    tester,
+  ) async {
+    final repository = _CapitalOnlyNetworkMapRepository();
+    final routeDraftController = RouteDraftController();
+    final reportedErrors = <FlutterErrorDetails>[];
+    primeNetworkMapOwnerLabelsCacheForTest(const {});
+    primeNetworkMapOwnerNodesCacheErrorForTest(
+      Exception('sidecar load failed'),
+    );
+    addTearDown(() {
+      resetNetworkMapOwnerLabelsCacheForTest();
+      resetNetworkMapOwnerNodesCacheForTest();
+    });
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NetworkMapScreen(
+              repository: repository,
+              routeDraftController: routeDraftController,
+              onOpenStationSearch: (_, _) {},
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    });
+
+    expect(find.text('수도권'), findsWidgets);
+    expect(reportedErrors, isNotEmpty);
   });
 }

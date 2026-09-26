@@ -16,11 +16,13 @@ import '../features/network_map/application/network_map_region_bridge.dart';
 import '../features/network_map/application/network_map_nearby_panel_state.dart';
 import '../features/network_map/application/network_map_route_draft_station_projection.dart';
 import '../features/network_map/data/network_map_owner_labels_cache.dart';
+import '../features/network_map/data/network_map_owner_nodes_cache.dart';
 import '../features/network_map/domain/nearby_adjacent_stations.dart';
 import '../features/network_map/domain/network_map_edge_topology.dart';
 import '../features/network_map/domain/network_map_models.dart';
 import '../features/network_map/domain/route_map_min_scale.dart';
 import '../features/network_map/domain/route_map_owner_labels.dart';
+import '../features/network_map/domain/route_map_owner_nodes.dart';
 import '../features/network_map/presentation/nearby_data_source_toggle.dart';
 import '../features/network_map/presentation/network_map_chrome_controls.dart';
 import '../features/network_map/presentation/network_map_canvas.dart';
@@ -287,6 +289,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       loadNetworkMapOwnerLabelsByRegion().catchError(
         (Object _, StackTrace _) =>
             const <String, Map<String, List<RouteMapOwnerLabelEntry>>>{},
+      ),
+    );
+    unawaited(
+      loadNetworkMapOwnerNodesByRegion().catchError(
+        (Object _, StackTrace _) => const <String, RouteMapOwnerNodesLookup>{},
       ),
     );
   }
