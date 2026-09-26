@@ -585,6 +585,18 @@ void main() {
     expect(runCount, 0);
   });
 
+  test('handler 예외는 reportError로 기록하고 fail-closed(false)를 돌려준다', () async {
+    final errors = <Object>[];
+    final failure = StateError('handler exploded');
+    final worker = NextTrainWidgetWorkmanagerApi(
+      runWidgetRefresh: () async => throw failure,
+      reportError: (error, _) => errors.add(error),
+    );
+
+    expect(await worker.executeTask(nextTrainWidgetRefreshTask, null), isFalse);
+    expect(errors.single, same(failure));
+  });
+
   test(
     'injected headless facade runs once and keeps unavailable widget output explicit',
     () async {
