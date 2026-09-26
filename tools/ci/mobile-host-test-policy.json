@@ -153,6 +153,20 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/67",
       "reason": "CatalogStationTimetableQuery/Drift timetable success has no production consumer and is physically removed for server-authoritative Journey V3.",
       "reviewTrigger": "Mobile #67 server-authoritative timetable terminal deletion"
+    },
+    {
+      "path": "apps/mobile/integration_test/route_map_svg_failure_boundary_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/5",
+      "reason": "Platform WebView and RouteMapSvgViewport were physically removed for native 2D Canvas.",
+      "reviewTrigger": "Mobile #5 native 2D canvas restoration and platform WebView removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/infrastructure/route_map_svg_viewport_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/5",
+      "reason": "RouteMapSvgViewport platform view bridge has no production consumer and is physically removed.",
+      "reviewTrigger": "Mobile #5 native 2D canvas restoration and platform WebView removal"
     }
   ]
 }

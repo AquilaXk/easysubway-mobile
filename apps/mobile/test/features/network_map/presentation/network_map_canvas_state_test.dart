@@ -1,6 +1,5 @@
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
-import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
@@ -101,12 +100,10 @@ Widget _host({
 
 void main() {
   setUp(() {
-    debugRouteMapSvgViewportPresentImmediately = true;
     primeNetworkMapOwnerLabelsCacheForTest(const {});
   });
 
   tearDown(() {
-    debugRouteMapSvgViewportPresentImmediately = false;
     resetNetworkMapOwnerLabelsCacheForTest();
   });
 

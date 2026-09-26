@@ -23,7 +23,6 @@ import 'package:easysubway_mobile/features/network_map/data/network_map_attribut
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
-import 'package:easysubway_mobile/features/network_map/infrastructure/route_map_svg_viewport.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/app/network_map_screen.dart';
@@ -122,9 +121,6 @@ RouteMapBasemapPainter _findRouteMapPainter(WidgetTester tester) {
 }
 
 void main() {
-  setUp(() => debugRouteMapSvgViewportPresentImmediately = true);
-  tearDown(() => debugRouteMapSvgViewportPresentImmediately = false);
-
   testWidgets('광주 노선도는 자작 전환으로 attribution을 표시하지 않는다(#2011 계약 전환)', (
     tester,
   ) async {
