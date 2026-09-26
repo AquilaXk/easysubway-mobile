@@ -31,7 +31,7 @@ dependencies:
   flutter:
     sdk: flutter
 
-  flutter_secure_storage: ^10.3.1
+  flutter_secure_storage: ^11.2.0
   image_picker: ^1.2.3
   kakao_map_sdk: ^1.2.6
   url_launcher: ^6.3.2
@@ -39,7 +39,7 @@ dependencies:
   path_provider: ^2.1.6
   crypto: ^3.0.7
   # Flutter 3.44.0의 flutter_test SDK package와 같은 exact pin이다(#260).
-  meta: 1.18.0
+  meta: 1.19.0
   path: ^1.9.1
   collection: ^1.19.1
   sqlite3: ^3.5.1
