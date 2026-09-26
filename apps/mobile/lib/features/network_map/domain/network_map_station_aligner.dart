@@ -19,6 +19,9 @@ RouteMapOwnerLabelEntry matchBestOwnerEntry(
   NetworkMapStation station,
   List<RouteMapOwnerLabelEntry> entries,
 ) {
+  if (entries.isEmpty) {
+    throw ArgumentError.value(entries, 'entries', 'entries must not be empty');
+  }
   if (entries.length == 1) {
     return entries.first;
   }

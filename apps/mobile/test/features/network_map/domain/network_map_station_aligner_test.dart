@@ -82,6 +82,119 @@ void main() {
 
       final matchedK = matchBestOwnerEntry(sinchonGyeongui, entries);
       expect(matchedK.position.dx, closeTo(1398.7, 0.1));
+
+      // 양평: 5호선(y > 1000) vs 경의중앙선(y < 1000)
+      final yangpyeong5 = const NetworkMapStation(
+        id: 'station-yangpyeong-5',
+        nameKo: '양평',
+        nameEn: 'Yangpyeong',
+        region: '수도권',
+        lineId: 'line-5',
+        stationCode: '525',
+        sequence: 1,
+        position: NetworkMapPosition(
+          x: 40000,
+          y: 40000,
+          labelDx: 0,
+          labelDy: 0,
+          upPath: '',
+          downPath: '',
+          sourceId: 'seoul-metro-route-map-positions',
+        ),
+      );
+      final yangpyeongK = const NetworkMapStation(
+        id: 'station-yangpyeong-k',
+        nameKo: '양평',
+        nameEn: 'Yangpyeong',
+        region: '수도권',
+        lineId: 'line-gyeongui-jungang',
+        stationCode: 'K135',
+        sequence: 1,
+        position: NetworkMapPosition(
+          x: 40000,
+          y: 40000,
+          labelDx: 0,
+          labelDy: 0,
+          upPath: '',
+          downPath: '',
+          sourceId: 'seoul-metro-route-map-positions',
+        ),
+      );
+      final yangpyeongEntries = [
+        const RouteMapOwnerLabelEntry(
+          station: '양평',
+          role: 'ordinary',
+          position: Offset(1207.7, 1586.2), // 5호선 (도심, y > 1000)
+          anchor: RouteMapOwnerLabelAnchor.start,
+          fontSizePx: 15.47,
+        ),
+        const RouteMapOwnerLabelEntry(
+          station: '양평',
+          role: 'ordinary',
+          position: Offset(3337.5, 409.5), // 경의중앙선 (양평군, y < 1000)
+          anchor: RouteMapOwnerLabelAnchor.middle,
+          fontSizePx: 15.47,
+        ),
+      ];
+
+      final matchedYangpyeong5 = matchBestOwnerEntry(
+        yangpyeong5,
+        yangpyeongEntries,
+      );
+      expect(matchedYangpyeong5.position.dy, closeTo(1586.2, 0.1));
+
+      final matchedYangpyeongK = matchBestOwnerEntry(
+        yangpyeongK,
+        yangpyeongEntries,
+      );
+      expect(matchedYangpyeongK.position.dy, closeTo(409.5, 0.1));
+
+      // 신촌/양평 외의 다중 엔트리인 경우 첫 번째 엔트리로 fallback
+      final genericStation = const NetworkMapStation(
+        id: 'station-generic',
+        nameKo: '일반역',
+        nameEn: 'Generic',
+        region: '수도권',
+        lineId: 'line-1',
+        stationCode: '100',
+        sequence: 1,
+        position: NetworkMapPosition(
+          x: 100,
+          y: 200,
+          labelDx: 0,
+          labelDy: 0,
+          upPath: '',
+          downPath: '',
+          sourceId: 'src',
+        ),
+      );
+      final genericEntries = [
+        const RouteMapOwnerLabelEntry(
+          station: '일반역',
+          role: 'ordinary',
+          position: Offset(100.0, 200.0),
+          anchor: RouteMapOwnerLabelAnchor.middle,
+          fontSizePx: 15.47,
+        ),
+        const RouteMapOwnerLabelEntry(
+          station: '일반역',
+          role: 'ordinary',
+          position: Offset(300.0, 400.0),
+          anchor: RouteMapOwnerLabelAnchor.middle,
+          fontSizePx: 15.47,
+        ),
+      ];
+      final matchedGeneric = matchBestOwnerEntry(
+        genericStation,
+        genericEntries,
+      );
+      expect(matchedGeneric.position.dx, 100.0);
+
+      // 빈 entries 리스트 방어
+      expect(
+        () => matchBestOwnerEntry(yangpyeong5, const []),
+        throwsArgumentError,
+      );
     });
 
     test('alignStationForBasemap aligns outlier stations to owner labels', () {
@@ -140,6 +253,50 @@ void main() {
         ownerEntries,
       );
       expect(identical(schematicStation, keptSchematic), isTrue);
+
+      // Station with parenthesized subtitle falls back to normalized name in owner labels
+      final parenthesizedStation = outlierStation.copyWith(
+        id: 'station-seongnam',
+        nameKo: '석남(거북시장)',
+      );
+      final normalizedOwnerEntries = {
+        '석남': [
+          const RouteMapOwnerLabelEntry(
+            station: '석남',
+            role: 'transfer',
+            position: Offset(750.0, 1420.0),
+            anchor: RouteMapOwnerLabelAnchor.middle,
+            fontSizePx: 15.47,
+          ),
+        ],
+      };
+      final alignedNormalized = alignStationForBasemap(
+        parenthesizedStation,
+        normalizedOwnerEntries,
+      );
+      expect(alignedNormalized.position.x, 750);
+      expect(alignedNormalized.position.y, 1420);
+
+      // Station not found in owner labels remains unchanged
+      final unknownStation = outlierStation.copyWith(
+        id: 'station-unknown',
+        nameKo: '미지의역',
+      );
+      final keptUnknown = alignStationForBasemap(unknownStation, ownerEntries);
+      expect(identical(unknownStation, keptUnknown), isTrue);
+
+      // Null or empty ownerEntries returns original station
+      expect(
+        identical(outlierStation, alignStationForBasemap(outlierStation, null)),
+        isTrue,
+      );
+      expect(
+        identical(
+          outlierStation,
+          alignStationForBasemap(outlierStation, const {}),
+        ),
+        isTrue,
+      );
     });
 
     test(
