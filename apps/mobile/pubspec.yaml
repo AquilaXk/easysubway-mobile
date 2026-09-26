@@ -75,7 +75,7 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
   drift_dev: ^2.34.5
-  # 2.16.0은 analyzer/meta 요구사항이 Flutter 3.44.0과 해석되지 않는다(#260).
+  # >= 2.15.2는 analyzer/meta 요구사항(meta ^1.18.3)이 Flutter 3.44.0(meta 1.18.0 pin)과 해석되지 않는다(#260, #264).
   build_runner: 2.15.1
 
 # For information on the generic Dart part of this file, see the

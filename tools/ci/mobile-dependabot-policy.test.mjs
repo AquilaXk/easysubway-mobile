@@ -92,7 +92,7 @@ test("known incompatible releases are ignored narrowly instead of hiding update 
   assert.doesNotMatch(ignored, /dependency-name: "\*"/u);
   assert.doesNotMatch(ignored, /update-types:/u);
   assertLines(ignored, [
-    '      - dependency-name: "build_runner"\n        versions:\n          - "2.16.0"',
+    '      - dependency-name: "build_runner"\n        versions:\n          - ">= 2.15.2"',
     '      - dependency-name: "meta"\n        versions:\n          - "1.19.0"',
   ]);
 });

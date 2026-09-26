@@ -84,12 +84,12 @@ updates:
           - "minor"
           - "patch"
 
-    # #257/#258 current-head CI에서 실패가 확인된 정확한 버전만 보류한다.
-    # 패키지 전체나 update type을 숨기지 않아 이후 호환·보안 릴리스는 다시 제안된다.
+    # #257/#258/#264 current-head CI 및 Flutter 3.44.0 meta 1.18.0 pin에서
+    # solver 충돌이 확인된 비호환 버전 범위를 보류한다.
     ignore:
       - dependency-name: "build_runner"
         versions:
-          - "2.16.0"
+          - ">= 2.15.2"
       - dependency-name: "meta"
         versions:
           - "1.19.0"
