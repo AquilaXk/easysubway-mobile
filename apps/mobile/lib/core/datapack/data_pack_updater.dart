@@ -475,9 +475,13 @@ class DataPackUpdater {
       await sink.flush();
       await sink.close();
       return temporary;
-    } on Object {
-      await sink.close();
-      await _deleteIfExists(temporary);
+    } catch (primaryError) {
+      try {
+        await sink.close();
+      } catch (_) {}
+      try {
+        await _deleteIfExists(temporary);
+      } catch (_) {}
       rethrow;
     }
   }

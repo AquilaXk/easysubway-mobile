@@ -356,11 +356,14 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
   NextTrainWidgetWorkmanagerApi({
     required this.runWidgetRefresh,
     Future<bool> Function()? runGetOffAlarmReconcile,
+    void Function(Object error, StackTrace stackTrace)? reportError,
   }) : _runGetOffAlarmReconcile =
-           runGetOffAlarmReconcile ?? _defaultRunGetOffAlarmReconcile;
+           runGetOffAlarmReconcile ?? _defaultRunGetOffAlarmReconcile,
+       _reportError = reportError ?? _defaultReportError;
 
   final Future<bool> Function() runWidgetRefresh;
   final Future<bool> Function() _runGetOffAlarmReconcile;
+  final void Function(Object error, StackTrace stackTrace) _reportError;
 
   @override
   Future<void> backgroundChannelInitialized() async {}
@@ -370,13 +373,20 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
     String task,
     Map<String?, Object?>? inputData,
   ) async {
-    switch (task) {
-      case nextTrainWidgetRefreshTask:
-        return runWidgetRefresh();
-      case getOffAlarmReconcileTask:
-        return _runGetOffAlarmReconcile();
-      default:
-        return false;
+    try {
+      switch (task) {
+        case nextTrainWidgetRefreshTask:
+          return await runWidgetRefresh();
+        case getOffAlarmReconcileTask:
+          return await _runGetOffAlarmReconcile();
+        default:
+          return false;
+      }
+    } catch (error, stackTrace) {
+      try {
+        _reportError(error, stackTrace);
+      } catch (_) {}
+      return false;
     }
   }
 
@@ -388,6 +398,14 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
     String uniqueName,
     Map<String?, Object?>? progress,
   ) async {}
+
+  static void _defaultReportError(Object error, StackTrace stackTrace) {
+    reportMobileError(
+      error,
+      stackTrace,
+      context: 'WorkManager task 실행 중 예외가 발생했습니다.',
+    );
+  }
 
   static Future<bool> _defaultRunGetOffAlarmReconcile() async {
     WidgetsFlutterBinding.ensureInitialized();
