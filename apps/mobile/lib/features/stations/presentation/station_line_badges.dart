@@ -109,7 +109,7 @@ class StationLineBadgeTab extends StatelessWidget {
     required this.line,
     required this.selected,
     required this.onTap,
-    this.size = 28,
+    this.size = 32,
     super.key,
   });
 
@@ -131,17 +131,24 @@ class StationLineBadgeTab extends StatelessWidget {
         child: SizedBox(
           width: 48,
           height: 48,
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.end,
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              StationLineBadge(line: line, size: size),
-              const SizedBox(height: 4),
-              Container(
-                width: 30,
-                height: 2,
-                color: selected
-                    ? EasySubwayAccessibleColors.interactionPrimary
-                    : Colors.transparent,
+              Center(
+                child: StationLineBadge(line: line, size: size),
+              ),
+              Positioned(
+                bottom: 2,
+                child: Container(
+                  width: 30,
+                  height: 2,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? EasySubwayAccessibleColors.interactionPrimary
+                        : Colors.transparent,
+                    borderRadius: BorderRadius.circular(1),
+                  ),
+                ),
               ),
             ],
           ),

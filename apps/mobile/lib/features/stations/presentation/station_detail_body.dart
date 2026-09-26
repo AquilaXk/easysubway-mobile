@@ -501,7 +501,9 @@ class _NeighborStationButton extends StatelessWidget {
           foregroundColor: EasySubwayAccessibleColors.secondaryText,
         ),
         child: Text(
-          value.displayName,
+          alignment == Alignment.centerRight
+              ? '${value.displayName} >'
+              : '< ${value.displayName}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: alignment == Alignment.centerRight

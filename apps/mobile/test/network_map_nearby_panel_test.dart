@@ -3,6 +3,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/nearby_data_
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_columns.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'dart:ui' show Tristate;
 
 import 'package:flutter/material.dart';
@@ -17,6 +18,7 @@ Widget _hostBar({
   String? rightName = '한양대',
   String stationName = '왕십리',
   String badgeText = '2',
+  StationSearchLine? line,
   double width = 375,
   VoidCallback? onLeftNameTap,
   VoidCallback? onRightNameTap,
@@ -32,6 +34,7 @@ Widget _hostBar({
             stationName: stationName,
             badgeText: badgeText,
             lineColor: lineColor,
+            line: line,
             onLeftNameTap: onLeftNameTap,
             onRightNameTap: onRightNameTap,
           ),
@@ -64,6 +67,44 @@ void main() {
 
       expect(leftTaps, 1);
       expect(rightTaps, 1);
+    });
+
+    testWidgets('이전 역은 "< 역명", 다음 역은 "역명 >" 꺽쇠를 표기하고 Semantics는 유지한다', (
+      tester,
+    ) async {
+      final handle = tester.ensureSemantics();
+      await tester.pumpWidget(
+        _hostBar(
+          lineColor: _line2Green,
+          leftName: '반월',
+          stationName: '상록수',
+          rightName: '한대앞',
+          badgeText: '4',
+        ),
+      );
+
+      expect(find.text('< 반월'), findsOneWidget);
+      expect(find.text('한대앞 >'), findsOneWidget);
+      expect(find.text('상록수'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('이전역 반월, 현재역 4 상록수, 다음역 한대앞'),
+        findsOneWidget,
+      );
+      handle.dispose();
+    });
+
+    testWidgets('시종착역(인접역 null)은 해당 쪽 꺽쇠를 표기하지 않는다', (tester) async {
+      await tester.pumpWidget(
+        _hostBar(
+          lineColor: _line2Green,
+          leftName: null,
+          stationName: '당고개',
+          rightName: '상계',
+        ),
+      );
+
+      expect(find.textContaining('<'), findsNothing);
+      expect(find.text('상계 >'), findsOneWidget);
     });
 
     testWidgets('2호선 선택 시 좌우 바가 모두 동일 노선색(#00A84D)이다', (tester) async {
@@ -136,6 +177,54 @@ void main() {
       await tester.pumpWidget(_hostBar(lineColor: _line2Green, badgeText: ''));
       expect(badgeCircleFinder(), findsNothing);
       expect(find.text('왕십리'), findsOneWidget);
+    });
+
+    testWidgets('수인분당선 등 심볼 에셋이 있는 노선은 StationLineBadge 이미지 에셋을 렌더링한다', (
+      tester,
+    ) async {
+      const suinLine = StationSearchLine(
+        id: 'suin-bundang',
+        name: '수도권 수인분당선',
+        color: '#EBA900',
+        stationCode: 'K240',
+      );
+      await tester.pumpWidget(
+        _hostBar(
+          lineColor: const Color(0xFFEBA900),
+          stationName: '한대앞',
+          badgeText: '수인분당',
+          line: suinLine,
+        ),
+      );
+
+      final badgeFinder = find.byKey(
+        const Key('stationLineBadge-suin-bundang'),
+      );
+      expect(badgeFinder, findsOneWidget);
+      expect(
+        find.descendant(of: badgeFinder, matching: find.byType(Image)),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('텍스트 배지 노선은 StationLineBadge 규격 스타일을 적용한다', (tester) async {
+      const customLine = StationSearchLine(
+        id: 'custom-text',
+        name: '용인에버',
+        color: '#56AD2D',
+        stationCode: 'Y110',
+      );
+      await tester.pumpWidget(
+        _hostBar(
+          lineColor: const Color(0xFF56AD2D),
+          stationName: '기흥',
+          badgeText: '용인에버',
+          line: customLine,
+        ),
+      );
+
+      final badgeFinder = find.byKey(const Key('stationLineBadge-custom-text'));
+      expect(badgeFinder, findsOneWidget);
     });
 
     testWidgets('노선 바 전체가 하나의 Semantics 그룹 라벨을 노출한다', (tester) async {
