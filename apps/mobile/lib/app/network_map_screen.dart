@@ -1177,7 +1177,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
               stationId: station.id,
               lineId: line.id,
               providerLineId: line.stationCode.isEmpty
-                  ? line.id
+                  ? null
                   : line.stationCode,
               stationQueryName: station.nameKo,
             ),
