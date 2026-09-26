@@ -8,6 +8,7 @@ import 'package:easysubway_mobile/features/home_widget/next_train_widget_service
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/main.dart' as app;
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -584,6 +585,73 @@ void main() {
 
     expect(runCount, 0);
   });
+
+  test('handler 예외는 reportError로 기록하고 fail-closed(false)를 돌려준다', () async {
+    final errors = <Object>[];
+    final failure = StateError('handler exploded');
+    final worker = NextTrainWidgetWorkmanagerApi(
+      runWidgetRefresh: () async => throw failure,
+      reportError: (error, _) => errors.add(error),
+    );
+
+    expect(await worker.executeTask(nextTrainWidgetRefreshTask, null), isFalse);
+    expect(errors.single, same(failure));
+  });
+
+  test(
+    '기본 reportError는 handler 예외 시 reportMobileError를 호출하고 false를 돌려준다',
+    () async {
+      final reported = <FlutterErrorDetails>[];
+      final failure = StateError('handler exploded');
+      final worker = NextTrainWidgetWorkmanagerApi(
+        runWidgetRefresh: () async => throw failure,
+      );
+
+      final result = await runWithMobileErrorReporter(
+        reported.add,
+        () => worker.executeTask(nextTrainWidgetRefreshTask, null),
+      );
+
+      expect(result, isFalse);
+      expect(reported.single.exception, same(failure));
+      expect(
+        reported.single.context?.toString(),
+        contains('WorkManager task 실행 중 예외가 발생했습니다.'),
+      );
+    },
+  );
+
+  test(
+    '주입된 reportError 자체가 예외를 던져도 executeTask는 fail-closed(false)를 돌려준다',
+    () async {
+      final failure = StateError('handler exploded');
+      final worker = NextTrainWidgetWorkmanagerApi(
+        runWidgetRefresh: () async => throw failure,
+        reportError: (error, _) => throw StateError('reporting failed'),
+      );
+
+      final result = await worker.executeTask(nextTrainWidgetRefreshTask, null);
+
+      expect(result, isFalse);
+    },
+  );
+
+  test(
+    '기본 reportError 경로에서 reporting 예외가 발생해도 executeTask는 fail-closed(false)를 돌려준다',
+    () async {
+      final failure = StateError('handler exploded');
+      final worker = NextTrainWidgetWorkmanagerApi(
+        runWidgetRefresh: () async => throw failure,
+      );
+
+      final result = await runWithMobileErrorReporter(
+        (_) => throw StateError('reporter failed'),
+        () => worker.executeTask(nextTrainWidgetRefreshTask, null),
+      );
+
+      expect(result, isFalse);
+    },
+  );
 
   test(
     'injected headless facade runs once and keeps unavailable widget output explicit',
