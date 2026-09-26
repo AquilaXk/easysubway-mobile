@@ -57,6 +57,11 @@ void main() {
         reportError: (error, _) => errors.add(error),
       );
 
+      // WorkManager 0.10 background worker는 Android WorkManager에 의해 최소 15분 주기
+      // (PeriodicWorkRequest.MIN_PERIODIC_INTERVAL_MILLIS)로 별도 백그라운드 isolate에서 구동됩니다.
+      // 통합 테스트에서는 Phase 2에서 실제 native PeriodicWorkRequest 등록을 완료하고,
+      // Phase 3에서는 해당 백그라운드 isolate에서 실행되는 NextTrainWidgetWorkmanagerApi의
+      // 라우팅, 알 수 없는 task 거부, 0.10 신규 콜백 무해성, 및 fail-closed 계약을 결정론적으로 검증합니다.
       // (a) nextTrainWidgetRefresh task 라우팅
       final widgetResult = await api.executeTask(
         nextTrainWidgetRefreshTask,

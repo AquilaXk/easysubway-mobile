@@ -383,7 +383,9 @@ class NextTrainWidgetWorkmanagerApi extends WorkmanagerFlutterApi {
           return false;
       }
     } catch (error, stackTrace) {
-      _reportError(error, stackTrace);
+      try {
+        _reportError(error, stackTrace);
+      } catch (_) {}
       return false;
     }
   }

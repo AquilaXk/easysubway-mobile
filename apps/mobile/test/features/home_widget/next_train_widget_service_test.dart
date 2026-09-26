@@ -622,6 +622,38 @@ void main() {
   );
 
   test(
+    '주입된 reportError 자체가 예외를 던져도 executeTask는 fail-closed(false)를 돌려준다',
+    () async {
+      final failure = StateError('handler exploded');
+      final worker = NextTrainWidgetWorkmanagerApi(
+        runWidgetRefresh: () async => throw failure,
+        reportError: (error, _) => throw StateError('reporting failed'),
+      );
+
+      final result = await worker.executeTask(nextTrainWidgetRefreshTask, null);
+
+      expect(result, isFalse);
+    },
+  );
+
+  test(
+    '기본 reportError 경로에서 reporting 예외가 발생해도 executeTask는 fail-closed(false)를 돌려준다',
+    () async {
+      final failure = StateError('handler exploded');
+      final worker = NextTrainWidgetWorkmanagerApi(
+        runWidgetRefresh: () async => throw failure,
+      );
+
+      final result = await runWithMobileErrorReporter(
+        (_) => throw StateError('reporter failed'),
+        () => worker.executeTask(nextTrainWidgetRefreshTask, null),
+      );
+
+      expect(result, isFalse);
+    },
+  );
+
+  test(
     'injected headless facade runs once and keeps unavailable widget output explicit',
     () async {
       final stored = <String, Object?>{
