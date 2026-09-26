@@ -35,6 +35,10 @@ void main() {
 
       resetNetworkMapOwnerNodesCacheForTest();
       expect(cachedNetworkMapOwnerNodesByRegion, isNull);
+
+      primeNetworkMapOwnerNodesCacheErrorForTest(Exception('primed error'));
+      expect(cachedNetworkMapOwnerNodesByRegion, isNull);
+      expect(loadNetworkMapOwnerNodesByRegion(), throwsA(isA<Exception>()));
     });
 
     test(

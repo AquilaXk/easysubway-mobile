@@ -1,9 +1,11 @@
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -101,10 +103,25 @@ Widget _host({
 void main() {
   setUp(() {
     primeNetworkMapOwnerLabelsCacheForTest(const {});
+    primeNetworkMapOwnerNodesCacheForTest(const {});
   });
 
   tearDown(() {
     resetNetworkMapOwnerLabelsCacheForTest();
+    resetNetworkMapOwnerNodesCacheForTest();
+  });
+
+  testWidgets('오너 노드 sidecar 로드 실패 시 캐시 무효화 및 에러 리포트를 수행한다', (tester) async {
+    final reportedErrors = <FlutterErrorDetails>[];
+    primeNetworkMapOwnerNodesCacheErrorForTest(Exception('오너 노드 로드 실패'));
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(_host(data: _data));
+      await tester.pumpAndSettle();
+    });
+
+    expect(reportedErrors, hasLength(1));
+    expect(reportedErrors.single.exception, isA<Exception>());
   });
 
   testWidgets('empty 뒤 같은 크기 non-empty data를 받으면 renderer를 다시 연다', (
