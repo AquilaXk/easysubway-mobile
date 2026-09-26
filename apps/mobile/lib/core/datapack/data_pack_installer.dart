@@ -82,20 +82,16 @@ class DataPackInstaller {
       return;
     }
     await restoreInterruptedReplacements(catalogDirectory);
-    try {
-      final entities = await catalogDirectory.list().toList();
-      for (final entity in entities) {
-        if (entity is! File) continue;
-        final name = p.basename(entity.path);
-        if (name.endsWith('.tmp') ||
-            name.endsWith('.downloading') ||
-            name.endsWith('.gz.tmp') ||
-            name.endsWith('.sqlite.tmp')) {
-          await _safeDelete(entity);
-        }
+    final entities = await catalogDirectory.list().toList();
+    for (final entity in entities) {
+      if (entity is! File) continue;
+      final name = p.basename(entity.path);
+      if (name.endsWith('.tmp') ||
+          name.endsWith('.downloading') ||
+          name.endsWith('.gz.tmp') ||
+          name.endsWith('.sqlite.tmp')) {
+        await _safeDelete(entity);
       }
-    } on Object {
-      // safe directory scan
     }
   }
 
@@ -131,109 +127,104 @@ class DataPackInstaller {
     Set<String> protectedVersions = const {},
     bool activateCurrent = true,
   }) async {
-    return _synchronizedMutation((transactionId) async {
-      await catalogDirectory.create(recursive: true);
-      final expectedSizeBytes = pack.sizeBytes;
-      final compressedLength = await compressedFile.length();
-      if (expectedSizeBytes != null && compressedLength != expectedSizeBytes) {
-        await _safeDelete(compressedFile);
-        return const DataPackInstallResult(
-          status: DataPackInstallStatus.rejected,
-          reason: DataPackInstallRejectionReason.sizeBytesMismatch,
-        );
-      }
-      final compressedHash = await sha256OfFile(compressedFile);
-      if (compressedHash != pack.compressedSha256) {
-        await _safeDelete(compressedFile);
-        return const DataPackInstallResult(
-          status: DataPackInstallStatus.rejected,
-          reason: DataPackInstallRejectionReason.sha256Mismatch,
-        );
-      }
-
-      final temporary = File(
-        p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite.tmp'),
+    final transactionId = ++_activeTransactionId;
+    await catalogDirectory.create(recursive: true);
+    final expectedSizeBytes = pack.sizeBytes;
+    final compressedLength = await compressedFile.length();
+    if (expectedSizeBytes != null && compressedLength != expectedSizeBytes) {
+      await _deleteIfExists(compressedFile);
+      return const DataPackInstallResult(
+        status: DataPackInstallStatus.rejected,
+        reason: DataPackInstallRejectionReason.sizeBytesMismatch,
       );
-      try {
-        final sqliteHash = await _inflateGzipToFile(
-          compressedFile: compressedFile,
-          targetFile: temporary,
-        );
-        await _safeDelete(compressedFile);
-        if (sqliteHash == null) {
-          await _safeDelete(temporary);
-          return const DataPackInstallResult(
-            status: DataPackInstallStatus.rejected,
-            reason: DataPackInstallRejectionReason.invalidArchive,
-          );
-        }
+    }
+    final compressedHash = await sha256OfFile(compressedFile);
+    if (compressedHash != pack.compressedSha256) {
+      await _deleteIfExists(compressedFile);
+      return const DataPackInstallResult(
+        status: DataPackInstallStatus.rejected,
+        reason: DataPackInstallRejectionReason.sha256Mismatch,
+      );
+    }
 
-        if (sqliteHash != pack.sqliteSha256) {
-          await _safeDelete(temporary);
-          return const DataPackInstallResult(
-            status: DataPackInstallStatus.rejected,
-            reason: DataPackInstallRejectionReason.sqliteSha256Mismatch,
-          );
-        }
-
-        final target = File(
-          p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite'),
+    final temporary = File(
+      p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite.tmp'),
+    );
+    try {
+      final sqliteHash = await _inflateGzipToFile(
+        compressedFile: compressedFile,
+        targetFile: temporary,
+      );
+      await _deleteIfExists(compressedFile);
+      if (sqliteHash == null) {
+        await _deleteIfExists(temporary);
+        return const DataPackInstallResult(
+          status: DataPackInstallStatus.rejected,
+          reason: DataPackInstallRejectionReason.invalidArchive,
         );
-        final rejection = await _validateSqlite(temporary, pack);
-        if (rejection != null) {
-          await _safeDelete(temporary);
-          return DataPackInstallResult(
-            status: DataPackInstallStatus.rejected,
-            reason: rejection,
-          );
-        }
-
-        await _replaceFile(temporary, target);
-        // 재활성화 대조의 기준선(#2532). 매니페스트가 선언하고 방금 실제 파일과 대조한 값이다.
-        await writeInstalledPackBaseline(target, pack.sqliteSha256);
-        final pointer = InstalledDataPackPointer(
-          id: pack.id,
-          version: pack.version,
-          path: target.path,
-          sha256: pack.sqliteSha256,
-          installedAt: _now().toUtc(),
-        );
-        var resolvedPointer = pointer;
-        if (activateCurrent) {
-          resolvedPointer = await activateCurrentPointer(
-            pointer,
-            transactionId: transactionId,
-          );
-          await pruneObsoletePacks(
-            pack.id,
-            keepVersionCount: 2,
-            protectedVersions: protectedVersions,
-          );
-        }
-        await userDatabase
-            .into(userDatabase.installedDataPacks)
-            .insertOnConflictUpdate(
-              user_db.InstalledDataPacksCompanion.insert(
-                packId: pack.id,
-                version: pack.version,
-                sha256: pack.sqliteSha256,
-                installedAt: resolvedPointer.installedAt!,
-              ),
-            );
-
-        return DataPackInstallResult(
-          status: DataPackInstallStatus.installed,
-          pointer: resolvedPointer,
-        );
-      } catch (primaryError) {
-        await _safeDelete(temporary);
-        await _safeDelete(compressedFile);
-        rethrow;
-      } finally {
-        await _safeDelete(temporary);
-        await _safeDelete(compressedFile);
       }
-    });
+
+      if (sqliteHash != pack.sqliteSha256) {
+        await _deleteIfExists(temporary);
+        return const DataPackInstallResult(
+          status: DataPackInstallStatus.rejected,
+          reason: DataPackInstallRejectionReason.sqliteSha256Mismatch,
+        );
+      }
+
+      final target = File(
+        p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite'),
+      );
+      final rejection = await _validateSqlite(temporary, pack);
+      if (rejection != null) {
+        await _deleteIfExists(temporary);
+        return DataPackInstallResult(
+          status: DataPackInstallStatus.rejected,
+          reason: rejection,
+        );
+      }
+
+      await _replaceFile(temporary, target);
+      // 재활성화 대조의 기준선(#2532). 매니페스트가 선언하고 방금 실제 파일과 대조한 값이다.
+      await writeInstalledPackBaseline(target, pack.sqliteSha256);
+      final pointer = InstalledDataPackPointer(
+        id: pack.id,
+        version: pack.version,
+        path: target.path,
+        sha256: pack.sqliteSha256,
+        installedAt: _now().toUtc(),
+      );
+      var resolvedPointer = pointer;
+      if (activateCurrent) {
+        resolvedPointer = await activateCurrentPointer(
+          pointer,
+          transactionId: transactionId,
+        );
+        await pruneObsoletePacks(
+          pack.id,
+          keepVersionCount: 2,
+          protectedVersions: protectedVersions,
+        );
+      }
+      await userDatabase
+          .into(userDatabase.installedDataPacks)
+          .insertOnConflictUpdate(
+            user_db.InstalledDataPacksCompanion.insert(
+              packId: pack.id,
+              version: pack.version,
+              sha256: pack.sqliteSha256,
+              installedAt: resolvedPointer.installedAt!,
+            ),
+          );
+
+      return DataPackInstallResult(
+        status: DataPackInstallStatus.installed,
+        pointer: resolvedPointer,
+      );
+    } finally {
+      await _safeDelete(temporary);
+      await _safeDelete(compressedFile);
+    }
   }
 
   Future<InstalledDataPackPointer?> readCurrentPointer() async {
@@ -415,7 +406,9 @@ class DataPackInstaller {
     InstalledDataPackPointer pointer, {
     int? transactionId,
   }) async {
-    return _writeCurrentPointer(pointer, transactionId: transactionId);
+    return _synchronizedMutation(
+      (_) => _writeCurrentPointer(pointer, transactionId: transactionId),
+    );
   }
 
   Future<void> recoverInstallJournal() async {

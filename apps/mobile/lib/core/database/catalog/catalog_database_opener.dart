@@ -136,13 +136,7 @@ class CatalogDatabaseOpener {
       if (companionPath is String && companionPath.isNotEmpty) {
         final companionFile = File(companionPath);
         if (!await companionFile.exists()) {
-          if (preferredPackId == null) {
-            return null;
-          }
-          return _openKnownGoodInstalledDataPack(
-            preferredPackId: preferredPackId,
-            maximumVersion: preferredVersionLimit,
-          );
+          return null;
         }
       }
       final file = _currentDataPackFile(decoded);

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:easysubway_mobile/core/database/catalog/catalog_database_opener.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
 import 'package:easysubway_mobile/core/datapack/data_pack_client.dart';
@@ -9,9 +10,12 @@ import 'package:easysubway_mobile/core/datapack/data_pack_installer.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_manifest.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_updater.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Mobile #33 DataPack Exception, Cleanup & Atomic Recovery', () {
     test('다운로드 실패 시 임시 partial 파일을 정리하고 primary failure를 보존한다', () async {
       final directory = await Directory.systemTemp.createTemp(
@@ -51,13 +55,13 @@ void main() {
                     'url': 'pack.sqlite.gz',
                     'sha256': fakeCompressedSha,
                     'sqliteSha256': fakeSqliteSha,
-                    'sizeBytes': 10,
+                    'sizeBytes': 20,
                     ..._fixtureManifestMetadata(
                       id: 'nationwide',
                       version: '18',
                       compressedSha256: fakeCompressedSha,
                       sqliteSha256: fakeSqliteSha,
-                      sizeBytes: 10,
+                      sizeBytes: 20,
                     ),
                     'schemaVersion': '1',
                     'requiredTables': ['catalog_metadata'],
@@ -70,31 +74,33 @@ void main() {
         }
 
         // 다운로드 중 오류 유발 (청크 분할 전송으로 파일 생성 후 크기 초과 유발)
+        request.response.headers.chunkedTransferEncoding = true;
         request.response.statusCode = HttpStatus.ok;
         request.response.add(List.filled(5, 1));
         await request.response.flush();
-        request.response.add(List.filled(15, 1));
+        request.response.add(List.filled(25, 1));
         await request.response.close();
       });
 
-      final updater = DataPackUpdater(
-        client: DataPackClient(
-          manifestUri: Uri.parse(
-            'http://${server.address.host}:${server.port}/manifest.json',
+      await HttpOverrides.runWithHttpOverrides(() async {
+        final updater = DataPackUpdater(
+          client: DataPackClient(
+            manifestUri: Uri.parse(
+              'http://${server.address.address}:${server.port}/manifest.json',
+            ),
+            stateRepository: DataPackUpdateStateRepository(
+              userDatabase: userDatabase,
+              now: () => DateTime.utc(2026, 6, 19, 10),
+            ),
           ),
-          stateRepository: DataPackUpdateStateRepository(
-            userDatabase: userDatabase,
-            now: () => DateTime.utc(2026, 6, 19, 10),
-          ),
-        ),
-        installer: installer,
-      );
+          installer: installer,
+        );
 
-      // updater의 다운로드 실패 시 primary failure(DataPackClientException)가 발생해야 하고 partial 파일이 남지 않아야 함
-      await expectLater(
-        () => updater.checkForUpdates(),
-        throwsA(isA<DataPackClientException>()),
-      );
+        await expectLater(
+          () => updater.checkForUpdates(),
+          throwsA(isA<DataPackClientException>()),
+        );
+      }, _RealHttpOverrides());
 
       // catalog 디렉토리에 .downloading 파일이 남아있지 않음을 검증
       final partials = catalogDir
@@ -626,6 +632,212 @@ void main() {
         expect(await rollbackPack.exists(), isTrue);
       },
     );
+
+    test('DataPackLateCompletionException format verification', () {
+      const ex = DataPackLateCompletionException('sample err');
+      expect(ex.toString(), 'DataPackLateCompletionException: sample err');
+    });
+
+    test('pinnedGenerations 및 동시 mutation serialization 검증', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'pin-concurrency-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+      final catalogDir = Directory('${directory.path}/catalog');
+      await catalogDir.create(recursive: true);
+      final installer = DataPackInstaller(
+        catalogDirectory: catalogDir,
+        userDatabase: userDatabase,
+      );
+      installer.pinGeneration(5, version: '5');
+      expect(installer.pinnedGenerations, contains(5));
+      installer.unpinGeneration(5);
+      expect(installer.pinnedGenerations, isNot(contains(5)));
+
+      final p1 = InstalledDataPackPointer(
+        id: 'c',
+        version: '1',
+        path: '${catalogDir.path}/1',
+        generation: 1,
+      );
+      final p2 = InstalledDataPackPointer(
+        id: 'c',
+        version: '2',
+        path: '${catalogDir.path}/2',
+        generation: 2,
+      );
+      final f1 = installer.activateCurrentPointer(p1);
+      final f2 = installer.activateCurrentPointer(p2);
+      await Future.wait([f1, f2]);
+      final cur = await installer.readCurrentPointer();
+      expect(cur?.generation, 2);
+    });
+
+    test('installFromCompressedFile에서 sqliteSha256Mismatch 검증', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'sqlite-mismatch-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+      final catalogDir = Directory('${directory.path}/catalog');
+      await catalogDir.create(recursive: true);
+      final installer = DataPackInstaller(
+        catalogDirectory: catalogDir,
+        userDatabase: userDatabase,
+      );
+      final bytes = [1, 2, 3, 4];
+      final compressed = gzip.encode(bytes);
+      final result = await installer.install(
+        pack: _testPack(
+          id: 'test',
+          version: '1',
+          compressedSha256: sha256.convert(compressed).toString(),
+          sqliteSha256: 'wrong-hash',
+          sizeBytes: compressed.length,
+          url: Uri.parse('http://127.0.0.1/dummy'),
+        ),
+        compressedBytes: compressed,
+      );
+      expect(result.status, DataPackInstallStatus.rejected);
+      expect(
+        result.reason,
+        DataPackInstallRejectionReason.sqliteSha256Mismatch,
+      );
+    });
+
+    test('recoverInstallJournal에서 companion 파일 해시 불일치 시 journal 삭제', () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'comp-sha-mismatch-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+      final catalogDir = Directory('${directory.path}/catalog');
+      await catalogDir.create(recursive: true);
+      final catFile = File('${catalogDir.path}/cat-v1.sqlite');
+      await catFile.writeAsString('cat');
+      final mapFile = File('${catalogDir.path}/map-v1.svg');
+      await mapFile.writeAsString('map');
+      final journal = File('${catalogDir.path}/current.json.installing');
+      await journal.writeAsString(
+        jsonEncode({
+          'id': 'cap',
+          'version': '1',
+          'path': catFile.path,
+          'sha256': sha256.convert(await catFile.readAsBytes()).toString(),
+          'companionPackId': 'map',
+          'companionVersion': '1',
+          'companionPath': mapFile.path,
+          'companionSha256': 'wrong-sha',
+          'generation': 1,
+        }),
+      );
+      final installer = DataPackInstaller(
+        catalogDirectory: catalogDir,
+        userDatabase: userDatabase,
+      );
+      await installer.recoverInstallJournal();
+      expect(await journal.exists(), isFalse);
+    });
+
+    test(
+      'InstalledDataPackPointer String generation/releaseSequence 및 copyWith',
+      () {
+        final ptr = InstalledDataPackPointer.fromJson({
+          'id': 'cap',
+          'version': '1',
+          'path': '/some/path',
+          'generation': '42',
+          'releaseSequence': '10',
+          'manifestSha256': 'manifest-sha',
+        });
+        expect(ptr.generation, 42);
+        expect(ptr.releaseSequence, 10);
+        expect(ptr.manifestSha256, 'manifest-sha');
+        final copyWithGen = ptr.copyWith(generation: 43);
+        expect(copyWithGen.generation, 43);
+        final copyWithoutGen = ptr.copyWith(id: 'cap2');
+        expect(copyWithoutGen.generation, 42);
+        expect(copyWithoutGen.id, 'cap2');
+      },
+    );
+
+    test('CatalogDatabaseOpener openedGeneration 및 companion 검증', () async {
+      final directory = await Directory.systemTemp.createTemp('opener-test-');
+      addTearDown(() => directory.delete(recursive: true));
+      final catalogDir = Directory('${directory.path}/catalog');
+      await catalogDir.create(recursive: true);
+      final pack = File('${catalogDir.path}/capital-v18.sqlite');
+      await pack.writeAsString('data');
+
+      // 1. journal에 존재하는 companion 누락 시 삭제
+      final journal = File('${catalogDir.path}/current.json.installing');
+      await journal.writeAsString(
+        jsonEncode({
+          'id': 'capital',
+          'version': '18',
+          'path': pack.path,
+          'sha256': sha256.convert(await pack.readAsBytes()).toString(),
+          'companionPath': '${catalogDir.path}/missing.svg',
+        }),
+      );
+      final opener = CatalogDatabaseOpener(
+        databaseDirectory: directory,
+        assetBundle: rootBundle,
+      );
+      await opener.open();
+      expect(await journal.exists(), isFalse);
+
+      // 2. journal에 존재하는 companion 해시 불일치 시 삭제
+      final mapFile = File('${catalogDir.path}/map-v18.svg');
+      await mapFile.writeAsString('map');
+      await journal.writeAsString(
+        jsonEncode({
+          'id': 'capital',
+          'version': '18',
+          'path': pack.path,
+          'sha256': sha256.convert(await pack.readAsBytes()).toString(),
+          'companionPath': mapFile.path,
+          'companionSha256': 'wrong-sha',
+        }),
+      );
+      await opener.open();
+      expect(await journal.exists(), isFalse);
+
+      // 3. current.json에 companion 파일 부재 시 null fallback
+      final current = File('${catalogDir.path}/current.json');
+      await current.writeAsString(
+        jsonEncode({
+          'id': 'capital',
+          'version': '18',
+          'path': pack.path,
+          'sha256': sha256.convert(await pack.readAsBytes()).toString(),
+          'companionPath': '${catalogDir.path}/missing.svg',
+          'generation': 7,
+        }),
+      );
+      expect(opener.openedGeneration, isNull);
+      final db1 = await opener.open();
+      addTearDown(db1.close);
+      expect(opener.openedBundledDataPack, isTrue);
+
+      // 4. string generation 역직렬화
+      await current.writeAsString(
+        jsonEncode({
+          'id': 'capital',
+          'version': '18',
+          'path': pack.path,
+          'sha256': sha256.convert(await pack.readAsBytes()).toString(),
+          'generation': '7',
+        }),
+      );
+      final db2 = await opener.open();
+      addTearDown(db2.close);
+      expect(opener.openedGeneration, 7);
+    });
   });
 }
 
@@ -790,3 +1002,5 @@ DataPackManifestEntry _testPack({
     requiredTables: const ['catalog_metadata'],
   );
 }
+
+class _RealHttpOverrides extends HttpOverrides {}

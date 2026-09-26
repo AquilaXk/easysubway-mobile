@@ -445,30 +445,26 @@ class DataPackUpdater {
     Uri uri,
     DataPackManifestEntry pack,
   ) async {
-    HttpClientRequest? request;
-    IOSink? sink;
-    File? temporary;
+    final request = await _httpClient
+        .getUrl(uri)
+        .timeout(_dataPackDownloadTimeout);
+    final response = await request.close().timeout(_dataPackDownloadTimeout);
+    if (response.statusCode != HttpStatus.ok) {
+      throw const DataPackClientException('이동 정보를 내려받지 못했어요.');
+    }
+    final expectedSizeBytes = pack.sizeBytes;
+    final contentLength = response.contentLength;
+    final maxBytes = expectedSizeBytes ?? _maxDataPackDownloadBytes;
+    if (contentLength > maxBytes || contentLength > _maxDataPackDownloadBytes) {
+      throw const DataPackClientException('이동 정보 파일이 너무 큽니다.');
+    }
+    final directory = await installer.catalogDirectory.create(recursive: true);
+    final temporary = File(
+      '${directory.path}/${pack.id}-v${pack.version}.sqlite.gz.downloading',
+    );
+    final sink = temporary.openWrite();
+    var received = 0;
     try {
-      request = await _httpClient.getUrl(uri).timeout(_dataPackDownloadTimeout);
-      final response = await request.close().timeout(_dataPackDownloadTimeout);
-      if (response.statusCode != HttpStatus.ok) {
-        throw const DataPackClientException('이동 정보를 내려받지 못했어요.');
-      }
-      final expectedSizeBytes = pack.sizeBytes;
-      final contentLength = response.contentLength;
-      final maxBytes = expectedSizeBytes ?? _maxDataPackDownloadBytes;
-      if (contentLength > maxBytes ||
-          contentLength > _maxDataPackDownloadBytes) {
-        throw const DataPackClientException('이동 정보 파일이 너무 큽니다.');
-      }
-      final directory = await installer.catalogDirectory.create(
-        recursive: true,
-      );
-      temporary = File(
-        '${directory.path}/${pack.id}-v${pack.version}.sqlite.gz.downloading',
-      );
-      sink = temporary.openWrite();
-      var received = 0;
       await for (final chunk in response.timeout(_dataPackDownloadTimeout)) {
         received += chunk.length;
         if (received > maxBytes || received > _maxDataPackDownloadBytes) {
@@ -478,24 +474,14 @@ class DataPackUpdater {
       }
       await sink.flush();
       await sink.close();
-      sink = null;
       return temporary;
     } catch (primaryError) {
-      if (request != null) {
-        try {
-          request.abort();
-        } catch (_) {}
-      }
-      if (sink != null) {
-        try {
-          await sink.close();
-        } catch (_) {}
-      }
-      if (temporary != null) {
-        try {
-          await _deleteIfExists(temporary);
-        } catch (_) {}
-      }
+      try {
+        await sink.close();
+      } catch (_) {}
+      try {
+        await _deleteIfExists(temporary);
+      } catch (_) {}
       rethrow;
     }
   }
