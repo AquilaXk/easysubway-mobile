@@ -316,7 +316,7 @@ class StationDetailController extends ChangeNotifier {
           stationId: detail.id,
           lineId: firstLine.id,
           providerLineId: firstLine.stationCode.isEmpty
-              ? firstLine.id
+              ? null
               : firstLine.stationCode,
           stationQueryName: detail.nameKo,
         ),
