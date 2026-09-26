@@ -11,6 +11,7 @@ import '../../../mobile_error_reporter.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../data/network_map_attribution_cache.dart';
 import '../data/network_map_owner_labels_cache.dart';
+import '../data/network_map_owner_nodes_cache.dart';
 import '../domain/map_camera.dart';
 import '../domain/network_map_models.dart';
 import '../domain/network_map_station_aligner.dart';
@@ -18,6 +19,7 @@ import '../domain/network_map_station_selection.dart';
 import '../domain/route_map_design_space.dart';
 import '../domain/route_map_min_scale.dart';
 import '../domain/route_map_owner_labels.dart';
+import '../domain/route_map_owner_nodes.dart';
 import '../domain/structured_route_map.dart';
 import 'network_map_camera_policy.dart';
 import 'network_map_draft_pin.dart';
@@ -143,6 +145,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   // canonical SVG 바탕층이 담당한다(#2068 SVG 충실도). 로드 전·실패 시 null →
   // 두 소비처 모두 기존(라벨 미반영) 동작으로 안전 폴백한다.
   Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>? _ownerLabelsByRegion;
+  Map<String, RouteMapOwnerNodesLookup>? _ownerNodesByRegion;
   // 초기 카메라 가독 배율(#2068 트랙 QA 후속) 캐시 — _readableInitialMapScaleFor.
   double? _readableInitialMapScaleCache;
   String? _readableInitialMapScaleCacheKey;
@@ -150,6 +153,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   // region·stations identity로 캐시한다(#1973). 800역/24노선 재계산이 build 스파이크 원인.
   NetworkMapData? _alignedDataCache;
   Object? _alignedDataInput;
+  Object? _alignedDataOwnerNodes;
   Object? _alignedDataOwnerEntries;
 
   NetworkMapData _alignedData(NetworkMapData data) {
@@ -157,16 +161,25 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         kRouteMapBasemapRegionToId[routeMapDisplayRegionName(
           data.selectedRegion,
         )];
+    final ownerNodes = basemapAssetId == null
+        ? null
+        : _ownerNodesByRegion?[basemapAssetId];
     final ownerEntries = basemapAssetId == null
         ? null
         : _ownerLabelsByRegion?[basemapAssetId];
     if (identical(_alignedDataInput, data) &&
+        identical(_alignedDataOwnerNodes, ownerNodes) &&
         identical(_alignedDataOwnerEntries, ownerEntries) &&
         _alignedDataCache != null) {
       return _alignedDataCache!;
     }
-    final aligned = alignNetworkMapDataForBasemap(data, ownerEntries);
+    final aligned = alignNetworkMapDataForBasemap(
+      data,
+      ownerNodes: ownerNodes,
+      ownerEntries: ownerEntries,
+    );
     _alignedDataInput = data;
+    _alignedDataOwnerNodes = ownerNodes;
     _alignedDataOwnerEntries = ownerEntries;
     _alignedDataCache = aligned;
     return aligned;
@@ -190,6 +203,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     _ownerLabelsByRegion = cachedNetworkMapOwnerLabelsByRegion;
     if (_ownerLabelsByRegion == null) {
       unawaited(_loadOwnerLabels());
+    }
+    _ownerNodesByRegion = cachedNetworkMapOwnerNodesByRegion;
+    if (_ownerNodesByRegion == null) {
+      unawaited(_loadOwnerNodes());
     }
   }
 
@@ -229,6 +246,23 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         error,
         stackTrace,
         context: '노선도 오너 라벨 sidecar를 불러오는 중 예외가 발생했습니다.',
+      );
+    }
+  }
+
+  Future<void> _loadOwnerNodes() async {
+    try {
+      final byRegion = await loadNetworkMapOwnerNodesByRegion();
+      if (!mounted) {
+        return;
+      }
+      setState(() => _ownerNodesByRegion = byRegion);
+    } catch (error, stackTrace) {
+      invalidateNetworkMapOwnerNodesLoad();
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '노선도 오너 노드 sidecar를 불러오는 중 예외가 발생했습니다.',
       );
     }
   }

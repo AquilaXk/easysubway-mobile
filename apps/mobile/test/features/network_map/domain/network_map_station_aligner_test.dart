@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_station_aligner.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
+import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_nodes.dart';
 
 void main() {
   group('network_map_station_aligner', () {
@@ -190,12 +191,378 @@ void main() {
       );
       expect(matchedGeneric.position.dx, 100.0);
 
+      // 단일 엔트리는 바로 반환
+      expect(
+        matchBestOwnerEntry(genericStation, [genericEntries.first]).position.dx,
+        100.0,
+      );
+
       // 빈 entries 리스트 방어
       expect(
         () => matchBestOwnerEntry(yangpyeong5, const []),
         throwsArgumentError,
       );
     });
+
+    test('RouteMapOwnerNodeEntry and matchBestNodeEntry work correctly', () {
+      final nodeEntry = const RouteMapOwnerNodeEntry(
+        stationId: 's1',
+        lineId: 'l1',
+        name: '역',
+        x: 100,
+        y: 200,
+      );
+      expect(nodeEntry.position, const Offset(100, 200));
+
+      // 빈 리스트 예외 방어
+      final dummyStation = const NetworkMapStation(
+        id: 's',
+        nameKo: '신촌',
+        nameEn: 'Sinchon',
+        region: '수도권',
+        lineId: 'line-2',
+        stationCode: '240',
+        sequence: 1,
+        position: NetworkMapPosition(
+          x: 0,
+          y: 0,
+          labelDx: 0,
+          labelDy: 0,
+          upPath: '',
+          downPath: '',
+          sourceId: '',
+        ),
+      );
+      expect(
+        () => matchBestNodeEntry(dummyStation, const []),
+        throwsArgumentError,
+      );
+
+      // 단일 엔트리 바로 반환
+      expect(matchBestNodeEntry(dummyStation, [nodeEntry]), nodeEntry);
+
+      // 신촌 2호선 vs 경의선 분기
+      final sinchon2Node = const RouteMapOwnerNodeEntry(
+        stationId: 's-sinchon-2',
+        lineId: 'seoul-2',
+        name: '신촌',
+        x: 1369,
+        y: 1227,
+      );
+      final sinchonKNode = const RouteMapOwnerNodeEntry(
+        stationId: 's-sinchon-k',
+        lineId: 'line-gyeongui-jungang',
+        name: '신촌',
+        x: 1398,
+        y: 1148,
+      );
+      final sinchonList = [sinchon2Node, sinchonKNode];
+
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(lineId: 'line-2'),
+          sinchonList,
+        ),
+        sinchon2Node,
+      );
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(lineId: 'line-gyeongui-jungang'),
+          sinchonList,
+        ),
+        sinchonKNode,
+      );
+
+      // 양평 5호선 vs 경의중앙선 분기
+      final yangpyeong5Node = const RouteMapOwnerNodeEntry(
+        stationId: 's-yp-5',
+        lineId: 'line-5',
+        name: '양평',
+        x: 1234,
+        y: 1568,
+      );
+      final yangpyeongKNode = const RouteMapOwnerNodeEntry(
+        stationId: 's-yp-k',
+        lineId: 'line-gyeongui',
+        name: '양평',
+        x: 3338,
+        y: 419,
+      );
+      final ypList = [yangpyeong5Node, yangpyeongKNode];
+
+      final ypStation = dummyStation.copyWith(nameKo: '양평');
+      expect(
+        matchBestNodeEntry(ypStation.copyWith(lineId: 'line-5'), ypList),
+        yangpyeong5Node,
+      );
+      expect(
+        matchBestNodeEntry(ypStation.copyWith(lineId: 'line-gyeongui'), ypList),
+        yangpyeongKNode,
+      );
+
+      // 라인 ID 직접 일치 우선
+      final custom1 = const RouteMapOwnerNodeEntry(
+        stationId: 's-c1',
+        lineId: 'line-custom-a',
+        name: '커스텀',
+        x: 10,
+        y: 20,
+      );
+      final custom2 = const RouteMapOwnerNodeEntry(
+        stationId: 's-c2',
+        lineId: 'line-custom-b',
+        name: '커스텀',
+        x: 30,
+        y: 40,
+      );
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(nameKo: '커스텀', lineId: 'line-custom-b'),
+          [custom1, custom2],
+        ),
+        custom2,
+      );
+
+      // 매칭 없으면 first
+      expect(
+        matchBestNodeEntry(
+          dummyStation.copyWith(nameKo: '커스텀', lineId: 'unknown'),
+          [custom1, custom2],
+        ),
+        custom1,
+      );
+    });
+
+    test('RouteMapOwnerNodesLookup indexes and finds nodes accurately', () {
+      final lookup = RouteMapOwnerNodesLookup(
+        entries: [
+          const RouteMapOwnerNodeEntry(
+            stationId: 'station-oxu-3',
+            lineId: 'line-3',
+            name: '옥수',
+            x: 2111,
+            y: 1609,
+          ),
+          const RouteMapOwnerNodeEntry(
+            stationId: 'station-oxu-k',
+            lineId: 'line-gyeongui-jungang',
+            name: '옥수',
+            x: 2111,
+            y: 1609,
+          ),
+          const RouteMapOwnerNodeEntry(
+            stationId: 'station-seongnam',
+            lineId: 'line-7',
+            name: '석남(거북시장)',
+            x: 444,
+            y: 1502,
+          ),
+        ],
+      );
+
+      expect(lookup.isEmpty, isFalse);
+      expect(lookup.isNotEmpty, isTrue);
+
+      const dummyPos = NetworkMapPosition(
+        x: 50000,
+        y: 60000,
+        labelDx: 0,
+        labelDy: 0,
+        upPath: '',
+        downPath: '',
+        sourceId: 'seoul-metro-route-map-positions',
+      );
+
+      // 1. (stationId, lineId) exact match
+      final oxu3 = lookup.findNode(
+        const NetworkMapStation(
+          id: 'station-oxu-3',
+          nameKo: '옥수',
+          nameEn: 'Oksu',
+          region: '수도권',
+          lineId: 'line-3',
+          stationCode: '335',
+          sequence: 1,
+          position: dummyPos,
+        ),
+      );
+      expect(oxu3?.x, 2111);
+      expect(oxu3?.y, 1609);
+
+      // 2. stationId match (without lineId match)
+      final oxuById = lookup.findNode(
+        const NetworkMapStation(
+          id: 'station-oxu-k',
+          nameKo: '옥수',
+          nameEn: 'Oksu',
+          region: '수도권',
+          lineId: 'different-line',
+          stationCode: 'K114',
+          sequence: 1,
+          position: dummyPos,
+        ),
+      );
+      expect(oxuById?.x, 2111);
+      expect(oxuById?.y, 1609);
+
+      // 3. (normalizedName, lineId) match
+      final seongnamByLine = lookup.findNode(
+        const NetworkMapStation(
+          id: 'diff-id',
+          nameKo: '석남',
+          nameEn: 'Seongnam',
+          region: '수도권',
+          lineId: 'line-7',
+          stationCode: '761',
+          sequence: 1,
+          position: dummyPos,
+        ),
+      );
+      expect(seongnamByLine?.x, 444);
+      expect(seongnamByLine?.y, 1502);
+
+      // 4. nameKo match with normalized parenthesized subtitle
+      final seongnamByName = lookup.findNode(
+        const NetworkMapStation(
+          id: 'diff-id',
+          nameKo: '석남(거북시장)',
+          nameEn: 'Seongnam',
+          region: '수도권',
+          lineId: 'line-unknown',
+          stationCode: '761',
+          sequence: 1,
+          position: dummyPos,
+        ),
+      );
+      expect(seongnamByName?.x, 444);
+      expect(seongnamByName?.y, 1502);
+
+      // 5. Homonym candidates > 1 triggers matchBestNodeEntry
+      final sinchonLookup = RouteMapOwnerNodesLookup(
+        entries: [
+          const RouteMapOwnerNodeEntry(
+            stationId: 's1',
+            lineId: 'seoul-2',
+            name: '신촌',
+            x: 1369,
+            y: 1227,
+          ),
+          const RouteMapOwnerNodeEntry(
+            stationId: 's2',
+            lineId: 'line-6e39be0cb6e2-gyeongui',
+            name: '신촌',
+            x: 1398,
+            y: 1148,
+          ),
+        ],
+      );
+      final sinchonMatched = sinchonLookup.findNode(
+        const NetworkMapStation(
+          id: 'diff-id',
+          nameKo: '신촌',
+          nameEn: 'Sinchon',
+          region: '수도권',
+          lineId: '경의중앙선',
+          stationCode: '',
+          sequence: 1,
+          position: dummyPos,
+        ),
+      );
+      expect(sinchonMatched?.x, 1398);
+
+      // 6. Unknown station returns null
+      final unknown = lookup.findNode(
+        const NetworkMapStation(
+          id: 'diff-id',
+          nameKo: '미등록역',
+          nameEn: 'Unknown',
+          region: '수도권',
+          lineId: 'line-unknown',
+          stationCode: '999',
+          sequence: 1,
+          position: dummyPos,
+        ),
+      );
+      expect(unknown, isNull);
+    });
+
+    test(
+      'Transfer station lines share identical node coordinates and are unified',
+      () {
+        final lookup = RouteMapOwnerNodesLookup(
+          entries: [
+            const RouteMapOwnerNodeEntry(
+              stationId: 'station-oxu-3',
+              lineId: 'line-3',
+              name: '옥수',
+              x: 2111,
+              y: 1609,
+            ),
+            const RouteMapOwnerNodeEntry(
+              stationId: 'station-oxu-k',
+              lineId: 'line-gyeongui-jungang',
+              name: '옥수',
+              x: 2111,
+              y: 1609,
+            ),
+          ],
+        );
+
+        final oxuLine3 = const NetworkMapStation(
+          id: 'station-oxu-3',
+          nameKo: '옥수',
+          nameEn: 'Oksu',
+          region: '수도권',
+          lineId: 'line-3',
+          stationCode: '335',
+          sequence: 1,
+          position: NetworkMapPosition(
+            x: 2111,
+            y: 1609,
+            labelDx: 0,
+            labelDy: 16,
+            upPath: '',
+            downPath: '',
+            sourceId: 'owner-self-drawn-sma-schematic',
+          ),
+        );
+
+        final oxuGyeongui = const NetworkMapStation(
+          id: 'station-oxu-k',
+          nameKo: '옥수',
+          nameEn: 'Oksu',
+          region: '수도권',
+          lineId: 'line-gyeongui-jungang',
+          stationCode: 'K114',
+          sequence: 1,
+          position: NetworkMapPosition(
+            x: 51661,
+            y: 65640,
+            labelDx: 0,
+            labelDy: -23,
+            labelPolygon: '51661,65640 51700,65700',
+            upPath: 'M51661 65640',
+            downPath: 'M51661 65640',
+            sourceId: 'seoul-metro-route-map-positions',
+          ),
+        );
+
+        final aligned3 = alignStationForBasemap(oxuLine3, ownerNodes: lookup);
+        final alignedK = alignStationForBasemap(
+          oxuGyeongui,
+          ownerNodes: lookup,
+        );
+
+        // 환승역의 두 호선이 100% 동일한 노드 중심 좌표를 공유
+        expect(aligned3.position.x, 2111);
+        expect(aligned3.position.y, 1609);
+        expect(alignedK.position.x, 2111);
+        expect(alignedK.position.y, 1609);
+        expect(alignedK.position.labelPolygon, isEmpty);
+        expect(alignedK.position.upPath, isEmpty);
+        expect(alignedK.position.downPath, isEmpty);
+      },
+    );
 
     test('alignStationForBasemap aligns outlier stations to owner labels', () {
       final ownerEntries = {
@@ -229,7 +596,10 @@ void main() {
         ),
       );
 
-      final aligned = alignStationForBasemap(outlierStation, ownerEntries);
+      final aligned = alignStationForBasemap(
+        outlierStation,
+        ownerEntries: ownerEntries,
+      );
       expect(aligned.position.x, 2100);
       expect(aligned.position.y, 1850);
 
@@ -237,7 +607,10 @@ void main() {
       final normalStation = outlierStation.copyWith(
         position: outlierStation.position.copyWith(x: 2100, y: 1850),
       );
-      final kept = alignStationForBasemap(normalStation, ownerEntries);
+      final kept = alignStationForBasemap(
+        normalStation,
+        ownerEntries: ownerEntries,
+      );
       expect(identical(normalStation, kept), isTrue);
 
       // Station with owner-self-drawn-sma-schematic source is unchanged
@@ -250,7 +623,7 @@ void main() {
       );
       final keptSchematic = alignStationForBasemap(
         schematicStation,
-        ownerEntries,
+        ownerEntries: ownerEntries,
       );
       expect(identical(schematicStation, keptSchematic), isTrue);
 
@@ -272,7 +645,7 @@ void main() {
       };
       final alignedNormalized = alignStationForBasemap(
         parenthesizedStation,
-        normalizedOwnerEntries,
+        ownerEntries: normalizedOwnerEntries,
       );
       expect(alignedNormalized.position.x, 750);
       expect(alignedNormalized.position.y, 1420);
@@ -282,18 +655,24 @@ void main() {
         id: 'station-unknown',
         nameKo: '미지의역',
       );
-      final keptUnknown = alignStationForBasemap(unknownStation, ownerEntries);
+      final keptUnknown = alignStationForBasemap(
+        unknownStation,
+        ownerEntries: ownerEntries,
+      );
       expect(identical(unknownStation, keptUnknown), isTrue);
 
       // Null or empty ownerEntries returns original station
       expect(
-        identical(outlierStation, alignStationForBasemap(outlierStation, null)),
+        identical(
+          outlierStation,
+          alignStationForBasemap(outlierStation, ownerEntries: null),
+        ),
         isTrue,
       );
       expect(
         identical(
           outlierStation,
-          alignStationForBasemap(outlierStation, const {}),
+          alignStationForBasemap(outlierStation, ownerEntries: const {}),
         ),
         isTrue,
       );
@@ -302,6 +681,17 @@ void main() {
     test(
       'alignNetworkMapDataForBasemap aligns whole dataset for basemap region',
       () {
+        final ownerNodes = RouteMapOwnerNodesLookup(
+          entries: [
+            const RouteMapOwnerNodeEntry(
+              stationId: 'station-gangnam',
+              lineId: 'line-2',
+              name: '강남',
+              x: 2105,
+              y: 1855,
+            ),
+          ],
+        );
         final ownerEntries = {
           '강남': [
             const RouteMapOwnerLabelEntry(
@@ -344,7 +734,20 @@ void main() {
           lineTracks: const [],
         );
 
-        final alignedData = alignNetworkMapDataForBasemap(data, ownerEntries);
+        // ownerNodes가 있으면 exact node center (2105, 1855) 우선 정렬
+        final alignedWithNodes = alignNetworkMapDataForBasemap(
+          data,
+          ownerNodes: ownerNodes,
+          ownerEntries: ownerEntries,
+        );
+        expect(alignedWithNodes.stations.first.position.x, 2105);
+        expect(alignedWithNodes.stations.first.position.y, 1855);
+
+        // ownerNodes가 없으면 ownerEntries (2100, 1850)로 폴백
+        final alignedData = alignNetworkMapDataForBasemap(
+          data,
+          ownerEntries: ownerEntries,
+        );
         expect(alignedData.stations.first.position.x, 2100);
         expect(alignedData.stations.first.position.y, 1850);
 
@@ -352,9 +755,99 @@ void main() {
         final otherRegionData = data.copyWith(selectedRegion: '알수없음');
         final unalignedData = alignNetworkMapDataForBasemap(
           otherRegionData,
-          ownerEntries,
+          ownerEntries: ownerEntries,
         );
         expect(identical(otherRegionData, unalignedData), isTrue);
+
+        // Empty / null ownerNodes and ownerEntries returns data directly
+        expect(identical(data, alignNetworkMapDataForBasemap(data)), isTrue);
+      },
+    );
+
+    test('routeMapOwnerNodesByRegionFrom parses sidecar correctly', () {
+      const validJson = '''
+      {
+        "schemaVersion": 1,
+        "artifactKind": "route-map-basemap-owner-nodes",
+        "regions": {
+          "seoul": [
+            {
+              "stationId": "s1",
+              "lineId": "l1",
+              "name": "시청",
+              "x": 1845,
+              "y": 1318
+            }
+          ]
+        }
+      }
+      ''';
+      final byRegion = routeMapOwnerNodesByRegionFrom(validJson);
+      expect(byRegion.containsKey('seoul'), isTrue);
+      final seoul = byRegion['seoul']!;
+      expect(seoul.entries.length, 1);
+      expect(seoul.entries.first.name, '시청');
+      expect(seoul.entries.first.x, 1845);
+      expect(seoul.entries.first.y, 1318);
+
+      // Malformed json returns empty map
+      expect(routeMapOwnerNodesByRegionFrom('invalid json'), isEmpty);
+      expect(routeMapOwnerNodesByRegionFrom('{"regions": null}'), isEmpty);
+      expect(
+        routeMapOwnerNodesByRegionFrom('{"regions": {"seoul": 123}}'),
+        isNotEmpty,
+      );
+      expect(
+        routeMapOwnerNodesByRegionFrom(
+          '{"regions": {"seoul": 123}}',
+        )['seoul']!.isEmpty,
+        isTrue,
+      );
+      expect(routeMapOwnerNodesByRegionFrom('{}'), isEmpty);
+    });
+
+    test(
+      'alignStationForBasemap updates non-outlier station if node coordinates differ',
+      () {
+        final inBoundsStation = const NetworkMapStation(
+          id: 'station-inbounds',
+          nameKo: '내부역',
+          nameEn: 'InBounds',
+          region: '수도권',
+          lineId: 'line-1',
+          stationCode: '101',
+          sequence: 1,
+          position: NetworkMapPosition(
+            x: 100,
+            y: 200,
+            labelDx: 0,
+            labelDy: 0,
+            labelPolygon: '100,200',
+            upPath: 'M100 200',
+            downPath: 'M100 200',
+            sourceId: 'src',
+          ),
+        );
+        final inBoundsLookup = RouteMapOwnerNodesLookup(
+          entries: [
+            const RouteMapOwnerNodeEntry(
+              stationId: 'station-inbounds',
+              lineId: 'line-1',
+              name: '내부역',
+              x: 105,
+              y: 205,
+            ),
+          ],
+        );
+        final alignedInBounds = alignStationForBasemap(
+          inBoundsStation,
+          ownerNodes: inBoundsLookup,
+        );
+        expect(alignedInBounds.position.x, 105);
+        expect(alignedInBounds.position.y, 205);
+        expect(alignedInBounds.position.labelPolygon, '100,200');
+        expect(alignedInBounds.position.upPath, 'M100 200');
+        expect(alignedInBounds.position.downPath, 'M100 200');
       },
     );
 
