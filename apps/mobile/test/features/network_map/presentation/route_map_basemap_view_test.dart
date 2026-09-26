@@ -166,5 +166,96 @@ void main() {
       final painter = customPaint.painter as RouteMapBasemapPainter;
       expect(identical(painter.picture, daejeonPicture), isTrue);
     });
+
+    testWidgets('유효한 권역 로드 후 매핑에 없는 권역으로 변경되면 _picture가 null로 초기화된다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: RouteMapBasemapView(region: '대전', camera: camera),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      var customPaint = tester.widget<CustomPaint>(find.byType(CustomPaint));
+      var painter = customPaint.painter as RouteMapBasemapPainter;
+      expect(painter.picture, isNotNull);
+
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: RouteMapBasemapView(region: '미지의권역', camera: camera),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      customPaint = tester.widget<CustomPaint>(find.byType(CustomPaint));
+      painter = customPaint.painter as RouteMapBasemapPainter;
+      expect(painter.picture, isNull);
+    });
+
+    testWidgets('동일 권역을 그리는 두 위젯이 동시 마운트될 때 pendingLoad를 공유하여 로드한다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        const Directionality(
+          textDirection: TextDirection.ltr,
+          child: Stack(
+            children: [
+              RouteMapBasemapView(region: '대구', camera: camera),
+              RouteMapBasemapView(region: '대구', camera: camera),
+            ],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final paints = tester
+          .widgetList<CustomPaint>(find.byType(CustomPaint))
+          .toList();
+      expect(paints.length, 2);
+      final p1 = paints[0].painter as RouteMapBasemapPainter;
+      final p2 = paints[1].painter as RouteMapBasemapPainter;
+      expect(p1.picture, isNotNull);
+      expect(p2.picture, isNotNull);
+      expect(identical(p1.picture, p2.picture), isTrue);
+    });
+
+    testWidgets('바탕 .vec 로드 실패 시 pendingLoads를 정리하고 FlutterError를 보고한다', (
+      tester,
+    ) async {
+      final errors = <FlutterErrorDetails>[];
+      final previousOnError = FlutterError.onError;
+      FlutterError.onError = errors.add;
+
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMessageHandler('flutter/assets', (message) async => null);
+
+      try {
+        await tester.pumpWidget(
+          const Directionality(
+            textDirection: TextDirection.ltr,
+            child: RouteMapBasemapView(region: '부산', camera: camera),
+          ),
+        );
+        await tester.pumpAndSettle();
+      } finally {
+        FlutterError.onError = previousOnError;
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMessageHandler('flutter/assets', null);
+      }
+
+      final state = tester.state<RouteMapBasemapViewState>(
+        find.byType(RouteMapBasemapView),
+      );
+      final busanAsset = routeMapBasemapAssetForRegion('부산')!;
+      expect(state.debugPendingLoads.containsKey(busanAsset), isFalse);
+      expect(state.debugPictureCache.containsKey(busanAsset), isFalse);
+
+      expect(errors, hasLength(1));
+      expect(errors.first.library, 'network_map');
+      expect(errors.first.context.toString(), contains('로드 실패'));
+    });
   });
 }

@@ -153,7 +153,7 @@ class RouteMapBasemapView extends StatefulWidget {
 
 class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   static final Map<String, ui.Picture> _globalPictureCache = {};
-  static final Map<String, Future<ui.Picture>> _globalPendingLoads = {};
+  static final Map<String, Future<ui.Picture?>> _globalPendingLoads = {};
 
   @visibleForTesting
   static void clearPictureCacheForTest() {
@@ -175,7 +175,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   Map<String, ui.Picture> get debugPictureCache => _globalPictureCache;
 
   @visibleForTesting
-  Map<String, Future<ui.Picture>> get debugPendingLoads => _globalPendingLoads;
+  Map<String, Future<ui.Picture?>> get debugPendingLoads => _globalPendingLoads;
 
   @override
   void didChangeDependencies() {
@@ -235,7 +235,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     if (existingLoad != null) {
       try {
         final picture = await existingLoad;
-        if (!mounted || !identical(_loadToken, token)) {
+        if (picture == null || !mounted || !identical(_loadToken, token)) {
           return;
         }
         setState(() {
@@ -247,13 +247,13 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
       return;
     }
 
-    final completer = Completer<ui.Picture>();
+    final completer = Completer<ui.Picture?>();
     _globalPendingLoads[asset] = completer.future;
 
     try {
       final info = await vg.loadPicture(AssetBytesLoader(asset), null);
       final picture = info.picture;
-      _globalPendingLoads.remove(asset)?.ignore();
+      unawaited(_globalPendingLoads.remove(asset));
       _globalPictureCache[asset] = picture;
       completer.complete(picture);
       if (!mounted || !identical(_loadToken, token)) {
@@ -263,7 +263,8 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
         _picture = picture;
       });
     } catch (error, stack) {
-      _globalPendingLoads.remove(asset)?.ignore();
+      unawaited(_globalPendingLoads.remove(asset));
+      unawaited(completer.future.catchError((Object _) => null));
       completer.completeError(error, stack);
       if (!mounted || !identical(_loadToken, token)) {
         return;
