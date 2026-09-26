@@ -29,13 +29,16 @@ class CatalogDatabaseOpener {
   final DateTime Function() _now;
   bool _openedBundledDataPack = false;
   String _openedArtifactIdentity = '';
+  int? _openedGeneration;
 
   bool get openedBundledDataPack => _openedBundledDataPack;
   String get openedArtifactIdentity => _openedArtifactIdentity;
+  int? get openedGeneration => _openedGeneration;
 
   Future<CatalogDatabase> open() async {
     _openedBundledDataPack = false;
     _openedArtifactIdentity = '';
+    _openedGeneration = null;
     final installedDatabase = await _openInstalledCurrentDataPack();
     if (installedDatabase != null) {
       // 구제 DDL은 설치 팩 파일을 수정하므로 활성 팩이 확정된 뒤 이 한 곳에서만 실행한다(#2527).
@@ -121,6 +124,27 @@ class CatalogDatabaseOpener {
       }
       final preferredPackId = _pointerPackId(decoded);
       final preferredVersionLimit = _pointerVersionNumber(decoded);
+      final generation = decoded['generation'];
+      if (generation is int) {
+        _openedGeneration = generation;
+      } else if (generation is String) {
+        _openedGeneration = int.tryParse(generation);
+      } else {
+        _openedGeneration = null;
+      }
+      final companionPath = decoded['companionPath'];
+      if (companionPath is String && companionPath.isNotEmpty) {
+        final companionFile = File(companionPath);
+        if (!await companionFile.exists()) {
+          if (preferredPackId == null) {
+            return null;
+          }
+          return _openKnownGoodInstalledDataPack(
+            preferredPackId: preferredPackId,
+            maximumVersion: preferredVersionLimit,
+          );
+        }
+      }
       final file = _currentDataPackFile(decoded);
       if (file == null) {
         if (preferredPackId == null) {
@@ -224,6 +248,21 @@ class CatalogDatabaseOpener {
           await sha256OfFile(file) != expectedSha256) {
         await _deleteIfExists(journal);
         return;
+      }
+      final companionPath = decoded['companionPath'];
+      if (companionPath is String && companionPath.isNotEmpty) {
+        final companionFile = File(companionPath);
+        if (!await companionFile.exists()) {
+          await _deleteIfExists(journal);
+          return;
+        }
+        final expectedCompanionSha = decoded['companionSha256'];
+        if (expectedCompanionSha is String &&
+            expectedCompanionSha.isNotEmpty &&
+            await sha256OfFile(companionFile) != expectedCompanionSha) {
+          await _deleteIfExists(journal);
+          return;
+        }
       }
       await _replaceFile(
         journal,
