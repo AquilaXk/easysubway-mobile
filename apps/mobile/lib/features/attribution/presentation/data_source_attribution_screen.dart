@@ -64,9 +64,10 @@ class _DataSourceAttributionScreenState
         ),
       ),
       body: SafeArea(
-        child: FutureBuilder<
-          ({Map<String, Object?> manifest, Map<String, Object?> inventory})
-        >(
+        child:
+            FutureBuilder<
+              ({Map<String, Object?> manifest, Map<String, Object?> inventory})
+            >(
               future: _future,
               builder: (context, snapshot) {
                 if (snapshot.hasError) {

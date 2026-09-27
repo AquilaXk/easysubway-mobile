@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
+import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/stations/application/station_detail_controller.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
@@ -109,6 +110,7 @@ void main() {
   Widget buildDetailBody({
     List<StationExitInfo> exits = testExits,
     List<StationFacilityInfo> facilities = testFacilities,
+    Future<void> Function(FacilityReportTarget)? onOpenFacilityReport,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -120,83 +122,85 @@ void main() {
             facilities: facilities,
           ),
           onRetryRealtime: () {},
-          onOpenFacilityReport: (_) async {},
+          onOpenFacilityReport: onOpenFacilityReport ?? (_) async {},
           mapLauncher: const UrlLauncherKakaoMapLauncher(),
         ),
       ),
     );
   }
 
-  testWidgets('네이버 지도 1:1 표준 출구정보(미니맵 확대, 출구 알약 탭, 장소 정보, 가까운 하차문)가 렌더링되고 슬롭 버튼이 제거된다', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    '네이버 지도 1:1 표준 출구정보(미니맵 확대, 출구 알약 탭, 장소 정보, 가까운 하차문)가 렌더링되고 슬롭 버튼이 제거된다',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(buildDetailBody());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildDetailBody());
+      await tester.pumpAndSettle();
 
-    expect(find.text('출구정보'), findsOneWidget);
-    expect(find.text('장소 정보'), findsOneWidget);
-    expect(find.text('상록수역 공영주차장, 본오동 방면'), findsOneWidget);
-    expect(find.text('출구와 가까운 하차문'), findsOneWidget);
-    expect(find.text('반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1'), findsOneWidget);
-    expect(find.byKey(const Key('stationExitPill-exit-1')), findsOneWidget);
-    expect(find.byKey(const Key('stationExitPill-exit-2')), findsOneWidget);
-    expect(
-      find.byKey(const Key('stationExitMapExpandButton')),
-      findsOneWidget,
-    );
+      expect(find.text('출구정보'), findsOneWidget);
+      expect(find.text('장소 정보'), findsOneWidget);
+      expect(find.text('상록수역 공영주차장, 본오동 방면'), findsOneWidget);
+      expect(find.text('출구와 가까운 하차문'), findsOneWidget);
+      expect(find.text('반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1'), findsOneWidget);
+      expect(find.byKey(const Key('stationExitPill-exit-1')), findsOneWidget);
+      expect(find.byKey(const Key('stationExitPill-exit-2')), findsOneWidget);
+      expect(
+        find.byKey(const Key('stationExitMapExpandButton')),
+        findsOneWidget,
+      );
 
-    // 잔여 슬롭 버튼 완전 삭제 검증
-    expect(find.text('버스 도착 정보 보기'), findsNothing);
-    expect(find.text('카카오맵에서 보기'), findsNothing);
-    expect(find.text('출구까지 거리'), findsNothing);
-    expect(find.text('도보 길안내'), findsNothing);
-  });
+      // 잔여 슬롭 버튼 완전 삭제 검증
+      expect(find.text('버스 도착 정보 보기'), findsNothing);
+      expect(find.text('카카오맵에서 보기'), findsNothing);
+      expect(find.text('출구까지 거리'), findsNothing);
+      expect(find.text('도보 길안내'), findsNothing);
+    },
+  );
 
-  testWidgets('네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드) 및 하단 액션바가 렌더링된다', (
-    tester,
-  ) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets(
+    '네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드) 및 하단 액션바가 렌더링된다',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(buildDetailBody());
-    await tester.pumpAndSettle();
+      await tester.pumpWidget(buildDetailBody());
+      await tester.pumpAndSettle();
 
-    expect(find.text('역정보'), findsOneWidget);
-    expect(find.text('시설정보'), findsOneWidget);
-    expect(find.text('플랫폼'), findsOneWidget);
-    expect(find.text('양쪽'), findsWidgets);
-    expect(find.text('화장실'), findsOneWidget);
-    expect(find.text('개찰구 안/밖'), findsOneWidget);
-    expect(find.text('내리는문'), findsOneWidget);
-    expect(find.text('오른쪽'), findsOneWidget);
-    expect(find.text('반대편'), findsOneWidget);
-    expect(find.text('연결됨'), findsOneWidget);
+      expect(find.text('역정보'), findsOneWidget);
+      expect(find.text('시설정보'), findsOneWidget);
+      expect(find.text('플랫폼'), findsOneWidget);
+      expect(find.text('양쪽'), findsWidgets);
+      expect(find.text('화장실'), findsOneWidget);
+      expect(find.text('개찰구 안/밖'), findsOneWidget);
+      expect(find.text('내리는문'), findsOneWidget);
+      expect(find.text('오른쪽'), findsOneWidget);
+      expect(find.text('반대편'), findsOneWidget);
+      expect(find.text('연결됨'), findsOneWidget);
 
-    expect(find.text('편의시설'), findsOneWidget);
-    expect(find.text('자전거보관소'), findsOneWidget);
-    expect(find.text('환승주차장'), findsOneWidget);
-    expect(find.text('유실물센터'), findsOneWidget);
-    expect(find.text('물품보관소'), findsOneWidget);
+      expect(find.text('편의시설'), findsOneWidget);
+      expect(find.text('자전거보관소'), findsOneWidget);
+      expect(find.text('환승주차장'), findsOneWidget);
+      expect(find.text('유실물센터'), findsOneWidget);
+      expect(find.text('물품보관소'), findsOneWidget);
 
-    expect(find.text('교통약자 시설'), findsOneWidget);
-    expect(find.text('장애인화장실'), findsOneWidget);
-    expect(find.text('엘리베이터'), findsWidgets);
-    expect(find.text('수유실'), findsWidgets);
-    expect(find.text('휠체어 리프트'), findsOneWidget);
+      expect(find.text('교통약자 시설'), findsOneWidget);
+      expect(find.text('장애인화장실'), findsOneWidget);
+      expect(find.text('엘리베이터'), findsWidgets);
+      expect(find.text('수유실'), findsWidgets);
+      expect(find.text('휠체어 리프트'), findsOneWidget);
 
-    // 하단 고정 액션바 4종 버튼 검증
-    expect(find.text('출발'), findsOneWidget);
-    expect(find.text('도착'), findsOneWidget);
-    expect(find.text('전체 시간표'), findsOneWidget);
-    expect(find.text('첫차·막차'), findsOneWidget);
-  });
+      // 하단 고정 액션바 4종 버튼 검증
+      expect(find.text('출발'), findsOneWidget);
+      expect(find.text('도착'), findsOneWidget);
+      expect(find.text('전체 시간표'), findsOneWidget);
+      expect(find.text('첫차·막차'), findsOneWidget);
+    },
+  );
 
   testWidgets('출구 DB가 비어있으면 출구정보를 숨기고 역정보와 하단 액션바만 렌더링된다', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
@@ -236,4 +240,52 @@ void main() {
     expect(find.text('시설정보'), findsNothing);
     expect(find.text('전체 시간표'), findsOneWidget);
   });
+
+  testWidgets(
+    '교통약자 시설 2x2 그리드 아이템 탭 시 onOpenFacilityReport 콜백이 올바른 타깃과 함께 호출된다',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+
+      FacilityReportTarget? reportedTarget;
+      await tester.pumpWidget(
+        buildDetailBody(
+          onOpenFacilityReport: (target) async {
+            reportedTarget = target;
+          },
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 엘리베이터 탭
+      final evButton = find.byKey(
+        const Key('naverFacilityReportButton-facility-ev-1'),
+      );
+      expect(evButton, findsOneWidget);
+      await tester.tap(evButton);
+      await tester.pumpAndSettle();
+
+      expect(reportedTarget, isNotNull);
+      expect(reportedTarget!.stationId, 'station-sangnoksu');
+      expect(reportedTarget!.stationName, '상록수');
+      expect(reportedTarget!.facilityId, 'facility-ev-1');
+      expect(reportedTarget!.facilityName, '1번 출구 엘리베이터');
+      expect(reportedTarget!.facilityTypeLabel, 'ELEVATOR');
+
+      // 장애인화장실 탭
+      reportedTarget = null;
+      final toiletButton = find.byKey(
+        const Key('naverFacilityReportButton-facility-toilet-2'),
+      );
+      expect(toiletButton, findsOneWidget);
+      await tester.tap(toiletButton);
+      await tester.pumpAndSettle();
+
+      expect(reportedTarget, isNotNull);
+      expect(reportedTarget!.facilityId, 'facility-toilet-2');
+      expect(reportedTarget!.facilityName, '승강장 장애인 화장실');
+    },
+  );
 }

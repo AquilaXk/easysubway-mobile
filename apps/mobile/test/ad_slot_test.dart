@@ -9,10 +9,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(
         home: Center(
-          child: SizedBox(
-            width: 400,
-            child: AdBannerSlot(slotKey: slotKey),
-          ),
+          child: SizedBox(width: 400, child: AdBannerSlot(slotKey: slotKey)),
         ),
       ),
     );

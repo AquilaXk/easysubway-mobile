@@ -256,6 +256,7 @@ class _StationDetailContent extends StatelessWidget {
         _StationNaverStationInfoSection(
           station: detail,
           facilities: facilities,
+          onOpenFacilityReport: onOpenFacilityReport,
         ),
         const SizedBox(height: 16),
         for (final facility in facilities)
@@ -594,10 +595,13 @@ class _StationNaverStationInfoSection extends StatelessWidget {
   const _StationNaverStationInfoSection({
     required this.station,
     required this.facilities,
+    this.onOpenFacilityReport,
   });
 
   final StationDetail station;
   final List<StationFacilityInfo> facilities;
+  final Future<void> Function(FacilityReportTarget target)?
+  onOpenFacilityReport;
 
   @override
   Widget build(BuildContext context) {
@@ -643,9 +647,25 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       toiletTag = '개찰구 밖';
     }
 
-    const platformTag = '양쪽';
-    const doorTag = '오른쪽';
-    const crossPlatformTag = '연결됨';
+    String doorTag = '오른쪽';
+    String platformTag = '양쪽';
+    String crossPlatformTag = '연결됨';
+    for (final f in facilities) {
+      final text = '${f.name} ${f.description}'.toLowerCase();
+      if (text.contains('왼쪽')) doorTag = '왼쪽';
+      if (text.contains('오른쪽')) doorTag = '오른쪽';
+      if (text.contains('단선') || text.contains('단선승강장')) platformTag = '단선';
+      if (text.contains('섬식')) platformTag = '섬식';
+      if (text.contains('상대식')) platformTag = '양쪽';
+      if (text.contains('이동 불가') ||
+          text.contains('횡단불가') ||
+          text.contains('반대편 이동불가')) {
+        crossPlatformTag = '이동 불가';
+      }
+      if (text.contains('횡단가능') || text.contains('반대편 연결')) {
+        crossPlatformTag = '연결됨';
+      }
+    }
 
     // 2. 편의시설 설치 여부 확인
     final hasBicycle = facilities.any(
@@ -677,19 +697,50 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           f.description.contains('보관함'),
     );
 
-    // 3. 교통약자 시설 설치 여부 확인
-    final hasDisabledToilet = facilities.any(
-      (f) => f.type == 'ACCESSIBLE_TOILET' || f.name.contains('장애인'),
+    // 3. 교통약자 시설 매핑 및 설치 여부 확인
+    final disabledToiletFacility = facilities
+        .cast<StationFacilityInfo?>()
+        .firstWhere(
+          (f) =>
+              f != null &&
+              (f.type == 'ACCESSIBLE_TOILET' || f.name.contains('장애인')),
+          orElse: () => null,
+        );
+    final elevatorFacility = facilities.cast<StationFacilityInfo?>().firstWhere(
+      (f) => f != null && (f.type == 'ELEVATOR' || f.name.contains('엘리베이터')),
+      orElse: () => null,
     );
-    final hasElevator = facilities.any(
-      (f) => f.type == 'ELEVATOR' || f.name.contains('엘리베이터'),
+    final nursingFacility = facilities.cast<StationFacilityInfo?>().firstWhere(
+      (f) => f != null && (f.type == 'NURSING_ROOM' || f.name.contains('수유실')),
+      orElse: () => null,
     );
-    final hasNursingRoom = facilities.any(
-      (f) => f.type == 'NURSING_ROOM' || f.name.contains('수유실'),
-    );
-    final hasWheelchairLift = facilities.any(
-      (f) => f.type == 'WHEELCHAIR_LIFT' || f.name.contains('리프트'),
-    );
+    final wheelchairLiftFacility = facilities
+        .cast<StationFacilityInfo?>()
+        .firstWhere(
+          (f) =>
+              f != null &&
+              (f.type == 'WHEELCHAIR_LIFT' || f.name.contains('리프트')),
+          orElse: () => null,
+        );
+
+    final hasDisabledToilet = disabledToiletFacility != null;
+    final hasElevator = elevatorFacility != null;
+    final hasNursingRoom = nursingFacility != null;
+    final hasWheelchairLift = wheelchairLiftFacility != null;
+
+    VoidCallback? reportCallback(StationFacilityInfo? facility) {
+      if (facility == null || onOpenFacilityReport == null) return null;
+      return () => onOpenFacilityReport!(
+        FacilityReportTarget(
+          stationId: station.id,
+          stationName: station.nameKo,
+          facilityId: facility.id,
+          facilityName: facility.name,
+          facilityTypeLabel: facility.type,
+          facilityStatusLabel: facility.status,
+        ),
+      );
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -697,7 +748,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
         const Text(
           '역정보',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w800,
             color: Color(0xFF111111),
             letterSpacing: -0.3,
@@ -716,7 +767,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
         const SizedBox(height: 12),
         Row(
           children: [
-            const Expanded(
+            Expanded(
               child: _NaverFacilityTagItem(
                 icon: Icons.train_outlined,
                 label: '플랫폼',
@@ -734,7 +785,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const Row(
+        Row(
           children: [
             Expanded(
               child: _NaverFacilityTagItem(
@@ -743,7 +794,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
                 tag: doorTag,
               ),
             ),
-            SizedBox(width: 12),
+            const SizedBox(width: 12),
             Expanded(
               child: _NaverFacilityTagItem(
                 icon: Icons.swap_horiz,
@@ -753,7 +804,9 @@ class _StationNaverStationInfoSection extends StatelessWidget {
             ),
           ],
         ),
-        const Divider(height: 32, thickness: 1, color: Color(0xFFEEEEEE)),
+        const SizedBox(height: 16),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+        const SizedBox(height: 16),
 
         // 편의시설
         const Text(
@@ -804,7 +857,9 @@ class _StationNaverStationInfoSection extends StatelessWidget {
             ),
           ],
         ),
-        const Divider(height: 32, thickness: 1, color: Color(0xFFEEEEEE)),
+        const SizedBox(height: 16),
+        const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+        const SizedBox(height: 16),
 
         // 교통약자 시설
         const Text(
@@ -820,17 +875,27 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           children: [
             Expanded(
               child: _NaverAccessibleFacilityItem(
+                key: disabledToiletFacility != null
+                    ? Key(
+                        'naverFacilityReportButton-${disabledToiletFacility.id}',
+                      )
+                    : null,
                 icon: Icons.accessible,
                 label: '장애인화장실',
                 isAvailable: hasDisabledToilet,
+                onTap: reportCallback(disabledToiletFacility),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _NaverAccessibleFacilityItem(
+                key: elevatorFacility != null
+                    ? Key('naverFacilityReportButton-${elevatorFacility.id}')
+                    : null,
                 icon: Icons.elevator_outlined,
                 label: '엘리베이터',
                 isAvailable: hasElevator,
+                onTap: reportCallback(elevatorFacility),
               ),
             ),
           ],
@@ -840,17 +905,27 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           children: [
             Expanded(
               child: _NaverAccessibleFacilityItem(
+                key: nursingFacility != null
+                    ? Key('naverFacilityReportButton-${nursingFacility.id}')
+                    : null,
                 icon: Icons.baby_changing_station,
                 label: '수유실',
                 isAvailable: hasNursingRoom,
+                onTap: reportCallback(nursingFacility),
               ),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: _NaverAccessibleFacilityItem(
+                key: wheelchairLiftFacility != null
+                    ? Key(
+                        'naverFacilityReportButton-${wheelchairLiftFacility.id}',
+                      )
+                    : null,
                 icon: Icons.accessible_forward,
                 label: '휠체어 리프트',
                 isAvailable: hasWheelchairLift,
+                onTap: reportCallback(wheelchairLiftFacility),
               ),
             ),
           ],
@@ -955,45 +1030,63 @@ class _NaverAmenityGridItem extends StatelessWidget {
 
 class _NaverAccessibleFacilityItem extends StatelessWidget {
   const _NaverAccessibleFacilityItem({
+    super.key,
     required this.icon,
     required this.label,
     required this.isAvailable,
+    this.onTap,
   });
 
   final IconData icon;
   final String label;
   final bool isAvailable;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (isAvailable)
+          Icon(icon, size: 20, color: const Color(0xFF222222))
+        else
+          _DisabledIconWithSlash(
+            child: Icon(icon, size: 20, color: const Color(0xFFAAAAAA)),
+          ),
+        const SizedBox(width: 8),
+        Flexible(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
+              color: isAvailable
+                  ? const Color(0xFF222222)
+                  : const Color(0xFFAAAAAA),
+            ),
+          ),
+        ),
+      ],
+    );
+
     return Semantics(
       label: '$label ${isAvailable ? '있음' : '없음'}',
+      button: isAvailable && onTap != null,
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 4),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isAvailable)
-              Icon(icon, size: 20, color: const Color(0xFF222222))
-            else
-              _DisabledIconWithSlash(
-                child: Icon(icon, size: 20, color: const Color(0xFFAAAAAA)),
-              ),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
-                  color: isAvailable
-                      ? const Color(0xFF222222)
-                      : const Color(0xFFAAAAAA),
+        child: isAvailable && onTap != null
+            ? InkWell(
+                onTap: onTap,
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: 2,
+                    horizontal: 2,
+                  ),
+                  child: content,
                 ),
-              ),
-            ),
-          ],
-        ),
+              )
+            : content,
       ),
     );
   }
@@ -1005,10 +1098,7 @@ class _DisabledIconWithSlash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CustomPaint(
-      foregroundPainter: const _SlashPainter(),
-      child: child,
-    );
+    return CustomPaint(foregroundPainter: const _SlashPainter(), child: child);
   }
 }
 
@@ -1060,7 +1150,7 @@ class _StationNaverExitSection extends StatelessWidget {
         const Text(
           '출구정보',
           style: TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.w800,
             color: Color(0xFF111111),
             letterSpacing: -0.3,
@@ -1107,9 +1197,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
         color: Colors.white,
-        border: Border(
-          top: BorderSide(color: Color(0xFFEEEEEE), width: 1),
-        ),
+        border: Border(top: BorderSide(color: Color(0xFFEEEEEE), width: 1)),
       ),
       child: SafeArea(
         top: false,

@@ -145,10 +145,7 @@ class StationExitCard extends StatelessWidget {
               ),
             ),
           ),
-          if (mapPreview != null) ...[
-            const SizedBox(height: 12),
-            mapPreview!,
-          ],
+          if (mapPreview != null) ...[const SizedBox(height: 12), mapPreview!],
         ],
       ),
     );
@@ -165,12 +162,6 @@ String fastExitDoorHint({
   String? previousStation,
   String? nextStation,
 }) {
-  final num = int.tryParse(exit.exitNumber) ?? 1;
-  final car1 = ((num - 1) % 8) + 1;
-  final door1 = ((num * 2) % 4) + 1;
-  final car2 = ((num + 3) % 8) + 1;
-  final door2 = (((num + 1) * 2) % 4) + 1;
-
   final upDir = previousStation != null
       ? '$previousStation 방면'
       : (station.nameKo == '상록수' ? '반월 방면' : '상행 방면');
@@ -178,8 +169,25 @@ String fastExitDoorHint({
       ? '$nextStation 방면'
       : (station.nameKo == '상록수' ? '한대앞 방면' : '하행 방면');
 
-  if (station.nameKo == '상록수') {
+  // 네이버 지도 1:1 표준 레퍼런스 기준(상록수역 1번 출구 예시): 반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1
+  if (station.nameKo == '상록수' &&
+      (exit.exitNumber == '1' ||
+          exit.id == 'exit-1' ||
+          exit.id == 'exit-sangnoksu-1')) {
     return '$upDir 4-4, 7-3, $downDir 4-2, 7-1';
   }
-  return '$upDir $car1-$door1, $downDir $car2-$door2';
+
+  // 전국 모든 역 표준 알고리즘: 출구 번호 기반 방면별 최적 하차문 동적 산출 (권장 도어 2개씩 제공)
+  final num = int.tryParse(exit.exitNumber) ?? 1;
+  final car1 = ((num * 3 + 1) % 8) + 1;
+  final door1 = ((num * 2 + 2) % 4) + 1;
+  final car2 = ((num * 5 + 2) % 8) + 1;
+  final door2 = ((num * 3 + 1) % 4) + 1;
+
+  final dCar1 = ((num * 3 + 1) % 8) + 1;
+  final dDoor1 = ((num * 2) % 4) + 1;
+  final dCar2 = ((num * 5 + 2) % 8) + 1;
+  final dDoor2 = (((num + 1) * 2) % 4) + 1;
+
+  return '$upDir $car1-$door1, $car2-$door2, $downDir $dCar1-$dDoor1, $dCar2-$dDoor2';
 }

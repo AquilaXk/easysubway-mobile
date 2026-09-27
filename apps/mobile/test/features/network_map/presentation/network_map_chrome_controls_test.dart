@@ -212,10 +212,7 @@ void main() {
     final dropdownIcon = tester.widget<Icon>(
       find.byIcon(Icons.keyboard_arrow_down_rounded),
     );
-    expect(
-      dropdownIcon.color,
-      EasySubwayAccessibleColors.interactionOnPrimary,
-    );
+    expect(dropdownIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
     final menuIcon = tester.widget<Icon>(find.byIcon(Icons.menu));
     expect(menuIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
     expect(find.text('부산'), findsOneWidget);
@@ -315,10 +312,7 @@ void main() {
         matching: find.byIcon(Icons.arrow_back),
       ),
     );
-    expect(
-      backIcon.color,
-      EasySubwayAccessibleColors.interactionOnPrimary,
-    );
+    expect(backIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
     expect(find.byType(EasySubwaySearchField), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('networkMapSearchBackButton')));
@@ -543,10 +537,7 @@ void main() {
         matching: find.byIcon(Icons.add),
       ),
     );
-    expect(
-      draftAddIcon.color,
-      EasySubwayAccessibleColors.interactionOnPrimary,
-    );
+    expect(draftAddIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
     final draftRegionText = tester.widget<Text>(
       find.descendant(
         of: find.byKey(const Key('networkMapRouteDraftRegionLabel')),

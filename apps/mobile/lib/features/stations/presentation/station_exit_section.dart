@@ -230,10 +230,12 @@ class _ExitPillTab extends StatelessWidget {
                     exit.exitNumber,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight:
-                          isSelected ? FontWeight.w800 : FontWeight.w700,
-                      color:
-                          isSelected ? Colors.black : const Color(0xFF888888),
+                      fontWeight: isSelected
+                          ? FontWeight.w800
+                          : FontWeight.w700,
+                      color: isSelected
+                          ? Colors.black
+                          : const Color(0xFF888888),
                     ),
                   ),
                 ),
@@ -242,8 +244,7 @@ class _ExitPillTab extends StatelessWidget {
                   '번',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight:
-                        isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
                         ? const Color(0xFF111111)
                         : const Color(0xFF888888),

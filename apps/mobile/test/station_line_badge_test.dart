@@ -146,7 +146,9 @@ void main() {
     );
 
     final singleFinder = find.byKey(const Key('stationLineBadgeTab-seoul-4'));
-    final multiFinder = find.byKey(const Key('stationLineBadgeTab-suin-bundang'));
+    final multiFinder = find.byKey(
+      const Key('stationLineBadgeTab-suin-bundang'),
+    );
 
     expect(singleFinder, findsOneWidget);
     expect(multiFinder, findsOneWidget);
@@ -191,7 +193,9 @@ void main() {
     expect(stationLineBadgeText('대구 대경선'), '대경');
   });
 
-  testWidgets('2.0x 초고배율 텍스트 스케일 환경에서도 배지 및 탭에 레이아웃 overflow가 없다', (tester) async {
+  testWidgets('2.0x 초고배율 텍스트 스케일 환경에서도 배지 및 탭에 레이아웃 overflow가 없다', (
+    tester,
+  ) async {
     const singleLine = StationSearchLine(
       id: 'seoul-4',
       name: '수도권 4호선',
@@ -208,9 +212,7 @@ void main() {
     await tester.pumpWidget(
       MaterialApp(
         home: MediaQuery(
-          data: const MediaQueryData(
-            textScaler: TextScaler.linear(2.0),
-          ),
+          data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
           child: Scaffold(
             body: Row(
               children: [
@@ -238,36 +240,37 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('NearbyStationLineBar는 장문 역명 및 다글자 배지 결합 시 320dp 좁은 화면에서도 overflow 없이 렌더링된다', (
-    tester,
-  ) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: SizedBox(
-              width: 320,
-              child: NearbyStationLineBar(
-                stationName: '동대문역사문화공원',
-                leftName: '디지털미디어시티',
-                rightName: '국립중앙박물관',
-                badgeText: '경의중앙',
-                lineColor: const Color(0xFF77C4A3),
-                onStationNameTap: () {},
-                onLeftNameTap: () {},
-                onRightNameTap: () {},
+  testWidgets(
+    'NearbyStationLineBar는 장문 역명 및 다글자 배지 결합 시 320dp 좁은 화면에서도 overflow 없이 렌더링된다',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: SizedBox(
+                width: 320,
+                child: NearbyStationLineBar(
+                  stationName: '동대문역사문화공원',
+                  leftName: '디지털미디어시티',
+                  rightName: '국립중앙박물관',
+                  badgeText: '경의중앙',
+                  lineColor: const Color(0xFF77C4A3),
+                  onStationNameTap: () {},
+                  onLeftNameTap: () {},
+                  onRightNameTap: () {},
+                ),
               ),
             ),
           ),
         ),
-      ),
-    );
+      );
 
-    expect(tester.takeException(), isNull);
-    expect(find.text('동대문역사문화공원'), findsOneWidget);
-    expect(find.text('디지털미디어시티'), findsOneWidget);
-    expect(find.text('국립중앙박물관'), findsOneWidget);
-    expect(find.byIcon(Icons.chevron_left), findsOneWidget);
-    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
-  });
+      expect(tester.takeException(), isNull);
+      expect(find.text('동대문역사문화공원'), findsOneWidget);
+      expect(find.text('디지털미디어시티'), findsOneWidget);
+      expect(find.text('국립중앙박물관'), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_left), findsOneWidget);
+      expect(find.byIcon(Icons.chevron_right), findsOneWidget);
+    },
+  );
 }

@@ -297,9 +297,7 @@ void main() {
         ),
       );
 
-      final badgeFinder = find.byKey(
-        const Key('stationLineBadge-seoul-4'),
-      );
+      final badgeFinder = find.byKey(const Key('stationLineBadge-seoul-4'));
       expect(badgeFinder, findsOneWidget);
       expect(
         find.descendant(of: badgeFinder, matching: find.byType(Image)),

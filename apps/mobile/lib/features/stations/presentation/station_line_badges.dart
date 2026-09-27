@@ -91,7 +91,10 @@ class StationLineBadge extends StatelessWidget {
         width: size,
         height: size,
         alignment: Alignment.center,
-        decoration: BoxDecoration(color: backgroundColor, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: backgroundColor,
+          shape: BoxShape.circle,
+        ),
         child: Text(
           badgeText,
           textAlign: TextAlign.center,
@@ -164,38 +167,36 @@ class StationLineBadgeTab extends StatelessWidget {
         child: SizedBox(
           height: 48,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(
-              minWidth: 48,
-            ),
-          child: Padding(
-            padding: EdgeInsets.symmetric(horizontal: isSingleChar ? 4 : 8),
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                Center(
-                  child: StationLineBadge(line: line, size: size),
-                ),
-                Positioned(
-                  bottom: 2,
-                  child: Container(
-                    width: isSingleChar ? 30 : 42,
-                    height: 2,
-                    decoration: BoxDecoration(
-                      color: selected
-                          ? EasySubwayAccessibleColors.interactionPrimary
-                          : Colors.transparent,
-                      borderRadius: BorderRadius.circular(1),
+            constraints: const BoxConstraints(minWidth: 48),
+            child: Padding(
+              padding: EdgeInsets.symmetric(horizontal: isSingleChar ? 4 : 8),
+              child: Stack(
+                alignment: Alignment.center,
+                children: [
+                  Center(
+                    child: StationLineBadge(line: line, size: size),
+                  ),
+                  Positioned(
+                    bottom: 2,
+                    child: Container(
+                      width: isSingleChar ? 30 : 42,
+                      height: 2,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? EasySubwayAccessibleColors.interactionPrimary
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(1),
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 }
 
 class _StationLineOverflowBadge extends StatelessWidget {

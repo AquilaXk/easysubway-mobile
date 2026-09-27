@@ -266,7 +266,26 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
   List<int> _buildAvailableHours(StationTimetable? timetable) {
     const defaultHours = [
-      5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
     ];
     final hours = <int>{...defaultHours};
     if (timetable != null) {
@@ -283,7 +302,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     setState(() => _selectedHour = targetHour);
     if (sortedHours.isEmpty) return;
 
-    int bestHour = sortedHours.contains(targetHour) ? targetHour : sortedHours.first;
+    int bestHour = sortedHours.contains(targetHour)
+        ? targetHour
+        : sortedHours.first;
     if (!sortedHours.contains(targetHour)) {
       final targetOrder = _subwayHourOrder(targetHour);
       for (final h in sortedHours) {
@@ -316,7 +337,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
     final clean = direction.name.replaceAll('방면', '').trim();
     const genericDirections = {
-      '상행', '하행', '상선', '하선', '내선', '외선', '순환', '내선순환', '외선순환',
+      '상행',
+      '하행',
+      '상선',
+      '하선',
+      '내선',
+      '외선',
+      '순환',
+      '내선순환',
+      '외선순환',
     };
     if (clean.isNotEmpty && !genericDirections.contains(clean)) {
       return clean;
@@ -373,7 +402,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     required DateTime effectiveNow,
   }) {
     if (!isToday || direction.departures.isEmpty) return null;
-    final currentSeconds = effectiveNow.hour * Duration.secondsPerHour +
+    final currentSeconds =
+        effectiveNow.hour * Duration.secondsPerHour +
         effectiveNow.minute * Duration.secondsPerMinute +
         effectiveNow.second;
     final isLateNight = effectiveNow.hour < 4;
@@ -427,7 +457,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   @override
   Widget build(BuildContext context) {
     final timetable = _timetable;
-    final currentLine = widget.lines.where((l) => l.id == _lineId).firstOrNull ??
+    final currentLine =
+        widget.lines.where((l) => l.id == _lineId).firstOrNull ??
         widget.lines.firstOrNull;
     final lineColor = _parseLineColor(currentLine?.color);
     final lineDisplayName = currentLine != null
@@ -437,9 +468,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final effectiveNow = _effectiveNow;
     final isToday = _dayType == _todayTimetableDayType(effectiveNow);
     final availableHours = _buildAvailableHours(timetable);
-    final activeDirection = timetable?.directions
-        .where((item) => item.name == _directionName)
-        .firstOrNull ?? timetable?.directions.firstOrNull;
+    final activeDirection =
+        timetable?.directions
+            .where((item) => item.name == _directionName)
+            .firstOrNull ??
+        timetable?.directions.firstOrNull;
 
     final List<StationTimetableDirection> visibleDirections;
     if (timetable == null || !timetable.isAvailable) {
@@ -504,11 +537,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1.0),
-          child: Divider(
-            height: 1,
-            thickness: 1,
-            color: Color(0xFFEEEEEE),
-          ),
+          child: Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
         ),
       ),
       body: SafeArea(
@@ -518,7 +547,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             if (widget.lines.length > 1) ...[
               Container(
                 color: Colors.white,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
                   child: Row(
@@ -567,17 +599,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
 
             () {
-              final renderedHours = _getSortedDeparturesHours(visibleDirections);
+              final renderedHours = _getSortedDeparturesHours(
+                visibleDirections,
+              );
               return _buildHourSelector(availableHours, renderedHours);
             }(),
             const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
 
             if (_loading)
-              const Expanded(
-                child: Center(
-                  child: CircularProgressIndicator(),
-                ),
-              )
+              const Expanded(child: Center(child: CircularProgressIndicator()))
             else if (timetable == null || !timetable.isAvailable)
               const Expanded(
                 child: Center(
@@ -731,10 +761,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     );
   }
 
-  Widget _buildHourSelector(
-    List<int> availableHours,
-    List<int> renderedHours,
-  ) {
+  Widget _buildHourSelector(List<int> availableHours, List<int> renderedHours) {
     return Container(
       color: Colors.white,
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -828,7 +855,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 8,
+                ),
                 child: Column(
                   children: [
                     _buildDirectionTitleChip(left, 0),
@@ -845,7 +875,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 8),
+                padding: const EdgeInsets.symmetric(
+                  vertical: 10,
+                  horizontal: 8,
+                ),
                 child: Column(
                   children: [
                     _buildDirectionTitleChip(right, 1),
@@ -871,7 +904,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       nextStation: widget.nextStation,
       directionIndex: index,
     );
-    final isSelected = _selectedDirectionFilter == direction.name ||
+    final isSelected =
+        _selectedDirectionFilter == direction.name ||
         (_selectedDirectionFilter == null && _directionName == direction.name);
 
     return ChoiceChip(
@@ -926,7 +960,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           ),
         ),
         const SizedBox(width: 2),
-        const Icon(Icons.keyboard_arrow_down, size: 16, color: Color(0xFF777777)),
+        const Icon(
+          Icons.keyboard_arrow_down,
+          size: 16,
+          color: Color(0xFF777777),
+        ),
       ],
     );
 
@@ -1056,14 +1094,16 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                               _buildDepartureItem(
                                 departure: leftList[i],
                                 direction: leftDirection,
-                                isFirst: leftList[i] == leftFirst ||
-                                    leftList[i] ==
-                                        leftDirection.firstDeparture,
-                                isLast: leftList[i] == leftLast ||
+                                isFirst:
+                                    leftList[i] == leftFirst ||
+                                    leftList[i] == leftDirection.firstDeparture,
+                                isLast:
+                                    leftList[i] == leftLast ||
                                     leftList[i] == leftDirection.lastDeparture,
                                 isNext:
                                     isToday && leftList[i] == leftNextDeparture,
-                                isPast: isToday &&
+                                isPast:
+                                    isToday &&
                                     leftPastDepartures.contains(leftList[i]),
                                 effectiveNow: effectiveNow,
                               ),
@@ -1090,15 +1130,19 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                               _buildDepartureItem(
                                 departure: rightList[i],
                                 direction: rightDirection,
-                                isFirst: rightList[i] == rightFirst ||
+                                isFirst:
+                                    rightList[i] == rightFirst ||
                                     rightList[i] ==
                                         rightDirection.firstDeparture,
-                                isLast: rightList[i] == rightLast ||
+                                isLast:
+                                    rightList[i] == rightLast ||
                                     rightList[i] ==
                                         rightDirection.lastDeparture,
-                                isNext: isToday &&
+                                isNext:
+                                    isToday &&
                                     rightList[i] == rightNextDeparture,
-                                isPast: isToday &&
+                                isPast:
+                                    isToday &&
                                     rightPastDepartures.contains(rightList[i]),
                                 effectiveNow: effectiveNow,
                               ),
@@ -1178,9 +1222,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                     _buildDepartureItem(
                       departure: list[i],
                       direction: direction,
-                      isFirst: list[i] == singleFirst ||
+                      isFirst:
+                          list[i] == singleFirst ||
                           list[i] == direction.firstDeparture,
-                      isLast: list[i] == singleLast ||
+                      isLast:
+                          list[i] == singleLast ||
                           list[i] == direction.lastDeparture,
                       isNext: isToday && list[i] == nextDeparture,
                       isPast: isToday && pastDepartures.contains(list[i]),
@@ -1340,7 +1386,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     required StationTimetable? timetable,
     required StationTimetableDirection? currentDirection,
   }) {
-    final targetDirection = currentDirection ?? timetable?.directions.firstOrNull;
+    final targetDirection =
+        currentDirection ?? timetable?.directions.firstOrNull;
     return SizedBox(
       width: 0,
       height: 0,
@@ -1354,7 +1401,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           child: Column(
             children: [
               Text('${widget.stationName} 시간표'),
-              if (targetDirection != null && targetDirection.departures.isNotEmpty) ...[
+              if (targetDirection != null &&
+                  targetDirection.departures.isNotEmpty) ...[
                 Text('첫차 ${targetDirection.firstDeparture.timeLabel}'),
                 Text('막차 ${targetDirection.lastDeparture.timeLabel}'),
               ],
@@ -1458,12 +1506,14 @@ String formatStationDirectionName(
   }
 
   // 2. Generic transit tokens (상행/상선/내선 vs 하행/하선/외선)
-  final isUpboundToken = clean.contains('상행') ||
+  final isUpboundToken =
+      clean.contains('상행') ||
       clean.contains('상선') ||
       clean.contains('내선') ||
       clean.contains('내선순환');
 
-  final isDownboundToken = clean.contains('하행') ||
+  final isDownboundToken =
+      clean.contains('하행') ||
       clean.contains('하선') ||
       clean.contains('외선') ||
       clean.contains('외선순환');
@@ -1476,18 +1526,30 @@ String formatStationDirectionName(
   }
 
   // 3. Fallback based on 2-column index (0 = Upbound / Previous, 1 = Downbound / Next)
-  if (directionIndex == 0 && prev != null && prev.isNotEmpty && !isDownboundToken) {
+  if (directionIndex == 0 &&
+      prev != null &&
+      prev.isNotEmpty &&
+      !isDownboundToken) {
     return '$prev 방면';
   }
-  if (directionIndex == 1 && next != null && next.isNotEmpty && !isUpboundToken) {
+  if (directionIndex == 1 &&
+      next != null &&
+      next.isNotEmpty &&
+      !isUpboundToken) {
     return '$next 방면';
   }
 
   // 4. Terminal stations where only one neighbor station exists
-  if (prev != null && prev.isNotEmpty && (next == null || next.isEmpty) && !isDownboundToken) {
+  if (prev != null &&
+      prev.isNotEmpty &&
+      (next == null || next.isEmpty) &&
+      !isDownboundToken) {
     return '$prev 방면';
   }
-  if (next != null && next.isNotEmpty && (prev == null || prev.isEmpty) && !isUpboundToken) {
+  if (next != null &&
+      next.isNotEmpty &&
+      (prev == null || prev.isEmpty) &&
+      !isUpboundToken) {
     return '$next 방면';
   }
 

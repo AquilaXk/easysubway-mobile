@@ -366,11 +366,11 @@ class _LineBadge extends StatelessWidget {
     final rawText = text.isNotEmpty
         ? text
         : (line != null
-            ? ((line as dynamic).badgeText != null &&
-                    (line as dynamic).badgeText.toString().isNotEmpty
-                ? (line as dynamic).badgeText.toString()
-                : (line as dynamic).name.toString())
-            : '');
+              ? ((line as dynamic).badgeText != null &&
+                        (line as dynamic).badgeText.toString().isNotEmpty
+                    ? (line as dynamic).badgeText.toString()
+                    : (line as dynamic).name.toString())
+              : '');
     final displayText = (rawText.length > 2 && rawText.endsWith('호선'))
         ? rawText.substring(0, rawText.length - 2)
         : rawText;

@@ -12987,7 +12987,13 @@ void main() {
       expect(find.text('막차 08:03'), findsOneWidget);
 
       // 급행 행에만 배지 1회, 일반 행에는 배지 없음.
-      expect(find.text('급행'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('servicePatternExpressBadge')),
+          matching: find.text('급행'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('servicePatternExpressBadge')),
         findsOneWidget,
@@ -13463,9 +13469,7 @@ void main() {
       expect(find.text('출구까지 거리'), findsNothing);
       expect(find.text('도보 길안내'), findsNothing);
 
-      await tester.tap(
-        find.byKey(const Key('stationExitMapExpandButton')),
-      );
+      await tester.tap(find.byKey(const Key('stationExitMapExpandButton')));
       await tester.pumpAndSettle();
 
       expect(mapLauncher.lookTargets, hasLength(1));
@@ -13533,9 +13537,7 @@ void main() {
 
     expect(find.text('1번 출구 공영주차장 방면'), findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const Key('stationExitPill-exit-sangnoksu-2')),
-    );
+    await tester.tap(find.byKey(const Key('stationExitPill-exit-sangnoksu-2')));
     await tester.pumpAndSettle();
 
     expect(find.text('2번 출구 버스환승센터 방면'), findsOneWidget);
@@ -13546,9 +13548,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byKey(const Key('stationExitMapExpandButton')),
-    );
+    await tester.tap(find.byKey(const Key('stationExitMapExpandButton')));
     await tester.pumpAndSettle();
 
     expect(mapLauncher.lookTargets, hasLength(1));
@@ -13599,9 +13599,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(
-      find.byKey(const Key('stationExitMapExpandButton')),
-    );
+    await tester.tap(find.byKey(const Key('stationExitMapExpandButton')));
     await tester.pumpAndSettle();
 
     expect(mapLauncher.lookTargets, hasLength(1));
@@ -13611,7 +13609,9 @@ void main() {
     expect(find.text('카카오맵을 열었습니다.'), findsOneWidget);
   });
 
-  testWidgets('역 상세는 네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드)를 노출한다', (tester) async {
+  testWidgets('역 상세는 네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드)를 노출한다', (
+    tester,
+  ) async {
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
       stationFacilities: const [
@@ -13672,7 +13672,9 @@ void main() {
     expect(find.text('엘리베이터'), findsWidgets);
   });
 
-  testWidgets('역 상세는 하단 고정 액션바 4종 버튼(출발, 도착, 전체 시간표, 첫차·막차)을 노출하고 시간표를 연다', (tester) async {
+  testWidgets('역 상세는 하단 고정 액션바 4종 버튼(출발, 도착, 전체 시간표, 첫차·막차)을 노출하고 시간표를 연다', (
+    tester,
+  ) async {
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
     );
@@ -16749,11 +16751,11 @@ class ControlledStationSearchRepository implements StationSearchRepository {
 }
 
 class _FakeKakaoMapLauncher implements KakaoMapLauncher {
-  _FakeKakaoMapLauncher({this.routeResult = KakaoMapLaunchResult.app});
+  _FakeKakaoMapLauncher();
 
   final lookTargets = <KakaoMapTarget>[];
   final routeTargets = <KakaoWalkingRouteTarget>[];
-  final KakaoMapLaunchResult routeResult;
+  final KakaoMapLaunchResult routeResult = KakaoMapLaunchResult.app;
 
   @override
   Future<KakaoMapLaunchResult> openLook(KakaoMapTarget target) async {
