@@ -65,9 +65,18 @@ class _InquiryScreenState extends State<InquiryScreen> {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('inquiryAppBar'),
-        title: const Text('문의하기'),
+        title: const Text(
+          '문의하기',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -83,12 +92,14 @@ class _InquiryScreenState extends State<InquiryScreen> {
           icon: const Icon(
             Icons.arrow_back,
             size: 26,
-            color: EasySubwayAccessibleColors.contentPrimary,
+            color: EasySubwayAccessibleColors.onPrimary,
           ),
         ),
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(key: Key('inquiryHeaderDivider')),
+          child: EasySubwayHeaderDivider.mapChrome(
+            key: Key('inquiryHeaderDivider'),
+          ),
         ),
       ),
       bottomNavigationBar: Padding(

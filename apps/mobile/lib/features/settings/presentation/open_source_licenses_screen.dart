@@ -45,7 +45,13 @@ class _OpenSourceLicensesScreenState extends State<OpenSourceLicensesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       key: const Key('openSourceLicensesScreen'),
-      appBar: AppBar(title: const Text('오픈 소스 라이선스')),
+      appBar: AppBar(
+        title: const Text('오픈 소스 라이선스'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
+      ),
       body: SafeArea(
         child: FutureBuilder<List<_PackageLicenses>>(
           future: _packages,

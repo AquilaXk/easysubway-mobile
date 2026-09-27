@@ -56,9 +56,18 @@ class SupportAccessScreen extends StatelessWidget {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('supportAccessAppBar'),
-        title: const Text('도움말'),
+        title: const Text(
+          '도움말',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -74,12 +83,12 @@ class SupportAccessScreen extends StatelessWidget {
           icon: const Icon(
             Icons.arrow_back,
             size: 26,
-            color: EasySubwayAccessibleColors.contentPrimary,
+            color: EasySubwayAccessibleColors.onPrimary,
           ),
         ),
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(
+          child: EasySubwayHeaderDivider.mapChrome(
             key: Key('supportAccessHeaderDivider'),
           ),
         ),

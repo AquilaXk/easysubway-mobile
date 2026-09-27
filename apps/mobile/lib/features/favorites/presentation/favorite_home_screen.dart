@@ -61,9 +61,18 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('favoriteHomeAppBar'),
-        title: const Text('즐겨찾기'),
+        title: const Text(
+          '즐겨찾기',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -86,12 +95,14 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
           icon: const Icon(
             Icons.arrow_back,
             size: 26,
-            color: EasySubwayAccessibleColors.contentPrimary,
+            color: EasySubwayAccessibleColors.onPrimary,
           ),
         ),
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(key: Key('favoriteHomeHeaderDivider')),
+          child: EasySubwayHeaderDivider.mapChrome(
+            key: Key('favoriteHomeHeaderDivider'),
+          ),
         ),
       ),
       bottomNavigationBar: widget.bottomNavigationBar,

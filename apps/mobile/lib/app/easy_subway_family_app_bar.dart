@@ -33,7 +33,8 @@ class EasySubwayFamilyAppBar extends StatelessWidget
     return AppBar(
       title: title,
       toolbarHeight: 60,
-      backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+      backgroundColor: EasySubwayAccessibleColors.primary,
+      foregroundColor: EasySubwayAccessibleColors.onPrimary,
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       automaticallyImplyLeading: false,
@@ -52,12 +53,12 @@ class EasySubwayFamilyAppBar extends StatelessWidget
             icon: const Icon(
               Icons.arrow_back,
               size: 26,
-              color: EasySubwayAccessibleColors.contentPrimary,
+              color: EasySubwayAccessibleColors.onPrimary,
             ),
           ),
       flexibleSpace: Align(
         alignment: Alignment.bottomCenter,
-        child: EasySubwayHeaderDivider(key: dividerKey),
+        child: EasySubwayHeaderDivider.mapChrome(key: dividerKey),
       ),
     );
   }

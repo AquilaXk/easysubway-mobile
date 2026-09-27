@@ -208,17 +208,21 @@ class EasySubwayApp extends StatelessWidget {
         scaffoldBackgroundColor: EasySubwayAccessibleColors.surfaceScaffold,
         appBarTheme: const AppBarTheme(
           centerTitle: false,
-          toolbarHeight: 64,
-          // 평평한 상단바: Material3 surfaceTint(액센트 기반 청록 스크림)와
-          // 스크롤 elevation 그림자를 끈다. 경계는 화면별 얇은 구분선으로만.
-          backgroundColor: EasySubwayAccessibleColors.surfaceBrandChrome,
+          toolbarHeight: 60,
+          backgroundColor: EasySubwayAccessibleColors.primary,
+          foregroundColor: EasySubwayAccessibleColors.onPrimary,
           surfaceTintColor: Colors.transparent,
           scrolledUnderElevation: 0,
           elevation: 0,
+          iconTheme: IconThemeData(
+            color: EasySubwayAccessibleColors.onPrimary,
+            size: 26,
+          ),
           titleTextStyle: TextStyle(
-            color: EasySubwayAccessibleColors.contentPrimary,
-            fontSize: 22,
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
             fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
           ),
         ),
         // 주 행동(채움)만 강하게: 높이 60, 진한 채움.

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../accessible_design.dart';
 import 'next_train_widget_repository.dart';
 
 typedef LoadWidgetSelections = Future<List<WidgetStationSelection>> Function();
@@ -31,7 +32,13 @@ class _NextTrainWidgetConfigurationScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('위젯 역 선택')),
+      appBar: AppBar(
+        title: const Text('위젯 역 선택'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
+      ),
       body: FutureBuilder<List<WidgetStationSelection>>(
         future: _selections,
         builder: (context, snapshot) {

@@ -48,6 +48,10 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('알림'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
         actions: [
           if (widget.notificationRepository != null)
             IconButton(

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../accessible_design.dart';
 import '../../../app/accessibility_theme.dart';
@@ -181,9 +182,18 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
         backgroundColor: EasySubwayAccessibleColors.scaffoldSurface,
         appBar: AppBar(
           key: const Key('settingsAppBar'),
-          title: const Text('설정'),
+          title: const Text(
+            '설정',
+            style: TextStyle(
+              color: EasySubwayAccessibleColors.onPrimary,
+              fontSize: 21,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.3,
+            ),
+          ),
           toolbarHeight: 60,
-          backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+          backgroundColor: EasySubwayAccessibleColors.primary,
+          foregroundColor: EasySubwayAccessibleColors.onPrimary,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           automaticallyImplyLeading: false,
@@ -206,12 +216,14 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
             icon: const Icon(
               Icons.arrow_back,
               size: 26,
-              color: EasySubwayAccessibleColors.contentPrimary,
+              color: EasySubwayAccessibleColors.onPrimary,
             ),
           ),
           flexibleSpace: const Align(
             alignment: Alignment.bottomCenter,
-            child: EasySubwayHeaderDivider(key: Key('settingsHeaderDivider')),
+            child: EasySubwayHeaderDivider.mapChrome(
+              key: Key('settingsHeaderDivider'),
+            ),
           ),
         ),
         body: SafeArea(
@@ -540,6 +552,7 @@ class _MobilityHeroBlock extends StatelessWidget {
                   child: _SegmentButton(
                     buttonKey: const Key('walkingSpeedSegment-slow'),
                     icon: Icons.nordic_walking_rounded,
+                    svgAsset: 'assets/icons/slow.svg',
                     title: '느린 걸음',
                     subtitle: '3.5km/h',
                     selected: walkingPace == WalkingPace.slow,
@@ -551,6 +564,7 @@ class _MobilityHeroBlock extends StatelessWidget {
                   child: _SegmentButton(
                     buttonKey: const Key('walkingSpeedSegment-standard'),
                     icon: Icons.directions_walk_rounded,
+                    svgAsset: 'assets/icons/normal.svg',
                     title: '보통 걸음',
                     subtitle: '4.5km/h',
                     selected: walkingPace == WalkingPace.standard,
@@ -562,6 +576,7 @@ class _MobilityHeroBlock extends StatelessWidget {
                   child: _SegmentButton(
                     buttonKey: const Key('walkingSpeedSegment-fast'),
                     icon: Icons.directions_run_rounded,
+                    svgAsset: 'assets/icons/fast.svg',
                     title: '빠른 걸음',
                     subtitle: '6.0km/h',
                     selected: walkingPace == WalkingPace.fast,
@@ -675,15 +690,17 @@ class _MobilityHeroBlock extends StatelessWidget {
 class _SegmentButton extends StatelessWidget {
   const _SegmentButton({
     required this.buttonKey,
-    required this.icon,
+    this.icon,
+    this.svgAsset,
     required this.title,
     required this.subtitle,
     required this.selected,
     required this.onTap,
-  });
+  }) : assert(icon != null || svgAsset != null);
 
   final Key buttonKey;
-  final IconData icon;
+  final IconData? icon;
+  final String? svgAsset;
   final String title;
   final String subtitle;
   final bool selected;
@@ -730,13 +747,26 @@ class _SegmentButton extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(
-                    icon,
-                    size: 18,
-                    color: selected
-                        ? primaryColor
-                        : EasySubwayAccessibleColors.contentSecondary,
-                  ),
+                  if (svgAsset != null)
+                    SvgPicture.asset(
+                      svgAsset!,
+                      width: 18,
+                      height: 18,
+                      colorFilter: ColorFilter.mode(
+                        selected
+                            ? primaryColor
+                            : EasySubwayAccessibleColors.contentSecondary,
+                        BlendMode.srcIn,
+                      ),
+                    )
+                  else
+                    Icon(
+                      icon,
+                      size: 18,
+                      color: selected
+                          ? primaryColor
+                          : EasySubwayAccessibleColors.contentSecondary,
+                    ),
                   const SizedBox(height: 2),
                   FittedBox(
                     fit: BoxFit.scaleDown,
