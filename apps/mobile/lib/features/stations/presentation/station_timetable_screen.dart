@@ -1246,7 +1246,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                         ),
                       ),
                       child: const Text(
-                        '첫',
+                        '첫차',
                         style: TextStyle(
                           color: Color(0xFF0066FF),
                           fontSize: 10,
@@ -1270,7 +1270,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                         ),
                       ),
                       child: const Text(
-                        '막',
+                        '막차',
                         style: TextStyle(
                           color: Color(0xFFFF3B30),
                           fontSize: 10,

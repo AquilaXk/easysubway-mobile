@@ -559,8 +559,8 @@ void main() {
       // 전체 열차 4편 노출 확인
       expect(find.text('06:10'), findsOneWidget);
       expect(find.text('07:20'), findsOneWidget);
-      expect(find.text('첫'), findsOneWidget);
-      expect(find.text('막'), findsOneWidget);
+      expect(find.text('첫차'), findsOneWidget);
+      expect(find.text('막차'), findsOneWidget);
 
       // '첫·막차' 필터 캡슐 탭
       await tester.tap(
@@ -573,8 +573,8 @@ void main() {
       expect(find.text('23:40'), findsOneWidget);
       expect(find.text('07:20'), findsNothing);
       expect(find.text('08:30'), findsNothing);
-      expect(find.text('첫'), findsOneWidget);
-      expect(find.text('막'), findsOneWidget);
+      expect(find.text('첫차'), findsOneWidget);
+      expect(find.text('막차'), findsOneWidget);
 
       // '첫·막차' 필터 해제
       await tester.tap(
