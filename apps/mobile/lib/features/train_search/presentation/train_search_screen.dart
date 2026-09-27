@@ -1,7 +1,10 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../accessible_design.dart';
 import '../domain/train_search_models.dart';
 import '../domain/train_search_scope_policy.dart';
 
@@ -11,11 +14,13 @@ class TrainSearchScreen extends StatefulWidget {
   const TrainSearchScreen({
     required this.repository,
     this.now = DateTime.now,
+    this.onLaunchUrl,
     super.key,
   });
 
   final TrainSearchRepository repository;
   final DateTime Function() now;
+  final Future<bool> Function(Uri uri)? onLaunchUrl;
 
   @override
   State<TrainSearchScreen> createState() => _TrainSearchScreenState();
@@ -61,447 +66,300 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F6F8),
+      backgroundColor: EasySubwayAccessibleColors.surfaceScaffold,
       appBar: AppBar(
-        title: const Text('기차 검색'),
+        title: const Text(
+          '기차 조회',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 22,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
+          ),
+        ),
+        toolbarHeight: 60,
         elevation: 0,
-        backgroundColor: const Color(0xFF3858F6),
+        backgroundColor: EasySubwayAccessibleColors.primary,
         foregroundColor: Colors.white,
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(
+            key: Key('trainSearchHeaderDivider'),
+          ),
+        ),
       ),
       body: SafeArea(
         child: ListView(
           key: const Key('trainSearchScrollView'),
-          padding: EdgeInsets.zero,
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
           children: [
-            // Screen 1 Top Blue Header Banner (Naver Train 1:1)
+            // Main Station Selection Card
             Container(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 36),
-              decoration: const BoxDecoration(color: Color(0xFF3858F6)),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.06),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Stack(
+                alignment: Alignment.centerRight,
+                children: [
+                  Column(
+                    children: [
+                      // Departure Row
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 56, 12),
+                        child: _stationRow(
+                          slot: _StationSlot.departure,
+                          controller: _departureController,
+                          label: '출발',
+                          key: const Key('trainSearchDepartureField'),
+                          isDeparture: true,
+                        ),
+                      ),
+                      const Divider(
+                        height: 1,
+                        thickness: 1,
+                        color: Color(0xFFF0F2F5),
+                        indent: 16,
+                        endIndent: 56,
+                      ),
+                      // Arrival Row
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 12, 56, 14),
+                        child: _stationRow(
+                          slot: _StationSlot.arrival,
+                          controller: _arrivalController,
+                          label: '도착',
+                          key: const Key('trainSearchArrivalField'),
+                          isDeparture: false,
+                        ),
+                      ),
+                    ],
+                  ),
+                  // Center Swap Button
+                  Positioned(
+                    right: 12,
+                    child: Semantics(
+                      button: true,
+                      label: '출발역과 도착역 맞바꾸기',
+                      child: Material(
+                        color: EasySubwayColorPrimitives.neutralWhite,
+                        shape: const CircleBorder(),
+                        elevation: 2,
+                        shadowColor: Colors.black.withValues(alpha: 0.08),
+                        child: InkWell(
+                          key: const Key('trainSearchSwapButton'),
+                          customBorder: const CircleBorder(),
+                          splashColor: EasySubwayColorPrimitives.brand100,
+                          highlightColor: EasySubwayColorPrimitives.brand50,
+                          onTap: _loading ? null : _swapStations,
+                          child: Tooltip(
+                            message: '출발역과 도착역 맞바꾸기',
+                            child: Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                  color:
+                                      EasySubwayAccessibleColors.borderSubtle,
+                                  width: 1,
+                                ),
+                              ),
+                              child: Center(
+                                child: SvgPicture.asset(
+                                  'assets/icons/transfer.svg',
+                                  width: 20,
+                                  height: 20,
+                                  colorFilter: const ColorFilter.mode(
+                                    EasySubwayColorPrimitives.brand900,
+                                    BlendMode.srcIn,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            _suggestionList(_StationSlot.departure),
+            _suggestionList(_StationSlot.arrival),
+
+            const SizedBox(height: 14),
+
+            // Schedule Section
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: const Color(0xFFE5E7EB)),
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(alpha: 0.22),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          '시외교통',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                          ),
+                      const Text(
+                        '일정 선택',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF1F2937),
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: 0.6),
-                          ),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          '승차권',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
+                      // Roundtrip Toggle / Segment
+                      Semantics(
+                        label: '여정 종류',
+                        child: InkWell(
+                          key: const Key('trainSearchTripType'),
+                          onTap: _loading
+                              ? null
+                              : () {
+                                  setState(() {
+                                    _roundTrip = !_roundTrip;
+                                    _returnDate = _roundTrip
+                                        ? _departureDate
+                                        : null;
+                                    _clearResult();
+                                  });
+                                },
+                          borderRadius: BorderRadius.circular(6),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 6,
+                            ),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _roundTrip
+                                      ? Icons.check_box
+                                      : Icons.check_box_outline_blank,
+                                  size: 22,
+                                  color: _roundTrip
+                                      ? EasySubwayAccessibleColors.primary
+                                      : const Color(0xFF9CA3AF),
+                                ),
+                                const SizedBox(width: 4),
+                                const Text(
+                                  '왕복',
+                                  style: TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                    color: Color(0xFF374151),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '기차 조회 · 예매',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 22,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.5,
+                  const SizedBox(height: 14),
+
+                  // Going Day Button
+                  _scheduleSelectionRow(
+                    key: const Key('trainSearchDepartureDateButton'),
+                    icon: SvgPicture.asset(
+                      'assets/icons/calendar.svg',
+                      width: 22,
+                      height: 22,
+                      colorFilter: const ColorFilter.mode(
+                        EasySubwayAccessibleColors.primary,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    label: '가는 날',
+                    value: _formatDateWithWeekday(_departureDate),
+                    onTap: () => _pickDate(returnDate: false),
+                  ),
+                  if (_roundTrip) ...[
+                    const SizedBox(height: 10),
+                    _scheduleSelectionRow(
+                      key: const Key('trainSearchReturnDateButton'),
+                      icon: SvgPicture.asset(
+                        'assets/icons/calendar.svg',
+                        width: 22,
+                        height: 22,
+                        colorFilter: const ColorFilter.mode(
+                          EasySubwayAccessibleColors.primary,
+                          BlendMode.srcIn,
+                        ),
+                      ),
+                      label: '오는 날',
+                      value: _formatDateWithWeekday(
+                        _returnDate ?? _departureDate,
+                      ),
+                      onTap: () => _pickDate(returnDate: true),
+                    ),
+                  ],
+
+                  const SizedBox(height: 10),
+
+                  // Train Type Row
+                  _scheduleSelectionRow(
+                    key: const Key('trainSearchTrainTypeField'),
+                    icon: SvgPicture.asset(
+                      'assets/icons/train.svg',
+                      width: 28,
+                      height: 28,
+                      colorFilter: const ColorFilter.mode(
+                        EasySubwayAccessibleColors.primary,
+                        BlendMode.srcIn,
+                      ),
+                    ),
+                    label: '열차종류',
+                    value: _trainType?.labelKo ?? '전체 열차',
+                    onTap: _pickTrainType,
+                  ),
+
+                  const SizedBox(height: 18),
+
+                  // Wide Blue Submit CTA Button
+                  SizedBox(
+                    width: double.infinity,
+                    height: 54,
+                    child: FilledButton(
+                      key: const Key('trainSearchSubmitButton'),
+                      onPressed: _loading ? null : _submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: EasySubwayAccessibleColors.primary,
+                        foregroundColor: Colors.white,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: const Text(
+                        '시간표 조회',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
 
-            // Floating Main Station Selection Card (Naver Train 1:1)
-            Transform.translate(
-              offset: const Offset(0, -20),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.06),
-                            blurRadius: 10,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Stack(
-                        alignment: Alignment.centerRight,
-                        children: [
-                          Column(
-                            children: [
-                              // Departure Row
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  12,
-                                  54,
-                                  10,
-                                ),
-                                child: _stationRow(
-                                  slot: _StationSlot.departure,
-                                  controller: _departureController,
-                                  label: '출발',
-                                  key: const Key('trainSearchDepartureField'),
-                                  isDeparture: true,
-                                ),
-                              ),
-                              const Divider(
-                                height: 1,
-                                thickness: 1,
-                                color: Color(0xFFF0F2F5),
-                                indent: 16,
-                                endIndent: 54,
-                              ),
-                              // Arrival Row
-                              Padding(
-                                padding: const EdgeInsets.fromLTRB(
-                                  16,
-                                  10,
-                                  54,
-                                  12,
-                                ),
-                                child: _stationRow(
-                                  slot: _StationSlot.arrival,
-                                  controller: _arrivalController,
-                                  label: '도착',
-                                  key: const Key('trainSearchArrivalField'),
-                                  isDeparture: false,
-                                ),
-                              ),
-                            ],
-                          ),
-                          // Center Swap Button
-                          Positioned(
-                            right: 14,
-                            child: Material(
-                              color: const Color(0xFF1E293B),
-                              shape: const CircleBorder(),
-                              elevation: 2,
-                              child: InkWell(
-                                key: const Key('trainSearchSwapButton'),
-                                customBorder: const CircleBorder(),
-                                onTap: _loading ? null : _swapStations,
-                                child: Container(
-                                  width: 36,
-                                  height: 36,
-                                  decoration: const BoxDecoration(
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: const Icon(
-                                    Icons.swap_vert,
-                                    size: 20,
-                                    color: Colors.white,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    _suggestionList(_StationSlot.departure),
-                    _suggestionList(_StationSlot.arrival),
-
-                    const SizedBox(height: 12),
-
-                    // Schedule & Passenger Section (Naver Train 1:1)
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: const Color(0xFFE5E7EB)),
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              const Text(
-                                '일정 · 인원 선택',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: Color(0xFF1F2937),
-                                ),
-                              ),
-                              // Roundtrip Toggle / Segment
-                              Semantics(
-                                label: '여정 종류',
-                                child: InkWell(
-                                  key: const Key('trainSearchTripType'),
-                                  onTap: _loading
-                                      ? null
-                                      : () {
-                                          setState(() {
-                                            _roundTrip = !_roundTrip;
-                                            _returnDate = _roundTrip
-                                                ? _departureDate
-                                                : null;
-                                            _clearResult();
-                                          });
-                                        },
-                                  borderRadius: BorderRadius.circular(4),
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 6,
-                                      vertical: 4,
-                                    ),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          _roundTrip
-                                              ? Icons.check_box
-                                              : Icons.check_box_outline_blank,
-                                          size: 18,
-                                          color: _roundTrip
-                                              ? const Color(0xFF3858F6)
-                                              : const Color(0xFF9CA3AF),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        const Text(
-                                          '왕복',
-                                          style: TextStyle(
-                                            fontSize: 13,
-                                            fontWeight: FontWeight.w600,
-                                            color: Color(0xFF374151),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 12),
-
-                          // Going Day Button
-                          _dateButton(
-                            key: const Key('trainSearchDepartureDateButton'),
-                            label: '가는 날',
-                            value: _departureDate,
-                            onPressed: () => _pickDate(returnDate: false),
-                          ),
-                          if (_roundTrip) ...[
-                            const SizedBox(height: 8),
-                            _dateButton(
-                              key: const Key('trainSearchReturnDateButton'),
-                              label: '오는 날',
-                              value: _returnDate ?? _departureDate,
-                              onPressed: () => _pickDate(returnDate: true),
-                            ),
-                          ],
-
-                          const SizedBox(height: 10),
-
-                          // 2-Split Passenger & Seat Type Chips (Naver Train 1:1)
-                          LayoutBuilder(
-                            builder: (context, constraints) {
-                              final halfWidth = (constraints.maxWidth - 8) / 2;
-                              final useFull = halfWidth < 130;
-                              final itemWidth = useFull
-                                  ? constraints.maxWidth
-                                  : halfWidth;
-                              return Wrap(
-                                spacing: 8,
-                                runSpacing: 8,
-                                children: [
-                                  SizedBox(
-                                    width: itemWidth,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 11,
-                                        horizontal: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF9FAFB),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: const Color(0xFFE5E7EB),
-                                        ),
-                                      ),
-                                      child: const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.person_outline,
-                                            size: 16,
-                                            color: Color(0xFF3858F6),
-                                          ),
-                                          SizedBox(width: 6),
-                                          Flexible(
-                                            child: Text(
-                                              '어른 1명',
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF1F2937),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                  SizedBox(
-                                    width: itemWidth,
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        vertical: 11,
-                                        horizontal: 12,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: const Color(0xFFF9FAFB),
-                                        borderRadius: BorderRadius.circular(6),
-                                        border: Border.all(
-                                          color: const Color(0xFFE5E7EB),
-                                        ),
-                                      ),
-                                      child: const Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.accessible,
-                                            size: 16,
-                                            color: Color(0xFF3858F6),
-                                          ),
-                                          SizedBox(width: 6),
-                                          Flexible(
-                                            child: Text(
-                                              '일반좌석',
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontSize: 13,
-                                                fontWeight: FontWeight.w600,
-                                                color: Color(0xFF1F2937),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              );
-                            },
-                          ),
-
-                          const SizedBox(height: 10),
-
-                          // Train Type Selector (DropdownFormField with key)
-                          DropdownButtonFormField<String>(
-                            key: const Key('trainSearchTrainTypeField'),
-                            initialValue: _trainType?.apiValue ?? 'ALL',
-                            decoration: InputDecoration(
-                              labelText: '열차종류',
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(6),
-                                borderSide: const BorderSide(
-                                  color: Color(0xFFE5E7EB),
-                                ),
-                              ),
-                              contentPadding: const EdgeInsets.symmetric(
-                                horizontal: 12,
-                                vertical: 10,
-                              ),
-                              isDense: true,
-                            ),
-                            items: [
-                              const DropdownMenuItem(
-                                value: 'ALL',
-                                child: Text('전체 열차'),
-                              ),
-                              for (final type in TrainSearchTrainType.values)
-                                DropdownMenuItem(
-                                  value: type.apiValue,
-                                  child: Text(type.labelKo),
-                                ),
-                            ],
-                            onChanged: _loading
-                                ? null
-                                : (value) => setState(() {
-                                    _trainType = value == null || value == 'ALL'
-                                        ? null
-                                        : TrainSearchTrainType.parse(value);
-                                    _clearResult();
-                                  }),
-                          ),
-
-                          const SizedBox(height: 14),
-
-                          // Wide Blue Submit CTA Button (Naver Train 1:1 '시간표 조회')
-                          SizedBox(
-                            width: double.infinity,
-                            height: 48,
-                            child: FilledButton(
-                              key: const Key('trainSearchSubmitButton'),
-                              onPressed: _loading ? null : _submit,
-                              style: FilledButton.styleFrom(
-                                backgroundColor: const Color(0xFF3858F6),
-                                foregroundColor: Colors.white,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                elevation: 0,
-                              ),
-                              child: const Text(
-                                '시간표 조회',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w800,
-                                  letterSpacing: -0.3,
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-
-                    const SizedBox(height: 16),
-                    _resultBody(),
-                  ],
-                ),
-              ),
-            ),
+            const SizedBox(height: 16),
+            _resultBody(),
           ],
         ),
       ),
@@ -517,23 +375,33 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
   }) {
     return Row(
       children: [
-        Icon(
-          isDeparture ? Icons.arrow_outward : Icons.location_on,
-          size: 18,
-          color: isDeparture
-              ? const Color(0xFF03C75A)
-              : const Color(0xFFFF453A),
+        SizedBox(
+          width: 24,
+          height: 24,
+          child: Center(
+            child: SvgPicture.asset(
+              isDeparture
+                  ? 'assets/icons/depart.svg'
+                  : 'assets/icons/arrive.svg',
+              width: 22,
+              height: 22,
+              colorFilter: ColorFilter.mode(
+                isDeparture ? const Color(0xFF03C75A) : const Color(0xFFFF453A),
+                BlendMode.srcIn,
+              ),
+            ),
+          ),
         ),
         const SizedBox(width: 8),
         Text(
           label,
           style: const TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF6B7280),
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF1F2937),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: TextField(
             key: key,
@@ -541,14 +409,20 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             enabled: !_loading,
             textInputAction: TextInputAction.search,
             style: const TextStyle(
-              fontSize: 18,
+              fontSize: 20,
               fontWeight: FontWeight.w800,
               color: Color(0xFF111827),
             ),
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
+              hintText: isDeparture ? '출발역 입력' : '도착역 입력',
+              hintStyle: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF9CA3AF),
+              ),
               border: InputBorder.none,
               isDense: true,
-              contentPadding: EdgeInsets.symmetric(vertical: 4),
+              contentPadding: const EdgeInsets.symmetric(vertical: 4),
             ),
             onChanged: (value) {
               _stationDebounce?.cancel();
@@ -572,7 +446,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             },
           ),
         ),
-        const Icon(Icons.search, size: 18, color: Color(0xFF9CA3AF)),
+        const Icon(Icons.search, size: 20, color: Color(0xFF9CA3AF)),
       ],
     );
   }
@@ -638,13 +512,13 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                   station.name,
                   style: const TextStyle(
                     fontWeight: FontWeight.w700,
-                    fontSize: 15,
+                    fontSize: 17,
                   ),
                 ),
                 subtitle: Text(
                   station.id,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 13,
                     color: Color(0xFF6B7280),
                   ),
                 ),
@@ -661,42 +535,79 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
     );
   }
 
-  Widget _dateButton({
+  Widget _scheduleSelectionRow({
     required Key key,
+    required Widget icon,
     required String label,
-    required DateTime value,
-    required VoidCallback onPressed,
+    required String value,
+    required VoidCallback? onTap,
+    String? semanticsLabel,
   }) {
-    return InkWell(
-      key: key,
-      onTap: _loading ? null : onPressed,
-      borderRadius: BorderRadius.circular(6),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
-        decoration: BoxDecoration(
-          color: const Color(0xFFF9FAFB),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: const Color(0xFFE5E7EB)),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.calendar_today_outlined,
-              size: 16,
-              color: Color(0xFF3858F6),
+    return Semantics(
+      button: true,
+      label: semanticsLabel ?? '$label $value',
+      child: Material(
+        color: const Color(0xFFF9FAFB),
+        borderRadius: BorderRadius.circular(8),
+        child: InkWell(
+          key: key,
+          onTap: _loading ? null : onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                '$label  ${_formatDate(value)}',
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w700,
-                  color: Color(0xFF1F2937),
+            child: Row(
+              children: [
+                SizedBox(width: 28, height: 28, child: Center(child: icon)),
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 72,
+                  child: FittedBox(
+                    fit: BoxFit.scaleDown,
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF4B5563),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+                const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 10),
+                  child: Text(
+                    'ㅣ',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFFD1D5DB),
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: Text(
+                    value,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Color(0xFF9CA3AF),
+                  size: 22,
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
@@ -712,7 +623,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             padding: EdgeInsets.all(32),
             child: CircularProgressIndicator(
               key: Key('trainSearchLoading'),
-              color: Color(0xFF3858F6),
+              color: EasySubwayAccessibleColors.primary,
             ),
           ),
         ),
@@ -750,8 +661,10 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                 key: const Key('trainSearchRetryButton'),
                 onPressed: _submit,
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF3858F6)),
-                  foregroundColor: const Color(0xFF3858F6),
+                  side: const BorderSide(
+                    color: EasySubwayAccessibleColors.primary,
+                  ),
+                  foregroundColor: EasySubwayAccessibleColors.primary,
                 ),
                 child: const Text('다시 시도'),
               ),
@@ -837,7 +750,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                     style: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Color(0xFF3858F6),
+                      color: EasySubwayAccessibleColors.primary,
                     ),
                   ),
                 ],
@@ -872,7 +785,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                   Text(
                     _formatDate(_departureDate),
                     style: const TextStyle(
-                      fontSize: 14,
+                      fontSize: 15,
                       fontWeight: FontWeight.w700,
                       color: Color(0xFF374151),
                     ),
@@ -955,7 +868,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
       onTap: onTap,
       borderRadius: BorderRadius.circular(4),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
           color: isSelected ? const Color(0xFF1E293B) : const Color(0xFFF3F4F6),
           borderRadius: BorderRadius.circular(4),
@@ -963,7 +876,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: 13,
             fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
             color: isSelected ? Colors.white : const Color(0xFF4B5563),
           ),
@@ -1036,7 +949,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                             '${journey.trainType.labelKo} ${journey.trainNumber}',
                             style: const TextStyle(
                               color: Colors.white,
-                              fontSize: 12,
+                              fontSize: 13,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
@@ -1088,7 +1001,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                     child: const Text(
                                       '일반 예매가능',
                                       style: TextStyle(
-                                        fontSize: 11,
+                                        fontSize: 12,
                                         fontWeight: FontWeight.w700,
                                         color: Color(0xFF059669),
                                       ),
@@ -1098,8 +1011,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                     fare,
                                     style: const TextStyle(
                                       color: Color(0xFF111827),
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w700,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w800,
                                     ),
                                   ),
                                 ],
@@ -1109,48 +1022,42 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         ),
                         const SizedBox(width: 8),
 
-                        // Green N Reservation Action Button (Screen 2 1:1)
+                        // Korail+ Reservation Action Button
                         InkWell(
-                          onTap: () {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  '${journey.trainType.labelKo} ${journey.trainNumber} 예매 페이지로 이동합니다.',
-                                ),
-                                duration: const Duration(seconds: 2),
-                              ),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(4),
+                          key: Key(
+                            'trainSearchKorailTalkButton-${journey.trainNumber}',
+                          ),
+                          onTap: () => _openKorailTalk(journey),
+                          borderRadius: BorderRadius.circular(6),
                           child: Container(
                             padding: const EdgeInsets.symmetric(
-                              horizontal: 12,
+                              horizontal: 10,
                               vertical: 8,
                             ),
                             decoration: BoxDecoration(
+                              color:
+                                  EasySubwayAccessibleColors.brandSignatureSoft,
                               border: Border.all(
-                                color: const Color(0xFF03C75A),
+                                color: EasySubwayAccessibleColors
+                                    .brandSignatureMedium,
                               ),
-                              borderRadius: BorderRadius.circular(4),
+                              borderRadius: BorderRadius.circular(6),
                             ),
                             child: const Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Text(
-                                  'N',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w900,
-                                    color: Color(0xFF03C75A),
-                                  ),
+                                Icon(
+                                  Icons.open_in_new,
+                                  size: 14,
+                                  color: EasySubwayAccessibleColors.primary,
                                 ),
                                 SizedBox(width: 4),
                                 Text(
-                                  '예매',
+                                  '코레일+',
                                   style: TextStyle(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF03C75A),
+                                    color: EasySubwayAccessibleColors.primary,
                                   ),
                                 ),
                               ],
@@ -1167,6 +1074,46 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
         ),
       ),
     );
+  }
+
+  Future<bool> _openKorailTalk(TrainJourney journey) async {
+    final isSrt = journey.trainType == TrainSearchTrainType.srt;
+    final appSchemes = isSrt
+        ? [Uri.parse('srt://'), Uri.parse('korailtalk://')]
+        : [Uri.parse('korailtalk://'), Uri.parse('korail://')];
+    final webUrl = Uri.parse(
+      isSrt ? 'https://etk.srail.kr' : 'https://m.korail.com',
+    );
+
+    if (widget.onLaunchUrl != null) {
+      for (final scheme in appSchemes) {
+        if (await widget.onLaunchUrl!(scheme)) {
+          return true;
+        }
+      }
+      return widget.onLaunchUrl!(webUrl);
+    }
+
+    for (final scheme in appSchemes) {
+      try {
+        if (await canLaunchUrl(scheme)) {
+          return await launchUrl(scheme, mode: LaunchMode.externalApplication);
+        }
+      } catch (_) {
+        // Fallback to next scheme or web
+      }
+    }
+
+    try {
+      return await launchUrl(webUrl, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('코레일+ 또는 예매 페이지를 열 수 없습니다.')),
+        );
+      }
+      return false;
+    }
   }
 
   void _showTrainTimetableModal(BuildContext context, TrainJourney journey) {
@@ -1186,6 +1133,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           fare: '${_formatNumber(journey.adultFareWon)}원',
           weekday: _weekdayKo(_departureDate),
           dateFormatted: _formatDate(_departureDate),
+          onOpenKorailTalk: (j) => _openKorailTalk(j),
         ),
       ),
     );
@@ -1298,6 +1246,133 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           _returnDate = selected;
         }
       }
+      _clearResult();
+    });
+  }
+
+  String _formatDateWithWeekday(DateTime value) =>
+      '${_formatDate(value)} (${_weekdayKo(value)})';
+
+  Future<void> _pickTrainType() async {
+    _stationDebounce?.cancel();
+    FocusScope.of(context).unfocus();
+    final result =
+        await showModalBottomSheet<({bool chosen, TrainSearchTrainType? type})>(
+          context: context,
+          isScrollControlled: true,
+          backgroundColor: Colors.white,
+          shape: const RoundedRectangleBorder(
+            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          ),
+          builder: (context) {
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 8, 8, 8),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            '열차종류 선택',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w800,
+                              color: Color(0xFF111827),
+                            ),
+                          ),
+                          IconButton(
+                            key: const Key('trainSearchTrainTypeCloseButton'),
+                            icon: const Icon(Icons.close, size: 22),
+                            onPressed: () => Navigator.of(context).pop(),
+                            tooltip: '닫기',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                    Flexible(
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            ListTile(
+                              key: const Key('trainSearchTrainTypeOption-ALL'),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 20,
+                                vertical: 2,
+                              ),
+                              title: Text(
+                                '전체 열차',
+                                style: TextStyle(
+                                  fontSize: 17,
+                                  fontWeight: _trainType == null
+                                      ? FontWeight.w800
+                                      : FontWeight.w600,
+                                  color: _trainType == null
+                                      ? EasySubwayAccessibleColors.primary
+                                      : const Color(0xFF1F2937),
+                                ),
+                              ),
+                              trailing: _trainType == null
+                                  ? const Icon(
+                                      Icons.check,
+                                      color: EasySubwayAccessibleColors.primary,
+                                    )
+                                  : null,
+                              onTap: () => Navigator.of(
+                                context,
+                              ).pop((chosen: true, type: null)),
+                            ),
+                            for (final type in TrainSearchTrainType.values)
+                              ListTile(
+                                key: Key(
+                                  'trainSearchTrainTypeOption-${type.apiValue}',
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 2,
+                                ),
+                                title: Text(
+                                  type.labelKo,
+                                  style: TextStyle(
+                                    fontSize: 17,
+                                    fontWeight: _trainType == type
+                                        ? FontWeight.w800
+                                        : FontWeight.w600,
+                                    color: _trainType == type
+                                        ? EasySubwayAccessibleColors.primary
+                                        : const Color(0xFF1F2937),
+                                  ),
+                                ),
+                                trailing: _trainType == type
+                                    ? const Icon(
+                                        Icons.check,
+                                        color:
+                                            EasySubwayAccessibleColors.primary,
+                                      )
+                                    : null,
+                                onTap: () => Navigator.of(
+                                  context,
+                                ).pop((chosen: true, type: type)),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+    if (!mounted || result == null || !result.chosen) return;
+    setState(() {
+      _trainType = result.type;
       _clearResult();
     });
   }
@@ -1460,6 +1535,7 @@ class _TrainTimetableModalContent extends StatefulWidget {
     required this.fare,
     required this.weekday,
     required this.dateFormatted,
+    this.onOpenKorailTalk,
   });
 
   final TrainJourney journey;
@@ -1469,6 +1545,7 @@ class _TrainTimetableModalContent extends StatefulWidget {
   final String fare;
   final String weekday;
   final String dateFormatted;
+  final ValueChanged<TrainJourney>? onOpenKorailTalk;
 
   @override
   State<_TrainTimetableModalContent> createState() =>
@@ -1485,7 +1562,7 @@ class _TrainTimetableModalContentState
     final isSrt = journey.trainType == TrainSearchTrainType.srt;
     final primaryColor = isSrt
         ? const Color(0xFF8B1538)
-        : const Color(0xFF3858F6);
+        : EasySubwayAccessibleColors.primary;
 
     return SafeArea(
       child: ConstrainedBox(
@@ -1569,6 +1646,33 @@ class _TrainTimetableModalContentState
                       : _buildFareTable(),
                 ),
               ),
+              if (widget.onOpenKorailTalk != null) ...[
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  height: 52,
+                  child: FilledButton.icon(
+                    key: const Key('trainModalKorailTalkButton'),
+                    onPressed: () => widget.onOpenKorailTalk!(journey),
+                    icon: const Icon(Icons.open_in_new, size: 20),
+                    label: const Text(
+                      '코레일+ 에서 예매',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    style: FilledButton.styleFrom(
+                      backgroundColor: primaryColor,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      elevation: 0,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -1800,7 +1904,7 @@ class _TrainTimetableModalContentState
                       vertical: 1,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFEFF6FF),
+                      color: EasySubwayAccessibleColors.surfaceBrandChrome,
                       borderRadius: BorderRadius.circular(3),
                     ),
                     child: const Text(
@@ -1808,7 +1912,7 @@ class _TrainTimetableModalContentState
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF3858F6),
+                        color: EasySubwayAccessibleColors.primary,
                       ),
                     ),
                   ),
@@ -1914,7 +2018,9 @@ class _TrainTimetableModalContentState
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w800,
-              color: isBold ? const Color(0xFF3858F6) : const Color(0xFF111827),
+              color: isBold
+                  ? EasySubwayAccessibleColors.primary
+                  : const Color(0xFF111827),
             ),
           ),
         ],
