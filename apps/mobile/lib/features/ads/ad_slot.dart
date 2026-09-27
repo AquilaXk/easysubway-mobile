@@ -86,32 +86,36 @@ class _AdBannerSlotDefaultBanner extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          const Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  '쉬운 지하철과 함께하는 편안한 이동',
-                  style: TextStyle(
-                    color: EasySubwayAccessibleColors.contentPrimary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w700,
+          Expanded(
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '쉬운 지하철과 함께하는 편안한 이동',
+                    style: TextStyle(
+                      color: EasySubwayAccessibleColors.contentPrimary,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                SizedBox(height: 2),
-                Text(
-                  '엘리베이터 및 실시간 도착 정보를 확인하세요',
-                  style: TextStyle(
-                    color: EasySubwayAccessibleColors.contentMuted,
-                    fontSize: 11,
+                  SizedBox(height: 2),
+                  Text(
+                    '엘리베이터 및 실시간 도착 정보를 확인하세요',
+                    style: TextStyle(
+                      color: EasySubwayAccessibleColors.contentMuted,
+                      fontSize: 11,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
