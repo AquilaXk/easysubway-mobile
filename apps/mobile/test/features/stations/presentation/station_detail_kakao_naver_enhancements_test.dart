@@ -14,6 +14,8 @@ void main() {
     region: '수도권',
     dataQualityLevel: 'LEVEL_1',
     lastVerifiedAt: '2026-09-27',
+    latitude: 37.302,
+    longitude: 126.865,
     lines: [
       StationSearchLine(
         id: 'seoul-4',
@@ -125,67 +127,78 @@ void main() {
     );
   }
 
-  testWidgets('무단차 수직이동동선 카드가 정상 렌더링되고 전 구간 무단차 이동을 안내한다', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(buildDetailBody());
-    await tester.pumpAndSettle();
-
-    expect(find.text('지상 ↔ 대합실 ↔ 승강장 동선'), findsOneWidget);
-    expect(find.text('전 구간 무단차 이동 가능'), findsOneWidget);
-    expect(find.text('지상 (출구)'), findsOneWidget);
-    expect(find.text('대합실 (개찰구)'), findsOneWidget);
-    expect(find.text('승강장 (탑승)'), findsOneWidget);
-  });
-
-  testWidgets('편의시설 매트릭스가 화장실 개찰구 안, 밖 구분을 정확히 표시한다', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(buildDetailBody());
-    await tester.pumpAndSettle();
-
-    expect(find.text('주요 편의시설 한눈에 보기'), findsOneWidget);
-    expect(find.text('화장실 위치'), findsOneWidget);
-    expect(find.text('개찰구 안, 밖 모두'), findsOneWidget);
-    expect(find.text('장애인 화장실'), findsWidgets);
-    expect(find.text('수유실'), findsWidgets);
-    expect(find.text('이용 가능'), findsOneWidget);
-  });
-
-  testWidgets('출구 카드에 description 행선지 및 연계 안내가 렌더링된다', (tester) async {
-    await tester.pumpWidget(buildDetailBody());
-    await tester.pumpAndSettle();
-
-    expect(find.text('상록수역 공영주차장, 본오동 방면'), findsOneWidget);
-  });
-
-  testWidgets('고객안전실 1-Tap 다이얼 카드가 전화번호와 함께 렌더링된다', (tester) async {
-    tester.view.physicalSize = const Size(800, 2400);
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(tester.view.resetPhysicalSize);
-    addTearDown(tester.view.resetDevicePixelRatio);
-
-    await tester.pumpWidget(buildDetailBody());
-    await tester.pumpAndSettle();
-
-    expect(find.text('고객안전실, 역무실'), findsOneWidget);
-    expect(find.text('고객안전실 (역무실)'), findsOneWidget);
-    expect(
-      find.byKey(const Key('stationSafetyOfficeCallButton-station-sangnoksu')),
-      findsOneWidget,
-    );
-    expect(find.text('고객안전실 전화 걸기 (1577-1234)'), findsOneWidget);
-  });
-
-  testWidgets('출구가 없더라도 시설 정보가 있으면 무단차 동선, 편의시설, 고객안전실 카드가 정상 렌더링된다', (
+  testWidgets('네이버 지도 1:1 표준 출구정보(미니맵 확대, 출구 알약 탭, 장소 정보, 가까운 하차문)가 렌더링되고 슬롭 버튼이 제거된다', (
     tester,
   ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(buildDetailBody());
+    await tester.pumpAndSettle();
+
+    expect(find.text('출구정보'), findsOneWidget);
+    expect(find.text('장소 정보'), findsOneWidget);
+    expect(find.text('상록수역 공영주차장, 본오동 방면'), findsOneWidget);
+    expect(find.text('출구와 가까운 하차문'), findsOneWidget);
+    expect(find.text('반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1'), findsOneWidget);
+    expect(find.byKey(const Key('stationExitPill-exit-1')), findsOneWidget);
+    expect(find.byKey(const Key('stationExitPill-exit-2')), findsOneWidget);
+    expect(
+      find.byKey(const Key('stationExitMapExpandButton')),
+      findsOneWidget,
+    );
+
+    // 잔여 슬롭 버튼 완전 삭제 검증
+    expect(find.text('버스 도착 정보 보기'), findsNothing);
+    expect(find.text('카카오맵에서 보기'), findsNothing);
+    expect(find.text('출구까지 거리'), findsNothing);
+    expect(find.text('도보 길안내'), findsNothing);
+  });
+
+  testWidgets('네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드) 및 하단 액션바가 렌더링된다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(buildDetailBody());
+    await tester.pumpAndSettle();
+
+    expect(find.text('역정보'), findsOneWidget);
+    expect(find.text('시설정보'), findsOneWidget);
+    expect(find.text('플랫폼'), findsOneWidget);
+    expect(find.text('양쪽'), findsWidgets);
+    expect(find.text('화장실'), findsOneWidget);
+    expect(find.text('개찰구 안/밖'), findsOneWidget);
+    expect(find.text('내리는문'), findsOneWidget);
+    expect(find.text('오른쪽'), findsOneWidget);
+    expect(find.text('반대편'), findsOneWidget);
+    expect(find.text('연결됨'), findsOneWidget);
+
+    expect(find.text('편의시설'), findsOneWidget);
+    expect(find.text('자전거보관소'), findsOneWidget);
+    expect(find.text('환승주차장'), findsOneWidget);
+    expect(find.text('유실물센터'), findsOneWidget);
+    expect(find.text('물품보관소'), findsOneWidget);
+
+    expect(find.text('교통약자 시설'), findsOneWidget);
+    expect(find.text('장애인화장실'), findsOneWidget);
+    expect(find.text('엘리베이터'), findsWidgets);
+    expect(find.text('수유실'), findsWidgets);
+    expect(find.text('휠체어 리프트'), findsOneWidget);
+
+    // 하단 고정 액션바 4종 버튼 검증
+    expect(find.text('출발'), findsOneWidget);
+    expect(find.text('도착'), findsOneWidget);
+    expect(find.text('전체 시간표'), findsOneWidget);
+    expect(find.text('첫차·막차'), findsOneWidget);
+  });
+
+  testWidgets('출구 DB가 비어있으면 출구정보를 숨기고 역정보와 하단 액션바만 렌더링된다', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -199,19 +212,15 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('출구 정보'), findsNothing);
-    expect(find.text('시설 정보'), findsOneWidget);
-    expect(find.text('지상 ↔ 대합실 ↔ 승강장 동선'), findsOneWidget);
-    expect(find.text('주요 편의시설 한눈에 보기'), findsOneWidget);
-    expect(find.text('고객안전실, 역무실'), findsOneWidget);
-    expect(
-      find.byKey(const Key('stationSafetyOfficeCallButton-station-sangnoksu')),
-      findsOneWidget,
-    );
-    expect(find.text('고객안전실 전화 걸기 (1577-1234)'), findsOneWidget);
+    expect(find.text('출구정보'), findsNothing);
+    expect(find.text('역정보'), findsOneWidget);
+    expect(find.text('시설정보'), findsOneWidget);
+    expect(find.text('전체 시간표'), findsOneWidget);
   });
 
-  testWidgets('출구와 시설 정보가 모두 비어 있으면 출구 및 시설 섹션을 숨긴다', (tester) async {
+  testWidgets('출구와 시설 정보가 모두 비어있으면 해당 섹션들을 숨기고 하단 액션바만 안정적으로 노출된다', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -222,7 +231,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('출구 정보'), findsNothing);
-    expect(find.text('시설 정보'), findsNothing);
+    expect(find.text('출구정보'), findsNothing);
+    expect(find.text('역정보'), findsNothing);
+    expect(find.text('시설정보'), findsNothing);
+    expect(find.text('전체 시간표'), findsOneWidget);
   });
 }

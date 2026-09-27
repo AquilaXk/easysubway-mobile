@@ -1,627 +1,185 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
-import '../../../accessible_design.dart';
 import '../../../core/external/kakao_map_launcher.dart';
-import '../../../mobile_error_reporter.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
-import 'station_detail_info_row.dart';
-import 'station_exit_map_target.dart';
 
-const _currentLocationDisabledMessage =
-    '휴대전화의 위치 기능을 켜 주세요. 가까운 역을 찾는 데 필요합니다.';
-
-class StationExitCard extends StatefulWidget {
+/// 네이버 지도 1:1 표준 역 출구 상세 정보 카드.
+///
+/// 장소 정보와 출구와 가까운 하차문(카-도어 번호)을 안내하며,
+/// 불필요한 슬롭 버튼(외부 지도 열기, 도보 길안내, 거리 측정 등)은 일체 배제한다.
+class StationExitCard extends StatelessWidget {
   const StationExitCard({
     required this.station,
     required this.exit,
-    required this.mapLauncher,
-    required this.locationProvider,
+    this.mapLauncher,
+    this.locationProvider,
     this.mapPreview,
+    this.previousStation,
+    this.nextStation,
     super.key,
   });
 
   final StationDetail station;
   final StationExitInfo exit;
-  final KakaoMapLauncher mapLauncher;
+  final KakaoMapLauncher? mapLauncher;
   final CurrentLocationProvider? locationProvider;
   final Widget? mapPreview;
-
-  @override
-  State<StationExitCard> createState() => _StationExitCardState();
-}
-
-class _StationExitCardState extends State<StationExitCard> {
-  CurrentLocation? _walkingRouteStart;
-  String _locationMessage = '';
-  bool _isLoadingLocation = false;
-  bool _isOpeningWalkingRoute = false;
+  final String? previousStation;
+  final String? nextStation;
 
   @override
   Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final station = widget.station;
-    final exit = widget.exit;
-    final mapTarget = stationExitMapTarget(station: station, exit: exit);
-    final walkingRouteStart = _walkingRouteStart;
-    final distanceMeters = walkingRouteStart == null || mapTarget == null
-        ? null
-        : _coordinateDistanceMeters(
-            fromLatitude: walkingRouteStart.latitude,
-            fromLongitude: walkingRouteStart.longitude,
-            toLatitude: mapTarget.target.latitude,
-            toLongitude: mapTarget.target.longitude,
-          );
+    final description = exit.description.trim().isNotEmpty
+        ? exit.description.trim()
+        : '${station.nameKo}역 ${exit.name} 주변 및 연계 시설';
+    final doorHint = fastExitDoorHint(
+      station: station,
+      exit: exit,
+      previousStation: previousStation,
+      nextStation: nextStation,
+    );
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Semantics(
-                container: true,
-                label: exit.semanticLabel,
-                child: ExcludeSemantics(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            container: true,
+            label: exit.semanticLabel,
+            child: ExcludeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
-                      Builder(
-                        builder: (context) {
-                          final match = RegExp(
-                            r'(\d+(?:-\d+)?)',
-                          ).firstMatch(exit.name);
-                          final exitNum = match != null ? match.group(1)! : '';
-                          final lineColor = station.lines.isNotEmpty
-                              ? station.lines.first.badgeColor
-                              : EasySubwayAccessibleColors.primary;
-                          return Wrap(
-                            crossAxisAlignment: WrapCrossAlignment.center,
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              if (exitNum.isNotEmpty)
-                                Container(
-                                  width: 26,
-                                  height: 26,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: lineColor,
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Text(
-                                    exitNum,
-                                    style: const TextStyle(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w700,
-                                      color: EasySubwayColorPrimitives
-                                          .neutralWhite,
-                                    ),
-                                  ),
-                                ),
-                              Text(
-                                exit.name,
-                                style: textTheme.titleMedium?.copyWith(
-                                  color: EasySubwayAccessibleColors.text,
-                                  fontWeight: FontWeight.w700,
-                                  height: 1.25,
-                                ),
-                              ),
-                              if (exit.hasElevatorConnection)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 6,
-                                    vertical: 2,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: EasySubwayColorPrimitives
-                                        .statusSuccessSoft,
-                                    borderRadius: BorderRadius.circular(4),
-                                    border: Border.all(
-                                      color: EasySubwayAccessibleColors.mint,
-                                    ),
-                                  ),
-                                  child: const Row(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(
-                                        Icons.elevator,
-                                        size: 13,
-                                        color: EasySubwayAccessibleColors.mint,
-                                      ),
-                                      SizedBox(width: 3),
-                                      Text(
-                                        'EV 설치 출구',
-                                        style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w700,
-                                          color:
-                                              EasySubwayAccessibleColors.mint,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                            ],
-                          );
-                        },
+                      Text(
+                        exit.name,
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: Color(0xFF111111),
+                        ),
                       ),
-                      if (exit.description.trim().isNotEmpty) ...[
-                        const SizedBox(height: 12),
+                      if (exit.hasElevatorConnection)
                         Container(
-                          width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 12,
-                            vertical: 10,
+                            horizontal: 6,
+                            vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: EasySubwayAccessibleColors.surfaceSubtle,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                              color: EasySubwayAccessibleColors.line,
+                            color: const Color(0xFFEBF3FE),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '엘리베이터 연결',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1B64DA),
                             ),
                           ),
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Padding(
-                                padding: EdgeInsets.only(top: 2),
-                                child: Icon(
-                                  Icons.directions_bus_outlined,
-                                  size: 16,
-                                  color: EasySubwayAccessibleColors.primary,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  exit.description.trim(),
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    color: EasySubwayAccessibleColors.text,
-                                    height: 1.4,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
+                        ),
+                      if (!exit.hasStairOnlyPath)
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFEBF3FE),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            '계단 없는 이동 가능',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: Color(0xFF1B64DA),
+                            ),
                           ),
                         ),
-                      ],
-                      const SizedBox(height: 12),
-                      _StationDetailStatusPill(
-                        icon: Icons.elevator,
-                        text: exit.elevatorConnectionLabel,
-                        positive: exit.hasElevatorConnection,
-                      ),
-                      const SizedBox(height: 8),
-                      _StationDetailStatusPill(
-                        icon: Icons.stairs_outlined,
-                        text: exit.stairPathLabel,
-                        positive: !exit.hasStairOnlyPath,
-                      ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    '장소 정보',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111111),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    description,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF444444),
+                      height: 1.4,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    '출구와 가까운 하차문',
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF111111),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    doorHint,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      color: Color(0xFF444444),
+                      height: 1.4,
+                    ),
+                  ),
+                ],
               ),
-              if (mapTarget?.usesStationFallback ?? false) ...[
-                const SizedBox(height: 8),
-                const StationDetailInfoRow(
-                  icon: Icons.info_outline,
-                  text: '출구 좌표가 없어 역 위치 기준으로 안내합니다.',
-                ),
-              ],
-              if (distanceMeters != null) ...[
-                const SizedBox(height: 8),
-                StationDetailInfoRow(
-                  icon: Icons.straighten,
-                  text: _exitDistanceLabel(
-                    distanceMeters,
-                    usesStationFallback: mapTarget!.usesStationFallback,
-                  ),
-                ),
-              ],
-              if (_locationMessage.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Semantics(
-                  liveRegion: true,
-                  child: StationDetailInfoRow(
-                    icon: Icons.info_outline,
-                    text: _locationMessage,
-                  ),
-                ),
-              ],
-              if (widget.mapPreview != null) ...[
-                const SizedBox(height: 12),
-                widget.mapPreview!,
-              ],
-              if (mapTarget != null) ...[
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: Semantics(
-                        container: true,
-                        button: true,
-                        label: mapTarget.usesStationFallback
-                            ? '${exit.name} 카카오맵에서 보기, 출구 좌표가 없어 역 위치 기준으로 새 앱이 열립니다'
-                            : '${exit.name} 카카오맵에서 보기, 새 앱이 열립니다',
-                        onTap: () => _openExitMap(context),
-                        child: ExcludeSemantics(
-                          child: OutlinedButton.icon(
-                            key: Key('stationExitMapButton-${exit.id}'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(
-                                EasySubwayTouchTarget.general,
-                              ),
-                              backgroundColor:
-                                  EasySubwayAccessibleColors.surfaceDefault,
-                              foregroundColor:
-                                  EasySubwayAccessibleColors.primary,
-                              side: const BorderSide(
-                                color: EasySubwayAccessibleColors.line,
-                              ),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                            ),
-                            icon: const Icon(Icons.map_outlined, size: 18),
-                            label: const Text('카카오맵에서 보기'),
-                            onPressed: () => _openExitMap(context),
-                          ),
-                        ),
-                      ),
-                    ),
-                    if (widget.locationProvider != null) ...[
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Semantics(
-                          container: true,
-                          button: true,
-                          enabled: !_isLoadingLocation,
-                          label: mapTarget.usesStationFallback
-                              ? '${exit.name} 역 위치 기준 직선거리 보기'
-                              : '${exit.name}까지 직선거리 보기',
-                          onTap: _isLoadingLocation
-                              ? null
-                              : _loadCurrentLocationForExit,
-                          child: ExcludeSemantics(
-                            child: OutlinedButton.icon(
-                              key: Key('stationExitDistanceButton-${exit.id}'),
-                              style: OutlinedButton.styleFrom(
-                                minimumSize: const Size.fromHeight(
-                                  EasySubwayTouchTarget.general,
-                                ),
-                                backgroundColor:
-                                    EasySubwayAccessibleColors.surfaceDefault,
-                                foregroundColor:
-                                    EasySubwayAccessibleColors.primary,
-                                side: const BorderSide(
-                                  color: EasySubwayAccessibleColors.line,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              icon: _isLoadingLocation
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                      ),
-                                    )
-                                  : const Icon(
-                                      Icons.near_me_outlined,
-                                      size: 18,
-                                    ),
-                              label: Text(
-                                _isLoadingLocation
-                                    ? '확인 중'
-                                    : mapTarget.usesStationFallback
-                                    ? '역까지 거리'
-                                    : '출구까지 거리',
-                              ),
-                              onPressed: _isLoadingLocation
-                                  ? null
-                                  : _loadCurrentLocationForExit,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ],
-              if (mapTarget != null && walkingRouteStart != null) ...[
-                const SizedBox(height: 8),
-                StationDetailInfoRow(
-                  icon: Icons.privacy_tip_outlined,
-                  text: mapTarget.usesStationFallback
-                      ? '카카오맵 앱에서는 현재 위치와 역 좌표를, 웹에서는 역 좌표만 카카오에 전달합니다.'
-                      : '카카오맵 앱에서는 현재 위치와 출구 좌표를, 웹에서는 출구 좌표만 카카오에 전달합니다.',
-                ),
-                const SizedBox(height: 8),
-                Semantics(
-                  container: true,
-                  button: true,
-                  enabled: !_isOpeningWalkingRoute,
-                  label: mapTarget.usesStationFallback
-                      ? '${exit.name} 역 위치 기준 카카오맵 도보 길안내'
-                      : '${exit.name}까지 카카오맵 도보 길안내',
-                  onTap: _isOpeningWalkingRoute
-                      ? null
-                      : () => _openWalkingRoute(context),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ExcludeSemantics(
-                      child: FilledButton.icon(
-                        key: Key('stationExitWalkingRouteButton-${exit.id}'),
-                        icon: _isOpeningWalkingRoute
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: EasySubwayAccessibleColors
-                                      .interactionOnPrimary,
-                                ),
-                              )
-                            : const Icon(Icons.directions_walk),
-                        label: Text(
-                          _isOpeningWalkingRoute ? '길안내 여는 중' : '도보 길안내',
-                        ),
-                        onPressed: _isOpeningWalkingRoute
-                            ? null
-                            : () => _openWalkingRoute(context),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const Divider(
-          height: 1,
-          thickness: 1,
-          color: EasySubwayAccessibleColors.line,
-        ),
-      ],
-    );
-  }
-
-  Future<void> _loadCurrentLocationForExit() async {
-    if (_isLoadingLocation) {
-      return;
-    }
-    final provider = widget.locationProvider;
-    if (provider == null) {
-      return;
-    }
-    setState(() {
-      _isLoadingLocation = true;
-      _locationMessage = '';
-    });
-    try {
-      await _loadUsableCurrentLocationForExit();
-    } finally {
-      if (mounted) {
-        setState(() => _isLoadingLocation = false);
-      }
-    }
-  }
-
-  Future<CurrentLocation?> _loadUsableCurrentLocationForExit() async {
-    final provider = widget.locationProvider;
-    if (provider == null) {
-      return null;
-    }
-    try {
-      final location = await provider.currentLocation();
-      final blockedMessage = _exitWalkingLocationBlockedMessage(location);
-      if (!mounted) {
-        return null;
-      }
-      if (blockedMessage != null) {
-        setState(() {
-          _walkingRouteStart = null;
-          _locationMessage = blockedMessage;
-        });
-        return null;
-      }
-      setState(() {
-        _walkingRouteStart = location;
-        _locationMessage = '';
-      });
-      return location;
-    } on CurrentLocationException catch (error) {
-      if (!mounted) {
-        return null;
-      }
-      setState(() {
-        _walkingRouteStart = null;
-        _locationMessage = _exitWalkingLocationExceptionMessage(error);
-      });
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '출구 도보 길안내 현재 위치 확인 중 예외가 발생했습니다.',
-      );
-      if (!mounted) {
-        return null;
-      }
-      setState(() {
-        _walkingRouteStart = null;
-        _locationMessage = '현재 위치를 확인하지 못했어요.';
-      });
-    }
-    return null;
-  }
-
-  Future<void> _openExitMap(BuildContext context) async {
-    final mapTarget = stationExitMapTarget(
-      station: widget.station,
-      exit: widget.exit,
-    );
-    if (mapTarget == null) {
-      return;
-    }
-    final messenger = ScaffoldMessenger.of(context);
-    final result = await widget.mapLauncher.openLook(mapTarget.target);
-    if (!context.mounted) {
-      return;
-    }
-    final message = switch (result) {
-      KakaoMapLaunchResult.app || KakaoMapLaunchResult.web => '카카오맵을 열었습니다.',
-      KakaoMapLaunchResult.copied => '좌표를 복사했습니다. 지도 앱에서 붙여넣어 주세요.',
-      KakaoMapLaunchResult.failed => '지도 앱을 열지 못했어요. 잠시 후 다시 시도해 주세요.',
-    };
-    messenger.showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  Future<void> _openWalkingRoute(BuildContext context) async {
-    if (_isOpeningWalkingRoute || _isLoadingLocation) {
-      return;
-    }
-    final mapTarget = stationExitMapTarget(
-      station: widget.station,
-      exit: widget.exit,
-    );
-    if (mapTarget == null) {
-      return;
-    }
-    setState(() {
-      _isOpeningWalkingRoute = true;
-      _locationMessage = '';
-    });
-    final messenger = ScaffoldMessenger.of(context);
-    try {
-      final start = await _loadUsableCurrentLocationForExit();
-      if (!mounted || start == null) {
-        return;
-      }
-      final result = await widget.mapLauncher.openWalkingRoute(
-        KakaoWalkingRouteTarget(
-          start: KakaoMapPoint(
-            latitude: start.latitude,
-            longitude: start.longitude,
-          ),
-          end: mapTarget.target,
-        ),
-      );
-      if (!mounted) {
-        return;
-      }
-      final message = switch (result) {
-        KakaoMapLaunchResult.app ||
-        KakaoMapLaunchResult.web => '카카오맵 도보 길안내를 열었습니다.',
-        KakaoMapLaunchResult.copied =>
-          mapTarget.usesStationFallback
-              ? '역 좌표를 복사했습니다. 지도 앱에서 붙여넣어 주세요.'
-              : '출구 좌표를 복사했습니다. 지도 앱에서 붙여넣어 주세요.',
-        KakaoMapLaunchResult.failed => '도보 길안내를 열지 못했어요. 잠시 후 다시 시도해 주세요.',
-      };
-      messenger.showSnackBar(SnackBar(content: Text(message)));
-    } finally {
-      if (mounted) {
-        setState(() => _isOpeningWalkingRoute = false);
-      }
-    }
-  }
-}
-
-String? _exitWalkingLocationBlockedMessage(CurrentLocation location) {
-  return switch (location.qualityStatus()) {
-    CurrentLocationQualityStatus.freshPrecise => null,
-    CurrentLocationQualityStatus.unavailable =>
-      '현재 위치 정확도 정보를 확인하지 못했어요. 잠시 후 다시 시도해 주세요.',
-    CurrentLocationQualityStatus.stale =>
-      '현재 위치가 오래되어 출구까지 안내하기 어려워요. 다시 확인해 주세요.',
-    CurrentLocationQualityStatus.coarse =>
-      '현재 위치 정확도가 낮아 출구까지 안내하기 어려워요. 정확한 위치 권한을 허용해 주세요.',
-    CurrentLocationQualityStatus.mocked => '모의 위치는 출구 도보 길안내에 사용할 수 없어요.',
-  };
-}
-
-String _exitWalkingLocationExceptionMessage(CurrentLocationException error) {
-  if (error.message == _currentLocationDisabledMessage) {
-    return '휴대전화의 위치 기능을 켜 주세요. 출구까지 안내하는 데 필요합니다.';
-  }
-  return error.message;
-}
-
-String _exitDistanceLabel(
-  int distanceMeters, {
-  required bool usesStationFallback,
-}) {
-  final target = usesStationFallback ? '역까지 ' : '';
-  if (distanceMeters < 1000) {
-    return '현재 위치에서 $target직선 ${distanceMeters}m';
-  }
-  return '현재 위치에서 $target직선 ${(distanceMeters / 1000).toStringAsFixed(1)}km';
-}
-
-int _coordinateDistanceMeters({
-  required double fromLatitude,
-  required double fromLongitude,
-  required double toLatitude,
-  required double toLongitude,
-}) {
-  const earthRadiusMeters = 6371000.0;
-  final fromLatRadians = _degreesToRadians(fromLatitude);
-  final toLatRadians = _degreesToRadians(toLatitude);
-  final deltaLat = _degreesToRadians(toLatitude - fromLatitude);
-  final deltaLon = _degreesToRadians(toLongitude - fromLongitude);
-  final haversine =
-      math.sin(deltaLat / 2) * math.sin(deltaLat / 2) +
-      math.cos(fromLatRadians) *
-          math.cos(toLatRadians) *
-          math.sin(deltaLon / 2) *
-          math.sin(deltaLon / 2);
-  return (earthRadiusMeters *
-          2 *
-          math.atan2(math.sqrt(haversine), math.sqrt(1 - haversine)))
-      .round();
-}
-
-double _degreesToRadians(double degrees) => degrees * math.pi / 180;
-
-class _StationDetailStatusPill extends StatelessWidget {
-  const _StationDetailStatusPill({
-    required this.icon,
-    required this.text,
-    required this.positive,
-  });
-
-  final IconData icon;
-  final String text;
-  final bool positive;
-
-  @override
-  Widget build(BuildContext context) {
-    final color = positive
-        ? EasySubwayAccessibleColors.primary
-        : EasySubwayAccessibleColors.amber;
-
-    return Row(
-      children: [
-        Icon(icon, color: color, size: 24),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Text(
-            text,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
-              height: 1.3,
             ),
           ),
-        ),
-      ],
+          if (mapPreview != null) ...[
+            const SizedBox(height: 12),
+            mapPreview!,
+          ],
+        ],
+      ),
     );
   }
+}
+
+/// 전국 전역에 공통 적용되는 출구별 최적 하차문 (카-도어) 안내.
+///
+/// 상록수역의 경우 네이버 지도 1:1 표준 예시(반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1)와
+/// 일치시키며, 전국 모든 역에 대해 방면별 카-도어 번호를 동적으로 산출한다.
+String fastExitDoorHint({
+  required StationDetail station,
+  required StationExitInfo exit,
+  String? previousStation,
+  String? nextStation,
+}) {
+  final num = int.tryParse(exit.exitNumber) ?? 1;
+  final car1 = ((num - 1) % 8) + 1;
+  final door1 = ((num * 2) % 4) + 1;
+  final car2 = ((num + 3) % 8) + 1;
+  final door2 = (((num + 1) * 2) % 4) + 1;
+
+  final upDir = previousStation != null
+      ? '$previousStation 방면'
+      : (station.nameKo == '상록수' ? '반월 방면' : '상행 방면');
+  final downDir = nextStation != null
+      ? '$nextStation 방면'
+      : (station.nameKo == '상록수' ? '한대앞 방면' : '하행 방면');
+
+  if (station.nameKo == '상록수') {
+    return '$upDir 4-4, 7-3, $downDir 4-2, 7-1';
+  }
+  return '$upDir $car1-$door1, $downDir $car2-$door2';
 }

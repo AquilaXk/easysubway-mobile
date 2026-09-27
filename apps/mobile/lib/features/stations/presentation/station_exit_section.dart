@@ -1,8 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../../accessible_design.dart';
-import '../../../core/external/kakao_map_configuration.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
@@ -18,13 +16,20 @@ typedef StationExitMapPreviewBuilder =
       required VoidCallback onOpenSelected,
     });
 
+/// 네이버 지도 1:1 표준 출구정보 섹션.
+///
+/// 미니 지도 타일(카카오맵 SDK 뷰 + 우측 상단 ⤢ 확대 버튼),
+/// 가로 스크롤 출구 알약 탭 (Horizontal Pill Tabs),
+/// 선택된 출구의 상세 정보(장소 정보 + 가까운 하차문)를 통합 제공한다.
 class StationExitSection extends StatefulWidget {
   const StationExitSection({
     required this.station,
     required this.exits,
-    required this.mapLauncher,
-    required this.locationProvider,
+    this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
+    this.locationProvider,
     this.mapPreviewBuilder,
+    this.previousStation,
+    this.nextStation,
     super.key,
   }) : assert(exits.length > 0);
 
@@ -33,6 +38,8 @@ class StationExitSection extends StatefulWidget {
   final KakaoMapLauncher mapLauncher;
   final CurrentLocationProvider? locationProvider;
   final StationExitMapPreviewBuilder? mapPreviewBuilder;
+  final String? previousStation;
+  final String? nextStation;
 
   @override
   State<StationExitSection> createState() => _StationExitSectionState();
@@ -57,201 +64,91 @@ class _StationExitSectionState extends State<StationExitSection> {
   Widget build(BuildContext context) {
     final selectedExit = widget.exits[_selectedIndex];
     final previewBuilder = widget.mapPreviewBuilder;
-    final showPreview =
-        canShowStationExitMapPreview(
-          station: widget.station,
-          exits: widget.exits,
-        ) &&
-        (previewBuilder != null ||
-            (kakaoMapNativeAppKey.trim().isNotEmpty && kakaoMapSdkInitialized));
-
-    final Widget? previewWidget = showPreview
-        ? (previewBuilder != null
-              ? previewBuilder(
-                  station: widget.station,
-                  exits: widget.exits,
-                  selectedExitId: selectedExit.id,
-                  onOpenSelected: () => _openSelectedExit(context),
-                )
-              : StationExitMapPreview(
-                  station: widget.station,
-                  exits: widget.exits,
-                  selectedExitId: selectedExit.id,
-                  onOpenSelected: () => _openSelectedExit(context),
-                ))
-        : null;
+    final showPreview = canShowStationExitMapPreview(
+      station: widget.station,
+      exits: widget.exits,
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (previewWidget != null) ...[
-          previewWidget,
-          const SizedBox(height: 12),
-        ],
-        if (widget.exits.length > 1) ...[
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (var i = 0; i < widget.exits.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 8),
-                  _ExitChip(
-                    key: Key('stationExitChip-${widget.exits[i].id}'),
-                    exit: widget.exits[i],
-                    isSelected: i == _selectedIndex,
-                    selectedColor: widget.station.lines.isNotEmpty
-                        ? widget.station.lines.first.badgeColor
-                        : null,
-                    onTap: () => _select(i),
-                  ),
-                ],
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-        ],
-        Container(
-          constraints: const BoxConstraints(minHeight: 48),
-          decoration: BoxDecoration(
-            color: EasySubwayAccessibleColors.surfaceDefault,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: EasySubwayAccessibleColors.line),
-          ),
-          child: Row(
+        if (showPreview) ...[
+          Stack(
             children: [
-              _navigationButton(
-                key: const Key('stationExitPreviousButton'),
-                icon: Icons.chevron_left,
-                semanticLabel: _selectedIndex == 0
-                    ? '이전 출구 없음'
-                    : '${widget.exits[_selectedIndex - 1].name} 보기',
-                onPressed: _selectedIndex == 0
-                    ? null
-                    : () => _select(_selectedIndex - 1),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: SizedBox(
+                  height: 180,
+                  child: previewBuilder != null
+                      ? previewBuilder(
+                          station: widget.station,
+                          exits: widget.exits,
+                          selectedExitId: selectedExit.id,
+                          onOpenSelected: () => _openSelectedExit(context),
+                        )
+                      : StationExitMapPreview(
+                          station: widget.station,
+                          exits: widget.exits,
+                          selectedExitId: selectedExit.id,
+                          onOpenSelected: () => _openSelectedExit(context),
+                        ),
+                ),
               ),
-              Expanded(
-                child: Semantics(
-                  label:
-                      '출구 선택, 전체 ${widget.exits.length}개 중 ${_selectedIndex + 1}번째',
-                  value: selectedExit.name,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 48),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        key: const Key('stationExitSelector'),
-                        isExpanded: true,
-                        value: selectedExit.id,
-                        icon: const Padding(
-                          padding: EdgeInsets.only(right: 8),
-                          child: Icon(
-                            Icons.keyboard_arrow_down,
-                            size: 20,
-                            color: EasySubwayAccessibleColors.secondaryText,
-                          ),
-                        ),
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: EasySubwayAccessibleColors.text,
-                          fontWeight: FontWeight.w700,
-                        ),
-                        items: [
-                          for (final exit in widget.exits)
-                            DropdownMenuItem(
-                              value: exit.id,
-                              child: Row(
-                                children: [
-                                  Text(
-                                    exit.name,
-                                    style: const TextStyle(
-                                      fontWeight: FontWeight.w700,
-                                    ),
-                                  ),
-                                  if (exit.hasElevatorConnection) ...[
-                                    const SizedBox(width: 6),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 5,
-                                        vertical: 1,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: EasySubwayAccessibleColors
-                                            .surfaceBrandChrome,
-                                        borderRadius: BorderRadius.circular(4),
-                                        border: Border.all(
-                                          color:
-                                              EasySubwayAccessibleColors.mint,
-                                        ),
-                                      ),
-                                      child: const Text(
-                                        'EV',
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.w700,
-                                          color:
-                                              EasySubwayAccessibleColors.mint,
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                ],
-                              ),
-                            ),
-                        ],
-                        onChanged: (id) {
-                          if (id == null) {
-                            return;
-                          }
-                          _select(
-                            widget.exits.indexWhere((exit) => exit.id == id),
-                          );
-                        },
+              Positioned(
+                top: 8,
+                right: 8,
+                child: Material(
+                  color: Colors.white,
+                  shape: const CircleBorder(),
+                  elevation: 2,
+                  child: InkWell(
+                    key: const Key('stationExitMapExpandButton'),
+                    customBorder: const CircleBorder(),
+                    onTap: () => _openSelectedExit(context),
+                    child: const Padding(
+                      padding: EdgeInsets.all(6),
+                      child: Icon(
+                        Icons.open_in_full,
+                        size: 16,
+                        color: Color(0xFF333333),
                       ),
                     ),
                   ),
                 ),
               ),
-              _navigationButton(
-                key: const Key('stationExitNextButton'),
-                icon: Icons.chevron_right,
-                semanticLabel: _selectedIndex == widget.exits.length - 1
-                    ? '다음 출구 없음'
-                    : '${widget.exits[_selectedIndex + 1].name} 보기',
-                onPressed: _selectedIndex == widget.exits.length - 1
-                    ? null
-                    : () => _select(_selectedIndex + 1),
-              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+        ],
+        SingleChildScrollView(
+          key: const Key('stationExitPillTabs'),
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: Row(
+            children: [
+              for (var i = 0; i < widget.exits.length; i++) ...[
+                if (i > 0) const SizedBox(width: 8),
+                _ExitPillTab(
+                  key: Key('stationExitPill-${widget.exits[i].id}'),
+                  exit: widget.exits[i],
+                  isSelected: i == _selectedIndex,
+                  onTap: () => _select(i),
+                ),
+              ],
             ],
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 12),
         StationExitCard(
           key: ValueKey(selectedExit.id),
           station: widget.station,
           exit: selectedExit,
           mapLauncher: widget.mapLauncher,
           locationProvider: widget.locationProvider,
+          previousStation: widget.previousStation,
+          nextStation: widget.nextStation,
         ),
       ],
-    );
-  }
-
-  Widget _navigationButton({
-    required Key key,
-    required IconData icon,
-    required String semanticLabel,
-    required VoidCallback? onPressed,
-  }) {
-    return Semantics(
-      button: true,
-      enabled: onPressed != null,
-      label: semanticLabel,
-      child: ExcludeSemantics(
-        child: IconButton(
-          key: key,
-          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
-          onPressed: onPressed,
-          icon: Icon(icon),
-        ),
-      ),
     );
   }
 
@@ -284,143 +181,76 @@ class _StationExitSectionState extends State<StationExitSection> {
   }
 }
 
-class _ExitChip extends StatelessWidget {
-  const _ExitChip({
+class _ExitPillTab extends StatelessWidget {
+  const _ExitPillTab({
     required this.exit,
     required this.isSelected,
     required this.onTap,
-    this.selectedColor,
     super.key,
   });
 
   final StationExitInfo exit;
   final bool isSelected;
   final VoidCallback onTap;
-  final Color? selectedColor;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final activeColor =
-        selectedColor ?? EasySubwayAccessibleColors.interactionPrimary;
-    final isElevator = exit.hasElevatorConnection;
-    final match = RegExp(r'(\d+(?:-\d+)?)').firstMatch(exit.name);
-    final exitNum = match != null ? match.group(1)! : '';
-
     return Semantics(
       button: true,
       selected: isSelected,
-      label: '${exit.name}${isElevator ? ', 엘리베이터 이용 가능' : ''}',
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 40, minWidth: 54),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? activeColor
-                : EasySubwayAccessibleColors.surfaceSubtle,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? activeColor
-                  : EasySubwayAccessibleColors.borderSubtle,
-              width: isSelected ? 1.5 : 1.0,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (exitNum.isNotEmpty) ...[
+      label: '${exit.exitNumber}번 출구',
+      child: Material(
+        color: isSelected ? Colors.white : const Color(0xFFF4F6F8),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: isSelected
+              ? const BorderSide(color: Colors.black, width: 1.5)
+              : BorderSide.none,
+        ),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(24),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 48),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Container(
                   width: 22,
                   height: 22,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isSelected
-                        ? EasySubwayColorPrimitives.neutralWhite.withValues(
-                            alpha: 0.25,
-                          )
-                        : EasySubwayAccessibleColors.surfaceBrandChrome,
-                    border: Border.all(
-                      color: isSelected
-                          ? EasySubwayColorPrimitives.neutralWhite.withValues(
-                              alpha: 0.7,
-                            )
-                          : EasySubwayAccessibleColors.borderSubtle,
-                    ),
+                        ? const Color(0xFFFFCD00)
+                        : const Color(0xFFE5E8EB),
                   ),
                   alignment: Alignment.center,
                   child: Text(
-                    exitNum,
-                    style: theme.textTheme.bodySmall?.copyWith(
-                      color: isSelected
-                          ? EasySubwayColorPrimitives.neutralWhite
-                          : EasySubwayAccessibleColors.contentPrimary,
-                      fontWeight: FontWeight.w700,
+                    exit.exitNumber,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight:
+                          isSelected ? FontWeight.w800 : FontWeight.w700,
+                      color:
+                          isSelected ? Colors.black : const Color(0xFF888888),
                     ),
                   ),
                 ),
-                const SizedBox(width: 6),
-              ],
-              Text(
-                exit.name,
-                style: theme.textTheme.bodyMedium?.copyWith(
-                  color: isSelected
-                      ? EasySubwayColorPrimitives.neutralWhite
-                      : EasySubwayAccessibleColors.contentPrimary,
-                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
-                ),
-              ),
-              if (isElevator) ...[
-                const SizedBox(width: 6),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 4,
-                    vertical: 1,
-                  ),
-                  decoration: BoxDecoration(
+                const SizedBox(width: 4),
+                Text(
+                  '번',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight:
+                        isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
-                        ? EasySubwayColorPrimitives.neutralWhite.withValues(
-                            alpha: 0.2,
-                          )
-                        : EasySubwayAccessibleColors.surfaceBrandChrome,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(
-                      color: isSelected
-                          ? EasySubwayColorPrimitives.neutralWhite.withValues(
-                              alpha: 0.8,
-                            )
-                          : EasySubwayAccessibleColors.mint,
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.elevator,
-                        size: 12,
-                        color: isSelected
-                            ? EasySubwayColorPrimitives.neutralWhite
-                            : EasySubwayAccessibleColors.mint,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        'EV',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: isSelected
-                              ? EasySubwayColorPrimitives.neutralWhite
-                              : EasySubwayAccessibleColors.mint,
-                        ),
-                      ),
-                    ],
+                        ? const Color(0xFF111111)
+                        : const Color(0xFF888888),
                   ),
                 ),
               ],
-            ],
+            ),
           ),
         ),
       ),

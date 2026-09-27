@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
@@ -10,16 +9,14 @@ import '../../../mobile_error_reporter.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/domain/route_draft.dart';
-import '../data/server_station_timetable_repository.dart';
 import '../application/station_detail_controller.dart';
+import '../data/server_station_timetable_repository.dart';
 import '../domain/station_line.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
 import 'station_detail_route_actions.dart';
 import 'station_exit_section.dart';
 import 'station_facility_card.dart';
-import 'station_facility_status_summary.dart';
-import 'station_info_basis_disclosure.dart';
 import 'station_layout_summary.dart';
 import 'station_line_badges.dart';
 import 'station_realtime_summary.dart';
@@ -38,10 +35,11 @@ class StationDetailNeighbor {
   String get displayName => nameKo.endsWith('역') ? nameKo : '$nameKo역';
 }
 
-/// 역 상세 공통 본문. 검색·즐겨찾기 시트와 노선도 확장(PR-B)이 공유한다.
+/// 전국 전역에 공통 적용되는 네이버 지도 1:1 표준 역 상세 화면 본문.
 ///
-/// IA(#2436): 맥락 → 지금 열차 → 이용하기 → 출구 → 시설 → 주소·연락처(있을 때)
-/// → 안내·출처 → 광고. 카카오버스류 배너는 넣지 않는다.
+/// 특정 역에 하드코딩되지 않고 [StationDetail], [StationFacilityInfo], [StationExitInfo]
+/// 도메인 데이터에 기반하여 역정보(시설정보·편의시설·교통약자 시설), 출구정보,
+/// 하단 고정 액션바([출발], [도착], [전체 시간표], [첫차·막차])를 표준 규격으로 렌더링한다.
 class StationDetailBody extends StatelessWidget {
   const StationDetailBody({
     required this.state,
@@ -53,6 +51,7 @@ class StationDetailBody extends StatelessWidget {
     this.locationProvider,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     this.timetableRepository,
+    this.mapPreviewBuilder,
     this.showContextChrome = false,
     this.showRealtimeSection = true,
     this.onClose,
@@ -64,6 +63,7 @@ class StationDetailBody extends StatelessWidget {
   });
 
   final StationDetailState state;
+  final StationExitMapPreviewBuilder? mapPreviewBuilder;
   final VoidCallback onRetryRealtime;
   final Future<void> Function(FacilityReportTarget target) onOpenFacilityReport;
   final StationFavoriteToggleController? favoriteController;
@@ -73,9 +73,6 @@ class StationDetailBody extends StatelessWidget {
   final KakaoMapLauncher mapLauncher;
   final StationTimetableRepository? timetableRepository;
   final bool showContextChrome;
-
-  /// false면 「지금 열차」블록을 생략한다. 노선도 확장처럼 상단에
-  /// 실시간/시간표 패널을 이미 붙인 셸에서 중복·실패 카드 교체를 막는다.
   final bool showRealtimeSection;
   final VoidCallback? onClose;
   final StationDetailNeighbor? previousStation;
@@ -99,8 +96,6 @@ class StationDetailBody extends StatelessWidget {
         detail: state.detail!,
         exits: state.exits,
         facilities: state.prioritizedFacilities,
-        facilityAttentionSummary: state.facilityAttentionSummary,
-        facilityAttentionSemanticLabel: state.facilityAttentionSemanticLabel,
         layoutSummaryItems: state.layoutSummaryItems,
         layoutSummarySemanticLabel: state.layoutSummarySemanticLabel,
         realtimeSnapshot: state.realtimeSnapshot,
@@ -112,6 +107,7 @@ class StationDetailBody extends StatelessWidget {
         locationProvider: locationProvider,
         mapLauncher: mapLauncher,
         timetableRepository: timetableRepository,
+        mapPreviewBuilder: mapPreviewBuilder,
         showContextChrome: showContextChrome,
         showRealtimeSection: showRealtimeSection,
         onClose: onClose,
@@ -152,8 +148,6 @@ class _StationDetailContent extends StatelessWidget {
     required this.detail,
     required this.exits,
     required this.facilities,
-    required this.facilityAttentionSummary,
-    required this.facilityAttentionSemanticLabel,
     required this.layoutSummaryItems,
     required this.layoutSummarySemanticLabel,
     required this.realtimeSnapshot,
@@ -165,6 +159,7 @@ class _StationDetailContent extends StatelessWidget {
     required this.locationProvider,
     required this.mapLauncher,
     required this.timetableRepository,
+    this.mapPreviewBuilder,
     required this.showContextChrome,
     required this.showRealtimeSection,
     required this.onClose,
@@ -177,8 +172,6 @@ class _StationDetailContent extends StatelessWidget {
   final StationDetail detail;
   final List<StationExitInfo> exits;
   final List<StationFacilityInfo> facilities;
-  final String facilityAttentionSummary;
-  final String facilityAttentionSemanticLabel;
   final List<StationLayoutSummaryItem> layoutSummaryItems;
   final String layoutSummarySemanticLabel;
   final RealtimeSnapshot realtimeSnapshot;
@@ -190,6 +183,7 @@ class _StationDetailContent extends StatelessWidget {
   final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
   final StationTimetableRepository? timetableRepository;
+  final StationExitMapPreviewBuilder? mapPreviewBuilder;
   final bool showContextChrome;
   final bool showRealtimeSection;
   final VoidCallback? onClose;
@@ -200,7 +194,6 @@ class _StationDetailContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 카카오식 IA(#2436): 지금 열차 → 이용하기 → 출구 → 시설 → 안내·출처 → 광고.
     final primaryChildren = <Widget>[
       if (showContextChrome) ...[
         _StationDetailContextChrome(
@@ -224,73 +217,63 @@ class _StationDetailContent extends StatelessWidget {
         ),
         const SizedBox(height: 20),
       ],
-      const _StationDetailSectionTitle(title: '이용하기'),
-      const SizedBox(height: 12),
-      StationDetailRouteActions(
-        detail: detail,
-        routeDraftController: routeDraftController,
-        favoriteController: favoriteController,
-      ),
-      const SizedBox(height: 12),
-      _StationTimetableEntry(
-        detail: detail,
-        repository: timetableRepository,
-        previousStation: previousStation?.nameKo,
-        nextStation: nextStation?.nameKo,
-      ),
+      if (favoriteController != null) ...[
+        StationDetailRouteActions(
+          detail: detail,
+          routeDraftController: null,
+          favoriteController: favoriteController,
+        ),
+        const SizedBox(height: 16),
+      ],
+      if (timetableRepository != null) ...[
+        _StationTimetableEntry(
+          detail: detail,
+          repository: timetableRepository,
+          previousStation: previousStation?.nameKo,
+          nextStation: nextStation?.nameKo,
+        ),
+        const SizedBox(height: 16),
+      ],
     ];
 
     final hasExits = exits.isNotEmpty;
-    final hasFacilities =
-        facilities.isNotEmpty || facilityAttentionSummary.isNotEmpty;
+    final hasFacilities = facilities.isNotEmpty;
 
     final detailChildren = <Widget>[
       if (hasExits) ...[
-        const _StationDetailSectionTitle(title: '출구 정보'),
-        const SizedBox(height: 8),
-        StationExitSection(
-          key: ValueKey('stationExitSection-${detail.id}'),
+        _StationNaverExitSection(
           station: detail,
           exits: exits,
           mapLauncher: mapLauncher,
           locationProvider: locationProvider,
+          mapPreviewBuilder: mapPreviewBuilder,
+          previousStation: previousStation?.nameKo,
+          nextStation: nextStation?.nameKo,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
       ],
       if (hasFacilities) ...[
-        const _StationDetailSectionTitle(title: '시설 정보'),
-        const SizedBox(height: 8),
-        if (facilities.length >= 2 || exits.isNotEmpty) ...[
-          _StationBarrierFreeRouteCard(
-            station: detail,
-            exits: exits,
-            facilities: facilities,
-          ),
-          const SizedBox(height: 12),
-        ],
-        if (facilities.length >= 2) ...[
-          _StationFacilityMatrixCard(station: detail, facilities: facilities),
-          const SizedBox(height: 12),
-        ],
-        if (facilityAttentionSummary.isNotEmpty) ...[
-          StationFacilityStatusSummary(
-            text: facilityAttentionSummary,
-            semanticLabel: facilityAttentionSemanticLabel,
-          ),
-          const SizedBox(height: 12),
-        ],
+        _StationNaverStationInfoSection(
+          station: detail,
+          facilities: facilities,
+        ),
+        const SizedBox(height: 16),
         for (final facility in facilities)
           StationFacilityCard(
             facility: facility,
             station: detail,
-            onReportTap: () => _openFacilityReport(facility),
+            onReportTap: () => onOpenFacilityReport(
+              FacilityReportTarget(
+                stationId: detail.id,
+                stationName: detail.nameKo,
+                facilityId: facility.id,
+                facilityName: facility.name,
+                facilityTypeLabel: facility.type,
+                facilityStatusLabel: facility.status,
+              ),
+            ),
           ),
-        if (facilities.length >= 2 || exits.isNotEmpty) ...[
-          const _StationDetailSectionTitle(title: '고객안전실, 역무실'),
-          const SizedBox(height: 8),
-          _StationSafetyOfficeCard(detail: detail, facilities: facilities),
-          const SizedBox(height: 12),
-        ],
+        const SizedBox(height: 16),
       ],
       const _StationDetailSectionTitle(title: '안내'),
       const SizedBox(height: 12),
@@ -317,75 +300,67 @@ class _StationDetailContent extends StatelessWidget {
       Text(
         stationVerifiedRelativeLabel(detail.lastVerifiedAt),
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: EasySubwayAccessibleColors.mutedText,
+          color: EasySubwayAccessibleColors.text,
           fontWeight: FontWeight.w600,
-          height: 1.2,
+          height: 1.3,
         ),
       ),
       if (layoutSummaryItems.isNotEmpty) ...[
         const SizedBox(height: 16),
         const _StationDetailSectionTitle(title: '역 안 이동'),
         const SizedBox(height: 12),
-        if (layoutSummaryItems.isNotEmpty) ...[
-          StationLayoutSummary(
-            items: layoutSummaryItems,
-            semanticLabel: layoutSummarySemanticLabel,
-          ),
-        ],
+        StationLayoutSummary(
+          items: layoutSummaryItems,
+          semanticLabel: layoutSummarySemanticLabel,
+        ),
       ],
       const SizedBox(height: 16),
-      StationInfoBasisDisclosure(
-        labels: [
-          detail.dataSourceLabel,
-          '마지막 확인 ${stationVerifiedRelativeLabel(detail.lastVerifiedAt)}',
-        ],
-      ),
       if (bottomAdBuilder case final builder?) ...[
         const SizedBox(height: 24),
         builder(context),
       ],
     ];
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final isLargeScreen = EasySubwayAdaptiveLayout.isLargeScreen(
-          constraints,
-          textScaleFactor: MediaQuery.textScalerOf(context).scale(1),
-        );
-        return ListView(
-          key: const Key('stationDetailList'),
-          padding: isLargeScreen
-              ? _stationDetailLargePagePadding
-              : _stationDetailPagePadding,
-          children: isLargeScreen
-              ? [
-                  _StationDetailAdaptiveContent(
-                    primaryChildren: primaryChildren,
-                    detailChildren: detailChildren,
-                  ),
-                ]
-              : [
-                  ...primaryChildren,
-                  const SizedBox(height: 24),
-                  ...detailChildren,
-                ],
-        );
-      },
-    );
-  }
-
-  void _openFacilityReport(StationFacilityInfo facility) {
-    unawaited(
-      onOpenFacilityReport(
-        FacilityReportTarget(
-          stationId: detail.id,
-          stationName: detail.nameKo,
-          facilityId: facility.id,
-          facilityName: facility.displayName,
-          facilityTypeLabel: facility.typeLabel,
-          facilityStatusLabel: facility.statusLabel,
+    return Column(
+      children: [
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final isLargeScreen = EasySubwayAdaptiveLayout.isLargeScreen(
+                constraints,
+                textScaleFactor: MediaQuery.textScalerOf(context).scale(1),
+              );
+              return ListView(
+                key: const Key('stationDetailList'),
+                padding: isLargeScreen
+                    ? _stationDetailLargePagePadding
+                    : _stationDetailPagePadding,
+                children: isLargeScreen
+                    ? [
+                        _StationDetailAdaptiveContent(
+                          primaryChildren: primaryChildren,
+                          detailChildren: detailChildren,
+                        ),
+                      ]
+                    : [
+                        ...primaryChildren,
+                        const SizedBox(height: 16),
+                        Container(height: 8, color: const Color(0xFFF4F5F7)),
+                        const SizedBox(height: 16),
+                        ...detailChildren,
+                      ],
+              );
+            },
+          ),
         ),
-      ),
+        _StationDetailStickyBottomBar(
+          detail: detail,
+          routeDraftController: routeDraftController,
+          timetableRepository: timetableRepository,
+          previousStation: previousStation,
+          nextStation: nextStation,
+        ),
+      ],
     );
   }
 }
@@ -475,7 +450,6 @@ class _StationDetailContextChrome extends StatelessWidget {
                   '${detail.nameKo}역',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: EasySubwayAccessibleColors.text,
-                    // #1915: 섹션/컨텍스트 헤더는 w800 금지. 화면 타이틀 전용 ratchet.
                     fontWeight: FontWeight.w700,
                     height: 1.2,
                   ),
@@ -534,6 +508,784 @@ class _NeighborStationButton extends StatelessWidget {
           textAlign: alignment == Alignment.centerRight
               ? TextAlign.right
               : TextAlign.left,
+        ),
+      ),
+    );
+  }
+}
+
+class _StationDetailAdaptiveContent extends StatelessWidget {
+  const _StationDetailAdaptiveContent({
+    required this.primaryChildren,
+    required this.detailChildren,
+  });
+
+  final List<Widget> primaryChildren;
+  final List<Widget> detailChildren;
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          maxWidth: EasySubwayAdaptiveLayout.largeScreenMaxContentWidth,
+        ),
+        child: Row(
+          key: const Key('stationDetailLargeScreenLayout'),
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 4,
+              child: Column(
+                key: const Key('stationDetailPrimaryColumn'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: primaryChildren,
+              ),
+            ),
+            const SizedBox(
+              width: EasySubwayAdaptiveLayout.largeScreenColumnGap,
+            ),
+            Expanded(
+              flex: 5,
+              child: Column(
+                key: const Key('stationDetailDetailColumn'),
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: detailChildren,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _StationDetailSectionTitle extends StatelessWidget {
+  const _StationDetailSectionTitle({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+      child: Semantics(
+        header: true,
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: EasySubwayAccessibleColors.text,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 네이버 지도 1:1 표준 역정보 섹션.
+///
+/// 1. 시설정보 2열 2행 4구 그리드 (플랫폼, 화장실, 내리는문, 반대편 연결)
+/// 2. 편의시설 2열 2행 4구 그리드 (자전거보관소, 환승주차장, 유실물센터, 물품보관소)
+/// 3. 교통약자 시설 2열 2행 4구 그리드 (장애인화장실, 엘리베이터, 수유실, 휠체어 리프트)
+class _StationNaverStationInfoSection extends StatelessWidget {
+  const _StationNaverStationInfoSection({
+    required this.station,
+    required this.facilities,
+  });
+
+  final StationDetail station;
+  final List<StationFacilityInfo> facilities;
+
+  @override
+  Widget build(BuildContext context) {
+    // 1. 시설정보 계산
+    final toilets = facilities
+        .where(
+          (f) =>
+              f.type == 'TOILET' ||
+              f.type == 'ACCESSIBLE_TOILET' ||
+              f.name.contains('화장실'),
+        )
+        .toList();
+    bool insideGate = false;
+    bool outsideGate = false;
+    for (final t in toilets) {
+      final text = '${t.name} ${t.description} ${t.floorFrom}'.toLowerCase();
+      if (text.contains('안') ||
+          text.contains('내부') ||
+          text.contains('운임구역 내') ||
+          text.contains('승강장') ||
+          text.contains('게이트 안') ||
+          text.contains('개찰구 안')) {
+        insideGate = true;
+      }
+      if (text.contains('밖') ||
+          text.contains('외부') ||
+          text.contains('운임구역 외') ||
+          text.contains('대합실') ||
+          text.contains('게이트 밖') ||
+          text.contains('개찰구 밖') ||
+          text.contains('출구')) {
+        outsideGate = true;
+      }
+    }
+    final String toiletTag;
+    if (toilets.isEmpty) {
+      toiletTag = '개찰구 밖';
+    } else if (insideGate && outsideGate) {
+      toiletTag = '개찰구 안/밖';
+    } else if (insideGate) {
+      toiletTag = '개찰구 안';
+    } else {
+      toiletTag = '개찰구 밖';
+    }
+
+    const platformTag = '양쪽';
+    const doorTag = '오른쪽';
+    const crossPlatformTag = '연결됨';
+
+    // 2. 편의시설 설치 여부 확인
+    final hasBicycle = facilities.any(
+      (f) =>
+          f.type == 'BICYCLE' ||
+          f.name.contains('자전거') ||
+          f.description.contains('자전거'),
+    );
+    final hasParking = facilities.any(
+      (f) =>
+          f.type == 'PARKING' ||
+          f.name.contains('주차장') ||
+          f.description.contains('주차장'),
+    );
+    final hasLostItem = facilities.any(
+      (f) =>
+          f.type == 'LOST_ITEM' ||
+          f.type == 'LOST_AND_FOUND' ||
+          f.name.contains('유실물') ||
+          f.description.contains('유실물'),
+    );
+    final hasStorage = facilities.any(
+      (f) =>
+          f.type == 'LOCKER' ||
+          f.type == 'STORAGE' ||
+          f.name.contains('물품보관') ||
+          f.name.contains('보관함') ||
+          f.description.contains('물품보관') ||
+          f.description.contains('보관함'),
+    );
+
+    // 3. 교통약자 시설 설치 여부 확인
+    final hasDisabledToilet = facilities.any(
+      (f) => f.type == 'ACCESSIBLE_TOILET' || f.name.contains('장애인'),
+    );
+    final hasElevator = facilities.any(
+      (f) => f.type == 'ELEVATOR' || f.name.contains('엘리베이터'),
+    );
+    final hasNursingRoom = facilities.any(
+      (f) => f.type == 'NURSING_ROOM' || f.name.contains('수유실'),
+    );
+    final hasWheelchairLift = facilities.any(
+      (f) => f.type == 'WHEELCHAIR_LIFT' || f.name.contains('리프트'),
+    );
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          '역정보',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111111),
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 16),
+        // 시설정보
+        const Text(
+          '시설정보',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111111),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            const Expanded(
+              child: _NaverFacilityTagItem(
+                icon: Icons.train_outlined,
+                label: '플랫폼',
+                tag: platformTag,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NaverFacilityTagItem(
+                icon: Icons.wc_outlined,
+                label: '화장실',
+                tag: toiletTag,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        const Row(
+          children: [
+            Expanded(
+              child: _NaverFacilityTagItem(
+                icon: Icons.meeting_room_outlined,
+                label: '내리는문',
+                tag: doorTag,
+              ),
+            ),
+            SizedBox(width: 12),
+            Expanded(
+              child: _NaverFacilityTagItem(
+                icon: Icons.swap_horiz,
+                label: '반대편',
+                tag: crossPlatformTag,
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 32, thickness: 1, color: Color(0xFFEEEEEE)),
+
+        // 편의시설
+        const Text(
+          '편의시설',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111111),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _NaverAmenityGridItem(
+                icon: Icons.directions_bike,
+                label: '자전거보관소',
+                isAvailable: hasBicycle,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NaverAmenityGridItem(
+                icon: Icons.local_parking,
+                label: '환승주차장',
+                isAvailable: hasParking,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _NaverAmenityGridItem(
+                icon: Icons.find_in_page_outlined,
+                label: '유실물센터',
+                isAvailable: hasLostItem,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NaverAmenityGridItem(
+                icon: Icons.inventory_2_outlined,
+                label: '물품보관소',
+                isAvailable: hasStorage,
+              ),
+            ),
+          ],
+        ),
+        const Divider(height: 32, thickness: 1, color: Color(0xFFEEEEEE)),
+
+        // 교통약자 시설
+        const Text(
+          '교통약자 시설',
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: Color(0xFF111111),
+          ),
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _NaverAccessibleFacilityItem(
+                icon: Icons.accessible,
+                label: '장애인화장실',
+                isAvailable: hasDisabledToilet,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NaverAccessibleFacilityItem(
+                icon: Icons.elevator_outlined,
+                label: '엘리베이터',
+                isAvailable: hasElevator,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        Row(
+          children: [
+            Expanded(
+              child: _NaverAccessibleFacilityItem(
+                icon: Icons.baby_changing_station,
+                label: '수유실',
+                isAvailable: hasNursingRoom,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: _NaverAccessibleFacilityItem(
+                icon: Icons.accessible_forward,
+                label: '휠체어 리프트',
+                isAvailable: hasWheelchairLift,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _NaverFacilityTagItem extends StatelessWidget {
+  const _NaverFacilityTagItem({
+    required this.icon,
+    required this.label,
+    required this.tag,
+  });
+
+  final IconData icon;
+  final String label;
+  final String tag;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$label $tag',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 20, color: const Color(0xFF666666)),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: Color(0xFF333333),
+            ),
+          ),
+          const SizedBox(width: 6),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF0F2F5),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              tag,
+              style: const TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                color: Color(0xFF222222),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NaverAmenityGridItem extends StatelessWidget {
+  const _NaverAmenityGridItem({
+    required this.icon,
+    required this.label,
+    required this.isAvailable,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isAvailable;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$label ${isAvailable ? '있음' : '없음'}',
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isAvailable)
+            Icon(icon, size: 20, color: const Color(0xFF222222))
+          else
+            _DisabledIconWithSlash(
+              child: Icon(icon, size: 20, color: const Color(0xFFAAAAAA)),
+            ),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
+                color: isAvailable
+                    ? const Color(0xFF222222)
+                    : const Color(0xFFAAAAAA),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NaverAccessibleFacilityItem extends StatelessWidget {
+  const _NaverAccessibleFacilityItem({
+    required this.icon,
+    required this.label,
+    required this.isAvailable,
+  });
+
+  final IconData icon;
+  final String label;
+  final bool isAvailable;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: '$label ${isAvailable ? '있음' : '없음'}',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (isAvailable)
+              Icon(icon, size: 20, color: const Color(0xFF222222))
+            else
+              _DisabledIconWithSlash(
+                child: Icon(icon, size: 20, color: const Color(0xFFAAAAAA)),
+              ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
+                  color: isAvailable
+                      ? const Color(0xFF222222)
+                      : const Color(0xFFAAAAAA),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DisabledIconWithSlash extends StatelessWidget {
+  const _DisabledIconWithSlash({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return CustomPaint(
+      foregroundPainter: const _SlashPainter(),
+      child: child,
+    );
+  }
+}
+
+class _SlashPainter extends CustomPainter {
+  const _SlashPainter();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = const Color(0xFFAAAAAA)
+      ..strokeWidth = 1.5
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * 0.15, size.height * 0.85),
+      Offset(size.width * 0.85, size.height * 0.15),
+      paint,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+/// 네이버 지도 1:1 표준 출구정보 래퍼 섹션.
+class _StationNaverExitSection extends StatelessWidget {
+  const _StationNaverExitSection({
+    required this.station,
+    required this.exits,
+    required this.mapLauncher,
+    required this.locationProvider,
+    this.mapPreviewBuilder,
+    this.previousStation,
+    this.nextStation,
+  });
+
+  final StationDetail station;
+  final List<StationExitInfo> exits;
+  final KakaoMapLauncher mapLauncher;
+  final CurrentLocationProvider? locationProvider;
+  final StationExitMapPreviewBuilder? mapPreviewBuilder;
+  final String? previousStation;
+  final String? nextStation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Text(
+          '출구정보',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: Color(0xFF111111),
+            letterSpacing: -0.3,
+          ),
+        ),
+        const SizedBox(height: 12),
+        StationExitSection(
+          key: ValueKey('stationExitSection-${station.id}'),
+          station: station,
+          exits: exits,
+          mapLauncher: mapLauncher,
+          locationProvider: locationProvider,
+          mapPreviewBuilder: mapPreviewBuilder,
+          previousStation: previousStation,
+          nextStation: nextStation,
+        ),
+      ],
+    );
+  }
+}
+
+/// 네이버 지도 1:1 표준 하단 고정 액션바 (Sticky Bottom Bar).
+///
+/// [출발] (연한 블루 둥근 버튼), [도착] (진한 블루 채움 둥근 버튼),
+/// [📅 전체 시간표] (화이트 아웃라인 둥근 버튼), [🚆 첫차·막차] (화이트 아웃라인 둥근 버튼).
+class _StationDetailStickyBottomBar extends StatelessWidget {
+  const _StationDetailStickyBottomBar({
+    required this.detail,
+    required this.routeDraftController,
+    required this.timetableRepository,
+    required this.previousStation,
+    required this.nextStation,
+  });
+
+  final StationDetail detail;
+  final RouteDraftPort? routeDraftController;
+  final StationTimetableRepository? timetableRepository;
+  final StationDetailNeighbor? previousStation;
+  final StationDetailNeighbor? nextStation;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        border: Border(
+          top: BorderSide(color: Color(0xFFEEEEEE), width: 1),
+        ),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            // [출발]
+            Expanded(
+              flex: 5,
+              child: Material(
+                color: const Color(0xFFEBF2FF),
+                borderRadius: BorderRadius.circular(24),
+                child: InkWell(
+                  key: const Key('stationDetailSetOriginButton'),
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () {
+                    final station = RouteDraftStation(
+                      id: detail.id,
+                      nameKo: detail.nameKo,
+                    );
+                    routeDraftController?.setOrigin(station);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${station.displayName}을 출발역으로 설정했습니다'),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    height: 48,
+                    alignment: Alignment.center,
+                    child: const Text(
+                      '출발',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Color(0xFF0066FF),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // [도착]
+            Expanded(
+              flex: 5,
+              child: Material(
+                color: const Color(0xFF0066FF),
+                borderRadius: BorderRadius.circular(24),
+                child: InkWell(
+                  key: const Key('stationDetailSetDestinationButton'),
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () {
+                    final station = RouteDraftStation(
+                      id: detail.id,
+                      nameKo: detail.nameKo,
+                    );
+                    routeDraftController?.setDestination(station);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('${station.displayName}을 도착역으로 설정했습니다'),
+                      ),
+                    );
+                  },
+                  child: Container(
+                    height: 48,
+                    alignment: Alignment.center,
+                    child: const Text(
+                      '도착',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // [📅 전체 시간표]
+            Expanded(
+              flex: 9,
+              child: Material(
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: const BorderSide(color: Color(0xFFDDDDDD)),
+                ),
+                child: InkWell(
+                  key: const Key('stationTimetableButton'),
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => _openTimetable(context),
+                  child: Container(
+                    height: 48,
+                    alignment: Alignment.center,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.calendar_today,
+                          size: 14,
+                          color: Color(0xFF222222),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          '전체 시간표',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF222222),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            // [🚆 첫차·막차]
+            Expanded(
+              flex: 9,
+              child: Material(
+                color: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(24),
+                  side: const BorderSide(color: Color(0xFFDDDDDD)),
+                ),
+                child: InkWell(
+                  key: const Key('stationDetailBottomFirstLastButton'),
+                  borderRadius: BorderRadius.circular(24),
+                  onTap: () => _openTimetable(context),
+                  child: Container(
+                    height: 48,
+                    alignment: Alignment.center,
+                    child: const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.train_outlined,
+                          size: 15,
+                          color: Color(0xFF222222),
+                        ),
+                        SizedBox(width: 4),
+                        Text(
+                          '첫차·막차',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF222222),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _openTimetable(BuildContext context) {
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StationTimetableScreen(
+            stationId: detail.id,
+            stationName: detail.nameKo,
+            lines: detail.lines,
+            repository: timetableRepository,
+            previousStation: previousStation?.nameKo,
+            nextStation: nextStation?.nameKo,
+          ),
         ),
       ),
     );
@@ -625,11 +1377,12 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
   @override
   Widget build(BuildContext context) {
     final timetable = _timetable;
+    if (timetable == null && !_unavailable) {
+      return const SizedBox.shrink();
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // 서버가 시간표를 제공하지 않으면 요약 줄을 그리지 않는다.
-        // '시간표 보기' 버튼은 남겨 전체 시간표 화면으로 진입할 수 있게 한다.
         if (timetable != null && timetable.isAvailable) ...[
           Container(
             margin: const EdgeInsets.only(bottom: 8),
@@ -664,6 +1417,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
                                 direction.name,
                                 previousStation: widget.previousStation,
                                 nextStation: widget.nextStation,
+                                directionIndex: i,
                               ),
                               style: const TextStyle(
                                 color: EasySubwayAccessibleColors.text,
@@ -696,31 +1450,6 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
             padding: EdgeInsets.only(bottom: 8),
             child: Text('시간표 정보를 불러오지 못했습니다.'),
           ),
-        OutlinedButton.icon(
-          key: const Key('stationTimetableButton'),
-          onPressed: () => Navigator.of(context).push(
-            MaterialPageRoute<void>(
-              builder: (_) => StationTimetableScreen(
-                stationId: widget.detail.id,
-                stationName: widget.detail.nameKo,
-                lines: widget.detail.lines,
-                repository: widget.repository,
-                previousStation: widget.previousStation,
-                nextStation: widget.nextStation,
-              ),
-            ),
-          ),
-          icon: const Icon(Icons.schedule, size: 18),
-          label: const Text('시간표 보기'),
-          style: OutlinedButton.styleFrom(
-            foregroundColor: EasySubwayAccessibleColors.primary,
-            side: const BorderSide(color: EasySubwayAccessibleColors.line),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
-            padding: const EdgeInsets.symmetric(vertical: 12),
-          ),
-        ),
       ],
     );
   }
@@ -759,862 +1488,4 @@ class _StationDetailFirstLastBadge extends StatelessWidget {
       ],
     );
   }
-}
-
-class _StationDetailAdaptiveContent extends StatelessWidget {
-  const _StationDetailAdaptiveContent({
-    required this.primaryChildren,
-    required this.detailChildren,
-  });
-
-  final List<Widget> primaryChildren;
-  final List<Widget> detailChildren;
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(
-          maxWidth: EasySubwayAdaptiveLayout.largeScreenMaxContentWidth,
-        ),
-        child: Row(
-          key: const Key('stationDetailLargeScreenLayout'),
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              flex: 4,
-              child: Column(
-                key: const Key('stationDetailPrimaryColumn'),
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: primaryChildren,
-              ),
-            ),
-            const SizedBox(
-              width: EasySubwayAdaptiveLayout.largeScreenColumnGap,
-            ),
-            Expanded(
-              flex: 5,
-              child: Column(
-                key: const Key('stationDetailDetailColumn'),
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: detailChildren,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _StationDetailSectionTitle extends StatelessWidget {
-  const _StationDetailSectionTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
-      child: Semantics(
-        header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: EasySubwayAccessibleColors.text,
-            fontWeight: FontWeight.w700,
-            fontSize: 15,
-            letterSpacing: -0.2,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _StationBarrierFreeRouteCard extends StatelessWidget {
-  const _StationBarrierFreeRouteCard({
-    required this.station,
-    required this.exits,
-    required this.facilities,
-  });
-
-  final StationDetail station;
-  final List<StationExitInfo> exits;
-  final List<StationFacilityInfo> facilities;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final accessibleExits = exits
-        .where((e) => e.hasElevatorConnection)
-        .toList();
-    final elevators = facilities
-        .where((f) => f.type == 'ELEVATOR' || f.name.contains('엘리베이터'))
-        .toList();
-    final brokenElevators = elevators
-        .where((f) => f.status == 'BROKEN' || f.status == 'CLOSED')
-        .toList();
-    final lifts = facilities
-        .where((f) => f.type == 'WHEELCHAIR_LIFT' || f.name.contains('리프트'))
-        .toList();
-
-    final bool isFullBarrierFree =
-        (accessibleExits.isNotEmpty || elevators.length >= 2) &&
-        elevators.isNotEmpty &&
-        brokenElevators.isEmpty;
-    final bool hasCaution = brokenElevators.isNotEmpty;
-
-    final String statusBadgeText;
-    final Color badgeBgColor;
-    final Color badgeTextColor;
-    final Color badgeBorderColor;
-    final String routeDescription;
-
-    if (hasCaution) {
-      statusBadgeText = '일부 점검 중';
-      badgeBgColor = EasySubwayColorPrimitives.statusWarningSoft;
-      badgeTextColor = EasySubwayAccessibleColors.amber;
-      badgeBorderColor = EasySubwayAccessibleColors.amber;
-      routeDescription =
-          '${brokenElevators.map((e) => e.displayName).join(', ')} 점검 중입니다. 역무실 문의가 필요합니다.';
-    } else if (isFullBarrierFree) {
-      statusBadgeText = '전 구간 무단차 이동 가능';
-      badgeBgColor = EasySubwayColorPrimitives.statusSuccessSoft;
-      badgeTextColor = EasySubwayAccessibleColors.mint;
-      badgeBorderColor = EasySubwayAccessibleColors.mint;
-      routeDescription = accessibleExits.isNotEmpty
-          ? '지상에서 승강장까지 계단 없이 엘리베이터로 이동 가능합니다 (EV 연결 출구: ${accessibleExits.map((e) => e.name).join(', ')}).'
-          : '지상에서 대합실, 승강장까지 전 구간 엘리베이터를 이용하여 계단 없이 편리하게 이동할 수 있습니다.';
-    } else if (lifts.isNotEmpty) {
-      statusBadgeText = '휠체어 리프트 이용 가능';
-      badgeBgColor = EasySubwayAccessibleColors.surfaceSubtle;
-      badgeTextColor = EasySubwayAccessibleColors.primary;
-      badgeBorderColor = EasySubwayAccessibleColors.line;
-      routeDescription = '일부 구간은 계단 대신 휠체어 리프트를 이용하여 이동할 수 있습니다.';
-    } else {
-      statusBadgeText = '무단차 동선 안내';
-      badgeBgColor = EasySubwayAccessibleColors.surfaceSubtle;
-      badgeTextColor = EasySubwayAccessibleColors.secondaryText;
-      badgeBorderColor = EasySubwayAccessibleColors.line;
-      routeDescription = '역사 내 승강기 이동 및 무단차 동선 이용 시 고객안전실로 문의 바랍니다.';
-    }
-
-    final evExitLabel = accessibleExits.isNotEmpty
-        ? 'EV 연결: ${accessibleExits.map((e) => e.name).join(', ')}'
-        : '역사 출구 EV 이용';
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: EasySubwayAccessibleColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: EasySubwayAccessibleColors.surfaceBrandChrome,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.accessible_forward,
-                  color: EasySubwayAccessibleColors.primary,
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  '지상 ↔ 대합실 ↔ 승강장 동선',
-                  style: textTheme.titleMedium?.copyWith(
-                    color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: badgeBgColor,
-                  borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: badgeBorderColor),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (isFullBarrierFree) ...[
-                      const Icon(
-                        Icons.check_circle,
-                        size: 13,
-                        color: EasySubwayAccessibleColors.mint,
-                      ),
-                      const SizedBox(width: 4),
-                    ],
-                    Text(
-                      statusBadgeText,
-                      style: textTheme.bodySmall?.copyWith(
-                        color: badgeTextColor,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 14),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            child: Column(
-              children: [
-                _VerticalStepRow(
-                  stepNum: '1',
-                  stepTitle: '지상 (출구)',
-                  stepDetail: evExitLabel,
-                  icon: Icons.elevator,
-                  iconColor: EasySubwayAccessibleColors.mint,
-                  isLast: false,
-                ),
-                _VerticalStepRow(
-                  stepNum: '2',
-                  stepTitle: '대합실 (개찰구)',
-                  stepDetail: '교통약자 전용 넓은 개찰구 (게이트 안, 밖 이동)',
-                  icon: Icons.confirmation_number_outlined,
-                  iconColor: EasySubwayAccessibleColors.primary,
-                  isLast: false,
-                ),
-                _VerticalStepRow(
-                  stepNum: '3',
-                  stepTitle: '승강장 (탑승)',
-                  stepDetail: '승강장 연결 내부 엘리베이터 (방면별 탑승)',
-                  icon: Icons.train_outlined,
-                  iconColor: EasySubwayAccessibleColors.mint,
-                  isLast: true,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            routeDescription,
-            style: textTheme.bodyMedium?.copyWith(
-              color: EasySubwayAccessibleColors.secondaryText,
-              height: 1.35,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _VerticalStepRow extends StatelessWidget {
-  const _VerticalStepRow({
-    required this.stepNum,
-    required this.stepTitle,
-    required this.stepDetail,
-    required this.icon,
-    required this.iconColor,
-    required this.isLast,
-  });
-
-  final String stepNum;
-  final String stepTitle;
-  final String stepDetail;
-  final IconData icon;
-  final Color iconColor;
-  final bool isLast;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    return IntrinsicHeight(
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: iconColor.withValues(alpha: 0.12),
-                  border: Border.all(color: iconColor, width: 1.5),
-                ),
-                alignment: Alignment.center,
-                child: Icon(icon, size: 16, color: iconColor),
-              ),
-              if (!isLast)
-                Expanded(
-                  child: Container(
-                    width: 2,
-                    margin: const EdgeInsets.symmetric(vertical: 3),
-                    color: EasySubwayAccessibleColors.line,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.only(bottom: isLast ? 0 : 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 1,
-                        ),
-                        decoration: BoxDecoration(
-                          color: EasySubwayAccessibleColors.surfaceBrandChrome,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '$stepNum단계',
-                          style: textTheme.labelSmall?.copyWith(
-                            color: EasySubwayAccessibleColors.primary,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        stepTitle,
-                        style: textTheme.bodyMedium?.copyWith(
-                          color: EasySubwayAccessibleColors.text,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    stepDetail,
-                    style: textTheme.bodySmall?.copyWith(
-                      color: EasySubwayAccessibleColors.secondaryText,
-                      height: 1.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StationFacilityMatrixCard extends StatelessWidget {
-  const _StationFacilityMatrixCard({
-    required this.station,
-    required this.facilities,
-  });
-
-  final StationDetail station;
-  final List<StationFacilityInfo> facilities;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-
-    final toilets = facilities
-        .where(
-          (f) =>
-              f.type == 'TOILET' ||
-              f.type == 'ACCESSIBLE_TOILET' ||
-              f.name.contains('화장실'),
-        )
-        .toList();
-    bool insideGate = false;
-    bool outsideGate = false;
-    for (final t in toilets) {
-      final text = '${t.name} ${t.description} ${t.floorFrom}'.toLowerCase();
-      if (text.contains('안') ||
-          text.contains('내부') ||
-          text.contains('운임구역 내') ||
-          text.contains('승강장') ||
-          text.contains('게이트 안')) {
-        insideGate = true;
-      }
-      if (text.contains('밖') ||
-          text.contains('외부') ||
-          text.contains('운임구역 외') ||
-          text.contains('대합실') ||
-          text.contains('게이트 밖') ||
-          text.contains('출구')) {
-        outsideGate = true;
-      }
-    }
-    final String toiletStatus;
-    if (toilets.isEmpty) {
-      toiletStatus = '개찰구 밖 (대합실)';
-    } else if (insideGate && outsideGate) {
-      toiletStatus = '개찰구 안, 밖 모두';
-    } else if (insideGate) {
-      toiletStatus = '개찰구 안 (운임구역 내)';
-    } else if (outsideGate) {
-      toiletStatus = '개찰구 밖 (운임구역 외)';
-    } else {
-      toiletStatus = '개찰구 밖 (대합실)';
-    }
-
-    final hasAccessibleToilet = facilities.any(
-      (f) => f.type == 'ACCESSIBLE_TOILET' || f.name.contains('장애인 화장실'),
-    );
-    final hasNursingRoom = facilities.any(
-      (f) => f.type == 'NURSING_ROOM' || f.name.contains('수유실'),
-    );
-    final elevators = facilities
-        .where((f) => f.type == 'ELEVATOR' || f.name.contains('엘리베이터'))
-        .toList();
-    final elevatorBroken = elevators.any(
-      (f) => f.status == 'BROKEN' || f.status == 'CLOSED',
-    );
-    final lifts = facilities
-        .where((f) => f.type == 'WHEELCHAIR_LIFT' || f.name.contains('리프트'))
-        .toList();
-    final liftBroken = lifts.any(
-      (f) => f.status == 'BROKEN' || f.status == 'CLOSED',
-    );
-
-    final primaryItems = [
-      (
-        icon: Icons.wc_outlined,
-        title: '화장실 위치',
-        status: toiletStatus,
-        isHighlight: true,
-        color: EasySubwayAccessibleColors.primary,
-      ),
-      (
-        icon: Icons.accessible,
-        title: '장애인 화장실',
-        status: hasAccessibleToilet ? '남녀 구분 설치' : '대합실 설치 (역무실 문의)',
-        isHighlight: hasAccessibleToilet,
-        color: EasySubwayAccessibleColors.mint,
-      ),
-      (
-        icon: Icons.elevator,
-        title: '승강기(EV)',
-        status: elevators.isEmpty
-            ? '미설치'
-            : (elevatorBroken ? '일부 점검 중' : '${elevators.length}대 정상 운행'),
-        isHighlight: elevators.isNotEmpty && !elevatorBroken,
-        color: EasySubwayAccessibleColors.mint,
-      ),
-      (
-        icon: Icons.accessible_forward,
-        title: '휠체어 리프트',
-        status: lifts.isEmpty
-            ? '미설치'
-            : (liftBroken ? '점검 중' : '${lifts.length}대 운행 중'),
-        isHighlight: lifts.isNotEmpty && !liftBroken,
-        color: EasySubwayAccessibleColors.primary,
-      ),
-    ];
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: EasySubwayAccessibleColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(
-                Icons.grid_view_rounded,
-                size: 20,
-                color: EasySubwayAccessibleColors.primary,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                '주요 편의시설 한눈에 보기',
-                style: textTheme.titleMedium?.copyWith(
-                  color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final itemWidth = (constraints.maxWidth - 12) / 2;
-              return Wrap(
-                spacing: 12,
-                runSpacing: 14,
-                children: [
-                  for (final item in primaryItems)
-                    SizedBox(
-                      width: itemWidth,
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color: item.isHighlight
-                                  ? item.color.withValues(alpha: 0.12)
-                                  : EasySubwayAccessibleColors.surfaceSubtle,
-                              borderRadius: BorderRadius.circular(6),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              item.icon,
-                              size: 18,
-                              color: item.isHighlight
-                                  ? item.color
-                                  : EasySubwayAccessibleColors.mutedText,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  item.title,
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: EasySubwayAccessibleColors
-                                        .secondaryText,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  item.status,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: textTheme.bodyMedium?.copyWith(
-                                    color: item.isHighlight
-                                        ? EasySubwayAccessibleColors.text
-                                        : EasySubwayAccessibleColors.mutedText,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 14),
-          const Divider(height: 1, color: EasySubwayAccessibleColors.line),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _FacilityTag(
-                icon: Icons.baby_changing_station,
-                label: '수유실',
-                status: hasNursingRoom ? '이용 가능' : '미설치',
-                active: hasNursingRoom,
-              ),
-              const _FacilityTag(
-                icon: Icons.battery_charging_full,
-                label: '휠체어 급속충전기',
-                status: '고객안전실 문의',
-                active: false,
-              ),
-              const _FacilityTag(
-                icon: Icons.medical_services_outlined,
-                label: '자동제세동기(AED)',
-                status: '역사 내 비치',
-                active: true,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FacilityTag extends StatelessWidget {
-  const _FacilityTag({
-    required this.icon,
-    required this.label,
-    required this.status,
-    required this.active,
-  });
-
-  final IconData icon;
-  final String label;
-  final String status;
-  final bool active;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: EasySubwayAccessibleColors.line),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 14,
-            color: active
-                ? EasySubwayAccessibleColors.primary
-                : EasySubwayAccessibleColors.mutedText,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: active
-                  ? EasySubwayAccessibleColors.text
-                  : EasySubwayAccessibleColors.mutedText,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(width: 4),
-          Text(
-            status,
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-              color: active
-                  ? EasySubwayAccessibleColors.mint
-                  : EasySubwayAccessibleColors.mutedText,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StationSafetyOfficeCard extends StatelessWidget {
-  const _StationSafetyOfficeCard({
-    required this.detail,
-    required this.facilities,
-  });
-
-  final StationDetail detail;
-  final List<StationFacilityInfo> facilities;
-
-  @override
-  Widget build(BuildContext context) {
-    final textTheme = Theme.of(context).textTheme;
-    final phone = _resolveStationPhone(detail: detail, facilities: facilities);
-    final operatorName = _resolveOperatorName(detail);
-
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: EasySubwayAccessibleColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: EasySubwayAccessibleColors.surfaceBrandChrome,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.support_agent,
-                  color: EasySubwayAccessibleColors.primary,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '고객안전실 (역무실)',
-                      style: textTheme.titleMedium?.copyWith(
-                        color: EasySubwayAccessibleColors.text,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      '$operatorName · 직통 전화: $phone',
-                      style: textTheme.bodySmall?.copyWith(
-                        color: EasySubwayAccessibleColors.primary,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                decoration: BoxDecoration(
-                  color: EasySubwayAccessibleColors.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(color: EasySubwayAccessibleColors.line),
-                ),
-                child: Text(
-                  '24시간 운영',
-                  style: textTheme.labelSmall?.copyWith(
-                    color: EasySubwayAccessibleColors.secondaryText,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            '휠체어 승하차 도우미(리프트, 안전발판) 신청, 분실물 문의 및 역사 내 긴급 상황 발생 시 바로 연결됩니다.',
-            style: textTheme.bodyMedium?.copyWith(
-              color: EasySubwayAccessibleColors.secondaryText,
-              height: 1.35,
-            ),
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            height: 48,
-            child: FilledButton.icon(
-              key: Key('stationSafetyOfficeCallButton-${detail.id}'),
-              icon: const Icon(Icons.phone_in_talk, size: 20),
-              label: Text('고객안전실 전화 걸기 ($phone)'),
-              onPressed: () => _callPhone(context, phone),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _callPhone(BuildContext context, String phone) async {
-    final cleanDigits = phone.replaceAll(RegExp(r'[^\d]'), '');
-    final uri = Uri(scheme: 'tel', path: cleanDigits);
-    try {
-      if (await canLaunchUrl(uri)) {
-        await launchUrl(uri, mode: LaunchMode.externalApplication);
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('전화 앱을 실행할 수 없습니다: $phone')));
-        }
-      }
-    } catch (error, stackTrace) {
-      reportMobileError(error, stackTrace, context: '고객안전실 전화 걸기 실행 중 오류 발생');
-    }
-  }
-}
-
-String _resolveOperatorName(StationDetail detail) {
-  final lineNames = detail.lines.map((l) => '${l.id} ${l.name}').join(' ');
-  final region = detail.region;
-
-  if (region.contains('부산') || lineNames.contains('부산')) return '부산교통공사';
-  if (region.contains('대구') || lineNames.contains('대구')) return '대구교통공사';
-  if (region.contains('대전') || lineNames.contains('대전')) return '대전교통공사';
-  if (region.contains('광주') || lineNames.contains('광주')) return '광주교통공사';
-
-  if (lineNames.contains('신분당')) return '네오트랜스 (신분당선)';
-  if (lineNames.contains('공항')) return '공항철도 (AREX)';
-  if (lineNames.contains('9호선')) return '서울시메트로9호선';
-  if (lineNames.contains('인천')) return '인천교통공사';
-  if (lineNames.contains('우이신설')) return '우이신설경전철';
-  if (lineNames.contains('신림')) return '남서울경전철';
-  if (lineNames.contains('김포')) return '김포골드라인운영';
-  if (lineNames.contains('의정부')) return '의정부경량전철';
-  if (lineNames.contains('에버라인') || lineNames.contains('용인')) return '용인경량전철';
-  if (lineNames.contains('경의중앙') ||
-      lineNames.contains('수인분당') ||
-      lineNames.contains('경춘') ||
-      lineNames.contains('서해') ||
-      lineNames.contains('경강') ||
-      lineNames.contains('동해')) {
-    return '한국철도공사 (코레일)';
-  }
-
-  return '서울교통공사';
-}
-
-String _resolveStationPhone({
-  required StationDetail detail,
-  List<StationFacilityInfo> facilities = const [],
-}) {
-  final phoneRegex = RegExp(r'0\d{1,2}-\d{3,4}-\d{4}|1\d{3}-\d{4}');
-  for (final facility in facilities) {
-    if (facility.type == 'CUSTOMER_CENTER' ||
-        facility.type == 'STATION_OFFICE') {
-      final match = phoneRegex.firstMatch(
-        '${facility.description} ${facility.name}',
-      );
-      if (match != null) {
-        return match.group(0)!;
-      }
-    }
-  }
-
-  final lineNames = detail.lines.map((l) => '${l.id} ${l.name}').join(' ');
-  final region = detail.region;
-
-  if (region.contains('부산') || lineNames.contains('부산')) {
-    if (lineNames.contains('김해')) return '055-310-9800';
-    return '1544-5005';
-  }
-  if (region.contains('대구') || lineNames.contains('대구')) {
-    return '053-643-2114';
-  }
-  if (region.contains('대전') || lineNames.contains('대전')) {
-    return '042-539-3114';
-  }
-  if (region.contains('광주') || lineNames.contains('광주')) {
-    return '062-604-8000';
-  }
-
-  if (lineNames.contains('신분당')) return '031-8018-7777';
-  if (lineNames.contains('공항')) return '1599-7788';
-  if (lineNames.contains('9호선')) return '02-2656-0009';
-  if (lineNames.contains('인천')) return '032-451-2114';
-  if (lineNames.contains('우이신설')) return '02-3499-5561';
-  if (lineNames.contains('신림')) return '02-2081-8181';
-  if (lineNames.contains('김포')) return '031-988-7123';
-  if (lineNames.contains('의정부')) return '031-828-3114';
-  if (lineNames.contains('에버라인') || lineNames.contains('용인')) {
-    return '031-329-3500';
-  }
-  if (lineNames.contains('경의중앙') ||
-      lineNames.contains('수인분당') ||
-      lineNames.contains('경춘') ||
-      lineNames.contains('서해') ||
-      lineNames.contains('경강') ||
-      lineNames.contains('동해')) {
-    return '1544-7788';
-  }
-
-  return '1577-1234';
 }

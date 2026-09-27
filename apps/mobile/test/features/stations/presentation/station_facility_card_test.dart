@@ -3,6 +3,7 @@ import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_facility_card.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_facility_detail_screen.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -48,7 +49,7 @@ void main() {
     );
 
     // 엘리베이터 아이콘 컨테이너
-    expect(find.byIcon(Icons.elevator), findsOneWidget);
+    expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.text('1번 출구 엘리베이터'), findsOneWidget);
     expect(find.text('1번 출구 앞'), findsOneWidget);
 
@@ -104,7 +105,7 @@ void main() {
     );
 
     // 에스컬레이터 전용 아이콘
-    expect(find.byIcon(Icons.escalator), findsOneWidget);
+    expect(find.byType(SvgPicture), findsOneWidget);
     expect(find.text('2번 출구 에스컬레이터'), findsOneWidget);
 
     // 주의 상태 뱃지 노출
@@ -149,7 +150,7 @@ void main() {
       ),
     );
 
-    expect(find.byIcon(Icons.accessible_forward), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.text('3번 출구 휠체어 리프트'), findsOneWidget);
     expect(find.text('이용할 수 없어요'), findsOneWidget);
     expect(find.text('휠체어 리프트'), findsNothing);
@@ -202,7 +203,7 @@ void main() {
       );
 
       expect(tester.takeException(), isNull);
-      expect(find.byIcon(Icons.escalator), findsOneWidget);
+      expect(find.byType(SvgPicture), findsOneWidget);
       expect(find.text('10번 출구 환승통로 방면 내부 에스컬레이터 (상행/하행 전용)'), findsOneWidget);
       expect(find.text('가기 전에 확인해 주세요'), findsOneWidget);
       expect(find.text('지하 3층 승강장에서 2층 대합실 및 환승 이동 통로 방면'), findsOneWidget);
@@ -213,16 +214,16 @@ void main() {
     'StationFacilityCard은 경사로·화장실·수유실·고객센터 등 다양한 시설 유형 아이콘을 정확히 매핑한다',
     (tester) async {
       const types = [
-        ('RAMP', Icons.accessible),
-        ('ACCESSIBLE_TOILET', Icons.wc_outlined),
-        ('TOILET', Icons.wc_outlined),
-        ('NURSING_ROOM', Icons.baby_changing_station),
-        ('CUSTOMER_CENTER', Icons.support_agent),
-        ('STATION_OFFICE', Icons.support_agent),
-        ('UNKNOWN_TYPE', Icons.info_outline),
+        ('RAMP', false, true, null),
+        ('ACCESSIBLE_TOILET', true, false, null),
+        ('TOILET', true, false, null),
+        ('NURSING_ROOM', true, false, null),
+        ('CUSTOMER_CENTER', false, false, Icons.support_agent),
+        ('STATION_OFFICE', false, false, Icons.support_agent),
+        ('UNKNOWN_TYPE', false, false, Icons.info_outline),
       ];
 
-      for (final (type, expectedIcon) in types) {
+      for (final (type, isSvg, isPng, expectedIcon) in types) {
         final facility = StationFacilityInfo(
           id: 'facility-$type',
           stationId: 'station-sangnoksu',
@@ -249,7 +250,13 @@ void main() {
           ),
         );
 
-        expect(find.byIcon(expectedIcon), findsOneWidget);
+        if (isSvg) {
+          expect(find.byType(SvgPicture), findsOneWidget);
+        } else if (isPng) {
+          expect(find.byType(Image), findsOneWidget);
+        } else {
+          expect(find.byIcon(expectedIcon!), findsOneWidget);
+        }
       }
     },
   );

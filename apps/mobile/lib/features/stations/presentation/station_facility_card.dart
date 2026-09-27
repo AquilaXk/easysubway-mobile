@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../accessible_design.dart';
 import '../domain/facility_status.dart';
@@ -79,11 +80,29 @@ class StationFacilityCard extends StatelessWidget {
                             ),
                           ),
                           child: Center(
-                            child: Icon(
-                              style.icon,
-                              color: style.iconColor,
-                              size: 24,
-                            ),
+                            child: style.svgAsset != null
+                                ? SvgPicture.asset(
+                                    style.svgAsset!,
+                                    width: 24,
+                                    height: 24,
+                                    colorFilter: ColorFilter.mode(
+                                      style.iconColor,
+                                      BlendMode.srcIn,
+                                    ),
+                                  )
+                                : style.pngAsset != null
+                                ? Image.asset(
+                                    style.pngAsset!,
+                                    width: 24,
+                                    height: 24,
+                                    color: style.iconColor,
+                                    colorBlendMode: BlendMode.srcIn,
+                                  )
+                                : Icon(
+                                    style.icon,
+                                    color: style.iconColor,
+                                    size: 24,
+                                  ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -306,6 +325,8 @@ class _FacilityStyle {
     required this.iconColor,
     required this.iconBgColor,
     required this.iconBorderColor,
+    this.svgAsset,
+    this.pngAsset,
     required this.badgeTextColor,
     required this.badgeBgColor,
     required this.badgeBorderColor,
@@ -313,6 +334,8 @@ class _FacilityStyle {
   });
 
   final IconData icon;
+  final String? svgAsset;
+  final String? pngAsset;
   final Color iconColor;
   final Color iconBgColor;
   final Color iconBorderColor;
@@ -331,16 +354,44 @@ IconData _resolveFacilityIcon(String type) {
     'ACCESSIBLE_TOILET' || 'TOILET' => Icons.wc_outlined,
     'NURSING_ROOM' => Icons.baby_changing_station,
     'CUSTOMER_CENTER' || 'STATION_OFFICE' => Icons.support_agent,
+    'LOST_ITEM' || 'LOST_AND_FOUND' => Icons.find_in_page_outlined,
+    'WHEELCHAIR_CHARGER' ||
+    'CHARGER' ||
+    'CHARGE' => Icons.battery_charging_full,
     _ => Icons.info_outline,
+  };
+}
+
+String? _resolveFacilitySvg(String type) {
+  return switch (type.trim().toUpperCase()) {
+    'ELEVATOR' => 'assets/icons/elevator.svg',
+    'ESCALATOR' => 'assets/icons/escalator.svg',
+    'ACCESSIBLE_TOILET' => 'assets/icons/diabled_toilet.svg',
+    'TOILET' => 'assets/icons/toilet.svg',
+    'NURSING_ROOM' => 'assets/icons/nursing.svg',
+    'LOST_ITEM' || 'LOST_AND_FOUND' => 'assets/icons/lost_item.svg',
+    'WHEELCHAIR_CHARGER' || 'CHARGER' || 'CHARGE' => 'assets/icons/charge.svg',
+    _ => null,
+  };
+}
+
+String? _resolveFacilityPng(String type) {
+  return switch (type.trim().toUpperCase()) {
+    'WHEELCHAIR_LIFT' || 'RAMP' => 'assets/icons/wheelchair.png',
+    _ => null,
   };
 }
 
 _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
   final icon = _resolveFacilityIcon(facility.type);
+  final svgAsset = _resolveFacilitySvg(facility.type);
+  final pngAsset = _resolveFacilityPng(facility.type);
 
   return switch (facility.statusPresentation.severity) {
     FacilityStatusSeverity.blocked => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.red,
       iconBgColor: EasySubwayAccessibleColors.surfaceSubtle,
       iconBorderColor: EasySubwayAccessibleColors.line,
@@ -351,6 +402,8 @@ _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
     ),
     FacilityStatusSeverity.caution => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.amber,
       iconBgColor: EasySubwayAccessibleColors.surfaceSubtle,
       iconBorderColor: EasySubwayAccessibleColors.line,
@@ -361,6 +414,8 @@ _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
     ),
     FacilityStatusSeverity.needsInfo => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.needsInfo,
       iconBgColor: EasySubwayAccessibleColors.surfaceSubtle,
       iconBorderColor: EasySubwayAccessibleColors.line,
@@ -371,6 +426,8 @@ _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
     ),
     FacilityStatusSeverity.normal => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.primary,
       iconBgColor: EasySubwayAccessibleColors.surfaceBrandChrome,
       iconBorderColor: EasySubwayAccessibleColors.line,
