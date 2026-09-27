@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../accessible_design.dart';
+import '../../../app/easy_subway_family_app_bar.dart';
 import '../domain/train_search_models.dart';
 import '../domain/train_search_scope_policy.dart';
 
@@ -67,26 +68,17 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: EasySubwayAccessibleColors.surfaceScaffold,
-      appBar: AppBar(
+      appBar: EasySubwayFamilyAppBar(
         title: const Text(
           '기차 조회',
           style: TextStyle(
-            color: Colors.white,
+            color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 22,
-            fontWeight: FontWeight.w800,
+            fontWeight: FontWeight.bold,
             letterSpacing: -0.4,
           ),
         ),
-        toolbarHeight: 60,
-        elevation: 0,
-        backgroundColor: EasySubwayAccessibleColors.primary,
-        foregroundColor: Colors.white,
-        flexibleSpace: const Align(
-          alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider.mapChrome(
-            key: Key('trainSearchHeaderDivider'),
-          ),
-        ),
+        dividerKey: const Key('trainSearchHeaderDivider'),
       ),
       body: SafeArea(
         child: ListView(
@@ -96,12 +88,12 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             // Main Station Selection Card
             Container(
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: EasySubwayAccessibleColors.surface,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                border: Border.all(color: EasySubwayAccessibleColors.line),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.06),
+                    color: EasySubwayAccessibleColors.cardShadow,
                     blurRadius: 10,
                     offset: const Offset(0, 4),
                   ),
@@ -126,7 +118,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                       const Divider(
                         height: 1,
                         thickness: 1,
-                        color: Color(0xFFF0F2F5),
+                        color: EasySubwayAccessibleColors.line,
                         indent: 16,
                         endIndent: 56,
                       ),
@@ -153,12 +145,12 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         color: EasySubwayColorPrimitives.neutralWhite,
                         shape: const CircleBorder(),
                         elevation: 2,
-                        shadowColor: Colors.black.withValues(alpha: 0.08),
+                        shadowColor: EasySubwayAccessibleColors.cardShadow,
                         child: InkWell(
                           key: const Key('trainSearchSwapButton'),
                           customBorder: const CircleBorder(),
-                          splashColor: EasySubwayColorPrimitives.brand100,
-                          highlightColor: EasySubwayColorPrimitives.brand50,
+                          splashColor: Colors.transparent,
+                          highlightColor: Colors.transparent,
                           onTap: _loading ? null : _swapStations,
                           child: Tooltip(
                             message: '출발역과 도착역 맞바꾸기',
@@ -202,9 +194,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: EasySubwayAccessibleColors.surface,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: const Color(0xFFE5E7EB)),
+                border: Border.all(color: EasySubwayAccessibleColors.line),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -216,8 +208,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         '일정 선택',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w800,
-                          color: Color(0xFF1F2937),
+                          fontWeight: FontWeight.w700,
+                          color: EasySubwayAccessibleColors.text,
                         ),
                       ),
                       // Roundtrip Toggle / Segment
@@ -251,7 +243,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                   size: 22,
                                   color: _roundTrip
                                       ? EasySubwayAccessibleColors.primary
-                                      : const Color(0xFF9CA3AF),
+                                      : EasySubwayAccessibleColors.mutedText,
                                 ),
                                 const SizedBox(width: 4),
                                 const Text(
@@ -259,7 +251,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                   style: TextStyle(
                                     fontSize: 16,
                                     fontWeight: FontWeight.w700,
-                                    color: Color(0xFF374151),
+                                    color: EasySubwayAccessibleColors
+                                        .secondaryText,
                                   ),
                                 ),
                               ],
@@ -338,7 +331,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                       onPressed: _loading ? null : _submit,
                       style: FilledButton.styleFrom(
                         backgroundColor: EasySubwayAccessibleColors.primary,
-                        foregroundColor: Colors.white,
+                        foregroundColor: EasySubwayAccessibleColors.surface,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
                         ),
@@ -348,7 +341,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         '시간표 조회',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w800,
+                          fontWeight: FontWeight.w700,
                           letterSpacing: -0.3,
                         ),
                       ),
@@ -386,7 +379,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
               width: 22,
               height: 22,
               colorFilter: ColorFilter.mode(
-                isDeparture ? const Color(0xFF03C75A) : const Color(0xFFFF453A),
+                isDeparture
+                    ? EasySubwayAccessibleColors.mint
+                    : EasySubwayAccessibleColors.red,
                 BlendMode.srcIn,
               ),
             ),
@@ -395,10 +390,10 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
         const SizedBox(width: 8),
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF1F2937),
+            fontWeight: FontWeight.w700,
+            color: EasySubwayAccessibleColors.text,
           ),
         ),
         const SizedBox(width: 14),
@@ -408,17 +403,17 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             controller: controller,
             enabled: !_loading,
             textInputAction: TextInputAction.search,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.w800,
-              color: Color(0xFF111827),
+              fontWeight: FontWeight.w700,
+              color: EasySubwayAccessibleColors.text,
             ),
             decoration: InputDecoration(
               hintText: isDeparture ? '출발역 입력' : '도착역 입력',
-              hintStyle: const TextStyle(
+              hintStyle: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w500,
-                color: Color(0xFF9CA3AF),
+                color: EasySubwayAccessibleColors.mutedText,
               ),
               border: InputBorder.none,
               isDense: true,
@@ -446,7 +441,11 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             },
           ),
         ),
-        const Icon(Icons.search, size: 20, color: Color(0xFF9CA3AF)),
+        Icon(
+          Icons.search,
+          size: 20,
+          color: EasySubwayAccessibleColors.mutedText,
+        ),
       ],
     );
   }
@@ -463,16 +462,19 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           padding: const EdgeInsets.fromLTRB(12, 8, 4, 8),
           margin: const EdgeInsets.only(top: 4),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: EasySubwayAccessibleColors.surface,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: EasySubwayAccessibleColors.line),
           ),
           child: Wrap(
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               Text(
                 error,
-                style: const TextStyle(fontSize: 13, color: Color(0xFFDC2626)),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: EasySubwayAccessibleColors.red,
+                ),
               ),
               TextButton(
                 key: Key('trainSearchStationRetry-${slot.name}'),
@@ -488,12 +490,12 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
     return Container(
       margin: const EdgeInsets.only(top: 4),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: EasySubwayAccessibleColors.surface,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: EasySubwayAccessibleColors.line),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
+            color: EasySubwayAccessibleColors.cardShadow,
             blurRadius: 6,
             offset: const Offset(0, 2),
           ),
@@ -517,15 +519,15 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                 ),
                 subtitle: Text(
                   station.id,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
-                    color: Color(0xFF6B7280),
+                    color: EasySubwayAccessibleColors.secondaryText,
                   ),
                 ),
-                trailing: const Icon(
+                trailing: Icon(
                   Icons.arrow_forward_ios,
                   size: 14,
-                  color: Color(0xFF9CA3AF),
+                  color: EasySubwayAccessibleColors.mutedText,
                 ),
                 onTap: () => _selectStation(slot, station),
               ),
@@ -547,7 +549,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
       button: true,
       label: semanticsLabel ?? '$label $value',
       child: Material(
-        color: const Color(0xFFF9FAFB),
+        color: EasySubwayAccessibleColors.surfaceScaffold,
         borderRadius: BorderRadius.circular(8),
         child: InkWell(
           key: key,
@@ -557,7 +559,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 15),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: const Color(0xFFE5E7EB)),
+              border: Border.all(color: EasySubwayAccessibleColors.line),
             ),
             child: Row(
               children: [
@@ -570,10 +572,10 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                     alignment: Alignment.centerLeft,
                     child: Text(
                       label,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF4B5563),
+                        color: EasySubwayAccessibleColors.secondaryText,
                       ),
                     ),
                   ),
@@ -585,24 +587,24 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w400,
-                      color: Color(0xFFD1D5DB),
+                      color: EasySubwayAccessibleColors.line,
                     ),
                   ),
                 ),
                 Expanded(
                   child: Text(
                     value,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF111827),
+                      fontWeight: FontWeight.w700,
+                      color: EasySubwayAccessibleColors.text,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Icon(
+                Icon(
                   Icons.keyboard_arrow_down_rounded,
-                  color: Color(0xFF9CA3AF),
+                  color: EasySubwayAccessibleColors.mutedText,
                   size: 22,
                 ),
               ],
@@ -636,23 +638,23 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           key: const Key('trainSearchError'),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: EasySubwayAccessibleColors.surface,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFFCA5A5)),
+            border: Border.all(color: EasySubwayAccessibleColors.red),
           ),
           child: Column(
             children: [
-              const Icon(
+              Icon(
                 Icons.error_outline,
-                color: Color(0xFFDC2626),
+                color: EasySubwayAccessibleColors.red,
                 size: 28,
               ),
               const SizedBox(height: 8),
               Text(
                 error,
                 textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Color(0xFF1F2937),
+                style: TextStyle(
+                  color: EasySubwayAccessibleColors.text,
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -661,9 +663,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                 key: const Key('trainSearchRetryButton'),
                 onPressed: _submit,
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
+                  side: BorderSide(color: EasySubwayAccessibleColors.primary),
                   foregroundColor: EasySubwayAccessibleColors.primary,
                 ),
                 child: const Text('다시 시도'),
@@ -685,7 +685,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             '선택한 조건에 운행 열차가 없습니다.',
             key: Key('trainSearchEmpty'),
             style: TextStyle(
-              color: Color(0xFF6B7280),
+              color: EasySubwayAccessibleColors.secondaryText,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -724,9 +724,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: EasySubwayAccessibleColors.surface,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: EasySubwayAccessibleColors.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -737,17 +737,17 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                   Expanded(
                     child: Text(
                       '$departureName → $arrivalName',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 17,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
+                        fontWeight: FontWeight.w700,
+                        color: EasySubwayAccessibleColors.text,
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
                     title,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                       color: EasySubwayAccessibleColors.primary,
@@ -775,8 +775,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                           Icons.chevron_left,
                           size: 20,
                           color: _canGoPreviousDay
-                              ? const Color(0xFF374151)
-                              : const Color(0xFFD1D5DB),
+                              ? EasySubwayAccessibleColors.secondaryText
+                              : EasySubwayAccessibleColors.line,
                         ),
                       ),
                     ),
@@ -784,10 +784,10 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                   const SizedBox(width: 4),
                   Text(
                     _formatDate(_departureDate),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF374151),
+                      color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -806,7 +806,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         child: Icon(
                           Icons.chevron_right,
                           size: 20,
-                          color: Color(0xFF374151),
+                          color: EasySubwayAccessibleColors.secondaryText,
                         ),
                       ),
                     ),
@@ -847,7 +847,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             child: const Text(
               '운행 열차가 없습니다.',
               style: TextStyle(
-                color: Color(0xFF6B7280),
+                color: EasySubwayAccessibleColors.secondaryText,
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -870,15 +870,19 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFF1E293B) : const Color(0xFFF3F4F6),
+          color: isSelected
+              ? EasySubwayAccessibleColors.primary
+              : EasySubwayAccessibleColors.surfaceScaffold,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
           label,
           style: TextStyle(
             fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w800 : FontWeight.w600,
-            color: isSelected ? Colors.white : const Color(0xFF4B5563),
+            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            color: isSelected
+                ? EasySubwayAccessibleColors.surface
+                : EasySubwayAccessibleColors.secondaryText,
           ),
         ),
       ),
@@ -911,12 +915,12 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           ),
           margin: const EdgeInsets.only(bottom: 10),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: EasySubwayAccessibleColors.surface,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
+            border: Border.all(color: EasySubwayAccessibleColors.line),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.03),
+                color: EasySubwayAccessibleColors.cardShadow,
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -947,17 +951,17 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         children: [
                           Text(
                             '${journey.trainType.labelKo} ${journey.trainNumber}',
-                            style: const TextStyle(
-                              color: Colors.white,
+                            style: TextStyle(
+                              color: EasySubwayAccessibleColors.surface,
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
                             ),
                           ),
                           const SizedBox(width: 2),
-                          const Icon(
+                          Icon(
                             Icons.chevron_right,
                             size: 14,
-                            color: Colors.white,
+                            color: EasySubwayAccessibleColors.surface,
                           ),
                         ],
                       ),
@@ -975,10 +979,10 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                             children: [
                               Text(
                                 '$departureTime → $arrivalTime · ${journey.durationMinutes}분',
-                                style: const TextStyle(
-                                  color: Color(0xFF111827),
+                                style: TextStyle(
+                                  color: EasySubwayAccessibleColors.text,
                                   fontSize: 18,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.w700,
                                   letterSpacing: -0.5,
                                 ),
                               ),
@@ -995,7 +999,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                       vertical: 2,
                                     ),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFECFDF5),
+                                      color: EasySubwayAccessibleColors
+                                          .surfaceScaffold,
                                       borderRadius: BorderRadius.circular(3),
                                     ),
                                     child: const Text(
@@ -1003,16 +1008,16 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: FontWeight.w700,
-                                        color: Color(0xFF059669),
+                                        color: EasySubwayAccessibleColors.mint,
                                       ),
                                     ),
                                   ),
                                   Text(
                                     fare,
-                                    style: const TextStyle(
-                                      color: Color(0xFF111827),
+                                    style: TextStyle(
+                                      color: EasySubwayAccessibleColors.text,
                                       fontSize: 15,
-                                      fontWeight: FontWeight.w800,
+                                      fontWeight: FontWeight.w700,
                                     ),
                                   ),
                                 ],
@@ -1043,7 +1048,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                               ),
                               borderRadius: BorderRadius.circular(6),
                             ),
-                            child: const Row(
+                            child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
@@ -1121,7 +1126,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
       showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,
-        backgroundColor: Colors.white,
+        backgroundColor: EasySubwayAccessibleColors.surface,
         shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
         ),
@@ -1260,9 +1265,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
         await showModalBottomSheet<({bool chosen, TrainSearchTrainType? type})>(
           context: context,
           isScrollControlled: true,
-          backgroundColor: Colors.white,
+          backgroundColor: EasySubwayAccessibleColors.surface,
           shape: const RoundedRectangleBorder(
-            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
           ),
           builder: (context) {
             return SafeArea(
@@ -1281,8 +1286,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                             '열차종류 선택',
                             style: TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w800,
-                              color: Color(0xFF111827),
+                              fontWeight: FontWeight.w700,
+                              color: EasySubwayAccessibleColors.text,
                             ),
                           ),
                           IconButton(
@@ -1294,7 +1299,10 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         ],
                       ),
                     ),
-                    const Divider(height: 1, color: Color(0xFFE5E7EB)),
+                    const Divider(
+                      height: 1,
+                      color: EasySubwayAccessibleColors.line,
+                    ),
                     Flexible(
                       child: SingleChildScrollView(
                         child: Column(
@@ -1311,15 +1319,15 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                 style: TextStyle(
                                   fontSize: 17,
                                   fontWeight: _trainType == null
-                                      ? FontWeight.w800
+                                      ? FontWeight.w700
                                       : FontWeight.w600,
                                   color: _trainType == null
                                       ? EasySubwayAccessibleColors.primary
-                                      : const Color(0xFF1F2937),
+                                      : EasySubwayAccessibleColors.text,
                                 ),
                               ),
                               trailing: _trainType == null
-                                  ? const Icon(
+                                  ? Icon(
                                       Icons.check,
                                       color: EasySubwayAccessibleColors.primary,
                                     )
@@ -1342,15 +1350,15 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                   style: TextStyle(
                                     fontSize: 17,
                                     fontWeight: _trainType == type
-                                        ? FontWeight.w800
+                                        ? FontWeight.w700
                                         : FontWeight.w600,
                                     color: _trainType == type
                                         ? EasySubwayAccessibleColors.primary
-                                        : const Color(0xFF1F2937),
+                                        : EasySubwayAccessibleColors.text,
                                   ),
                                 ),
                                 trailing: _trainType == type
-                                    ? const Icon(
+                                    ? Icon(
                                         Icons.check,
                                         color:
                                             EasySubwayAccessibleColors.primary,
@@ -1585,14 +1593,14 @@ class _TrainTimetableModalContentState
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF111827),
+                      color: EasySubwayAccessibleColors.text,
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(
+                    icon: Icon(
                       Icons.close,
                       size: 22,
-                      color: Color(0xFF6B7280),
+                      color: EasySubwayAccessibleColors.secondaryText,
                     ),
                     onPressed: () => Navigator.pop(context),
                   ),
@@ -1606,19 +1614,19 @@ class _TrainTimetableModalContentState
                   children: [
                     Text(
                       '${widget.dateFormatted} (${widget.weekday})',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Color(0xFF6B7280),
+                        color: EasySubwayAccessibleColors.secondaryText,
                       ),
                     ),
                     const SizedBox(height: 2),
                     Text(
                       '${journey.trainType.labelKo} ${journey.trainNumber}',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 22,
-                        fontWeight: FontWeight.w800,
-                        color: Color(0xFF111827),
+                        fontWeight: FontWeight.w700,
+                        color: EasySubwayAccessibleColors.text,
                         letterSpacing: -0.5,
                       ),
                     ),
@@ -1659,12 +1667,12 @@ class _TrainTimetableModalContentState
                       '코레일+ 에서 예매',
                       style: TextStyle(
                         fontSize: 17,
-                        fontWeight: FontWeight.w800,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                     style: FilledButton.styleFrom(
                       backgroundColor: primaryColor,
-                      foregroundColor: Colors.white,
+                      foregroundColor: EasySubwayAccessibleColors.surface,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                       ),
@@ -1688,7 +1696,9 @@ class _TrainTimetableModalContentState
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
         decoration: BoxDecoration(
-          color: isSelected ? activeColor : const Color(0xFFF3F4F6),
+          color: isSelected
+              ? activeColor
+              : EasySubwayAccessibleColors.surfaceScaffold,
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
@@ -1696,7 +1706,9 @@ class _TrainTimetableModalContentState
           style: TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w700,
-            color: isSelected ? Colors.white : const Color(0xFF4B5563),
+            color: isSelected
+                ? EasySubwayAccessibleColors.surface
+                : EasySubwayAccessibleColors.secondaryText,
           ),
         ),
       ),
@@ -1707,9 +1719,9 @@ class _TrainTimetableModalContentState
     final journey = widget.journey;
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: EasySubwayAccessibleColors.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: EasySubwayAccessibleColors.line),
       ),
       child: Column(
         children: [
@@ -1717,10 +1729,10 @@ class _TrainTimetableModalContentState
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: const BoxDecoration(
-              color: Color(0xFFF9FAFB),
+              color: EasySubwayAccessibleColors.surfaceScaffold,
               borderRadius: BorderRadius.vertical(top: Radius.circular(7)),
             ),
-            child: const Row(
+            child: Row(
               children: [
                 Expanded(
                   flex: 3,
@@ -1729,7 +1741,7 @@ class _TrainTimetableModalContentState
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B7280),
+                      color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
                 ),
@@ -1741,7 +1753,7 @@ class _TrainTimetableModalContentState
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B7280),
+                      color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
                 ),
@@ -1753,14 +1765,14 @@ class _TrainTimetableModalContentState
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF6B7280),
+                      color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
                 ),
               ],
             ),
           ),
-          const Divider(height: 1, color: Color(0xFFE5E7EB)),
+          const Divider(height: 1, color: EasySubwayAccessibleColors.line),
 
           // Departure Stop
           _stopRow(
@@ -1773,7 +1785,7 @@ class _TrainTimetableModalContentState
           ),
           const Divider(
             height: 1,
-            color: Color(0xFFF3F4F6),
+            color: EasySubwayAccessibleColors.surfaceScaffold,
             indent: 16,
             endIndent: 16,
           ),
@@ -1821,7 +1833,7 @@ class _TrainTimetableModalContentState
                   ),
                   const Divider(
                     height: 1,
-                    color: Color(0xFFF3F4F6),
+                    color: EasySubwayAccessibleColors.surfaceScaffold,
                     indent: 16,
                     endIndent: 16,
                   ),
@@ -1870,7 +1882,9 @@ class _TrainTimetableModalContentState
                         top: isOrigin ? 12 : 0,
                         bottom: isDestination ? 12 : 0,
                         width: 2,
-                        child: Container(color: const Color(0xFFE5E7EB)),
+                        child: Container(
+                          color: EasySubwayAccessibleColors.line,
+                        ),
                       ),
                       Container(
                         width: 8,
@@ -1879,7 +1893,7 @@ class _TrainTimetableModalContentState
                           shape: BoxShape.circle,
                           color: isOrigin || isDestination
                               ? themeColor
-                              : const Color(0xFF9CA3AF),
+                              : EasySubwayAccessibleColors.mutedText,
                         ),
                       ),
                     ],
@@ -1891,9 +1905,9 @@ class _TrainTimetableModalContentState
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isOrigin || isDestination
-                        ? FontWeight.w800
+                        ? FontWeight.w700
                         : FontWeight.w500,
-                    color: const Color(0xFF111827),
+                    color: EasySubwayAccessibleColors.text,
                   ),
                 ),
                 if (isOrigin) ...[
@@ -1924,7 +1938,7 @@ class _TrainTimetableModalContentState
                       vertical: 1,
                     ),
                     decoration: BoxDecoration(
-                      color: const Color(0xFFFEF2F2),
+                      color: EasySubwayAccessibleColors.surface,
                       borderRadius: BorderRadius.circular(3),
                     ),
                     child: const Text(
@@ -1932,7 +1946,7 @@ class _TrainTimetableModalContentState
                       style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFFDC2626),
+                        color: EasySubwayAccessibleColors.red,
                       ),
                     ),
                   ),
@@ -1949,8 +1963,8 @@ class _TrainTimetableModalContentState
                 fontSize: 13,
                 fontWeight: isDestination ? FontWeight.w700 : FontWeight.w500,
                 color: isDestination
-                    ? const Color(0xFF111827)
-                    : const Color(0xFF6B7280),
+                    ? EasySubwayAccessibleColors.text
+                    : EasySubwayAccessibleColors.secondaryText,
               ),
             ),
           ),
@@ -1963,8 +1977,8 @@ class _TrainTimetableModalContentState
                 fontSize: 13,
                 fontWeight: isOrigin ? FontWeight.w700 : FontWeight.w500,
                 color: isOrigin
-                    ? const Color(0xFF111827)
-                    : const Color(0xFF6B7280),
+                    ? EasySubwayAccessibleColors.text
+                    : EasySubwayAccessibleColors.secondaryText,
               ),
             ),
           ),
@@ -1981,18 +1995,18 @@ class _TrainTimetableModalContentState
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: EasySubwayAccessibleColors.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFFE5E7EB)),
+        border: Border.all(color: EasySubwayAccessibleColors.line),
       ),
       child: Column(
         children: [
           _fareRow('일반실 (어른)', '${_formatWon(fare)}원', isBold: true),
-          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          const Divider(height: 1, color: EasySubwayAccessibleColors.line),
           _fareRow('특실 / 우등실 (어른)', '${_formatWon(specialFare)}원'),
-          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          const Divider(height: 1, color: EasySubwayAccessibleColors.line),
           _fareRow('어린이 (만 6~12세)', '${_formatWon(childFare)}원'),
-          const Divider(height: 1, color: Color(0xFFF3F4F6)),
+          const Divider(height: 1, color: EasySubwayAccessibleColors.line),
           _fareRow('경로 (만 65세 이상, 평일)', '${_formatWon(seniorFare)}원'),
         ],
       ),
@@ -2010,17 +2024,17 @@ class _TrainTimetableModalContentState
             style: TextStyle(
               fontSize: 13,
               fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
-              color: const Color(0xFF374151),
+              color: EasySubwayAccessibleColors.text,
             ),
           ),
           Text(
             price,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w800,
+              fontWeight: FontWeight.w700,
               color: isBold
                   ? EasySubwayAccessibleColors.primary
-                  : const Color(0xFF111827),
+                  : EasySubwayAccessibleColors.text,
             ),
           ),
         ],

@@ -2,22 +2,22 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../accessible_design.dart';
+import '../../design_tokens.dart';
 
-/// 표준 광고 배너 슬롯 높이(dp).
-///
-/// AdMob 앵커 배너(320x50) 또는 카카오 AdFit(320x50/320x100)의 표준 컨테이너
-/// 규격에 맞춰 상하 패딩을 포함한 60dp를 기본값으로 둔다.
-const double kAdBannerSlotStandardHeight = 60.0;
+/// 표준 배너 규격(아이콘 + 제목/부제 + CTA) 기준 슬롯 높이 (#1931).
+const double kAdBannerSlotStandardHeight = 96;
 
-/// 앱 공용 하단 광고 배너 슬롯.
+/// 실광고 연동 전까지 사용하는 공용 배너 슬롯.
 ///
-/// 오너 계약(#1933 요구 5):
-/// - 노선도 메인 화면 하단: 고정 배치(바텀 시트·패널 뒤로 밀리지 않음).
-/// - 좌측 메뉴 서랍(Drawer) 하단: 메뉴 스크롤과 무관하게 하단 고정.
-/// - release 빌드: 실광고 SDK가 아직 연결되지 않았으면([child] == null)
-///   슬롯을 완전히 숨겨(collapse) 여백이 낭비되지 않게 한다.
-/// - debug/internal 빌드: 실광고 미연동 시 실무적인 서비스 안내 하우스 배너를
-///   제공하여 화면 균형과 레이아웃 점유를 유지한다.
+/// 노출 규칙(전 화면 공통):
+/// - release 빌드: 로드된 실광고([child])가 없으면 슬롯을 렌더링하지 않는다.
+///   빈 박스·"광고" 텍스트 플레이스홀더를 release에 상시 노출하지 않는다.
+/// - debug/internal 빌드: 자리 확인용 플레이스홀더만 노출한다. 표준 배너
+///   규격(아이콘·제목/부제·CTA)을 그대로 반영해 실제 배치 시 크기를 체감할
+///   수 있게 한다.
+///
+/// 실광고 SDK를 연동하면 로드된 배너를 [child]로 전달한다. 로드 실패·무재고면
+/// 상위에서 이 위젯을 렌더링하지 않거나 [child]를 null로 두면 슬롯이 collapse된다.
 class AdBannerSlot extends StatelessWidget {
   const AdBannerSlot({
     required this.slotKey,
@@ -40,7 +40,7 @@ class AdBannerSlot extends StatelessWidget {
       return const SizedBox.shrink();
     }
     return Semantics(
-      label: '안내 배너',
+      label: '광고',
       child: Container(
         key: slotKey,
         height: height,
@@ -53,67 +53,85 @@ class AdBannerSlot extends StatelessWidget {
               : null,
         ),
         child:
-            ad ?? const ExcludeSemantics(child: _AdBannerSlotDefaultBanner()),
+            ad ?? const ExcludeSemantics(child: _AdBannerSlotDevPlaceholder()),
       ),
     );
   }
 }
 
-/// 실광고 미연동 시 노출되는 실무적 기본 안내 배너.
-class _AdBannerSlotDefaultBanner extends StatelessWidget {
-  const _AdBannerSlotDefaultBanner();
+/// 개발 빌드 전용 플레이스홀더 — 표준 배너 레이아웃(아이콘/제목·부제/CTA)만
+/// 중립 블록으로 보여준다. 실제 광고 콘텐츠·브랜드 요소는 없다.
+class _AdBannerSlotDevPlaceholder extends StatelessWidget {
+  const _AdBannerSlotDevPlaceholder();
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: EasySubwaySpacing.lg,
+        vertical: EasySubwaySpacing.sm,
+      ),
       child: Row(
         children: [
+          // 아이콘 영역 플레이스홀더.
           Container(
-            width: 40,
-            height: 40,
+            width: 64,
+            height: 64,
             decoration: BoxDecoration(
-              color: EasySubwayAccessibleColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
+              color: EasySubwayAccessibleColors.line,
+              borderRadius: BorderRadius.circular(EasySubwayRadius.control),
             ),
             alignment: Alignment.center,
             child: const Icon(
-              Icons.subway,
-              color: EasySubwayAccessibleColors.primary,
-              size: 22,
+              Icons.image_outlined,
+              color: EasySubwayAccessibleColors.mutedText,
             ),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: FittedBox(
-              fit: BoxFit.scaleDown,
-              alignment: Alignment.centerLeft,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '쉬운 지하철과 함께하는 편안한 이동',
+          const SizedBox(width: EasySubwaySpacing.md),
+          // 제목/부제 플레이스홀더. 시스템 글자 크기가 커도 슬롯 높이를 넘지 않도록
+          // 각 줄을 FittedBox로 축소한다(장식용 자리표시 텍스트, 실제 정보 없음).
+          const Expanded(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '광고 미리보기 (개발용)',
                     style: TextStyle(
-                      color: EasySubwayAccessibleColors.contentPrimary,
+                      color: EasySubwayAccessibleColors.mutedText,
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: FontWeight.w600,
                     ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                  SizedBox(height: 2),
-                  Text(
-                    '엘리베이터 및 실시간 도착 정보를 확인하세요',
+                ),
+                SizedBox(height: EasySubwaySpacing.xs),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '표준 배너 규격 자리표시 텍스트',
                     style: TextStyle(
-                      color: EasySubwayAccessibleColors.contentMuted,
-                      fontSize: 11,
+                      color: EasySubwayAccessibleColors.mutedText,
+                      fontSize: 12,
                     ),
                     maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
-              ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: EasySubwaySpacing.md),
+          // CTA 버튼 영역 플레이스홀더.
+          Container(
+            width: 64,
+            height: 32,
+            decoration: BoxDecoration(
+              color: EasySubwayAccessibleColors.line,
+              borderRadius: BorderRadius.circular(EasySubwayRadius.control),
             ),
           ),
         ],

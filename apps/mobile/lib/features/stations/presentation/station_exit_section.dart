@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../accessible_design.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
@@ -98,7 +99,7 @@ class _StationExitSectionState extends State<StationExitSection> {
                 top: 8,
                 right: 8,
                 child: Material(
-                  color: Colors.white,
+                  color: EasySubwayAccessibleColors.surface,
                   shape: const CircleBorder(),
                   elevation: 2,
                   child: InkWell(
@@ -110,7 +111,7 @@ class _StationExitSectionState extends State<StationExitSection> {
                       child: Icon(
                         Icons.open_in_full,
                         size: 16,
-                        color: Color(0xFF333333),
+                        color: EasySubwayAccessibleColors.text,
                       ),
                     ),
                   ),
@@ -200,15 +201,17 @@ class _ExitPillTab extends StatelessWidget {
       selected: isSelected,
       label: '${exit.exitNumber}번 출구',
       child: Material(
-        color: isSelected ? Colors.white : const Color(0xFFF4F6F8),
+        color: isSelected
+            ? EasySubwayAccessibleColors.surface
+            : EasySubwayAccessibleColors.surfaceScaffold,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(8),
           side: isSelected
-              ? const BorderSide(color: Colors.black, width: 1.5)
+              ? BorderSide(color: EasySubwayAccessibleColors.text, width: 1.5)
               : BorderSide.none,
         ),
         child: InkWell(
-          borderRadius: BorderRadius.circular(24),
+          borderRadius: BorderRadius.circular(8),
           onTap: onTap,
           child: Container(
             constraints: const BoxConstraints(minHeight: 48),
@@ -222,8 +225,8 @@ class _ExitPillTab extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isSelected
-                        ? const Color(0xFFFFCD00)
-                        : const Color(0xFFE5E8EB),
+                        ? EasySubwayAccessibleColors.amber
+                        : EasySubwayAccessibleColors.line,
                   ),
                   alignment: Alignment.center,
                   child: Text(
@@ -231,11 +234,11 @@ class _ExitPillTab extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: isSelected
-                          ? FontWeight.w800
+                          ? FontWeight.w700
                           : FontWeight.w700,
                       color: isSelected
-                          ? Colors.black
-                          : const Color(0xFF888888),
+                          ? EasySubwayAccessibleColors.text
+                          : EasySubwayAccessibleColors.mutedText,
                     ),
                   ),
                 ),
@@ -246,8 +249,8 @@ class _ExitPillTab extends StatelessWidget {
                     fontSize: 14,
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
-                        ? const Color(0xFF111111)
-                        : const Color(0xFF888888),
+                        ? EasySubwayAccessibleColors.text
+                        : EasySubwayAccessibleColors.mutedText,
                   ),
                 ),
               ],

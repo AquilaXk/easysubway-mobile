@@ -46,10 +46,7 @@ class StationFacilityCard extends StatelessWidget {
         color: EasySubwayAccessibleColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(
-            color: EasySubwayAccessibleColors.line,
-            width: 1,
-          ),
+          side: BorderSide(color: EasySubwayAccessibleColors.line, width: 1),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -124,7 +121,7 @@ class StationFacilityCard extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Icon(
+                                  Icon(
                                     Icons.chevron_right,
                                     color: EasySubwayAccessibleColors.mutedText,
                                     size: 20,
@@ -140,13 +137,15 @@ class StationFacilityCard extends StatelessWidget {
                                   ),
                                   decoration: BoxDecoration(
                                     color: isInsideGate
-                                        ? const Color(0xFFEFF6FF)
-                                        : const Color(0xFFF3F4F6),
+                                        ? EasySubwayAccessibleColors
+                                              .surfaceBrandChrome
+                                        : EasySubwayAccessibleColors
+                                              .surfaceSubtle,
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
                                       color: isInsideGate
-                                          ? const Color(0xFF3B82F6)
-                                          : const Color(0xFFD1D5DB),
+                                          ? EasySubwayAccessibleColors.primary
+                                          : EasySubwayAccessibleColors.line,
                                     ),
                                   ),
                                   child: Text(
@@ -157,8 +156,9 @@ class StationFacilityCard extends StatelessWidget {
                                       fontSize: 11,
                                       fontWeight: FontWeight.w700,
                                       color: isInsideGate
-                                          ? const Color(0xFF1D4ED8)
-                                          : const Color(0xFF4B5563),
+                                          ? EasySubwayAccessibleColors.primary
+                                          : EasySubwayAccessibleColors
+                                                .secondaryText,
                                     ),
                                   ),
                                 ),
@@ -209,7 +209,7 @@ class StationFacilityCard extends StatelessWidget {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.place_outlined,
                                     size: 16,
                                     color: EasySubwayAccessibleColors.mutedText,
@@ -231,7 +231,7 @@ class StationFacilityCard extends StatelessWidget {
                               const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.event_available,
                                     size: 15,
                                     color: EasySubwayAccessibleColors.mutedText,

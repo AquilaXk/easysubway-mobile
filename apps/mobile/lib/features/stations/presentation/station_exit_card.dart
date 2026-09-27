@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../accessible_design.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
@@ -62,7 +63,7 @@ class StationExitCard extends StatelessWidget {
                         style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w700,
-                          color: Color(0xFF111111),
+                          color: EasySubwayAccessibleColors.text,
                         ),
                       ),
                       if (exit.hasElevatorConnection)
@@ -72,7 +73,8 @@ class StationExitCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEBF3FE),
+                            color:
+                                EasySubwayAccessibleColors.surfaceBrandChrome,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -80,7 +82,7 @@ class StationExitCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF1B64DA),
+                              color: EasySubwayAccessibleColors.primary,
                             ),
                           ),
                         ),
@@ -91,7 +93,8 @@ class StationExitCard extends StatelessWidget {
                             vertical: 2,
                           ),
                           decoration: BoxDecoration(
-                            color: const Color(0xFFEBF3FE),
+                            color:
+                                EasySubwayAccessibleColors.surfaceBrandChrome,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: const Text(
@@ -99,7 +102,7 @@ class StationExitCard extends StatelessWidget {
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Color(0xFF1B64DA),
+                              color: EasySubwayAccessibleColors.primary,
                             ),
                           ),
                         ),
@@ -111,7 +114,7 @@ class StationExitCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF111111),
+                      color: EasySubwayAccessibleColors.text,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -119,7 +122,7 @@ class StationExitCard extends StatelessWidget {
                     description,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF444444),
+                      color: EasySubwayAccessibleColors.secondaryText,
                       height: 1.4,
                     ),
                   ),
@@ -129,7 +132,7 @@ class StationExitCard extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 15,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF111111),
+                      color: EasySubwayAccessibleColors.text,
                     ),
                   ),
                   const SizedBox(height: 6),
@@ -137,7 +140,7 @@ class StationExitCard extends StatelessWidget {
                     doorHint,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF444444),
+                      color: EasySubwayAccessibleColors.secondaryText,
                       height: 1.4,
                     ),
                   ),

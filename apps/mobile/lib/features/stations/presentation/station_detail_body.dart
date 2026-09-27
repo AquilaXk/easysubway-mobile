@@ -346,7 +346,10 @@ class _StationDetailContent extends StatelessWidget {
                     : [
                         ...primaryChildren,
                         const SizedBox(height: 16),
-                        Container(height: 8, color: const Color(0xFFF4F5F7)),
+                        Container(
+                          height: 8,
+                          color: EasySubwayAccessibleColors.surfaceSubtle,
+                        ),
                         const SizedBox(height: 16),
                         ...detailChildren,
                       ],
@@ -425,7 +428,7 @@ class _StationDetailContextChrome extends StatelessWidget {
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   padding: EdgeInsets.zero,
                 ),
-                icon: const Icon(
+                icon: Icon(
                   Icons.close,
                   size: 26,
                   color: EasySubwayAccessibleColors.contentPrimary,
@@ -749,8 +752,8 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           '역정보',
           style: TextStyle(
             fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF111111),
+            fontWeight: FontWeight.w700,
+            color: EasySubwayAccessibleColors.text,
             letterSpacing: -0.3,
           ),
         ),
@@ -761,7 +764,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF111111),
+            color: EasySubwayAccessibleColors.text,
           ),
         ),
         const SizedBox(height: 12),
@@ -805,7 +808,11 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+        const Divider(
+          height: 1,
+          thickness: 1,
+          color: EasySubwayAccessibleColors.line,
+        ),
         const SizedBox(height: 16),
 
         // 편의시설
@@ -814,7 +821,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF111111),
+            color: EasySubwayAccessibleColors.text,
           ),
         ),
         const SizedBox(height: 12),
@@ -858,7 +865,11 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 16),
-        const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+        const Divider(
+          height: 1,
+          thickness: 1,
+          color: EasySubwayAccessibleColors.line,
+        ),
         const SizedBox(height: 16),
 
         // 교통약자 시설
@@ -867,7 +878,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.w700,
-            color: Color(0xFF111111),
+            color: EasySubwayAccessibleColors.text,
           ),
         ),
         const SizedBox(height: 12),
@@ -953,29 +964,29 @@ class _NaverFacilityTagItem extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 20, color: const Color(0xFF666666)),
+          Icon(icon, size: 20, color: EasySubwayAccessibleColors.secondaryText),
           const SizedBox(width: 8),
           Text(
             label,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
-              color: Color(0xFF333333),
+              color: EasySubwayAccessibleColors.text,
             ),
           ),
           const SizedBox(width: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
             decoration: BoxDecoration(
-              color: const Color(0xFFF0F2F5),
+              color: EasySubwayAccessibleColors.surfaceSubtle,
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               tag,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
-                color: Color(0xFF222222),
+                color: EasySubwayAccessibleColors.text,
               ),
             ),
           ),
@@ -1004,10 +1015,14 @@ class _NaverAmenityGridItem extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (isAvailable)
-            Icon(icon, size: 20, color: const Color(0xFF222222))
+            Icon(icon, size: 20, color: EasySubwayAccessibleColors.text)
           else
             _DisabledIconWithSlash(
-              child: Icon(icon, size: 20, color: const Color(0xFFAAAAAA)),
+              child: Icon(
+                icon,
+                size: 20,
+                color: EasySubwayAccessibleColors.mutedText,
+              ),
             ),
           const SizedBox(width: 8),
           Flexible(
@@ -1017,8 +1032,8 @@ class _NaverAmenityGridItem extends StatelessWidget {
                 fontSize: 14,
                 fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
                 color: isAvailable
-                    ? const Color(0xFF222222)
-                    : const Color(0xFFAAAAAA),
+                    ? EasySubwayAccessibleColors.text
+                    : EasySubwayAccessibleColors.mutedText,
               ),
             ),
           ),
@@ -1048,10 +1063,14 @@ class _NaverAccessibleFacilityItem extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (isAvailable)
-          Icon(icon, size: 20, color: const Color(0xFF222222))
+          Icon(icon, size: 20, color: EasySubwayAccessibleColors.text)
         else
           _DisabledIconWithSlash(
-            child: Icon(icon, size: 20, color: const Color(0xFFAAAAAA)),
+            child: Icon(
+              icon,
+              size: 20,
+              color: EasySubwayAccessibleColors.mutedText,
+            ),
           ),
         const SizedBox(width: 8),
         Flexible(
@@ -1061,8 +1080,8 @@ class _NaverAccessibleFacilityItem extends StatelessWidget {
               fontSize: 14,
               fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
               color: isAvailable
-                  ? const Color(0xFF222222)
-                  : const Color(0xFFAAAAAA),
+                  ? EasySubwayAccessibleColors.text
+                  : EasySubwayAccessibleColors.mutedText,
             ),
           ),
         ),
@@ -1108,7 +1127,7 @@ class _SlashPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final paint = Paint()
-      ..color = const Color(0xFFAAAAAA)
+      ..color = EasySubwayAccessibleColors.mutedText
       ..strokeWidth = 1.5
       ..strokeCap = StrokeCap.round;
     canvas.drawLine(
@@ -1151,8 +1170,8 @@ class _StationNaverExitSection extends StatelessWidget {
           '출구정보',
           style: TextStyle(
             fontSize: 20,
-            fontWeight: FontWeight.w800,
-            color: Color(0xFF111111),
+            fontWeight: FontWeight.w700,
+            color: EasySubwayAccessibleColors.text,
             letterSpacing: -0.3,
           ),
         ),
@@ -1196,8 +1215,10 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Color(0xFFEEEEEE), width: 1)),
+        color: EasySubwayAccessibleColors.surface,
+        border: Border(
+          top: BorderSide(color: EasySubwayAccessibleColors.line, width: 1),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -1207,11 +1228,11 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
             Expanded(
               flex: 5,
               child: Material(
-                color: const Color(0xFFEBF2FF),
-                borderRadius: BorderRadius.circular(24),
+                color: EasySubwayAccessibleColors.surfaceBrandChrome,
+                borderRadius: BorderRadius.circular(8),
                 child: InkWell(
                   key: const Key('stationDetailSetOriginButton'),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(8),
                   onTap: () {
                     final station = RouteDraftStation(
                       id: detail.id,
@@ -1232,7 +1253,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: Color(0xFF0066FF),
+                        color: EasySubwayAccessibleColors.primary,
                       ),
                     ),
                   ),
@@ -1244,11 +1265,11 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
             Expanded(
               flex: 5,
               child: Material(
-                color: const Color(0xFF0066FF),
-                borderRadius: BorderRadius.circular(24),
+                color: EasySubwayAccessibleColors.primary,
+                borderRadius: BorderRadius.circular(8),
                 child: InkWell(
                   key: const Key('stationDetailSetDestinationButton'),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(8),
                   onTap: () {
                     final station = RouteDraftStation(
                       id: detail.id,
@@ -1269,7 +1290,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w700,
-                        color: Colors.white,
+                        color: EasySubwayAccessibleColors.onPrimary,
                       ),
                     ),
                   ),
@@ -1281,25 +1302,25 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
             Expanded(
               flex: 9,
               child: Material(
-                color: Colors.white,
+                color: EasySubwayAccessibleColors.surface,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  side: const BorderSide(color: Color(0xFFDDDDDD)),
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: EasySubwayAccessibleColors.line),
                 ),
                 child: InkWell(
                   key: const Key('stationTimetableButton'),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(8),
                   onTap: () => _openTimetable(context),
                   child: Container(
                     height: 48,
                     alignment: Alignment.center,
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.calendar_today,
                           size: 14,
-                          color: Color(0xFF222222),
+                          color: EasySubwayAccessibleColors.text,
                         ),
                         SizedBox(width: 4),
                         Text(
@@ -1307,7 +1328,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF222222),
+                            color: EasySubwayAccessibleColors.text,
                           ),
                         ),
                       ],
@@ -1321,25 +1342,25 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
             Expanded(
               flex: 9,
               child: Material(
-                color: Colors.white,
+                color: EasySubwayAccessibleColors.surface,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(24),
-                  side: const BorderSide(color: Color(0xFFDDDDDD)),
+                  borderRadius: BorderRadius.circular(8),
+                  side: BorderSide(color: EasySubwayAccessibleColors.line),
                 ),
                 child: InkWell(
                   key: const Key('stationDetailBottomFirstLastButton'),
-                  borderRadius: BorderRadius.circular(24),
+                  borderRadius: BorderRadius.circular(8),
                   onTap: () => _openTimetable(context),
                   child: Container(
                     height: 48,
                     alignment: Alignment.center,
-                    child: const Row(
+                    child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(
                           Icons.train_outlined,
                           size: 15,
-                          color: Color(0xFF222222),
+                          color: EasySubwayAccessibleColors.text,
                         ),
                         SizedBox(width: 4),
                         Text(
@@ -1347,7 +1368,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
-                            color: Color(0xFF222222),
+                            color: EasySubwayAccessibleColors.text,
                           ),
                         ),
                       ],
@@ -1507,7 +1528,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
                                 nextStation: widget.nextStation,
                                 directionIndex: i,
                               ),
-                              style: const TextStyle(
+                              style: TextStyle(
                                 color: EasySubwayAccessibleColors.text,
                                 fontSize: 14,
                                 fontWeight: FontWeight.w700,
@@ -1558,7 +1579,7 @@ class _StationDetailFirstLastBadge extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
+          style: TextStyle(
             color: EasySubwayAccessibleColors.secondaryText,
             fontSize: 12,
             fontWeight: FontWeight.w700,
@@ -1567,7 +1588,7 @@ class _StationDetailFirstLastBadge extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           time,
-          style: const TextStyle(
+          style: TextStyle(
             color: EasySubwayAccessibleColors.text,
             fontSize: 13,
             fontWeight: FontWeight.w700,

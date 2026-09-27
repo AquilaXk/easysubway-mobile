@@ -205,6 +205,10 @@ void main() {
           {'0xE62F3437'},
       'lib/core/ui/region_menu.dart': {'0x99000000'},
       'lib/app/accessibility_theme.dart': {'Colors.white'},
+      'lib/features/train_search/presentation/train_search_screen.dart': {
+        '0xFF8B1538',
+        '0xFF003893',
+      },
     };
     final colorReferences = RegExp(
       r'Color\(\s*[^)]*?(0x[0-9A-Fa-f]{8})[^)]*\)|'

@@ -129,7 +129,7 @@ class StationLineBadge extends StatelessWidget {
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
           color: foregroundColor,
           fontSize: badgeFontSize,
-          fontWeight: FontWeight.w800,
+          fontWeight: FontWeight.bold,
           height: 1.05,
         ),
       ),

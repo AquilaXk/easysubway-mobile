@@ -493,9 +493,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     }
 
     return Scaffold(
-      backgroundColor: Colors.white,
+      backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
-        backgroundColor: Colors.white,
+        backgroundColor: EasySubwayAccessibleColors.surface,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
@@ -508,8 +508,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             children: [
               Text(
                 _stationDisplayName,
-                style: const TextStyle(
-                  color: Color(0xFF111111),
+                style: TextStyle(
+                  color: EasySubwayAccessibleColors.text,
                   fontWeight: FontWeight.bold,
                   fontSize: 18,
                 ),
@@ -531,13 +531,21 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         actions: [
           IconButton(
             tooltip: '닫기',
-            icon: const Icon(Icons.close, size: 24, color: Color(0xFF555555)),
+            icon: const Icon(
+              Icons.close,
+              size: 24,
+              color: EasySubwayAccessibleColors.secondaryText,
+            ),
             onPressed: () => unawaited(Navigator.maybePop(context)),
           ),
         ],
         bottom: const PreferredSize(
           preferredSize: Size.fromHeight(1.0),
-          child: Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+          child: Divider(
+            height: 1,
+            thickness: 1,
+            color: EasySubwayAccessibleColors.line,
+          ),
         ),
       ),
       body: SafeArea(
@@ -546,7 +554,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           children: [
             if (widget.lines.length > 1) ...[
               Container(
-                color: Colors.white,
+                color: EasySubwayAccessibleColors.surface,
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
                   vertical: 8,
@@ -567,16 +575,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                                     ? FontWeight.bold
                                     : FontWeight.normal,
                                 color: _lineId == line.id
-                                    ? Colors.white
-                                    : const Color(0xFF333333),
+                                    ? EasySubwayAccessibleColors.onPrimary
+                                    : EasySubwayAccessibleColors.text,
                               ),
                             ),
                             selected: _lineId == line.id,
                             selectedColor: _parseLineColor(line.color),
-                            backgroundColor: const Color(0xFFF0F0F0),
+                            backgroundColor:
+                                EasySubwayAccessibleColors.surfaceSubtle,
                             side: BorderSide.none,
                             shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(16),
+                              borderRadius: BorderRadius.circular(8),
                             ),
                             onSelected: (_) {
                               setState(() {
@@ -592,11 +601,19 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                   ),
                 ),
               ),
-              const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+              const Divider(
+                height: 1,
+                thickness: 1,
+                color: EasySubwayAccessibleColors.line,
+              ),
             ],
 
             _buildDayAndFilterBar(),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+            const Divider(
+              height: 1,
+              thickness: 1,
+              color: EasySubwayAccessibleColors.line,
+            ),
 
             () {
               final renderedHours = _getSortedDeparturesHours(
@@ -604,7 +621,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               );
               return _buildHourSelector(availableHours, renderedHours);
             }(),
-            const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+            const Divider(
+              height: 1,
+              thickness: 1,
+              color: EasySubwayAccessibleColors.line,
+            ),
 
             if (_loading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
@@ -621,7 +642,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               )
             else ...[
               _buildDirectionHeader(directions: visibleDirections),
-              const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+              const Divider(
+                height: 1,
+                thickness: 1,
+                color: EasySubwayAccessibleColors.line,
+              ),
 
               Expanded(
                 child: SingleChildScrollView(
@@ -648,7 +673,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
   Widget _buildDayAndFilterBar() {
     return Container(
-      color: Colors.white,
+      color: EasySubwayAccessibleColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
@@ -706,15 +731,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                   fontSize: isSelected ? 16 : 15,
                   fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
                   color: isSelected
-                      ? const Color(0xFF111111)
-                      : const Color(0xFF757575),
+                      ? EasySubwayAccessibleColors.text
+                      : EasySubwayAccessibleColors.secondaryText,
                 ),
               ),
             ),
             Container(
               height: 2.5,
               width: isSelected ? 32 : 0,
-              color: isSelected ? const Color(0xFF111111) : Colors.transparent,
+              color: isSelected
+                  ? EasySubwayAccessibleColors.text
+                  : Colors.transparent,
             ),
           ],
         ),
@@ -737,12 +764,14 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
-            color: isSelected ? const Color(0xFFEBF4FF) : Colors.white,
-            borderRadius: BorderRadius.circular(16),
+            color: isSelected
+                ? EasySubwayAccessibleColors.surfaceBrandChrome
+                : EasySubwayAccessibleColors.surface,
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isSelected
-                  ? const Color(0xFF0066FF)
-                  : const Color(0xFFE0E0E0),
+                  ? EasySubwayAccessibleColors.primary
+                  : EasySubwayAccessibleColors.line,
               width: 1,
             ),
           ),
@@ -750,8 +779,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             label,
             style: TextStyle(
               color: isSelected
-                  ? const Color(0xFF0066FF)
-                  : const Color(0xFF444444),
+                  ? EasySubwayAccessibleColors.primary
+                  : EasySubwayAccessibleColors.secondaryText,
               fontSize: 13,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
             ),
@@ -763,7 +792,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
   Widget _buildHourSelector(List<int> availableHours, List<int> renderedHours) {
     return Container(
-      color: Colors.white,
+      color: EasySubwayAccessibleColors.surface,
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
@@ -800,12 +829,14 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         margin: const EdgeInsets.only(right: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
         decoration: BoxDecoration(
-          color: isSelected ? const Color(0xFFEBF4FF) : Colors.white,
-          borderRadius: BorderRadius.circular(20),
+          color: isSelected
+              ? EasySubwayAccessibleColors.surfaceBrandChrome
+              : EasySubwayAccessibleColors.surface,
+          borderRadius: BorderRadius.circular(8),
           border: Border.all(
             color: isSelected
-                ? const Color(0xFF0066FF)
-                : const Color(0xFFE0E0E0),
+                ? EasySubwayAccessibleColors.primary
+                : EasySubwayAccessibleColors.line,
             width: isSelected ? 1.2 : 1.0,
           ),
         ),
@@ -813,8 +844,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           label,
           style: TextStyle(
             color: isSelected
-                ? const Color(0xFF0066FF)
-                : const Color(0xFF444444),
+                ? EasySubwayAccessibleColors.primary
+                : EasySubwayAccessibleColors.secondaryText,
             fontSize: 14,
             fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
           ),
@@ -832,7 +863,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       final direction = directions.first;
       final origIndex = _timetable?.directions.indexOf(direction) ?? 0;
       return Container(
-        color: const Color(0xFFFAFAFA),
+        color: EasySubwayAccessibleColors.surfaceSubtle,
         padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
         child: Column(
           children: [
@@ -848,7 +879,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final right = directions[1];
 
     return Container(
-      color: const Color(0xFFFAFAFA),
+      color: EasySubwayAccessibleColors.surfaceSubtle,
       child: IntrinsicHeight(
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -871,7 +902,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             const VerticalDivider(
               width: 1,
               thickness: 1,
-              color: Color(0xFFEEEEEE),
+              color: EasySubwayAccessibleColors.line,
             ),
             Expanded(
               child: Padding(
@@ -912,10 +943,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       key: Key('stationTimetableDirection-${direction.name}'),
       label: Text(
         displayName,
-        style: const TextStyle(
+        style: TextStyle(
           fontSize: 15,
           fontWeight: FontWeight.bold,
-          color: Color(0xFF111111),
+          color: EasySubwayAccessibleColors.text,
         ),
       ),
       selected: isSelected,
@@ -953,17 +984,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       children: [
         Text(
           current,
-          style: const TextStyle(
-            color: Color(0xFF777777),
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.secondaryText,
             fontSize: 13,
             fontWeight: FontWeight.normal,
           ),
         ),
         const SizedBox(width: 2),
-        const Icon(
+        Icon(
           Icons.keyboard_arrow_down,
           size: 16,
-          color: Color(0xFF777777),
+          color: EasySubwayAccessibleColors.secondaryText,
         ),
       ],
     );
@@ -1058,7 +1089,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           child: Center(
             child: Text(
               '해당하는 열차가 없습니다',
-              style: TextStyle(color: Color(0xFF757575), fontSize: 14),
+              style: TextStyle(
+                color: EasySubwayAccessibleColors.secondaryText,
+                fontSize: 14,
+              ),
             ),
           ),
         );
@@ -1068,7 +1102,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         children: [
           for (int idx = 0; idx < sortedHours.length; idx++) ...[
             if (idx > 0)
-              const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+              const Divider(
+                height: 1,
+                thickness: 1,
+                color: EasySubwayAccessibleColors.line,
+              ),
             () {
               final hour = sortedHours[idx];
               final leftList = leftByHour[hour] ?? const [];
@@ -1089,7 +1127,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                                 const Divider(
                                   height: 1,
                                   thickness: 1,
-                                  color: Color(0xFFF5F5F5),
+                                  color:
+                                      EasySubwayAccessibleColors.surfaceSubtle,
                                 ),
                               _buildDepartureItem(
                                 departure: leftList[i],
@@ -1114,7 +1153,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                       const VerticalDivider(
                         width: 1,
                         thickness: 1,
-                        color: Color(0xFFEEEEEE),
+                        color: EasySubwayAccessibleColors.line,
                       ),
                       Expanded(
                         child: Column(
@@ -1125,7 +1164,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                                 const Divider(
                                   height: 1,
                                   thickness: 1,
-                                  color: Color(0xFFF5F5F5),
+                                  color:
+                                      EasySubwayAccessibleColors.surfaceSubtle,
                                 ),
                               _buildDepartureItem(
                                 departure: rightList[i],
@@ -1192,7 +1232,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         child: Center(
           child: Text(
             '해당하는 열차가 없습니다',
-            style: TextStyle(color: Color(0xFF757575), fontSize: 14),
+            style: TextStyle(
+              color: EasySubwayAccessibleColors.secondaryText,
+              fontSize: 14,
+            ),
           ),
         ),
       );
@@ -1202,7 +1245,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       children: [
         for (int idx = 0; idx < sortedHours.length; idx++) ...[
           if (idx > 0)
-            const Divider(height: 1, thickness: 1, color: Color(0xFFEEEEEE)),
+            const Divider(
+              height: 1,
+              thickness: 1,
+              color: EasySubwayAccessibleColors.line,
+            ),
           () {
             final hour = sortedHours[idx];
             final list = byHour[hour] ?? const [];
@@ -1217,7 +1264,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                       const Divider(
                         height: 1,
                         thickness: 1,
-                        color: Color(0xFFF5F5F5),
+                        color: EasySubwayAccessibleColors.surfaceSubtle,
                       ),
                     _buildDepartureItem(
                       departure: list[i],
@@ -1274,7 +1321,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                       fontWeight: FontWeight.bold,
                       color: isPast
                           ? EasySubwayAccessibleColors.mutedText
-                          : const Color(0xFF111111),
+                          : EasySubwayAccessibleColors.text,
                     ),
                   ),
                   if (isFirst)
@@ -1284,17 +1331,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                         vertical: 1.5,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFEBF4FF),
-                        borderRadius: BorderRadius.circular(10),
+                        color: EasySubwayAccessibleColors.surfaceBrandChrome,
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: const Color(0xFF0066FF),
+                          color: EasySubwayAccessibleColors.primary,
                           width: 0.8,
                         ),
                       ),
                       child: const Text(
                         '첫차',
                         style: TextStyle(
-                          color: Color(0xFF0066FF),
+                          color: EasySubwayAccessibleColors.primary,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           height: 1.1,
@@ -1308,17 +1355,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                         vertical: 1.5,
                       ),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF0F0),
-                        borderRadius: BorderRadius.circular(10),
+                        color: EasySubwayAccessibleColors.surfaceSubtle,
+                        borderRadius: BorderRadius.circular(8),
                         border: Border.all(
-                          color: const Color(0xFFFF3B30),
+                          color: EasySubwayAccessibleColors.red,
                           width: 0.8,
                         ),
                       ),
                       child: const Text(
                         '막차',
                         style: TextStyle(
-                          color: Color(0xFFFF3B30),
+                          color: EasySubwayAccessibleColors.red,
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
                           height: 1.1,
@@ -1372,7 +1419,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                   fontSize: 13,
                   color: isPast
                       ? EasySubwayAccessibleColors.mutedText
-                      : const Color(0xFF777777),
+                      : EasySubwayAccessibleColors.secondaryText,
                 ),
               ),
             ],
@@ -1558,7 +1605,7 @@ String formatStationDirectionName(
 
 Color _parseLineColor(String? colorStr) {
   if (colorStr == null || colorStr.isEmpty) {
-    return const Color(0xFF111111);
+    return EasySubwayAccessibleColors.text;
   }
   try {
     final hex = colorStr.replaceAll('#', '');
@@ -1569,7 +1616,7 @@ Color _parseLineColor(String? colorStr) {
       return Color(int.parse('0x$hex'));
     }
   } catch (_) {}
-  return const Color(0xFF111111);
+  return EasySubwayAccessibleColors.text;
 }
 
 String _formatLineName(String raw) {

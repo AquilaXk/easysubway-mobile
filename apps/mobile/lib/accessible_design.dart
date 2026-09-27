@@ -208,7 +208,7 @@ class EasySubwayTouchTarget {
 const easySubwayTopBarContentHeight = 60.0;
 
 /// 네비/상단바 하단 구분선 색. 인디고 상단바(#5C6BC0)와 조화되는 톤온톤 엣지.
-const easySubwayHeaderDividerColor = Color(0xFF4A5799);
+const easySubwayHeaderDividerColor = EasySubwayColorPrimitives.brand800;
 
 /// 상단바·시트와 본문을 나누는 1px 구분선.
 ///
