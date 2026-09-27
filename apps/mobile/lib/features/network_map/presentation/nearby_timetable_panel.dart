@@ -28,6 +28,7 @@ class NearbyTimetableDepartureData {
     required this.timeLabel,
     required this.semanticLabel,
     required this.isExpress,
+    this.destination = '',
     this.isFirstTrain = false,
   });
 
@@ -36,7 +37,20 @@ class NearbyTimetableDepartureData {
   final String timeLabel;
   final String semanticLabel;
   final bool isExpress;
+  final String destination;
   final bool isFirstTrain;
+
+  /// 열차 종착역 행선지 라벨 (예: '사당행', '진접행').
+  String get destinationLabel {
+    final trimmed = destination.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    if (trimmed.contains('순환')) {
+      return trimmed;
+    }
+    return trimmed.endsWith('행') ? trimmed : '$trimmed행';
+  }
 }
 
 class NearbyTimetablePanel extends StatefulWidget {
@@ -187,14 +201,15 @@ class _NearbyTimetablePanelState extends State<NearbyTimetablePanel>
           _NearbyTimetableDepartureView(
             data: group[row],
             expressBadgeBuilder: widget.expressBadgeBuilder,
+            now: _effectiveNow,
           ),
         );
         final departureItem = group[row];
         final departureSemantic = departureItem.isServiceEnded
             ? '${slot.title} 운행 종료'
             : (departureItem.isFirstTrain
-                ? '${departureItem.departure!.directionName} 방면, 첫차 ${departureItem.departure!.timeLabel} 출발'
-                : departureItem.departure!.semanticLabel);
+                  ? '${departureItem.departure!.directionName} 방면, 첫차 ${departureItem.departure!.timeLabel} 출발'
+                  : departureItem.departure!.semanticLabel);
         semanticParts.add(departureSemantic);
       }
       columns.add(NearbyPanelColumn(title: slot.title, rows: rows));
@@ -270,11 +285,13 @@ List<_NextTimetableDeparture> _nextTimetableDepartures(
       // 심야 새벽 시간대 (00:00~03:59):
       // 당일 심야 운행 열차 중 현재 시각 이후 남은 열차 확인
       final remainingLateNight = direction.departures
-          .where((candidate) => _isLateNightCandidate(
-                candidate.seconds,
-                currentSeconds,
-                lateNightServiceSeconds,
-              ))
+          .where(
+            (candidate) => _isLateNightCandidate(
+              candidate.seconds,
+              currentSeconds,
+              lateNightServiceSeconds,
+            ),
+          )
           .take(2)
           .toList(growable: false);
 
@@ -292,10 +309,7 @@ List<_NextTimetableDeparture> _nextTimetableDepartures(
         // 당일 심야 운행까지 완전히 종료된 경우:
         // 새벽 4시 전에는 첫차를 띄우지 않고 '운행 종료' 안내
         departures = [
-          _NextTimetableDeparture(
-            directionLabel: label,
-            isServiceEnded: true,
-          ),
+          _NextTimetableDeparture(directionLabel: label, isServiceEnded: true),
         ];
       }
     } else {
@@ -323,10 +337,7 @@ List<_NextTimetableDeparture> _nextTimetableDepartures(
       } else {
         // 당일 모든 열차 종료 -> 첫차는 새벽 04:00 이후에만 노출하므로 운행 종료 안내
         departures = [
-          _NextTimetableDeparture(
-            directionLabel: label,
-            isServiceEnded: true,
-          ),
+          _NextTimetableDeparture(directionLabel: label, isServiceEnded: true),
         ];
       }
     }
@@ -361,10 +372,12 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
   const _NearbyTimetableDepartureView({
     required this.data,
     required this.expressBadgeBuilder,
+    required this.now,
   });
 
   final _NextTimetableDeparture data;
   final Widget Function() expressBadgeBuilder;
+  final DateTime now;
 
   @override
   Widget build(BuildContext context) {
@@ -384,27 +397,114 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
       );
     }
     final departure = data.departure!;
-    final displayText = data.isFirstTrain
-        ? '첫차 ${departure.timeLabel}'
-        : departure.timeLabel;
-    final time = Text(
-      displayText,
-      style: const TextStyle(
-        color: EasySubwayAccessibleColors.contentPrimary,
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
+    final countdown = _formatDepartureCountdown(departure, now);
+    final isImminent = countdown == '곧 도착' || countdown == '진입';
+    final isWarning =
+        !isImminent &&
+        (countdown == '1분 뒤 도착' ||
+            countdown == '2분 뒤 도착' ||
+            countdown == '3분 뒤 도착' ||
+            countdown.startsWith('1분') ||
+            countdown.startsWith('2분') ||
+            countdown.startsWith('3분'));
+    final countdownColor = isImminent
+        ? EasySubwayColorPrimitives.statusDanger
+        : (isWarning
+              ? EasySubwayAccessibleColors.amber
+              : EasySubwayAccessibleColors.secondaryText);
+    final countdownWeight = (isImminent || isWarning)
+        ? FontWeight.w700
+        : FontWeight.w600;
+
+    final destinationLabel = departure.destinationLabel;
+    final bool hasDestination = destinationLabel.isNotEmpty;
+    final bool showFirstTrain = data.isFirstTrain;
+
+    final Widget leadingText;
+    if (showFirstTrain) {
+      leadingText = Text(
+        '첫차 ${departure.timeLabel}',
+        style: const TextStyle(
+          color: EasySubwayAccessibleColors.contentPrimary,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    } else if (hasDestination) {
+      leadingText = Text(
+        destinationLabel,
+        style: const TextStyle(
+          color: EasySubwayAccessibleColors.contentPrimary,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    } else {
+      leadingText = Text(
+        departure.timeLabel,
+        style: const TextStyle(
+          color: EasySubwayAccessibleColors.contentPrimary,
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
+      );
+    }
+
+    final countdownText = Text(
+      countdown,
+      style: TextStyle(
+        color: countdownColor,
+        fontSize: 13,
+        fontWeight: countdownWeight,
       ),
     );
-    if (!departure.isExpress) {
-      return time;
-    }
-    // 급행 출발은 시각 옆에 배지를 붙인다. text scale·좁은 폭·landscape에서
-    // 시각과 배지가 겹치지 않게 Wrap으로 다음 줄 배치한다(clipping 금지).
+
     return Wrap(
-      spacing: 4,
+      spacing: 6,
       runSpacing: 2,
       crossAxisAlignment: WrapCrossAlignment.center,
-      children: [time, expressBadgeBuilder()],
+      children: [
+        leadingText,
+        countdownText,
+        if (departure.isExpress) expressBadgeBuilder(),
+      ],
     );
   }
+}
+
+String _formatDepartureCountdown(
+  NearbyTimetableDepartureData departure,
+  DateTime now,
+) {
+  final currentSeconds =
+      now.hour * Duration.secondsPerHour +
+      now.minute * Duration.secondsPerMinute +
+      now.second;
+  final isLateNight = now.hour < 4;
+  final lateNightServiceSeconds = Duration.secondsPerDay + currentSeconds;
+
+  final int diffSeconds;
+  if (isLateNight && departure.seconds >= Duration.secondsPerDay) {
+    diffSeconds = departure.seconds - lateNightServiceSeconds;
+  } else if (!isLateNight &&
+      departure.seconds < currentSeconds &&
+      departure.seconds >= Duration.secondsPerDay) {
+    diffSeconds = departure.seconds - currentSeconds;
+  } else {
+    diffSeconds = departure.seconds - currentSeconds;
+  }
+
+  if (diffSeconds < 60) {
+    return '곧 도착';
+  }
+  final minutes = (diffSeconds / 60).round();
+  if (minutes <= 0) {
+    return '곧 도착';
+  }
+  if (minutes < 60) {
+    return '$minutes분 뒤 도착';
+  }
+  final hours = minutes ~/ 60;
+  final remMin = minutes % 60;
+  return remMin == 0 ? '$hours시간 뒤 도착' : '$hours시간 $remMin분 뒤 도착';
 }

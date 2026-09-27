@@ -243,77 +243,79 @@ class NetworkMapTopBar extends StatelessWidget {
               ),
               const SizedBox(width: 4),
             ],
-            Builder(
-              builder: (regionContext) {
-                // 검색 행은 draft가 비었을 때만 렌더되지만, 경로 칸이 생기면
-                // 지역 변경을 막고 ▾도 숨긴다(표시명만 유지).
-                final canChangeRegion = routeDraft().isEmpty;
-                final onRegionTap = canChangeRegion
-                    ? () => _showRegionMenu(regionContext, availableRegions)
-                    : null;
-                return Semantics(
-                  key: const Key('mapRegionTabs'),
-                  container: true,
-                  button: canChangeRegion,
-                  label: canChangeRegion
-                      ? '지역: $currentRegion, 지역 변경'
-                      : '지역: $currentRegion',
-                  onTap: onRegionTap,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minWidth: 48,
-                      minHeight: 48,
-                      maxWidth: 148,
-                    ),
-                    child: ExcludeSemantics(
-                      child: InkWell(
-                        key: const Key('networkMapRegionDropdown'),
-                        onTap: onRegionTap,
-                        borderRadius: BorderRadius.circular(8),
-                        child: Center(
-                          widthFactor: 1.0,
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Flexible(
-                                  child: Text(
-                                    currentRegion,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: EasySubwayAccessibleColors
-                                          .contentPrimary,
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w700,
-                                      letterSpacing: -0.2,
+            if (!searchMode) ...[
+              Builder(
+                builder: (regionContext) {
+                  // 검색 행은 draft가 비었을 때만 렌더되지만, 경로 칸이 생기면
+                  // 지역 변경을 막고 ▾도 숨긴다(표시명만 유지).
+                  final canChangeRegion = routeDraft().isEmpty;
+                  final onRegionTap = canChangeRegion
+                      ? () => _showRegionMenu(regionContext, availableRegions)
+                      : null;
+                  return Semantics(
+                    key: const Key('mapRegionTabs'),
+                    container: true,
+                    button: canChangeRegion,
+                    label: canChangeRegion
+                        ? '지역: $currentRegion, 지역 변경'
+                        : '지역: $currentRegion',
+                    onTap: onRegionTap,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minWidth: 48,
+                        minHeight: 48,
+                        maxWidth: 148,
+                      ),
+                      child: ExcludeSemantics(
+                        child: InkWell(
+                          key: const Key('networkMapRegionDropdown'),
+                          onTap: onRegionTap,
+                          borderRadius: BorderRadius.circular(8),
+                          child: Center(
+                            widthFactor: 1.0,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 8,
+                              ),
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      currentRegion,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: const TextStyle(
+                                        color: EasySubwayAccessibleColors
+                                            .contentPrimary,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                        letterSpacing: -0.2,
+                                      ),
                                     ),
                                   ),
-                                ),
-                                if (canChangeRegion) ...[
-                                  const SizedBox(width: 2),
-                                  const Icon(
-                                    Icons.keyboard_arrow_down_rounded,
-                                    color: EasySubwayAccessibleColors
-                                        .contentSecondary,
-                                    size: 20,
-                                  ),
+                                  if (canChangeRegion) ...[
+                                    const SizedBox(width: 2),
+                                    const Icon(
+                                      Icons.keyboard_arrow_down_rounded,
+                                      color: EasySubwayAccessibleColors
+                                          .contentSecondary,
+                                      size: 20,
+                                    ),
+                                  ],
                                 ],
-                              ],
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                );
-              },
-            ),
-            const SizedBox(width: 8),
+                  );
+                },
+              ),
+              const SizedBox(width: 8),
+            ],
             Expanded(
               child: searchMode
                   ? EasySubwaySearchField(

@@ -150,6 +150,7 @@ NearbyTimetablePanelData? _networkMapNearbyTimetablePanelData(
                 timeLabel: departure.timeLabel,
                 semanticLabel: departure.semanticLabel,
                 isExpress: departure.isExpress,
+                destination: departure.destination,
               ),
           ],
         ),

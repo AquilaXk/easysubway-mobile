@@ -86,7 +86,7 @@ class NearbyArrivalRow extends StatelessWidget {
         children: [
           if (destination.isNotEmpty)
             Text(
-              '$destination행',
+              destination.endsWith('행') ? destination : '$destination행',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(

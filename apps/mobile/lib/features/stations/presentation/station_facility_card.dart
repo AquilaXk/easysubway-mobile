@@ -23,18 +23,24 @@ class StationFacilityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final style = _resolveFacilityStyle(facility);
+    final isToilet =
+        facility.type == 'TOILET' ||
+        facility.type == 'ACCESSIBLE_TOILET' ||
+        facility.name.contains('화장실');
+    final toiletText =
+        '${facility.name} ${facility.description} ${facility.floorFrom}'
+            .toLowerCase();
+    final isInsideGate =
+        toiletText.contains('안쪽') ||
+        toiletText.contains('내부') ||
+        toiletText.contains('운임구역 내') ||
+        toiletText.contains('승강장') ||
+        toiletText.contains('게이트 안') ||
+        toiletText.contains('개찰구 안') ||
+        (toiletText.contains(' 안') && !toiletText.contains('안내'));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: const BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: EasySubwayAccessibleColors.cardShadow,
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
       child: Material(
         color: EasySubwayAccessibleColors.surface,
         shape: RoundedRectangleBorder(
@@ -90,7 +96,7 @@ class StationFacilityCard extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      facility.name,
+                                      facility.displayName,
                                       style: textTheme.titleMedium?.copyWith(
                                         color: EasySubwayAccessibleColors.text,
                                         fontWeight: FontWeight.w700,
@@ -106,6 +112,38 @@ class StationFacilityCard extends StatelessWidget {
                                   ),
                                 ],
                               ),
+                              if (isToilet) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isInsideGate
+                                        ? const Color(0xFFEFF6FF)
+                                        : const Color(0xFFF3F4F6),
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: isInsideGate
+                                          ? const Color(0xFF3B82F6)
+                                          : const Color(0xFFD1D5DB),
+                                    ),
+                                  ),
+                                  child: Text(
+                                    isInsideGate
+                                        ? '개찰구 안쪽 (운임구역 내)'
+                                        : '개찰구 바깥쪽 (대합실)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isInsideGate
+                                          ? const Color(0xFF1D4ED8)
+                                          : const Color(0xFF4B5563),
+                                    ),
+                                  ),
+                                ),
+                              ],
                               if (facility.needsAttention) ...[
                                 const SizedBox(height: 6),
                                 Container(
@@ -214,7 +252,7 @@ class StationFacilityCard extends StatelessWidget {
                 children: [
                   Semantics(
                     container: true,
-                    label: '${facility.name} 시설 제보',
+                    label: '${facility.displayName} 시설 제보',
                     button: true,
                     onTap: onReportTap,
                     child: ExcludeSemantics(

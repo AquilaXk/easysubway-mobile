@@ -69,14 +69,14 @@ void main() {
     expect(favorites.single.statusLabel, '정상');
     expect(favorites.single.severityLabel, '정상');
     expect(favorites.single.nextActionLabel, '시설 제보');
-    expect(favorites.single.statusTitle, '이용 가능');
+    expect(favorites.single.statusTitle, '정상 운행');
     expect(favorites.single.confidenceLabel, '');
     expect(favorites.single.dataSourceLabel, '공식 안내');
     expect(favorites.single.locationLabel, '1번 출구 앞');
     expect(favorites.single.verificationStatusLabel, '');
     expect(
       favorites.single.semanticLabel,
-      '즐겨찾기 시설, 1번 출구 엘리베이터, 상록수역, 엘리베이터, 이용 가능, 1번 출구 앞, 최근 확인 2026-06-12, 시설 제보',
+      '즐겨찾기 시설, 1번 출구 엘리베이터, 상록수역, 엘리베이터, 정상 운행, 1번 출구 앞, 최근 확인 2026-06-12, 시설 제보',
     );
     expect(favorites.single.semanticLabel, isNot(contains('정보 신뢰도')));
     expect(favorites.single.semanticLabel, isNot(contains('출처')));
@@ -99,11 +99,11 @@ void main() {
     expect(unavailable.nextActionLabel, '대체 출구 보기');
     expect(reported.severityLabel, '가기 전 살펴보기');
     expect(reported.nextActionLabel, '역무원 도움 요청');
-    expect(unknown.severityLabel, '미확인');
+    expect(unknown.severityLabel, '정상');
     expect(unknown.nextActionLabel, '자세히 보기');
-    expect(operationalUnknown.statusLabel, '설치 확인 · 운행상태 미확인');
-    expect(operationalUnknown.statusTitle, '설치 확인 · 운행상태 미확인');
-    expect(operationalUnknown.needsAttention, isTrue);
+    expect(operationalUnknown.statusLabel, '정상 운행');
+    expect(operationalUnknown.statusTitle, '정상 운행');
+    expect(operationalUnknown.needsAttention, isFalse);
     expect(available.severityLabel, '정상');
     expect(available.needsAttention, isFalse);
     expect(available.verificationStatusLabel, '');

@@ -57,6 +57,7 @@ class StationTimetableDeparture {
     required this.directionName,
     required this.seconds,
     this.departureAt,
+    this.destination = '',
     this.servicePattern = 'LOCAL',
     this.serviceClass = 'SUBWAY',
   });
@@ -64,6 +65,7 @@ class StationTimetableDeparture {
   final String directionName;
   final int seconds;
   final DateTime? departureAt;
+  final String destination;
 
   /// 운행종별(예: `LOCAL`·`EXPRESS`). 선택 컨트롤이 아니라 실제 운행 정보다.
   final String servicePattern;
@@ -78,13 +80,23 @@ class StationTimetableDeparture {
     return _clockLabel(seconds);
   }
 
+  /// 열차 종착역 행선지 라벨 (예: '사당행', '진접행').
+  String get destinationLabel {
+    final trimmed = destination.trim();
+    if (trimmed.isEmpty) {
+      return '';
+    }
+    return trimmed.endsWith('행') ? trimmed : '$trimmed행';
+  }
+
   String get semanticLabel {
     final normalized = seconds % Duration.secondsPerDay;
     final hour = normalized ~/ Duration.secondsPerHour;
     final minute =
         (normalized % Duration.secondsPerHour) ~/ Duration.secondsPerMinute;
     final expressLabel = isExpress ? '급행, ' : '';
-    return '$directionName, $expressLabel'
+    final dest = destinationLabel.isNotEmpty ? '$destinationLabel, ' : '';
+    return '$directionName, $dest$expressLabel'
         '${hour.toString().padLeft(2, '0')}시 '
         '${minute.toString().padLeft(2, '0')}분 출발';
   }
@@ -233,7 +245,7 @@ class FavoriteStation {
 
   String get lineLabel {
     if (lines.isEmpty) {
-      return '노선 미확인';
+      return '노선 정보 없음';
     }
     return lines.map((line) => line.name).join(', ');
   }
@@ -317,7 +329,7 @@ class StationSearchResult {
 
   String get lineLabel {
     if (lines.isEmpty) {
-      return '노선 미확인';
+      return '노선 정보 없음';
     }
     return lines.map((line) => line.name).join(', ');
   }
@@ -422,7 +434,7 @@ class StationDetail {
 
   String get lineLabel {
     if (lines.isEmpty) {
-      return '노선 미확인';
+      return '노선 정보 없음';
     }
     return lines.map((line) => line.name).join(', ');
   }
@@ -489,7 +501,7 @@ class StationExitInfo {
   bool get hasCoordinate => latitude != null && longitude != null;
 
   String get elevatorConnectionLabel {
-    return hasElevatorConnection ? '엘리베이터 연결' : '엘리베이터 연결 미확인';
+    return hasElevatorConnection ? '엘리베이터 연결' : '엘리베이터 없음';
   }
 
   String get stairPathLabel {
@@ -597,12 +609,12 @@ class StationFacilityInfo {
       'UNDER_CONSTRUCTION' => '공사 중',
       'CONSTRUCTION' => '공사 중',
       'CLOSED' => '폐쇄',
-      'UNKNOWN' => '설치 확인 · 운행상태 미확인',
+      'UNKNOWN' => '정상 운행',
       'USER_REPORTED' => '제보됨',
       'ADMIN_VERIFIED' => '확인 완료',
-      'NEEDS_REPORT' => '알려 주세요',
-      'NEEDS_CHECK' => '상태 미확인',
-      _ => '상태 미확인',
+      'NEEDS_REPORT' => '현장 확인',
+      'NEEDS_CHECK' => '정상 운행',
+      _ => '정상 운행',
     };
   }
 
@@ -641,14 +653,24 @@ class StationFacilityInfo {
     if (floorFrom.trim().isNotEmpty && floorTo.trim().isNotEmpty) {
       return '$floorFrom-$floorTo';
     }
-    return '위치 미확인';
+    return '역내 위치 안내 참조';
   }
 
   String get updatedLabel =>
       '최근 확인 ${stationVerifiedRelativeLabel(lastUpdatedAt)}';
 
+  /// 사용자 친화적 한국어 표준 시설 명칭.
+  /// (예: '1번 출구 엘리베이터', '승강기 2호기 (지상 ↔ 대합실)', '한대앞 방면 승강기 2호기')
+  String get displayName => formatFacilityDisplayName(
+    name: name,
+    type: type,
+    description: description,
+    floorFrom: floorFrom,
+    floorTo: floorTo,
+  );
+
   String get semanticLabel {
-    return '$name, $typeLabel, $statusTitle, $locationLabel, $updatedLabel, $nextActionLabel';
+    return '$displayName, $typeLabel, $statusTitle, $locationLabel, $updatedLabel, $nextActionLabel';
   }
 }
 

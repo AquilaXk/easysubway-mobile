@@ -522,6 +522,185 @@ void main() {
     // 캘린더 DatePickerDialog가 열려야 함
     expect(find.byType(DatePickerDialog), findsOneWidget);
   });
+
+  testWidgets('기차 카드 탭 시 Screen 3 기차 시간표 및 운임 모달이 열리고 탭 전환이 동작한다', (
+    tester,
+  ) async {
+    final repository = _FakeTrainSearchRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+        ),
+      ),
+    );
+
+    await _selectStations(tester);
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    // 카드 탭 -> 모달 열림
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const Key('trainSearchScrollView')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final cardFinder = find.byKey(
+      const Key('trainSearchJourneyCard-outbound-101'),
+    );
+    await tester.scrollUntilVisible(cardFinder, 200, scrollable: scrollable);
+    await tester.ensureVisible(cardFinder);
+    await tester.pumpAndSettle();
+
+    await tester.tap(cardFinder);
+    await tester.pumpAndSettle();
+
+    expect(find.text('기차 시간표 · 운임'), findsOneWidget);
+    expect(find.text('KTX 101'), findsWidgets);
+    expect(find.text('기차 시각'), findsOneWidget);
+    expect(find.text('운임요금'), findsOneWidget);
+    expect(find.text('정차역'), findsOneWidget);
+    expect(find.text('출발역'), findsOneWidget);
+    expect(find.text('도착역'), findsOneWidget);
+
+    // 운임요금 탭 전환
+    await tester.tap(find.text('운임요금'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('일반실 (어른)'), findsOneWidget);
+    expect(find.text('특실 / 우등실 (어른)'), findsOneWidget);
+    expect(find.text('어린이 (만 6~12세)'), findsOneWidget);
+    expect(find.text('경로 (만 65세 이상, 평일)'), findsOneWidget);
+  });
+
+  testWidgets('Screen 2 열차종 필터 칩을 탭하면 결과 목록이 필터링된다', (tester) async {
+    final multiResult = TrainSearchResult(
+      observedAt: DateTime.parse('2026-07-19T12:00:00Z'),
+      outbound: [
+        TrainJourney(
+          trainNumber: '101',
+          trainType: TrainSearchTrainType.ktx,
+          departureStationId: 'NAT010000',
+          departureStationName: '서울',
+          departureAt: DateTime.parse('2026-07-20T09:00:00+09:00'),
+          arrivalStationId: 'NAT011668',
+          arrivalStationName: '대전',
+          arrivalAt: DateTime.parse('2026-07-20T10:02:00+09:00'),
+          durationMinutes: 62,
+          adultFareWon: 23700,
+        ),
+        TrainJourney(
+          trainNumber: '665',
+          trainType: TrainSearchTrainType.srt,
+          departureStationId: 'NAT010000',
+          departureStationName: '수서',
+          departureAt: DateTime.parse('2026-07-20T09:30:00+09:00'),
+          arrivalStationId: 'NAT011668',
+          arrivalStationName: '대전',
+          arrivalAt: DateTime.parse('2026-07-20T10:32:00+09:00'),
+          durationMinutes: 62,
+          adultFareWon: 20100,
+        ),
+      ],
+      inbound: const [],
+    );
+    final repository = _FakeTrainSearchRepository(result: multiResult);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+        ),
+      ),
+    );
+
+    await _selectStations(tester);
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    expect(find.text('KTX 101'), findsOneWidget);
+    expect(find.text('SRT 665'), findsOneWidget);
+
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const Key('trainSearchScrollView')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final ktxChip = find.widgetWithText(InkWell, 'KTX');
+    await tester.scrollUntilVisible(ktxChip, 200, scrollable: scrollable);
+    await tester.ensureVisible(ktxChip);
+    await tester.pumpAndSettle();
+
+    // KTX 탭 선택
+    await tester.tap(ktxChip);
+    await tester.pumpAndSettle();
+
+    expect(find.text('KTX 101'), findsOneWidget);
+    expect(find.text('SRT 665'), findsNothing);
+
+    // SRT 탭 선택
+    final srtChip = find.widgetWithText(InkWell, 'SRT');
+    await tester.tap(srtChip);
+    await tester.pumpAndSettle();
+
+    expect(find.text('KTX 101'), findsNothing);
+    expect(find.text('SRT 665'), findsOneWidget);
+
+    // 전체 탭 선택
+    final allChip = find.widgetWithText(InkWell, '전체');
+    await tester.tap(allChip);
+    await tester.pumpAndSettle();
+
+    expect(find.text('KTX 101'), findsOneWidget);
+    expect(find.text('SRT 665'), findsOneWidget);
+  });
+
+  testWidgets('Screen 2 날짜 이동 화살표를 탭하면 다음 날로 검색일이 이동한다', (tester) async {
+    final repository = _FakeTrainSearchRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+        ),
+      ),
+    );
+
+    await _selectStations(tester);
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const Key('trainSearchScrollView')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    final nextBtn = find.byKey(const Key('trainSearchNextDayButton'));
+    await tester.scrollUntilVisible(nextBtn, 200, scrollable: scrollable);
+    await tester.ensureVisible(nextBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026.07.19'), findsWidgets);
+
+    // 다음 날 탭
+    await tester.tap(nextBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026.07.20'), findsWidgets);
+    expect(repository.searchCalls, 2);
+
+    // 이전 날 탭
+    final prevBtn = find.byKey(const Key('trainSearchPrevDayButton'));
+    await tester.tap(prevBtn);
+    await tester.pumpAndSettle();
+
+    expect(find.text('2026.07.19'), findsWidgets);
+    expect(repository.searchCalls, 3);
+  });
 }
 
 class _EmptyNetworkMapRepository implements NetworkMapRepository {

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
+import '../../../accessible_design.dart';
 import '../../../core/external/kakao_map_configuration.dart';
 import '../../../mobile_error_reporter.dart';
 import '../domain/station_models.dart';
@@ -167,13 +168,13 @@ class _StationExitMapPreviewState extends State<StationExitMapPreview>
         (widget.nativeMapBuilder != null || kakaoMapSdkInitialized);
     if (widget.nativeAppKey.trim().isEmpty || !nativeSdkInitialized) {
       return const _MapMessagePanel(
-        message: '지도 미리보기를 사용할 수 없어요.',
-        detail: '아래 카카오맵에서 보기 버튼은 계속 사용할 수 있어요.',
+        message: '네트워크 오류가 발생했습니다.',
+        detail: '네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
       );
     }
     if (_mapFailed) {
       return _MapMessagePanel(
-        message: '지도 미리보기를 불러오지 못했어요.',
+        message: '네트워크 오류가 발생했습니다.',
         detail: '네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
         action: TextButton(onPressed: _retry, child: const Text('다시 시도')),
       );
@@ -212,6 +213,44 @@ class _StationExitMapPreviewState extends State<StationExitMapPreview>
                     _onMapError(error);
                   }
                 },
+              ),
+            ),
+            Positioned(
+              right: 8,
+              bottom: 8,
+              child: IgnorePointer(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: EasySubwayAccessibleColors.surfaceDefault.withValues(
+                      alpha: 0.92,
+                    ),
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: EasySubwayAccessibleColors.line),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.open_in_new,
+                        size: 12,
+                        color: EasySubwayAccessibleColors.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      const Text(
+                        '카카오맵에서 보기',
+                        style: TextStyle(
+                          color: EasySubwayAccessibleColors.text,
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
             if (selectedTarget != null)
@@ -518,7 +557,6 @@ class _MapMessagePanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
     return Semantics(
       container: true,
       explicitChildNodes: true,
@@ -529,26 +567,53 @@ class _MapMessagePanel extends StatelessWidget {
         constraints: const BoxConstraints(minHeight: 144),
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
+          color: EasySubwayAccessibleColors.surface,
           borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: EasySubwayAccessibleColors.line),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             ExcludeSemantics(
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(message, textAlign: TextAlign.center),
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: EasySubwayAccessibleColors.surfaceBrandChrome,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(
+                      Icons.map_outlined,
+                      size: 20,
+                      color: EasySubwayAccessibleColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    message,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: EasySubwayAccessibleColors.text,
+                    ),
+                  ),
                   const SizedBox(height: 4),
                   Text(
                     detail,
                     textAlign: TextAlign.center,
-                    style: Theme.of(context).textTheme.bodySmall,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: EasySubwayAccessibleColors.secondaryText,
+                    ),
                   ),
                 ],
               ),
             ),
-            ?action,
+            if (action != null) ...[const SizedBox(height: 8), action!],
           ],
         ),
       ),

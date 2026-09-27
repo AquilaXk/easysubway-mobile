@@ -9,7 +9,7 @@ import '../domain/route_map_owner_labels.dart';
 
 const _fallbackMinMapScale = 0.08;
 const _maxMapScale = 4.8;
-const _stationFocusInitialBoundsFraction = 0.42;
+const _stationFocusInitialBoundsFraction = 0.72;
 const double _initialCameraReadableLabelScreenPx = kRouteMapDesignLabelFontPx;
 
 /// Gesture 중 새 renderer frame을 요청하는 최대 대기 간격.
@@ -82,7 +82,7 @@ MapCameraState networkMapInitialCameraForRegion({
   );
 }
 
-/// 역 focus를 지역 초기 화면보다 1/0.42배 확대하되 max scale을 보존한다.
+/// 역 focus를 지역 초기 화면보다 1/0.72배(약 1.39배) 확대하되 max scale을 보존한다.
 @visibleForTesting
 MapCameraState networkMapStationFocusCameraForRegion({
   required Rect initialBounds,
@@ -341,7 +341,7 @@ Rect networkMapInitialOriginalAssetBounds({
   );
 }
 
-/// 초기 bounds를 두 축 모두 0.42배로 줄이고 지도 내부로 이동한다.
+/// 초기 bounds를 두 축 모두 0.72배로 줄이고 지도 내부로 이동한다.
 Rect networkMapStationFocusBounds({
   required Rect initialBounds,
   required Offset center,

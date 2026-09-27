@@ -147,37 +147,38 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    testWidgets('이전역(좌측)이 동대문역사문화공원처럼 길어도 좌측 화살표 아이콘이 유지되고 텍스트는 ellipsis 처리된다', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _hostBar(
-          lineColor: const Color(0xFF00A5DE),
-          leftName: '동대문역사문화공원',
-          stationName: '충무로',
-          rightName: '명동',
-          badgeText: '4',
-          width: 360.0,
-        ),
-      );
+    testWidgets(
+      '이전역(좌측)이 동대문역사문화공원처럼 길어도 좌측 화살표 아이콘이 유지되고 텍스트는 ellipsis 처리된다',
+      (tester) async {
+        await tester.pumpWidget(
+          _hostBar(
+            lineColor: const Color(0xFF00A5DE),
+            leftName: '동대문역사문화공원',
+            stationName: '충무로',
+            rightName: '명동',
+            badgeText: '4',
+            width: 360.0,
+          ),
+        );
 
-      final leftTextFinder = find.text('동대문역사문화공원');
-      final leftIconFinder = find.byIcon(Icons.chevron_left);
-      expect(leftTextFinder, findsOneWidget);
-      expect(leftIconFinder, findsOneWidget);
+        final leftTextFinder = find.text('동대문역사문화공원');
+        final leftIconFinder = find.byIcon(Icons.chevron_left);
+        expect(leftTextFinder, findsOneWidget);
+        expect(leftIconFinder, findsOneWidget);
 
-      final leftTextWidget = tester.widget<Text>(leftTextFinder);
-      expect(leftTextWidget.overflow, TextOverflow.ellipsis);
-      expect(leftTextWidget.maxLines, 1);
-      expect(leftTextWidget.textAlign, TextAlign.left);
+        final leftTextWidget = tester.widget<Text>(leftTextFinder);
+        expect(leftTextWidget.overflow, TextOverflow.ellipsis);
+        expect(leftTextWidget.maxLines, 1);
+        expect(leftTextWidget.textAlign, TextAlign.left);
 
-      // 화살표 아이콘이 역명 텍스트의 왼쪽에 위치한다
-      final textRect = tester.getRect(leftTextFinder);
-      final iconRect = tester.getRect(leftIconFinder);
-      expect(iconRect.right, lessThanOrEqualTo(textRect.left + 1.0));
+        // 화살표 아이콘이 역명 텍스트의 왼쪽에 위치한다
+        final textRect = tester.getRect(leftTextFinder);
+        final iconRect = tester.getRect(leftIconFinder);
+        expect(iconRect.right, lessThanOrEqualTo(textRect.left + 1.0));
 
-      expect(tester.takeException(), isNull);
-    });
+        expect(tester.takeException(), isNull);
+      },
+    );
 
     testWidgets('양쪽 인접역이 모두 긴 역명이어도 좌우 화살표가 유지되고 오버플로가 발생하지 않는다', (
       tester,

@@ -195,12 +195,14 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   String _fastTransferLocation(JourneyRideLeg leg, bool isLastRide) {
     if (isLastRide) {
-      final hash = (leg.lineId.hashCode ^ leg.toStationId.hashCode) & 0x7FFFFFFF;
+      final hash =
+          (leg.lineId.hashCode ^ leg.toStationId.hashCode) & 0x7FFFFFFF;
       final car = (hash % 8) + 1;
       final door = (hash % 4) + 1;
       return '빠른 하차 $car-$door';
     } else {
-      final hash = (leg.lineId.hashCode ^ leg.fromStationId.hashCode) & 0x7FFFFFFF;
+      final hash =
+          (leg.lineId.hashCode ^ leg.fromStationId.hashCode) & 0x7FFFFFFF;
       final car = (hash % 7) + 2;
       final door = (hash % 4) + 1;
       return '빠른 환승 $car-$door';
@@ -208,7 +210,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   }
 
   String _doorDirection(JourneyRideLeg leg) {
-    final hash = (leg.fromStationId.hashCode ^ leg.toStationId.hashCode) & 0x7FFFFFFF;
+    final hash =
+        (leg.fromStationId.hashCode ^ leg.toStationId.hashCode) & 0x7FFFFFFF;
     return (hash % 2 == 0) ? '내리는 문: 오른쪽' : '내리는 문: 왼쪽';
   }
 
@@ -423,15 +426,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
       if (isFastest &&
           index ==
-              allJourneys.indexWhere(
-                (j) => j.durationSeconds == minDuration,
-              )) {
+              allJourneys.indexWhere((j) => j.durationSeconds == minDuration)) {
         tags.add('최단시간');
       } else if (isLeastTransfers &&
           index ==
-              allJourneys.indexWhere(
-                (j) => j.transferCount == minTransfers,
-              )) {
+              allJourneys.indexWhere((j) => j.transferCount == minTransfers)) {
         tags.add('최소환승');
       }
 
@@ -445,8 +444,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         index == 0
             ? '최단시간'
             : (index == 1
-                ? '최소환승'
-                : (journey.accessibility.stairFree ? '무단차' : '대안경로')),
+                  ? '최소환승'
+                  : (journey.accessibility.stairFree ? '무단차' : '대안경로')),
       );
     }
 
@@ -487,17 +486,17 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                         color: selected
                             ? color
                             : (tag == '무단차'
-                                ? EasySubwayColorPrimitives.statusSuccessSoft
-                                : EasySubwayAccessibleColors.surfaceBrandChrome),
+                                  ? EasySubwayColorPrimitives.statusSuccessSoft
+                                  : EasySubwayAccessibleColors
+                                        .surfaceBrandChrome),
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
                           color: selected
                               ? color
                               : (tag == '무단차'
-                                  ? EasySubwayAccessibleColors.mint
-                                  : EasySubwayAccessibleColors.primary.withValues(
-                                      alpha: 0.25,
-                                    )),
+                                    ? EasySubwayAccessibleColors.mint
+                                    : EasySubwayAccessibleColors.primary
+                                          .withValues(alpha: 0.25)),
                         ),
                       ),
                       child: Text(
@@ -508,8 +507,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           color: selected
                               ? EasySubwayColorPrimitives.neutralWhite
                               : (tag == '무단차'
-                                  ? EasySubwayAccessibleColors.mint
-                                  : EasySubwayAccessibleColors.primary),
+                                    ? EasySubwayAccessibleColors.mint
+                                    : EasySubwayAccessibleColors.primary),
                         ),
                       ),
                     ),
@@ -531,19 +530,26 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          for (var rIdx = 0; rIdx < rideLegs.length; rIdx++) ...[
+                          for (
+                            var rIdx = 0;
+                            rIdx < rideLegs.length;
+                            rIdx++
+                          ) ...[
                             if (rIdx > 0)
                               const Padding(
                                 padding: EdgeInsets.symmetric(horizontal: 2),
                                 child: Icon(
                                   Icons.arrow_forward_ios_rounded,
                                   size: 9,
-                                  color: EasySubwayAccessibleColors.secondaryText,
+                                  color:
+                                      EasySubwayAccessibleColors.secondaryText,
                                 ),
                               ),
                             Container(
                               key: rIdx == 0
-                                  ? Key('journey-candidate-line-${journey.journeyId}')
+                                  ? Key(
+                                      'journey-candidate-line-${journey.journeyId}',
+                                    )
                                   : null,
                               padding: const EdgeInsets.symmetric(
                                 horizontal: 5,
@@ -616,8 +622,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   }
 
   int _legStopCount(JourneyRideLeg leg) {
-    final minutes =
-        leg.plannedArrivalTime.difference(leg.plannedDepartureTime).inMinutes;
+    final minutes = leg.plannedArrivalTime
+        .difference(leg.plannedDepartureTime)
+        .inMinutes;
     return math.max(1, (minutes / 2.2).round());
   }
 
@@ -644,9 +651,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         const Divider(height: 4),
         Text(
           '선택 경로 상세',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            fontWeight: FontWeight.w700,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 3),
         Container(
@@ -694,7 +701,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       border: Border.all(
                         color: journey.accessibility.stairFree
                             ? EasySubwayAccessibleColors.mint
-                            : EasySubwayAccessibleColors.primary.withValues(alpha: 0.3),
+                            : EasySubwayAccessibleColors.primary.withValues(
+                                alpha: 0.3,
+                              ),
                       ),
                     ),
                     child: Text(
@@ -726,7 +735,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   ),
                   const Text(
                     '·',
-                    style: TextStyle(color: EasySubwayAccessibleColors.secondaryText),
+                    style: TextStyle(
+                      color: EasySubwayAccessibleColors.secondaryText,
+                    ),
                   ),
                   Text(
                     '$totalStops개 역 이동',
@@ -738,7 +749,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   ),
                   const Text(
                     '·',
-                    style: TextStyle(color: EasySubwayAccessibleColors.secondaryText),
+                    style: TextStyle(
+                      color: EasySubwayAccessibleColors.secondaryText,
+                    ),
                   ),
                   Text(
                     transferLabel,
@@ -750,7 +763,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   ),
                   const Text(
                     '·',
-                    style: TextStyle(color: EasySubwayAccessibleColors.secondaryText),
+                    style: TextStyle(
+                      color: EasySubwayAccessibleColors.secondaryText,
+                    ),
                   ),
                   const Text(
                     '카드 1,400원',
@@ -796,8 +811,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   Widget _detailLeg(int index, JourneyLeg leg, Journey journey) {
     final isLastLeg = index == journey.legs.length - 1;
-    final rideLegs =
-        journey.legs.whereType<JourneyRideLeg>().toList(growable: false);
+    final rideLegs = journey.legs.whereType<JourneyRideLeg>().toList(
+      growable: false,
+    );
     final firstRide = rideLegs.firstOrNull;
     final lastRide = rideLegs.lastOrNull;
 
@@ -823,10 +839,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         child: Container(
           width: 8,
           height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: lineColor,
-          ),
+          decoration: BoxDecoration(shape: BoxShape.circle, color: lineColor),
         ),
       );
       content = Padding(
@@ -1145,10 +1158,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   fontSize: 13,
                 ),
               ),
-              if (badge != null) ...[
-                const SizedBox(width: 6),
-                badge,
-              ],
+              if (badge != null) ...[const SizedBox(width: 6), badge],
               const Spacer(),
               Text(
                 _durationLabel(leg.durationSeconds),
@@ -1158,10 +1168,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   fontSize: 12,
                 ),
               ),
-              if (fare != null) ...[
-                const SizedBox(width: 4),
-                fare,
-              ],
+              if (fare != null) ...[const SizedBox(width: 4), fare],
             ],
           ),
         ),
@@ -1281,8 +1288,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           child: Container(
                             width:
                                 leg is JourneyRideLeg || leg is JourneyEntryLeg
-                                    ? 5
-                                    : 3,
+                                ? 5
+                                : 3,
                             color: trackColor,
                             margin: const EdgeInsets.symmetric(vertical: 1),
                           ),
@@ -1746,7 +1753,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     '출발 시간',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isScheduled ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isScheduled
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: isScheduled
                           ? EasySubwayAccessibleColors.primary
                           : EasySubwayAccessibleColors.secondaryText,
@@ -1839,8 +1848,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     '안심 막차',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight:
-                          isLastConnection ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isLastConnection
+                          ? FontWeight.w700
+                          : FontWeight.w500,
                       color: isLastConnection
                           ? EasySubwayAccessibleColors.primary
                           : EasySubwayAccessibleColors.secondaryText,
@@ -2229,10 +2239,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     : null,
                 label: const Text(
                   '경로 찾기',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
                 ),
               ),
               if (state.status == JourneySearchStatus.searching)
@@ -2408,8 +2415,8 @@ class _TransitPillTag extends StatelessWidget {
               fontSize: 11,
               fontWeight: FontWeight.w700,
               color: isHighlight
-                ? EasySubwayAccessibleColors.primary
-                : EasySubwayAccessibleColors.secondaryText,
+                  ? EasySubwayAccessibleColors.primary
+                  : EasySubwayAccessibleColors.secondaryText,
             ),
           ),
         ],

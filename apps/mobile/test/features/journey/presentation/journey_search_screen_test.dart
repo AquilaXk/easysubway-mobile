@@ -825,63 +825,68 @@ void main() {
     },
   );
 
-  testWidgets(
-    '카카오·네이버 1:1 개편: 상단 카드 뱃지, 후보 칩, 대시보드 32sp 및 아코디언 접기 ▴를 검증한다',
-    (tester) async {
-      final repository = _Repository();
-      await _pumpScreen(
-        tester,
-        repository: repository,
-        draft: _completeDraft(waypoint: _station('station-waypoint', '가평')),
-        stationNameResolver: (stationId) async => switch (stationId) {
-          'station-origin' => '용산역',
-          'station-waypoint' => '가평역',
-          'station-destination' => '춘천역',
-          _ => '$stationId 이름',
-        },
-      );
+  testWidgets('카카오·네이버 1:1 개편: 상단 카드 뱃지, 후보 칩, 대시보드 32sp 및 아코디언 접기 ▴를 검증한다', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      draft: _completeDraft(waypoint: _station('station-waypoint', '가평')),
+      stationNameResolver: (stationId) async => switch (stationId) {
+        'station-origin' => '용산역',
+        'station-waypoint' => '가평역',
+        'station-destination' => '춘천역',
+        _ => '$stationId 이름',
+      },
+    );
 
-      // 1. 상단 출발-경유-도착 카드 뱃지 및 라벨 검증
-      expect(find.text('출발'), findsOneWidget);
-      expect(find.text('경유'), findsOneWidget);
-      expect(find.text('도착'), findsOneWidget);
-      expect(find.text('출발 용산역'), findsOneWidget);
-      expect(find.text('경유 가평역'), findsOneWidget);
-      expect(find.text('도착 춘천역'), findsOneWidget);
+    // 1. 상단 출발-경유-도착 카드 뱃지 및 라벨 검증
+    expect(find.text('출발'), findsOneWidget);
+    expect(find.text('경유'), findsOneWidget);
+    expect(find.text('도착'), findsOneWidget);
+    expect(find.text('출발 용산역'), findsOneWidget);
+    expect(find.text('경유 가평역'), findsOneWidget);
+    expect(find.text('도착 춘천역'), findsOneWidget);
 
-      // 2. 출발 기준 칩 4개 렌더링 검증
-      expect(find.byKey(const Key('journey-departure-now')), findsOneWidget);
-      expect(find.byKey(const Key('journey-departure-scheduled')), findsOneWidget);
-      expect(find.byKey(const Key('journey-departure-window')), findsOneWidget);
-      expect(find.byKey(const Key('journey-departure-last-connection')), findsOneWidget);
+    // 2. 출발 기준 칩 4개 렌더링 검증
+    expect(find.byKey(const Key('journey-departure-now')), findsOneWidget);
+    expect(
+      find.byKey(const Key('journey-departure-scheduled')),
+      findsOneWidget,
+    );
+    expect(find.byKey(const Key('journey-departure-window')), findsOneWidget);
+    expect(
+      find.byKey(const Key('journey-departure-last-connection')),
+      findsOneWidget,
+    );
 
-      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
 
-      // 3. 후보 카드 최단시간 뱃지 확인
-      expect(find.text('최단시간'), findsWidgets);
+    // 3. 후보 카드 최단시간 뱃지 확인
+    expect(find.text('최단시간'), findsWidgets);
 
-      // 후보 1 선택
-      await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
-      await tester.pumpAndSettle();
+    // 후보 1 선택
+    await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+    await tester.pumpAndSettle();
 
-      // 4. 대시보드 32sp w800 소요시간 및 무단차/일반 뱃지 확인
-      expect(find.text('선택 경로 상세'), findsOneWidget);
-      final durationText = tester.widget<Text>(find.text('5'));
-      expect(durationText.style?.fontSize, 32);
-      expect(durationText.style?.fontWeight, FontWeight.w700);
-      expect(find.text('분 소요'), findsOneWidget);
+    // 4. 대시보드 32sp w800 소요시간 및 무단차/일반 뱃지 확인
+    expect(find.text('선택 경로 상세'), findsOneWidget);
+    final durationText = tester.widget<Text>(find.text('5'));
+    expect(durationText.style?.fontSize, 32);
+    expect(durationText.style?.fontWeight, FontWeight.w700);
+    expect(find.text('분 소요'), findsOneWidget);
 
-      // 5. 아코디언 버튼 'N개 역 이동 ▾' 확인 및 탭하여 '접기 ▴' 전환 확인
-      final accordionButton = find.textContaining('개 역 이동 ▾');
-      expect(accordionButton, findsOneWidget);
-      await tester.ensureVisible(accordionButton);
-      await tester.tap(accordionButton);
-      await tester.pumpAndSettle();
-      expect(find.text('접기 ▴'), findsOneWidget);
-      expect(find.textContaining('• 출발:'), findsOneWidget);
-    },
-  );
+    // 5. 아코디언 버튼 'N개 역 이동 ▾' 확인 및 탭하여 '접기 ▴' 전환 확인
+    final accordionButton = find.textContaining('개 역 이동 ▾');
+    expect(accordionButton, findsOneWidget);
+    await tester.ensureVisible(accordionButton);
+    await tester.tap(accordionButton);
+    await tester.pumpAndSettle();
+    expect(find.text('접기 ▴'), findsOneWidget);
+    expect(find.textContaining('• 출발:'), findsOneWidget);
+  });
 }
 
 class _RecordingCrashlytics implements CrashlyticsGateway {

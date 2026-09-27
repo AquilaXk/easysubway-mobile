@@ -649,7 +649,7 @@ class _FavoriteHomeFacilityRow extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    facility.name,
+                    facility.displayName,
                     style: textTheme.bodyLarge?.copyWith(
                       color: EasySubwayAccessibleColors.text,
                       fontWeight: FontWeight.w700,

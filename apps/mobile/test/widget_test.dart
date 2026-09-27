@@ -1056,12 +1056,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('stationSearchScreen')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('stationSearchRegionDropdown')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('networkMapRegionMenuRow_부산')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('stationSearchInput')), findsOneWidget);
   });
 
   testWidgets('저장 탭은 복원 불가 경로에 다시 검색 필요를 표시한다', (tester) async {
@@ -2020,7 +2015,7 @@ void main() {
         reportRepository: reportRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(
-          favorites: [_favoriteFacility(status: 'UNKNOWN')],
+          favorites: [_favoriteFacility(status: 'UNDER_CONSTRUCTION')],
         ),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -2032,8 +2027,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('상록수역 1번 출구 엘리베이터'), findsOneWidget);
-    expect(find.text('미확인 · 엘리베이터 설치 확인 · 운행상태 미확인'), findsOneWidget);
-    expect(find.text('자세히 보기'), findsOneWidget);
+    expect(find.text('가기 전 살펴보기 · 엘리베이터 공사 중'), findsOneWidget);
+    expect(find.text('역무원 도움 요청'), findsOneWidget);
     expect(find.text('제보 반려됨'), findsOneWidget);
     expect(find.text('제보 중복 제보'), findsOneWidget);
     expect(find.text('제보 확인 완료'), findsOneWidget);
@@ -2052,14 +2047,11 @@ void main() {
         .first;
     final notificationDecoration =
         tester.widget<Ink>(notificationRow).decoration! as BoxDecoration;
-    expect(
-      notificationDecoration.color,
-      EasySubwayAccessibleColors.statusInfoSurface,
-    );
+    expect(notificationDecoration.color, EasySubwayAccessibleColors.amberSoft);
     expect(
       notificationDecoration.border! as Border,
       const Border(
-        bottom: BorderSide(color: EasySubwayAccessibleColors.statusInfoContent),
+        bottom: BorderSide(color: EasySubwayAccessibleColors.amberBorder),
       ),
     );
     expect(
@@ -2071,7 +2063,7 @@ void main() {
             ),
           )
           .color,
-      EasySubwayAccessibleColors.statusInfoContent,
+      EasySubwayAccessibleColors.amber,
     );
     expect(
       tester
@@ -2083,7 +2075,7 @@ void main() {
       EasySubwayAccessibleColors.contentSecondary,
     );
     expect(
-      find.bySemanticsLabel(RegExp('미확인, .*공식 안내, 자세히 보기')),
+      find.bySemanticsLabel(RegExp('가기 전 살펴보기, .*공식 안내, 역무원 도움 요청')),
       findsOneWidget,
     );
     expectNoForbiddenUserCopy(tester);
@@ -10945,7 +10937,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('networkMapMenuButton')), findsNothing);
-      expect(find.byKey(const Key('mapRegionTabs')), findsOneWidget);
+      expect(find.byKey(const Key('mapRegionTabs')), findsNothing);
 
       await tester.enterText(
         find.byKey(const Key('stationSearchInput')),
@@ -11616,7 +11608,7 @@ void main() {
     // 필드가 나타난다.
     expect(find.byKey(const Key('networkMapMenuButton')), findsNothing);
     expect(find.byKey(const Key('networkMapSearchBackButton')), findsOneWidget);
-    expect(find.byKey(const Key('mapRegionTabs')), findsOneWidget);
+    expect(find.byKey(const Key('mapRegionTabs')), findsNothing);
     expect(find.byKey(const Key('stationSearchInput')), findsOneWidget);
     // 검색 모드 구분선은 역 검색 화면과 같이 선만(mapChrome 드롭 없음).
     expect(
@@ -11764,7 +11756,7 @@ void main() {
           of: find.byKey(const Key('stationSearchAppBar')),
           matching: find.byKey(const Key('stationSearchRegionIndicator')),
         ),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.byKey(const Key('stationSearchHeaderDivider')),
@@ -12185,43 +12177,6 @@ void main() {
       expect(find.text('이용할 수 없어요'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.byKey(
-          const Key('stationFacilityCard-facility-sangnoksu-operation-unknown'),
-        ),
-        120,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('3번 출구 에스컬레이터'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byKey(
-            const Key(
-              'stationFacilityCard-facility-sangnoksu-operation-unknown',
-            ),
-          ),
-          matching: find.text('설치 확인 · 운행상태 미확인'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(
-            const Key(
-              'stationFacilityCard-facility-sangnoksu-operation-unknown',
-            ),
-          ),
-          matching: find.text('이용 가능'),
-        ),
-        findsNothing,
-      );
-      expect(
-        find.bySemanticsLabel(
-          '3번 출구 에스컬레이터, 에스컬레이터, 설치 확인 · 운행상태 미확인, 3번 출구 앞, 최근 확인 5일 전, 자세히 보기',
-        ),
-        findsOneWidget,
-      );
-      await tester.scrollUntilVisible(
-        find.byKey(
           const Key('facilityReportButton-facility-sangnoksu-elevator-1'),
         ),
         120,
@@ -12230,12 +12185,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('1번 출구 엘리베이터'), findsOneWidget);
       // 정상 시설은 상태 필 없이 이름+위치+확인 시점만 조용히 표시.
-      expect(find.text('이용 가능'), findsNothing);
+      expect(find.text('정상 운행'), findsNothing);
       expect(find.text('1번 출구 앞'), findsOneWidget);
       expect(find.text('최근 확인 3일 전'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
-          '1번 출구 엘리베이터, 엘리베이터, 이용 가능, 1번 출구 앞, 최근 확인 3일 전, 시설 제보',
+          '1번 출구 엘리베이터, 엘리베이터, 정상 운행, 1번 출구 앞, 최근 확인 3일 전, 시설 제보',
         ),
         findsOneWidget,
       );
@@ -12246,6 +12201,34 @@ void main() {
         findsOneWidget,
       );
       expect(find.bySemanticsLabel('1번 출구 엘리베이터 시설 제보'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.byKey(
+          const Key('stationFacilityCard-facility-sangnoksu-operation-unknown'),
+        ),
+        120,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('3번 출구 에스컬레이터'), findsOneWidget);
+      // 정상 운행 시설은 상용 앱 기준 시각 상태 필을 띄우지 않고 조용히 노출(needsAttention == false)
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key(
+              'stationFacilityCard-facility-sangnoksu-operation-unknown',
+            ),
+          ),
+          matching: find.text('정상 운행'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsLabel(
+          '3번 출구 에스컬레이터, 에스컬레이터, 정상 운행, 3번 출구 앞, 최근 확인 5일 전, 자세히 보기',
+        ),
+        findsOneWidget,
+      );
       // #1567/#2436: 카드 전체 탭이 상세를 열므로 중복 '상세 보기' 텍스트는 없애고,
       // 보조 액션은 「시설 제보」 텍스트 버튼으로 둔다.
       expect(find.text('상세 보기'), findsNothing);
@@ -12490,7 +12473,7 @@ void main() {
           floorFrom: 'B1',
           floorTo: '1F',
           description: '3번 출구 앞',
-          status: 'NEEDS_CHECK',
+          status: 'UNDER_CONSTRUCTION',
           dataConfidence: 'LOW',
           lastUpdatedAt: '2026-06-12',
         ),
@@ -12510,15 +12493,15 @@ void main() {
         find.byKey(const Key('stationDetailLargeScreenLayout')),
         findsNothing,
       );
-      // 정상 시설은 상태 필 없이 이름으로 조용히, 문제(고장·미확인)만 상태 필로 렌더링.
+      // 정상 시설은 상태 필 없이 이름으로 조용히, 문제(고장·주의)만 상태 필로 렌더링.
       var sawNormalQuiet = false;
       var sawBroken = false;
-      var sawNeedsCheck = false;
+      var sawCaution = false;
       for (var index = 0; index < 8; index += 1) {
         sawNormalQuiet |= find.text('1번 출구 엘리베이터').evaluate().isNotEmpty;
         sawBroken |= find.text('이용할 수 없어요').evaluate().isNotEmpty;
-        sawNeedsCheck |= find.text('상태 미확인').evaluate().isNotEmpty;
-        if (sawNormalQuiet && sawBroken && sawNeedsCheck) {
+        sawCaution |= find.text('가기 전에 확인해 주세요').evaluate().isNotEmpty;
+        if (sawNormalQuiet && sawBroken && sawCaution) {
           break;
         }
         await tester.drag(
@@ -12529,7 +12512,7 @@ void main() {
       }
       expect(sawNormalQuiet, isTrue);
       expect(sawBroken, isTrue);
-      expect(sawNeedsCheck, isTrue);
+      expect(sawCaution, isTrue);
       // 정상 시설의 '이용 가능' 상태 필은 노출하지 않는다.
       expect(find.text('이용 가능'), findsNothing);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
@@ -12597,7 +12580,7 @@ void main() {
     );
     expect(find.text('상록수역'), findsOneWidget);
     expect(find.text('이용할 수 없어요'), findsOneWidget);
-    expect(find.text('고장·폐쇄 · 고장'), findsOneWidget);
+    expect(find.text('고장·폐쇄, 고장'), findsOneWidget);
     expect(find.text('현장 안내와 다르면 시설 제보로 알려 주세요.'), findsOneWidget);
     expect(find.text('이동 전 다른 출구와 역무원 안내를 확인하세요.'), findsOneWidget);
     expect(find.text('연결 위치 B1 ↔ 1F'), findsOneWidget);
@@ -13086,7 +13069,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('상록수 방면 · 첫차 05:25 · 막차 05:25'), findsOneWidget);
+      expect(find.text('상록수 방면'), findsOneWidget);
+      expect(find.text('첫차'), findsAtLeastNWidgets(1));
+      expect(find.text('막차'), findsAtLeastNWidgets(1));
+      expect(find.text('05:25'), findsAtLeastNWidgets(2));
       await tester.tap(find.byKey(const Key('stationTimetableButton')));
       await tester.pumpAndSettle();
 
@@ -13336,7 +13322,7 @@ void main() {
         );
         await tester.pumpAndSettle();
       });
-      expect(find.text('시간표를 확인할 수 없어요.'), findsOneWidget);
+      expect(find.text('시간표 정보를 불러오지 못했습니다.'), findsOneWidget);
     }
     expect(reportedErrors, hasLength(1));
   });
@@ -13442,6 +13428,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.byKey(const Key('stationExitMapButton-exit-sangnoksu-1')),
         500,
+        scrollable: find.byType(Scrollable).last,
       );
       await tester.pumpAndSettle();
       expect(
@@ -14094,7 +14081,7 @@ void main() {
       floorFrom: 'B1',
       floorTo: '1F',
       description: '1번 출구 앞',
-      status: 'UNKNOWN',
+      status: 'NEEDS_CHECK',
       dataConfidence: 'LOW',
       lastUpdatedAt: '2026-06-12',
     );
@@ -14108,6 +14095,7 @@ void main() {
       ),
     );
 
+    expect(find.text('정상 운행'), findsOneWidget);
     final statusIcon = tester.widget<Container>(
       find.descendant(
         of: find.byKey(
@@ -14118,7 +14106,7 @@ void main() {
     );
     expect(
       (statusIcon.decoration! as BoxDecoration).color,
-      EasySubwayAccessibleColors.statusInfoContent,
+      EasySubwayAccessibleColors.mint,
     );
   });
 

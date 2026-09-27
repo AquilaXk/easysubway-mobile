@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/external/kakao_map_configuration.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
@@ -56,104 +57,170 @@ class _StationExitSectionState extends State<StationExitSection> {
   Widget build(BuildContext context) {
     final selectedExit = widget.exits[_selectedIndex];
     final previewBuilder = widget.mapPreviewBuilder;
-    final showPreview = canShowStationExitMapPreview(
-      station: widget.station,
-      exits: widget.exits,
-    );
+    final showPreview =
+        canShowStationExitMapPreview(
+          station: widget.station,
+          exits: widget.exits,
+        ) &&
+        (previewBuilder != null ||
+            (kakaoMapNativeAppKey.trim().isNotEmpty && kakaoMapSdkInitialized));
+
+    final Widget? previewWidget = showPreview
+        ? (previewBuilder != null
+              ? previewBuilder(
+                  station: widget.station,
+                  exits: widget.exits,
+                  selectedExitId: selectedExit.id,
+                  onOpenSelected: () => _openSelectedExit(context),
+                )
+              : StationExitMapPreview(
+                  station: widget.station,
+                  exits: widget.exits,
+                  selectedExitId: selectedExit.id,
+                  onOpenSelected: () => _openSelectedExit(context),
+                ))
+        : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        if (showPreview) ...[
-          if (previewBuilder != null)
-            previewBuilder(
-              station: widget.station,
-              exits: widget.exits,
-              selectedExitId: selectedExit.id,
-              onOpenSelected: () => _openSelectedExit(context),
-            )
-          else
-            StationExitMapPreview(
-              station: widget.station,
-              exits: widget.exits,
-              selectedExitId: selectedExit.id,
-              onOpenSelected: () => _openSelectedExit(context),
-            ),
-          const SizedBox(height: 8),
+        if (previewWidget != null) ...[
+          previewWidget,
+          const SizedBox(height: 12),
         ],
         if (widget.exits.length > 1) ...[
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (var i = 0; i < widget.exits.length; i++)
-                _ExitChip(
-                  key: Key('stationExitChip-${widget.exits[i].id}'),
-                  exit: widget.exits[i],
-                  isSelected: i == _selectedIndex,
-                  onTap: () => _select(i),
-                ),
-            ],
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < widget.exits.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 8),
+                  _ExitChip(
+                    key: Key('stationExitChip-${widget.exits[i].id}'),
+                    exit: widget.exits[i],
+                    isSelected: i == _selectedIndex,
+                    selectedColor: widget.station.lines.isNotEmpty
+                        ? widget.station.lines.first.badgeColor
+                        : null,
+                    onTap: () => _select(i),
+                  ),
+                ],
+              ],
+            ),
           ),
           const SizedBox(height: 10),
         ],
-        Row(
-          children: [
-            _navigationButton(
-              key: const Key('stationExitPreviousButton'),
-              icon: Icons.chevron_left,
-              semanticLabel: _selectedIndex == 0
-                  ? '이전 출구 없음'
-                  : '${widget.exits[_selectedIndex - 1].name} 보기',
-              onPressed: _selectedIndex == 0
-                  ? null
-                  : () => _select(_selectedIndex - 1),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Semantics(
-                label:
-                    '출구 선택, 전체 ${widget.exits.length}개 중 ${_selectedIndex + 1}번째',
-                value: selectedExit.name,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 48),
-                  child: DropdownButtonHideUnderline(
-                    child: DropdownButton<String>(
-                      key: const Key('stationExitSelector'),
-                      isExpanded: true,
-                      value: selectedExit.id,
-                      items: [
-                        for (final exit in widget.exits)
-                          DropdownMenuItem(
-                            value: exit.id,
-                            child: Text(exit.name),
+        Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          decoration: BoxDecoration(
+            color: EasySubwayAccessibleColors.surfaceDefault,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: EasySubwayAccessibleColors.line),
+          ),
+          child: Row(
+            children: [
+              _navigationButton(
+                key: const Key('stationExitPreviousButton'),
+                icon: Icons.chevron_left,
+                semanticLabel: _selectedIndex == 0
+                    ? '이전 출구 없음'
+                    : '${widget.exits[_selectedIndex - 1].name} 보기',
+                onPressed: _selectedIndex == 0
+                    ? null
+                    : () => _select(_selectedIndex - 1),
+              ),
+              Expanded(
+                child: Semantics(
+                  label:
+                      '출구 선택, 전체 ${widget.exits.length}개 중 ${_selectedIndex + 1}번째',
+                  value: selectedExit.name,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 48),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<String>(
+                        key: const Key('stationExitSelector'),
+                        isExpanded: true,
+                        value: selectedExit.id,
+                        icon: const Padding(
+                          padding: EdgeInsets.only(right: 8),
+                          child: Icon(
+                            Icons.keyboard_arrow_down,
+                            size: 20,
+                            color: EasySubwayAccessibleColors.secondaryText,
                           ),
-                      ],
-                      onChanged: (id) {
-                        if (id == null) {
-                          return;
-                        }
-                        _select(
-                          widget.exits.indexWhere((exit) => exit.id == id),
-                        );
-                      },
+                        ),
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: EasySubwayAccessibleColors.text,
+                          fontWeight: FontWeight.w700,
+                        ),
+                        items: [
+                          for (final exit in widget.exits)
+                            DropdownMenuItem(
+                              value: exit.id,
+                              child: Row(
+                                children: [
+                                  Text(
+                                    exit.name,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  if (exit.hasElevatorConnection) ...[
+                                    const SizedBox(width: 6),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 5,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: EasySubwayAccessibleColors
+                                            .surfaceBrandChrome,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(
+                                          color:
+                                              EasySubwayAccessibleColors.mint,
+                                        ),
+                                      ),
+                                      child: const Text(
+                                        'EV',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w700,
+                                          color:
+                                              EasySubwayAccessibleColors.mint,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
+                              ),
+                            ),
+                        ],
+                        onChanged: (id) {
+                          if (id == null) {
+                            return;
+                          }
+                          _select(
+                            widget.exits.indexWhere((exit) => exit.id == id),
+                          );
+                        },
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 8),
-            _navigationButton(
-              key: const Key('stationExitNextButton'),
-              icon: Icons.chevron_right,
-              semanticLabel: _selectedIndex == widget.exits.length - 1
-                  ? '다음 출구 없음'
-                  : '${widget.exits[_selectedIndex + 1].name} 보기',
-              onPressed: _selectedIndex == widget.exits.length - 1
-                  ? null
-                  : () => _select(_selectedIndex + 1),
-            ),
-          ],
+              _navigationButton(
+                key: const Key('stationExitNextButton'),
+                icon: Icons.chevron_right,
+                semanticLabel: _selectedIndex == widget.exits.length - 1
+                    ? '다음 출구 없음'
+                    : '${widget.exits[_selectedIndex + 1].name} 보기',
+                onPressed: _selectedIndex == widget.exits.length - 1
+                    ? null
+                    : () => _select(_selectedIndex + 1),
+              ),
+            ],
+          ),
         ),
         const SizedBox(height: 8),
         StationExitCard(
@@ -222,16 +289,20 @@ class _ExitChip extends StatelessWidget {
     required this.exit,
     required this.isSelected,
     required this.onTap,
+    this.selectedColor,
     super.key,
   });
 
   final StationExitInfo exit;
   final bool isSelected;
   final VoidCallback onTap;
+  final Color? selectedColor;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final activeColor =
+        selectedColor ?? EasySubwayAccessibleColors.interactionPrimary;
     final isElevator = exit.hasElevatorConnection;
     final match = RegExp(r'(\d+(?:-\d+)?)').firstMatch(exit.name);
     final exitNum = match != null ? match.group(1)! : '';
@@ -248,12 +319,12 @@ class _ExitChip extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
             color: isSelected
-                ? EasySubwayAccessibleColors.interactionPrimary
+                ? activeColor
                 : EasySubwayAccessibleColors.surfaceSubtle,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
               color: isSelected
-                  ? EasySubwayAccessibleColors.interactionPrimary
+                  ? activeColor
                   : EasySubwayAccessibleColors.borderSubtle,
               width: isSelected ? 1.5 : 1.0,
             ),
@@ -268,11 +339,15 @@ class _ExitChip extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isSelected
-                        ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.25)
+                        ? EasySubwayColorPrimitives.neutralWhite.withValues(
+                            alpha: 0.25,
+                          )
                         : EasySubwayAccessibleColors.surfaceBrandChrome,
                     border: Border.all(
                       color: isSelected
-                          ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.7)
+                          ? EasySubwayColorPrimitives.neutralWhite.withValues(
+                              alpha: 0.7,
+                            )
                           : EasySubwayAccessibleColors.borderSubtle,
                     ),
                   ),
@@ -301,15 +376,22 @@ class _ExitChip extends StatelessWidget {
               if (isElevator) ...[
                 const SizedBox(width: 6),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 4,
+                    vertical: 1,
+                  ),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.2)
+                        ? EasySubwayColorPrimitives.neutralWhite.withValues(
+                            alpha: 0.2,
+                          )
                         : EasySubwayAccessibleColors.surfaceBrandChrome,
                     borderRadius: BorderRadius.circular(4),
                     border: Border.all(
                       color: isSelected
-                          ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.8)
+                          ? EasySubwayColorPrimitives.neutralWhite.withValues(
+                              alpha: 0.8,
+                            )
                           : EasySubwayAccessibleColors.mint,
                     ),
                   ),
@@ -345,4 +427,3 @@ class _ExitChip extends StatelessWidget {
     );
   }
 }
-

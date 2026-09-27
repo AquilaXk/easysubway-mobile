@@ -17,14 +17,19 @@ class RealtimeStationController extends ChangeNotifier {
   bool _isDisposed = false;
   Timer? _pollingTimer;
   RealtimeStationQuery? _currentPollingQuery;
-  bool _isPollingFetchInFlight = false;
+  bool _isFetchInFlight = false;
 
   RealtimeSnapshot get state => _state;
   bool get isPolling => _pollingTimer != null && _pollingTimer!.isActive;
 
   Future<void> load(RealtimeStationQuery query) async {
     _emit(const RealtimeSnapshot.loading());
-    await _fetchAndEmit(query);
+    _isFetchInFlight = true;
+    try {
+      await _fetchAndEmit(query);
+    } finally {
+      _isFetchInFlight = false;
+    }
   }
 
   /// 10~15초 주기로 실시간 도착 정보를 백그라운드 자동 갱신한다.
@@ -52,14 +57,14 @@ class RealtimeStationController extends ChangeNotifier {
     _pollingTimer?.cancel();
     _pollingTimer = null;
     _currentPollingQuery = null;
-    _isPollingFetchInFlight = false;
+    _isFetchInFlight = false;
   }
 
   Future<void> _pollTick(RealtimeStationQuery query) async {
-    if (_isDisposed || _isPollingFetchInFlight) {
+    if (_isDisposed || _isFetchInFlight) {
       return;
     }
-    _isPollingFetchInFlight = true;
+    _isFetchInFlight = true;
     try {
       final snapshot = await repository.arrivals(query);
       if (!_isDisposed && _currentPollingQuery == query) {
@@ -68,7 +73,7 @@ class RealtimeStationController extends ChangeNotifier {
     } catch (_) {
       // 백그라운드 주기 폴링 실패 시 기존 유효 상태를 강제로 날리지 않고 유지한다.
     } finally {
-      _isPollingFetchInFlight = false;
+      _isFetchInFlight = false;
     }
   }
 
@@ -105,4 +110,3 @@ class RealtimeStationController extends ChangeNotifier {
     super.dispose();
   }
 }
-

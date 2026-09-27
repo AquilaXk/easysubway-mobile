@@ -154,7 +154,9 @@ class NearbyStationLineBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (badgeText.isNotEmpty || badgeBuilder != null || line != null) ...[
+                        if (badgeText.isNotEmpty ||
+                            badgeBuilder != null ||
+                            line != null) ...[
                           _LineBadge(
                             diameter: badgeDiameter,
                             color: lineColor,
@@ -249,51 +251,65 @@ class _SideName extends StatelessWidget {
     final isLeft = semanticsPrefix == '이전역';
     final double fontSize = value.length >= 9
         ? 12.0
-        : (value.length >= 7
-            ? 13.0
-            : (value.length >= 5 ? 14.0 : 15.0));
+        : (value.length >= 7 ? 13.0 : (value.length >= 5 ? 14.0 : 15.0));
 
-    final content = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        if (isLeft) ...[
-          const Icon(
-            Icons.chevron_left,
-            size: 16,
-            color: EasySubwayAccessibleColors.interactionOnPrimary,
-          ),
-          const SizedBox(width: 2),
-        ],
-        Flexible(
-          child: Text(
-            value,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: isLeft ? TextAlign.left : TextAlign.right,
-            style: TextStyle(
-              color: EasySubwayAccessibleColors.interactionOnPrimary,
-              fontSize: fontSize,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-        ),
-        if (!isLeft) ...[
-          const SizedBox(width: 2),
-          const Icon(
-            Icons.chevron_right,
-            size: 16,
-            color: EasySubwayAccessibleColors.interactionOnPrimary,
-          ),
-        ],
-      ],
-    );
+    final content = isLeft
+        ? Row(
+            children: [
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_left,
+                size: 16,
+                color: EasySubwayAccessibleColors.interactionOnPrimary,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    color: EasySubwayAccessibleColors.interactionOnPrimary,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          )
+        : Row(
+            children: [
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: EasySubwayAccessibleColors.interactionOnPrimary,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: EasySubwayAccessibleColors.interactionOnPrimary,
+              ),
+              const SizedBox(width: 8),
+            ],
+          );
 
     final tap = onTap;
     if (tap == null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: Center(child: content),
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: content,
       );
     }
     return Semantics(
@@ -310,8 +326,8 @@ class _SideName extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Center(child: content),
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: content,
           ),
         ),
       ),

@@ -219,6 +219,8 @@ class _StationDetailContent extends StatelessWidget {
         StationRealtimeSummary(
           snapshot: realtimeSnapshot,
           onRetry: onRetryRealtime,
+          previousStation: previousStation?.nameKo,
+          nextStation: nextStation?.nameKo,
         ),
         const SizedBox(height: 20),
       ],
@@ -230,7 +232,12 @@ class _StationDetailContent extends StatelessWidget {
         favoriteController: favoriteController,
       ),
       const SizedBox(height: 12),
-      _StationTimetableEntry(detail: detail, repository: timetableRepository),
+      _StationTimetableEntry(
+        detail: detail,
+        repository: timetableRepository,
+        previousStation: previousStation?.nameKo,
+        nextStation: nextStation?.nameKo,
+      ),
     ];
 
     final hasExits = exits.isNotEmpty;
@@ -262,10 +269,7 @@ class _StationDetailContent extends StatelessWidget {
           const SizedBox(height: 12),
         ],
         if (facilities.length >= 2) ...[
-          _StationFacilityMatrixCard(
-            station: detail,
-            facilities: facilities,
-          ),
+          _StationFacilityMatrixCard(station: detail, facilities: facilities),
           const SizedBox(height: 12),
         ],
         if (facilityAttentionSummary.isNotEmpty) ...[
@@ -282,12 +286,9 @@ class _StationDetailContent extends StatelessWidget {
             onReportTap: () => _openFacilityReport(facility),
           ),
         if (facilities.length >= 2 || exits.isNotEmpty) ...[
-          const _StationDetailSectionTitle(title: '고객안전실 · 역무실'),
+          const _StationDetailSectionTitle(title: '고객안전실, 역무실'),
           const SizedBox(height: 8),
-          _StationSafetyOfficeCard(
-            detail: detail,
-            facilities: facilities,
-          ),
+          _StationSafetyOfficeCard(detail: detail, facilities: facilities),
           const SizedBox(height: 12),
         ],
       ],
@@ -380,7 +381,7 @@ class _StationDetailContent extends StatelessWidget {
           stationId: detail.id,
           stationName: detail.nameKo,
           facilityId: facility.id,
-          facilityName: facility.name,
+          facilityName: facility.displayName,
           facilityTypeLabel: facility.typeLabel,
           facilityStatusLabel: facility.statusLabel,
         ),
@@ -540,10 +541,17 @@ class _NeighborStationButton extends StatelessWidget {
 }
 
 class _StationTimetableEntry extends StatefulWidget {
-  const _StationTimetableEntry({required this.detail, this.repository});
+  const _StationTimetableEntry({
+    required this.detail,
+    this.repository,
+    this.previousStation,
+    this.nextStation,
+  });
 
   final StationDetail detail;
   final StationTimetableRepository? repository;
+  final String? previousStation;
+  final String? nextStation;
 
   @override
   State<_StationTimetableEntry> createState() => _StationTimetableEntryState();
@@ -627,9 +635,11 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
             margin: const EdgeInsets.only(bottom: 8),
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             decoration: BoxDecoration(
-              color: EasySubwayAccessibleColors.surfaceSubtle,
+              color: EasySubwayAccessibleColors.surfaceDefault,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: EasySubwayAccessibleColors.line),
+              border: Border.all(
+                color: EasySubwayAccessibleColors.borderSubtle,
+              ),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -646,49 +656,30 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
                   Builder(
                     builder: (context) {
                       final direction = timetable.directions[i];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                      return Row(
                         children: [
-                          // Legacy test finder compatibility (zero-sized, transparent)
-                          SizedBox(
-                            width: 0,
-                            height: 0,
-                            child: OverflowBox(
-                              minWidth: 0,
-                              maxWidth: 0,
-                              minHeight: 0,
-                              maxHeight: 0,
-                              child: Opacity(
-                                opacity: 0,
-                                child: Text(
-                                  '${direction.name} · 첫차 ${direction.firstDeparture.timeLabel} · '
-                                  '막차 ${direction.lastDeparture.timeLabel}',
-                                ),
+                          Expanded(
+                            child: Text(
+                              formatStationDirectionName(
+                                direction.name,
+                                previousStation: widget.previousStation,
+                                nextStation: widget.nextStation,
+                              ),
+                              style: const TextStyle(
+                                color: EasySubwayAccessibleColors.text,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w700,
                               ),
                             ),
                           ),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  direction.name,
-                                  style: const TextStyle(
-                                    color: EasySubwayAccessibleColors.text,
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ),
-                              _StationDetailFirstLastBadge(
-                                label: '첫차',
-                                time: direction.firstDeparture.timeLabel,
-                              ),
-                              const SizedBox(width: 8),
-                              _StationDetailFirstLastBadge(
-                                label: '막차',
-                                time: direction.lastDeparture.timeLabel,
-                              ),
-                            ],
+                          _StationDetailFirstLastBadge(
+                            label: '첫차',
+                            time: direction.firstDeparture.timeLabel,
+                          ),
+                          const SizedBox(width: 8),
+                          _StationDetailFirstLastBadge(
+                            label: '막차',
+                            time: direction.lastDeparture.timeLabel,
                           ),
                         ],
                       );
@@ -703,7 +694,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
         if (_unavailable)
           const Padding(
             padding: EdgeInsets.only(bottom: 8),
-            child: Text('시간표를 확인할 수 없어요.'),
+            child: Text('시간표 정보를 불러오지 못했습니다.'),
           ),
         OutlinedButton.icon(
           key: const Key('stationTimetableButton'),
@@ -714,6 +705,8 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
                 stationName: widget.detail.nameKo,
                 lines: widget.detail.lines,
                 repository: widget.repository,
+                previousStation: widget.previousStation,
+                nextStation: widget.nextStation,
               ),
             ),
           ),
@@ -734,10 +727,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
 }
 
 class _StationDetailFirstLastBadge extends StatelessWidget {
-  const _StationDetailFirstLastBadge({
-    required this.label,
-    required this.time,
-  });
+  const _StationDetailFirstLastBadge({required this.label, required this.time});
 
   final String label;
   final String time;
@@ -746,20 +736,15 @@ class _StationDetailFirstLastBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
       children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
-          decoration: BoxDecoration(
-            color: EasySubwayAccessibleColors.surfaceBrandChrome,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            label,
-            style: const TextStyle(
-              color: EasySubwayAccessibleColors.primary,
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-            ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: EasySubwayAccessibleColors.secondaryText,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(width: 4),
@@ -829,22 +814,17 @@ class _StationDetailSectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ColoredBox(
-      color: EasySubwayAccessibleColors.scaffoldSurface,
-      child: SizedBox(
-        width: double.infinity,
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
-          child: Semantics(
-            header: true,
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
-                height: 1.25,
-              ),
-            ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 16, 4, 8),
+      child: Semantics(
+        header: true,
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            color: EasySubwayAccessibleColors.text,
+            fontWeight: FontWeight.w700,
+            fontSize: 15,
+            letterSpacing: -0.2,
           ),
         ),
       ),
@@ -866,8 +846,9 @@ class _StationBarrierFreeRouteCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final accessibleExits =
-        exits.where((e) => e.hasElevatorConnection).toList();
+    final accessibleExits = exits
+        .where((e) => e.hasElevatorConnection)
+        .toList();
     final elevators = facilities
         .where((f) => f.type == 'ELEVATOR' || f.name.contains('엘리베이터'))
         .toList();
@@ -896,7 +877,7 @@ class _StationBarrierFreeRouteCard extends StatelessWidget {
       badgeTextColor = EasySubwayAccessibleColors.amber;
       badgeBorderColor = EasySubwayAccessibleColors.amber;
       routeDescription =
-          '${brokenElevators.map((e) => e.name).join(', ')} 점검 중입니다. 역무실 문의가 필요합니다.';
+          '${brokenElevators.map((e) => e.displayName).join(', ')} 점검 중입니다. 역무실 문의가 필요합니다.';
     } else if (isFullBarrierFree) {
       statusBadgeText = '전 구간 무단차 이동 가능';
       badgeBgColor = EasySubwayColorPrimitives.statusSuccessSoft;
@@ -989,13 +970,8 @@ class _StationBarrierFreeRouteCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 14),
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: EasySubwayAccessibleColors.surfaceSubtle,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: EasySubwayAccessibleColors.line),
-            ),
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4),
             child: Column(
               children: [
                 _VerticalStepRow(
@@ -1009,7 +985,7 @@ class _StationBarrierFreeRouteCard extends StatelessWidget {
                 _VerticalStepRow(
                   stepNum: '2',
                   stepTitle: '대합실 (개찰구)',
-                  stepDetail: '교통약자 전용 넓은 개찰구 (게이트 안·밖 이동)',
+                  stepDetail: '교통약자 전용 넓은 개찰구 (게이트 안, 밖 이동)',
                   icon: Icons.confirmation_number_outlined,
                   iconColor: EasySubwayAccessibleColors.primary,
                   isLast: false,
@@ -1025,7 +1001,7 @@ class _StationBarrierFreeRouteCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 10),
           Text(
             routeDescription,
             style: textTheme.bodyMedium?.copyWith(
@@ -1154,10 +1130,12 @@ class _StationFacilityMatrixCard extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
 
     final toilets = facilities
-        .where((f) =>
-            f.type == 'TOILET' ||
-            f.type == 'ACCESSIBLE_TOILET' ||
-            f.name.contains('화장실'))
+        .where(
+          (f) =>
+              f.type == 'TOILET' ||
+              f.type == 'ACCESSIBLE_TOILET' ||
+              f.name.contains('화장실'),
+        )
         .toList();
     bool insideGate = false;
     bool outsideGate = false;
@@ -1181,9 +1159,9 @@ class _StationFacilityMatrixCard extends StatelessWidget {
     }
     final String toiletStatus;
     if (toilets.isEmpty) {
-      toiletStatus = '상태 미확인';
+      toiletStatus = '개찰구 밖 (대합실)';
     } else if (insideGate && outsideGate) {
-      toiletStatus = '개찰구 안·밖 모두';
+      toiletStatus = '개찰구 안, 밖 모두';
     } else if (insideGate) {
       toiletStatus = '개찰구 안 (운임구역 내)';
     } else if (outsideGate) {
@@ -1192,33 +1170,37 @@ class _StationFacilityMatrixCard extends StatelessWidget {
       toiletStatus = '개찰구 밖 (대합실)';
     }
 
-    final hasAccessibleToilet = facilities.any((f) =>
-        f.type == 'ACCESSIBLE_TOILET' || f.name.contains('장애인 화장실'));
-    final hasNursingRoom = facilities.any((f) =>
-        f.type == 'NURSING_ROOM' || f.name.contains('수유실'));
+    final hasAccessibleToilet = facilities.any(
+      (f) => f.type == 'ACCESSIBLE_TOILET' || f.name.contains('장애인 화장실'),
+    );
+    final hasNursingRoom = facilities.any(
+      (f) => f.type == 'NURSING_ROOM' || f.name.contains('수유실'),
+    );
     final elevators = facilities
         .where((f) => f.type == 'ELEVATOR' || f.name.contains('엘리베이터'))
         .toList();
     final elevatorBroken = elevators.any(
-        (f) => f.status == 'BROKEN' || f.status == 'CLOSED');
+      (f) => f.status == 'BROKEN' || f.status == 'CLOSED',
+    );
     final lifts = facilities
         .where((f) => f.type == 'WHEELCHAIR_LIFT' || f.name.contains('리프트'))
         .toList();
     final liftBroken = lifts.any(
-        (f) => f.status == 'BROKEN' || f.status == 'CLOSED');
+      (f) => f.status == 'BROKEN' || f.status == 'CLOSED',
+    );
 
     final primaryItems = [
       (
         icon: Icons.wc_outlined,
         title: '화장실 위치',
         status: toiletStatus,
-        isHighlight: insideGate || outsideGate || toilets.isNotEmpty,
+        isHighlight: true,
         color: EasySubwayAccessibleColors.primary,
       ),
       (
         icon: Icons.accessible,
         title: '장애인 화장실',
-        status: hasAccessibleToilet ? '남녀 구분 설치' : '역무실 문의 / 확인 중',
+        status: hasAccessibleToilet ? '남녀 구분 설치' : '대합실 설치 (역무실 문의)',
         isHighlight: hasAccessibleToilet,
         color: EasySubwayAccessibleColors.mint,
       ),
@@ -1226,16 +1208,16 @@ class _StationFacilityMatrixCard extends StatelessWidget {
         icon: Icons.elevator,
         title: '승강기(EV)',
         status: elevators.isEmpty
-            ? '정상 운행 (안내도 참조)'
+            ? '미설치'
             : (elevatorBroken ? '일부 점검 중' : '${elevators.length}대 정상 운행'),
-        isHighlight: !elevatorBroken,
+        isHighlight: elevators.isNotEmpty && !elevatorBroken,
         color: EasySubwayAccessibleColors.mint,
       ),
       (
         icon: Icons.accessible_forward,
         title: '휠체어 리프트',
         status: lifts.isEmpty
-            ? '미설치 (EV 완비)'
+            ? '미설치'
             : (liftBroken ? '점검 중' : '${lifts.length}대 운행 중'),
         isHighlight: lifts.isNotEmpty && !liftBroken,
         color: EasySubwayAccessibleColors.primary,
@@ -1269,54 +1251,44 @@ class _StationFacilityMatrixCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
-              final itemWidth = (constraints.maxWidth - 10) / 2;
+              final itemWidth = (constraints.maxWidth - 12) / 2;
               return Wrap(
-                spacing: 10,
-                runSpacing: 10,
+                spacing: 12,
+                runSpacing: 14,
                 children: [
                   for (final item in primaryItems)
-                    Container(
+                    SizedBox(
                       width: itemWidth,
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
-                      ),
-                      decoration: BoxDecoration(
-                        color: EasySubwayAccessibleColors.surfaceSubtle,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: EasySubwayAccessibleColors.line,
-                        ),
-                      ),
-                      child: Column(
+                      child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
-                            children: [
-                              Container(
-                                width: 28,
-                                height: 28,
-                                decoration: BoxDecoration(
-                                  color: item.isHighlight
-                                      ? item.color.withValues(alpha: 0.12)
-                                      : EasySubwayAccessibleColors.surface,
-                                  borderRadius: BorderRadius.circular(6),
-                                ),
-                                alignment: Alignment.center,
-                                child: Icon(
-                                  item.icon,
-                                  size: 18,
-                                  color: item.isHighlight
-                                      ? item.color
-                                      : EasySubwayAccessibleColors.mutedText,
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: item.isHighlight
+                                  ? item.color.withValues(alpha: 0.12)
+                                  : EasySubwayAccessibleColors.surfaceSubtle,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              item.icon,
+                              size: 18,
+                              color: item.isHighlight
+                                  ? item.color
+                                  : EasySubwayAccessibleColors.mutedText,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
                                   item.title,
                                   style: textTheme.bodySmall?.copyWith(
                                     color: EasySubwayAccessibleColors
@@ -1324,19 +1296,19 @@ class _StationFacilityMatrixCard extends StatelessWidget {
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            item.status,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: textTheme.bodyMedium?.copyWith(
-                              color: item.isHighlight
-                                  ? EasySubwayAccessibleColors.text
-                                  : EasySubwayAccessibleColors.mutedText,
-                              fontWeight: FontWeight.w700,
+                                const SizedBox(height: 2),
+                                Text(
+                                  item.status,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: item.isHighlight
+                                        ? EasySubwayAccessibleColors.text
+                                        : EasySubwayAccessibleColors.mutedText,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -1346,6 +1318,8 @@ class _StationFacilityMatrixCard extends StatelessWidget {
               );
             },
           ),
+          const SizedBox(height: 14),
+          const Divider(height: 1, color: EasySubwayAccessibleColors.line),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -1517,7 +1491,7 @@ class _StationSafetyOfficeCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            '휠체어 승하차 도우미(리프트·안전발판) 신청, 분실물 문의 및 역사 내 긴급 상황 발생 시 바로 연결됩니다.',
+            '휠체어 승하차 도우미(리프트, 안전발판) 신청, 분실물 문의 및 역사 내 긴급 상황 발생 시 바로 연결됩니다.',
             style: textTheme.bodyMedium?.copyWith(
               color: EasySubwayAccessibleColors.secondaryText,
               height: 1.35,
@@ -1547,9 +1521,9 @@ class _StationSafetyOfficeCard extends StatelessWidget {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
       } else {
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('전화 앱을 실행할 수 없습니다: $phone')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('전화 앱을 실행할 수 없습니다: $phone')));
         }
       }
     } catch (error, stackTrace) {
@@ -1596,8 +1570,9 @@ String _resolveStationPhone({
   for (final facility in facilities) {
     if (facility.type == 'CUSTOMER_CENTER' ||
         facility.type == 'STATION_OFFICE') {
-      final match =
-          phoneRegex.firstMatch('${facility.description} ${facility.name}');
+      final match = phoneRegex.firstMatch(
+        '${facility.description} ${facility.name}',
+      );
       if (match != null) {
         return match.group(0)!;
       }

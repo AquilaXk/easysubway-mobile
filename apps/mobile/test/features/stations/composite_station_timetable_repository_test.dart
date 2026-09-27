@@ -126,6 +126,63 @@ void main() {
     );
 
     test(
+      'DriftStationTimetableRepository resolves adjacent next station as direction and extracts destination',
+      () async {
+        await database.customStatement('''
+          INSERT INTO stations (id, name_ko, normalized_name)
+          VALUES ('station-handaeap', '한대앞', '한대앞'),
+                 ('station-banwol', '반월', '반월')
+        ''');
+        await database.customStatement('''
+          INSERT INTO station_lines (station_id, line_id, line_sequence)
+          VALUES ('station-handaeap', 'seoul-4', 44),
+                 ('station-banwol', 'seoul-4', 42)
+        ''');
+        await database.customStatement('''
+          INSERT INTO transit_trips (id, route_id, service_id, trip_headsign, service_class, service_pattern)
+          VALUES ('trip-dest-1', 'route-oido', 'cal-weekday', '오이도', 'SUBWAY', 'LOCAL'),
+                 ('trip-dest-2', 'route-jinjeop', 'cal-weekday', '사당', 'SUBWAY', 'LOCAL')
+        ''');
+        await database.customStatement('''
+          INSERT INTO transit_stop_times (trip_id, stop_sequence, station_id, line_id, arrival_seconds, departure_seconds, pickup_type, drop_off_type)
+          VALUES ('trip-dest-1', 1, 'station-sangnoksu', 'seoul-4', 30000, 30000, 0, 0),
+                 ('trip-dest-1', 2, 'station-handaeap', 'seoul-4', 30120, 30120, 0, 0),
+                 ('trip-dest-2', 1, 'station-sangnoksu', 'seoul-4', 30600, 30600, 0, 0),
+                 ('trip-dest-2', 2, 'station-banwol', 'seoul-4', 30720, 30720, 0, 0)
+        ''');
+
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final timetable = await localRepo.loadStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.weekday,
+          referenceDate: DateTime.utc(2026, 9, 25),
+        );
+
+        final dirNames = timetable.directions.map((d) => d.name).toList();
+        expect(dirNames, containsAll(['한대앞 방면', '반월 방면']));
+
+        final banwolDir = timetable.directions.firstWhere(
+          (d) => d.name == '반월 방면',
+        );
+        final sadangDep = banwolDir.departures.firstWhere(
+          (d) => d.seconds == 30600,
+        );
+        expect(sadangDep.destination, '사당');
+        expect(sadangDep.destinationLabel, '사당행');
+
+        final handaeapDir = timetable.directions.firstWhere(
+          (d) => d.name == '한대앞 방면',
+        );
+        final oidoDep = handaeapDir.departures.firstWhere(
+          (d) => d.seconds == 30000,
+        );
+        expect(oidoDep.destination, '오이도');
+        expect(oidoDep.destinationLabel, '오이도행');
+      },
+    );
+
+    test(
       'DriftStationTimetableRepository throws when station line is not covered',
       () async {
         final localRepo = DriftStationTimetableRepository(database: database);

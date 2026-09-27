@@ -17,6 +17,20 @@ class RealtimeStationQuery {
   final String lineId;
   final String stationQueryName;
   final String? providerLineId;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RealtimeStationQuery &&
+          runtimeType == other.runtimeType &&
+          stationId == other.stationId &&
+          lineId == other.lineId &&
+          stationQueryName == other.stationQueryName &&
+          providerLineId == other.providerLineId;
+
+  @override
+  int get hashCode =>
+      Object.hash(stationId, lineId, stationQueryName, providerLineId);
 }
 
 class RealtimeArrival {

@@ -153,6 +153,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
             directionName: group.directionName,
             seconds: departure.secondsFromServiceDayStart,
             departureAt: departure.departureAt,
+            destination: group.directionName.replaceAll('방면', '').trim(),
             servicePattern: departure.servicePattern.wire,
             serviceClass: departure.serviceClass.wire,
           ),

@@ -42,9 +42,8 @@ void main() {
     );
 
     // 상태 타이틀이 정확히 1번만 노출되어야 한다.
-    expect(find.text('설치 확인 · 운행상태 미확인'), findsOneWidget);
-    // 중복되던 보조 라벨 '미확인 · 설치 확인 · 운행상태 미확인'은 노출되지 않아야 한다.
-    expect(find.text('미확인 · 설치 확인 · 운행상태 미확인'), findsNothing);
+    expect(find.text('정상 운행'), findsOneWidget);
+    expect(find.text('미확인'), findsNothing);
 
     // Semantics에서도 중복 없이 단일 상태 문구만 포함해야 한다.
     final statusNoticeFinder = find.byKey(
@@ -52,6 +51,6 @@ void main() {
     );
     expect(statusNoticeFinder, findsOneWidget);
     final semantics = tester.getSemantics(statusNoticeFinder);
-    expect(semantics.label, '설치 확인 · 운행상태 미확인, 현장 안내와 다르면 시설 제보로 알려 주세요.');
+    expect(semantics.label, '정상 운행, 시설 안내가 다르면 시설 제보로 알려 주세요.');
   });
 }

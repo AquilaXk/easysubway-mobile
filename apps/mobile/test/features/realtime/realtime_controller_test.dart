@@ -97,4 +97,3 @@ class CountingRealtimeRepository implements RealtimeRepository {
     );
   }
 }
-

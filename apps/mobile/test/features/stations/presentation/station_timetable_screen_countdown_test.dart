@@ -1,0 +1,266 @@
+import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_timetable_screen.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+class _FakeTimetableRepo implements StationTimetableRepository {
+  _FakeTimetableRepo(this.timetables);
+  final Map<StationTimetableDayType, StationTimetable> timetables;
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) async {
+    final t = timetables[dayType];
+    if (t == null) {
+      throw const StationTimetableUnavailable('No timetable');
+    }
+    return t;
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) async {
+    return loadStationTimetable(
+      stationId: stationId,
+      lineId: lineId,
+      dayType: StationTimetableDayType.weekday,
+      referenceDate: date,
+    );
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) async {
+    return loadStationTimetableForDate(
+      stationId: stationId,
+      lineId: lineId,
+      date: asOf,
+    );
+  }
+}
+
+void main() {
+  testWidgets('시간표 화면은 다음 열차 카운트다운을 박스 없이 인라인 텍스트로 자연스럽게 결합한다', (tester) async {
+    // 2026-07-06(월요일) 10:00:50 (초 단위: 36050)
+    debugStationVerifiedClock = () => DateTime(2026, 7, 6, 10, 0, 50);
+
+    const line = StationSearchLine(
+      id: 'seoul-2',
+      name: '2호선',
+      color: '#00A84D',
+      stationCode: '222',
+    );
+
+    final timetable = StationTimetable(
+      stationId: 'station-gangnam',
+      lineId: 'seoul-2',
+      dayType: StationTimetableDayType.weekday,
+      directions: const [
+        StationTimetableDirection(
+          name: '외선순환',
+          departures: [
+            // 10:01 (36060초) -> 10초 뒤 (곧 출발)
+            StationTimetableDeparture(directionName: '외선순환', seconds: 36060),
+            // 10:03 (36180초) -> 1분 10초 뒤 (1분 뒤)
+            StationTimetableDeparture(directionName: '외선순환', seconds: 36180),
+            // 10:07 (36420초) -> 6분 뒤
+            StationTimetableDeparture(directionName: '외선순환', seconds: 36420),
+          ],
+        ),
+      ],
+    );
+
+    final repo = _FakeTimetableRepo({
+      StationTimetableDayType.weekday: timetable,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationTimetableScreen(
+          stationId: 'station-gangnam',
+          stationName: '강남',
+          lines: const [line],
+          repository: repo,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 10:01(다음 열차)은 방면/행선지 선두, 정적 시각(10:01)과 '곧 도착' 텍스트를 함께 표시한다
+    expect(find.text('10:01'), findsOneWidget);
+    expect(find.text('외선순환'), findsAtLeastNWidgets(1));
+    expect(find.text('곧 도착'), findsOneWidget);
+    expect(find.text('· 곧 도착'), findsNothing);
+    expect(find.text('· 곧 출발'), findsNothing);
+
+    // 10:03, 10:07은 다음 열차가 아니므로 정적 시각을 표시하고 카운트다운이 없다
+    expect(find.text('10:03'), findsOneWidget);
+    expect(find.text('2분 뒤 도착'), findsNothing);
+
+    // AI 슬롭 박스(Container decoration with Border)가 카운트다운을 감싸지 않는다
+    // 인라인 Text 위젯으로 바로 렌더링되며 빨간색 볼드 강조
+    final countdownWidget = tester.widget<Text>(find.text('곧 도착'));
+    expect(
+      countdownWidget.style?.color,
+      EasySubwayColorPrimitives.statusDanger,
+    );
+    expect(countdownWidget.style?.fontWeight, FontWeight.w700);
+    expect(countdownWidget.style?.fontSize, 13);
+
+    // 25초 경과 (10:01:15) -> Ticker 2회 틱(20초) 실행되어 10:01 열차가 지나가고 다음 열차가 10:03으로 롤오버
+    await tester.pump(const Duration(seconds: 25));
+
+    // 10:01 열차는 지나가서 지난 열차 시각(10:01)으로 노출
+    expect(find.text('10:01'), findsOneWidget);
+    expect(find.text('곧 도착'), findsNothing);
+
+    // 이제 10:03이 다음 열차가 되고 시각(10:03)과 함께 '2분 뒤 도착'으로 표시됨
+    expect(find.text('10:03'), findsOneWidget);
+    expect(find.text('2분 뒤 도착'), findsOneWidget);
+    expect(find.text('· 2분 뒤 도착'), findsNothing);
+    expect(find.text('· 2분 뒤'), findsNothing);
+
+    final nextCountdown = tester.widget<Text>(find.text('2분 뒤 도착'));
+    expect(nextCountdown.style?.color, EasySubwayAccessibleColors.amber);
+    expect(nextCountdown.style?.fontWeight, FontWeight.w700);
+    expect(nextCountdown.style?.fontSize, 13);
+  });
+
+  testWidgets('시간표 화면은 인접역 기준 방면 칩 정규화 및 열차 종착역 행선지(사당행, 진접행)를 명확히 표시한다', (
+    tester,
+  ) async {
+    debugStationVerifiedClock = () => DateTime(2026, 7, 6, 10, 0, 0);
+
+    const line = StationSearchLine(
+      id: 'seoul-4',
+      name: '4호선',
+      color: '#00A4E3',
+      stationCode: '449',
+    );
+
+    final timetable = StationTimetable(
+      stationId: 'station-sangnoksu',
+      lineId: 'seoul-4',
+      dayType: StationTimetableDayType.weekday,
+      directions: const [
+        StationTimetableDirection(
+          name: '진접 방면',
+          departures: [
+            StationTimetableDeparture(
+              directionName: '진접 방면',
+              destination: '사당',
+              seconds: 36060,
+            ),
+            StationTimetableDeparture(
+              directionName: '진접 방면',
+              destination: '진접',
+              seconds: 36180,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    final repo = _FakeTimetableRepo({
+      StationTimetableDayType.weekday: timetable,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationTimetableScreen(
+          stationId: 'station-sangnoksu',
+          stationName: '상록수',
+          lines: const [line],
+          repository: repo,
+          previousStation: '반월',
+          nextStation: '한대앞',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 방면 칩이 먼 종점 '진접 방면' 대신 인접역 '반월 방면'으로 정규화되어 노출됨
+    expect(find.text('반월 방면'), findsOneWidget);
+
+    // 각 출발 열차의 행선지 '사당행', '진접행'이 빠짐없이 명확하게 표시됨
+    expect(find.text('사당행'), findsOneWidget);
+    expect(find.text('진접행'), findsOneWidget);
+  });
+
+  testWidgets(
+    '심야 시간대(00:00~03:59)에도 24시 이후(86400+ 초) 열차 카운트다운과 곧 도착이 정상 동작한다',
+    (tester) async {
+      // 2026-07-06 00:15:00 (초 단위: 900초, 당일 심야)
+      debugStationVerifiedClock = () => DateTime(2026, 7, 6, 0, 15, 0);
+
+      const line = StationSearchLine(
+        id: 'seoul-4',
+        name: '4호선',
+        color: '#00A4E3',
+        stationCode: '449',
+      );
+
+      final timetable = StationTimetable(
+        stationId: 'station-sangnoksu',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '오이도 방면',
+            departures: [
+              // 아침 첫차 05:30 (19800초)
+              StationTimetableDeparture(
+                directionName: '오이도 방면',
+                destination: '오이도',
+                seconds: 19800,
+              ),
+              // 심야 열차 24:20 (87600초) -> 00:15 기준 5분 뒤
+              StationTimetableDeparture(
+                directionName: '오이도 방면',
+                destination: '오이도',
+                seconds: 87600,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final repo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: timetable,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-sangnoksu',
+            stationName: '상록수',
+            lines: const [line],
+            repository: repo,
+            previousStation: '반월',
+            nextStation: '한대앞',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 아침 첫차 05:30으로 건너뛰지 않고 심야 24:20 열차를 다음 열차로 인식하여 '5분 뒤 도착' 표시
+      expect(find.text('5분 뒤 도착'), findsOneWidget);
+      expect(find.text('오이도행'), findsNWidgets(2));
+    },
+  );
+}

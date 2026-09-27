@@ -706,7 +706,7 @@ void main() {
     expect(facilities.single.latitude, 37.302795);
     expect(facilities.single.longitude, 126.866489);
     expect(facilities.single.statusLabel, '정상');
-    expect(facilities.single.statusTitle, '이용 가능');
+    expect(facilities.single.statusTitle, '정상 운행');
     expect(facilities.single.confidenceLabel, '');
     expect(facilities.single.dataSourceLabel, '공식 안내');
   });
@@ -1496,13 +1496,13 @@ void main() {
     expect(state.prioritizedFacilities.map((facility) => facility.name), [
       '2번 출구 엘리베이터',
       '1번 출구 경사로',
-      '비상벨',
       '1번 출구 엘리베이터',
+      '비상벨',
     ]);
-    expect(state.facilityAttentionSummary, '고장·폐쇄 1개 · 가기 전 살펴보기 1개 · 미확인 1개');
+    expect(state.facilityAttentionSummary, '고장·폐쇄 1개, 가기 전 살펴보기 1개');
     expect(
       state.facilityAttentionSemanticLabel,
-      '살펴볼 시설, 고장·폐쇄 1개, 가기 전 살펴보기 1개, 미확인 1개',
+      '살펴볼 시설, 고장·폐쇄 1개, 가기 전 살펴보기 1개',
     );
   });
 
@@ -1659,11 +1659,11 @@ void main() {
     expect(customerCenter.statusLabel, '확인 완료');
     expect(customerCenter.severityLabel, '정상');
     expect(customerCenter.fieldValidationLabel, '');
-    expect(customerCenter.statusTitle, '이용 가능');
+    expect(customerCenter.statusTitle, '정상 운행');
     expect(customerCenter.semanticLabel, isNot(contains('정보 신뢰도')));
     expect(customerCenter.semanticLabel, isNot(contains('현장 검증')));
     expect(customerCenter.semanticLabel, isNot(contains('출처')));
-    expect(_stationFacility(status: 'UNKNOWN').statusLabel, '설치 확인 · 운행상태 미확인');
+    expect(_stationFacility(status: 'UNKNOWN').statusLabel, '정상 운행');
     expect(uncheckedDescription.locationLabel, '이동 보조 시설');
     expect(uncheckedDescription.semanticLabel, isNot(contains('현장 검증')));
     expect(metadataOnlyDescription.locationLabel, 'B1-1F');

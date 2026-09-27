@@ -191,9 +191,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
   int _selectionClearRevision = 0;
   int _nearestStationRequestToken = 0;
 
-  /// 하단 패널 데이터 요청 generation. 역·호선과 함께 [NearbyPanelRequestKey]로
+  /// 하단 패널 실시간/시간표 데이터 요청 generation. 역·호선과 함께 [NearbyPanelRequestKey]로
   /// 늦은 응답을 걸러 낸다(#2453 Task 3).
-  int _nearbyDataRequestToken = 0;
+  /// 실시간 폴링 중 시간표 로드가 generation 불일치로 버려지지 않도록 채널별로 분리 관리한다.
+  int _nearbyRealtimeRequestToken = 0;
+  int _nearbyTimetableRequestToken = 0;
   // #2200: 캔버스 역 탭 → StationSearchResult 해석은 비동기라 연속 탭 시 마지막
   // 탭만 패널에 반영되도록 토큰으로 앞선 요청을 무효화한다.
   int _canvasTapPanelToken = 0;
@@ -409,11 +411,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
     if (!mounted) {
       return;
     }
-    _openNearbyStationPanel(
-      result,
-      preferredLine: line,
-      preserveFocusedStationScale: true,
-    );
+    _openNearbyStationPanel(result, preferredLine: line);
   }
 
   Future<void> _recordSelectedStationSearch(
@@ -448,13 +446,21 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
     _neighborSelectPanelToken++;
     final selectedLine = preferredLine ?? station.lines.firstOrNull;
     // generation을 먼저 올려 이전 요청을 무효화한 뒤 패널을 연다.
-    final generation = ++_nearbyDataRequestToken;
-    final request = selectedLine == null
+    final realtimeGen = ++_nearbyRealtimeRequestToken;
+    final timetableGen = ++_nearbyTimetableRequestToken;
+    final realtimeRequest = selectedLine == null
         ? null
         : NearbyPanelRequestKey(
             stationId: station.id,
             lineId: selectedLine.id,
-            generation: generation,
+            generation: realtimeGen,
+          );
+    final timetableRequest = selectedLine == null
+        ? null
+        : NearbyPanelRequestKey(
+            stationId: station.id,
+            lineId: selectedLine.id,
+            generation: timetableGen,
           );
     setState(() {
       _nearestStationRequestToken++;
@@ -466,9 +472,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
       // 모든 오픈 경로 기본 탭은 시간표. 실시간은 백그라운드 prefetch.
       // keyed display는 지우지 않는다 — 키 불일치면 미표시, 일치하면 즉시 재사용.
       _nearbyDataSource = NetworkMapNearbyPanelDataSource.timetable;
-      if (request != null) {
-        _markNearbyRealtimeInFlight(request);
-        _markNearbyTimetableInFlight(request);
+      if (realtimeRequest != null && timetableRequest != null) {
+        _markNearbyRealtimeInFlight(realtimeRequest);
+        _markNearbyTimetableInFlight(timetableRequest);
       } else {
         _nearbyRealtimeRequestInFlight = false;
         _nearbyTimetableRequestInFlight = false;
@@ -478,20 +484,37 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
       _searchFanMenuStationId = station.id;
       _preserveFocusedStationScale = preserveFocusedStationScale;
     });
-    if (request != null && selectedLine != null) {
-      _startNearbyPanelDataLoads(station, selectedLine, request);
+    if (realtimeRequest != null &&
+        timetableRequest != null &&
+        selectedLine != null) {
+      _startNearbyPanelDataLoads(
+        station,
+        selectedLine,
+        realtimeRequest: realtimeRequest,
+        timetableRequest: timetableRequest,
+      );
     }
   }
 
-  /// 현재 패널에 반영해도 되는 최신 요청인지 검사한다.
-  /// `mounted`만으로 setState 하지 않도록 완료 경로에서 반드시 호출한다.
-  bool _isCurrentNearbyRequest(NearbyPanelRequestKey request) {
+  /// 현재 패널에 반영해도 되는 최신 실시간 요청인지 검사한다.
+  bool _isCurrentNearbyRealtimeRequest(NearbyPanelRequestKey request) {
     return mounted &&
         _nearbyPanelVisible &&
         request.matches(
           stationId: _nearbySelectedStationId,
           lineId: _nearbySelectedLineId,
-          generation: _nearbyDataRequestToken,
+          generation: _nearbyRealtimeRequestToken,
+        );
+  }
+
+  /// 현재 패널에 반영해도 되는 최신 시간표 요청인지 검사한다.
+  bool _isCurrentNearbyTimetableRequest(NearbyPanelRequestKey request) {
+    return mounted &&
+        _nearbyPanelVisible &&
+        request.matches(
+          stationId: _nearbySelectedStationId,
+          lineId: _nearbySelectedLineId,
+          generation: _nearbyTimetableRequestToken,
         );
   }
 
@@ -567,11 +590,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
     final preferredLine = match.lines
         .where((line) => line.id == station.lineId)
         .firstOrNull;
-    _openNearbyStationPanel(
-      match,
-      preferredLine: preferredLine,
-      preserveFocusedStationScale: true,
-    );
+    _openNearbyStationPanel(match, preferredLine: preferredLine);
   }
 
   /// #2109 검색 결과 탭으로 연 팬 메뉴가 닫히면(액션 선택·닫기·배경 탭·팬) 이
@@ -1150,7 +1169,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
   void _resetNearbyPanelState() {
     _stopNearbyRealtimePolling();
     // 닫힌 뒤 완료되는 요청이 UI를 건드리지 않도록 generation을 무효화한다.
-    _nearbyDataRequestToken++;
+    _nearbyRealtimeRequestToken++;
+    _nearbyTimetableRequestToken++;
     _neighborSelectPanelToken++;
     _nearbyPanelVisible = false;
     _nearbyPanelExpanded = false;
@@ -1175,18 +1195,17 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
         _nearbyPanelData.status != NetworkMapNearbyPanelStatus.success) {
       return;
     }
-    _nearbyRealtimePollingTimer = Timer.periodic(
-      const Duration(seconds: 15),
-      (_) {
-        if (!mounted ||
-            !_nearbyPanelVisible ||
-            _nearbyDataSource != NetworkMapNearbyPanelDataSource.realtime) {
-          _stopNearbyRealtimePolling();
-          return;
-        }
-        _pollNearbyRealtime();
-      },
-    );
+    _nearbyRealtimePollingTimer = Timer.periodic(const Duration(seconds: 15), (
+      _,
+    ) {
+      if (!mounted ||
+          !_nearbyPanelVisible ||
+          _nearbyDataSource != NetworkMapNearbyPanelDataSource.realtime) {
+        _stopNearbyRealtimePolling();
+        return;
+      }
+      _pollNearbyRealtime();
+    });
   }
 
   void _stopNearbyRealtimePolling() {
@@ -1203,29 +1222,32 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
       return;
     }
     final station = results.first;
-    final line = station.lines
-        .where((candidate) => candidate.id == _nearbySelectedLineId)
-        .firstOrNull ?? (station.lines.isNotEmpty ? station.lines.first : null);
+    final line =
+        station.lines
+            .where((candidate) => candidate.id == _nearbySelectedLineId)
+            .firstOrNull ??
+        (station.lines.isNotEmpty ? station.lines.first : null);
     if (line == null) {
       return;
     }
     final request = NearbyPanelRequestKey(
       stationId: station.id,
       lineId: line.id,
-      generation: ++_nearbyDataRequestToken,
+      generation: ++_nearbyRealtimeRequestToken,
     );
     _markNearbyRealtimeInFlight(request);
     unawaited(_loadNearbyRealtime(station, line, request: request));
   }
 
-  /// 실시간과 시간표를 같은 요청 키로 병렬 로드한다.
+  /// 실시간과 시간표를 각 채널별 요청 키로 병렬 로드한다.
   void _startNearbyPanelDataLoads(
     StationSearchResult station,
-    StationSearchLine line,
-    NearbyPanelRequestKey request,
-  ) {
-    unawaited(_loadNearbyRealtime(station, line, request: request));
-    unawaited(_loadNearbyTimetable(station, line, request: request));
+    StationSearchLine line, {
+    required NearbyPanelRequestKey realtimeRequest,
+    required NearbyPanelRequestKey timetableRequest,
+  }) {
+    unawaited(_loadNearbyRealtime(station, line, request: realtimeRequest));
+    unawaited(_loadNearbyTimetable(station, line, request: timetableRequest));
     if (_nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime) {
       _startNearbyRealtimePolling();
     }
@@ -1243,7 +1265,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
       } else {
         _clearNearbyRealtimeInFlightIf(request);
       }
-      if (!_isCurrentNearbyRequest(request)) {
+      if (!_isCurrentNearbyRealtimeRequest(request)) {
         return;
       }
       unawaited(
@@ -1267,7 +1289,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
             _nearbyRealtimeTimeout,
             onTimeout: () => const RealtimeSnapshot.unavailable(),
           );
-      if (!_isCurrentNearbyRequest(request)) {
+      if (!_isCurrentNearbyRealtimeRequest(request)) {
         if (mounted) {
           setState(() => _clearNearbyRealtimeInFlightIf(request));
         } else {
@@ -1296,7 +1318,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
         _handleNearbyRealtimeUnavailable(station, line, request: request),
       );
     } on RealtimeException {
-      if (!_isCurrentNearbyRequest(request)) {
+      if (!_isCurrentNearbyRealtimeRequest(request)) {
         if (mounted) {
           setState(() => _clearNearbyRealtimeInFlightIf(request));
         } else {
@@ -1314,7 +1336,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
         stackTrace,
         context: '노선도 최근접 역 실시간 정보 조회 중 예외가 발생했습니다.',
       );
-      if (!_isCurrentNearbyRequest(request)) {
+      if (!_isCurrentNearbyRealtimeRequest(request)) {
         if (mounted) {
           setState(() => _clearNearbyRealtimeInFlightIf(request));
         } else {
@@ -1343,7 +1365,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
     StationSearchLine line, {
     required NearbyPanelRequestKey request,
   }) async {
-    if (!mounted || !_isCurrentNearbyRequest(request)) {
+    if (!mounted || !_isCurrentNearbyRealtimeRequest(request)) {
       return;
     }
     setState(() {
@@ -1375,7 +1397,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
         lineId: line.id,
         date: DateTime.now(),
       );
-      if (!_isCurrentNearbyRequest(request)) {
+      if (!_isCurrentNearbyTimetableRequest(request)) {
         if (mounted) {
           setState(() => _clearNearbyTimetableInFlightIf(request));
         } else {
@@ -1392,7 +1414,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
         _clearNearbyTimetableInFlightIf(request);
       });
     } on StationTimetableUnavailable {
-      if (!_isCurrentNearbyRequest(request)) {
+      if (!_isCurrentNearbyTimetableRequest(request)) {
         if (mounted) {
           setState(() => _clearNearbyTimetableInFlightIf(request));
         } else {
@@ -1410,7 +1432,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
         stackTrace,
         context: '노선도 최근접 역 시간표 조회 중 예외가 발생했습니다.',
       );
-      if (!_isCurrentNearbyRequest(request)) {
+      if (!_isCurrentNearbyTimetableRequest(request)) {
         if (mounted) {
           setState(() => _clearNearbyTimetableInFlightIf(request));
         } else {
@@ -1430,18 +1452,28 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
       return;
     }
     final station = _nearbyPanelData.results.first;
-    final request = NearbyPanelRequestKey(
+    final realtimeRequest = NearbyPanelRequestKey(
       stationId: station.id,
       lineId: line.id,
-      generation: ++_nearbyDataRequestToken,
+      generation: ++_nearbyRealtimeRequestToken,
+    );
+    final timetableRequest = NearbyPanelRequestKey(
+      stationId: station.id,
+      lineId: line.id,
+      generation: ++_nearbyTimetableRequestToken,
     );
     // 호선 변경 시 모드 유지. 이전 호선 display는 키 불일치로 미표시.
     setState(() {
       _nearbySelectedLineId = line.id;
-      _markNearbyRealtimeInFlight(request);
-      _markNearbyTimetableInFlight(request);
+      _markNearbyRealtimeInFlight(realtimeRequest);
+      _markNearbyTimetableInFlight(timetableRequest);
     });
-    _startNearbyPanelDataLoads(station, line, request);
+    _startNearbyPanelDataLoads(
+      station,
+      line,
+      realtimeRequest: realtimeRequest,
+      timetableRequest: timetableRequest,
+    );
   }
 
   void _toggleNearbyDataSource() {
@@ -1474,7 +1506,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
       final request = NearbyPanelRequestKey(
         stationId: station.id,
         lineId: line.id,
-        generation: ++_nearbyDataRequestToken,
+        generation: ++_nearbyRealtimeRequestToken,
       );
       setState(() {
         _markNearbyRealtimeInFlight(request);
@@ -1496,7 +1528,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen>
     final request = NearbyPanelRequestKey(
       stationId: station.id,
       lineId: line.id,
-      generation: ++_nearbyDataRequestToken,
+      generation: ++_nearbyTimetableRequestToken,
     );
     setState(() {
       _markNearbyTimetableInFlight(request);

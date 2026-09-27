@@ -86,7 +86,7 @@ void main() {
       floorFrom: 'B1',
       floorTo: '1F',
       description: '2번 출구 통로',
-      status: 'UNKNOWN',
+      status: 'UNDER_CONSTRUCTION',
       dataConfidence: 'LOW',
       lastUpdatedAt: '2026-06-10',
     );
@@ -107,8 +107,8 @@ void main() {
     expect(find.byIcon(Icons.escalator), findsOneWidget);
     expect(find.text('2번 출구 에스컬레이터'), findsOneWidget);
 
-    // 주의/미확인 상태 뱃지 노출
-    expect(find.text('설치 확인 · 운행상태 미확인'), findsOneWidget);
+    // 주의 상태 뱃지 노출
+    expect(find.text('가기 전에 확인해 주세요'), findsOneWidget);
     expect(find.text('에스컬레이터'), findsNothing);
 
     // 카드 탭 시 상세 화면 진입
@@ -174,7 +174,7 @@ void main() {
         floorFrom: 'B3',
         floorTo: '2F',
         description: '지하 3층 승강장에서 2층 대합실 및 환승 이동 통로 방면',
-        status: 'UNKNOWN',
+        status: 'UNDER_CONSTRUCTION',
         dataConfidence: 'LOW',
         lastUpdatedAt: '2026-06-10',
       );
@@ -204,7 +204,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.byIcon(Icons.escalator), findsOneWidget);
       expect(find.text('10번 출구 환승통로 방면 내부 에스컬레이터 (상행/하행 전용)'), findsOneWidget);
-      expect(find.text('설치 확인 · 운행상태 미확인'), findsOneWidget);
+      expect(find.text('가기 전에 확인해 주세요'), findsOneWidget);
       expect(find.text('지하 3층 승강장에서 2층 대합실 및 환승 이동 통로 방면'), findsOneWidget);
     },
   );

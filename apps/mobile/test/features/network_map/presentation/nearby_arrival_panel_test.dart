@@ -59,13 +59,13 @@ void main() {
       ),
     );
 
-    expect(find.text('3분뒤 도착'), findsOneWidget);
+    expect(find.text('3분 뒤 도착'), findsOneWidget);
     expect(find.text('전역 출발'), findsOneWidget);
     expect(find.text('곧 도착'), findsOneWidget);
     expect(find.text('신도림행'), findsNothing);
     expect(
       find.bySemanticsLabel(
-        '건대입구 방면 성수행 3분뒤 도착, 건대입구 방면 을지로입구행 전역 출발, 한양대 방면 한양대행 곧 도착',
+        '건대입구 방면 성수행 3분 뒤 도착, 건대입구 방면 을지로입구행 전역 출발, 한양대 방면 한양대행 곧 도착',
       ),
       findsOneWidget,
     );
@@ -89,19 +89,19 @@ void main() {
                 NearbyArrivalData(
                   direction: '당고개 방면',
                   destination: '노원',
-                  etaSeconds: 300, // 5분뒤 도착
+                  etaSeconds: 300, // 5분 뒤 도착
                   message: '',
                 ),
                 NearbyArrivalData(
                   direction: '오이도 방면',
                   destination: '오이도',
-                  etaSeconds: 600, // 10분뒤 도착
+                  etaSeconds: 600, // 10분 뒤 도착
                   message: '',
                 ),
                 NearbyArrivalData(
                   direction: '오이도 방면',
                   destination: '안산',
-                  etaSeconds: 1140, // 19분 -> 10분 초과: 20:19
+                  etaSeconds: 1140, // 19분 -> 19분 뒤 도착
                   message: '',
                 ),
               ],
@@ -116,9 +116,9 @@ void main() {
     );
 
     expect(find.text('곧 도착'), findsOneWidget);
-    expect(find.text('5분뒤 도착'), findsOneWidget);
-    expect(find.text('10분뒤 도착'), findsOneWidget);
-    expect(find.text('20:19'), findsOneWidget);
+    expect(find.text('5분 뒤 도착'), findsOneWidget);
+    expect(find.text('10분 뒤 도착'), findsOneWidget);
+    expect(find.text('19분 뒤 도착'), findsOneWidget);
 
     // 곧 도착 텍스트 위젯은 빨간색 강조 (statusDestructive w700)
     final soonText = tester.widget<Text>(find.text('곧 도착'));
@@ -126,7 +126,7 @@ void main() {
     expect(soonText.style?.fontWeight, FontWeight.w700);
 
     // 일반 도착 텍스트 위젯은 secondaryText w600
-    final regularText = tester.widget<Text>(find.text('5분뒤 도착'));
+    final regularText = tester.widget<Text>(find.text('5분 뒤 도착'));
     expect(regularText.style?.color, EasySubwayAccessibleColors.secondaryText);
     expect(regularText.style?.fontWeight, FontWeight.w600);
   });
@@ -278,4 +278,40 @@ void main() {
       expect(find.byType(NearbyDataUnavailable), findsOneWidget);
     },
   );
+
+  testWidgets('상록수 등 인접역(반월/한대앞)이 주어지면 원천 방면(진접/오이도)을 인접역 방면으로 정규화한다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '진접 방면',
+              destination: '사당',
+              etaSeconds: 120,
+              message: '전역 도착',
+            ),
+            NearbyArrivalData(
+              direction: '오이도 방면',
+              destination: '오이도',
+              etaSeconds: 240,
+              message: '전역 출발',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    // 먼 종점 진접/오이도 대신 인접역 반월/한대앞 방면으로 정규화
+    expect(find.text('반월 방면'), findsOneWidget);
+    expect(find.text('한대앞 방면'), findsOneWidget);
+
+    // 열차 종착역 행선지 표시
+    expect(find.text('사당행'), findsOneWidget);
+    expect(find.text('오이도행'), findsOneWidget);
+  });
 }

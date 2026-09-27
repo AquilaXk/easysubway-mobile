@@ -19,6 +19,7 @@ class StationExitCard extends StatefulWidget {
     required this.exit,
     required this.mapLauncher,
     required this.locationProvider,
+    this.mapPreview,
     super.key,
   });
 
@@ -26,6 +27,7 @@ class StationExitCard extends StatefulWidget {
   final StationExitInfo exit;
   final KakaoMapLauncher mapLauncher;
   final CurrentLocationProvider? locationProvider;
+  final Widget? mapPreview;
 
   @override
   State<StationExitCard> createState() => _StationExitCardState();
@@ -69,8 +71,13 @@ class _StationExitCardState extends State<StationExitCard> {
                     children: [
                       Builder(
                         builder: (context) {
-                          final match = RegExp(r'(\d+(?:-\d+)?)').firstMatch(exit.name);
+                          final match = RegExp(
+                            r'(\d+(?:-\d+)?)',
+                          ).firstMatch(exit.name);
                           final exitNum = match != null ? match.group(1)! : '';
+                          final lineColor = station.lines.isNotEmpty
+                              ? station.lines.first.badgeColor
+                              : EasySubwayAccessibleColors.primary;
                           return Wrap(
                             crossAxisAlignment: WrapCrossAlignment.center,
                             spacing: 8,
@@ -80,9 +87,9 @@ class _StationExitCardState extends State<StationExitCard> {
                                 Container(
                                   width: 26,
                                   height: 26,
-                                  decoration: const BoxDecoration(
+                                  decoration: BoxDecoration(
                                     shape: BoxShape.circle,
-                                    color: EasySubwayAccessibleColors.primary,
+                                    color: lineColor,
                                   ),
                                   alignment: Alignment.center,
                                   child: Text(
@@ -90,7 +97,8 @@ class _StationExitCardState extends State<StationExitCard> {
                                     style: const TextStyle(
                                       fontSize: 13,
                                       fontWeight: FontWeight.w700,
-                                      color: EasySubwayColorPrimitives.neutralWhite,
+                                      color: EasySubwayColorPrimitives
+                                          .neutralWhite,
                                     ),
                                   ),
                                 ),
@@ -109,7 +117,8 @@ class _StationExitCardState extends State<StationExitCard> {
                                     vertical: 2,
                                   ),
                                   decoration: BoxDecoration(
-                                    color: EasySubwayColorPrimitives.statusSuccessSoft,
+                                    color: EasySubwayColorPrimitives
+                                        .statusSuccessSoft,
                                     borderRadius: BorderRadius.circular(4),
                                     border: Border.all(
                                       color: EasySubwayAccessibleColors.mint,
@@ -129,7 +138,8 @@ class _StationExitCardState extends State<StationExitCard> {
                                         style: TextStyle(
                                           fontSize: 11,
                                           fontWeight: FontWeight.w700,
-                                          color: EasySubwayAccessibleColors.mint,
+                                          color:
+                                              EasySubwayAccessibleColors.mint,
                                         ),
                                       ),
                                     ],
@@ -140,16 +150,16 @@ class _StationExitCardState extends State<StationExitCard> {
                         },
                       ),
                       if (exit.description.trim().isNotEmpty) ...[
-                        const SizedBox(height: 8),
+                        const SizedBox(height: 12),
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 8,
+                            horizontal: 12,
+                            vertical: 10,
                           ),
                           decoration: BoxDecoration(
                             color: EasySubwayAccessibleColors.surfaceSubtle,
-                            borderRadius: BorderRadius.circular(6),
+                            borderRadius: BorderRadius.circular(8),
                             border: Border.all(
                               color: EasySubwayAccessibleColors.line,
                             ),
@@ -160,19 +170,19 @@ class _StationExitCardState extends State<StationExitCard> {
                               const Padding(
                                 padding: EdgeInsets.only(top: 2),
                                 child: Icon(
-                                  Icons.place_outlined,
+                                  Icons.directions_bus_outlined,
                                   size: 16,
-                                  color:
-                                      EasySubwayAccessibleColors.contentSecondary,
+                                  color: EasySubwayAccessibleColors.primary,
                                 ),
                               ),
-                              const SizedBox(width: 6),
+                              const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   exit.description.trim(),
                                   style: textTheme.bodyMedium?.copyWith(
                                     color: EasySubwayAccessibleColors.text,
-                                    height: 1.35,
+                                    height: 1.4,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ),
@@ -192,14 +202,6 @@ class _StationExitCardState extends State<StationExitCard> {
                         text: exit.stairPathLabel,
                         positive: !exit.hasStairOnlyPath,
                       ),
-                      if (exit.lastVerifiedAt.trim().isNotEmpty) ...[
-                        const SizedBox(height: 8),
-                        StationDetailInfoRow(
-                          icon: Icons.verified_outlined,
-                          text:
-                              '최근 확인 ${stationVerifiedRelativeLabel(exit.lastVerifiedAt)}',
-                        ),
-                      ],
                     ],
                   ),
                 ),
@@ -231,67 +233,106 @@ class _StationExitCardState extends State<StationExitCard> {
                   ),
                 ),
               ],
-              if (mapTarget != null) ...[
+              if (widget.mapPreview != null) ...[
                 const SizedBox(height: 12),
-                Semantics(
-                  container: true,
-                  button: true,
-                  label: mapTarget.usesStationFallback
-                      ? '${exit.name} 카카오맵에서 보기, 출구 좌표가 없어 역 위치 기준으로 새 앱이 열립니다'
-                      : '${exit.name} 카카오맵에서 보기, 새 앱이 열립니다',
-                  onTap: () => _openExitMap(context),
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ExcludeSemantics(
-                      child: OutlinedButton.icon(
-                        key: Key('stationExitMapButton-${exit.id}'),
-                        icon: const Icon(Icons.map_outlined),
-                        label: const Text('카카오맵에서 보기'),
-                        onPressed: () => _openExitMap(context),
-                      ),
-                    ),
-                  ),
-                ),
+                widget.mapPreview!,
               ],
-              if (mapTarget != null && widget.locationProvider != null) ...[
-                const SizedBox(height: 8),
-                Semantics(
-                  container: true,
-                  button: true,
-                  enabled: !_isLoadingLocation,
-                  label: mapTarget.usesStationFallback
-                      ? '${exit.name} 역 위치 기준 직선거리 보기'
-                      : '${exit.name}까지 직선거리 보기',
-                  onTap: _isLoadingLocation
-                      ? null
-                      : _loadCurrentLocationForExit,
-                  child: SizedBox(
-                    width: double.infinity,
-                    child: ExcludeSemantics(
-                      child: OutlinedButton.icon(
-                        key: Key('stationExitDistanceButton-${exit.id}'),
-                        icon: _isLoadingLocation
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.near_me_outlined),
-                        label: Text(
-                          _isLoadingLocation
-                              ? '현재 위치 확인 중'
-                              : mapTarget.usesStationFallback
-                              ? '역까지 거리 보기'
-                              : '출구까지 거리 보기',
+              if (mapTarget != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Semantics(
+                        container: true,
+                        button: true,
+                        label: mapTarget.usesStationFallback
+                            ? '${exit.name} 카카오맵에서 보기, 출구 좌표가 없어 역 위치 기준으로 새 앱이 열립니다'
+                            : '${exit.name} 카카오맵에서 보기, 새 앱이 열립니다',
+                        onTap: () => _openExitMap(context),
+                        child: ExcludeSemantics(
+                          child: OutlinedButton.icon(
+                            key: Key('stationExitMapButton-${exit.id}'),
+                            style: OutlinedButton.styleFrom(
+                              minimumSize: const Size.fromHeight(
+                                EasySubwayTouchTarget.general,
+                              ),
+                              backgroundColor:
+                                  EasySubwayAccessibleColors.surfaceDefault,
+                              foregroundColor:
+                                  EasySubwayAccessibleColors.primary,
+                              side: const BorderSide(
+                                color: EasySubwayAccessibleColors.line,
+                              ),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                            ),
+                            icon: const Icon(Icons.map_outlined, size: 18),
+                            label: const Text('카카오맵에서 보기'),
+                            onPressed: () => _openExitMap(context),
+                          ),
                         ),
-                        onPressed: _isLoadingLocation
-                            ? null
-                            : _loadCurrentLocationForExit,
                       ),
                     ),
-                  ),
+                    if (widget.locationProvider != null) ...[
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Semantics(
+                          container: true,
+                          button: true,
+                          enabled: !_isLoadingLocation,
+                          label: mapTarget.usesStationFallback
+                              ? '${exit.name} 역 위치 기준 직선거리 보기'
+                              : '${exit.name}까지 직선거리 보기',
+                          onTap: _isLoadingLocation
+                              ? null
+                              : _loadCurrentLocationForExit,
+                          child: ExcludeSemantics(
+                            child: OutlinedButton.icon(
+                              key: Key('stationExitDistanceButton-${exit.id}'),
+                              style: OutlinedButton.styleFrom(
+                                minimumSize: const Size.fromHeight(
+                                  EasySubwayTouchTarget.general,
+                                ),
+                                backgroundColor:
+                                    EasySubwayAccessibleColors.surfaceDefault,
+                                foregroundColor:
+                                    EasySubwayAccessibleColors.primary,
+                                side: const BorderSide(
+                                  color: EasySubwayAccessibleColors.line,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              icon: _isLoadingLocation
+                                  ? const SizedBox(
+                                      width: 18,
+                                      height: 18,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Icon(
+                                      Icons.near_me_outlined,
+                                      size: 18,
+                                    ),
+                              label: Text(
+                                _isLoadingLocation
+                                    ? '확인 중'
+                                    : mapTarget.usesStationFallback
+                                    ? '역까지 거리'
+                                    : '출구까지 거리',
+                              ),
+                              onPressed: _isLoadingLocation
+                                  ? null
+                                  : _loadCurrentLocationForExit,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
               if (mapTarget != null && walkingRouteStart != null) ...[

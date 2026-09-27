@@ -141,7 +141,7 @@ void main() {
     expect(find.text('승강장 (탑승)'), findsOneWidget);
   });
 
-  testWidgets('편의시설 매트릭스가 화장실 개찰구 안·밖 구분을 정확히 표시한다', (tester) async {
+  testWidgets('편의시설 매트릭스가 화장실 개찰구 안, 밖 구분을 정확히 표시한다', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -152,7 +152,7 @@ void main() {
 
     expect(find.text('주요 편의시설 한눈에 보기'), findsOneWidget);
     expect(find.text('화장실 위치'), findsOneWidget);
-    expect(find.text('개찰구 안·밖 모두'), findsOneWidget);
+    expect(find.text('개찰구 안, 밖 모두'), findsOneWidget);
     expect(find.text('장애인 화장실'), findsWidgets);
     expect(find.text('수유실'), findsWidgets);
     expect(find.text('이용 가능'), findsOneWidget);
@@ -174,7 +174,7 @@ void main() {
     await tester.pumpWidget(buildDetailBody());
     await tester.pumpAndSettle();
 
-    expect(find.text('고객안전실 · 역무실'), findsOneWidget);
+    expect(find.text('고객안전실, 역무실'), findsOneWidget);
     expect(find.text('고객안전실 (역무실)'), findsOneWidget);
     expect(
       find.byKey(const Key('stationSafetyOfficeCallButton-station-sangnoksu')),
@@ -183,14 +183,19 @@ void main() {
     expect(find.text('고객안전실 전화 걸기 (1577-1234)'), findsOneWidget);
   });
 
-  testWidgets('출구가 없더라도 시설 정보가 있으면 무단차 동선·편의시설·고객안전실 카드가 정상 렌더링된다', (tester) async {
+  testWidgets('출구가 없더라도 시설 정보가 있으면 무단차 동선, 편의시설, 고객안전실 카드가 정상 렌더링된다', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
     await tester.pumpWidget(
-      buildDetailBody(exits: const [], facilities: testFacilities.take(2).toList()),
+      buildDetailBody(
+        exits: const [],
+        facilities: testFacilities.take(2).toList(),
+      ),
     );
     await tester.pumpAndSettle();
 
@@ -198,7 +203,7 @@ void main() {
     expect(find.text('시설 정보'), findsOneWidget);
     expect(find.text('지상 ↔ 대합실 ↔ 승강장 동선'), findsOneWidget);
     expect(find.text('주요 편의시설 한눈에 보기'), findsOneWidget);
-    expect(find.text('고객안전실 · 역무실'), findsOneWidget);
+    expect(find.text('고객안전실, 역무실'), findsOneWidget);
     expect(
       find.byKey(const Key('stationSafetyOfficeCallButton-station-sangnoksu')),
       findsOneWidget,
@@ -212,11 +217,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
 
-    await tester.pumpWidget(buildDetailBody(exits: const [], facilities: const []));
+    await tester.pumpWidget(
+      buildDetailBody(exits: const [], facilities: const []),
+    );
     await tester.pumpAndSettle();
 
     expect(find.text('출구 정보'), findsNothing);
     expect(find.text('시설 정보'), findsNothing);
   });
 }
-

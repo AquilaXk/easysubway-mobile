@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
-import '../../../design_tokens.dart';
 import '../../realtime/realtime_repository.dart';
 
-const _stationRealtimeSummaryRadius = BorderRadius.all(
-  Radius.circular(EasySubwayRadius.sheet),
-);
+const _stationRealtimeSummaryRadius = BorderRadius.all(Radius.circular(8));
 
 class StationRealtimeSummary extends StatelessWidget {
   const StationRealtimeSummary({
     required this.snapshot,
     required this.onRetry,
+    this.previousStation,
+    this.nextStation,
     super.key,
   });
 
   final RealtimeSnapshot snapshot;
   final VoidCallback onRetry;
+  final String? previousStation;
+  final String? nextStation;
 
   @override
   Widget build(BuildContext context) {
@@ -79,7 +80,11 @@ class StationRealtimeSummary extends StatelessWidget {
             ),
             if (snapshot.arrivals.isNotEmpty) ...[
               const SizedBox(height: 12),
-              for (final group in _groupRealtimeArrivals(snapshot.arrivals)) ...[
+              for (final group in _groupRealtimeArrivals(
+                snapshot.arrivals,
+                previousStation: previousStation,
+                nextStation: nextStation,
+              )) ...[
                 Padding(
                   padding: const EdgeInsets.only(top: 8, bottom: 4),
                   child: Text(
@@ -140,14 +145,81 @@ class _RealtimeGroup {
   final List<RealtimeArrival> arrivals;
 }
 
-List<_RealtimeGroup> _groupRealtimeArrivals(List<RealtimeArrival> arrivals) {
+List<_RealtimeGroup> _groupRealtimeArrivals(
+  List<RealtimeArrival> arrivals, {
+  String? previousStation,
+  String? nextStation,
+}) {
   final map = <String, List<RealtimeArrival>>{};
+  final prev = previousStation?.trim();
+  final next = nextStation?.trim();
+
   for (final arrival in arrivals) {
-    final dir = arrival.direction.trim().isNotEmpty
-        ? arrival.direction.trim()
-        : (arrival.destination.trim().isNotEmpty
-            ? '${arrival.destination.trim()} 방면'
-            : '열차 도착');
+    final rawDir = arrival.direction.trim();
+    final dest = arrival.destination.trim();
+    String dir;
+    if (prev != null &&
+        prev.isNotEmpty &&
+        (rawDir.contains(prev) || dest.contains(prev))) {
+      dir = '$prev 방면';
+    } else if (next != null &&
+        next.isNotEmpty &&
+        (rawDir.contains(next) || dest.contains(next))) {
+      dir = '$next 방면';
+    } else if (rawDir.isNotEmpty) {
+      if (prev != null &&
+          prev.isNotEmpty &&
+          (rawDir.contains('상행') ||
+              rawDir.contains('내선') ||
+              rawDir.contains('진접') ||
+              rawDir.contains('당고개') ||
+              rawDir.contains('사당') ||
+              rawDir.contains('서울역') ||
+              rawDir.contains('청량리') ||
+              rawDir.contains('대화') ||
+              rawDir.contains('소요산'))) {
+        dir = '$prev 방면';
+      } else if (next != null &&
+          next.isNotEmpty &&
+          (rawDir.contains('하행') ||
+              rawDir.contains('외선') ||
+              rawDir.contains('오이도') ||
+              rawDir.contains('안산') ||
+              rawDir.contains('인천') ||
+              rawDir.contains('수원') ||
+              rawDir.contains('신창'))) {
+        dir = '$next 방면';
+      } else {
+        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+      }
+    } else if (dest.isNotEmpty) {
+      final cleanDest = dest.endsWith('행')
+          ? dest.substring(0, dest.length - 1)
+          : dest;
+      if (prev != null &&
+          prev.isNotEmpty &&
+          (cleanDest.contains('진접') ||
+              cleanDest.contains('당고개') ||
+              cleanDest.contains('사당') ||
+              cleanDest.contains('서울역') ||
+              cleanDest.contains('청량리') ||
+              cleanDest.contains('대화') ||
+              cleanDest.contains('소요산'))) {
+        dir = '$prev 방면';
+      } else if (next != null &&
+          next.isNotEmpty &&
+          (cleanDest.contains('오이도') ||
+              cleanDest.contains('안산') ||
+              cleanDest.contains('인천') ||
+              cleanDest.contains('수원') ||
+              cleanDest.contains('신창'))) {
+        dir = '$next 방면';
+      } else {
+        dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
+      }
+    } else {
+      dir = '열차 도착';
+    }
     map.putIfAbsent(dir, () => []).add(arrival);
   }
   return [
@@ -172,25 +244,29 @@ class _StationRealtimeRow extends StatelessWidget {
       if (eta < 60) {
         etaText = '곧 도착';
         isSoon = true;
-      } else if (eta <= 600) {
+      } else if (eta <= 3600) {
         final minutes = (eta / 60).round();
         if (minutes <= 0) {
           etaText = '곧 도착';
           isSoon = true;
         } else {
-          etaText = '$minutes분뒤 도착';
+          etaText = '$minutes분 뒤 도착';
           isSoon = false;
         }
       } else {
-        final arrivalTime = DateTime.now().add(Duration(seconds: eta));
-        final hh = arrivalTime.hour.toString().padLeft(2, '0');
-        final mm = arrivalTime.minute.toString().padLeft(2, '0');
-        etaText = '$hh:$mm';
+        final hours = eta ~/ 3600;
+        final minutes = (eta % 3600) ~/ 60;
+        etaText = minutes == 0 ? '$hours시간 뒤 도착' : '$hours시간 $minutes분 뒤 도착';
         isSoon = false;
       }
-    } else if (msg == '곧 도착' || msg.contains('도착') || msg.contains('진입')) {
-      etaText = msg.isNotEmpty ? msg : (pos.isNotEmpty ? pos : '곧 도착');
+    } else if (msg == '곧 도착' ||
+        msg.contains('당역') ||
+        (!msg.contains('전역') && (msg.contains('도착') || msg.contains('진입')))) {
+      etaText = '곧 도착';
       isSoon = true;
+    } else if (msg.contains('전역')) {
+      etaText = msg.isNotEmpty ? msg : (pos.isNotEmpty ? pos : '전역 도착');
+      isSoon = false;
     } else if (pos.isNotEmpty) {
       etaText = pos;
       isSoon = false;
@@ -199,13 +275,26 @@ class _StationRealtimeRow extends StatelessWidget {
       isSoon = etaText == '곧 도착';
     }
 
-    final destination = arrival.destination.trim().isEmpty
+    final cleanDest = arrival.destination.trim().isNotEmpty
+        ? arrival.destination.trim()
+        : arrival.direction.replaceAll('방면', '').trim();
+    final destination = cleanDest.isEmpty
         ? '열차'
-        : (arrival.destination.trim().endsWith('행')
-            ? arrival.destination.trim()
-            : '${arrival.destination.trim()}행');
+        : (cleanDest.endsWith('행') ? cleanDest : '$cleanDest행');
 
-    final isPrevStation = etaText.contains('전역') || pos.contains('전역');
+    final isWarning =
+        !isSoon &&
+        (etaText == '1분 뒤 도착' ||
+            etaText == '2분 뒤 도착' ||
+            etaText == '3분 뒤 도착' ||
+            etaText.startsWith('1분') ||
+            etaText.startsWith('2분') ||
+            etaText.startsWith('3분') ||
+            (eta != null && eta > 0 && eta <= 180));
+    final isPrevStation =
+        !isSoon &&
+        !isWarning &&
+        (etaText.contains('전역') || pos.contains('전역') || msg.contains('전역'));
     final Color badgeBg;
     final Color badgeBorder;
     final Color badgeText;
@@ -213,6 +302,10 @@ class _StationRealtimeRow extends StatelessWidget {
       badgeBg = EasySubwayColorPrimitives.statusDangerSoft;
       badgeBorder = EasySubwayColorPrimitives.statusDanger;
       badgeText = EasySubwayColorPrimitives.statusDanger;
+    } else if (isWarning) {
+      badgeBg = EasySubwayAccessibleColors.statusWarningSurface;
+      badgeBorder = EasySubwayAccessibleColors.amberBorder;
+      badgeText = EasySubwayAccessibleColors.amber;
     } else if (isPrevStation) {
       badgeBg = EasySubwayAccessibleColors.surfaceBrand;
       badgeBorder = EasySubwayAccessibleColors.brandSignatureMedium;
@@ -238,7 +331,9 @@ class _StationRealtimeRow extends StatelessWidget {
             size: 18,
             color: isSoon
                 ? EasySubwayColorPrimitives.statusDanger
-                : EasySubwayAccessibleColors.primary,
+                : (isWarning
+                      ? EasySubwayAccessibleColors.amber
+                      : EasySubwayAccessibleColors.primary),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -251,17 +346,30 @@ class _StationRealtimeRow extends StatelessWidget {
               ),
             ),
           ),
-          if (pos.isNotEmpty && pos != etaText) ...[
-            Text(
-              pos,
-              style: const TextStyle(
-                color: EasySubwayAccessibleColors.secondaryText,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-            const SizedBox(width: 8),
-          ],
+          () {
+            final statusSubtext = pos.isNotEmpty
+                ? (msg.isNotEmpty && msg != pos && !msg.contains('도착')
+                      ? '$pos ($msg)'
+                      : pos)
+                : (msg.isNotEmpty && msg != etaText ? msg : '');
+            if (statusSubtext.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  statusSubtext,
+                  style: const TextStyle(
+                    color: EasySubwayAccessibleColors.secondaryText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            );
+          }(),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(

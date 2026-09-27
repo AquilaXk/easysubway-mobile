@@ -27,8 +27,23 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
     final rows = await database
         .customSelect(
           '''
-      SELECT DISTINCT r.direction_name, st.departure_seconds,
-             t.service_pattern, t.service_class
+      SELECT DISTINCT
+        r.direction_name,
+        COALESCE(
+          (
+            SELECT s2.name_ko
+            FROM transit_stop_times st2
+            JOIN stations s2 ON s2.id = st2.station_id
+            WHERE st2.trip_id = st.trip_id
+              AND st2.departure_seconds > st.departure_seconds
+            ORDER BY st2.departure_seconds ASC LIMIT 1
+          ) || ' 방면',
+          r.direction_name
+        ) AS resolved_direction_name,
+        st.departure_seconds,
+        COALESCE(t.trip_headsign, '') AS trip_headsign,
+        t.service_pattern,
+        t.service_class
       FROM transit_stop_times st
       JOIN transit_trips t ON t.id = st.trip_id
       JOIN transit_routes r ON r.id = t.route_id
@@ -41,7 +56,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
           OR (? = 'saturday' AND sc.saturday = 1)
           OR (? = 'sundayHoliday' AND sc.sunday = 1)
         )
-      ORDER BY r.direction_name, st.departure_seconds
+      ORDER BY resolved_direction_name, st.departure_seconds
       ''',
           variables: [
             Variable.withString(stationId),
@@ -55,8 +70,10 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
 
     final directionsMap = <String, List<StationTimetableDeparture>>{};
     for (final row in rows) {
-      final directionName = row.read<String>('direction_name');
+      final directionName = row.read<String>('resolved_direction_name');
+      final rawDirectionName = row.read<String>('direction_name');
       final seconds = row.read<int>('departure_seconds');
+      final destination = row.read<String>('trip_headsign');
       final servicePattern = row.read<String?>('service_pattern') ?? 'LOCAL';
       final serviceClass = row.read<String?>('service_class') ?? 'SUBWAY';
 
@@ -73,6 +90,9 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
               directionName: directionName,
               seconds: seconds,
               departureAt: departureAt,
+              destination: destination.isNotEmpty
+                  ? destination
+                  : rawDirectionName.replaceAll('방면', '').trim(),
               servicePattern: servicePattern,
               serviceClass: serviceClass,
             ),
