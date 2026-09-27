@@ -263,4 +263,341 @@ void main() {
       expect(find.text('오이도행'), findsNWidgets(2));
     },
   );
+
+  testWidgets(
+    '종착역 필터에서 개별 종착역 선택 시 해당 열차만 필터링되고 전체를 선택하면 전체 ∨ 표시와 함께 모든 열차가 복원된다',
+    (tester) async {
+      debugStationVerifiedClock = () => DateTime(2026, 7, 6, 10, 0, 0);
+
+      const line = StationSearchLine(
+        id: 'seoul-4',
+        name: '4호선',
+        color: '#00A4E3',
+        stationCode: '449',
+      );
+
+      final timetable = StationTimetable(
+        stationId: 'station-sangnoksu',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '진접 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '진접 방면',
+                destination: '사당',
+                seconds: 36060, // 10:01
+              ),
+              StationTimetableDeparture(
+                directionName: '진접 방면',
+                destination: '진접',
+                seconds: 36180, // 10:03
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final repo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: timetable,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-sangnoksu',
+            stationName: '상록수',
+            lines: const [line],
+            repository: repo,
+            previousStation: '반월',
+            nextStation: '한대앞',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 초기 상태: 사당행, 진접행 모두 노출됨
+      expect(find.text('사당행'), findsOneWidget);
+      expect(find.text('진접행'), findsOneWidget);
+
+      // 종착역 드롭다운 탭
+      final dropdownFinder = find.byKey(
+        const Key('stationTimetableTerminusDropdown-진접 방면'),
+      );
+      expect(dropdownFinder, findsOneWidget);
+      await tester.tap(dropdownFinder);
+      await tester.pumpAndSettle();
+
+      // '사당' 선택
+      final sadangItemFinder = find.byKey(
+        const Key('stationTimetableTerminusItem-사당'),
+      );
+      expect(sadangItemFinder, findsOneWidget);
+      await tester.tap(sadangItemFinder);
+      await tester.pumpAndSettle();
+
+      // 드롭다운 텍스트가 '사당행'으로 갱신되고, 사당행만 노출, 진접행은 필터링됨
+      expect(find.text('사당행'), findsWidgets);
+      expect(find.text('진접행'), findsNothing);
+
+      // 다시 드롭다운 탭 후 '전체' 선택
+      await tester.tap(dropdownFinder);
+      await tester.pumpAndSettle();
+
+      final allItemFinder = find.byKey(
+        const Key('stationTimetableTerminusItem-all'),
+      );
+      expect(allItemFinder, findsOneWidget);
+      await tester.tap(allItemFinder);
+      await tester.pumpAndSettle();
+
+      // '전체' 텍스트가 드롭다운에 표시되고, 사당행과 진접행 모두 다시 노출됨
+      expect(find.text('전체'), findsWidgets);
+      expect(find.text('사당행'), findsOneWidget);
+      expect(find.text('진접행'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '전국 모든 노선(부산 1호선, 대구 1호선, 2호선 순환선 등)에서 하드코딩 없이 방면명이 정확히 정규화된다',
+    (tester) async {
+      debugStationVerifiedClock = () => DateTime(2026, 7, 6, 10, 0, 0);
+
+      // 1. 부산 1호선 서면역 (부전 <-> 서면 <-> 범내골)
+      const busanLine = StationSearchLine(
+        id: 'busan-1',
+        name: '부산 1호선',
+        color: '#F99D1C',
+        stationCode: '119',
+      );
+
+      final busanTimetable = StationTimetable(
+        stationId: 'station-seomyeon',
+        lineId: 'busan-1',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '노포 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '노포 방면',
+                destination: '노포',
+                seconds: 36000,
+              ),
+            ],
+          ),
+          StationTimetableDirection(
+            name: '다대포해수욕장 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '다대포해수욕장 방면',
+                destination: '다대포해수욕장',
+                seconds: 36060,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final repo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: busanTimetable,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-seomyeon',
+            stationName: '서면',
+            lines: const [busanLine],
+            repository: repo,
+            previousStation: '부전',
+            nextStation: '범내골',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 좌우 2열에서 이전역/다음역 기준 정규화 검증
+      expect(find.text('부전 방면'), findsOneWidget);
+      expect(find.text('범내골 방면'), findsOneWidget);
+      expect(find.text('노포행'), findsOneWidget);
+      expect(find.text('다대포해수욕장행'), findsOneWidget);
+
+      // 2. 대구 1호선 반월당역 (중앙로 <-> 반월당 <-> 명덕)
+      const daeguLine = StationSearchLine(
+        id: 'daegu-1',
+        name: '대구 1호선',
+        color: '#D93B30',
+        stationCode: '130',
+      );
+
+      final daeguTimetable = StationTimetable(
+        stationId: 'station-banwoldang',
+        lineId: 'daegu-1',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '안심 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '안심 방면',
+                destination: '안심',
+                seconds: 36000,
+              ),
+            ],
+          ),
+          StationTimetableDirection(
+            name: '설화명곡 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '설화명곡 방면',
+                destination: '설화명곡',
+                seconds: 36060,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final daeguRepo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: daeguTimetable,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-banwoldang',
+            stationName: '반월당',
+            lines: const [daeguLine],
+            repository: daeguRepo,
+            previousStation: '중앙로',
+            nextStation: '명덕',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('중앙로 방면'), findsOneWidget);
+      expect(find.text('명덕 방면'), findsOneWidget);
+      expect(find.text('안심행'), findsOneWidget);
+      expect(find.text('설화명곡행'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    '첫·막차 및 급행 필터 토글 시 첫/막 뱃지가 유지되고 필터된 시간대 알약 탭이 안정적으로 스크롤된다',
+    (tester) async {
+      debugStationVerifiedClock = () => DateTime(2026, 7, 6, 6, 0, 0);
+
+      const line = StationSearchLine(
+        id: 'seoul-1',
+        name: '1호선',
+        color: '#0052A4',
+        stationCode: '100',
+      );
+
+      final timetable = StationTimetable(
+        stationId: 'station-cheongnyangni',
+        lineId: 'seoul-1',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '소요산 방면',
+            departures: [
+              // 06:10 일반 (첫차)
+              StationTimetableDeparture(
+                directionName: '소요산 방면',
+                destination: '소요산',
+                seconds: 22200, // 06:10:00
+                servicePattern: 'LOCAL',
+              ),
+              // 07:20 급행
+              StationTimetableDeparture(
+                directionName: '소요산 방면',
+                destination: '동두천',
+                seconds: 26400, // 07:20:00
+                servicePattern: 'EXPRESS',
+              ),
+              // 08:30 급행
+              StationTimetableDeparture(
+                directionName: '소요산 방면',
+                destination: '소요산',
+                seconds: 30600, // 08:30:00
+                servicePattern: 'EXPRESS',
+              ),
+              // 23:40 일반 (막차)
+              StationTimetableDeparture(
+                directionName: '소요산 방면',
+                destination: '의정부',
+                seconds: 85200, // 23:40:00
+                servicePattern: 'LOCAL',
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final repo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: timetable,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-cheongnyangni',
+            stationName: '청량리',
+            lines: const [line],
+            repository: repo,
+            previousStation: '제기동',
+            nextStation: '회기',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 전체 열차 4편 노출 확인
+      expect(find.text('06:10'), findsOneWidget);
+      expect(find.text('07:20'), findsOneWidget);
+      expect(find.text('첫'), findsOneWidget);
+      expect(find.text('막'), findsOneWidget);
+
+      // '첫·막차' 필터 캡슐 탭
+      await tester.tap(
+        find.byKey(const Key('stationTimetableFilter-첫·막차')),
+      );
+      await tester.pumpAndSettle();
+
+      // 첫차(06:10)와 막차(23:40)만 노출되고 중간 열차(07:20, 08:30)는 숨겨짐
+      expect(find.text('06:10'), findsOneWidget);
+      expect(find.text('23:40'), findsOneWidget);
+      expect(find.text('07:20'), findsNothing);
+      expect(find.text('08:30'), findsNothing);
+      expect(find.text('첫'), findsOneWidget);
+      expect(find.text('막'), findsOneWidget);
+
+      // '첫·막차' 필터 해제
+      await tester.tap(
+        find.byKey(const Key('stationTimetableFilter-첫·막차')),
+      );
+      await tester.pumpAndSettle();
+
+      // '급행' 필터 캡슐 탭
+      await tester.tap(
+        find.byKey(const Key('stationTimetableFilter-급행')),
+      );
+      await tester.pumpAndSettle();
+
+      // 급행 2편(07:20, 08:30)만 노출됨
+      expect(find.text('07:20'), findsOneWidget);
+      expect(find.text('08:30'), findsOneWidget);
+      expect(find.text('06:10'), findsNothing);
+      expect(find.text('23:40'), findsNothing);
+
+      // 급행 필터 상태에서 8시 알약 탭 시 오류 없이 안정적으로 동작
+      expect(find.text('8시'), findsWidgets);
+      await tester.tap(find.text('8시').first);
+      await tester.pumpAndSettle();
+    },
+  );
 }
