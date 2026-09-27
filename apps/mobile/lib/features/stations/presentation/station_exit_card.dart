@@ -67,14 +67,119 @@ class _StationExitCardState extends State<StationExitCard> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        exit.name,
-                        style: textTheme.titleMedium?.copyWith(
-                          color: EasySubwayAccessibleColors.text,
-                          fontWeight: FontWeight.w700,
-                          height: 1.25,
-                        ),
+                      Builder(
+                        builder: (context) {
+                          final match = RegExp(r'(\d+(?:-\d+)?)').firstMatch(exit.name);
+                          final exitNum = match != null ? match.group(1)! : '';
+                          return Wrap(
+                            crossAxisAlignment: WrapCrossAlignment.center,
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              if (exitNum.isNotEmpty)
+                                Container(
+                                  width: 26,
+                                  height: 26,
+                                  decoration: const BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    color: EasySubwayAccessibleColors.primary,
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Text(
+                                    exitNum,
+                                    style: const TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.w700,
+                                      color: EasySubwayColorPrimitives.neutralWhite,
+                                    ),
+                                  ),
+                                ),
+                              Text(
+                                exit.name,
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: EasySubwayAccessibleColors.text,
+                                  fontWeight: FontWeight.w700,
+                                  height: 1.25,
+                                ),
+                              ),
+                              if (exit.hasElevatorConnection)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: EasySubwayColorPrimitives.statusSuccessSoft,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: EasySubwayAccessibleColors.mint,
+                                    ),
+                                  ),
+                                  child: const Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.elevator,
+                                        size: 13,
+                                        color: EasySubwayAccessibleColors.mint,
+                                      ),
+                                      SizedBox(width: 3),
+                                      Text(
+                                        'EV 설치 출구',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w700,
+                                          color: EasySubwayAccessibleColors.mint,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
                       ),
+                      if (exit.description.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 8,
+                          ),
+                          decoration: BoxDecoration(
+                            color: EasySubwayAccessibleColors.surfaceSubtle,
+                            borderRadius: BorderRadius.circular(6),
+                            border: Border.all(
+                              color: EasySubwayAccessibleColors.line,
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Padding(
+                                padding: EdgeInsets.only(top: 2),
+                                child: Icon(
+                                  Icons.place_outlined,
+                                  size: 16,
+                                  color:
+                                      EasySubwayAccessibleColors.contentSecondary,
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Expanded(
+                                child: Text(
+                                  exit.description.trim(),
+                                  style: textTheme.bodyMedium?.copyWith(
+                                    color: EasySubwayAccessibleColors.text,
+                                    height: 1.35,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
                       const SizedBox(height: 12),
                       _StationDetailStatusPill(
                         icon: Icons.elevator,

@@ -75,8 +75,7 @@ class StationTimetableDeparture {
   bool get isExpress => serviceClass == 'SUBWAY' && servicePattern == 'EXPRESS';
 
   String get timeLabel {
-    final prefix = seconds >= Duration.secondsPerDay ? '다음 날 ' : '';
-    return '$prefix${_clockLabel(seconds)}';
+    return _clockLabel(seconds);
   }
 
   String get semanticLabel {
@@ -84,9 +83,8 @@ class StationTimetableDeparture {
     final hour = normalized ~/ Duration.secondsPerHour;
     final minute =
         (normalized % Duration.secondsPerHour) ~/ Duration.secondsPerMinute;
-    final prefix = seconds >= Duration.secondsPerDay ? '다음 날 ' : '';
     final expressLabel = isExpress ? '급행, ' : '';
-    return '$directionName, $expressLabel$prefix'
+    return '$directionName, $expressLabel'
         '${hour.toString().padLeft(2, '0')}시 '
         '${minute.toString().padLeft(2, '0')}분 출발';
   }
@@ -441,6 +439,7 @@ class StationExitInfo {
     required this.stationId,
     required this.exitNumber,
     required this.name,
+    this.description = '',
     this.latitude,
     this.longitude,
     required this.hasElevatorConnection,
@@ -457,6 +456,7 @@ class StationExitInfo {
       stationId: _requiredString(json, 'stationId'),
       exitNumber: _requiredString(json, 'exitNumber'),
       name: _requiredString(json, 'name'),
+      description: _stringOrEmpty(json, 'description'),
       latitude: _optionalDouble(json, 'latitude'),
       longitude: _optionalDouble(json, 'longitude'),
       hasElevatorConnection: _requiredBool(json, 'hasElevatorConnection'),
@@ -476,6 +476,7 @@ class StationExitInfo {
   final String stationId;
   final String exitNumber;
   final String name;
+  final String description;
   final double? latitude;
   final double? longitude;
   final bool hasElevatorConnection;

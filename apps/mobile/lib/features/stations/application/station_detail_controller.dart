@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../domain/facility_status.dart';
@@ -194,19 +196,31 @@ class StationDetailState {
 }
 
 class StationDetailController extends ChangeNotifier {
-  StationDetailController({required this.repository, this.realtimeRepository});
+  StationDetailController({
+    required this.repository,
+    this.realtimeRepository,
+    this.enableRealtimePolling = true,
+    this.realtimePollingInterval = const Duration(seconds: 15),
+  });
 
   final StationSearchRepository repository;
   final RealtimeRepository? realtimeRepository;
+  final bool enableRealtimePolling;
+  final Duration realtimePollingInterval;
 
   StationDetailState _state = const StationDetailState.loading();
   bool _isDisposed = false;
   int _loadGeneration = 0;
+  Timer? _realtimePollingTimer;
+  bool _isPollingFetchInFlight = false;
 
   StationDetailState get state => _state;
+  bool get isRealtimePolling =>
+      _realtimePollingTimer != null && _realtimePollingTimer!.isActive;
 
   Future<void> load(String stationId) async {
     final generation = ++_loadGeneration;
+    stopRealtimePolling();
     _state = const StationDetailState.loading();
     notifyListeners();
 
@@ -230,6 +244,9 @@ class StationDetailController extends ChangeNotifier {
       );
       notifyListeners();
       await _refreshRealtimeSnapshot(detail, generation);
+      if (_isCurrentLoad(generation) && enableRealtimePolling) {
+        startRealtimePolling();
+      }
       return;
     } on StationSearchException {
       if (!_isCurrentLoad(generation)) {
@@ -260,6 +277,7 @@ class StationDetailController extends ChangeNotifier {
     if (_isDisposed || detail == null) {
       return;
     }
+    stopRealtimePolling();
     _state = StationDetailState(
       status: _state.status,
       detail: detail,
@@ -270,6 +288,60 @@ class StationDetailController extends ChangeNotifier {
     );
     notifyListeners();
     await _refreshRealtimeSnapshot(detail, _loadGeneration);
+    if (!_isDisposed && enableRealtimePolling) {
+      startRealtimePolling();
+    }
+  }
+
+  void startRealtimePolling({Duration? interval}) {
+    stopRealtimePolling();
+    _realtimePollingTimer = Timer.periodic(
+      interval ?? realtimePollingInterval,
+      (_) {
+        final detail = _state.detail;
+        if (detail != null && !_isDisposed) {
+          unawaited(_pollRealtimeSnapshot(detail, _loadGeneration));
+        }
+      },
+    );
+  }
+
+  void stopRealtimePolling() {
+    _realtimePollingTimer?.cancel();
+    _realtimePollingTimer = null;
+    _isPollingFetchInFlight = false;
+  }
+
+  Future<void> _pollRealtimeSnapshot(
+    StationDetail detail,
+    int generation,
+  ) async {
+    if (_isDisposed || _isPollingFetchInFlight || !_isCurrentLoad(generation)) {
+      return;
+    }
+    _isPollingFetchInFlight = true;
+    try {
+      final realtimeSnapshot = await _loadRealtimeSnapshot(detail);
+      if (!_isCurrentLoad(generation) || _state.detail?.id != detail.id) {
+        return;
+      }
+      if (realtimeSnapshot.status == RealtimeSnapshotStatus.fresh ||
+          realtimeSnapshot.status == RealtimeSnapshotStatus.stale) {
+        _state = StationDetailState(
+          status: _state.status,
+          detail: _state.detail,
+          exits: _state.exits,
+          facilities: _state.facilities,
+          realtimeSnapshot: realtimeSnapshot,
+          message: _state.message,
+        );
+        notifyListeners();
+      }
+    } catch (_) {
+      // Periodic background polling fails silently.
+    } finally {
+      _isPollingFetchInFlight = false;
+    }
   }
 
   Future<void> _refreshRealtimeSnapshot(
@@ -339,6 +411,7 @@ class StationDetailController extends ChangeNotifier {
 
   @override
   void dispose() {
+    stopRealtimePolling();
     _isDisposed = true;
     super.dispose();
   }

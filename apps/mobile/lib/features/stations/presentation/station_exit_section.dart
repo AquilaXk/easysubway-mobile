@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import '../../../accessible_design.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
@@ -79,6 +80,22 @@ class _StationExitSectionState extends State<StationExitSection> {
               onOpenSelected: () => _openSelectedExit(context),
             ),
           const SizedBox(height: 8),
+        ],
+        if (widget.exits.length > 1) ...[
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (var i = 0; i < widget.exits.length; i++)
+                _ExitChip(
+                  key: Key('stationExitChip-${widget.exits[i].id}'),
+                  exit: widget.exits[i],
+                  isSelected: i == _selectedIndex,
+                  onTap: () => _select(i),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
         ],
         Row(
           children: [
@@ -199,3 +216,133 @@ class _StationExitSectionState extends State<StationExitSection> {
     messenger.showSnackBar(SnackBar(content: Text(message)));
   }
 }
+
+class _ExitChip extends StatelessWidget {
+  const _ExitChip({
+    required this.exit,
+    required this.isSelected,
+    required this.onTap,
+    super.key,
+  });
+
+  final StationExitInfo exit;
+  final bool isSelected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isElevator = exit.hasElevatorConnection;
+    final match = RegExp(r'(\d+(?:-\d+)?)').firstMatch(exit.name);
+    final exitNum = match != null ? match.group(1)! : '';
+
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: '${exit.name}${isElevator ? ', 엘리베이터 이용 가능' : ''}',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 40, minWidth: 54),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? EasySubwayAccessibleColors.interactionPrimary
+                : EasySubwayAccessibleColors.surfaceSubtle,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected
+                  ? EasySubwayAccessibleColors.interactionPrimary
+                  : EasySubwayAccessibleColors.borderSubtle,
+              width: isSelected ? 1.5 : 1.0,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (exitNum.isNotEmpty) ...[
+                Container(
+                  width: 22,
+                  height: 22,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isSelected
+                        ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.25)
+                        : EasySubwayAccessibleColors.surfaceBrandChrome,
+                    border: Border.all(
+                      color: isSelected
+                          ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.7)
+                          : EasySubwayAccessibleColors.borderSubtle,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    exitNum,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: isSelected
+                          ? EasySubwayColorPrimitives.neutralWhite
+                          : EasySubwayAccessibleColors.contentPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 6),
+              ],
+              Text(
+                exit.name,
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: isSelected
+                      ? EasySubwayColorPrimitives.neutralWhite
+                      : EasySubwayAccessibleColors.contentPrimary,
+                  fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+              if (isElevator) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.2)
+                        : EasySubwayAccessibleColors.surfaceBrandChrome,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: isSelected
+                          ? EasySubwayColorPrimitives.neutralWhite.withValues(alpha: 0.8)
+                          : EasySubwayAccessibleColors.mint,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.elevator,
+                        size: 12,
+                        color: isSelected
+                            ? EasySubwayColorPrimitives.neutralWhite
+                            : EasySubwayAccessibleColors.mint,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        'EV',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: isSelected
+                              ? EasySubwayColorPrimitives.neutralWhite
+                              : EasySubwayAccessibleColors.mint,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+

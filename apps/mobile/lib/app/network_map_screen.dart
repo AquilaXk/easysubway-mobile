@@ -167,7 +167,8 @@ class NetworkMapScreen extends StatefulWidget {
   State<NetworkMapScreen> createState() => _NetworkMapScreenState();
 }
 
-class _NetworkMapScreenState extends State<NetworkMapScreen> {
+class _NetworkMapScreenState extends State<NetworkMapScreen>
+    with WidgetsBindingObserver {
   String? _selectedRegion;
   // #2419 리뷰 finding: 역 검색 메뉴가 항상 기본 지역 목록만 알아, 이 지도에만
   // 있는 지역이 검색 화면 지역 메뉴에서 빠졌다. 로드된 지도의 지역 표시명을
@@ -185,6 +186,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   bool _preserveFocusedStationScale = false;
   String? _nearbyLookupMessage;
   Timer? _nearbyLookupMessageTimer;
+  Timer? _nearbyRealtimePollingTimer;
   bool _initialNearbyFocusStarted = false;
   int _selectionClearRevision = 0;
   int _nearestStationRequestToken = 0;
@@ -267,6 +269,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     widget.routeDraftController.addListener(_handleDraftChangedForSearch);
     widget.regionBridge?.attach(_selectRegionFromBridge);
     // #2068 트랙 QA 후속: 오너 라벨 sidecar를 노선도 데이터 로드(_future)와
@@ -406,7 +409,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (!mounted) {
       return;
     }
-    _openNearbyStationPanel(result, preferredLine: line);
+    _openNearbyStationPanel(
+      result,
+      preferredLine: line,
+      preserveFocusedStationScale: true,
+    );
   }
 
   Future<void> _recordSelectedStationSearch(
@@ -560,7 +567,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     final preferredLine = match.lines
         .where((line) => line.id == station.lineId)
         .firstOrNull;
-    _openNearbyStationPanel(match, preferredLine: preferredLine);
+    _openNearbyStationPanel(
+      match,
+      preferredLine: preferredLine,
+      preserveFocusedStationScale: true,
+    );
   }
 
   /// #2109 검색 결과 탭으로 연 팬 메뉴가 닫히면(액션 선택·닫기·배경 탭·팬) 이
@@ -602,8 +613,24 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_nearbyPanelVisible &&
+          _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime) {
+        _startNearbyRealtimePolling();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      _stopNearbyRealtimePolling();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _nearbyLookupMessageTimer?.cancel();
+    _stopNearbyRealtimePolling();
     widget.regionBridge?.detach();
     widget.routeDraftController.removeListener(_handleDraftChangedForSearch);
     _searchQueryController.dispose();
@@ -1121,6 +1148,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 
   void _resetNearbyPanelState() {
+    _stopNearbyRealtimePolling();
     // 닫힌 뒤 완료되는 요청이 UI를 건드리지 않도록 generation을 무효화한다.
     _nearbyDataRequestToken++;
     _neighborSelectPanelToken++;
@@ -1140,6 +1168,56 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     _nearbyTimetableInFlightGeneration = null;
   }
 
+  void _startNearbyRealtimePolling() {
+    _nearbyRealtimePollingTimer?.cancel();
+    if (!_nearbyPanelVisible ||
+        _nearbyDataSource != NetworkMapNearbyPanelDataSource.realtime ||
+        _nearbyPanelData.status != NetworkMapNearbyPanelStatus.success) {
+      return;
+    }
+    _nearbyRealtimePollingTimer = Timer.periodic(
+      const Duration(seconds: 15),
+      (_) {
+        if (!mounted ||
+            !_nearbyPanelVisible ||
+            _nearbyDataSource != NetworkMapNearbyPanelDataSource.realtime) {
+          _stopNearbyRealtimePolling();
+          return;
+        }
+        _pollNearbyRealtime();
+      },
+    );
+  }
+
+  void _stopNearbyRealtimePolling() {
+    _nearbyRealtimePollingTimer?.cancel();
+    _nearbyRealtimePollingTimer = null;
+  }
+
+  void _pollNearbyRealtime() {
+    if (_nearbyRealtimeRequestInFlight) {
+      return;
+    }
+    final results = _nearbyPanelData.results;
+    if (results.isEmpty) {
+      return;
+    }
+    final station = results.first;
+    final line = station.lines
+        .where((candidate) => candidate.id == _nearbySelectedLineId)
+        .firstOrNull ?? (station.lines.isNotEmpty ? station.lines.first : null);
+    if (line == null) {
+      return;
+    }
+    final request = NearbyPanelRequestKey(
+      stationId: station.id,
+      lineId: line.id,
+      generation: ++_nearbyDataRequestToken,
+    );
+    _markNearbyRealtimeInFlight(request);
+    unawaited(_loadNearbyRealtime(station, line, request: request));
+  }
+
   /// 실시간과 시간표를 같은 요청 키로 병렬 로드한다.
   void _startNearbyPanelDataLoads(
     StationSearchResult station,
@@ -1148,6 +1226,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   ) {
     unawaited(_loadNearbyRealtime(station, line, request: request));
     unawaited(_loadNearbyTimetable(station, line, request: request));
+    if (_nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime) {
+      _startNearbyRealtimePolling();
+    }
   }
 
   Future<void> _loadNearbyRealtime(
@@ -1203,6 +1284,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
           );
           _clearNearbyRealtimeInFlightIf(request);
         });
+        if (_nearbyPanelVisible &&
+            _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime) {
+          _startNearbyRealtimePolling();
+        }
         return;
       }
       // unavailable/empty/loading 등은 성공 캐시를 덮지 않는다.
@@ -1377,6 +1462,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       _nearbyDataSource = next;
     });
     if (next == NetworkMapNearbyPanelDataSource.realtime) {
+      _startNearbyRealtimePolling();
       // 현재 키 캐시가 있으면 즉시 표시만 하고 재요청하지 않는다.
       if (_nearbyRealtimeDisplayMatchesCurrent()) {
         return;
@@ -1400,6 +1486,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       unawaited(_loadNearbyRealtime(station, line, request: request));
       return;
     }
+    _stopNearbyRealtimePolling();
     if (_nearbyTimetableDisplayMatchesCurrent()) {
       return;
     }
@@ -1490,7 +1577,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (!_nearbyPanelExpanded) {
       setState(() => _nearbyPanelExpanded = true);
     }
-    _openNearbyStationPanel(match, preferredLine: preferredLine);
+    _openNearbyStationPanel(
+      match,
+      preferredLine: preferredLine,
+      preserveFocusedStationScale: true,
+    );
   }
 
   /// 현재 선택 지역의 표시명(예: '수도권', '부산'). 역 검색 화면을 열 때

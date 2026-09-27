@@ -5451,7 +5451,7 @@ void main() {
       expect(timeFinder, findsOneWidget);
       expect(
         tester.widget<Text>(timeFinder).style?.color,
-        EasySubwayAccessibleColors.statusDangerContent,
+        EasySubwayAccessibleColors.contentPrimary,
       );
       expect(
         find.bySemanticsLabel(RegExp(RegExp.escape(item.semanticLabel))),
@@ -12902,15 +12902,15 @@ void main() {
 
       expect(find.text('상록수 시간표'), findsOneWidget);
       expect(find.text('첫차 05:20'), findsOneWidget);
-      expect(find.text('막차 다음 날 00:25'), findsOneWidget);
-      expect(find.bySemanticsLabel('사당 방면, 다음 날 00시 25분 출발'), findsOneWidget);
+      expect(find.text('막차 00:25'), findsOneWidget);
+      expect(find.bySemanticsLabel('사당 방면, 00시 25분 출발'), findsOneWidget);
 
       await tester.tap(
         find.byKey(const Key('stationTimetableDirection-오이도 방면')),
       );
       await tester.pump();
       expect(find.text('05:50'), findsOneWidget);
-      expect(find.text('다음 날 00:25'), findsNothing);
+      expect(find.text('00:25'), findsNothing);
 
       await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
       await tester.pumpAndSettle();

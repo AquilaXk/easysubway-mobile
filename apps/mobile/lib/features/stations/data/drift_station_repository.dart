@@ -347,6 +347,7 @@ class DriftStationRepository
             stationId: row.read<String>('station_id'),
             exitNumber: row.read<String>('exit_number'),
             name: '${row.read<String>('exit_number')}번 출구',
+            description: row.read<String?>('description') ?? '',
             latitude: row.read<double?>('latitude'),
             longitude: row.read<double?>('longitude'),
             hasElevatorConnection:

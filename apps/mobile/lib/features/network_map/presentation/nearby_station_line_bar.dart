@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
-import '../../stations/domain/station_line.dart';
-import '../../stations/presentation/station_line_badges.dart';
 
 /// 주변역 패널의 이전-현재-다음역 노선 표시 바 (오너 스펙 2026-07-16, #2200).
 ///
@@ -17,6 +15,7 @@ class NearbyStationLineBar extends StatelessWidget {
     required this.stationName,
     required this.badgeText,
     required this.lineColor,
+    this.badgeBuilder,
     this.line,
     this.onStationNameTap,
     this.onLeftNameTap,
@@ -29,7 +28,8 @@ class NearbyStationLineBar extends StatelessWidget {
   final String stationName;
   final String badgeText;
   final Color lineColor;
-  final StationSearchLine? line;
+  final Widget Function(double diameter)? badgeBuilder;
+  final Object? line;
 
   /// 현재 역 이름 탭 → 역 상세. null이면 이름만 표시한다.
   final VoidCallback? onStationNameTap;
@@ -87,10 +87,15 @@ class NearbyStationLineBar extends StatelessWidget {
         final margin = fullWidth * 0.03476;
         final barWidth = fullWidth - margin * 2;
         final barHeight = barWidth * 28 / 348;
-        final centerWidth = barWidth * 0.37069;
+        final nameLen = stationName.length;
+        final centerWidthRatio = nameLen >= 7
+            ? 0.48
+            : (nameLen >= 5 ? 0.43 : 0.37069);
+        final centerWidth = barWidth * centerWidthRatio;
         final endRadius = barHeight / 2;
         final capsuleWidth = centerWidth;
-        final capsuleHeight = capsuleWidth * 41 / 129;
+        final baseCenterWidth = barWidth * 0.37069;
+        final capsuleHeight = baseCenterWidth * 41 / 129;
         final badgeDiameter = (capsuleHeight * 0.62).clamp(24.0, 28.0);
         final stationNameSize = (capsuleHeight * 0.42).clamp(16.0, 20.0);
         final bar = Padding(
@@ -138,7 +143,7 @@ class NearbyStationLineBar extends StatelessWidget {
                     height: capsuleHeight,
                     alignment: Alignment.center,
                     padding: EdgeInsets.symmetric(
-                      horizontal: capsuleWidth * 0.08,
+                      horizontal: nameLen >= 6 ? 8.0 : (capsuleWidth * 0.08),
                     ),
                     decoration: BoxDecoration(
                       color: EasySubwayAccessibleColors.surfaceDefault,
@@ -149,12 +154,12 @@ class NearbyStationLineBar extends StatelessWidget {
                       mainAxisSize: MainAxisSize.min,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (badgeText.isNotEmpty || line != null) ...[
+                        if (badgeText.isNotEmpty || badgeBuilder != null || line != null) ...[
                           _LineBadge(
                             diameter: badgeDiameter,
                             color: lineColor,
                             text: badgeText,
-                            line: line,
+                            badgeBuilder: badgeBuilder,
                           ),
                           const SizedBox(width: 7),
                         ],
@@ -192,15 +197,19 @@ class _StationNameLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(
-      stationName,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: EasySubwayAccessibleColors.contentPrimary,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w800,
-        height: 1.1,
+    final text = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.center,
+      child: Text(
+        stationName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: EasySubwayAccessibleColors.contentPrimary,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          height: 1.1,
+        ),
       ),
     );
     final tap = onTap;
@@ -237,23 +246,54 @@ class _SideName extends StatelessWidget {
     if (value == null || value.isEmpty) {
       return const SizedBox.shrink();
     }
-    final displayText = semanticsPrefix == '이전역' ? '< $value' : '$value >';
-    final label = Text(
-      displayText,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: EasySubwayAccessibleColors.interactionOnPrimary,
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-      ),
+    final isLeft = semanticsPrefix == '이전역';
+    final double fontSize = value.length >= 9
+        ? 12.0
+        : (value.length >= 7
+            ? 13.0
+            : (value.length >= 5 ? 14.0 : 15.0));
+
+    final content = Row(
+      mainAxisSize: MainAxisSize.min,
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        if (isLeft) ...[
+          const Icon(
+            Icons.chevron_left,
+            size: 16,
+            color: EasySubwayAccessibleColors.interactionOnPrimary,
+          ),
+          const SizedBox(width: 2),
+        ],
+        Flexible(
+          child: Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            textAlign: isLeft ? TextAlign.left : TextAlign.right,
+            style: TextStyle(
+              color: EasySubwayAccessibleColors.interactionOnPrimary,
+              fontSize: fontSize,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        if (!isLeft) ...[
+          const SizedBox(width: 2),
+          const Icon(
+            Icons.chevron_right,
+            size: 16,
+            color: EasySubwayAccessibleColors.interactionOnPrimary,
+          ),
+        ],
+      ],
     );
+
     final tap = onTap;
     if (tap == null) {
       return Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: label,
+        child: Center(child: content),
       );
     }
     return Semantics(
@@ -261,16 +301,17 @@ class _SideName extends StatelessWidget {
       label: '$semanticsPrefix $value',
       child: InkWell(
         key: Key(
-          semanticsPrefix == '이전역'
+          isLeft
               ? 'nearbyStationLineBarLeftName'
               : 'nearbyStationLineBarRightName',
         ),
         onTap: tap,
+        borderRadius: BorderRadius.circular(8),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Center(child: label),
+            child: Center(child: content),
           ),
         ),
       ),
@@ -283,25 +324,40 @@ class _LineBadge extends StatelessWidget {
     required this.diameter,
     required this.color,
     required this.text,
-    this.line,
+    this.badgeBuilder,
   });
 
   final double diameter;
   final Color color;
   final String text;
-  final StationSearchLine? line;
+  final Widget Function(double diameter)? badgeBuilder;
 
   @override
   Widget build(BuildContext context) {
-    final effectiveLine =
-        line ??
-        StationSearchLine(
-          id: text,
-          name: text,
-          color:
-              '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}',
-          stationCode: '',
-        );
-    return StationLineBadge(line: effectiveLine, size: diameter);
+    if (badgeBuilder != null) {
+      return badgeBuilder!(diameter);
+    }
+    return Container(
+      width: diameter,
+      height: diameter,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+      child: Padding(
+        padding: EdgeInsets.all(diameter * 0.12),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            text,
+            maxLines: 1,
+            style: const TextStyle(
+              color: EasySubwayAccessibleColors.interactionOnPrimary,
+              fontSize: 14,
+              fontWeight: FontWeight.w800,
+              height: 1.0,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
