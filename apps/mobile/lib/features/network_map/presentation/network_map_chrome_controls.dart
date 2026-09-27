@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
+import 'package:flutter/services.dart';
 
 import '../../../accessible_design.dart';
 import '../../../search_field.dart';
@@ -155,61 +156,64 @@ class NetworkMapTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      key: const Key('networkMapTopBar'),
-      color: EasySubwayAccessibleColors.topBarSurface,
-      elevation: 0,
-      // mapChrome 짧은 드롭이 지도 위로 그려지도록 클립하지 않는다.
-      clipBehavior: Clip.none,
-      child: Stack(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Material(
+        key: const Key('networkMapTopBar'),
+        color: EasySubwayAccessibleColors.primary,
+        elevation: 0,
+        // mapChrome 짧은 드롭이 지도 위로 그려지도록 클립하지 않는다.
         clipBehavior: Clip.none,
-        children: [
-          SafeArea(
-            bottom: false,
-            // #1933 요구 2: draft가 비면 검색바, 하나라도 차면 출발/도착 2줄 입력으로
-            // 상단바 자체가 변신한다. 별도 카드를 아래에 띄우지 않는다.
-            child: ListenableBuilder(
-              listenable: routeDraftListenable,
-              builder: (context, _) {
-                final draft = routeDraft();
-                if (draft.isEmpty) {
-                  return _buildSearchRow(context);
-                }
-                return NetworkMapTopBarRouteDraft(
-                  key: const Key('networkMapRouteDraftOverlay'),
-                  draft: draft,
-                  showWaypointRow: isWaypointRowVisible(),
-                  regionLabel: routeMapDisplayRegionName(selectedRegion),
-                  onClearDraft: onClearDraft,
-                  onOpenWaypointSlot: onOpenWaypointSlot,
-                  onClearOrigin: onClearOrigin,
-                  onClearDestination: onClearDestination,
-                  onClearWaypoint: onClearWaypoint,
-                  onReorderDraft: onReorderDraft,
-                  onPickOrigin: onPickOrigin,
-                  onPickDestination: onPickDestination,
-                  onPickWaypoint: onPickWaypoint,
-                  roleColorForSlot: roleColorForSlot,
-                  lineBadgeBuilder: lineBadgeBuilder,
-                );
-              },
+        child: Stack(
+          clipBehavior: Clip.none,
+          children: [
+            SafeArea(
+              bottom: false,
+              // #1933 요구 2: draft가 비면 검색바, 하나라도 차면 출발/도착 2줄 입력으로
+              // 상단바 자체가 변신한다. 별도 카드를 아래에 띄우지 않는다.
+              child: ListenableBuilder(
+                listenable: routeDraftListenable,
+                builder: (context, _) {
+                  final draft = routeDraft();
+                  if (draft.isEmpty) {
+                    return _buildSearchRow(context);
+                  }
+                  return NetworkMapTopBarRouteDraft(
+                    key: const Key('networkMapRouteDraftOverlay'),
+                    draft: draft,
+                    showWaypointRow: isWaypointRowVisible(),
+                    regionLabel: routeMapDisplayRegionName(selectedRegion),
+                    onClearDraft: onClearDraft,
+                    onOpenWaypointSlot: onOpenWaypointSlot,
+                    onClearOrigin: onClearOrigin,
+                    onClearDestination: onClearDestination,
+                    onClearWaypoint: onClearWaypoint,
+                    onReorderDraft: onReorderDraft,
+                    onPickOrigin: onPickOrigin,
+                    onPickDestination: onPickDestination,
+                    onPickWaypoint: onPickWaypoint,
+                    roleColorForSlot: roleColorForSlot,
+                    lineBadgeBuilder: lineBadgeBuilder,
+                  );
+                },
+              ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            // 노선도 idle/draft만 mapChrome 드롭. 검색 모드(흰 검색 본문)는
-            // 역 검색 화면과 같이 선만 둔다.
-            child: searchMode
-                ? const EasySubwayHeaderDivider(
-                    key: Key('networkMapTopBarDivider'),
-                  )
-                : const EasySubwayHeaderDivider.mapChrome(
-                    key: Key('networkMapTopBarDivider'),
-                  ),
-          ),
-        ],
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              // 노선도 idle/draft만 mapChrome 드롭. 검색 모드(흰 검색 본문)는
+              // 역 검색 화면과 같이 선만 둔다.
+              child: searchMode
+                  ? const EasySubwayHeaderDivider(
+                      key: Key('networkMapTopBarDivider'),
+                    )
+                  : const EasySubwayHeaderDivider.mapChrome(
+                      key: Key('networkMapTopBarDivider'),
+                    ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -238,7 +242,7 @@ class NetworkMapTopBar extends StatelessWidget {
                 icon: const Icon(
                   Icons.arrow_back,
                   size: 26,
-                  color: EasySubwayAccessibleColors.contentPrimary,
+                  color: EasySubwayAccessibleColors.interactionOnPrimary,
                 ),
               ),
               const SizedBox(width: 4),
@@ -288,7 +292,7 @@ class NetworkMapTopBar extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                       style: const TextStyle(
                                         color: EasySubwayAccessibleColors
-                                            .contentPrimary,
+                                            .interactionOnPrimary,
                                         fontSize: 16,
                                         fontWeight: FontWeight.w700,
                                         letterSpacing: -0.2,
@@ -300,7 +304,7 @@ class NetworkMapTopBar extends StatelessWidget {
                                     const Icon(
                                       Icons.keyboard_arrow_down_rounded,
                                       color: EasySubwayAccessibleColors
-                                          .contentSecondary,
+                                          .interactionOnPrimary,
                                       size: 20,
                                     ),
                                   ],
@@ -342,7 +346,7 @@ class NetworkMapTopBar extends StatelessWidget {
                 icon: const Icon(
                   Icons.menu,
                   size: 26,
-                  color: EasySubwayAccessibleColors.contentPrimary,
+                  color: EasySubwayAccessibleColors.interactionOnPrimary,
                 ),
               ),
             ],
@@ -542,7 +546,7 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
         icon: Icon(
           icon,
           size: 26,
-          color: EasySubwayAccessibleColors.contentPrimary,
+          color: EasySubwayAccessibleColors.interactionOnPrimary,
         ),
       ),
     );
@@ -561,7 +565,7 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.right,
             style: const TextStyle(
-              color: EasySubwayAccessibleColors.contentSecondary,
+              color: EasySubwayAccessibleColors.interactionOnPrimary,
               fontSize: 17,
               fontWeight: FontWeight.w600,
             ),

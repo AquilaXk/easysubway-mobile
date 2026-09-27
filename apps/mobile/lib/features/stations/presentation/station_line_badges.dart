@@ -49,8 +49,11 @@ class StationLineBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final badgeText = line.badgeText;
+    final isSingleChar = badgeText.length <= 1;
     final assetPath = line.badgeAssetPath;
-    if (assetPath != null) {
+
+    if (isSingleChar && assetPath != null) {
       final cachePx = (size * MediaQuery.devicePixelRatioOf(context)).round();
       final image = Image.asset(
         assetPath,
@@ -76,22 +79,50 @@ class StationLineBadge extends StatelessWidget {
 
     final backgroundColor = line.badgeColor;
     final foregroundColor = stationLineTextColor(backgroundColor);
-    final badgeText = line.badgeText;
     final scale = size / 40;
-    final badgeFontSize = RegExp(r'^\d+$').hasMatch(badgeText)
-        ? 25.0 * scale
-        : 15.0 * scale;
+
+    if (isSingleChar) {
+      final badgeFontSize = RegExp(r'^\d+$').hasMatch(badgeText)
+          ? 25.0 * scale
+          : 15.0 * scale;
+
+      return Container(
+        key: Key('stationLineBadge-${line.id}'),
+        width: size,
+        height: size,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: backgroundColor, shape: BoxShape.circle),
+        child: Text(
+          badgeText,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            color: foregroundColor,
+            fontSize: badgeFontSize,
+            fontWeight: FontWeight.w800,
+            height: 1.05,
+          ),
+        ),
+      );
+    }
+
+    final badgeFontSize = 13.0 * scale;
+    final horizontalPadding = 8.0 * scale;
 
     return Container(
       key: Key('stationLineBadge-${line.id}'),
-      width: size,
       height: size,
+      constraints: BoxConstraints(minWidth: size),
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: backgroundColor, shape: BoxShape.circle),
+      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      decoration: BoxDecoration(
+        color: backgroundColor,
+        borderRadius: BorderRadius.circular(size / 2),
+      ),
       child: Text(
         badgeText,
         textAlign: TextAlign.center,
-        maxLines: 2,
+        maxLines: 1,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
           color: foregroundColor,
           fontSize: badgeFontSize,
@@ -120,6 +151,8 @@ class StationLineBadgeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isSingleChar = line.badgeText.length <= 1;
+
     return Semantics(
       button: true,
       selected: selected,
@@ -129,33 +162,40 @@ class StationLineBadgeTab extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(8),
         child: SizedBox(
-          width: 48,
           height: 48,
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              Center(
-                child: StationLineBadge(line: line, size: size),
-              ),
-              Positioned(
-                bottom: 2,
-                child: Container(
-                  width: 30,
-                  height: 2,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? EasySubwayAccessibleColors.interactionPrimary
-                        : Colors.transparent,
-                    borderRadius: BorderRadius.circular(1),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minWidth: 48,
+            ),
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: isSingleChar ? 4 : 8),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Center(
+                  child: StationLineBadge(line: line, size: size),
+                ),
+                Positioned(
+                  bottom: 2,
+                  child: Container(
+                    width: isSingleChar ? 30 : 42,
+                    height: 2,
+                    decoration: BoxDecoration(
+                      color: selected
+                          ? EasySubwayAccessibleColors.interactionPrimary
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(1),
+                    ),
                   ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }
 
 class _StationLineOverflowBadge extends StatelessWidget {

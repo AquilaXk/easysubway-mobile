@@ -279,26 +279,26 @@ void main() {
       expect(find.text('왕십리'), findsOneWidget);
     });
 
-    testWidgets('수인분당선 등 심볼 에셋이 있는 노선은 StationLineBadge 이미지 에셋을 렌더링한다', (
+    testWidgets('4호선 등 단일 문자 심볼 에셋이 있는 노선은 StationLineBadge 이미지 에셋을 렌더링한다', (
       tester,
     ) async {
-      const suinLine = StationSearchLine(
-        id: 'suin-bundang',
-        name: '수도권 수인분당선',
-        color: '#EBA900',
-        stationCode: 'K240',
+      const seoul4Line = StationSearchLine(
+        id: 'seoul-4',
+        name: '수도권 4호선',
+        color: '#00A5DE',
+        stationCode: '448',
       );
       await tester.pumpWidget(
         _hostBar(
-          lineColor: const Color(0xFFEBA900),
-          stationName: '한대앞',
-          badgeText: '수인분당',
-          line: suinLine,
+          lineColor: const Color(0xFF00A5DE),
+          stationName: '상록수',
+          badgeText: '4',
+          line: seoul4Line,
         ),
       );
 
       final badgeFinder = find.byKey(
-        const Key('stationLineBadge-suin-bundang'),
+        const Key('stationLineBadge-seoul-4'),
       );
       expect(badgeFinder, findsOneWidget);
       expect(

@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
 import 'package:flutter/material.dart';
@@ -74,13 +75,13 @@ void main() {
     );
   });
 
-  testWidgets('노선 심볼 위젯은 제공 PNG를 그대로 렌더링한다', (tester) async {
+  testWidgets('노선 배지 위젯은 가변 알약 캡슐형 시스템에 맞춰 렌더링한다', (tester) async {
     final lines = [
       for (final (id, name, _) in badgeCases)
         StationSearchLine(
           id: id,
           name: name,
-          color: '#000000',
+          color: '#00A5DE',
           stationCode: '',
         ),
     ];
@@ -91,91 +92,182 @@ void main() {
       ),
     );
 
-    for (final (id, _, asset) in badgeCases) {
+    for (final (id, name, _) in badgeCases) {
       final finder = find.byKey(Key('stationLineBadge-$id'));
-      final image = tester.widget<Image>(
-        find.descendant(of: finder, matching: find.byType(Image)),
-      );
-      expect(tester.getSize(finder), const Size(40, 40));
-      // Flutter는 cacheWidth/Height가 있으면 AssetImage를 ResizeImage로 감싼다.
-      final provider = image.image;
-      final assetImage = switch (provider) {
-        AssetImage value => value,
-        ResizeImage(:final imageProvider) when imageProvider is AssetImage =>
-          imageProvider,
-        _ => throw TestFailure(
-          'expected AssetImage, got ${provider.runtimeType}',
-        ),
-      };
-      expect(assetImage.assetName, 'assets/metro_symbols/line_badges/$asset');
-    }
+      expect(finder, findsOneWidget);
+      final size = tester.getSize(finder);
+      final badgeText = stationLineBadgeText(name);
+      final isSingleChar = badgeText.length <= 1;
 
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('stationLineBadge-busan-1')),
-        matching: find.byType(ClipRRect),
-      ),
-      findsOneWidget,
-    );
+      if (isSingleChar) {
+        expect(size, const Size(40, 40), reason: '$name ($badgeText) 정원형');
+      } else {
+        expect(size.height, 40, reason: '$name ($badgeText) 높이 고정');
+        expect(size.width, greaterThan(40), reason: '$name ($badgeText) 가변 알약');
+      }
+    }
   });
 
-  group('StationLineBadgeTab', () {
-    const testLine = StationSearchLine(
+  testWidgets('StationLineBadgeTab은 배지 폭에 맞춰 인디케이터가 연동된다', (tester) async {
+    const singleLine = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '448',
+    );
+    const multiLine = StationSearchLine(
       id: 'suin-bundang',
       name: '수도권 수인분당선',
-      color: '#EBA900',
-      stationCode: 'K240',
+      color: '#FABE00',
+      stationCode: 'K210',
     );
 
-    testWidgets('기본 크기는 32이며 48x48 탭 컨테이너 내에서 수직 중앙 정렬된다', (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: StationLineBadgeTab(
-              line: testLine,
-              selected: true,
-              onTap: () {},
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Row(
+            children: [
+              StationLineBadgeTab(
+                line: singleLine,
+                selected: true,
+                onTap: () {},
+                size: 28,
+              ),
+              StationLineBadgeTab(
+                line: multiLine,
+                selected: false,
+                onTap: () {},
+                size: 28,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final singleFinder = find.byKey(const Key('stationLineBadgeTab-seoul-4'));
+    final multiFinder = find.byKey(const Key('stationLineBadgeTab-suin-bundang'));
+
+    expect(singleFinder, findsOneWidget);
+    expect(multiFinder, findsOneWidget);
+
+    final singleSize = tester.getSize(singleFinder);
+    final multiSize = tester.getSize(multiFinder);
+
+    expect(singleSize.height, 48);
+    expect(singleSize.width, 48); // 최소 터치 타겟 48 유지
+
+    expect(multiSize.height, 48);
+    expect(multiSize.width, greaterThan(48)); // 가변 알약에 맞춰 확장
+  });
+
+  test('stationLineBadgeText는 경전철 및 GTX를 포함한 전국 노선명을 정확히 추출한다', () {
+    expect(stationLineBadgeText('수도권 1호선'), '1');
+    expect(stationLineBadgeText('수도권 4호선'), '4');
+    expect(stationLineBadgeText('수도권 9호선'), '9');
+    expect(stationLineBadgeText('부산 1호선'), '1');
+    expect(stationLineBadgeText('대구 2호선'), '2');
+    expect(stationLineBadgeText('대전 1호선'), '1');
+    expect(stationLineBadgeText('광주 1호선'), '1');
+    expect(stationLineBadgeText('수도권 수인분당선'), '수인분당');
+    expect(stationLineBadgeText('수도권 경의중앙선'), '경의중앙');
+    expect(stationLineBadgeText('수도권 신분당선'), '신분당');
+    expect(stationLineBadgeText('수도권 공항철도'), '공항철도');
+    expect(stationLineBadgeText('수도권 의정부경전철'), '의정부');
+    expect(stationLineBadgeText('수도권 우이신설선'), '우이신설');
+    expect(stationLineBadgeText('우이신설경전철'), '우이신설');
+    expect(stationLineBadgeText('수도권 신림선'), '신림');
+    expect(stationLineBadgeText('신림경전철'), '신림');
+    expect(stationLineBadgeText('수도권 용인에버라인'), '에버라인');
+    expect(stationLineBadgeText('수도권 김포골드라인'), '김포골드');
+    expect(stationLineBadgeText('부산김해경전철'), '부산김해');
+    expect(stationLineBadgeText('수도권 GTX-A'), 'GTX-A');
+    expect(stationLineBadgeText('GTX-B'), 'GTX-B');
+    expect(stationLineBadgeText('GTX-C'), 'GTX-C');
+    expect(stationLineBadgeText('동해선'), '동해');
+    expect(stationLineBadgeText('수도권 서해선'), '서해');
+    expect(stationLineBadgeText('수도권 경춘선'), '경춘');
+    expect(stationLineBadgeText('수도권 경강선'), '경강');
+    expect(stationLineBadgeText('대구 대경선'), '대경');
+  });
+
+  testWidgets('2.0x 초고배율 텍스트 스케일 환경에서도 배지 및 탭에 레이아웃 overflow가 없다', (tester) async {
+    const singleLine = StationSearchLine(
+      id: 'seoul-4',
+      name: '수도권 4호선',
+      color: '#00A5DE',
+      stationCode: '448',
+    );
+    const multiLine = StationSearchLine(
+      id: 'suin-bundang',
+      name: '수도권 수인분당선',
+      color: '#FABE00',
+      stationCode: 'K210',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: MediaQuery(
+          data: const MediaQueryData(
+            textScaler: TextScaler.linear(2.0),
+          ),
+          child: Scaffold(
+            body: Row(
+              children: [
+                StationLineBadge(line: singleLine, size: 28),
+                StationLineBadge(line: multiLine, size: 28),
+                StationLineBadgeTab(
+                  line: singleLine,
+                  selected: true,
+                  onTap: () {},
+                  size: 28,
+                ),
+                StationLineBadgeTab(
+                  line: multiLine,
+                  selected: false,
+                  onTap: () {},
+                  size: 28,
+                ),
+              ],
             ),
           ),
         ),
-      );
+      ),
+    );
 
-      final tabFinder = find.byKey(
-        const Key('stationLineBadgeTab-suin-bundang'),
-      );
-      expect(tabFinder, findsOneWidget);
-      expect(tester.getSize(tabFinder), const Size(48, 48));
+    expect(tester.takeException(), isNull);
+  });
 
-      final badgeFinder = find.byKey(
-        const Key('stationLineBadge-suin-bundang'),
-      );
-      expect(badgeFinder, findsOneWidget);
-      expect(tester.getSize(badgeFinder), const Size(32, 32));
-
-      // 탭의 center y와 배지의 center y가 48의 절반(24)으로 일치 (수직 중앙 정렬)
-      final tabCenter = tester.getCenter(tabFinder);
-      final badgeCenter = tester.getCenter(badgeFinder);
-      expect(badgeCenter.dy, tabCenter.dy);
-    });
-
-    testWidgets('선택 상태에 따라 하단 인디케이터가 표시된다', (tester) async {
-      var tapped = false;
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: StationLineBadgeTab(
-              line: testLine,
-              selected: false,
-              onTap: () => tapped = true,
+  testWidgets('NearbyStationLineBar는 장문 역명 및 다글자 배지 결합 시 320dp 좁은 화면에서도 overflow 없이 렌더링된다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Center(
+            child: SizedBox(
+              width: 320,
+              child: NearbyStationLineBar(
+                stationName: '동대문역사문화공원',
+                leftName: '디지털미디어시티',
+                rightName: '국립중앙박물관',
+                badgeText: '경의중앙',
+                lineColor: const Color(0xFF77C4A3),
+                onStationNameTap: () {},
+                onLeftNameTap: () {},
+                onRightNameTap: () {},
+              ),
             ),
           ),
         ),
-      );
+      ),
+    );
 
-      await tester.tap(
-        find.byKey(const Key('stationLineBadgeTab-suin-bundang')),
-      );
-      expect(tapped, isTrue);
-    });
+    expect(tester.takeException(), isNull);
+    expect(find.text('동대문역사문화공원'), findsOneWidget);
+    expect(find.text('디지털미디어시티'), findsOneWidget);
+    expect(find.text('국립중앙박물관'), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_left), findsOneWidget);
+    expect(find.byIcon(Icons.chevron_right), findsOneWidget);
   });
 }

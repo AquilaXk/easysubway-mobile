@@ -56,6 +56,7 @@ dependencies:
   firebase_core: ^4.13.0
   firebase_crashlytics: ^5.2.7
   logger: ^2.7.0
+  flutter_svg: ^2.0.17
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -103,6 +104,7 @@ flutter:
     - assets/datapacks/metro_map_pack/basemap/
     - assets/datapacks/prelaunch/
     - assets/metro_symbols/line_badges/
+    - assets/icons/
 
   # #2068: 노선도 basemap을 오너 SVG와 동일한 자폭·굵기로 렌더하기 위해
   # Pretendard(SIL OFL 1.1)를 번들한다. 라이선스 원문은 fonts/OFL.txt.
