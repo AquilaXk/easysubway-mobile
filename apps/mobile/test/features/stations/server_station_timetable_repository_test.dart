@@ -123,7 +123,7 @@ void main() {
   });
 
   test(
-    'session or attestor failure throws typed ServerConnectionException',
+    'session or attestor failure is a typed timetable unavailable result',
     () async {
       final sessionFailure = _FakeJourneyRepository(
         issueFailure: JourneyTransportFailure(
@@ -140,7 +140,7 @@ void main() {
           lineId: 'seoul-4',
           asOf: now,
         ),
-        throwsA(isA<ServerConnectionException>()),
+        throwsA(isA<StationTimetableUnavailable>()),
       );
       await expectLater(
         _repository(
@@ -152,7 +152,7 @@ void main() {
           lineId: 'seoul-4',
           asOf: now,
         ),
-        throwsA(isA<ServerConnectionException>()),
+        throwsA(isA<StationTimetableUnavailable>()),
       );
       expect(sessionFailure.issueCalls, 1);
       expect(attestorFailure.issueCalls, 0);
@@ -365,6 +365,26 @@ void main() {
       );
     },
   );
+
+  test('네트워크 전송 오류 시 ServerConnectionException을 던진다', () async {
+    final journey = _FakeJourneyRepository(
+      failure: JourneyTransportFailure(
+        contract.JourneyOperation.searchStationTimetables,
+        'SocketException: Connection reset by peer',
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(journey, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(isA<ServerConnectionException>()),
+    );
+  });
 }
 
 ServerStationTimetableRepository _repository(

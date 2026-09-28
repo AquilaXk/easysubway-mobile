@@ -186,7 +186,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
-        _isNetworkError = true;
+        _isNetworkError = false;
       });
     }
   }
@@ -251,7 +251,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
-        _isNetworkError = true;
+        _isNetworkError = false;
       });
     }
   }

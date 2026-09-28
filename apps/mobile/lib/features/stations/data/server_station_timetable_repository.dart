@@ -80,8 +80,19 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     String lineId,
     contract.StationTimetableSelector selector,
   ) async {
+    final contract.JourneySessionResponse session;
     try {
-      final session = await _sessionProvider.session();
+      session = await _sessionProvider.session();
+    } on JourneySessionInvalid {
+      throw const StationTimetableUnavailable(
+        'Journey session is unavailable.',
+      );
+    } catch (_) {
+      throw const StationTimetableUnavailable(
+        'Journey timetable is unavailable.',
+      );
+    }
+    try {
       final response = await _journeyRepository.searchStationTimetables(
         contract.StationTimetableSearchRequest(
           stationId: stationId,
@@ -106,34 +117,31 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         );
       }
       throw StationTimetableUnavailable(error.error.code.wire);
-    } on JourneySessionInvalid {
-      throw const ServerConnectionException('Journey session is unavailable.');
     } on JourneyTransportFailure catch (error) {
       throw ServerConnectionException(
         'Network transport failure: ${error.operation.wire}',
         cause: error.cause,
       );
     } on JourneyProtocolFailure catch (error) {
-      throw ServerConnectionException(
-        'Journey protocol failure: ${error.operation.wire}',
-        statusCode: error.statusCode,
-        cause: error.cause,
-      );
+      if ((error.statusCode ?? 500) >= 500) {
+        throw ServerConnectionException(
+          'Journey protocol failure: ${error.operation.wire}',
+          statusCode: error.statusCode,
+          cause: error.cause,
+        );
+      }
+      throw StationTimetableUnavailable(error.operation.wire);
     } on JourneyRepositoryFailure catch (error) {
-      throw ServerConnectionException(
-        'Journey repository failure: ${error.operation.wire}',
-        cause: error,
-      );
+      throw StationTimetableUnavailable(error.operation.wire);
     } on FormatException catch (error) {
       throw StationTimetableUnavailable(error.message);
     } on ServerConnectionException {
       rethrow;
     } on StationTimetableUnavailable {
       rethrow;
-    } catch (error) {
-      throw ServerConnectionException(
-        'Journey timetable server error.',
-        cause: error,
+    } catch (_) {
+      throw const StationTimetableUnavailable(
+        'Journey timetable is unavailable.',
       );
     }
   }
