@@ -156,9 +156,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     });
     StationTimetable? unavailable;
     ServerConnectionException? serverException;
-    StackTrace? serverStackTrace;
+    StackTrace serverStackTrace = StackTrace.empty;
     Object? otherException;
-    StackTrace? otherStackTrace;
+    StackTrace otherStackTrace = StackTrace.empty;
 
     for (final line in widget.lines) {
       try {
@@ -188,7 +188,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     if (serverException != null) {
       reportMobileError(
         serverException,
-        serverStackTrace ?? StackTrace.current,
+        serverStackTrace,
         context: '역 초기 시간표 조회 중 서버 장애가 발생했습니다.',
       );
       if (!mounted || requestId != _requestId) return;
@@ -204,7 +204,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     if (otherException != null) {
       reportMobileError(
         otherException,
-        otherStackTrace ?? StackTrace.current,
+        otherStackTrace,
         context: '역 시간표 조회 중 예외가 발생했습니다.',
       );
       if (!mounted || requestId != _requestId) return;

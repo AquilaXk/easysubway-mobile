@@ -438,6 +438,38 @@ void main() {
       ),
     );
   });
+
+  test(
+    '세션 발급 중 프로토콜 오류(JourneyProtocolFailure) 시 ServerConnectionException을 던진다',
+    () async {
+      final sessionFailure = _FakeJourneyRepository(
+        issueFailure: JourneyProtocolFailure(
+          contract.JourneyOperation.issueJourneySession,
+          statusCode: 502,
+          cause: const FormatException('Bad Gateway payload'),
+        ),
+        now: now,
+      );
+
+      await expectLater(
+        _repository(sessionFailure, now: now).loadStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.weekday,
+          referenceDate: now,
+        ),
+        throwsA(
+          isA<ServerConnectionException>()
+              .having((e) => e.statusCode, 'statusCode', 502)
+              .having(
+                (e) => e.message,
+                'message',
+                contains('Journey protocol failure: issueJourneySession'),
+              ),
+        ),
+      );
+    },
+  );
 }
 
 ServerStationTimetableRepository _repository(

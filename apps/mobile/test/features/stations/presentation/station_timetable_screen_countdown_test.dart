@@ -1365,4 +1365,42 @@ void main() {
       expect(button.onPressed, isNotNull);
     });
   });
+
+  testWidgets('초기 노선 탐색 중 기타 예외 발생 시 reportMobileError를 호출하고 에러 없이 닫는다', (
+    tester,
+  ) async {
+    final reportedErrors = <FlutterErrorDetails>[];
+    const line = StationSearchLine(
+      id: 'seoul-2',
+      name: '2호선',
+      color: '#00A84D',
+      stationCode: '222',
+    );
+
+    final repo = _FakeTimetableRepo(
+      {},
+      errorToThrow: StateError('예기치 못한 런타임 에러'),
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-gangnam',
+            stationName: '강남',
+            lines: const [line],
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(reportedErrors, hasLength(1));
+      expect(
+        reportedErrors.first.exception,
+        isA<StateError>().having((e) => e.message, 'message', '예기치 못한 런타임 에러'),
+      );
+      expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+    });
+  });
 }
