@@ -19,15 +19,11 @@ import 'package:easysubway_mobile/features/stations/data/station_api_base_uri.da
         defaultOptionalStationApiBaseUri,
         stationApiBaseUriForBuildMode,
         stationApiBaseUriForEnvironment;
+import 'package:clock/clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  // 상대 확인 시점 기준 시각을 고정한 테스트는 항상 원래대로 되돌린다.
-  tearDown(() {
-    debugStationVerifiedClock = DateTime.now;
-  });
-
   test('시간표 출발 모델은 일반·급행 운행종별을 시각순으로 유지한다', () {
     const local = StationTimetableDeparture(
       directionName: '사당 방면',
@@ -1590,123 +1586,126 @@ void main() {
   });
 
   test('시설 정보는 백엔드 enum 값을 쉬운 라벨과 스크린리더 문구로 바꾼다', () {
-    debugStationVerifiedClock = () => DateTime(2026, 6, 15);
-    const ramp = StationFacilityInfo(
-      id: 'facility-ramp-1',
-      stationId: 'station-sangnoksu',
-      exitId: 'exit-sangnoksu-1',
-      type: 'RAMP',
-      name: '1번 출구 경사로',
-      floorFrom: '1F',
-      floorTo: 'B1',
-      description: '',
-      status: 'UNDER_CONSTRUCTION',
-      dataConfidence: 'NEEDS_VERIFICATION',
-      lastUpdatedAt: '2026-06-13',
-    );
-    const customerCenter = StationFacilityInfo(
-      id: 'facility-center-1',
-      stationId: 'station-sangnoksu',
-      exitId: '',
-      type: 'CUSTOMER_CENTER',
-      name: '고객센터',
-      floorFrom: '대합실',
-      floorTo: '대합실',
-      description: '개찰구 옆',
-      status: 'ADMIN_VERIFIED',
-      dataConfidence: 'HIGH',
-      lastUpdatedAt: '2026-06-13',
-      fieldValidationStatus: ' verified ',
-    );
-    const uncheckedDescription = StationFacilityInfo(
-      id: 'facility-escalator-1',
-      stationId: 'station-sangnoksu',
-      exitId: 'exit-sangnoksu-1',
-      type: 'ESCALATOR',
-      name: '1번 출구 에스컬레이터',
-      floorFrom: '',
-      floorTo: '',
-      description: '현장 검증 전 이동 보조 시설',
-      status: 'NORMAL',
-      dataConfidence: 'LOW',
-      lastUpdatedAt: '2026-06-13',
-    );
-    const metadataOnlyDescription = StationFacilityInfo(
-      id: 'facility-elevator-1',
-      stationId: 'station-sangnoksu',
-      exitId: 'exit-sangnoksu-1',
-      type: 'ELEVATOR',
-      name: '1번 출구 엘리베이터',
-      floorFrom: 'B1',
-      floorTo: '1F',
-      description: '현장 검증됨',
-      status: 'NORMAL',
-      dataConfidence: 'HIGH',
-      lastUpdatedAt: '2026-06-13',
-    );
+    withClock(Clock.fixed(DateTime(2026, 6, 15)), () {
+      const ramp = StationFacilityInfo(
+        id: 'facility-ramp-1',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-sangnoksu-1',
+        type: 'RAMP',
+        name: '1번 출구 경사로',
+        floorFrom: '1F',
+        floorTo: 'B1',
+        description: '',
+        status: 'UNDER_CONSTRUCTION',
+        dataConfidence: 'NEEDS_VERIFICATION',
+        lastUpdatedAt: '2026-06-13',
+      );
+      const customerCenter = StationFacilityInfo(
+        id: 'facility-center-1',
+        stationId: 'station-sangnoksu',
+        exitId: '',
+        type: 'CUSTOMER_CENTER',
+        name: '고객센터',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '개찰구 옆',
+        status: 'ADMIN_VERIFIED',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-06-13',
+        fieldValidationStatus: ' verified ',
+      );
+      const uncheckedDescription = StationFacilityInfo(
+        id: 'facility-escalator-1',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-sangnoksu-1',
+        type: 'ESCALATOR',
+        name: '1번 출구 에스컬레이터',
+        floorFrom: '',
+        floorTo: '',
+        description: '현장 검증 전 이동 보조 시설',
+        status: 'NORMAL',
+        dataConfidence: 'LOW',
+        lastUpdatedAt: '2026-06-13',
+      );
+      const metadataOnlyDescription = StationFacilityInfo(
+        id: 'facility-elevator-1',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-sangnoksu-1',
+        type: 'ELEVATOR',
+        name: '1번 출구 엘리베이터',
+        floorFrom: 'B1',
+        floorTo: '1F',
+        description: '현장 검증됨',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-06-13',
+      );
 
-    expect(ramp.typeLabel, '경사로');
-    expect(ramp.statusLabel, '공사 중');
-    expect(ramp.severityLabel, '가기 전 살펴보기');
-    expect(ramp.nextActionLabel, '역무원 도움 요청');
-    expect(ramp.confidenceLabel, '');
-    expect(ramp.statusTitle, '가기 전에 확인해 주세요');
-    expect(
-      ramp.semanticLabel,
-      '1번 출구 경사로, 경사로, 가기 전에 확인해 주세요, 1F-B1, 최근 확인 2일 전, 역무원 도움 요청',
-    );
-    expect(customerCenter.typeLabel, '고객센터');
-    expect(customerCenter.statusLabel, '확인 완료');
-    expect(customerCenter.severityLabel, '정상');
-    expect(customerCenter.fieldValidationLabel, '');
-    expect(customerCenter.statusTitle, '정상 운행');
-    expect(customerCenter.semanticLabel, isNot(contains('정보 신뢰도')));
-    expect(customerCenter.semanticLabel, isNot(contains('현장 검증')));
-    expect(customerCenter.semanticLabel, isNot(contains('출처')));
-    expect(_stationFacility(status: 'UNKNOWN').statusLabel, '정상 운행');
-    expect(uncheckedDescription.locationLabel, '이동 보조 시설');
-    expect(uncheckedDescription.semanticLabel, isNot(contains('현장 검증')));
-    expect(metadataOnlyDescription.locationLabel, 'B1-1F');
+      expect(ramp.typeLabel, '경사로');
+      expect(ramp.statusLabel, '공사 중');
+      expect(ramp.severityLabel, '가기 전 살펴보기');
+      expect(ramp.nextActionLabel, '역무원 도움 요청');
+      expect(ramp.confidenceLabel, '');
+      expect(ramp.statusTitle, '가기 전에 확인해 주세요');
+      expect(
+        ramp.semanticLabel,
+        '1번 출구 경사로, 경사로, 가기 전에 확인해 주세요, 1F-B1, 최근 확인 2일 전, 역무원 도움 요청',
+      );
+      expect(customerCenter.typeLabel, '고객센터');
+      expect(customerCenter.statusLabel, '확인 완료');
+      expect(customerCenter.severityLabel, '정상');
+      expect(customerCenter.fieldValidationLabel, '');
+      expect(customerCenter.statusTitle, '정상 운행');
+      expect(customerCenter.semanticLabel, isNot(contains('정보 신뢰도')));
+      expect(customerCenter.semanticLabel, isNot(contains('현장 검증')));
+      expect(customerCenter.semanticLabel, isNot(contains('출처')));
+      expect(_stationFacility(status: 'UNKNOWN').statusLabel, '정상 운행');
+      expect(uncheckedDescription.locationLabel, '이동 보조 시설');
+      expect(uncheckedDescription.semanticLabel, isNot(contains('현장 검증')));
+      expect(metadataOnlyDescription.locationLabel, 'B1-1F');
 
-    final uninstalledWithLogDesc = _stationFacility(
-      description:
-          '광주교통공사 역사별 장애인 편의시설 현황 기준 휠체어리프트 미설치(count=0) 기록이며 실시간 운행 상태가 아닙니다.',
-    );
-    expect(uninstalledWithLogDesc.locationLabel, '미설치');
+      final uninstalledWithLogDesc = _stationFacility(
+        description:
+            '광주교통공사 역사별 장애인 편의시설 현황 기준 휠체어리프트 미설치(count=0) 기록이며 실시간 운행 상태가 아닙니다.',
+      );
+      expect(uninstalledWithLogDesc.locationLabel, '미설치');
 
-    final uninstalledShortLogDesc = _stationFacility(
-      description: '휠체어리프트 미설치(count=0)',
-    );
-    expect(uninstalledShortLogDesc.locationLabel, '미설치');
+      final uninstalledShortLogDesc = _stationFacility(
+        description: '휠체어리프트 미설치(count=0)',
+      );
+      expect(uninstalledShortLogDesc.locationLabel, '미설치');
 
-    final installedWithLogDesc = _stationFacility(
-      description:
-          '인천교통공사 역사별 장애인 편의시설 현황 기준 엘리베이터 2대 설치 정보이며 실시간 운행 상태가 아닙니다.',
-    );
-    expect(installedWithLogDesc.locationLabel, '2대 설치');
+      final installedWithLogDesc = _stationFacility(
+        description:
+            '인천교통공사 역사별 장애인 편의시설 현황 기준 엘리베이터 2대 설치 정보이며 실시간 운행 상태가 아닙니다.',
+      );
+      expect(installedWithLogDesc.locationLabel, '2대 설치');
+    });
   });
 
   test('확인 시점 상대 표현은 오늘/어제/n일 전/n주 전 버킷을 만든다', () {
-    debugStationVerifiedClock = () => DateTime(2026, 6, 15);
-    expect(stationVerifiedRelativeLabel('2026-06-15'), '오늘');
-    expect(stationVerifiedRelativeLabel('2026-06-14'), '어제');
-    expect(stationVerifiedRelativeLabel('2026-06-13'), '2일 전');
-    expect(stationVerifiedRelativeLabel('2026-06-09'), '6일 전');
-    expect(stationVerifiedRelativeLabel('2026-06-08'), '1주 전');
-    expect(stationVerifiedRelativeLabel('2026-05-19'), '3주 전');
-    // 시각 성분이 있어도 날짜 단위로 비교한다.
-    expect(stationVerifiedRelativeLabel('2026-06-14T23:59:00'), '어제');
+    withClock(Clock.fixed(DateTime(2026, 6, 15)), () {
+      expect(stationVerifiedRelativeLabel('2026-06-15'), '오늘');
+      expect(stationVerifiedRelativeLabel('2026-06-14'), '어제');
+      expect(stationVerifiedRelativeLabel('2026-06-13'), '2일 전');
+      expect(stationVerifiedRelativeLabel('2026-06-09'), '6일 전');
+      expect(stationVerifiedRelativeLabel('2026-06-08'), '1주 전');
+      expect(stationVerifiedRelativeLabel('2026-05-19'), '3주 전');
+      // 시각 성분이 있어도 날짜 단위로 비교한다.
+      expect(stationVerifiedRelativeLabel('2026-06-14T23:59:00'), '어제');
+    });
   });
 
   test('확인 시점 상대 표현은 4주 이상·미래·파싱 불가를 원문으로 둔다', () {
-    debugStationVerifiedClock = () => DateTime(2026, 6, 15);
-    // 28일 이상은 정확한 날짜로 최신성 저하를 드러낸다.
-    expect(stationVerifiedRelativeLabel('2026-05-18'), '2026-05-18');
-    // 시계 오차 등 미래 값은 원문 유지.
-    expect(stationVerifiedRelativeLabel('2026-06-20'), '2026-06-20');
-    // 파싱 불가·빈 값은 그대로.
-    expect(stationVerifiedRelativeLabel('준비 중'), '준비 중');
-    expect(stationVerifiedRelativeLabel('  '), '');
+    withClock(Clock.fixed(DateTime(2026, 6, 15)), () {
+      // 28일 이상은 정확한 날짜로 최신성 저하를 드러낸다.
+      expect(stationVerifiedRelativeLabel('2026-05-18'), '2026-05-18');
+      // 시계 오차 등 미래 값은 원문 유지.
+      expect(stationVerifiedRelativeLabel('2026-06-20'), '2026-06-20');
+      // 파싱 불가·빈 값은 그대로.
+      expect(stationVerifiedRelativeLabel('준비 중'), '준비 중');
+      expect(stationVerifiedRelativeLabel('  '), '');
+    });
   });
 }
 

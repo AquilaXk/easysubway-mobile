@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -56,7 +57,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _lineId = widget.lines.firstOrNull?.id;
-    final now = debugStationVerifiedClock();
+    final now = clock.now();
     _dayType = _todayTimetableDayType(now);
     _selectedHour = _initSelectedHour(now);
     if (widget.repository != null && _lineId != null) {
@@ -73,7 +74,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _destinationFilters.clear();
       _selectedDirectionFilter = null;
       _lineId = widget.lines.firstOrNull?.id;
-      final now = debugStationVerifiedClock();
+      final now = clock.now();
       _dayType = _todayTimetableDayType(now);
       _selectedHour = _initSelectedHour(now);
       if (widget.repository != null && _lineId != null) {
@@ -117,7 +118,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   }
 
   DateTime get _effectiveNow {
-    return debugStationVerifiedClock().add(_tickerElapsed);
+    return clock.now().add(_tickerElapsed);
   }
 
   int _initSelectedHour(DateTime now) {
@@ -207,7 +208,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               stationId: widget.stationId,
               lineId: lineId,
               dayType: _dayType,
-              referenceDate: debugStationVerifiedClock(),
+              referenceDate: clock.now(),
             )
           : await repository.loadStationTimetableForDate(
               stationId: widget.stationId,
@@ -775,7 +776,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           OutlinedButton.icon(
             key: const Key('station-timetable-retry-button'),
             onPressed: () {
-              final now = debugStationVerifiedClock();
+              final now = _effectiveNow;
               if (widget.lines.length > 1 && _timetable == null) {
                 unawaited(_loadInitialAvailableLine(now));
               } else {
