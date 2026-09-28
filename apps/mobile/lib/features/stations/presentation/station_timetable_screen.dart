@@ -156,7 +156,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     });
     StationTimetable? unavailable;
     ServerConnectionException? serverException;
-    StackTrace serverStackTrace = StackTrace.empty;
     Object? otherException;
     StackTrace otherStackTrace = StackTrace.empty;
 
@@ -175,9 +174,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         unavailable ??= timetable;
       } on StationTimetableUnavailable {
         // Line not available in timetable, continue checking next line
-      } on ServerConnectionException catch (error, stackTrace) {
+      } on ServerConnectionException catch (error) {
         serverException = error;
-        serverStackTrace = stackTrace;
       } catch (error, stackTrace) {
         otherException = error;
         otherStackTrace = stackTrace;
@@ -186,11 +184,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     }
 
     if (serverException != null) {
-      reportMobileError(
-        serverException,
-        serverStackTrace,
-        context: '역 초기 시간표 조회 중 서버 장애가 발생했습니다.',
-      );
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _timetable = null;
@@ -262,12 +255,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _loading = false;
         _isNetworkError = false;
       });
-    } on ServerConnectionException catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '역 시간표 조회 중 서버 장애가 발생했습니다.',
-      );
+    } on ServerConnectionException {
       if (!mounted || requestId != _requestId) {
         return;
       }

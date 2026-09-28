@@ -157,32 +157,44 @@ List<_RealtimeGroup> _groupRealtimeArrivals(
   for (final arrival in arrivals) {
     final rawDir = arrival.direction.trim();
     final dest = arrival.destination.trim();
-    final isUp =
-        rawDir.contains('상행') ||
-        rawDir.contains('내선') ||
-        rawDir.contains('진접') ||
-        rawDir.contains('당고개') ||
-        dest.contains('진접') ||
-        dest.contains('당고개') ||
-        dest.contains('사당') ||
-        dest.contains('서울역') ||
-        dest.contains('청량리');
-    final isDown =
-        rawDir.contains('하행') ||
-        rawDir.contains('외선') ||
-        rawDir.contains('오이도') ||
-        dest.contains('오이도') ||
-        dest.contains('안산') ||
-        dest.contains('인천');
+
+    final isDown = rawDir.contains('하행') || rawDir.contains('외선');
+    final isUp = rawDir.contains('상행') || rawDir.contains('내선');
 
     String dir;
-    if (prev != null &&
+    if (isDown && !isUp) {
+      if (next != null && next.isNotEmpty) {
+        dir = '$next 방면';
+      } else if (rawDir.isNotEmpty) {
+        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+      } else if (dest.isNotEmpty) {
+        final cleanDest = dest.endsWith('행')
+            ? dest.substring(0, dest.length - 1)
+            : dest;
+        dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
+      } else {
+        dir = '열차 도착';
+      }
+    } else if (isUp && !isDown) {
+      if (prev != null && prev.isNotEmpty) {
+        dir = '$prev 방면';
+      } else if (rawDir.isNotEmpty) {
+        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+      } else if (dest.isNotEmpty) {
+        final cleanDest = dest.endsWith('행')
+            ? dest.substring(0, dest.length - 1)
+            : dest;
+        dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
+      } else {
+        dir = '열차 도착';
+      }
+    } else if (prev != null &&
         prev.isNotEmpty &&
-        (rawDir.contains(prev) || dest.contains(prev) || isUp)) {
+        (rawDir.contains(prev) || dest.contains(prev))) {
       dir = '$prev 방면';
     } else if (next != null &&
         next.isNotEmpty &&
-        (rawDir.contains(next) || dest.contains(next) || isDown)) {
+        (rawDir.contains(next) || dest.contains(next))) {
       dir = '$next 방면';
     } else if (rawDir.isNotEmpty) {
       dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';

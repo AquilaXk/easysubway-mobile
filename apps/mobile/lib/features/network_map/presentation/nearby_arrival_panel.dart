@@ -224,32 +224,49 @@ String _resolveNearbyArrivalDirection(
   final rawDir = arrival.direction.trim();
   final dest = arrival.destination.trim();
 
-  final isUp =
-      rawDir.contains('상행') ||
-      rawDir.contains('내선') ||
-      rawDir.contains('진접') ||
-      rawDir.contains('당고개') ||
-      dest.contains('진접') ||
-      dest.contains('당고개') ||
-      dest.contains('사당') ||
-      dest.contains('서울역') ||
-      dest.contains('청량리');
-  final isDown =
-      rawDir.contains('하행') ||
-      rawDir.contains('외선') ||
-      rawDir.contains('오이도') ||
-      dest.contains('오이도') ||
-      dest.contains('안산') ||
-      dest.contains('인천');
+  final isDown = rawDir.contains('하행') || rawDir.contains('외선');
+  final isUp = rawDir.contains('상행') || rawDir.contains('내선');
+
+  if (isDown && !isUp) {
+    if (right != null && right.isNotEmpty) {
+      return '$right 방면';
+    }
+    if (rawDir.isNotEmpty) {
+      return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+    }
+    if (dest.isNotEmpty) {
+      final cleanDest = dest.endsWith('행')
+          ? dest.substring(0, dest.length - 1)
+          : dest;
+      return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
+    }
+    return '';
+  }
+
+  if (isUp && !isDown) {
+    if (left != null && left.isNotEmpty) {
+      return '$left 방면';
+    }
+    if (rawDir.isNotEmpty) {
+      return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+    }
+    if (dest.isNotEmpty) {
+      final cleanDest = dest.endsWith('행')
+          ? dest.substring(0, dest.length - 1)
+          : dest;
+      return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
+    }
+    return '';
+  }
 
   if (left != null &&
       left.isNotEmpty &&
-      (rawDir.contains(left) || dest.contains(left) || isUp)) {
+      (rawDir.contains(left) || dest.contains(left))) {
     return '$left 방면';
   }
   if (right != null &&
       right.isNotEmpty &&
-      (rawDir.contains(right) || dest.contains(right) || isDown)) {
+      (rawDir.contains(right) || dest.contains(right))) {
     return '$right 방면';
   }
   if (rawDir.isNotEmpty) {

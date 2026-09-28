@@ -84,9 +84,12 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     try {
       session = await _sessionProvider.session();
     } on JourneyRejectedFailure catch (error) {
-      if (error.statusCode >= 500) {
+      if (error.statusCode >= 500 ||
+          error.statusCode == 401 ||
+          error.statusCode == 403 ||
+          error.statusCode == 429) {
         throw ServerConnectionException(
-          'Journey server internal failure (${error.statusCode}).',
+          'Journey server rejected session (${error.statusCode}).',
           statusCode: error.statusCode,
           cause: error,
         );
@@ -103,13 +106,19 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         statusCode: error.statusCode,
         cause: error.cause,
       );
-    } on JourneySessionInvalid {
-      throw const StationTimetableUnavailable(
-        'Journey session is unavailable.',
+    } on JourneySessionInvalid catch (error) {
+      throw ServerConnectionException(
+        'Journey session is invalid or unavailable.',
+        cause: error,
       );
-    } catch (_) {
-      throw const StationTimetableUnavailable(
-        'Journey timetable is unavailable.',
+    } catch (error) {
+      if (error is ServerConnectionException ||
+          error is StationTimetableUnavailable) {
+        rethrow;
+      }
+      throw ServerConnectionException(
+        'Journey session issuance failed: $error',
+        cause: error,
       );
     }
     try {
@@ -129,9 +138,12 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       );
     } on JourneyRejectedFailure catch (error) {
       if (error.statusCode == 401) _sessionProvider.invalidate();
-      if (error.statusCode >= 500) {
+      if (error.statusCode >= 500 ||
+          error.statusCode == 401 ||
+          error.statusCode == 403 ||
+          error.statusCode == 429) {
         throw ServerConnectionException(
-          'Journey server internal failure (${error.statusCode}).',
+          'Journey server rejected timetable request (${error.statusCode}).',
           statusCode: error.statusCode,
           cause: error,
         );
@@ -149,10 +161,18 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         cause: error.cause,
       );
     } on FormatException catch (error) {
-      throw StationTimetableUnavailable(error.message);
-    } catch (_) {
-      throw const StationTimetableUnavailable(
-        'Journey timetable is unavailable.',
+      throw ServerConnectionException(
+        'Station timetable data integrity violation: ${error.message}',
+        cause: error,
+      );
+    } catch (error) {
+      if (error is ServerConnectionException ||
+          error is StationTimetableUnavailable) {
+        rethrow;
+      }
+      throw ServerConnectionException(
+        'Station timetable search failure: $error',
+        cause: error,
       );
     }
   }

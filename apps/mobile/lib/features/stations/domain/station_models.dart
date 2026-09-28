@@ -546,7 +546,12 @@ class StationExitInfo {
       _fieldVerificationStatusLabel(fieldValidationStatus);
 
   String get semanticLabel {
-    final parts = <String>[name, elevatorConnectionLabel, stairPathLabel];
+    final parts = <String>[name];
+    final desc = description.trim();
+    if (desc.isNotEmpty) {
+      parts.add(desc);
+    }
+    parts.addAll([elevatorConnectionLabel, stairPathLabel]);
     if (hasNearbyDoorHint) {
       parts.add('출구와 가까운 하차문 ${nearbyDoorHint!.trim()}');
     }
