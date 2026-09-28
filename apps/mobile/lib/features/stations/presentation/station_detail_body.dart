@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -1436,7 +1437,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     List<StationSearchLine> lines,
   ) async {
     try {
-      final date = debugStationVerifiedClock();
+      final date = clock.now();
       StationTimetable? unavailable;
       for (final line in lines) {
         final timetable = await repository.loadStationTimetableForDate(

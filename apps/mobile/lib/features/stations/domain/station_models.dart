@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'facility_status.dart';
 import 'station_line.dart';
 
@@ -874,13 +875,10 @@ String _dataSourceLabel(String dataSourceType) {
   };
 }
 
-/// 확인 시점 상대 표현의 기준 시각. 테스트에서 고정할 수 있게 주입 지점을 둔다.
-DateTime Function() debugStationVerifiedClock = DateTime.now;
-
 /// 확인 시점('YYYY-MM-DD' 또는 ISO datetime)을 오늘 기준 상대 표현으로 바꾼다.
 /// '오늘 / 어제 / n일 전 / n주 전'으로 최신성을 한눈에 보여주고, 파싱 불가·미래·
 /// 4주 이상 과거는 원문 날짜를 그대로 둬 오래된 안내는 정확한 날짜로 드러낸다.
-String stationVerifiedRelativeLabel(String rawVerifiedAt) {
+String stationVerifiedRelativeLabel(String rawVerifiedAt, {DateTime? now}) {
   final raw = rawVerifiedAt.trim();
   if (raw.isEmpty) {
     return raw;
@@ -889,8 +887,12 @@ String stationVerifiedRelativeLabel(String rawVerifiedAt) {
   if (parsed == null) {
     return raw;
   }
-  final now = debugStationVerifiedClock();
-  final today = DateTime(now.year, now.month, now.day);
+  final effectiveNow = now ?? clock.now();
+  final today = DateTime(
+    effectiveNow.year,
+    effectiveNow.month,
+    effectiveNow.day,
+  );
   final verifiedDay = DateTime(parsed.year, parsed.month, parsed.day);
   final days = today.difference(verifiedDay).inDays;
   if (days < 0) {
