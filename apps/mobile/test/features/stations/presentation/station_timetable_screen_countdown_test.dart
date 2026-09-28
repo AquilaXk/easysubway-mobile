@@ -4,12 +4,14 @@ import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_timetable_screen.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeTimetableRepo implements StationTimetableRepository {
-  _FakeTimetableRepo(this.timetables);
+  _FakeTimetableRepo(this.timetables, {this.errorToThrow});
   final Map<StationTimetableDayType, StationTimetable> timetables;
+  Object? errorToThrow;
 
   @override
   Future<StationTimetable> loadStationTimetable({
@@ -18,6 +20,9 @@ class _FakeTimetableRepo implements StationTimetableRepository {
     required StationTimetableDayType dayType,
     required DateTime referenceDate,
   }) async {
+    if (errorToThrow != null) {
+      throw errorToThrow!;
+    }
     final t = timetables[dayType];
     if (t == null) {
       throw const StationTimetableUnavailable('No timetable');
@@ -840,6 +845,123 @@ void main() {
         find.byKey(const Key('stationTimetableOfflineBanner')),
         findsNothing,
       );
+    },
+  );
+
+  testWidgets(
+    'StationTimetableScreen displays network error view and retries successfully when ServerConnectionException occurs',
+    (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      const line = StationSearchLine(
+        id: 'seoul-2',
+        name: '2호선',
+        color: '#00A84D',
+        stationCode: '222',
+      );
+
+      final timetable = StationTimetable(
+        stationId: 'station-gangnam',
+        lineId: 'seoul-2',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '외선순환',
+            departures: [
+              StationTimetableDeparture(directionName: '외선순환', seconds: 36000),
+            ],
+          ),
+        ],
+      );
+
+      final repo = _FakeTimetableRepo(
+        {StationTimetableDayType.weekday: timetable},
+        errorToThrow: const ServerConnectionException(
+          '503 Service Unavailable',
+          statusCode: 503,
+        ),
+      );
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StationTimetableScreen(
+              stationId: 'station-gangnam',
+              stationName: '강남',
+              lines: const [line],
+              repository: repo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('station-timetable-network-error-view')),
+          findsOneWidget,
+        );
+        expect(find.text('네트워크 연결 불안정'), findsOneWidget);
+        expect(
+          find.text('시간표 정보를 불러올 수 없어요.\n네트워크 상태를 확인하고 다시 시도해 주세요.'),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(const Key('station-timetable-retry-button')),
+          findsOneWidget,
+        );
+        expect(find.text('시간표 정보가 없어요'), findsNothing);
+        expect(reportedErrors, isNotEmpty);
+
+        // When user taps retry after network recovers
+        repo.errorToThrow = null;
+        await tester.tap(
+          find.byKey(const Key('station-timetable-retry-button')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('station-timetable-network-error-view')),
+          findsNothing,
+        );
+        expect(find.text('외선순환'), findsOneWidget);
+      });
+    },
+  );
+
+  testWidgets(
+    'StationTimetableScreen displays empty timetable state without network error view when StationTimetableUnavailable occurs',
+    (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      const line = StationSearchLine(
+        id: 'seoul-2',
+        name: '2호선',
+        color: '#00A84D',
+        stationCode: '222',
+      );
+
+      final repo = _FakeTimetableRepo(
+        {},
+        errorToThrow: const StationTimetableUnavailable('NOT_COVERED'),
+      );
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StationTimetableScreen(
+              stationId: 'station-gangnam',
+              stationName: '강남',
+              lines: const [line],
+              repository: repo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('station-timetable-network-error-view')),
+          findsNothing,
+        );
+        expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+        expect(reportedErrors, isEmpty);
+      });
     },
   );
 }

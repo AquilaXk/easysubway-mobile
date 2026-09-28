@@ -47,6 +47,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   final Map<int, GlobalKey> _hourKeys = {};
   var _loading = false;
   var _requestId = 0;
+  var _isNetworkError = false;
   Timer? _tickerTimer;
   Duration _tickerElapsed = Duration.zero;
 
@@ -130,7 +131,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final repository = widget.repository;
     if (repository == null) return;
     final requestId = ++_requestId;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _isNetworkError = false;
+    });
     StationTimetable? unavailable;
     try {
       for (final line in widget.lines) {
@@ -151,6 +155,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = unavailable;
         _directionName = null;
         _loading = false;
+        _isNetworkError = false;
       });
     } on StationTimetableUnavailable {
       if (!mounted || requestId != _requestId) return;
@@ -158,6 +163,20 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
+        _isNetworkError = false;
+      });
+    } on ServerConnectionException catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '역 초기 시간표 조회 중 서버 장애가 발생했습니다.',
+      );
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _timetable = null;
+        _directionName = null;
+        _loading = false;
+        _isNetworkError = true;
       });
     } catch (error, stackTrace) {
       reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
@@ -166,6 +185,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
+        _isNetworkError = true;
       });
     }
   }
@@ -177,7 +197,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       return;
     }
     final requestId = ++_requestId;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _isNetworkError = false;
+    });
     try {
       final timetable = date == null
           ? await repository.loadStationTimetable(
@@ -201,6 +224,22 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
+        _isNetworkError = false;
+      });
+    } on ServerConnectionException catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '역 시간표 조회 중 서버 장애가 발생했습니다.',
+      );
+      if (!mounted || requestId != _requestId) {
+        return;
+      }
+      setState(() {
+        _timetable = null;
+        _directionName = null;
+        _loading = false;
+        _isNetworkError = true;
       });
     } catch (error, stackTrace) {
       reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
@@ -211,6 +250,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
+        _isNetworkError = true;
       });
     }
   }
@@ -223,6 +263,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _timetable = timetable;
       _lineId = timetable.lineId;
       _dayType = timetable.dayType;
+      _isNetworkError = false;
       _directionName = directionNames.contains(_directionName)
           ? _directionName
           : timetable.directions.firstOrNull?.name;
@@ -602,6 +643,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
             if (_loading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (_isNetworkError)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: _buildNetworkErrorView(),
+                  ),
+                ),
+              )
             else if (timetable == null || !timetable.isAvailable)
               const Expanded(
                 child: Center(
@@ -675,6 +725,78 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNetworkErrorView() {
+    return Semantics(
+      container: true,
+      label: '네트워크 연결 불안정, 시간표 정보를 불러오지 못했습니다. 다시 시도해 주세요.',
+      child: Column(
+        key: const Key('station-timetable-network-error-view'),
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: EasySubwayAccessibleColors.surfaceSubtle,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.wifi_off_rounded,
+              size: 28,
+              color: EasySubwayAccessibleColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '네트워크 연결 불안정',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: EasySubwayAccessibleColors.text,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '시간표 정보를 불러올 수 없어요.\n네트워크 상태를 확인하고 다시 시도해 주세요.',
+            style: TextStyle(
+              fontSize: 14,
+              color: EasySubwayAccessibleColors.secondaryText,
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            key: const Key('station-timetable-retry-button'),
+            onPressed: () {
+              final now = debugStationVerifiedClock();
+              if (widget.lines.length > 1 && _timetable == null) {
+                unawaited(_loadInitialAvailableLine(now));
+              } else {
+                unawaited(_load());
+              }
+            },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text(
+              '다시 시도',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: EasySubwayAccessibleColors.primary,
+              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

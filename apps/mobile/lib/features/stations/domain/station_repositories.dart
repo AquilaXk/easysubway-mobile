@@ -283,3 +283,25 @@ class FavoriteStationException implements Exception {
   @override
   String toString() => message;
 }
+
+/// 원격 서버 연결 장애, 타임아웃, 네트워크 단절 또는 HTTP 5xx 등 서버 측 장애를 나타내는 명시적 예외 타입.
+/// 단순 미지원 역(StationTimetableUnavailable)과 엄격히 구분하여 에러 리포팅 및 오프라인 에러 뷰 렌더링에 사용된다.
+class ServerConnectionException implements Exception {
+  const ServerConnectionException(this.message, {this.statusCode, this.cause});
+
+  final String message;
+  final int? statusCode;
+  final Object? cause;
+
+  @override
+  String toString() {
+    final buffer = StringBuffer('ServerConnectionException: $message');
+    if (statusCode != null) {
+      buffer.write(' (HTTP $statusCode)');
+    }
+    if (cause != null) {
+      buffer.write(' [cause: $cause]');
+    }
+    return buffer.toString();
+  }
+}

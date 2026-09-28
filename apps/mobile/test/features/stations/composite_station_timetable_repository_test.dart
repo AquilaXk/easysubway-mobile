@@ -404,5 +404,67 @@ void main() {
         expect(preserved.isOfflineFallback, isTrue);
       },
     );
+
+    test(
+      'CompositeStationTimetableRepository does NOT report error when server throws StationTimetableUnavailable',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(
+          errorToThrow: const StationTimetableUnavailable('NOT_COVERED'),
+        );
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: localRepo,
+        );
+
+        final reportedErrors = <FlutterErrorDetails>[];
+        final timetable = await runWithMobileErrorReporter(
+          (details) => reportedErrors.add(details),
+          () => composite.loadStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            dayType: StationTimetableDayType.weekday,
+            referenceDate: DateTime.utc(2026, 9, 25),
+          ),
+        );
+
+        expect(timetable.isAvailable, isTrue);
+        expect(timetable.isOfflineFallback, isTrue);
+        expect(reportedErrors, isEmpty);
+      },
+    );
+
+    test(
+      'CompositeStationTimetableRepository rethrows ServerConnectionException when server fails and local has no cache',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(
+          errorToThrow: const ServerConnectionException(
+            '500 Internal Error',
+            statusCode: 500,
+          ),
+        );
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: localRepo,
+        );
+
+        final reportedErrors = <FlutterErrorDetails>[];
+        await expectLater(
+          runWithMobileErrorReporter(
+            (details) => reportedErrors.add(details),
+            () => composite.loadStationTimetable(
+              stationId: 'station-unknown',
+              lineId: 'seoul-4',
+              dayType: StationTimetableDayType.weekday,
+              referenceDate: DateTime.utc(2026, 9, 25),
+            ),
+          ),
+          throwsA(isA<ServerConnectionException>()),
+        );
+
+        expect(reportedErrors, isNotEmpty);
+      },
+    );
   });
 }

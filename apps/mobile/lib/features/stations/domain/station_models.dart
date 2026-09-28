@@ -546,6 +546,9 @@ class StationExitInfo {
 
   String get semanticLabel {
     final parts = <String>[name, elevatorConnectionLabel, stairPathLabel];
+    if (hasNearbyDoorHint) {
+      parts.add('출구와 가까운 하차문 ${nearbyDoorHint!.trim()}');
+    }
     final verifiedAt = lastVerifiedAt.trim();
     if (verifiedAt.isNotEmpty) {
       parts.add('최근 확인 ${stationVerifiedRelativeLabel(verifiedAt)}');

@@ -888,7 +888,7 @@ void main() {
     expect(find.textContaining('• 출발:'), findsOneWidget);
   });
 
-  testWidgets('journey search는 다중 구간 환승 경로에서 무단차 태그, 빠른 환승 안내, 경강선 노선명을 지원한다', (
+  testWidgets('journey search는 다중 구간 환승 경로에서 무단차 태그, 경강선 노선명을 지원한다', (
     tester,
   ) async {
     final repository = _Repository()..journeyIds = ['journey-multileg'];
@@ -906,7 +906,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('빠른 환승'), findsOneWidget);
+    // 공식 승강장 데이터 부재 시 가짜 환승/하차문 해시 산술 비노출(Graceful Omission) 검증
+    expect(find.textContaining('빠른 환승'), findsNothing);
+    expect(find.textContaining('빠른 하차'), findsNothing);
+    expect(find.textContaining('내리는 문:'), findsNothing);
 
     // 구간 아코디언 토글
     final accordionButton = find.textContaining('개 역 이동 ▾');
