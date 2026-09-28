@@ -752,4 +752,94 @@ void main() {
       await tester.pumpAndSettle();
     },
   );
+
+  testWidgets(
+    '시간표 화면은 isOfflineFallback이 true일 때 오프라인 안내 배너를 렌더링하고 false일 때는 숨긴다',
+    (tester) async {
+      const line = StationSearchLine(
+        id: 'seoul-2',
+        name: '2호선',
+        color: '#00A84D',
+        stationCode: '222',
+      );
+
+      final offlineTimetable = StationTimetable(
+        stationId: 'station-gangnam',
+        lineId: 'seoul-2',
+        dayType: StationTimetableDayType.weekday,
+        isOfflineFallback: true,
+        directions: const [
+          StationTimetableDirection(
+            name: '외선순환',
+            departures: [
+              StationTimetableDeparture(directionName: '외선순환', seconds: 36000),
+            ],
+          ),
+        ],
+      );
+
+      final onlineTimetable = StationTimetable(
+        stationId: 'station-gangnam',
+        lineId: 'seoul-2',
+        dayType: StationTimetableDayType.weekday,
+        isOfflineFallback: false,
+        directions: const [
+          StationTimetableDirection(
+            name: '외선순환',
+            departures: [
+              StationTimetableDeparture(directionName: '외선순환', seconds: 36000),
+            ],
+          ),
+        ],
+      );
+
+      // 1. 오프라인 시간표일 때 배너 표시 확인
+      final offlineRepo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: offlineTimetable,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-gangnam',
+            stationName: '강남',
+            lines: const [line],
+            repository: offlineRepo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('stationTimetableOfflineBanner')),
+        findsOneWidget,
+      );
+      expect(
+        find.text('오프라인 모드: 기기에 저장된 시간표를 표시하고 있어요. 최신 운행 정보와 다를 수 있어요.'),
+        findsOneWidget,
+      );
+
+      // 2. 온라인 정상 시간표일 때 배너 미노출 확인
+      final onlineRepo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: onlineTimetable,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-gangnam',
+            stationName: '강남',
+            lines: const [line],
+            repository: onlineRepo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('stationTimetableOfflineBanner')),
+        findsNothing,
+      );
+    },
+  );
 }

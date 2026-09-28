@@ -28,14 +28,32 @@ class StationTimetable {
     required this.lineId,
     required this.dayType,
     required this.directions,
+    this.isOfflineFallback = false,
   });
 
   final String stationId;
   final String lineId;
   final StationTimetableDayType dayType;
   final List<StationTimetableDirection> directions;
+  final bool isOfflineFallback;
 
   bool get isAvailable => directions.isNotEmpty;
+
+  StationTimetable copyWith({
+    String? stationId,
+    String? lineId,
+    StationTimetableDayType? dayType,
+    List<StationTimetableDirection>? directions,
+    bool? isOfflineFallback,
+  }) {
+    return StationTimetable(
+      stationId: stationId ?? this.stationId,
+      lineId: lineId ?? this.lineId,
+      dayType: dayType ?? this.dayType,
+      directions: directions ?? this.directions,
+      isOfflineFallback: isOfflineFallback ?? this.isOfflineFallback,
+    );
+  }
 }
 
 class StationTimetableDirection {
@@ -460,6 +478,7 @@ class StationExitInfo {
     this.dataSourceType = '',
     this.fieldValidationStatus = 'UNKNOWN',
     this.lastVerifiedAt = '',
+    this.nearbyDoorHint,
   });
 
   factory StationExitInfo.fromJson(Map<String, Object?> json) {
@@ -481,6 +500,9 @@ class StationExitInfo {
         'UNKNOWN',
       ),
       lastVerifiedAt: _stringOrEmpty(json, 'lastVerifiedAt'),
+      nearbyDoorHint:
+          _optionalString(json, 'nearbyDoorHint') ??
+          _optionalString(json, 'fastExitDoors'),
     );
   }
 
@@ -497,6 +519,10 @@ class StationExitInfo {
   final String dataSourceType;
   final String fieldValidationStatus;
   final String lastVerifiedAt;
+  final String? nearbyDoorHint;
+
+  bool get hasNearbyDoorHint =>
+      nearbyDoorHint != null && nearbyDoorHint!.trim().isNotEmpty;
 
   bool get hasCoordinate => latitude != null && longitude != null;
 
@@ -738,6 +764,14 @@ String _stringOrEmpty(Map<String, Object?> json, String key) {
     return value;
   }
   return '';
+}
+
+String? _optionalString(Map<String, Object?> json, String key) {
+  final value = json[key];
+  if (value is String && value.trim().isNotEmpty) {
+    return value.trim();
+  }
+  return null;
 }
 
 String _stringOrDefault(

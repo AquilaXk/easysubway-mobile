@@ -1,3 +1,4 @@
+import '../../../mobile_error_reporter.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
 import 'server_station_timetable_repository.dart';
@@ -5,6 +6,10 @@ import 'server_station_timetable_repository.dart';
 /// Timetable repository that delegates to [serverRepository] first,
 /// and falls back to [localRepository] when the server does not cover the station
 /// or is temporarily unavailable.
+///
+/// When falling back to the local repository, the returned [StationTimetable]
+/// is explicitly marked with [StationTimetable.isOfflineFallback] set to true,
+/// ensuring transparent notification to users and preventing silent stale-data fallbacks.
 class CompositeStationTimetableRepository
     implements StationTimetableRepository {
   const CompositeStationTimetableRepository({
@@ -29,20 +34,27 @@ class CompositeStationTimetableRepository
         dayType: dayType,
         referenceDate: referenceDate,
       );
-      if (timetable.isAvailable) return timetable;
+      if (timetable.isAvailable) {
+        return timetable.copyWith(isOfflineFallback: false);
+      }
     } on StationTimetableUnavailable {
-      // Fall through to local repository
-    } catch (_) {
-      // Fall through to local repository
+      // Server does not cover this station/line; fall through to local repository
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '서버 시간표 조회 실패로 로컬 저장 시간표로 전환합니다: $stationId ($lineId)',
+      );
     }
     final local = localRepository;
     if (local != null) {
-      return local.loadStationTimetable(
+      final localTimetable = await local.loadStationTimetable(
         stationId: stationId,
         lineId: lineId,
         dayType: dayType,
         referenceDate: referenceDate,
       );
+      return localTimetable.copyWith(isOfflineFallback: true);
     }
     throw const StationTimetableUnavailable('TIMETABLE_UNAVAILABLE');
   }
@@ -59,19 +71,26 @@ class CompositeStationTimetableRepository
         lineId: lineId,
         date: date,
       );
-      if (timetable.isAvailable) return timetable;
+      if (timetable.isAvailable) {
+        return timetable.copyWith(isOfflineFallback: false);
+      }
     } on StationTimetableUnavailable {
-      // Fall through to local repository
-    } catch (_) {
-      // Fall through to local repository
+      // Server does not cover this station/line; fall through to local repository
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '서버 일자별 시간표 조회 실패로 로컬 저장 시간표로 전환합니다: $stationId ($lineId)',
+      );
     }
     final local = localRepository;
     if (local != null) {
-      return local.loadStationTimetableForDate(
+      final localTimetable = await local.loadStationTimetableForDate(
         stationId: stationId,
         lineId: lineId,
         date: date,
       );
+      return localTimetable.copyWith(isOfflineFallback: true);
     }
     throw const StationTimetableUnavailable('TIMETABLE_UNAVAILABLE');
   }
@@ -90,20 +109,27 @@ class CompositeStationTimetableRepository
         asOf: asOf,
         horizonDays: horizonDays,
       );
-      if (timetable.isAvailable) return timetable;
+      if (timetable.isAvailable) {
+        return timetable.copyWith(isOfflineFallback: false);
+      }
     } on StationTimetableUnavailable {
-      // Fall through to local repository
-    } catch (_) {
-      // Fall through to local repository
+      // Server does not cover this station/line; fall through to local repository
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '서버 다음 출발 시간표 조회 실패로 로컬 저장 시간표로 전환합니다: $stationId ($lineId)',
+      );
     }
     final local = localRepository;
     if (local != null) {
-      return local.loadNextStationTimetable(
+      final localTimetable = await local.loadNextStationTimetable(
         stationId: stationId,
         lineId: lineId,
         asOf: asOf,
         horizonDays: horizonDays,
       );
+      return localTimetable.copyWith(isOfflineFallback: true);
     }
     throw const StationTimetableUnavailable('TIMETABLE_UNAVAILABLE');
   }

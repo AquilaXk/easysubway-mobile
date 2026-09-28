@@ -126,24 +126,26 @@ class StationExitCard extends StatelessWidget {
                       height: 1.4,
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    '출구와 가까운 하차문',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
+                  if (doorHint != null) ...[
+                    const SizedBox(height: 16),
+                    const Text(
+                      '출구와 가까운 하차문',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: EasySubwayAccessibleColors.text,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    doorHint,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: EasySubwayAccessibleColors.secondaryText,
-                      height: 1.4,
+                    const SizedBox(height: 6),
+                    Text(
+                      doorHint,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        color: EasySubwayAccessibleColors.secondaryText,
+                        height: 1.4,
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),
@@ -155,42 +157,19 @@ class StationExitCard extends StatelessWidget {
   }
 }
 
-/// 전국 전역에 공통 적용되는 출구별 최적 하차문 (카-도어) 안내.
+/// 공식 출구 연계 하차문 (카-도어) 안내 문구 반환.
 ///
-/// 상록수역의 경우 네이버 지도 1:1 표준 예시(반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1)와
-/// 일치시키며, 전국 모든 역에 대해 방면별 카-도어 번호를 동적으로 산출한다.
-String fastExitDoorHint({
+/// 공식 데이터([exit.nearbyDoorHint])가 존재하는 경우에만 노출하며,
+/// 임의의 모듈로 산술이나 역 이름 하드코딩 분기는 일체 배제한다.
+String? fastExitDoorHint({
   required StationDetail station,
   required StationExitInfo exit,
   String? previousStation,
   String? nextStation,
 }) {
-  final upDir = previousStation != null
-      ? '$previousStation 방면'
-      : (station.nameKo == '상록수' ? '반월 방면' : '상행 방면');
-  final downDir = nextStation != null
-      ? '$nextStation 방면'
-      : (station.nameKo == '상록수' ? '한대앞 방면' : '하행 방면');
-
-  // 네이버 지도 1:1 표준 레퍼런스 기준(상록수역 1번 출구 예시): 반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1
-  if (station.nameKo == '상록수' &&
-      (exit.exitNumber == '1' ||
-          exit.id == 'exit-1' ||
-          exit.id == 'exit-sangnoksu-1')) {
-    return '$upDir 4-4, 7-3, $downDir 4-2, 7-1';
+  final hint = exit.nearbyDoorHint?.trim();
+  if (hint == null || hint.isEmpty) {
+    return null;
   }
-
-  // 전국 모든 역 표준 알고리즘: 출구 번호 기반 방면별 최적 하차문 동적 산출 (권장 도어 2개씩 제공)
-  final num = int.tryParse(exit.exitNumber) ?? 1;
-  final car1 = ((num * 3 + 1) % 8) + 1;
-  final door1 = ((num * 2 + 2) % 4) + 1;
-  final car2 = ((num * 5 + 2) % 8) + 1;
-  final door2 = ((num * 3 + 1) % 4) + 1;
-
-  final dCar1 = ((num * 3 + 1) % 8) + 1;
-  final dDoor1 = ((num * 2) % 4) + 1;
-  final dCar2 = ((num * 5 + 2) % 8) + 1;
-  final dDoor2 = (((num + 1) * 2) % 4) + 1;
-
-  return '$upDir $car1-$door1, $car2-$door2, $downDir $dCar1-$dDoor1, $dCar2-$dDoor2';
+  return hint;
 }
