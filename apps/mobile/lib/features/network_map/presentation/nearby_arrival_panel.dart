@@ -12,12 +12,14 @@ class NearbyArrivalData {
     required this.destination,
     required this.etaSeconds,
     required this.message,
+    this.positionMessage = '',
   });
 
   final String direction;
   final String destination;
   final int? etaSeconds;
   final String message;
+  final String positionMessage;
 }
 
 class NearbyArrivalPanelData {
@@ -41,6 +43,7 @@ class NearbyArrivalPanel extends StatelessWidget {
     required this.leftName,
     required this.rightName,
     this.onSelectTimetable,
+    this.now,
     super.key,
   });
 
@@ -49,6 +52,7 @@ class NearbyArrivalPanel extends StatelessWidget {
   final String? leftName;
   final String? rightName;
   final VoidCallback? onSelectTimetable;
+  final DateTime? now;
 
   @override
   Widget build(BuildContext context) {
@@ -60,14 +64,24 @@ class NearbyArrivalPanel extends StatelessWidget {
     if (hasData) {
       final groups = <String, List<NearbyArrivalData>>{};
       for (final arrival in data.arrivals) {
-        groups.putIfAbsent(arrival.direction, () => []).add(arrival);
+        final dir = _resolveNearbyArrivalDirection(
+          arrival,
+          leftName: leftName,
+          rightName: rightName,
+        );
+        groups.putIfAbsent(dir, () => []).add(arrival);
       }
       for (final key in groups.keys) {
         dataGroups.add(groups[key]!);
       }
     }
     final dataTitles = [
-      for (final group in dataGroups) _arrivalDirectionLabel(group.first),
+      for (final group in dataGroups)
+        _arrivalDirectionLabel(
+          group.first,
+          leftName: leftName,
+          rightName: rightName,
+        ),
     ];
     final slots = resolveNearbyColumnSlots(
       dataTitles: dataTitles,
@@ -93,8 +107,10 @@ class NearbyArrivalPanel extends StatelessWidget {
           rows: [
             for (final arrival in visible)
               NearbyArrivalRow(
-                destination: arrival.destination.trim(),
-                eta: _formatArrivalEta(arrival),
+                destination: arrival.destination.trim().isNotEmpty
+                    ? arrival.destination.trim()
+                    : _fallbackDestination(arrival.direction),
+                eta: _formatArrivalEta(arrival, now: now),
               ),
           ],
         ),
@@ -105,7 +121,7 @@ class NearbyArrivalPanel extends StatelessWidget {
           arrival.destination.trim().isEmpty
               ? ''
               : '${arrival.destination.trim()}행',
-          _formatArrivalEta(arrival),
+          _formatArrivalEta(arrival, now: now),
         ].where((part) => part.isNotEmpty).join(' ');
         if (part.isNotEmpty) {
           semanticParts.add(part);
@@ -154,20 +170,108 @@ class NearbyArrivalPanel extends StatelessWidget {
   }
 }
 
-String _formatArrivalEta(NearbyArrivalData arrival) {
+String _formatArrivalEta(NearbyArrivalData arrival, {DateTime? now}) {
   final eta = arrival.etaSeconds;
+  final pos = arrival.positionMessage.trim();
+  final msg = arrival.message.trim();
+
   if (eta != null && eta > 0) {
-    final minutes = (eta / 60).round();
-    return minutes <= 0 ? '곧 도착' : '약 $minutes분';
+    if (eta < 60) {
+      return '곧 도착';
+    }
+    if (eta <= 3600) {
+      final minutes = (eta / 60).round();
+      return minutes <= 0 ? '곧 도착' : '$minutes분 뒤 도착';
+    }
+    final hours = eta ~/ 3600;
+    final minutes = (eta % 3600) ~/ 60;
+    return minutes == 0 ? '$hours시간 뒤 도착' : '$hours시간 $minutes분 뒤 도착';
   }
-  return arrival.message.trim();
+
+  if (msg == '곧 도착' && pos.isNotEmpty) {
+    return pos;
+  }
+  if (pos.isNotEmpty && msg.isEmpty) {
+    return pos;
+  }
+  if (msg == '곧 도착' ||
+      msg.contains('당역') ||
+      (!msg.contains('전역') && (msg.contains('도착') || msg.contains('진입')))) {
+    return '곧 도착';
+  }
+  if (msg.contains('전역')) {
+    return msg.isNotEmpty ? msg : (pos.isNotEmpty ? pos : '전역 도착');
+  }
+  if (pos.isNotEmpty) {
+    return pos;
+  }
+  return msg.isNotEmpty ? msg : '곧 도착';
 }
 
-String _arrivalDirectionLabel(NearbyArrivalData arrival) {
-  final direction = arrival.direction.trim();
-  if (direction.isNotEmpty) {
-    return direction;
+String _fallbackDestination(String direction) {
+  final clean = direction.replaceAll('방면', '').trim();
+  if (clean.isEmpty) return '';
+  return clean.endsWith('행') ? clean.substring(0, clean.length - 1) : clean;
+}
+
+String _resolveNearbyArrivalDirection(
+  NearbyArrivalData arrival, {
+  String? leftName,
+  String? rightName,
+}) {
+  final left = leftName?.trim();
+  final right = rightName?.trim();
+  final rawDir = arrival.direction.trim();
+  final dest = arrival.destination.trim();
+
+  final isUp =
+      rawDir.contains('상행') ||
+      rawDir.contains('내선') ||
+      rawDir.contains('진접') ||
+      rawDir.contains('당고개') ||
+      dest.contains('진접') ||
+      dest.contains('당고개') ||
+      dest.contains('사당') ||
+      dest.contains('서울역') ||
+      dest.contains('청량리');
+  final isDown =
+      rawDir.contains('하행') ||
+      rawDir.contains('외선') ||
+      rawDir.contains('오이도') ||
+      dest.contains('오이도') ||
+      dest.contains('안산') ||
+      dest.contains('인천');
+
+  if (left != null &&
+      left.isNotEmpty &&
+      (rawDir.contains(left) || dest.contains(left) || isUp)) {
+    return '$left 방면';
   }
-  final destination = arrival.destination.trim();
-  return destination.isEmpty ? '' : '$destination 방면';
+  if (right != null &&
+      right.isNotEmpty &&
+      (rawDir.contains(right) || dest.contains(right) || isDown)) {
+    return '$right 방면';
+  }
+  if (rawDir.isNotEmpty) {
+    return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+  }
+  if (dest.isNotEmpty) {
+    final cleanDest = dest.endsWith('행')
+        ? dest.substring(0, dest.length - 1)
+        : dest;
+    return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
+  }
+  return '';
+}
+
+String _arrivalDirectionLabel(
+  NearbyArrivalData arrival, {
+  String? leftName,
+  String? rightName,
+}) {
+  return _resolveNearbyArrivalDirection(
+    arrival,
+    leftName: leftName,
+    rightName: rightName,
+  );
 }

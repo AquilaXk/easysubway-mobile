@@ -56,7 +56,13 @@ class _DataSourceAttributionScreenState
   Widget build(BuildContext context) {
     return Scaffold(
       key: const Key('dataSourceAttributionScreen'),
-      appBar: AppBar(title: const Text('데이터 및 지도 출처')),
+      appBar: AppBar(
+        title: const Text('데이터 및 지도 출처'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
+      ),
       body: SafeArea(
         child:
             FutureBuilder<

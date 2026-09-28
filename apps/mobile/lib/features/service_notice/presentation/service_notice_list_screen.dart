@@ -24,9 +24,18 @@ class ServiceNoticeListScreen extends StatelessWidget {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('serviceNoticeAppBar'),
-        title: const Text('공지사항'),
+        title: const Text(
+          '공지사항',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         flexibleSpace: const Align(

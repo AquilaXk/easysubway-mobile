@@ -99,13 +99,15 @@ class StationDetailScreen extends StatefulWidget {
   State<StationDetailScreen> createState() => _StationDetailScreenState();
 }
 
-class _StationDetailScreenState extends State<StationDetailScreen> {
+class _StationDetailScreenState extends State<StationDetailScreen>
+    with WidgetsBindingObserver {
   late final StationDetailController _controller;
   StationFavoriteToggleController? _favoriteController;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _controller = StationDetailController(
       repository: widget.repository,
       realtimeRepository: widget.realtimeRepository,
@@ -127,7 +129,21 @@ class _StationDetailScreenState extends State<StationDetailScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      if (_controller.state.status == StationDetailStatus.success) {
+        _controller.startRealtimePolling();
+      }
+    } else if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden) {
+      _controller.stopRealtimePolling();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _controller.dispose();
     _favoriteController?.dispose();
     super.dispose();

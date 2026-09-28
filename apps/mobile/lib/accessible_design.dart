@@ -79,6 +79,7 @@ class EasySubwayAccessibleColors {
       EasySubwayColorPrimitives.statusWarningSoft;
   static const statusDangerContent = EasySubwayColorPrimitives.statusDanger;
   static const statusDangerSurface = EasySubwayColorPrimitives.statusDangerSoft;
+  static const statusDestructive = statusDangerContent;
   static const statusInfoContent = EasySubwayColorPrimitives.statusInfo;
   static const statusInfoSurface = EasySubwayColorPrimitives.statusInfoSoft;
 
@@ -88,13 +89,14 @@ class EasySubwayAccessibleColors {
   static const mutedText = contentMuted;
   static const line = borderSubtle;
   static const primary = interactionPrimary;
+  static const onPrimary = interactionOnPrimary;
   static const brand = interactionPrimary;
   static const brandSignature = interactionPrimary;
   static const brandSignatureMedium = interactionSecondaryBorder;
   static const brandSignatureSoft = surfaceBrandStrong;
   static const brandSignatureSurface = surfaceSignature;
-  static const topBarSurface = surfaceBrandChrome;
-  static const searchFieldSurface = surfaceSubtle;
+  static const topBarSurface = primary;
+  static const searchFieldSurface = surfaceDefault;
   static const needsInfo = statusInfoContent;
   static const skySoft = statusInfoSurface;
   static const scaffoldSurface = surfaceScaffold;
@@ -205,8 +207,8 @@ class EasySubwayTouchTarget {
 /// 계약을 공유한다. 이 상수를 바꾸면 양쪽을 함께 갱신한다.
 const easySubwayTopBarContentHeight = 60.0;
 
-/// 네비/상단바 하단 구분선 색. 검색 박스 외곽선과 역할을 분리한다.
-const easySubwayHeaderDividerColor = EasySubwayAccessibleColors.borderSubtle;
+/// 네비/상단바 하단 구분선 색. 인디고 상단바(#5C6BC0)와 조화되는 톤온톤 엣지.
+const easySubwayHeaderDividerColor = EasySubwayColorPrimitives.brand800;
 
 /// 상단바·시트와 본문을 나누는 1px 구분선.
 ///
@@ -248,14 +250,14 @@ const easySubwayMapChromeHeaderDropColors = <Color>[
   Color(0x00000000),
 ];
 
-/// [EasySubwayHeaderDivider.mapChrome] 본체. 1px 선 + 아래로 넘치는 짧은 드롭.
+/// [EasySubwayHeaderDivider.mapChrome] 본체. 1px 톤온톤 선 + 아래로 부드럽게 퍼지는 소프트 섀도우.
 class _EasySubwayMapChromeHeaderDivider extends StatelessWidget {
   const _EasySubwayMapChromeHeaderDivider();
 
   @override
   Widget build(BuildContext context) {
-    // 카카오 참조 페이드는 물리 픽셀 ~5px. logical height로 환산한다.
-    final dropHeight = 5 / MediaQuery.devicePixelRatioOf(context);
+    // 카카오 실측치: 단정하고 은은한 소프트 마이크로 드롭 섀도우 (logical 3.5dp)
+    const dropHeight = 3.5;
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -271,7 +273,7 @@ class _EasySubwayMapChromeHeaderDivider extends StatelessWidget {
           child: IgnorePointer(
             child: CustomPaint(
               painter: const _MapChromeHeaderDropPainter(),
-              child: SizedBox(height: dropHeight, width: double.infinity),
+              child: const SizedBox(height: dropHeight, width: double.infinity),
             ),
           ),
         ),

@@ -72,9 +72,18 @@ class ServiceInfoScreen extends StatelessWidget {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('serviceInfoAppBar'),
-        title: const Text('서비스 정보'),
+        title: const Text(
+          '서비스 정보',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -90,12 +99,14 @@ class ServiceInfoScreen extends StatelessWidget {
           icon: const Icon(
             Icons.arrow_back,
             size: 26,
-            color: EasySubwayAccessibleColors.contentPrimary,
+            color: EasySubwayAccessibleColors.onPrimary,
           ),
         ),
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(key: Key('serviceInfoHeaderDivider')),
+          child: EasySubwayHeaderDivider.mapChrome(
+            key: Key('serviceInfoHeaderDivider'),
+          ),
         ),
       ),
       body: SafeArea(

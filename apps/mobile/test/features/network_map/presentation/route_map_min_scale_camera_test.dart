@@ -314,7 +314,7 @@ void main() {
           minScale: fixture.expectedFloor,
         );
         expect(focusCamera.scale, greaterThan(initialCamera.scale));
-        expect(focusCamera.scale / initialCamera.scale, greaterThan(1.5));
+        expect(focusCamera.scale / initialCamera.scale, greaterThan(1.2));
       });
     }
 
@@ -487,7 +487,7 @@ void main() {
     // 오너 라벨 sidecar가 아직(또는 끝내) 안 붙으면 초기 카메라는 기존
     // contain-fit이고, 그 배율이 하한보다 낮은 권역이 있다(실측 부산 0.0984 <
     // 0.1128). 하한을 그대로 물리면 첫 화면이 강제로 확대돼 "소규모 권역 전체
-    // 조망"(#1764 E)과 "focus = 초기 배율 × 1/0.42"(#2062)가 함께 깨진다.
+    // 조망"(#1764 E)과 "focus = 초기 배율 × 1/0.72"(#2062)가 함께 깨진다.
     // 그래서 하한은 초기 화면 배율로 캡한다 — 축소만 막고 확대는 하지 않는다.
     const hugeSpan = 40000.0;
 

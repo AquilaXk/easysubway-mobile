@@ -418,6 +418,21 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           if (!_gestureActive &&
               focusedStation != null &&
               _cameraFocusedStationKey != focusedStationKey) {
+            final targetBounds = _stationFocusBoundsFor(
+              focusedStation,
+              geometry,
+              initialBounds: initialCameraBounds,
+            );
+            final focusCamera = networkMapCameraForBounds(
+              targetBounds,
+              constraints,
+              sourceBounds: fullBounds,
+              contain: true,
+              minScale: minScale,
+              revision: camera.revision + 1,
+              // 역 focus 후에도 LOD 기준은 지역 초기 화면 baseline을 유지한다.
+              initialScaleOverride: camera.initialScale,
+            );
             final focusedCamera = widget.preserveFocusedStationScale
                 ? camera
                       .copyWith(
@@ -428,20 +443,14 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                         revision: camera.revision + 1,
                       )
                       .clamped(viewportMargin: 220)
-                : networkMapCameraForBounds(
-                    _stationFocusBoundsFor(
-                      focusedStation,
-                      geometry,
-                      initialBounds: initialCameraBounds,
-                    ),
-                    constraints,
-                    sourceBounds: fullBounds,
-                    contain: true,
-                    minScale: minScale,
-                    revision: camera.revision + 1,
-                    // 역 focus 후에도 LOD 기준은 지역 초기 화면 baseline을 유지한다.
-                    initialScaleOverride: camera.initialScale,
-                  );
+                : (camera.scale > focusCamera.scale
+                      ? focusCamera
+                            .copyWith(
+                              scale: camera.scale,
+                              revision: camera.revision + 1,
+                            )
+                            .clamped(viewportMargin: 220)
+                      : focusCamera);
             _cameraFocusedStationKey = focusedStationKey;
             _pendingCamera = null;
             _camera = focusedCamera;

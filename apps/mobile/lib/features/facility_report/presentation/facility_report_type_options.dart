@@ -97,4 +97,4 @@ const _facilityReportTypeOptionsByTypeLabel =
     };
 
 /// 정상으로 간주하는 상태 라벨(‘다시 정상’을 숨기는 기준).
-const _normalFacilityStatusLabels = <String>{'정상', '확인 완료'};
+const _normalFacilityStatusLabels = <String>{'정상', '정상 운행', '확인 완료'};

@@ -435,7 +435,7 @@ void main() {
     // 태운다. canvas owner의 focus 분기가 초기 카메라 bounds 대신 geometry의
     // 원 initialBounds를 다시 넘기면 이 테스트가 red가 된다(수도권 실측: 비율이
     // 2.38 → 0.86으로 뒤집혀 focus가 오히려 축소된다).
-    testWidgets('수도권: focus scale / 초기 scale == 1/0.42 (≈2.38)', (
+    testWidgets('수도권: focus scale / 초기 scale == 1/0.72 (≈1.39)', (
       tester,
     ) async {
       _usePhoneSurface(tester);
@@ -462,7 +462,7 @@ void main() {
 
       expect(
         focusCamera.scale / initialCamera.scale,
-        closeTo(1 / 0.42, 0.02),
+        closeTo(1 / 0.72, 0.02),
         reason:
             'focus scale=${focusCamera.scale} / 초기 scale=${initialCamera.scale} '
             '= ${focusCamera.scale / initialCamera.scale} — focus가 초기 화면 '
@@ -633,7 +633,7 @@ void main() {
       );
       expect(
         focusCamera.scale / initialCamera.scale,
-        greaterThanOrEqualTo(1.5),
+        greaterThanOrEqualTo(1.35),
         reason:
             'focus scale=${focusCamera.scale}가 초기 scale='
             '${initialCamera.scale} 대비 충분히 확대되지 않았다',

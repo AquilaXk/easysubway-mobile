@@ -31,6 +31,8 @@ import '../features/stations/data/drift_station_repository.dart';
 import '../features/stations/data/current_location_provider.dart';
 import '../features/stations/data/station_api_repository.dart';
 import '../features/stations/data/server_station_timetable_repository.dart';
+import '../features/stations/data/composite_station_timetable_repository.dart';
+import '../features/stations/data/drift_station_timetable_repository.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/train_search/data/train_search_repository.dart';
 import '../features/train_search/domain/train_search_models.dart';
@@ -168,12 +170,21 @@ class AppDependencies {
       repository: lazyJourneyRepository,
       attestor: resolvedJourneyAttestor,
     );
-    final resolvedStationTimetableRepository =
-        stationTimetableRepository ??
+    final resolvedServerStationTimetableRepository =
         ServerStationTimetableRepository(
           journeyRepository: lazyJourneyRepository,
           sessionProvider: resolvedJourneySessionProvider,
         );
+    final resolvedStationTimetableRepository =
+        stationTimetableRepository ??
+        (catalogDatabase != null
+            ? CompositeStationTimetableRepository(
+                serverRepository: resolvedServerStationTimetableRepository,
+                localRepository: DriftStationTimetableRepository(
+                  database: catalogDatabase,
+                ),
+              )
+            : resolvedServerStationTimetableRepository);
 
     return AppDependencies(
       repository: resolvedStationRepository,

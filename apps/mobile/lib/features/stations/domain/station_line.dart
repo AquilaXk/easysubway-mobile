@@ -142,13 +142,28 @@ String stationLineBadgeText(String name) {
     '경의중앙': '경의중앙',
     '수인분당': '수인분당',
     '신분당': '신분당',
+    '인천 1': '인천1',
     '인천1': '인천1',
+    '인천 2': '인천2',
     '인천2': '인천2',
+    '공항': '공항철도',
+    '의정부': '의정부',
+    '우이신설': '우이신설',
+    '신림': '신림',
+    '에버라인': '에버라인',
+    '김포골드': '김포골드',
+    '부산김해': '부산김해',
+    '대경': '대경',
   };
   for (final entry in knownBadgeLabels.entries) {
     if (name.contains(entry.key)) {
       return entry.value;
     }
+  }
+
+  final gtxMatch = RegExp(r'GTX-[A-Z]', caseSensitive: false).firstMatch(name);
+  if (gtxMatch != null) {
+    return gtxMatch.group(0)!.toUpperCase();
   }
 
   final numberedLine = RegExp(r'(\d+)\s*호선').firstMatch(name);
@@ -159,6 +174,12 @@ String stationLineBadgeText(String name) {
   final compactName = name
       .replaceAll('수도권 ', '')
       .replaceAll('광역 ', '')
+      .replaceAll('도시철도 ', '')
+      .replaceAll('대구 ', '')
+      .replaceAll('부산 ', '')
+      .replaceAll('대전 ', '')
+      .replaceAll('광주 ', '')
+      .replaceAll('경전철', '')
       .replaceAll('선', '')
       .trim();
   if (compactName.length <= 4) {

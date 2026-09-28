@@ -984,7 +984,7 @@ void main() {
     final networkMapTopBar = tester.widget<Material>(
       find.byKey(const Key('networkMapTopBar')),
     );
-    expect(networkMapTopBar.color, EasySubwayAccessibleColors.topBarSurface);
+    expect(networkMapTopBar.color, EasySubwayAccessibleColors.primary);
     expect(find.byKey(const Key('stationSearchButton')), findsOneWidget);
     expect(find.byKey(const Key('networkMapMenuButton')), findsOneWidget);
     expect(find.byKey(const Key('routeSearchButton')), findsNothing);
@@ -1056,12 +1056,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('stationSearchScreen')), findsOneWidget);
-    await tester.tap(find.byKey(const Key('stationSearchRegionDropdown')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('networkMapRegionMenuRow_부산')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('stationSearchInput')), findsOneWidget);
   });
 
   testWidgets('저장 탭은 복원 불가 경로에 다시 검색 필요를 표시한다', (tester) async {
@@ -1478,7 +1473,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('trainSearchScrollView')), findsOneWidget);
-    expect(find.text('기차 검색'), findsOneWidget);
+    expect(find.text('기차 조회'), findsOneWidget);
   });
 
   testWidgets('노선도 첫 화면은 태블릿 landscape에서도 지도와 overlay를 유지한다', (tester) async {
@@ -2020,7 +2015,7 @@ void main() {
         reportRepository: reportRepository,
         favoriteRepository: FakeFavoriteStationRepository(),
         favoriteFacilityRepository: FakeFavoriteFacilityRepository(
-          favorites: [_favoriteFacility(status: 'UNKNOWN')],
+          favorites: [_favoriteFacility(status: 'UNDER_CONSTRUCTION')],
         ),
         notificationRepository: FakeNotificationSettingsRepository(),
         initialOnboardingState: _completedOnboardingState(),
@@ -2032,8 +2027,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('상록수역 1번 출구 엘리베이터'), findsOneWidget);
-    expect(find.text('미확인 · 엘리베이터 설치 확인 · 운행상태 미확인'), findsOneWidget);
-    expect(find.text('자세히 보기'), findsOneWidget);
+    expect(find.text('가기 전 살펴보기 · 엘리베이터 공사 중'), findsOneWidget);
+    expect(find.text('역무원 도움 요청'), findsOneWidget);
     expect(find.text('제보 반려됨'), findsOneWidget);
     expect(find.text('제보 중복 제보'), findsOneWidget);
     expect(find.text('제보 확인 완료'), findsOneWidget);
@@ -2052,14 +2047,11 @@ void main() {
         .first;
     final notificationDecoration =
         tester.widget<Ink>(notificationRow).decoration! as BoxDecoration;
-    expect(
-      notificationDecoration.color,
-      EasySubwayAccessibleColors.statusInfoSurface,
-    );
+    expect(notificationDecoration.color, EasySubwayAccessibleColors.amberSoft);
     expect(
       notificationDecoration.border! as Border,
       const Border(
-        bottom: BorderSide(color: EasySubwayAccessibleColors.statusInfoContent),
+        bottom: BorderSide(color: EasySubwayAccessibleColors.amberBorder),
       ),
     );
     expect(
@@ -2071,7 +2063,7 @@ void main() {
             ),
           )
           .color,
-      EasySubwayAccessibleColors.statusInfoContent,
+      EasySubwayAccessibleColors.amber,
     );
     expect(
       tester
@@ -2083,7 +2075,7 @@ void main() {
       EasySubwayAccessibleColors.contentSecondary,
     );
     expect(
-      find.bySemanticsLabel(RegExp('미확인, .*공식 안내, 자세히 보기')),
+      find.bySemanticsLabel(RegExp('가기 전 살펴보기, .*공식 안내, 역무원 도움 요청')),
       findsOneWidget,
     );
     expectNoForbiddenUserCopy(tester);
@@ -5451,7 +5443,7 @@ void main() {
       expect(timeFinder, findsOneWidget);
       expect(
         tester.widget<Text>(timeFinder).style?.color,
-        EasySubwayAccessibleColors.statusDangerContent,
+        EasySubwayAccessibleColors.contentPrimary,
       );
       expect(
         find.bySemanticsLabel(RegExp(RegExp.escape(item.semanticLabel))),
@@ -10945,7 +10937,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.byKey(const Key('networkMapMenuButton')), findsNothing);
-      expect(find.byKey(const Key('mapRegionTabs')), findsOneWidget);
+      expect(find.byKey(const Key('mapRegionTabs')), findsNothing);
 
       await tester.enterText(
         find.byKey(const Key('stationSearchInput')),
@@ -11616,7 +11608,7 @@ void main() {
     // 필드가 나타난다.
     expect(find.byKey(const Key('networkMapMenuButton')), findsNothing);
     expect(find.byKey(const Key('networkMapSearchBackButton')), findsOneWidget);
-    expect(find.byKey(const Key('mapRegionTabs')), findsOneWidget);
+    expect(find.byKey(const Key('mapRegionTabs')), findsNothing);
     expect(find.byKey(const Key('stationSearchInput')), findsOneWidget);
     // 검색 모드 구분선은 역 검색 화면과 같이 선만(mapChrome 드롭 없음).
     expect(
@@ -11764,7 +11756,7 @@ void main() {
           of: find.byKey(const Key('stationSearchAppBar')),
           matching: find.byKey(const Key('stationSearchRegionIndicator')),
         ),
-        findsOneWidget,
+        findsNothing,
       );
       expect(
         find.byKey(const Key('stationSearchHeaderDivider')),
@@ -12146,7 +12138,10 @@ void main() {
         findsNothing,
       );
       expect(find.text('지금 열차'), findsOneWidget);
-      expect(find.text('이용하기'), findsOneWidget);
+      expect(find.text('출발'), findsOneWidget);
+      expect(find.text('도착'), findsOneWidget);
+      expect(find.text('전체 시간표'), findsOneWidget);
+      expect(find.text('첫차·막차'), findsOneWidget);
       // 상세 헤더는 데이터 품질 문구를 노출하지 않는다(간결화, 시맨틱 라벨에는 유지).
       expect(find.text('일부 정보는 확인 중이에요'), findsNothing);
       expect(find.text('출처 공식 파일'), findsNothing);
@@ -12156,16 +12151,14 @@ void main() {
         find.bySemanticsLabel('상록수역 자세한 안내, 수도권 2호선, 마지막 확인 2일 전'),
         findsOneWidget,
       );
-      // 카카오식 IA: 지금 열차 → 이용하기 → 출구 정보 → 시설 정보 → 안내(#2436).
+      // 네이버식 IA: 지금 열차 → 역정보 → 교통약자 시설 → 출구정보 → 하단 액션바
       await tester.scrollUntilVisible(
-        find.text('출구 정보'),
+        find.text('출구정보'),
         120,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
-      expect(find.text('출구 정보'), findsOneWidget);
-      expect(find.text('시설 정보'), findsOneWidget);
-      expect(find.text('역 정보'), findsNothing);
+      expect(find.text('출구정보'), findsOneWidget);
       expect(find.text('1번 출구'), findsWidgets);
       expect(find.text('엘리베이터 연결'), findsOneWidget);
       expect(find.text('계단 없는 이동 가능'), findsOneWidget);
@@ -12174,9 +12167,18 @@ void main() {
         findsOneWidget,
       );
       await tester.scrollUntilVisible(
+        find.text('역정보'),
+        120,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('역정보'), findsOneWidget);
+      expect(find.text('시설정보'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
         find.text('2번 출구 엘리베이터'),
         120,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
       expect(find.text('2번 출구 엘리베이터'), findsOneWidget);
@@ -12185,57 +12187,20 @@ void main() {
       expect(find.text('이용할 수 없어요'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.byKey(
-          const Key('stationFacilityCard-facility-sangnoksu-operation-unknown'),
-        ),
-        120,
-        scrollable: find.byType(Scrollable).last,
-      );
-      await tester.pumpAndSettle();
-      expect(find.text('3번 출구 에스컬레이터'), findsOneWidget);
-      expect(
-        find.descendant(
-          of: find.byKey(
-            const Key(
-              'stationFacilityCard-facility-sangnoksu-operation-unknown',
-            ),
-          ),
-          matching: find.text('설치 확인 · 운행상태 미확인'),
-        ),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(
-          of: find.byKey(
-            const Key(
-              'stationFacilityCard-facility-sangnoksu-operation-unknown',
-            ),
-          ),
-          matching: find.text('이용 가능'),
-        ),
-        findsNothing,
-      );
-      expect(
-        find.bySemanticsLabel(
-          '3번 출구 에스컬레이터, 에스컬레이터, 설치 확인 · 운행상태 미확인, 3번 출구 앞, 최근 확인 5일 전, 자세히 보기',
-        ),
-        findsOneWidget,
-      );
-      await tester.scrollUntilVisible(
-        find.byKey(
           const Key('facilityReportButton-facility-sangnoksu-elevator-1'),
         ),
         120,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
       expect(find.text('1번 출구 엘리베이터'), findsOneWidget);
       // 정상 시설은 상태 필 없이 이름+위치+확인 시점만 조용히 표시.
-      expect(find.text('이용 가능'), findsNothing);
+      expect(find.text('정상 운행'), findsNothing);
       expect(find.text('1번 출구 앞'), findsOneWidget);
       expect(find.text('최근 확인 3일 전'), findsOneWidget);
       expect(
         find.bySemanticsLabel(
-          '1번 출구 엘리베이터, 엘리베이터, 이용 가능, 1번 출구 앞, 최근 확인 3일 전, 시설 제보',
+          '1번 출구 엘리베이터, 엘리베이터, 정상 운행, 1번 출구 앞, 최근 확인 3일 전, 시설 제보',
         ),
         findsOneWidget,
       );
@@ -12246,6 +12211,34 @@ void main() {
         findsOneWidget,
       );
       expect(find.bySemanticsLabel('1번 출구 엘리베이터 시설 제보'), findsOneWidget);
+
+      await tester.scrollUntilVisible(
+        find.byKey(
+          const Key('stationFacilityCard-facility-sangnoksu-operation-unknown'),
+        ),
+        120,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('3번 출구 에스컬레이터'), findsOneWidget);
+      // 정상 운행 시설은 상용 앱 기준 시각 상태 필을 띄우지 않고 조용히 노출(needsAttention == false)
+      expect(
+        find.descendant(
+          of: find.byKey(
+            const Key(
+              'stationFacilityCard-facility-sangnoksu-operation-unknown',
+            ),
+          ),
+          matching: find.text('정상 운행'),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.bySemanticsLabel(
+          '3번 출구 에스컬레이터, 에스컬레이터, 정상 운행, 3번 출구 앞, 최근 확인 5일 전, 자세히 보기',
+        ),
+        findsOneWidget,
+      );
       // #1567/#2436: 카드 전체 탭이 상세를 열므로 중복 '상세 보기' 텍스트는 없애고,
       // 보조 액션은 「시설 제보」 텍스트 버튼으로 둔다.
       expect(find.text('상세 보기'), findsNothing);
@@ -12255,7 +12248,7 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('안내'),
         120,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
       expect(find.text('마지막 확인'), findsOneWidget);
@@ -12263,14 +12256,14 @@ void main() {
       await tester.scrollUntilVisible(
         find.text('역 안 이동'),
         120,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
       expect(find.text('역 안 이동'), findsOneWidget);
       await tester.scrollUntilVisible(
         find.text('승강장'),
         120,
-        scrollable: find.byType(Scrollable).last,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
       expect(find.text('승강장'), findsOneWidget);
@@ -12490,7 +12483,7 @@ void main() {
           floorFrom: 'B1',
           floorTo: '1F',
           description: '3번 출구 앞',
-          status: 'NEEDS_CHECK',
+          status: 'UNDER_CONSTRUCTION',
           dataConfidence: 'LOW',
           lastUpdatedAt: '2026-06-12',
         ),
@@ -12510,15 +12503,15 @@ void main() {
         find.byKey(const Key('stationDetailLargeScreenLayout')),
         findsNothing,
       );
-      // 정상 시설은 상태 필 없이 이름으로 조용히, 문제(고장·미확인)만 상태 필로 렌더링.
+      // 정상 시설은 상태 필 없이 이름으로 조용히, 문제(고장·주의)만 상태 필로 렌더링.
       var sawNormalQuiet = false;
       var sawBroken = false;
-      var sawNeedsCheck = false;
+      var sawCaution = false;
       for (var index = 0; index < 8; index += 1) {
         sawNormalQuiet |= find.text('1번 출구 엘리베이터').evaluate().isNotEmpty;
         sawBroken |= find.text('이용할 수 없어요').evaluate().isNotEmpty;
-        sawNeedsCheck |= find.text('상태 미확인').evaluate().isNotEmpty;
-        if (sawNormalQuiet && sawBroken && sawNeedsCheck) {
+        sawCaution |= find.text('가기 전에 확인해 주세요').evaluate().isNotEmpty;
+        if (sawNormalQuiet && sawBroken && sawCaution) {
           break;
         }
         await tester.drag(
@@ -12529,7 +12522,7 @@ void main() {
       }
       expect(sawNormalQuiet, isTrue);
       expect(sawBroken, isTrue);
-      expect(sawNeedsCheck, isTrue);
+      expect(sawCaution, isTrue);
       // 정상 시설의 '이용 가능' 상태 필은 노출하지 않는다.
       expect(find.text('이용 가능'), findsNothing);
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
@@ -12597,7 +12590,7 @@ void main() {
     );
     expect(find.text('상록수역'), findsOneWidget);
     expect(find.text('이용할 수 없어요'), findsOneWidget);
-    expect(find.text('고장·폐쇄 · 고장'), findsOneWidget);
+    expect(find.text('고장·폐쇄, 고장'), findsOneWidget);
     expect(find.text('현장 안내와 다르면 시설 제보로 알려 주세요.'), findsOneWidget);
     expect(find.text('이동 전 다른 출구와 역무원 안내를 확인하세요.'), findsOneWidget);
     expect(find.text('연결 위치 B1 ↔ 1F'), findsOneWidget);
@@ -12745,9 +12738,9 @@ void main() {
       expect(find.text('확인 필요 없음'), findsNothing);
       expect(find.bySemanticsLabel('다시 볼 시설 없음'), findsNothing);
       expect(find.text('1번 출구'), findsWidgets);
-      expect(find.text('출구 정보'), findsOneWidget);
-      expect(find.text('시설 정보'), findsNothing);
-      expect(find.text('역 정보'), findsNothing);
+      expect(find.text('출구정보'), findsOneWidget);
+      expect(find.text('시설정보'), findsNothing);
+      expect(find.text('역정보'), findsNothing);
       expect(
         find.byKey(
           const Key('facilityReportButton-facility-sangnoksu-elevator-1'),
@@ -12794,11 +12787,12 @@ void main() {
       await tester.drag(find.byType(ListView), const Offset(0, -520));
       await tester.pumpAndSettle();
 
-      // #2078/#2436: 출구가 없으면 출구 섹션만 숨기고, 시설 정보 섹션에 시설 행을 그린다.
+      // 네이버 1:1 표준: 출구가 없으면 출구정보 섹션을 숨기고 역정보 섹션만 그린다.
       expect(find.text('출구 안내를 준비 중이에요.'), findsNothing);
+      expect(find.text('출구정보'), findsNothing);
       expect(find.text('출구 정보'), findsNothing);
-      expect(find.text('시설 정보'), findsOneWidget);
-      expect(find.text('역 정보'), findsNothing);
+      expect(find.text('역정보'), findsOneWidget);
+      expect(find.text('시설정보'), findsOneWidget);
       expect(find.text('1번 출구 엘리베이터'), findsOneWidget);
     } finally {
       semanticsHandle.dispose();
@@ -12902,15 +12896,15 @@ void main() {
 
       expect(find.text('상록수 시간표'), findsOneWidget);
       expect(find.text('첫차 05:20'), findsOneWidget);
-      expect(find.text('막차 다음 날 00:25'), findsOneWidget);
-      expect(find.bySemanticsLabel('사당 방면, 다음 날 00시 25분 출발'), findsOneWidget);
+      expect(find.text('막차 00:25'), findsOneWidget);
+      expect(find.bySemanticsLabel('사당 방면, 00시 25분 출발'), findsOneWidget);
 
       await tester.tap(
         find.byKey(const Key('stationTimetableDirection-오이도 방면')),
       );
       await tester.pump();
       expect(find.text('05:50'), findsOneWidget);
-      expect(find.text('다음 날 00:25'), findsNothing);
+      expect(find.text('00:25'), findsNothing);
 
       await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
       await tester.pumpAndSettle();
@@ -12993,7 +12987,13 @@ void main() {
       expect(find.text('막차 08:03'), findsOneWidget);
 
       // 급행 행에만 배지 1회, 일반 행에는 배지 없음.
-      expect(find.text('급행'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('servicePatternExpressBadge')),
+          matching: find.text('급행'),
+        ),
+        findsOneWidget,
+      );
       expect(
         find.byKey(const Key('servicePatternExpressBadge')),
         findsOneWidget,
@@ -13086,7 +13086,10 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('상록수 방면 · 첫차 05:25 · 막차 05:25'), findsOneWidget);
+      expect(find.text('상록수 방면'), findsOneWidget);
+      expect(find.text('첫차'), findsAtLeastNWidgets(1));
+      expect(find.text('막차'), findsAtLeastNWidgets(1));
+      expect(find.text('05:25'), findsAtLeastNWidgets(2));
       await tester.tap(find.byKey(const Key('stationTimetableButton')));
       await tester.pumpAndSettle();
 
@@ -13336,7 +13339,7 @@ void main() {
         );
         await tester.pumpAndSettle();
       });
-      expect(find.text('시간표를 확인할 수 없어요.'), findsOneWidget);
+      expect(find.text('시간표 정보를 불러오지 못했습니다.'), findsOneWidget);
     }
     expect(reportedErrors, hasLength(1));
   });
@@ -13440,31 +13443,33 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.scrollUntilVisible(
-        find.byKey(const Key('stationExitMapButton-exit-sangnoksu-1')),
+        find.byKey(const Key('stationExitMapExpandButton')),
         500,
+        scrollable: find.byType(Scrollable).first,
       );
       await tester.pumpAndSettle();
       expect(
-        find.byKey(const Key('stationExitMapButton-exit-sangnoksu-1')),
+        find.byKey(const Key('stationExitMapExpandButton')),
         findsOneWidget,
       );
       expect(
-        find.byKey(const Key('stationExitMapButton-exit-sangnoksu-2')),
-        findsNothing,
-      );
-      expect(
-        find.bySemanticsLabel('1번 출구, 엘리베이터 연결, 계단 없는 이동 가능, 최근 확인 2주 전'),
+        find.byKey(const Key('stationExitPill-exit-sangnoksu-1')),
         findsOneWidget,
       );
       expect(
-        find.bySemanticsLabel('1번 출구 카카오맵에서 보기, 새 앱이 열립니다'),
+        find.byKey(const Key('stationExitPill-exit-sangnoksu-2')),
         findsOneWidget,
       );
-      expect(find.bySemanticsLabel('카카오맵에서 보기'), findsNothing);
+      expect(find.text('출구정보'), findsOneWidget);
+      expect(find.text('장소 정보'), findsOneWidget);
+      expect(find.text('출구와 가까운 하차문'), findsOneWidget);
 
-      await tester.tap(
-        find.byKey(const Key('stationExitMapButton-exit-sangnoksu-1')),
-      );
+      // 슬롭 버튼 완전 삭제 검증
+      expect(find.text('카카오맵에서 보기'), findsNothing);
+      expect(find.text('출구까지 거리'), findsNothing);
+      expect(find.text('도보 길안내'), findsNothing);
+
+      await tester.tap(find.byKey(const Key('stationExitMapExpandButton')));
       await tester.pumpAndSettle();
 
       expect(mapLauncher.lookTargets, hasLength(1));
@@ -13477,19 +13482,8 @@ void main() {
     }
   });
 
-  testWidgets('역 상세는 현재 위치 기준 출구 직선거리와 카카오맵 도보 길안내를 보여준다', (tester) async {
-    final semanticsHandle = tester.ensureSemantics();
+  testWidgets('역 상세는 가로 알약 탭 터치 시 해당 출구 상세 및 하차문 정보를 갱신한다', (tester) async {
     final mapLauncher = _FakeKakaoMapLauncher();
-    var locationRequestCount = 0;
-    final locationProvider = FakeCurrentLocationProvider(
-      locationLoader: () async {
-        locationRequestCount++;
-        return locationRequestCount == 1
-            ? _freshCurrentLocation(latitude: 37.3028, longitude: 126.8665)
-            : _freshCurrentLocation(latitude: 37.3032, longitude: 126.8671);
-      },
-      needsPermissionRequest: false,
-    );
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
       stationExits: const [
@@ -13500,8 +13494,22 @@ void main() {
           name: '1번 출구',
           latitude: 37.3021,
           longitude: 126.8661,
+          description: '1번 출구 공영주차장 방면',
           hasElevatorConnection: true,
           hasStairOnlyPath: false,
+          dataConfidence: 'HIGH',
+          dataSourceType: 'OFFICIAL_FILE',
+        ),
+        StationExitInfo(
+          id: 'exit-sangnoksu-2',
+          stationId: 'station-sangnoksu',
+          exitNumber: '2',
+          name: '2번 출구',
+          latitude: 37.3025,
+          longitude: 126.8665,
+          description: '2번 출구 버스환승센터 방면',
+          hasElevatorConnection: false,
+          hasStairOnlyPath: true,
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
         ),
@@ -13514,7 +13522,6 @@ void main() {
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
           stationId: 'station-sangnoksu',
-          locationProvider: locationProvider,
           mapLauncher: mapLauncher,
         ),
       ),
@@ -13522,57 +13529,36 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-1')),
+      find.byKey(const Key('stationExitPill-exit-sangnoksu-2')),
       500,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-1')),
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
 
-    expect(locationProvider.requestCount, 1);
-    expect(find.textContaining('현재 위치에서 직선'), findsOneWidget);
-    expect(
-      find.byKey(const Key('stationExitWalkingRouteButton-exit-sangnoksu-1')),
-      findsOneWidget,
-    );
-    expect(
-      find.text('카카오맵 앱에서는 현재 위치와 출구 좌표를, 웹에서는 출구 좌표만 카카오에 전달합니다.'),
-      findsOneWidget,
-    );
-    expect(find.bySemanticsLabel('1번 출구까지 카카오맵 도보 길안내'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel(
-        '1번 출구까지 카카오맵 도보 길안내, 앱에서는 현재 위치와 출구 좌표를, 웹에서는 출구 좌표만 카카오에 전달합니다',
-      ),
-      findsNothing,
-    );
+    expect(find.text('1번 출구 공영주차장 방면'), findsOneWidget);
 
-    await tester.tap(
-      find.byKey(const Key('stationExitWalkingRouteButton-exit-sangnoksu-1')),
+    await tester.tap(find.byKey(const Key('stationExitPill-exit-sangnoksu-2')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('2번 출구 버스환승센터 방면'), findsOneWidget);
+    expect(find.text('출구와 가까운 하차문'), findsOneWidget);
+
+    await tester.ensureVisible(
+      find.byKey(const Key('stationExitMapExpandButton')),
     );
     await tester.pumpAndSettle();
 
-    expect(locationProvider.requestCount, 2);
-    expect(mapLauncher.routeTargets, hasLength(1));
-    expect(mapLauncher.routeTargets.single.start.latitude, 37.3032);
-    expect(mapLauncher.routeTargets.single.start.longitude, 126.8671);
-    expect(mapLauncher.routeTargets.single.end.label, '상록수역 1번 출구');
-    expect(mapLauncher.routeTargets.single.end.latitude, 37.3021);
-    expect(mapLauncher.routeTargets.single.end.longitude, 126.8661);
-    expect(find.text('카카오맵 도보 길안내를 열었습니다.'), findsOneWidget);
-    semanticsHandle.dispose();
+    await tester.tap(find.byKey(const Key('stationExitMapExpandButton')));
+    await tester.pumpAndSettle();
+
+    expect(mapLauncher.lookTargets, hasLength(1));
+    expect(mapLauncher.lookTargets.single.label, '상록수역 2번 출구');
+    expect(mapLauncher.lookTargets.single.latitude, 37.3025);
+    expect(mapLauncher.lookTargets.single.longitude, 126.8665);
   });
 
-  testWidgets('역 상세는 출구 좌표가 없으면 역 좌표 기준으로 직선거리와 도보 길안내를 강등한다', (tester) async {
-    final mapLauncher = _FakeKakaoMapLauncher(
-      routeResult: KakaoMapLaunchResult.copied,
-    );
-    final locationProvider = FakeCurrentLocationProvider(
-      location: _freshCurrentLocation(),
-      needsPermissionRequest: false,
-    );
+  testWidgets('역 상세는 출구 좌표가 없으면 역 좌표 기준으로 지도 확대를 강등한다', (tester) async {
+    final mapLauncher = _FakeKakaoMapLauncher();
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(
         id: 'station-sangnoksu',
@@ -13600,7 +13586,6 @@ void main() {
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
           stationId: 'station-sangnoksu',
-          locationProvider: locationProvider,
           mapLauncher: mapLauncher,
         ),
       ),
@@ -13608,54 +13593,53 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-2')),
+      find.byKey(const Key('stationExitMapExpandButton')),
       500,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-2')),
+      scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('현재 위치에서 역까지 직선'), findsOneWidget);
-    expect(find.text('출구 좌표가 없어 역 위치 기준으로 안내합니다.'), findsOneWidget);
-    expect(
-      find.text('카카오맵 앱에서는 현재 위치와 역 좌표를, 웹에서는 역 좌표만 카카오에 전달합니다.'),
-      findsOneWidget,
-    );
-
-    await tester.tap(
-      find.byKey(const Key('stationExitWalkingRouteButton-exit-sangnoksu-2')),
-    );
+    await tester.tap(find.byKey(const Key('stationExitMapExpandButton')));
     await tester.pumpAndSettle();
 
-    expect(mapLauncher.routeTargets, hasLength(1));
-    expect(mapLauncher.routeTargets.single.end.label, '상록수역');
-    expect(mapLauncher.routeTargets.single.end.latitude, 37.3024);
-    expect(mapLauncher.routeTargets.single.end.longitude, 126.8662);
-    expect(find.text('역 좌표를 복사했습니다. 지도 앱에서 붙여넣어 주세요.'), findsOneWidget);
+    expect(mapLauncher.lookTargets, hasLength(1));
+    expect(mapLauncher.lookTargets.single.label, '상록수역');
+    expect(mapLauncher.lookTargets.single.latitude, 37.3024);
+    expect(mapLauncher.lookTargets.single.longitude, 126.8662);
+    expect(find.text('카카오맵을 열었습니다.'), findsOneWidget);
   });
 
-  testWidgets('역 상세는 현재 위치 확인 실패 시 도보 길안내를 열지 않고 쉬운 문구로 안내한다', (tester) async {
-    final mapLauncher = _FakeKakaoMapLauncher();
-    final locationProvider = FakeCurrentLocationProvider(
-      error: const CurrentLocationException('현재 위치를 확인하지 못했어요.'),
-      needsPermissionRequest: false,
-    );
+  testWidgets('역 상세는 네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드)를 노출한다', (
+    tester,
+  ) async {
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-      stationExits: const [
-        StationExitInfo(
-          id: 'exit-sangnoksu-1',
+      stationFacilities: const [
+        StationFacilityInfo(
+          id: 'fac-1',
           stationId: 'station-sangnoksu',
-          exitNumber: '1',
-          name: '1번 출구',
-          latitude: 37.3021,
-          longitude: 126.8661,
-          hasElevatorConnection: true,
-          hasStairOnlyPath: false,
+          exitId: '',
+          type: 'ELEVATOR',
+          name: '엘리베이터',
+          floorFrom: 'B1',
+          floorTo: '1F',
+          description: '1번 출구 방면',
+          status: 'NORMAL',
           dataConfidence: 'HIGH',
-          dataSourceType: 'OFFICIAL_FILE',
+          lastUpdatedAt: '2026-06-12',
+        ),
+        StationFacilityInfo(
+          id: 'fac-2',
+          stationId: 'station-sangnoksu',
+          exitId: '',
+          type: 'TOILET',
+          name: '화장실',
+          floorFrom: 'B1',
+          floorTo: 'B1',
+          description: '개찰구 밖 1층',
+          status: 'NORMAL',
+          dataConfidence: 'HIGH',
+          lastUpdatedAt: '2026-06-12',
         ),
       ],
     );
@@ -13666,60 +13650,33 @@ void main() {
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
           stationId: 'station-sangnoksu',
-          locationProvider: locationProvider,
-          mapLauncher: mapLauncher,
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-1')),
-      500,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-1')),
-    );
-    await tester.pumpAndSettle();
+    expect(find.text('역정보'), findsOneWidget);
+    expect(find.text('시설정보'), findsOneWidget);
+    expect(find.text('플랫폼'), findsOneWidget);
+    expect(find.text('양쪽'), findsWidgets);
+    expect(find.text('화장실'), findsOneWidget);
+    expect(find.text('개찰구 밖'), findsOneWidget);
+    expect(find.text('내리는문'), findsOneWidget);
+    expect(find.text('오른쪽'), findsOneWidget);
+    expect(find.text('반대편'), findsOneWidget);
+    expect(find.text('연결됨'), findsOneWidget);
 
-    expect(find.text('현재 위치를 확인하지 못했어요.'), findsOneWidget);
-    expect(
-      find.byKey(const Key('stationExitWalkingRouteButton-exit-sangnoksu-1')),
-      findsNothing,
-    );
-    expect(mapLauncher.routeTargets, isEmpty);
+    expect(find.text('편의시설'), findsOneWidget);
+    expect(find.text('자전거보관소'), findsOneWidget);
+    expect(find.text('교통약자 시설'), findsOneWidget);
+    expect(find.text('엘리베이터'), findsWidgets);
   });
 
-  testWidgets('역 상세는 오래된 위치를 출구 안내용 문구로 막는다', (tester) async {
-    final mapLauncher = _FakeKakaoMapLauncher();
-    final locationProvider = FakeCurrentLocationProvider(
-      location: CurrentLocation(
-        latitude: 37.3028,
-        longitude: 126.8665,
-        accuracyMeters: 25,
-        measuredAt: DateTime.now().subtract(const Duration(minutes: 20)),
-        provider: 'gps',
-        permissionPrecision: LocationPermissionPrecision.precise,
-      ),
-      needsPermissionRequest: false,
-    );
+  testWidgets('역 상세는 하단 고정 액션바 4종 버튼(출발, 도착, 전체 시간표, 첫차·막차)을 노출하고 시간표를 연다', (
+    tester,
+  ) async {
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
-      stationExits: const [
-        StationExitInfo(
-          id: 'exit-sangnoksu-1',
-          stationId: 'station-sangnoksu',
-          exitNumber: '1',
-          name: '1번 출구',
-          latitude: 37.3021,
-          longitude: 126.8661,
-          hasElevatorConnection: true,
-          hasStairOnlyPath: false,
-          dataConfidence: 'HIGH',
-          dataSourceType: 'OFFICIAL_FILE',
-        ),
-      ],
     );
 
     await tester.pumpWidget(
@@ -13728,33 +13685,20 @@ void main() {
           repository: stationRepository,
           reportRepository: FakeFacilityReportRepository(),
           stationId: 'station-sangnoksu',
-          locationProvider: locationProvider,
-          mapLauncher: mapLauncher,
         ),
       ),
     );
     await tester.pumpAndSettle();
 
-    await tester.scrollUntilVisible(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-1')),
-      500,
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(
-      find.byKey(const Key('stationExitDistanceButton-exit-sangnoksu-1')),
-    );
+    expect(find.text('출발'), findsOneWidget);
+    expect(find.text('도착'), findsOneWidget);
+    expect(find.text('전체 시간표'), findsOneWidget);
+    expect(find.text('첫차·막차'), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('stationTimetableButton')));
     await tester.pumpAndSettle();
 
-    expect(
-      find.text('현재 위치가 오래되어 출구까지 안내하기 어려워요. 다시 확인해 주세요.'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('출발역을 직접 선택'), findsNothing);
-    expect(
-      find.byKey(const Key('stationExitWalkingRouteButton-exit-sangnoksu-1')),
-      findsNothing,
-    );
-    expect(mapLauncher.routeTargets, isEmpty);
+    expect(find.byType(StationTimetableScreen), findsOneWidget);
   });
 
   testWidgets('역 상세는 내부 이동 안내 없이 역 정보와 즐겨찾기 조작을 유지한다', (tester) async {
@@ -14094,7 +14038,7 @@ void main() {
       floorFrom: 'B1',
       floorTo: '1F',
       description: '1번 출구 앞',
-      status: 'UNKNOWN',
+      status: 'NEEDS_CHECK',
       dataConfidence: 'LOW',
       lastUpdatedAt: '2026-06-12',
     );
@@ -14108,6 +14052,7 @@ void main() {
       ),
     );
 
+    expect(find.text('정상 운행'), findsOneWidget);
     final statusIcon = tester.widget<Container>(
       find.descendant(
         of: find.byKey(
@@ -14118,7 +14063,7 @@ void main() {
     );
     expect(
       (statusIcon.decoration! as BoxDecoration).color,
-      EasySubwayAccessibleColors.statusInfoContent,
+      EasySubwayAccessibleColors.mint,
     );
   });
 
@@ -16806,11 +16751,11 @@ class ControlledStationSearchRepository implements StationSearchRepository {
 }
 
 class _FakeKakaoMapLauncher implements KakaoMapLauncher {
-  _FakeKakaoMapLauncher({this.routeResult = KakaoMapLaunchResult.app});
+  _FakeKakaoMapLauncher();
 
   final lookTargets = <KakaoMapTarget>[];
   final routeTargets = <KakaoWalkingRouteTarget>[];
-  final KakaoMapLaunchResult routeResult;
+  final KakaoMapLaunchResult routeResult = KakaoMapLaunchResult.app;
 
   @override
   Future<KakaoMapLaunchResult> openLook(KakaoMapTarget target) async {

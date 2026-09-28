@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../accessible_design.dart';
 import '../domain/facility_status.dart';
@@ -23,26 +24,29 @@ class StationFacilityCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final style = _resolveFacilityStyle(facility);
+    final isToilet =
+        facility.type == 'TOILET' ||
+        facility.type == 'ACCESSIBLE_TOILET' ||
+        facility.name.contains('화장실');
+    final toiletText =
+        '${facility.name} ${facility.description} ${facility.floorFrom}'
+            .toLowerCase();
+    final isInsideGate =
+        toiletText.contains('안쪽') ||
+        toiletText.contains('내부') ||
+        toiletText.contains('운임구역 내') ||
+        toiletText.contains('승강장') ||
+        toiletText.contains('게이트 안') ||
+        toiletText.contains('개찰구 안') ||
+        (toiletText.contains(' 안') && !toiletText.contains('안내'));
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
-      decoration: const BoxDecoration(
-        boxShadow: [
-          BoxShadow(
-            color: EasySubwayAccessibleColors.cardShadow,
-            blurRadius: 4,
-            offset: Offset(0, 1),
-          ),
-        ],
-      ),
       child: Material(
         color: EasySubwayAccessibleColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(
-            color: EasySubwayAccessibleColors.line,
-            width: 1,
-          ),
+          side: BorderSide(color: EasySubwayAccessibleColors.line, width: 1),
         ),
         clipBehavior: Clip.antiAlias,
         child: Column(
@@ -73,11 +77,29 @@ class StationFacilityCard extends StatelessWidget {
                             ),
                           ),
                           child: Center(
-                            child: Icon(
-                              style.icon,
-                              color: style.iconColor,
-                              size: 24,
-                            ),
+                            child: style.svgAsset != null
+                                ? SvgPicture.asset(
+                                    style.svgAsset!,
+                                    width: 24,
+                                    height: 24,
+                                    colorFilter: ColorFilter.mode(
+                                      style.iconColor,
+                                      BlendMode.srcIn,
+                                    ),
+                                  )
+                                : style.pngAsset != null
+                                ? Image.asset(
+                                    style.pngAsset!,
+                                    width: 24,
+                                    height: 24,
+                                    color: style.iconColor,
+                                    colorBlendMode: BlendMode.srcIn,
+                                  )
+                                : Icon(
+                                    style.icon,
+                                    color: style.iconColor,
+                                    size: 24,
+                                  ),
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -90,7 +112,7 @@ class StationFacilityCard extends StatelessWidget {
                                 children: [
                                   Expanded(
                                     child: Text(
-                                      facility.name,
+                                      facility.displayName,
                                       style: textTheme.titleMedium?.copyWith(
                                         color: EasySubwayAccessibleColors.text,
                                         fontWeight: FontWeight.w700,
@@ -99,13 +121,48 @@ class StationFacilityCard extends StatelessWidget {
                                     ),
                                   ),
                                   const SizedBox(width: 8),
-                                  const Icon(
+                                  Icon(
                                     Icons.chevron_right,
                                     color: EasySubwayAccessibleColors.mutedText,
                                     size: 20,
                                   ),
                                 ],
                               ),
+                              if (isToilet) ...[
+                                const SizedBox(height: 6),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6,
+                                    vertical: 2,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: isInsideGate
+                                        ? EasySubwayAccessibleColors
+                                              .surfaceBrandChrome
+                                        : EasySubwayAccessibleColors
+                                              .surfaceSubtle,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: isInsideGate
+                                          ? EasySubwayAccessibleColors.primary
+                                          : EasySubwayAccessibleColors.line,
+                                    ),
+                                  ),
+                                  child: Text(
+                                    isInsideGate
+                                        ? '개찰구 안쪽 (운임구역 내)'
+                                        : '개찰구 바깥쪽 (대합실)',
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isInsideGate
+                                          ? EasySubwayAccessibleColors.primary
+                                          : EasySubwayAccessibleColors
+                                                .secondaryText,
+                                    ),
+                                  ),
+                                ),
+                              ],
                               if (facility.needsAttention) ...[
                                 const SizedBox(height: 6),
                                 Container(
@@ -152,7 +209,7 @@ class StationFacilityCard extends StatelessWidget {
                               const SizedBox(height: 8),
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.place_outlined,
                                     size: 16,
                                     color: EasySubwayAccessibleColors.mutedText,
@@ -174,7 +231,7 @@ class StationFacilityCard extends StatelessWidget {
                               const SizedBox(height: 4),
                               Row(
                                 children: [
-                                  const Icon(
+                                  Icon(
                                     Icons.event_available,
                                     size: 15,
                                     color: EasySubwayAccessibleColors.mutedText,
@@ -214,7 +271,7 @@ class StationFacilityCard extends StatelessWidget {
                 children: [
                   Semantics(
                     container: true,
-                    label: '${facility.name} 시설 제보',
+                    label: '${facility.displayName} 시설 제보',
                     button: true,
                     onTap: onReportTap,
                     child: ExcludeSemantics(
@@ -268,6 +325,8 @@ class _FacilityStyle {
     required this.iconColor,
     required this.iconBgColor,
     required this.iconBorderColor,
+    this.svgAsset,
+    this.pngAsset,
     required this.badgeTextColor,
     required this.badgeBgColor,
     required this.badgeBorderColor,
@@ -275,6 +334,8 @@ class _FacilityStyle {
   });
 
   final IconData icon;
+  final String? svgAsset;
+  final String? pngAsset;
   final Color iconColor;
   final Color iconBgColor;
   final Color iconBorderColor;
@@ -293,16 +354,44 @@ IconData _resolveFacilityIcon(String type) {
     'ACCESSIBLE_TOILET' || 'TOILET' => Icons.wc_outlined,
     'NURSING_ROOM' => Icons.baby_changing_station,
     'CUSTOMER_CENTER' || 'STATION_OFFICE' => Icons.support_agent,
+    'LOST_ITEM' || 'LOST_AND_FOUND' => Icons.find_in_page_outlined,
+    'WHEELCHAIR_CHARGER' ||
+    'CHARGER' ||
+    'CHARGE' => Icons.battery_charging_full,
     _ => Icons.info_outline,
+  };
+}
+
+String? _resolveFacilitySvg(String type) {
+  return switch (type.trim().toUpperCase()) {
+    'ELEVATOR' => 'assets/icons/elevator.svg',
+    'ESCALATOR' => 'assets/icons/escalator.svg',
+    'ACCESSIBLE_TOILET' => 'assets/icons/diabled_toilet.svg',
+    'TOILET' => 'assets/icons/toilet.svg',
+    'NURSING_ROOM' => 'assets/icons/nursing.svg',
+    'LOST_ITEM' || 'LOST_AND_FOUND' => 'assets/icons/lost_item.svg',
+    'WHEELCHAIR_CHARGER' || 'CHARGER' || 'CHARGE' => 'assets/icons/charge.svg',
+    _ => null,
+  };
+}
+
+String? _resolveFacilityPng(String type) {
+  return switch (type.trim().toUpperCase()) {
+    'WHEELCHAIR_LIFT' || 'RAMP' => 'assets/icons/wheelchair.png',
+    _ => null,
   };
 }
 
 _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
   final icon = _resolveFacilityIcon(facility.type);
+  final svgAsset = _resolveFacilitySvg(facility.type);
+  final pngAsset = _resolveFacilityPng(facility.type);
 
   return switch (facility.statusPresentation.severity) {
     FacilityStatusSeverity.blocked => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.red,
       iconBgColor: EasySubwayAccessibleColors.surfaceSubtle,
       iconBorderColor: EasySubwayAccessibleColors.line,
@@ -313,6 +402,8 @@ _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
     ),
     FacilityStatusSeverity.caution => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.amber,
       iconBgColor: EasySubwayAccessibleColors.surfaceSubtle,
       iconBorderColor: EasySubwayAccessibleColors.line,
@@ -323,6 +414,8 @@ _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
     ),
     FacilityStatusSeverity.needsInfo => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.needsInfo,
       iconBgColor: EasySubwayAccessibleColors.surfaceSubtle,
       iconBorderColor: EasySubwayAccessibleColors.line,
@@ -333,6 +426,8 @@ _FacilityStyle _resolveFacilityStyle(StationFacilityInfo facility) {
     ),
     FacilityStatusSeverity.normal => _FacilityStyle(
       icon: icon,
+      svgAsset: svgAsset,
+      pngAsset: pngAsset,
       iconColor: EasySubwayAccessibleColors.primary,
       iconBgColor: EasySubwayAccessibleColors.surfaceBrandChrome,
       iconBorderColor: EasySubwayAccessibleColors.line,

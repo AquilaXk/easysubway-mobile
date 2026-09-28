@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/network_map_
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/search_field.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 Widget _host(Widget child) => MaterialApp(
@@ -199,6 +200,21 @@ void main() {
     );
 
     expect(find.byKey(const Key('networkMapTopBar')), findsOneWidget);
+    final topBarMaterial = tester.widget<Material>(
+      find.byKey(const Key('networkMapTopBar')),
+    );
+    expect(topBarMaterial.color, EasySubwayAccessibleColors.primary);
+    final regionText = tester.widget<Text>(find.text('부산'));
+    expect(
+      regionText.style?.color,
+      EasySubwayAccessibleColors.interactionOnPrimary,
+    );
+    final dropdownIcon = tester.widget<Icon>(
+      find.byIcon(Icons.keyboard_arrow_down_rounded),
+    );
+    expect(dropdownIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
+    final menuIcon = tester.widget<Icon>(find.byIcon(Icons.menu));
+    expect(menuIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
     expect(find.text('부산'), findsOneWidget);
     expect(find.byKey(const Key('networkMapNotificationAction')), findsNothing);
     expect(
@@ -290,6 +306,13 @@ void main() {
     );
 
     expect(find.byKey(const Key('networkMapSearchBackButton')), findsOneWidget);
+    final backIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('networkMapSearchBackButton')),
+        matching: find.byIcon(Icons.arrow_back),
+      ),
+    );
+    expect(backIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
     expect(find.byType(EasySubwaySearchField), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('networkMapSearchBackButton')));
@@ -300,6 +323,43 @@ void main() {
 
     controller.dispose();
     focusNode.dispose();
+  });
+
+  testWidgets('top-bar는 SystemUiOverlayStyle.light 상태바를 지정한다', (tester) async {
+    await tester.pumpWidget(
+      _host(
+        SizedBox(
+          width: 520,
+          child: NetworkMapTopBar(
+            regions: const [NetworkMapRegion(name: '수도권')],
+            selectedRegion: '수도권',
+            onMenuTap: _noop,
+            onSearchTap: _noop,
+            onRegionSelected: (_) {},
+            routeDraftListenable: ValueNotifier(0),
+            routeDraft: () => const RouteDraft.empty(),
+            isWaypointRowVisible: () => false,
+            onClearDraft: _noop,
+            onOpenWaypointSlot: _noop,
+            onClearOrigin: _noop,
+            onClearDestination: _noop,
+            onClearWaypoint: _noop,
+            onReorderDraft: (_, _) {},
+            roleColorForSlot: (_) => Colors.black,
+            lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byWidgetPredicate(
+        (w) =>
+            w is AnnotatedRegion<SystemUiOverlayStyle> &&
+            w.value == SystemUiOverlayStyle.light,
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('outer chrome shell은 map/search와 overlay 가시성을 보존한다', (
@@ -460,6 +520,34 @@ void main() {
     expect(find.byKey(const Key('routeDraftBadge26')), findsOneWidget);
     expect(badgeSizes, containsAll(<double>[26, 30]));
     expect(tester.widget<Text>(find.text('출발역')).style?.color, Colors.blue);
+
+    final draftBackIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('networkMapRouteDraftBackButton')),
+        matching: find.byIcon(Icons.arrow_back),
+      ),
+    );
+    expect(
+      draftBackIcon.color,
+      EasySubwayAccessibleColors.interactionOnPrimary,
+    );
+    final draftAddIcon = tester.widget<Icon>(
+      find.descendant(
+        of: find.byKey(const Key('networkMapRouteDraftAddWaypoint')),
+        matching: find.byIcon(Icons.add),
+      ),
+    );
+    expect(draftAddIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
+    final draftRegionText = tester.widget<Text>(
+      find.descendant(
+        of: find.byKey(const Key('networkMapRouteDraftRegionLabel')),
+        matching: find.text('수도권'),
+      ),
+    );
+    expect(
+      draftRegionText.style?.color,
+      EasySubwayAccessibleColors.interactionOnPrimary,
+    );
 
     final semantics = tester.ensureSemantics();
     expect(find.bySemanticsLabel('지역: 수도권, 변경할 수 없음'), findsOneWidget);

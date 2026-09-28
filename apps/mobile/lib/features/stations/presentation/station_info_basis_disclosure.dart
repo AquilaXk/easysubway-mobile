@@ -43,13 +43,11 @@ class _StationInfoBasisDisclosureState
         ),
         if (_expanded) ...[
           const SizedBox(height: 10),
-          Card(
-            margin: EdgeInsets.zero,
-            elevation: 0,
-            color: EasySubwayAccessibleColors.surfaceDefault,
-            shape: const RoundedRectangleBorder(
+          Container(
+            decoration: BoxDecoration(
+              color: EasySubwayAccessibleColors.surfaceDefault,
               borderRadius: _stationInfoBasisCardRadius,
-              side: BorderSide(color: EasySubwayAccessibleColors.line),
+              border: Border.all(color: EasySubwayAccessibleColors.line),
             ),
             child: Padding(
               padding: const EdgeInsets.all(14),

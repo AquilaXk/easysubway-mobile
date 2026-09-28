@@ -82,7 +82,9 @@ void main() {
     expect(searchField.expands, isFalse);
   });
 
-  testWidgets('#2082 역 검색 화면은 필드 우측에 지역 표시를 두고 필드가 그 앞에서 끝난다', (tester) async {
+  testWidgets('#2082 역 검색 화면은 지역 선택 버튼 없이 검색 필드가 상단바 우측 끝까지 100% 확장된다', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       MaterialApp(
         home: StationSearchScreen(
@@ -95,36 +97,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // #3: 홈과 동일하게 검색 화면 우측에 현재 지역명을 표시한다.
-    final indicator = find.byKey(const Key('stationSearchRegionIndicator'));
-    expect(indicator, findsOneWidget);
-    expect(
-      find.descendant(of: indicator, matching: find.text('수도권')),
-      findsOneWidget,
-    );
-    // 검색 결과 지역 필터용 선택기 — 홈과 같은 화살표 스타일 + 탭 가능.
-    expect(
-      find.descendant(
-        of: indicator,
-        matching: find.byIcon(Icons.keyboard_arrow_down),
-      ),
-      findsOneWidget,
-    );
-    expect(
-      find.byKey(const Key('stationSearchRegionDropdown')),
-      findsOneWidget,
-    );
+    // 상단바에 별도 지역 선택기/드롭다운이 없어야 함
+    expect(find.byKey(const Key('stationSearchRegionIndicator')), findsNothing);
+    expect(find.byKey(const Key('stationSearchRegionDropdown')), findsNothing);
 
-    // #2: 검색 필드가 우측 끝까지 꽉 차지 않고 지역 표시 앞에서 끝난다
-    // (홈 idle [≡ | 필드 | 지역표시] 구성과 정합).
-    final fieldRight = tester
-        .getRect(find.byKey(const Key('heroStationSearchInputBox')))
-        .right;
-    final indicatorLeft = tester.getRect(indicator).left;
-    expect(fieldRight, lessThanOrEqualTo(indicatorLeft));
-
-    // ← 뒤로가기 버튼이 홈 ≡ 슬롯과 같은 위치(필드 왼쪽)에 남는다.
+    // 뒤로가기 버튼과 검색 입력창이 정상 존재해야 함
     expect(find.byKey(const Key('stationSearchBackButton')), findsOneWidget);
+    expect(find.byKey(const Key('heroStationSearchInputBox')), findsOneWidget);
   });
 
   testWidgets('역 검색어를 지우면 결과를 닫고 최근 검색 상태로 돌아간다', (tester) async {
@@ -166,7 +145,7 @@ void main() {
     );
   });
 
-  testWidgets('역 검색 지역 선택은 결과 필터와 함께 홈 노선도 동기화 콜백을 호출한다', (tester) async {
+  testWidgets('역 검색 결과는 현재 주입된 regionLabel(수도권)에 맞춰 필터링된다', (tester) async {
     final repository = _EmptyStationSearchRepository(
       queryResults: {
         '중앙': [
@@ -190,7 +169,6 @@ void main() {
         ],
       },
     );
-    final changedRegions = <String>[];
 
     await tester.pumpWidget(
       MaterialApp(
@@ -198,7 +176,6 @@ void main() {
           repository: repository,
           reportRepository: const UnavailableFacilityReportRepository(),
           regionLabel: '수도권',
-          onRegionChanged: changedRegions.add,
         ),
       ),
     );
@@ -216,73 +193,39 @@ void main() {
       ),
       findsNothing,
     );
-
-    await tester.tap(find.byKey(const Key('stationSearchRegionDropdown')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const ValueKey('networkMapRegionMenuRow_부산')));
-    await tester.pumpAndSettle();
-
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('stationSearchRegionIndicator')),
-        matching: find.text('부산'),
-      ),
-      findsOneWidget,
-    );
-    // 부산 필터: 부산권 역만 남고, 홈 노선도 동기화용 콜백도 같은 지역 키를 받는다.
-    expect(find.text('상록수역'), findsNothing);
-    expect(
-      find.byKey(
-        const Key('stationSearchResult-station-busan-jungang-busan-1'),
-      ),
-      findsOneWidget,
-    );
-    expect(changedRegions, ['부산']);
   });
 
-  testWidgets('출발·도착·경유 중 하나라도 있으면 지역 변경과 ▾을 막는다', (tester) async {
-    final draftController = RouteDraftController()
-      ..setOrigin(const RouteDraftStation(id: 'station-a', nameKo: '상록수'));
-    final changedRegions = <String>[];
-
-    await tester.pumpWidget(
-      MaterialApp(
-        home: StationSearchScreen(
-          repository: _EmptyStationSearchRepository(),
-          reportRepository: const UnavailableFacilityReportRepository(),
-          routeDraftController: draftController,
-          pickSlot: RouteDraftSlot.destination,
-          regionLabel: '수도권',
-          onRegionChanged: changedRegions.add,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
-    expect(find.bySemanticsLabel('지역: 수도권'), findsOneWidget);
-    expect(find.bySemanticsLabel('지역: 수도권, 지역 변경'), findsNothing);
-
-    await tester.tap(find.byKey(const Key('stationSearchRegionDropdown')));
-    await tester.pumpAndSettle();
-    expect(
-      find.byKey(const ValueKey('networkMapRegionMenuRow_부산')),
-      findsNothing,
-    );
-    expect(changedRegions, isEmpty);
-  });
-
-  testWidgets('#2090 수도권 외 지역(부산) 선택 상태에서 열어도 검색 화면 지역 표시가 실제 선택 지역을 따른다', (
+  testWidgets('#2090 수도권 외 지역(부산) 선택 상태에서 열면 부산권 역 검색 결과를 노출한다', (
     tester,
   ) async {
-    // 회귀 방지: 직전 구현은 regionLabel 기본값이 '수도권' 고정이고 호출부가
-    // 실제 선택 지역을 주입하지 않아, 부산 선택 상태에서 검색을 열어도
-    // '수도권'이 잘못 표시됐다. 이제 호출부가 NetworkMapScreen의 현재 선택
-    // 지역 표시명을 regionLabel로 넘기므로 실제 지역 반영 결과를 검증한다.
+    final repository = _EmptyStationSearchRepository(
+      queryResults: {
+        '중앙': [
+          _stationResult(),
+          const StationSearchResult(
+            id: 'station-busan-jungang',
+            nameKo: '중앙',
+            nameEn: 'Jungang',
+            region: '부산권',
+            dataQualityLevel: 'LEVEL_1',
+            lastVerifiedAt: '2026-06-13',
+            lines: [
+              StationSearchLine(
+                id: 'busan-1',
+                name: '부산 1호선',
+                color: '#F73A3A',
+                stationCode: '119',
+              ),
+            ],
+          ),
+        ],
+      },
+    );
+
     await tester.pumpWidget(
       MaterialApp(
         home: StationSearchScreen(
-          repository: _EmptyStationSearchRepository(),
+          repository: repository,
           reportRepository: const UnavailableFacilityReportRepository(),
           pickSlot: RouteDraftSlot.origin,
           regionLabel: '부산',
@@ -291,15 +234,16 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final indicator = find.byKey(const Key('stationSearchRegionIndicator'));
-    expect(indicator, findsOneWidget);
+    await tester.enterText(find.byKey(const Key('stationSearchInput')), '중앙');
+    await tester.testTextInput.receiveAction(TextInputAction.search);
+    await tester.pumpAndSettle();
+
+    // 부산 필터: 부산권 역이 검색 결과에 노출된다.
     expect(
-      find.descendant(of: indicator, matching: find.text('부산')),
+      find.byKey(
+        const Key('stationSearchResult-station-busan-jungang-busan-1'),
+      ),
       findsOneWidget,
-    );
-    expect(
-      find.descendant(of: indicator, matching: find.text('수도권')),
-      findsNothing,
     );
   });
 

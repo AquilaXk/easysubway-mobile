@@ -15,6 +15,8 @@ class NearbyStationLineBar extends StatelessWidget {
     required this.stationName,
     required this.badgeText,
     required this.lineColor,
+    this.badgeBuilder,
+    this.line,
     this.onStationNameTap,
     this.onLeftNameTap,
     this.onRightNameTap,
@@ -26,6 +28,8 @@ class NearbyStationLineBar extends StatelessWidget {
   final String stationName;
   final String badgeText;
   final Color lineColor;
+  final Widget Function(double diameter)? badgeBuilder;
+  final Object? line;
 
   /// 현재 역 이름 탭 → 역 상세. null이면 이름만 표시한다.
   final VoidCallback? onStationNameTap;
@@ -83,11 +87,16 @@ class NearbyStationLineBar extends StatelessWidget {
         final margin = fullWidth * 0.03476;
         final barWidth = fullWidth - margin * 2;
         final barHeight = barWidth * 28 / 348;
-        final centerWidth = barWidth * 0.37069;
+        final nameLen = stationName.length;
+        final centerWidthRatio = nameLen >= 7
+            ? 0.48
+            : (nameLen >= 5 ? 0.43 : 0.37069);
+        final centerWidth = barWidth * centerWidthRatio;
         final endRadius = barHeight / 2;
         final capsuleWidth = centerWidth;
-        final capsuleHeight = capsuleWidth * 41 / 129;
-        final badgeDiameter = capsuleWidth * 0.18;
+        final baseCenterWidth = barWidth * 0.37069;
+        final capsuleHeight = baseCenterWidth * 41 / 129;
+        final badgeDiameter = (capsuleHeight * 0.62).clamp(24.0, 28.0);
         final stationNameSize = (capsuleHeight * 0.42).clamp(16.0, 20.0);
         final bar = Padding(
           padding: const EdgeInsets.only(top: 18),
@@ -128,39 +137,47 @@ class NearbyStationLineBar extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Container(
-                    key: const Key('nearbyStationLineBarCapsule'),
-                    width: capsuleWidth,
-                    height: capsuleHeight,
-                    alignment: Alignment.center,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: capsuleWidth * 0.08,
-                    ),
-                    decoration: BoxDecoration(
-                      color: EasySubwayAccessibleColors.surfaceDefault,
-                      borderRadius: BorderRadius.circular(24),
-                      border: Border.all(color: lineColor, width: 3),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        if (badgeText.isNotEmpty) ...[
-                          _LineBadge(
-                            diameter: badgeDiameter,
-                            color: lineColor,
-                            text: badgeText,
+                  GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTap: onStationNameTap,
+                    child: Container(
+                      key: const Key('nearbyStationLineBarCapsule'),
+                      constraints: BoxConstraints(
+                        minWidth: capsuleWidth,
+                        maxWidth: barWidth * 0.55,
+                      ),
+                      height: capsuleHeight,
+                      alignment: Alignment.center,
+                      padding: EdgeInsets.symmetric(
+                        horizontal: (capsuleWidth * 0.08).clamp(8.0, 14.0),
+                      ),
+                      decoration: BoxDecoration(
+                        color: EasySubwayAccessibleColors.surfaceDefault,
+                        borderRadius: BorderRadius.circular(24),
+                        border: Border.all(color: lineColor, width: 3),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          if (badgeText.isNotEmpty || badgeBuilder != null) ...[
+                            _LineBadge(
+                              diameter: badgeDiameter,
+                              color: lineColor,
+                              text: badgeText,
+                              badgeBuilder: badgeBuilder,
+                            ),
+                            const SizedBox(width: 7),
+                          ],
+                          Flexible(
+                            child: _StationNameLabel(
+                              stationName: stationName,
+                              fontSize: stationNameSize,
+                              onTap: onStationNameTap,
+                            ),
                           ),
-                          const SizedBox(width: 7),
                         ],
-                        Flexible(
-                          child: _StationNameLabel(
-                            stationName: stationName,
-                            fontSize: stationNameSize,
-                            onTap: onStationNameTap,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ],
@@ -187,15 +204,19 @@ class _StationNameLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final text = Text(
-      stationName,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      style: TextStyle(
-        color: EasySubwayAccessibleColors.contentPrimary,
-        fontSize: fontSize,
-        fontWeight: FontWeight.w800,
-        height: 1.1,
+    final text = FittedBox(
+      fit: BoxFit.scaleDown,
+      alignment: Alignment.center,
+      child: Text(
+        stationName,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: EasySubwayAccessibleColors.contentPrimary,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w800,
+          height: 1.1,
+        ),
       ),
     );
     final tap = onTap;
@@ -232,22 +253,68 @@ class _SideName extends StatelessWidget {
     if (value == null || value.isEmpty) {
       return const SizedBox.shrink();
     }
-    final label = Text(
-      value,
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      textAlign: TextAlign.center,
-      style: const TextStyle(
-        color: EasySubwayAccessibleColors.interactionOnPrimary,
-        fontSize: 15,
-        fontWeight: FontWeight.w700,
-      ),
-    );
+    final isLeft = semanticsPrefix == '이전역';
+    final double fontSize = value.length >= 9
+        ? 12.0
+        : (value.length >= 7 ? 13.0 : (value.length >= 5 ? 14.0 : 15.0));
+
+    final content = isLeft
+        ? Row(
+            children: [
+              const SizedBox(width: 8),
+              const Icon(
+                Icons.chevron_left,
+                size: 16,
+                color: EasySubwayAccessibleColors.interactionOnPrimary,
+              ),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.left,
+                  style: TextStyle(
+                    color: EasySubwayAccessibleColors.interactionOnPrimary,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+            ],
+          )
+        : Row(
+            children: [
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  value,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.right,
+                  style: TextStyle(
+                    color: EasySubwayAccessibleColors.interactionOnPrimary,
+                    fontSize: fontSize,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 4),
+              const Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: EasySubwayAccessibleColors.interactionOnPrimary,
+              ),
+              const SizedBox(width: 8),
+            ],
+          );
+
     final tap = onTap;
     if (tap == null) {
       return Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6),
-        child: label,
+        padding: const EdgeInsets.symmetric(horizontal: 2),
+        child: content,
       );
     }
     return Semantics(
@@ -255,16 +322,17 @@ class _SideName extends StatelessWidget {
       label: '$semanticsPrefix $value',
       child: InkWell(
         key: Key(
-          semanticsPrefix == '이전역'
+          isLeft
               ? 'nearbyStationLineBarLeftName'
               : 'nearbyStationLineBarRightName',
         ),
         onTap: tap,
+        borderRadius: BorderRadius.circular(8),
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 48),
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 6),
-            child: Center(child: label),
+            padding: const EdgeInsets.symmetric(horizontal: 2),
+            child: content,
           ),
         ),
       ),
@@ -277,33 +345,64 @@ class _LineBadge extends StatelessWidget {
     required this.diameter,
     required this.color,
     required this.text,
+    this.badgeBuilder,
   });
 
   final double diameter;
   final Color color;
   final String text;
+  final Widget Function(double diameter)? badgeBuilder;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: diameter,
-      height: diameter,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-      child: Padding(
-        padding: EdgeInsets.all(diameter * 0.12),
-        child: FittedBox(
-          fit: BoxFit.scaleDown,
-          child: Text(
-            text,
-            maxLines: 1,
-            style: const TextStyle(
-              color: EasySubwayAccessibleColors.interactionOnPrimary,
-              fontSize: 14,
-              fontWeight: FontWeight.w800,
-              height: 1.0,
-            ),
+    if (badgeBuilder != null) {
+      return badgeBuilder!(diameter);
+    }
+    final displayText = text;
+
+    final isSingleChar = displayText.length <= 1;
+
+    if (isSingleChar) {
+      return Container(
+        key: const Key('nearbyStationLineBarBadge'),
+        width: diameter,
+        height: diameter,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        child: Text(
+          displayText,
+          textAlign: TextAlign.center,
+          maxLines: 1,
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.interactionOnPrimary,
+            fontSize: diameter * 0.58,
+            fontWeight: FontWeight.w800,
+            height: 1.0,
           ),
+        ),
+      );
+    }
+
+    return Container(
+      key: const Key('nearbyStationLineBarBadge'),
+      height: diameter,
+      constraints: BoxConstraints(minWidth: diameter),
+      alignment: Alignment.center,
+      padding: EdgeInsets.symmetric(horizontal: diameter * 0.28),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(diameter / 2),
+      ),
+      child: Text(
+        displayText,
+        textAlign: TextAlign.center,
+        maxLines: 1,
+        style: TextStyle(
+          color: EasySubwayAccessibleColors.interactionOnPrimary,
+          fontSize: diameter * 0.44,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
+          height: 1.0,
         ),
       ),
     );

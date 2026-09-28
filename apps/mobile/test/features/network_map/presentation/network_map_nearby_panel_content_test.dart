@@ -250,4 +250,46 @@ void main() {
     await tester.tap(right);
     await tester.pump();
   });
+
+  testWidgets('NetworkMapScreen 주변역 패널은 실시간/시간표 토글을 처리한다', (tester) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final routeDraftController = RouteDraftController();
+    addTearDown(routeDraftController.dispose);
+    StationSearchResult? focusStationRequest;
+    late StateSetter updateHost;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StatefulBuilder(
+          builder: (context, setState) {
+            updateHost = setState;
+            return NetworkMapScreen(
+              repository: const _MapRepository(),
+              routeDraftController: routeDraftController,
+              onOpenStationSearch: (_, _) {},
+              focusStationRequest: focusStationRequest,
+            );
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 패널 열기
+    updateHost(() => focusStationRequest = _focusedStation);
+    await tester.pumpAndSettle();
+
+    // 실시간 / 시간표 토글 버튼 탭
+    final toggle = find.byKey(const Key('networkMapNearbyDataSourceToggle'));
+    if (toggle.evaluate().isNotEmpty) {
+      await tester.tap(find.text('시간표'));
+      await tester.pumpAndSettle();
+
+      // 다시 토글
+      await tester.tap(find.text('실시간'));
+      await tester.pumpAndSettle();
+    }
+  });
 }

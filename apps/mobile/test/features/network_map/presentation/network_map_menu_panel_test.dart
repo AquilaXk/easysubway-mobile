@@ -121,7 +121,7 @@ void main() {
 
     final semantics = tester.ensureSemantics();
     expect(find.bySemanticsLabel('역 검색'), findsOneWidget);
-    expect(find.bySemanticsLabel('기차 검색'), findsOneWidget);
+    expect(find.bySemanticsLabel('기차 조회'), findsOneWidget);
     expect(find.bySemanticsLabel('즐겨찾기'), findsOneWidget);
     expect(find.bySemanticsLabel('설정'), findsOneWidget);
     expect(find.bySemanticsLabel('공지사항'), findsOneWidget);

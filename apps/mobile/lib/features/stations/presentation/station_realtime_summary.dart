@@ -1,22 +1,23 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
-import '../../../design_tokens.dart';
 import '../../realtime/realtime_repository.dart';
 
-const _stationRealtimeSummaryRadius = BorderRadius.all(
-  Radius.circular(EasySubwayRadius.sheet),
-);
+const _stationRealtimeSummaryRadius = BorderRadius.all(Radius.circular(8));
 
 class StationRealtimeSummary extends StatelessWidget {
   const StationRealtimeSummary({
     required this.snapshot,
     required this.onRetry,
+    this.previousStation,
+    this.nextStation,
     super.key,
   });
 
   final RealtimeSnapshot snapshot;
   final VoidCallback onRetry;
+  final String? previousStation;
+  final String? nextStation;
 
   @override
   Widget build(BuildContext context) {
@@ -77,17 +78,40 @@ class StationRealtimeSummary extends StatelessWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
-            Text(
-              summary,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: EasySubwayAccessibleColors.text,
-                height: 1.35,
-                fontWeight: FontWeight.w700,
+            if (snapshot.arrivals.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              for (final group in _groupRealtimeArrivals(
+                snapshot.arrivals,
+                previousStation: previousStation,
+                nextStation: nextStation,
+              )) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 8, bottom: 4),
+                  child: Text(
+                    group.direction,
+                    style: const TextStyle(
+                      color: EasySubwayAccessibleColors.secondaryText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+                for (final arrival in group.arrivals)
+                  _StationRealtimeRow(arrival: arrival),
+              ],
+            ] else ...[
+              const SizedBox(height: 8),
+              Text(
+                summary,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: EasySubwayAccessibleColors.text,
+                  height: 1.35,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
-            ),
+            ],
             if (updatedLabel.isNotEmpty) ...[
-              const SizedBox(height: 6),
+              const SizedBox(height: 8),
               Text(
                 updatedLabel,
                 style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -110,6 +134,233 @@ class StationRealtimeSummary extends StatelessWidget {
             ],
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _RealtimeGroup {
+  const _RealtimeGroup({required this.direction, required this.arrivals});
+  final String direction;
+  final List<RealtimeArrival> arrivals;
+}
+
+List<_RealtimeGroup> _groupRealtimeArrivals(
+  List<RealtimeArrival> arrivals, {
+  String? previousStation,
+  String? nextStation,
+}) {
+  final map = <String, List<RealtimeArrival>>{};
+  final prev = previousStation?.trim();
+  final next = nextStation?.trim();
+
+  for (final arrival in arrivals) {
+    final rawDir = arrival.direction.trim();
+    final dest = arrival.destination.trim();
+    final isUp =
+        rawDir.contains('상행') ||
+        rawDir.contains('내선') ||
+        rawDir.contains('진접') ||
+        rawDir.contains('당고개') ||
+        dest.contains('진접') ||
+        dest.contains('당고개') ||
+        dest.contains('사당') ||
+        dest.contains('서울역') ||
+        dest.contains('청량리');
+    final isDown =
+        rawDir.contains('하행') ||
+        rawDir.contains('외선') ||
+        rawDir.contains('오이도') ||
+        dest.contains('오이도') ||
+        dest.contains('안산') ||
+        dest.contains('인천');
+
+    String dir;
+    if (prev != null &&
+        prev.isNotEmpty &&
+        (rawDir.contains(prev) || dest.contains(prev) || isUp)) {
+      dir = '$prev 방면';
+    } else if (next != null &&
+        next.isNotEmpty &&
+        (rawDir.contains(next) || dest.contains(next) || isDown)) {
+      dir = '$next 방면';
+    } else if (rawDir.isNotEmpty) {
+      dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+    } else if (dest.isNotEmpty) {
+      final cleanDest = dest.endsWith('행')
+          ? dest.substring(0, dest.length - 1)
+          : dest;
+      dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
+    } else {
+      dir = '열차 도착';
+    }
+    map.putIfAbsent(dir, () => []).add(arrival);
+  }
+  return [
+    for (final entry in map.entries)
+      _RealtimeGroup(direction: entry.key, arrivals: entry.value),
+  ];
+}
+
+class _StationRealtimeRow extends StatelessWidget {
+  const _StationRealtimeRow({required this.arrival});
+  final RealtimeArrival arrival;
+
+  @override
+  Widget build(BuildContext context) {
+    final eta = arrival.etaSeconds;
+    final pos = arrival.positionMessage.trim();
+    final msg = arrival.message.trim();
+
+    final String etaText;
+    final bool isSoon;
+    if (eta != null && eta > 0) {
+      if (eta < 60) {
+        etaText = '곧 도착';
+        isSoon = true;
+      } else if (eta <= 3600) {
+        final minutes = (eta / 60).round();
+        if (minutes <= 0) {
+          etaText = '곧 도착';
+          isSoon = true;
+        } else {
+          etaText = '$minutes분 뒤 도착';
+          isSoon = false;
+        }
+      } else {
+        final hours = eta ~/ 3600;
+        final minutes = (eta % 3600) ~/ 60;
+        etaText = minutes == 0 ? '$hours시간 뒤 도착' : '$hours시간 $minutes분 뒤 도착';
+        isSoon = false;
+      }
+    } else if (msg == '곧 도착' ||
+        msg.contains('당역') ||
+        (!msg.contains('전역') && (msg.contains('도착') || msg.contains('진입')))) {
+      etaText = '곧 도착';
+      isSoon = true;
+    } else if (msg.contains('전역')) {
+      etaText = msg.isNotEmpty ? msg : (pos.isNotEmpty ? pos : '전역 도착');
+      isSoon = false;
+    } else if (pos.isNotEmpty) {
+      etaText = pos;
+      isSoon = false;
+    } else {
+      etaText = msg.isNotEmpty ? msg : '곧 도착';
+      isSoon = etaText == '곧 도착';
+    }
+
+    final cleanDest = arrival.destination.trim().isNotEmpty
+        ? arrival.destination.trim()
+        : arrival.direction.replaceAll('방면', '').trim();
+    final destination = cleanDest.isEmpty
+        ? '열차'
+        : (cleanDest.endsWith('행') ? cleanDest : '$cleanDest행');
+
+    final isWarning =
+        !isSoon &&
+        (etaText == '1분 뒤 도착' ||
+            etaText == '2분 뒤 도착' ||
+            etaText == '3분 뒤 도착' ||
+            etaText.startsWith('1분') ||
+            etaText.startsWith('2분') ||
+            etaText.startsWith('3분') ||
+            (eta != null && eta > 0 && eta <= 180));
+    final isPrevStation =
+        !isSoon &&
+        !isWarning &&
+        (etaText.contains('전역') || pos.contains('전역') || msg.contains('전역'));
+    final Color badgeBg;
+    final Color badgeBorder;
+    final Color badgeText;
+    if (isSoon) {
+      badgeBg = EasySubwayColorPrimitives.statusDangerSoft;
+      badgeBorder = EasySubwayColorPrimitives.statusDanger;
+      badgeText = EasySubwayColorPrimitives.statusDanger;
+    } else if (isWarning) {
+      badgeBg = EasySubwayAccessibleColors.statusWarningSurface;
+      badgeBorder = EasySubwayAccessibleColors.amberBorder;
+      badgeText = EasySubwayAccessibleColors.amber;
+    } else if (isPrevStation) {
+      badgeBg = EasySubwayAccessibleColors.surfaceBrand;
+      badgeBorder = EasySubwayAccessibleColors.brandSignatureMedium;
+      badgeText = EasySubwayAccessibleColors.primary;
+    } else {
+      badgeBg = EasySubwayAccessibleColors.surfaceDefault;
+      badgeBorder = EasySubwayAccessibleColors.line;
+      badgeText = EasySubwayAccessibleColors.text;
+    }
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: EasySubwayAccessibleColors.surfaceDefault,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: EasySubwayAccessibleColors.line),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.subway_rounded,
+            size: 18,
+            color: isSoon
+                ? EasySubwayColorPrimitives.statusDanger
+                : (isWarning
+                      ? EasySubwayAccessibleColors.amber
+                      : EasySubwayAccessibleColors.primary),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              destination,
+              style: const TextStyle(
+                color: EasySubwayAccessibleColors.text,
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          () {
+            final statusSubtext = pos.isNotEmpty
+                ? (msg.isNotEmpty && msg != pos && !msg.contains('도착')
+                      ? '$pos ($msg)'
+                      : pos)
+                : (msg.isNotEmpty && msg != etaText ? msg : '');
+            if (statusSubtext.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  statusSubtext,
+                  style: const TextStyle(
+                    color: EasySubwayAccessibleColors.secondaryText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            );
+          }(),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            decoration: BoxDecoration(
+              color: badgeBg,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: badgeBorder),
+            ),
+            child: Text(
+              etaText,
+              style: TextStyle(
+                color: badgeText,
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

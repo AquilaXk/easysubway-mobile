@@ -7,7 +7,7 @@ import '../application/station_detail_controller.dart';
 import '../domain/station_models.dart';
 
 const _stationDetailActionButtonRadius = BorderRadius.all(
-  Radius.circular(EasySubwayRadius.card),
+  Radius.circular(EasySubwayRadius.control),
 );
 
 class StationDetailRouteActions extends StatelessWidget {
@@ -34,6 +34,10 @@ class StationDetailRouteActions extends StatelessWidget {
           key: const Key('stationDetailSetOriginButton'),
           icon: Icons.trip_origin,
           label: '출발',
+          backgroundColor: EasySubwayAccessibleColors.surfaceBrandChrome,
+          foregroundColor: EasySubwayAccessibleColors.interactionPrimary,
+          borderColor: EasySubwayAccessibleColors.interactionSecondaryBorder,
+          iconColor: EasySubwayAccessibleColors.interactionPrimary,
           onPressed: () {
             draftController.setOrigin(station);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -45,6 +49,10 @@ class StationDetailRouteActions extends StatelessWidget {
           key: const Key('stationDetailSetDestinationButton'),
           icon: Icons.flag_outlined,
           label: '도착',
+          backgroundColor: EasySubwayAccessibleColors.statusDangerSurface,
+          foregroundColor: EasySubwayAccessibleColors.statusDangerContent,
+          borderColor: EasySubwayAccessibleColors.statusDangerContent,
+          iconColor: EasySubwayAccessibleColors.statusDangerContent,
           onPressed: () {
             draftController.setDestination(station);
             ScaffoldMessenger.of(context).showSnackBar(
@@ -62,7 +70,7 @@ class StationDetailRouteActions extends StatelessWidget {
     return Row(
       children: [
         for (var i = 0; i < buttons.length; i++) ...[
-          if (i > 0) const SizedBox(width: 10),
+          if (i > 0) const SizedBox(width: 8),
           Expanded(child: buttons[i]),
         ],
       ],
@@ -127,6 +135,18 @@ class _StationFavoriteButton extends StatelessWidget {
               key: const Key('stationFavoriteToggleButton'),
               icon: isFavorite ? Icons.star : Icons.star_border,
               label: label,
+              backgroundColor: isFavorite
+                  ? EasySubwayAccessibleColors.statusWarningSurface
+                  : EasySubwayAccessibleColors.surfaceSubtle,
+              foregroundColor: isFavorite
+                  ? EasySubwayAccessibleColors.statusWarningContent
+                  : EasySubwayAccessibleColors.contentSecondary,
+              borderColor: isFavorite
+                  ? EasySubwayAccessibleColors.statusWarningContent
+                  : EasySubwayAccessibleColors.borderSubtle,
+              iconColor: isFavorite
+                  ? EasySubwayAccessibleColors.statusWarningContent
+                  : EasySubwayAccessibleColors.contentMuted,
               onPressed: onPressed,
             ),
           ),
@@ -141,28 +161,41 @@ class _StationPointButton extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.backgroundColor,
+    this.foregroundColor,
+    this.borderColor,
+    this.iconColor,
     super.key,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback? onPressed;
+  final Color? backgroundColor;
+  final Color? foregroundColor;
+  final Color? borderColor;
+  final Color? iconColor;
 
   @override
   Widget build(BuildContext context) {
+    final fg = foregroundColor ?? EasySubwayAccessibleColors.primary;
     return OutlinedButton.icon(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
         minimumSize: const Size.fromHeight(EasySubwayTouchTarget.general),
-        backgroundColor: EasySubwayAccessibleColors.surfaceDefault,
-        foregroundColor: EasySubwayAccessibleColors.primary,
-        side: const BorderSide(color: EasySubwayAccessibleColors.line),
+        backgroundColor:
+            backgroundColor ?? EasySubwayAccessibleColors.surfaceDefault,
+        foregroundColor: fg,
+        side: BorderSide(
+          color: borderColor ?? EasySubwayAccessibleColors.line,
+          width: 1.2,
+        ),
         shape: const RoundedRectangleBorder(
           borderRadius: _stationDetailActionButtonRadius,
         ),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
       ),
-      icon: Icon(icon, size: 22),
+      icon: Icon(icon, size: 20, color: iconColor ?? fg),
       label: Text(label),
     );
   }

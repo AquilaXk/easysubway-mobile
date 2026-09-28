@@ -58,6 +58,7 @@ RealtimeSnapshot _realtime(RealtimeSnapshotStatus status) {
         trainNo: 'T1',
         etaSeconds: 90,
         message: '곧 도착',
+        positionMessage: '신길온천',
       ),
     ],
   );
@@ -144,6 +145,7 @@ void main() {
       expect(arrivalPanel.data.arrivals.single.destination, '종점');
       expect(arrivalPanel.data.arrivals.single.etaSeconds, 90);
       expect(arrivalPanel.data.arrivals.single.message, '곧 도착');
+      expect(arrivalPanel.data.arrivals.single.positionMessage, '신길온천');
 
       stationBar.onStationNameTap?.call();
       stationBar.onLeftNameTap?.call();

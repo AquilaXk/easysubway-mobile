@@ -748,7 +748,13 @@ class _NotificationSettingsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('알림 설정')),
+      appBar: AppBar(
+        title: const Text('알림 설정'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
+      ),
       body: SafeArea(
         child: AnimatedBuilder(
           animation: _controller,

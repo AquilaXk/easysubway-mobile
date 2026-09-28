@@ -180,9 +180,18 @@ class _UserDataDeletionScreenState extends State<UserDataDeletionScreen> {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('userDataDeletionAppBar'),
-        title: Text(copy.title),
+        title: Text(
+          copy.title,
+          style: const TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -200,12 +209,12 @@ class _UserDataDeletionScreenState extends State<UserDataDeletionScreen> {
           icon: const Icon(
             Icons.arrow_back,
             size: 26,
-            color: EasySubwayAccessibleColors.contentPrimary,
+            color: EasySubwayAccessibleColors.onPrimary,
           ),
         ),
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(
+          child: EasySubwayHeaderDivider.mapChrome(
             key: Key('userDataDeletionHeaderDivider'),
           ),
         ),
@@ -351,15 +360,24 @@ class UserDataDeletionResultScreen extends StatelessWidget {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('userDataDeletionResultAppBar'),
-        title: const Text('삭제 완료'),
+        title: const Text(
+          '삭제 완료',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(
+          child: EasySubwayHeaderDivider.mapChrome(
             key: Key('userDataDeletionResultHeaderDivider'),
           ),
         ),

@@ -11,6 +11,7 @@ import '../features/stations/domain/station_line.dart';
 import '../features/stations/domain/station_models.dart';
 import '../features/stations/presentation/service_pattern_badge.dart';
 import '../features/stations/presentation/station_detail_body.dart';
+import '../features/stations/presentation/station_line_badges.dart';
 
 /// Network Map adjacent identity를 Station Detail app-composition 값으로 바꾼다.
 StationDetailNeighbor? networkMapStationDetailNeighbor(
@@ -51,6 +52,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
   VoidCallback? onOpenStationDetail,
   ValueChanged<StationDetailNeighbor>? onSelectNeighbor,
   VoidCallback? onSelectTimetable,
+  DateTime? now,
 }) {
   final primary = results.first;
   final selectedLine = networkMapNearbySelectedLine(primary, selectedLineId);
@@ -67,6 +69,10 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
       stationName: primary.nameKo,
       badgeText: selectedLine?.badgeText ?? '',
       lineColor: lineColor,
+      badgeBuilder: selectedLine == null
+          ? null
+          : (diameter) => StationLineBadge(line: selectedLine, size: diameter),
+      line: selectedLine,
       onStationNameTap: onOpenStationDetail,
       onLeftNameTap: selectNeighbor == null || previous == null
           ? null
@@ -91,6 +97,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
                     destination: arrival.destination,
                     etaSeconds: arrival.etaSeconds,
                     message: arrival.message,
+                    positionMessage: arrival.positionMessage,
                   ),
               ],
             ),
@@ -98,6 +105,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
             onSelectTimetable: onSelectTimetable,
+            now: now,
           )
         : NearbyTimetablePanel(
             data: _networkMapNearbyTimetablePanelData(timetable),
@@ -105,6 +113,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
             expressBadgeBuilder: () => const ServicePatternBadge.express(),
+            now: now,
           ),
   );
 }
@@ -141,6 +150,7 @@ NearbyTimetablePanelData? _networkMapNearbyTimetablePanelData(
                 timeLabel: departure.timeLabel,
                 semanticLabel: departure.semanticLabel,
                 isExpress: departure.isExpress,
+                destination: departure.destination,
               ),
           ],
         ),

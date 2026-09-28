@@ -37,9 +37,18 @@ class _MyFacilityReportListScreenState
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('myReportsAppBar'),
-        title: const Text('내 제보'),
+        title: const Text(
+          '내 제보',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -55,12 +64,14 @@ class _MyFacilityReportListScreenState
           icon: const Icon(
             Icons.arrow_back,
             size: 26,
-            color: EasySubwayAccessibleColors.contentPrimary,
+            color: EasySubwayAccessibleColors.onPrimary,
           ),
         ),
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(key: Key('myReportsHeaderDivider')),
+          child: EasySubwayHeaderDivider.mapChrome(
+            key: Key('myReportsHeaderDivider'),
+          ),
         ),
       ),
       body: SafeArea(
@@ -323,9 +334,18 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         key: const Key('myReportDetailAppBar'),
-        title: const Text('제보 상세'),
+        title: const Text(
+          '제보 상세',
+          style: TextStyle(
+            color: EasySubwayAccessibleColors.onPrimary,
+            fontSize: 21,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.3,
+          ),
+        ),
         toolbarHeight: 60,
-        backgroundColor: EasySubwayAccessibleColors.topBarSurface,
+        backgroundColor: EasySubwayAccessibleColors.primary,
+        foregroundColor: EasySubwayAccessibleColors.onPrimary,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
@@ -341,12 +361,12 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
           icon: const Icon(
             Icons.arrow_back,
             size: 26,
-            color: EasySubwayAccessibleColors.contentPrimary,
+            color: EasySubwayAccessibleColors.onPrimary,
           ),
         ),
         flexibleSpace: const Align(
           alignment: Alignment.bottomCenter,
-          child: EasySubwayHeaderDivider(
+          child: EasySubwayHeaderDivider.mapChrome(
             key: Key('myReportDetailHeaderDivider'),
           ),
         ),

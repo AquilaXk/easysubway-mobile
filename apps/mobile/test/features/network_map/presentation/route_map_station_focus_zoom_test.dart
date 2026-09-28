@@ -57,23 +57,23 @@ void main() {
           reason: '$label focus는 확대(scale↑)돼야 하는데 pan만 됨',
         );
         // 역이 식별 가능한 수준까지 확실히 확대돼야 한다(미세 확대는 실기기에서
-        // 체감되지 않는다). 최소 1.5배 이상 확대.
+        // 체감되지 않는다). 상용 서비스 황금 비율 약 1.35~1.45배 확대.
         expect(
           focusCamera.scale / initialCamera.scale,
-          greaterThanOrEqualTo(1.5),
+          greaterThanOrEqualTo(1.35),
           reason: '$label focus 확대율이 너무 작아 역 식별이 어려움',
         );
       });
     });
 
-    test('초소형 지역(초기 scale이 _maxMapScale 근접)은 확대율이 2.38배보다 줄어든다 '
+    test('초소형 지역(초기 scale이 _maxMapScale 근접)은 확대율이 1.39배보다 줄어든다 '
         '(상한 saturation, pan-only 퇴행은 아님)', () {
-      // 초기 화면 bounds가 매우 작아 초기 scale 자체가 4.8/0.42≈2.02를
+      // 초기 화면 bounds가 매우 작아 초기 scale 자체가 4.8 * 0.72 ≈ 3.456을
       // 넘는 경우: focus scale은 4.8에서 saturate돼 확대율이 기본
-      // 2.38배보다 작아진다. 이 케이스는 여전히 확대(ratio>1)는 되지만
+      // 1.39배보다 작아진다. 이 케이스는 여전히 확대(ratio>1)는 되지만
       // 그 폭이 줄어드는 정직한 상한 상호작용을 고정한다(성능을 부풀리지
       // 않음).
-      const initialBounds = Rect.fromLTWH(1500, 1500, 400, 300);
+      const initialBounds = Rect.fromLTWH(1500, 1500, 270, 200);
       final initialCamera = networkMapInitialCameraForRegion(
         regionBounds: initialBounds,
         fullBounds: fullBounds,
@@ -86,12 +86,12 @@ void main() {
         viewport: viewport,
       );
 
-      expect(initialCamera.scale, closeTo(2.7, 1e-9));
+      expect(initialCamera.scale, closeTo(4.0, 1e-9));
       expect(focusCamera.scale, closeTo(_maxMapScaleForTest, 1e-9));
       expect(
         focusCamera.scale / initialCamera.scale,
-        closeTo(1.7777777777777777, 1e-9),
-        reason: '_maxMapScale saturation으로 확대율이 2.38배 미만으로 줄어야 함',
+        closeTo(1.2, 1e-9),
+        reason: '_maxMapScale saturation으로 확대율이 1.39배 미만으로 줄어야 함',
       );
     });
 

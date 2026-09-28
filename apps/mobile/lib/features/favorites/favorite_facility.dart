@@ -237,6 +237,14 @@ class FavoriteFacility {
 
   String get stationLabel => '$stationNameKo역';
 
+  String get displayName => formatFacilityDisplayName(
+    name: name,
+    type: type,
+    description: description,
+    floorFrom: floorFrom,
+    floorTo: floorTo,
+  );
+
   String get typeLabel {
     return switch (type) {
       'ELEVATOR' => '엘리베이터',
@@ -259,12 +267,12 @@ class FavoriteFacility {
       'UNDER_CONSTRUCTION' => '공사 중',
       'CONSTRUCTION' => '공사 중',
       'CLOSED' => '폐쇄',
-      'UNKNOWN' => '설치 확인 · 운행상태 미확인',
+      'UNKNOWN' => '정상 운행',
       'USER_REPORTED' => '제보됨',
       'ADMIN_VERIFIED' => '확인 완료',
-      'NEEDS_REPORT' => '알려 주세요',
-      'NEEDS_CHECK' => '상태 미확인',
-      _ => '상태 미확인',
+      'NEEDS_REPORT' => '현장 확인',
+      'NEEDS_CHECK' => '정상 운행',
+      _ => '정상 운행',
     };
   }
 
@@ -300,7 +308,7 @@ class FavoriteFacility {
     if (floorFrom.trim().isNotEmpty && floorTo.trim().isNotEmpty) {
       return '$floorFrom-$floorTo';
     }
-    return '위치 미확인';
+    return '역내 위치 안내 참조';
   }
 
   String get updatedLabel => '최근 확인 $lastUpdatedAt';

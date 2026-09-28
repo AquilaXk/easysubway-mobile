@@ -48,6 +48,10 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('알림'),
+        flexibleSpace: const Align(
+          alignment: Alignment.bottomCenter,
+          child: EasySubwayHeaderDivider.mapChrome(),
+        ),
         actions: [
           if (widget.notificationRepository != null)
             IconButton(
@@ -230,9 +234,9 @@ class _NotificationInboxItem {
   });
 
   factory _NotificationInboxItem.facility(FavoriteFacility facility) {
-    final name = facility.name.trim().isEmpty
+    final name = facility.displayName.trim().isEmpty
         ? facility.typeLabel
-        : facility.name;
+        : facility.displayName;
     // 출처 라벨이 비어 있을 수 있어(무표시) 빈 값은 걸러 Semantics에 ", ," 유령
     // 세그먼트를 남기지 않는다(#2078).
     final semanticParts = <String>[

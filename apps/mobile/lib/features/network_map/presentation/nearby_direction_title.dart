@@ -69,21 +69,24 @@ class NearbyArrivalRow extends StatelessWidget {
   const NearbyArrivalRow({
     required this.destination,
     required this.eta,
+    this.isDestructive,
     super.key,
   });
 
   final String destination;
   final String eta;
+  final bool? isDestructive;
 
   @override
   Widget build(BuildContext context) {
+    final isSoon = isDestructive ?? (eta == '곧 도착');
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Column(
         children: [
           if (destination.isNotEmpty)
             Text(
-              '$destination행',
+              destination.endsWith('행') ? destination : '$destination행',
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
@@ -98,11 +101,13 @@ class NearbyArrivalRow extends StatelessWidget {
               eta,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
-                color: EasySubwayAccessibleColors.secondaryText,
+              style: TextStyle(
+                color: isSoon
+                    ? EasySubwayAccessibleColors.statusDestructive
+                    : EasySubwayAccessibleColors.secondaryText,
                 fontSize: 12,
                 height: 1.3,
-                fontWeight: FontWeight.w600,
+                fontWeight: isSoon ? FontWeight.w700 : FontWeight.w600,
               ),
             ),
         ],

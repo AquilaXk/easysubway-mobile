@@ -29,8 +29,7 @@ void main() {
       nativeMapBuilder: _recordingMapBuilder(onBuild: (_) => mapBuildCount++),
     );
 
-    expect(find.text('지도 미리보기를 사용할 수 없어요.'), findsOneWidget);
-    expect(find.text('아래 카카오맵에서 보기 버튼은 계속 사용할 수 있어요.'), findsOneWidget);
+    expect(find.text('네트워크 오류가 발생했습니다.'), findsOneWidget);
     expect(mapBuildCount, 0);
   });
 
@@ -45,7 +44,7 @@ void main() {
     );
 
     expect(nativeMapBuilt, isFalse);
-    expect(find.text('지도 미리보기를 사용할 수 없어요.'), findsOneWidget);
+    expect(find.text('네트워크 오류가 발생했습니다.'), findsOneWidget);
     expect(find.text('다시 시도'), findsNothing);
   });
 
@@ -132,7 +131,7 @@ void main() {
       },
     );
 
-    expect(find.text('지도 미리보기를 불러오지 못했어요.'), findsOneWidget);
+    expect(find.text('네트워크 오류가 발생했습니다.'), findsOneWidget);
     expect(
       reportedErrors.single.exception.toString(),
       contains('_FakeMapError'),
@@ -160,7 +159,7 @@ void main() {
       await tester.pump();
     });
 
-    expect(find.text('지도 미리보기를 불러오지 못했어요.'), findsOneWidget);
+    expect(find.text('네트워크 오류가 발생했습니다.'), findsOneWidget);
   });
 
   testWidgets('SDK 오류는 진행 중인 지도 구성을 중단한다', (tester) async {
@@ -233,10 +232,10 @@ void main() {
 
     expect(
       tester.getSemantics(
-        find.bySemanticsLabel('지도 미리보기를 불러오지 못했어요. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'),
+        find.bySemanticsLabel('네트워크 오류가 발생했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.'),
       ),
       isSemantics(
-        label: '지도 미리보기를 불러오지 못했어요. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
+        label: '네트워크 오류가 발생했습니다. 네트워크 상태를 확인한 뒤 다시 시도해 주세요.',
         isLiveRegion: true,
       ),
     );
@@ -732,7 +731,7 @@ void main() {
 
     expect(oldController.labels.addPoiCount, 0);
     expect(newController.finishCount, 0);
-    expect(find.text('지도 미리보기를 불러오지 못했어요.'), findsNothing);
+    expect(find.text('네트워크 오류가 발생했습니다.'), findsNothing);
   });
 }
 

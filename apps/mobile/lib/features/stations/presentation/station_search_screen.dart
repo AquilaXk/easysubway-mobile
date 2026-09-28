@@ -305,23 +305,6 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
                         ),
                         const SizedBox(width: 4),
                         Expanded(child: searchInputField),
-                        const SizedBox(width: 8),
-                        ListenableBuilder(
-                          listenable:
-                              widget.routeDraftController ??
-                              const _NullListenable(),
-                          builder: (context, _) {
-                            final regionLocked = _isRegionLocked;
-                            return _StationSearchRegionSelector(
-                              regionLabel: _regionLabel,
-                              regions: widget.regions.isEmpty
-                                  ? defaultStationSearchRegions
-                                  : widget.regions,
-                              canChangeRegion: !regionLocked,
-                              onRegionSelected: _onRegionSelected,
-                            );
-                          },
-                        ),
                       ],
                     ),
                   ),
@@ -465,41 +448,6 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
     // 불필요한 재조회를 하지 않는다.
     if (recordHistory) {
       await _loadRecentEntries();
-    }
-  }
-
-  /// 출발·도착·경유 중 하나라도 채워지면 지역을 바꿀 수 없다(경로 지역 고정).
-  bool get _isRegionLocked {
-    final draft = widget.routeDraftController?.draft;
-    return draft != null && !draft.isEmpty;
-  }
-
-  void _onRegionSelected(String regionId) {
-    if (_isRegionLocked) {
-      return;
-    }
-    final regions = widget.regions.isEmpty
-        ? defaultStationSearchRegions
-        : widget.regions;
-    EasySubwayRegionMenuItem? match;
-    for (final item in regions) {
-      if (item.id == regionId || item.label == regionId) {
-        match = item;
-        break;
-      }
-    }
-    final nextLabel = match?.label ?? normalizeStationRegion(regionId);
-    if (nextLabel == _regionLabel) {
-      return;
-    }
-    setState(() => _regionLabel = nextLabel);
-    // 홈 노선도 지역도 같은 키로 맞춘다(메뉴 id — 저장형 `부산권` 또는 `부산`).
-    widget.onRegionChanged?.call(match?.id ?? regionId);
-    if (_hasSearchQuery) {
-      unawaited(_runSearch(_queryController.text, recordHistory: false));
-    } else {
-      // 검색어가 없을 때는 목록이 새 지역 기준으로 다시 필터돼야 한다.
-      unawaited(_loadRecentEntries());
     }
   }
 
@@ -739,96 +687,6 @@ RouteDraftStation _routeDraftStationFromRecent({
     lineColor: resolved?.color ?? '',
     stationCode: resolved?.stationCode ?? '',
   );
-}
-
-/// 검색 화면 상단 필드 우측 지역 선택기. 홈과 같은 위치·스타일이지만, 선택은
-/// 노선도 전환이 아니라 **검색 결과 지역 필터**에만 쓰인다.
-/// [canChangeRegion]이 false면 표시만 하고 ▾·메뉴를 막는다.
-class _StationSearchRegionSelector extends StatelessWidget {
-  const _StationSearchRegionSelector({
-    required this.regionLabel,
-    required this.regions,
-    required this.onRegionSelected,
-    this.canChangeRegion = true,
-  });
-
-  final String regionLabel;
-  final List<EasySubwayRegionMenuItem> regions;
-  final ValueChanged<String> onRegionSelected;
-  final bool canChangeRegion;
-
-  @override
-  Widget build(BuildContext context) {
-    return Builder(
-      builder: (triggerContext) => Semantics(
-        key: const Key('stationSearchRegionIndicator'),
-        container: true,
-        button: canChangeRegion,
-        label: canChangeRegion ? '지역: $regionLabel, 지역 변경' : '지역: $regionLabel',
-        onTap: canChangeRegion ? () => _openMenu(triggerContext) : null,
-        child: ExcludeSemantics(
-          child: InkWell(
-            key: const Key('stationSearchRegionDropdown'),
-            onTap: canChangeRegion ? () => _openMenu(triggerContext) : null,
-            splashFactory: NoSplash.splashFactory,
-            splashColor: Colors.transparent,
-            highlightColor: Colors.transparent,
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 148),
-              child: SizedBox(
-                height: EasySubwayTouchTarget.general,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Flexible(
-                      child: Text(
-                        regionLabel,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: EasySubwayAccessibleColors.contentSecondary,
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (canChangeRegion) ...[
-                      const SizedBox(width: 2),
-                      const Icon(
-                        Icons.keyboard_arrow_down,
-                        color: EasySubwayAccessibleColors.contentSecondary,
-                        size: 22,
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Future<void> _openMenu(BuildContext triggerContext) {
-    return showEasySubwayRegionMenu(
-      triggerContext: triggerContext,
-      regions: regions,
-      selectedRegion: regionLabel,
-      onRegionSelected: onRegionSelected,
-    );
-  }
-}
-
-/// [ListenableBuilder]에 null 컨트롤러를 넘길 때 쓰는 빈 리스너.
-class _NullListenable extends Listenable {
-  const _NullListenable();
-
-  @override
-  void addListener(VoidCallback listener) {}
-
-  @override
-  void removeListener(VoidCallback listener) {}
 }
 
 class _StationSearchAdaptiveContent extends StatelessWidget {

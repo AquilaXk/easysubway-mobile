@@ -46,7 +46,7 @@ class FacilityDetailScreen extends StatelessWidget {
       appBar: EasySubwayFamilyAppBar(
         key: const Key('facilityDetailAppBar'),
         title: Text(
-          facility.name,
+          facility.displayName,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -172,7 +172,9 @@ class FacilityDetailScreen extends StatelessWidget {
                     EasySubwayTouchTarget.primary,
                   ),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(EasySubwayRadius.card),
+                    borderRadius: BorderRadius.circular(
+                      EasySubwayRadius.control,
+                    ),
                   ),
                   textStyle: const TextStyle(
                     fontSize: 17,
@@ -202,7 +204,7 @@ String _facilityFloorLabel(StationFacilityInfo facility) {
   final from = facility.floorFrom.trim();
   final to = facility.floorTo.trim();
   if (from.isEmpty && to.isEmpty) {
-    return '연결 위치 미확인';
+    return '연결 위치 안내 참조';
   }
   if (from.isEmpty || to.isEmpty) {
     return '연결 위치 ${from.isEmpty ? to : from}';
