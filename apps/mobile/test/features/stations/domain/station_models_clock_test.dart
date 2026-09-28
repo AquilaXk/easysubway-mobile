@@ -37,5 +37,34 @@ void main() {
       // withClock 외부에서는 2099년이 아닌 실제 현재 시각으로 자동 복원됨
       expect(clock.now().year, lessThan(2099));
     });
+
+    test('withClock Zone 안에서 CurrentLocation.qualityStatus가 격리된 시계를 따른다', () {
+      final fixedNow = DateTime(2026, 7, 10, 12, 0, 0);
+      withClock(Clock.fixed(fixedNow), () {
+        // 10초 전 측정된 위치: freshPrecise
+        final freshSample = CurrentLocation(
+          latitude: 37.5,
+          longitude: 127.0,
+          accuracyMeters: 10.0,
+          measuredAt: DateTime(2026, 7, 10, 11, 59, 50),
+          permissionPrecision: LocationPermissionPrecision.precise,
+        );
+        expect(freshSample.qualityStatus(), CurrentLocationQualityStatus.freshPrecise);
+        expect(freshSample.canUseForNearbySearch(), true);
+        expect(freshSample.nearbySearchBlockedMessage(), isNull);
+
+        // 10분 전 측정된 위치: stale (_nearbyLocationMaxAge: 5분)
+        final staleSample = CurrentLocation(
+          latitude: 37.5,
+          longitude: 127.0,
+          accuracyMeters: 10.0,
+          measuredAt: DateTime(2026, 7, 10, 11, 50, 0),
+          permissionPrecision: LocationPermissionPrecision.precise,
+        );
+        expect(staleSample.qualityStatus(), CurrentLocationQualityStatus.stale);
+        expect(staleSample.canUseForNearbySearch(), false);
+        expect(staleSample.nearbySearchBlockedMessage(), isNotNull);
+      });
+    });
   });
 }

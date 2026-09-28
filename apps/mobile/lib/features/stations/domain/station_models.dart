@@ -172,7 +172,7 @@ class CurrentLocation {
     if (measuredAt == null || accuracyMeters == null) {
       return CurrentLocationQualityStatus.unavailable;
     }
-    final age = (now ?? DateTime.now()).difference(measuredAt);
+    final age = (now ?? clock.now()).difference(measuredAt);
     if (age > maxAge || age.isNegative) {
       return CurrentLocationQualityStatus.stale;
     }

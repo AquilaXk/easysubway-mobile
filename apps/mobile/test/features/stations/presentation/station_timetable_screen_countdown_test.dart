@@ -841,4 +841,58 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    '실제 벽시계가 진행되는 환경에서 _tickerElapsed가 중복 가산되지 않고 자연 진행 시각만 정확히 반영된다',
+    (tester) async {
+      var currentSimulatedTime = DateTime(2026, 7, 6, 10, 0, 50);
+      await withClock(Clock(() => currentSimulatedTime), () async {
+        const line = StationSearchLine(
+          id: 'seoul-2',
+          name: '2호선',
+          color: '#00A84D',
+          stationCode: '222',
+        );
+
+        final timetable = StationTimetable(
+          stationId: 'station-gangnam',
+          lineId: 'seoul-2',
+          dayType: StationTimetableDayType.weekday,
+          directions: const [
+            StationTimetableDirection(
+              name: '외선순환',
+              departures: [
+                StationTimetableDeparture(directionName: '외선순환', seconds: 36060),
+                StationTimetableDeparture(directionName: '외선순환', seconds: 36180),
+              ],
+            ),
+          ],
+        );
+
+        final repo = _FakeTimetableRepo({
+          StationTimetableDayType.weekday: timetable,
+        });
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StationTimetableScreen(
+              stationId: 'station-gangnam',
+              stationName: '강남',
+              lines: const [line],
+              repository: repo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.text('곧 도착'), findsOneWidget);
+
+        currentSimulatedTime = currentSimulatedTime.add(const Duration(seconds: 10));
+        await tester.pump(const Duration(seconds: 10));
+
+        expect(find.text('10:01'), findsOneWidget);
+        expect(find.text('곧 도착'), findsOneWidget);
+      });
+    },
+  );
 }
