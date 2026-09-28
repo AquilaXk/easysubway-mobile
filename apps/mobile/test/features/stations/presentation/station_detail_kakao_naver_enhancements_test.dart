@@ -509,4 +509,47 @@ void main() {
     await tester.tap(firstLastBtn);
     await tester.pumpAndSettle();
   });
+
+  test(
+    'StationExitInfo parses nearbyDoorHint and hasNearbyDoorHint behaves correctly',
+    () {
+      final withHint = StationExitInfo.fromJson(const {
+        'id': 'exit-1',
+        'stationId': 'station-1',
+        'exitNumber': '1',
+        'name': '1번 출구',
+        'hasElevatorConnection': true,
+        'hasStairOnlyPath': false,
+        'dataConfidence': 'HIGH',
+        'nearbyDoorHint': '상행 4-4, 7-3',
+      });
+      expect(withHint.nearbyDoorHint, '상행 4-4, 7-3');
+      expect(withHint.hasNearbyDoorHint, isTrue);
+
+      final withoutHint = StationExitInfo.fromJson(const {
+        'id': 'exit-2',
+        'stationId': 'station-1',
+        'exitNumber': '2',
+        'name': '2번 출구',
+        'hasElevatorConnection': false,
+        'hasStairOnlyPath': true,
+        'dataConfidence': 'MEDIUM',
+      });
+      expect(withoutHint.nearbyDoorHint, isNull);
+      expect(withoutHint.hasNearbyDoorHint, isFalse);
+
+      final emptyHint = StationExitInfo.fromJson(const {
+        'id': 'exit-3',
+        'stationId': 'station-1',
+        'exitNumber': '3',
+        'name': '3번 출구',
+        'hasElevatorConnection': false,
+        'hasStairOnlyPath': false,
+        'dataConfidence': 'LOW',
+        'nearbyDoorHint': '   ',
+      });
+      expect(emptyHint.nearbyDoorHint, isNull);
+      expect(emptyHint.hasNearbyDoorHint, isFalse);
+    },
+  );
 }

@@ -385,5 +385,24 @@ void main() {
         expect(successResult.isOfflineFallback, isFalse);
       },
     );
+
+    test(
+      'StationTimetable copyWith correctly updates isOfflineFallback and other fields',
+      () {
+        const original = StationTimetable(
+          stationId: 'st-1',
+          lineId: 'line-1',
+          dayType: StationTimetableDayType.weekday,
+          directions: [],
+          isOfflineFallback: false,
+        );
+        final updated = original.copyWith(isOfflineFallback: true);
+        expect(updated.isOfflineFallback, isTrue);
+        expect(updated.stationId, 'st-1');
+
+        final preserved = updated.copyWith();
+        expect(preserved.isOfflineFallback, isTrue);
+      },
+    );
   });
 }

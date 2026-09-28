@@ -167,9 +167,8 @@ String? fastExitDoorHint({
   String? previousStation,
   String? nextStation,
 }) {
-  final hint = exit.nearbyDoorHint?.trim();
-  if (hint == null || hint.isEmpty) {
+  if (!exit.hasNearbyDoorHint) {
     return null;
   }
-  return hint;
+  return exit.nearbyDoorHint!.trim();
 }
