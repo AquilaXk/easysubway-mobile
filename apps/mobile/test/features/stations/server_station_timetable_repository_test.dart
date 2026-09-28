@@ -287,6 +287,104 @@ void main() {
       expect(journey.searchCalls, 0);
     },
   );
+
+  test('서버 5xx 장애 시 ServerConnectionException을 던진다', () async {
+    final journey = _FakeJourneyRepository(
+      failure: _rejected(
+        statusCode: 503,
+        code: contract.JourneyErrorCode.timetableUnavailable,
+        now: now,
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(journey, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(
+        isA<ServerConnectionException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          503,
+        ),
+      ),
+    );
+  });
+
+  test('서버 프로토콜 오류 시 ServerConnectionException을 던진다', () async {
+    final journey = _FakeJourneyRepository(
+      failure: JourneyProtocolFailure(
+        contract.JourneyOperation.searchStationTimetables,
+        statusCode: 502,
+        cause: 'Bad Gateway',
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(journey, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(
+        isA<ServerConnectionException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          502,
+        ),
+      ),
+    );
+  });
+
+  test(
+    '단순 미지원 역(TIMETABLE_NOT_COVERED) 시 StationTimetableUnavailable을 던진다',
+    () async {
+      final journey = _FakeJourneyRepository(
+        failure: _rejected(
+          statusCode: 404,
+          code: contract.JourneyErrorCode.timetableNotCovered,
+          now: now,
+        ),
+        now: now,
+      );
+
+      await expectLater(
+        _repository(journey, now: now).loadStationTimetable(
+          stationId: 'station-unknown',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.weekday,
+          referenceDate: now,
+        ),
+        throwsA(isA<StationTimetableUnavailable>()),
+      );
+    },
+  );
+
+  test('네트워크 전송 오류 시 ServerConnectionException을 던진다', () async {
+    final journey = _FakeJourneyRepository(
+      failure: JourneyTransportFailure(
+        contract.JourneyOperation.searchStationTimetables,
+        'SocketException: Connection reset by peer',
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(journey, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(isA<ServerConnectionException>()),
+    );
+  });
 }
 
 ServerStationTimetableRepository _repository(
@@ -349,6 +447,31 @@ contract.StationTimetableSearchSuccess _success({
     freshUntil: now.add(const Duration(minutes: 10)),
   ),
 );
+
+JourneyRejectedFailure _rejected({
+  required int statusCode,
+  required contract.JourneyErrorCode code,
+  required DateTime now,
+  bool retryable = false,
+}) {
+  const operation = contract.JourneyOperation.searchStationTimetables;
+  return JourneyRejectedFailure(
+    operation,
+    statusCode: statusCode,
+    error: contract.JourneyV3Error(
+      contractVersion: contract.JourneyErrorContractVersion.journeyErrorV1,
+      requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      code: code,
+      retryable: retryable,
+      occurredAt: now,
+    ),
+    disposition: contract.JourneyErrorDispositions.lookup(
+      operation,
+      statusCode,
+      code,
+    ),
+  );
+}
 
 JourneyRejectedFailure _sessionRejected(DateTime now) {
   const operation = contract.JourneyOperation.searchStationTimetables;

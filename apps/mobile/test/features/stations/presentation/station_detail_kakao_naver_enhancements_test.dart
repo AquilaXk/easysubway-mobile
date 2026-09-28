@@ -552,4 +552,46 @@ void main() {
       expect(emptyHint.hasNearbyDoorHint, isFalse);
     },
   );
+
+  test(
+    'StationExitInfo.semanticLabel includes nearbyDoorHint for screen readers when present',
+    () {
+      final withHint = StationExitInfo.fromJson(const {
+        'id': 'exit-1',
+        'stationId': 'station-1',
+        'exitNumber': '1',
+        'name': '1번 출구',
+        'hasElevatorConnection': true,
+        'hasStairOnlyPath': false,
+        'dataConfidence': 'HIGH',
+        'nearbyDoorHint': '상행 4-4, 7-3',
+      });
+      expect(withHint.semanticLabel, contains('출구와 가까운 하차문 상행 4-4, 7-3'));
+      expect(withHint.semanticLabel, contains('1번 출구'));
+      expect(withHint.semanticLabel, contains('엘리베이터 연결'));
+
+      final withoutHint = StationExitInfo.fromJson(const {
+        'id': 'exit-2',
+        'stationId': 'station-1',
+        'exitNumber': '2',
+        'name': '2번 출구',
+        'hasElevatorConnection': false,
+        'hasStairOnlyPath': true,
+        'dataConfidence': 'MEDIUM',
+      });
+      expect(withoutHint.semanticLabel, isNot(contains('출구와 가까운 하차문')));
+
+      final emptyHint = StationExitInfo.fromJson(const {
+        'id': 'exit-3',
+        'stationId': 'station-1',
+        'exitNumber': '3',
+        'name': '3번 출구',
+        'hasElevatorConnection': false,
+        'hasStairOnlyPath': false,
+        'dataConfidence': 'LOW',
+        'nearbyDoorHint': '   ',
+      });
+      expect(emptyHint.semanticLabel, isNot(contains('출구와 가까운 하차문')));
+    },
+  );
 }

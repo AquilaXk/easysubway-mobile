@@ -4,6 +4,8 @@ import '../../journey/domain/journey_repository.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
 
+export '../domain/station_repositories.dart' show ServerConnectionException;
+
 /// Server-authoritative timetable adapter. It never consults the catalog or
 /// retains a prior timetable when the Journey V3 operation rejects a request.
 class ServerStationTimetableRepository implements StationTimetableRepository {
@@ -78,8 +80,19 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     String lineId,
     contract.StationTimetableSelector selector,
   ) async {
+    final contract.JourneySessionResponse session;
     try {
-      final session = await _sessionProvider.session();
+      session = await _sessionProvider.session();
+    } on JourneySessionInvalid {
+      throw const StationTimetableUnavailable(
+        'Journey session is unavailable.',
+      );
+    } catch (_) {
+      throw const StationTimetableUnavailable(
+        'Journey timetable is unavailable.',
+      );
+    }
+    try {
       final response = await _journeyRepository.searchStationTimetables(
         contract.StationTimetableSearchRequest(
           stationId: stationId,
@@ -96,13 +109,25 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       );
     } on JourneyRejectedFailure catch (error) {
       if (error.statusCode == 401) _sessionProvider.invalidate();
+      if (error.statusCode >= 500) {
+        throw ServerConnectionException(
+          'Journey server internal failure (${error.statusCode}).',
+          statusCode: error.statusCode,
+          cause: error,
+        );
+      }
       throw StationTimetableUnavailable(error.error.code.wire);
-    } on JourneySessionInvalid {
-      throw const StationTimetableUnavailable(
-        'Journey session is unavailable.',
+    } on JourneyTransportFailure catch (error) {
+      throw ServerConnectionException(
+        'Network transport failure: ${error.operation.wire}',
+        cause: error.cause,
       );
-    } on JourneyRepositoryFailure catch (error) {
-      throw StationTimetableUnavailable(error.operation.wire);
+    } on JourneyProtocolFailure catch (error) {
+      throw ServerConnectionException(
+        'Journey protocol failure: ${error.operation.wire}',
+        statusCode: error.statusCode,
+        cause: error.cause,
+      );
     } on FormatException catch (error) {
       throw StationTimetableUnavailable(error.message);
     } catch (_) {

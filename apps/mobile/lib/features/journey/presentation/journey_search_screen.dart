@@ -193,28 +193,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     return clean;
   }
 
-  String _fastTransferLocation(JourneyRideLeg leg, bool isLastRide) {
-    if (isLastRide) {
-      final hash =
-          (leg.lineId.hashCode ^ leg.toStationId.hashCode) & 0x7FFFFFFF;
-      final car = (hash % 8) + 1;
-      final door = (hash % 4) + 1;
-      return '빠른 하차 $car-$door';
-    } else {
-      final hash =
-          (leg.lineId.hashCode ^ leg.fromStationId.hashCode) & 0x7FFFFFFF;
-      final car = (hash % 7) + 2;
-      final door = (hash % 4) + 1;
-      return '빠른 환승 $car-$door';
-    }
-  }
-
-  String _doorDirection(JourneyRideLeg leg) {
-    final hash =
-        (leg.fromStationId.hashCode ^ leg.toStationId.hashCode) & 0x7FFFFFFF;
-    return (hash % 2 == 0) ? '내리는 문: 오른쪽' : '내리는 문: 왼쪽';
-  }
-
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
@@ -905,10 +883,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       trackColor = lineColor;
       final badgeNum = _lineBadgeNumber(leg.lineId);
       final isExpanded = _expandedLegIndices.contains(index);
-      final hasSubsequentRide = journey.legs
-          .skip(index + 1)
-          .any((l) => l is JourneyRideLeg);
-      final isLastRide = !hasSubsequentRide;
       final stopCount = _legStopCount(leg);
 
       nodeIcon = Container(
@@ -1021,16 +995,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 runSpacing: 2,
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  _TransitPillTag(
-                    icon: Icons.directions_subway,
-                    text: _fastTransferLocation(leg, isLastRide),
-                    isHighlight: true,
-                  ),
-                  _TransitPillTag(
-                    icon: Icons.meeting_room_outlined,
-                    text: _doorDirection(leg),
-                    isHighlight: false,
-                  ),
                   InkWell(
                     onTap: () {
                       setState(() {
@@ -2367,59 +2331,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _TransitPillTag extends StatelessWidget {
-  const _TransitPillTag({
-    required this.icon,
-    required this.text,
-    required this.isHighlight,
-  });
-
-  final IconData icon;
-  final String text;
-  final bool isHighlight;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
-      decoration: BoxDecoration(
-        color: isHighlight
-            ? EasySubwayAccessibleColors.surfaceBrandChrome
-            : EasySubwayAccessibleColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(
-          color: isHighlight
-              ? EasySubwayAccessibleColors.primary.withValues(alpha: 0.3)
-              : EasySubwayAccessibleColors.line,
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 13,
-            color: isHighlight
-                ? EasySubwayAccessibleColors.primary
-                : EasySubwayAccessibleColors.secondaryText,
-          ),
-          const SizedBox(width: 4),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w700,
-              color: isHighlight
-                  ? EasySubwayAccessibleColors.primary
-                  : EasySubwayAccessibleColors.secondaryText,
-            ),
-          ),
-        ],
       ),
     );
   }
