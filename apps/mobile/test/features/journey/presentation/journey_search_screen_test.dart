@@ -887,6 +887,57 @@ void main() {
     expect(find.text('접기 ▴'), findsOneWidget);
     expect(find.textContaining('• 출발:'), findsOneWidget);
   });
+
+  testWidgets('journey search는 다중 구간 환승 경로에서 무단차 태그, 빠른 환승 안내, 경강선 노선명을 지원한다', (
+    tester,
+  ) async {
+    final repository = _Repository()..journeyIds = ['journey-multileg'];
+    await _pumpScreen(tester, repository: repository, mobilityType: 'STANDARD');
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('무단차'), findsOneWidget);
+    expect(find.text('경강선'), findsOneWidget);
+
+    // 상세 카드 탭
+    await tester.tap(
+      find.byKey(const Key('journey-candidate-journey-multileg')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('빠른 환승'), findsOneWidget);
+
+    // 구간 아코디언 토글
+    final accordionButton = find.textContaining('개 역 이동 ▾');
+    if (accordionButton.evaluate().isNotEmpty) {
+      await tester.ensureVisible(accordionButton.first);
+      await tester.tap(accordionButton.first);
+      await tester.pumpAndSettle();
+      final collapseButton = find.text('접기 ▴');
+      if (collapseButton.evaluate().isNotEmpty) {
+        await tester.tap(collapseButton.first);
+        await tester.pumpAndSettle();
+      }
+    }
+  });
+
+  testWidgets('최소환승 태그 및 방향역 ID가 없는 여정 레그가 정상 렌더링된다', (tester) async {
+    final repository = _Repository()
+      ..journeyIds = <String>['journey-1', 'journey-least-transfer'];
+    await _pumpScreen(tester, repository: repository, mobilityType: 'STANDARD');
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('최단시간'), findsOneWidget);
+    expect(find.text('최소환승'), findsOneWidget);
+
+    await tester.tap(
+      find.byKey(const Key('journey-candidate-journey-least-transfer')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('열차 탑승'), findsOneWidget);
+  });
 }
 
 class _RecordingCrashlytics implements CrashlyticsGateway {
@@ -1146,6 +1197,64 @@ Journey _journey(String id, DateTime now) {
     );
   }
 
+  if (id == 'journey-multileg') {
+    return Journey(
+      journeyId: id,
+      status: JourneyStatus.found,
+      planSource: JourneyPlanSource.serverTimetableRaptor,
+      plannedDepartureTime: now,
+      plannedArrivalTime: now.add(const Duration(minutes: 20)),
+      realtimeDepartureTime: null,
+      realtimeArrivalTime: null,
+      durationSeconds: 1200,
+      transferCount: 1,
+      walkingDistanceMeters: 50,
+      timeSource: JourneyTimeSource.timetable,
+      accessibility: const JourneyAccessibility(
+        result: JourneyAccessibilityResult.verified,
+        stairFree: true,
+        reasonCodes: <String>[],
+      ),
+      legs: <JourneyLeg>[
+        const JourneyEntryLeg(
+          fromStationId: 'station-origin',
+          durationSeconds: 60,
+        ),
+        JourneyRideLeg(
+          lineId: 'gyeonggang',
+          tripId: 'trip-1',
+          directionStationId: 'station-direction',
+          fromStationId: 'station-origin',
+          toStationId: 'station-transfer',
+          plannedDepartureTime: now,
+          plannedArrivalTime: now.add(const Duration(minutes: 10)),
+          realtimeDepartureTime: null,
+          realtimeArrivalTime: null,
+        ),
+        const JourneyTransferLeg(
+          fromStationId: 'station-transfer',
+          toStationId: 'station-destination',
+          durationSeconds: 120,
+        ),
+        JourneyRideLeg(
+          lineId: 'line-2',
+          tripId: 'trip-2',
+          directionStationId: 'station-direction',
+          fromStationId: 'station-transfer',
+          toStationId: 'station-destination',
+          plannedDepartureTime: now.add(const Duration(minutes: 12)),
+          plannedArrivalTime: now.add(const Duration(minutes: 18)),
+          realtimeDepartureTime: null,
+          realtimeArrivalTime: null,
+        ),
+        const JourneyExitLeg(
+          fromStationId: 'station-destination',
+          durationSeconds: 60,
+        ),
+      ],
+    );
+  }
+
   return Journey(
     journeyId: id,
     status: JourneyStatus.found,
@@ -1154,7 +1263,9 @@ Journey _journey(String id, DateTime now) {
     plannedArrivalTime: now.add(const Duration(minutes: 5)),
     realtimeDepartureTime: null,
     realtimeArrivalTime: null,
-    durationSeconds: id.startsWith('journey-oos-') ? 1800 : 300,
+    durationSeconds: id == 'journey-least-transfer'
+        ? 900
+        : (id.startsWith('journey-oos-') ? 1800 : 300),
     transferCount: id == 'journey-1'
         ? 2
         : (id.startsWith('journey-oos-') ? 1 : 0),
@@ -1173,7 +1284,9 @@ Journey _journey(String id, DateTime now) {
       JourneyRideLeg(
         lineId: id == 'journey-1' ? 'line-2' : 'line-private',
         tripId: 'trip-private',
-        directionStationId: 'station-direction',
+        directionStationId: id == 'journey-least-transfer'
+            ? ''
+            : 'station-direction',
         fromStationId: 'station-origin',
         toStationId: 'station-transfer',
         plannedDepartureTime: now,

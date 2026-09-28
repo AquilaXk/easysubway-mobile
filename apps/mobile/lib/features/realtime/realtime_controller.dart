@@ -44,11 +44,10 @@ class RealtimeStationController extends ChangeNotifier {
       unawaited(load(query));
     }
     _pollingTimer = Timer.periodic(interval ?? defaultPollingInterval, (_) {
-      if (_isDisposed || _currentPollingQuery == null) {
-        stopPolling();
-        return;
+      final currentQuery = _currentPollingQuery;
+      if (!_isDisposed && currentQuery != null) {
+        unawaited(_pollTick(currentQuery));
       }
-      unawaited(_pollTick(_currentPollingQuery!));
     });
   }
 

@@ -101,11 +101,36 @@ void main() {
       greaterThanOrEqualTo(48),
     );
   });
+
+  testWidgets('지도 앱 실행 실패 시 실패 안내 스낵바를 표시한다', (tester) async {
+    final launcher = _FailingMapLauncher();
+    await _pumpSection(tester, launcher: launcher);
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('fakeMapPreviewButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.text('지도 앱을 열지 못했어요. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
+  });
+}
+
+class _FailingMapLauncher implements KakaoMapLauncher {
+  @override
+  Future<KakaoMapLaunchResult> openLook(KakaoMapTarget target) async {
+    return KakaoMapLaunchResult.failed;
+  }
+
+  @override
+  Future<KakaoMapLaunchResult> openWalkingRoute(
+    KakaoWalkingRouteTarget target,
+  ) async {
+    return KakaoMapLaunchResult.failed;
+  }
 }
 
 Future<void> _pumpSection(
   WidgetTester tester, {
-  _RecordingMapLauncher? launcher,
+  KakaoMapLauncher? launcher,
   List<StationExitInfo> exits = _exits,
   TextScaler textScaler = TextScaler.noScaling,
 }) {

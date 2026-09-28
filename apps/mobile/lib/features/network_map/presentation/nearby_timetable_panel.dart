@@ -111,10 +111,7 @@ class _NearbyTimetablePanelState extends State<NearbyTimetablePanel>
   void _startTicker() {
     _tickerTimer?.cancel();
     _tickerTimer = Timer.periodic(widget.tickerInterval, (_) {
-      if (!mounted) {
-        _stopTicker();
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         if (widget.now != null) {
           _tickerElapsed += widget.tickerInterval;
@@ -486,10 +483,6 @@ String _formatDepartureCountdown(
   final int diffSeconds;
   if (isLateNight && departure.seconds >= Duration.secondsPerDay) {
     diffSeconds = departure.seconds - lateNightServiceSeconds;
-  } else if (!isLateNight &&
-      departure.seconds < currentSeconds &&
-      departure.seconds >= Duration.secondsPerDay) {
-    diffSeconds = departure.seconds - currentSeconds;
   } else {
     diffSeconds = departure.seconds - currentSeconds;
   }

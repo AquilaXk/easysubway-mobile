@@ -444,4 +444,92 @@ void main() {
       expect(find.text('10:01'), findsNothing);
     },
   );
+
+  testWidgets(
+    'NearbyTimetablePanel은 앱 라이프사이클 paused/resumed 및 didUpdateWidget을 정상 처리한다',
+    (tester) async {
+      const data = NearbyTimetablePanelData(
+        directions: [
+          NearbyTimetableDirectionData(
+            name: '오이도',
+            departures: [
+              NearbyTimetableDepartureData(
+                directionName: '오이도',
+                destination: '오이도',
+                seconds: 36080,
+                timeLabel: '10:01',
+                semanticLabel: '오이도 10:01',
+                isExpress: false,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NearbyTimetablePanel(
+              data: data,
+              lineColor: Colors.blue,
+              leftName: '반월',
+              rightName: '한대앞',
+              now: DateTime(2026, 8, 12, 10, 0, 0),
+              enableTicker: true,
+              tickerInterval: const Duration(milliseconds: 50),
+              expressBadgeBuilder: () => const SizedBox(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 라이프사이클 이벤트 트리거
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      // didUpdateWidget 트리거: enableTicker 토글로 _stopTicker & _startTicker 실행
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NearbyTimetablePanel(
+              data: data,
+              lineColor: Colors.blue,
+              leftName: '반월',
+              rightName: '한대앞',
+              now: DateTime(2026, 8, 12, 10, 0, 10),
+              enableTicker: false,
+              tickerInterval: const Duration(milliseconds: 50),
+              expressBadgeBuilder: () => const SizedBox(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NearbyTimetablePanel(
+              data: data,
+              lineColor: Colors.blue,
+              leftName: '반월',
+              rightName: '한대앞',
+              now: DateTime(2026, 8, 12, 10, 0, 10),
+              enableTicker: true,
+              tickerInterval: const Duration(milliseconds: 50),
+              expressBadgeBuilder: () => const SizedBox(),
+            ),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 60));
+    },
+  );
 }

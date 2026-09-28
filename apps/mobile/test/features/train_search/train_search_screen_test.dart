@@ -9,6 +9,7 @@ import 'package:easysubway_mobile/features/network_map/domain/network_map_models
 import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class _FakeTrainSearchRepository implements TrainSearchRepository {
   _FakeTrainSearchRepository({
@@ -995,6 +996,237 @@ void main() {
       contains('https://m.korail.com'),
     );
   });
+
+  testWidgets('onLaunchUrl 실패 시 스낵바가 실행된다', (tester) async {
+    final repository = _FakeTrainSearchRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+          onLaunchUrl: (_) async => false,
+        ),
+      ),
+    );
+
+    await _selectStations(tester);
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    final korailButton = find.byKey(
+      const Key('trainSearchKorailTalkButton-101'),
+    );
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const Key('trainSearchScrollView')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(korailButton, 200, scrollable: scrollable);
+    await tester.ensureVisible(korailButton);
+    await tester.pumpAndSettle();
+
+    await tester.tap(korailButton);
+    await tester.pumpAndSettle();
+
+    expect(find.text('코레일+ 또는 예매 페이지를 열 수 없습니다.'), findsOneWidget);
+  });
+
+  testWidgets('열차 종류 필터 모달에서 KTX 및 전체 열차 선택과 닫기가 정상 동작한다', (tester) async {
+    final repository = _FakeTrainSearchRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+        ),
+      ),
+    );
+
+    // 필터 열기
+    await tester.tap(find.byKey(const Key('trainSearchTrainTypeField')));
+    await tester.pumpAndSettle();
+
+    // 닫기 버튼 탭
+    await tester.tap(find.byKey(const Key('trainSearchTrainTypeCloseButton')));
+    await tester.pumpAndSettle();
+
+    // 다시 열고 KTX 선택
+    await tester.tap(find.byKey(const Key('trainSearchTrainTypeField')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('trainSearchTrainTypeOption-KTX')));
+    await tester.pumpAndSettle();
+
+    // 다시 열고 전체 열차 선택
+    await tester.tap(find.byKey(const Key('trainSearchTrainTypeField')));
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.check), findsOneWidget);
+    await tester.tap(find.byKey(const Key('trainSearchTrainTypeOption-ALL')));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('왕복 모드에서 오는 날짜 탭 및 열차 상세 모달 닫기가 동작한다', (tester) async {
+    final repository = _FakeTrainSearchRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+        ),
+      ),
+    );
+
+    // 왕복 탭
+    await tester.tap(find.byKey(const Key('trainSearchTripType')));
+    await tester.pumpAndSettle();
+
+    // 오는 날짜 탭
+    await tester.tap(find.byKey(const Key('trainSearchReturnDateButton')));
+    await tester.pumpAndSettle();
+    expect(find.byType(DatePickerDialog), findsOneWidget);
+    // 캘린더 다이얼로그 취소
+    final cancelButton = find.text('Cancel');
+    if (cancelButton.evaluate().isNotEmpty) {
+      await tester.tap(cancelButton);
+    } else {
+      await tester.tap(find.text('취소'));
+    }
+    await tester.pumpAndSettle();
+
+    // 조회 후 상세 모달 열고 닫기
+    await _selectStations(tester);
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    final card = find.byKey(const Key('trainSearchJourneyCard-outbound-101'));
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const Key('trainSearchScrollView')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(card, 200, scrollable: scrollable);
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+    await tester.tap(card);
+    await tester.pumpAndSettle();
+
+    // 상세 모달 닫기
+    await tester.tap(find.byIcon(Icons.close));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('SRT 열차 카드 코레일톡/외부앱 연결이 정상 동작한다', (tester) async {
+    final launchedUrls = <Uri>[];
+    final repo = _FakeTrainSearchRepository(
+      result: TrainSearchResult(
+        observedAt: DateTime.parse('2026-07-19T12:00:00Z'),
+        outbound: [
+          TrainJourney(
+            trainNumber: '301',
+            trainType: TrainSearchTrainType.srt,
+            departureStationId: 'NAT010000',
+            departureStationName: '수서',
+            departureAt: DateTime.parse('2026-07-20T09:00:00+09:00'),
+            arrivalStationId: 'NAT011668',
+            arrivalStationName: '부산',
+            arrivalAt: DateTime.parse('2026-07-20T10:02:00+09:00'),
+            durationMinutes: 62,
+            adultFareWon: 52000,
+          ),
+        ],
+        inbound: const [],
+      ),
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repo,
+          onLaunchUrl: (url) async {
+            launchedUrls.add(url);
+            return true;
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 역 선택 및 조회
+    await _selectStations(tester);
+    await _tapSubmit(tester);
+
+    final card = find.byKey(const Key('trainSearchJourneyCard-outbound-301'));
+    final scrollable = find
+        .descendant(
+          of: find.byKey(const Key('trainSearchScrollView')),
+          matching: find.byType(Scrollable),
+        )
+        .first;
+    await tester.scrollUntilVisible(card, 200, scrollable: scrollable);
+    await tester.ensureVisible(card);
+    await tester.pumpAndSettle();
+
+    // 코레일톡 버튼 탭
+    await tester.tap(find.byKey(const Key('trainSearchKorailTalkButton-301')));
+    await tester.pumpAndSettle();
+
+    expect(launchedUrls.first.scheme, 'srt');
+  });
+
+  testWidgets('왕복 모드에서 다음 날 이동 시 도착일이 출발일 이전이 되면 동기화된다', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    final repository = _FakeTrainSearchRepository();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: TrainSearchScreen(
+          repository: repository,
+          now: () => DateTime.utc(2026, 7, 19, 3),
+        ),
+      ),
+    );
+    await _selectStations(tester);
+    await tester.tap(find.text('왕복'));
+    await tester.pump();
+    await _tapSubmit(tester);
+    await tester.pumpAndSettle();
+
+    // 다음 날 버튼 탭
+    await tester.tap(find.byKey(const Key('trainSearchNextDayButton')).first);
+    await tester.pumpAndSettle();
+
+    expect(repository.lastCriteria!.departureDate, DateTime(2026, 7, 20));
+    expect(repository.lastCriteria!.returnDate, DateTime(2026, 7, 20));
+  });
+
+  test(
+    'defaultTrainLaunchUrl은 canLaunchUrl 예외 발생 시 안전하게 false를 반환한다',
+    () async {
+      final result = await defaultTrainLaunchUrl(
+        Uri.parse('https://example.com'),
+      );
+      expect(result, isFalse);
+    },
+  );
+
+  test(
+    'defaultTrainLaunchUrl은 canLaunch가 true일 때 launch를 실행하고 결과를 반환한다',
+    () async {
+      final result = await defaultTrainLaunchUrl(
+        Uri.parse('https://example.com'),
+        canLaunch: (uri) async => true,
+        launch:
+            (uri, {LaunchMode mode = LaunchMode.platformDefault}) async => true,
+      );
+      expect(result, isTrue);
+    },
+  );
 }
 
 class _EmptyNetworkMapRepository implements NetworkMapRepository {

@@ -160,15 +160,12 @@ class NearbyStationLineBar extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          if (badgeText.isNotEmpty ||
-                              badgeBuilder != null ||
-                              line != null) ...[
+                          if (badgeText.isNotEmpty || badgeBuilder != null) ...[
                             _LineBadge(
                               diameter: badgeDiameter,
                               color: lineColor,
                               text: badgeText,
                               badgeBuilder: badgeBuilder,
-                              line: line,
                             ),
                             const SizedBox(width: 7),
                           ],
@@ -349,31 +346,19 @@ class _LineBadge extends StatelessWidget {
     required this.color,
     required this.text,
     this.badgeBuilder,
-    this.line,
   });
 
   final double diameter;
   final Color color;
   final String text;
   final Widget Function(double diameter)? badgeBuilder;
-  final Object? line;
 
   @override
   Widget build(BuildContext context) {
     if (badgeBuilder != null) {
       return badgeBuilder!(diameter);
     }
-    final rawText = text.isNotEmpty
-        ? text
-        : (line != null
-              ? ((line as dynamic).badgeText != null &&
-                        (line as dynamic).badgeText.toString().isNotEmpty
-                    ? (line as dynamic).badgeText.toString()
-                    : (line as dynamic).name.toString())
-              : '');
-    final displayText = (rawText.length > 2 && rawText.endsWith('호선'))
-        ? rawText.substring(0, rawText.length - 2)
-        : rawText;
+    final displayText = text;
 
     final isSingleChar = displayText.length <= 1;
 

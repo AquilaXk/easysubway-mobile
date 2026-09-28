@@ -285,5 +285,73 @@ void main() {
         expect(timetable.directions, hasLength(2));
       },
     );
+
+    test(
+      'CompositeStationTimetableRepository delegates loadStationTimetable and falls back to local',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(shouldThrow: true);
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: localRepo,
+        );
+
+        final timetable = await composite.loadStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.weekday,
+          referenceDate: DateTime.utc(2026, 9, 25),
+        );
+        expect(timetable.isAvailable, isTrue);
+
+        final serverSuccess = _FakeServerTimetableRepository(
+          timetableToReturn: timetable,
+        );
+        final compositeSuccess = CompositeStationTimetableRepository(
+          serverRepository: serverSuccess,
+          localRepository: localRepo,
+        );
+        final successResult = await compositeSuccess.loadStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.weekday,
+          referenceDate: DateTime.utc(2026, 9, 25),
+        );
+        expect(successResult.isAvailable, isTrue);
+      },
+    );
+
+    test(
+      'CompositeStationTimetableRepository delegates loadNextStationTimetable and falls back to local',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(shouldThrow: true);
+        final localRepo = DriftStationTimetableRepository(database: database);
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: localRepo,
+        );
+
+        final timetable = await composite.loadNextStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          asOf: DateTime.utc(2026, 9, 25, 7, 0),
+        );
+        expect(timetable.isAvailable, isTrue);
+
+        final serverSuccess = _FakeServerTimetableRepository(
+          timetableToReturn: timetable,
+        );
+        final compositeSuccess = CompositeStationTimetableRepository(
+          serverRepository: serverSuccess,
+          localRepository: localRepo,
+        );
+        final successResult = await compositeSuccess.loadNextStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          asOf: DateTime.utc(2026, 9, 25, 7, 0),
+        );
+        expect(successResult.isAvailable, isTrue);
+      },
+    );
   });
 }

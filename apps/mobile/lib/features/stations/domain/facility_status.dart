@@ -165,6 +165,20 @@ String formatFacilityDisplayName({
   final upperType = type.trim().toUpperCase();
 
   // 이미 충분히 정제된 구체적 한국어 명칭(출구·환승·승강장 등 포함 및 raw 영문 식별자 부재)은 원형을 보존한다.
+  // 1. 이미 정제된 한국어 출구 표기 (예: '1번 출구 엘리베이터', '2번 출구 승강기')
+  final exitElevatorMatch = RegExp(
+    r'^(\d+(?:[,\·]\s*\d+)*)\s*번\s*출구\s*(?:엘리베이터|승강기)(?:\s*\(?(\d+)호기\)?)?$',
+  ).firstMatch(cleanName);
+  if (exitElevatorMatch != null) {
+    final exitNum = exitElevatorMatch
+        .group(1)!
+        .replaceAll(RegExp(r'[,·]\s*'), ', ');
+    final unitNum = exitElevatorMatch.group(2);
+    return unitNum != null
+        ? '$exitNum번 출구 엘리베이터 ($unitNum호기)'
+        : '$exitNum번 출구 엘리베이터';
+  }
+
   final hasRawEnglishId =
       cleanName.toUpperCase().contains('ELEVATOR') ||
       cleanName.toUpperCase().contains('ESCALATOR') ||
@@ -187,20 +201,6 @@ String formatFacilityDisplayName({
       cleanName.contains('승강기');
 
   if (isElevator) {
-    // 1. 이미 정제된 한국어 출구 표기 (예: '1번 출구 엘리베이터', '2번 출구 승강기')
-    final exitElevatorMatch = RegExp(
-      r'^(\d+(?:[,\·]\s*\d+)*)\s*번\s*출구\s*(?:엘리베이터|승강기)(?:\s*\(?(\d+)호기\)?)?$',
-    ).firstMatch(cleanName);
-    if (exitElevatorMatch != null) {
-      final exitNum = exitElevatorMatch
-          .group(1)!
-          .replaceAll(RegExp(r'[,·]\s*'), ', ');
-      final unitNum = exitElevatorMatch.group(2);
-      return unitNum != null
-          ? '$exitNum번 출구 엘리베이터 ($unitNum호기)'
-          : '$exitNum번 출구 엘리베이터';
-    }
-
     // 2. 호기 번호 추출 (예: '상록수역 ELEVATOR 2' -> 2)
     final unitMatch = RegExp(
       r'(?:ELEVATOR|elevator|승강기|호기)\s*#?\s*(\d+)',

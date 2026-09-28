@@ -101,6 +101,9 @@ void main() {
     expect(reported.nextActionLabel, '역무원 도움 요청');
     expect(unknown.severityLabel, '정상');
     expect(unknown.nextActionLabel, '자세히 보기');
+    final needsReport = _favoriteFacility(status: 'NEEDS_REPORT');
+    expect(needsReport.statusLabel, '현장 확인');
+    expect(unknown.statusLabel, '정상 운행');
     expect(operationalUnknown.statusLabel, '정상 운행');
     expect(operationalUnknown.statusTitle, '정상 운행');
     expect(operationalUnknown.needsAttention, isFalse);

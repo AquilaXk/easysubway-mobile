@@ -80,19 +80,24 @@ class _StationExitSectionState extends State<StationExitSection> {
                 borderRadius: BorderRadius.circular(8),
                 child: SizedBox(
                   height: 180,
-                  child: previewBuilder != null
-                      ? previewBuilder(
-                          station: widget.station,
-                          exits: widget.exits,
-                          selectedExitId: selectedExit.id,
-                          onOpenSelected: () => _openSelectedExit(context),
-                        )
-                      : StationExitMapPreview(
-                          station: widget.station,
-                          exits: widget.exits,
-                          selectedExitId: selectedExit.id,
-                          onOpenSelected: () => _openSelectedExit(context),
-                        ),
+                  child: Builder(
+                    builder: (context) {
+                      void openSelected() => _openSelectedExit(context);
+                      return previewBuilder != null
+                          ? previewBuilder(
+                              station: widget.station,
+                              exits: widget.exits,
+                              selectedExitId: selectedExit.id,
+                              onOpenSelected: openSelected,
+                            )
+                          : StationExitMapPreview(
+                              station: widget.station,
+                              exits: widget.exits,
+                              selectedExitId: selectedExit.id,
+                              onOpenSelected: openSelected,
+                            );
+                    },
+                  ),
                 ),
               ),
               Positioned(

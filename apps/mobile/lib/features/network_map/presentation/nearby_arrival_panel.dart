@@ -224,67 +224,41 @@ String _resolveNearbyArrivalDirection(
   final rawDir = arrival.direction.trim();
   final dest = arrival.destination.trim();
 
+  final isUp =
+      rawDir.contains('상행') ||
+      rawDir.contains('내선') ||
+      rawDir.contains('진접') ||
+      rawDir.contains('당고개') ||
+      dest.contains('진접') ||
+      dest.contains('당고개') ||
+      dest.contains('사당') ||
+      dest.contains('서울역') ||
+      dest.contains('청량리');
+  final isDown =
+      rawDir.contains('하행') ||
+      rawDir.contains('외선') ||
+      rawDir.contains('오이도') ||
+      dest.contains('오이도') ||
+      dest.contains('안산') ||
+      dest.contains('인천');
+
   if (left != null &&
       left.isNotEmpty &&
-      (rawDir.contains(left) || dest.contains(left))) {
+      (rawDir.contains(left) || dest.contains(left) || isUp)) {
     return '$left 방면';
   }
   if (right != null &&
       right.isNotEmpty &&
-      (rawDir.contains(right) || dest.contains(right))) {
+      (rawDir.contains(right) || dest.contains(right) || isDown)) {
     return '$right 방면';
   }
   if (rawDir.isNotEmpty) {
-    if (left != null &&
-        left.isNotEmpty &&
-        (rawDir.contains('상행') ||
-            rawDir.contains('내선') ||
-            rawDir.contains('진접') ||
-            rawDir.contains('당고개') ||
-            rawDir.contains('사당') ||
-            rawDir.contains('서울역') ||
-            rawDir.contains('청량리') ||
-            rawDir.contains('대화') ||
-            rawDir.contains('소요산'))) {
-      return '$left 방면';
-    }
-    if (right != null &&
-        right.isNotEmpty &&
-        (rawDir.contains('하행') ||
-            rawDir.contains('외선') ||
-            rawDir.contains('오이도') ||
-            rawDir.contains('안산') ||
-            rawDir.contains('인천') ||
-            rawDir.contains('수원') ||
-            rawDir.contains('신창'))) {
-      return '$right 방면';
-    }
     return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
   }
   if (dest.isNotEmpty) {
     final cleanDest = dest.endsWith('행')
         ? dest.substring(0, dest.length - 1)
         : dest;
-    if (left != null &&
-        left.isNotEmpty &&
-        (cleanDest.contains('진접') ||
-            cleanDest.contains('당고개') ||
-            cleanDest.contains('사당') ||
-            cleanDest.contains('서울역') ||
-            cleanDest.contains('청량리') ||
-            cleanDest.contains('대화') ||
-            cleanDest.contains('소요산'))) {
-      return '$left 방면';
-    }
-    if (right != null &&
-        right.isNotEmpty &&
-        (cleanDest.contains('오이도') ||
-            cleanDest.contains('안산') ||
-            cleanDest.contains('인천') ||
-            cleanDest.contains('수원') ||
-            cleanDest.contains('신창'))) {
-      return '$right 방면';
-    }
     return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
   }
   return '';
@@ -295,21 +269,9 @@ String _arrivalDirectionLabel(
   String? leftName,
   String? rightName,
 }) {
-  final resolved = _resolveNearbyArrivalDirection(
+  return _resolveNearbyArrivalDirection(
     arrival,
     leftName: leftName,
     rightName: rightName,
   );
-  if (resolved.isNotEmpty) {
-    return resolved;
-  }
-  final direction = arrival.direction.trim();
-  if (direction.isNotEmpty) {
-    return direction.endsWith('방면') ? direction : '$direction 방면';
-  }
-  final destination = arrival.destination.trim();
-  final cleanDest = destination.endsWith('행')
-      ? destination.substring(0, destination.length - 1)
-      : destination;
-  return cleanDest.isEmpty ? '' : '$cleanDest 방면';
 }

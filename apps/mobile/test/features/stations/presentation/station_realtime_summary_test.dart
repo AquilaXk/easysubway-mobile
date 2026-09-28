@@ -149,4 +149,160 @@ void main() {
     final prevStationText = tester.widget<Text>(find.text('전역 도착'));
     expect(prevStationText.style?.color, EasySubwayAccessibleColors.primary);
   });
+
+  testWidgets('다양한 ETA, 위치메시지, 인접역 및 방면 분기가 정확히 매핑된다', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    var retried = false;
+    const arrivals = [
+      // 1. eta < 60 -> 곧 도착
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '사당',
+        direction: '상행',
+        trainNo: '4001',
+        message: '',
+        positionMessage: '',
+        etaSeconds: 30,
+      ),
+      // 2. eta 150 -> 3분 뒤 도착 (isWarning)
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '안산',
+        direction: '하행',
+        trainNo: '4002',
+        message: '운행중',
+        positionMessage: '반월출발',
+        etaSeconds: 150,
+      ),
+      // 3. eta > 3600 (시간, 분)
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '청량리',
+        direction: '내선',
+        trainNo: '4003',
+        message: '',
+        positionMessage: '',
+        etaSeconds: 3660, // 1시간 1분
+      ),
+      // 4. eta > 3600 (정각 시간)
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '신창',
+        direction: '외선',
+        trainNo: '4004',
+        message: '',
+        positionMessage: '',
+        etaSeconds: 7200, // 2시간
+      ),
+      // 5. destination/direction 없는 fallback -> 열차 도착
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '',
+        direction: '',
+        trainNo: '4005',
+        message: '',
+        positionMessage: '3역전',
+        etaSeconds: null,
+      ),
+      // 6. direction 없는 cleanDest 매핑 (진접 -> prev, 인천 -> next)
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '진접행',
+        direction: '',
+        trainNo: '4006',
+        message: '진입',
+        positionMessage: '상록수진입',
+        etaSeconds: 0,
+      ),
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '인천',
+        direction: '',
+        trainNo: '4007',
+        message: '도착',
+        positionMessage: '상록수',
+        etaSeconds: 0,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: StationRealtimeSummary(
+              snapshot: const RealtimeSnapshot(
+                status: RealtimeSnapshotStatus.fresh,
+                arrivals: arrivals,
+              ),
+              previousStation: '반월',
+              nextStation: '한대앞',
+              onRetry: () => retried = true,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('반월 방면'), findsWidgets);
+    expect(find.text('한대앞 방면'), findsWidgets);
+    expect(find.text('열차 도착'), findsOneWidget);
+    expect(find.text('1시간 1분 뒤 도착'), findsOneWidget);
+    expect(find.text('2시간 뒤 도착'), findsOneWidget);
+    expect(find.text('반월출발 (운행중)'), findsOneWidget);
+    expect(retried, isFalse);
+  });
+
+  testWidgets('인접역 없이 단독 방면 및 목적지 분기 테스트', (tester) async {
+    const arrivals = [
+      RealtimeArrival(
+        lineId: 'line-1',
+        stationName: '역',
+        destination: '수원행',
+        direction: '',
+        trainNo: '101',
+        message: '',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
+      RealtimeArrival(
+        lineId: 'line-1',
+        stationName: '역',
+        destination: '',
+        direction: '소요산',
+        trainNo: '102',
+        message: '전역',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationRealtimeSummary(
+            snapshot: const RealtimeSnapshot(
+              status: RealtimeSnapshotStatus.fresh,
+              arrivals: arrivals,
+            ),
+            onRetry: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('수원 방면'), findsOneWidget);
+    expect(find.text('소요산 방면'), findsOneWidget);
+  });
 }

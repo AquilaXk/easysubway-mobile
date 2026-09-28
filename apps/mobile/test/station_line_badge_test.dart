@@ -273,4 +273,74 @@ void main() {
       expect(find.byIcon(Icons.chevron_right), findsOneWidget);
     },
   );
+
+  testWidgets('에셋이 없는 단일 글자 노선은 원형 배지로 숫자/문자 폰트 크기를 조절하여 렌더링한다', (
+    tester,
+  ) async {
+    const lineNumeric = StationSearchLine(
+      id: 'custom-num-7',
+      name: '7',
+      color: '#00A5DE',
+      stationCode: '',
+    );
+    const lineAlpha = StationSearchLine(
+      id: 'custom-alpha-K',
+      name: 'K',
+      color: '#FF5500',
+      stationCode: '',
+    );
+
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              StationLineBadge(line: lineNumeric, size: 40),
+              StationLineBadge(line: lineAlpha, size: 40),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      find.byKey(const Key('stationLineBadge-custom-num-7')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const Key('stationLineBadge-custom-alpha-K')),
+      findsOneWidget,
+    );
+    expect(find.text('7'), findsOneWidget);
+    expect(find.text('K'), findsOneWidget);
+  });
+
+  testWidgets(
+    'NearbyStationLineBar는 badgeText 없이 line 객체만 넘겨도 노선명(예: 4호선)에서 호선을 제거하여 단일 배지로 렌더링한다',
+    (tester) async {
+      const line = StationSearchLine(
+        id: 'seoul-4',
+        name: '4호선',
+        color: '#00A5DE',
+        stationCode: '450',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NearbyStationLineBar(
+              stationName: '상록수',
+              leftName: '반월',
+              rightName: '한대앞',
+              badgeText: '4',
+              lineColor: const Color(0xFF00A5DE),
+              line: line,
+              onStationNameTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('4'), findsOneWidget);
+    },
+  );
 }

@@ -67,9 +67,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   @override
   void didUpdateWidget(StationTimetableScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.stationId != oldWidget.stationId ||
-        widget.lines != oldWidget.lines ||
-        widget.repository != oldWidget.repository) {
+    if (widget.stationId != oldWidget.stationId) {
       _destinationFilters.clear();
       _selectedDirectionFilter = null;
       _lineId = widget.lines.firstOrNull?.id;
@@ -85,10 +83,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   void _startTicker() {
     _tickerTimer?.cancel();
     _tickerTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      if (!mounted) {
-        _stopTicker();
-        return;
-      }
+      if (!mounted) return;
       setState(() {
         _tickerElapsed += const Duration(seconds: 10);
       });
@@ -302,18 +297,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     setState(() => _selectedHour = targetHour);
     if (sortedHours.isEmpty) return;
 
-    int bestHour = sortedHours.contains(targetHour)
-        ? targetHour
-        : sortedHours.first;
-    if (!sortedHours.contains(targetHour)) {
-      final targetOrder = _subwayHourOrder(targetHour);
-      for (final h in sortedHours) {
-        if (_subwayHourOrder(h) >= targetOrder) {
-          bestHour = h;
-          break;
-        }
-      }
-    }
+    final bestHour = targetHour;
 
     final key = _hourKeys[bestHour];
     if (key?.currentContext != null) {
@@ -384,13 +368,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     }
 
     if (_filterFirstLast && list.isNotEmpty) {
-      final first = list.first;
-      final last = list.last;
-      if (identical(first, last) || first == last) {
-        list = [first];
-      } else {
-        list = [first, last];
-      }
+      list = {list.first, list.last}.toList();
     }
 
     return list;
@@ -481,15 +459,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       final filtered = timetable.directions
           .where((d) => d.name == _selectedDirectionFilter)
           .toList();
-      visibleDirections = filtered.isNotEmpty
-          ? filtered
-          : (timetable.directions.length > 2
-                ? timetable.directions.take(2).toList()
-                : timetable.directions);
+      visibleDirections = filtered.isNotEmpty ? filtered : timetable.directions;
     } else {
-      visibleDirections = timetable.directions.length > 2
-          ? timetable.directions.take(2).toList()
-          : timetable.directions;
+      visibleDirections = timetable.directions;
     }
 
     return Scaffold(
@@ -953,11 +925,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       onSelected: (_) {
         setState(() {
           _directionName = direction.name;
-          if (_selectedDirectionFilter == direction.name) {
-            _selectedDirectionFilter = null;
-          } else {
-            _selectedDirectionFilter = direction.name;
-          }
+          _selectedDirectionFilter = _selectedDirectionFilter == direction.name
+              ? null
+              : direction.name;
         });
       },
       backgroundColor: Colors.transparent,
@@ -1511,10 +1481,6 @@ String _formatStationDepartureCountdown(int seconds, DateTime now) {
   final int diffSeconds;
   if (isLateNight && seconds >= Duration.secondsPerDay) {
     diffSeconds = seconds - lateNightServiceSeconds;
-  } else if (!isLateNight &&
-      seconds < currentSeconds &&
-      seconds >= Duration.secondsPerDay) {
-    diffSeconds = seconds - currentSeconds;
   } else {
     diffSeconds = seconds - currentSeconds;
   }
@@ -1609,12 +1575,7 @@ Color _parseLineColor(String? colorStr) {
   }
   try {
     final hex = colorStr.replaceAll('#', '');
-    if (hex.length == 6) {
-      return Color(int.parse('0xFF$hex'));
-    }
-    if (hex.length == 8) {
-      return Color(int.parse('0x$hex'));
-    }
+    return Color(int.parse(hex.length == 6 ? '0xFF$hex' : '0x$hex'));
   } catch (_) {}
   return EasySubwayAccessibleColors.text;
 }

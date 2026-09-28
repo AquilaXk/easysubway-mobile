@@ -119,5 +119,79 @@ void main() {
       formatFacilityDisplayName(name: '1번 출구 엘리베이터', type: 'ELEVATOR'),
       '1번 출구 엘리베이터',
     );
+    expect(
+      formatFacilityDisplayName(name: '1,2번 출구 엘리베이터', type: 'ELEVATOR'),
+      '1, 2번 출구 엘리베이터',
+    );
+
+    // 6. 층간 동선 (지상 ↔ 대합실, 대합실 ↔ 승강장)
+    expect(
+      formatFacilityDisplayName(
+        name: 'ELEVATOR 2',
+        type: 'ELEVATOR',
+        description: '지상 대합실 연결',
+      ),
+      '승강기 2호기 (지상 ↔ 대합실)',
+    );
+    expect(
+      formatFacilityDisplayName(
+        name: 'ELEVATOR 2',
+        type: 'ELEVATOR',
+        description: '대합실 승강장 연결',
+      ),
+      '승강기 2호기 (대합실 ↔ 승강장)',
+    );
+
+    // 7. 설치 정보 및 대수
+    expect(
+      formatFacilityDisplayName(
+        name: '엘리베이터 설치 정보',
+        type: 'ELEVATOR',
+        description: '3대 설치 운영',
+      ),
+      '역내 엘리베이터 (3대 설치)',
+    );
+
+    // 8. 호기 번호 단독 및 raw ELEVATOR 단독
+    expect(
+      formatFacilityDisplayName(name: '승강기 5호기', type: 'ELEVATOR'),
+      '승강기 5호기',
+    );
+    expect(
+      formatFacilityDisplayName(name: 'ELEVATOR', type: 'ELEVATOR'),
+      '역사 엘리베이터',
+    );
+    expect(formatFacilityDisplayName(name: '특수승강기', type: 'ELEVATOR'), '특수승강기');
+
+    // 9. 에스컬레이터 호기 및 기본 명칭
+    expect(
+      formatFacilityDisplayName(name: 'ESCALATOR 1', type: 'ESCALATOR'),
+      '에스컬레이터 1호기',
+    );
+    expect(
+      formatFacilityDisplayName(name: '외부 에스컬레이터', type: 'ESCALATOR'),
+      '외부 에스컬레이터',
+    );
+
+    // 10. 휠체어 리프트 호기 및 기본 명칭
+    expect(
+      formatFacilityDisplayName(name: 'LIFT 1', type: 'WHEELCHAIR_LIFT'),
+      '휠체어 리프트 1호기',
+    );
+    expect(
+      formatFacilityDisplayName(name: '계단 리프트', type: 'WHEELCHAIR_LIFT'),
+      '계단 리프트',
+    );
+
+    // 11. 비표준 층 정보 포맷
+    expect(
+      formatFacilityDisplayName(
+        name: 'ELEVATOR 1',
+        type: 'ELEVATOR',
+        floorFrom: 'M1',
+        floorTo: 'M2',
+      ),
+      '승강기 1호기 (M1 ↔ M2)',
+    );
   });
 }

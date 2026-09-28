@@ -136,4 +136,50 @@ void main() {
     expect(snapshot.arrivals.single.trainNo, '');
     expect(snapshot.arrivals.single.message, '');
   });
+
+  test('RealtimeStationQuery는 동일 필드에 대해 동등성과 해시코드가 일치한다', () {
+    const q1 = RealtimeStationQuery(
+      stationId: 'station-sangnoksu',
+      lineId: '4',
+      stationQueryName: '상록수',
+      providerLineId: 'LINE-4',
+    );
+    const q2 = RealtimeStationQuery(
+      stationId: 'station-sangnoksu',
+      lineId: '4',
+      stationQueryName: '상록수',
+      providerLineId: 'LINE-4',
+    );
+    const q3 = RealtimeStationQuery(
+      stationId: 'station-sadang',
+      lineId: '2',
+      stationQueryName: '사당',
+    );
+
+    const qDiffLine = RealtimeStationQuery(
+      stationId: 'station-sangnoksu',
+      lineId: 'line-other',
+      stationQueryName: '상록수',
+      providerLineId: 'LINE-4',
+    );
+    const qDiffName = RealtimeStationQuery(
+      stationId: 'station-sangnoksu',
+      lineId: '4',
+      stationQueryName: '다른역',
+      providerLineId: 'LINE-4',
+    );
+    const qDiffProvider = RealtimeStationQuery(
+      stationId: 'station-sangnoksu',
+      lineId: '4',
+      stationQueryName: '상록수',
+      providerLineId: 'OTHER',
+    );
+
+    expect(q1, equals(q2));
+    expect(q1.hashCode, equals(q2.hashCode));
+    expect(q1 == q3, isFalse);
+    expect(q1 == qDiffLine, isFalse);
+    expect(q1 == qDiffName, isFalse);
+    expect(q1 == qDiffProvider, isFalse);
+  });
 }

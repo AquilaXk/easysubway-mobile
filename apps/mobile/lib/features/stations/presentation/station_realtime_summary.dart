@@ -157,66 +157,40 @@ List<_RealtimeGroup> _groupRealtimeArrivals(
   for (final arrival in arrivals) {
     final rawDir = arrival.direction.trim();
     final dest = arrival.destination.trim();
+    final isUp =
+        rawDir.contains('상행') ||
+        rawDir.contains('내선') ||
+        rawDir.contains('진접') ||
+        rawDir.contains('당고개') ||
+        dest.contains('진접') ||
+        dest.contains('당고개') ||
+        dest.contains('사당') ||
+        dest.contains('서울역') ||
+        dest.contains('청량리');
+    final isDown =
+        rawDir.contains('하행') ||
+        rawDir.contains('외선') ||
+        rawDir.contains('오이도') ||
+        dest.contains('오이도') ||
+        dest.contains('안산') ||
+        dest.contains('인천');
+
     String dir;
     if (prev != null &&
         prev.isNotEmpty &&
-        (rawDir.contains(prev) || dest.contains(prev))) {
+        (rawDir.contains(prev) || dest.contains(prev) || isUp)) {
       dir = '$prev 방면';
     } else if (next != null &&
         next.isNotEmpty &&
-        (rawDir.contains(next) || dest.contains(next))) {
+        (rawDir.contains(next) || dest.contains(next) || isDown)) {
       dir = '$next 방면';
     } else if (rawDir.isNotEmpty) {
-      if (prev != null &&
-          prev.isNotEmpty &&
-          (rawDir.contains('상행') ||
-              rawDir.contains('내선') ||
-              rawDir.contains('진접') ||
-              rawDir.contains('당고개') ||
-              rawDir.contains('사당') ||
-              rawDir.contains('서울역') ||
-              rawDir.contains('청량리') ||
-              rawDir.contains('대화') ||
-              rawDir.contains('소요산'))) {
-        dir = '$prev 방면';
-      } else if (next != null &&
-          next.isNotEmpty &&
-          (rawDir.contains('하행') ||
-              rawDir.contains('외선') ||
-              rawDir.contains('오이도') ||
-              rawDir.contains('안산') ||
-              rawDir.contains('인천') ||
-              rawDir.contains('수원') ||
-              rawDir.contains('신창'))) {
-        dir = '$next 방면';
-      } else {
-        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
-      }
+      dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
     } else if (dest.isNotEmpty) {
       final cleanDest = dest.endsWith('행')
           ? dest.substring(0, dest.length - 1)
           : dest;
-      if (prev != null &&
-          prev.isNotEmpty &&
-          (cleanDest.contains('진접') ||
-              cleanDest.contains('당고개') ||
-              cleanDest.contains('사당') ||
-              cleanDest.contains('서울역') ||
-              cleanDest.contains('청량리') ||
-              cleanDest.contains('대화') ||
-              cleanDest.contains('소요산'))) {
-        dir = '$prev 방면';
-      } else if (next != null &&
-          next.isNotEmpty &&
-          (cleanDest.contains('오이도') ||
-              cleanDest.contains('안산') ||
-              cleanDest.contains('인천') ||
-              cleanDest.contains('수원') ||
-              cleanDest.contains('신창'))) {
-        dir = '$next 방면';
-      } else {
-        dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
-      }
+      dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
     } else {
       dir = '열차 도착';
     }

@@ -1090,35 +1090,20 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
       isSrt ? 'https://etk.srail.kr' : 'https://m.korail.com',
     );
 
-    if (widget.onLaunchUrl != null) {
-      for (final scheme in appSchemes) {
-        if (await widget.onLaunchUrl!(scheme)) {
-          return true;
-        }
-      }
-      return widget.onLaunchUrl!(webUrl);
-    }
+    final launcher = widget.onLaunchUrl ?? defaultTrainLaunchUrl;
 
     for (final scheme in appSchemes) {
-      try {
-        if (await canLaunchUrl(scheme)) {
-          return await launchUrl(scheme, mode: LaunchMode.externalApplication);
-        }
-      } catch (_) {
-        // Fallback to next scheme or web
+      if (await launcher(scheme)) {
+        return true;
       }
     }
-
-    try {
-      return await launchUrl(webUrl, mode: LaunchMode.externalApplication);
-    } catch (_) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('코레일+ 또는 예매 페이지를 열 수 없습니다.')),
-        );
-      }
-      return false;
+    final ok = await launcher(webUrl);
+    if (!ok && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('코레일+ 또는 예매 페이지를 열 수 없습니다.')),
+      );
     }
+    return ok;
   }
 
   void _showTrainTimetableModal(BuildContext context, TrainJourney journey) {
@@ -1391,11 +1376,6 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
     if (!_canGoPreviousDay) return;
     setState(() {
       _departureDate = _departureDate.subtract(const Duration(days: 1));
-      if (_roundTrip &&
-          _returnDate != null &&
-          _returnDate!.isBefore(_departureDate)) {
-        _returnDate = _departureDate;
-      }
     });
     unawaited(_submit());
   }
@@ -2057,4 +2037,19 @@ class _TrainTimetableModalContentState
     return '${korea.hour.toString().padLeft(2, '0')}:'
         '${korea.minute.toString().padLeft(2, '0')}';
   }
+}
+
+Future<bool> defaultTrainLaunchUrl(
+  Uri uri, {
+  Future<bool> Function(Uri)? canLaunch,
+  Future<bool> Function(Uri, {LaunchMode mode})? launch,
+}) async {
+  try {
+    final check = canLaunch ?? canLaunchUrl;
+    final run = launch ?? launchUrl;
+    if (await check(uri)) {
+      return await run(uri, mode: LaunchMode.externalApplication);
+    }
+  } catch (_) {}
+  return false;
 }

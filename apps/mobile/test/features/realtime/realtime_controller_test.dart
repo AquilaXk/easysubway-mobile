@@ -63,6 +63,34 @@ void main() {
     controller.dispose();
     expect(controller.isPolling, isFalse);
   });
+
+  test('startPolling 타이머 틱은 비동기로 _pollTick을 실행하고 스냅샷을 갱신한다', () async {
+    final countingRepo = CountingRealtimeRepository();
+    final controller = RealtimeStationController(
+      repository: countingRepo,
+      defaultPollingInterval: const Duration(milliseconds: 10),
+    );
+
+    const query = RealtimeStationQuery(
+      stationId: 'station-gangnam',
+      lineId: '2',
+      stationQueryName: '강남',
+    );
+
+    controller.startPolling(
+      query,
+      interval: const Duration(milliseconds: 10),
+      loadImmediately: false,
+    );
+    expect(controller.isPolling, isTrue);
+
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(countingRepo.callCount, greaterThanOrEqualTo(1));
+    expect(controller.state.status, RealtimeSnapshotStatus.fresh);
+
+    controller.stopPolling();
+    controller.dispose();
+  });
 }
 
 class ThrowingRealtimeRepository implements RealtimeRepository {

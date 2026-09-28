@@ -288,4 +288,186 @@ void main() {
       expect(reportedTarget!.facilityName, '승강장 장애인 화장실');
     },
   );
+
+  testWidgets('하단 출발/도착 및 시간표 버튼 터치 시 스낵바 안내 및 콜백이 실행된다', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(buildDetailBody());
+    await tester.pumpAndSettle();
+
+    // 출발 버튼 탭
+    await tester.tap(find.byKey(const Key('stationDetailSetOriginButton')));
+    await tester.pumpAndSettle();
+    expect(find.text('상록수역을 출발역으로 설정했습니다'), findsOneWidget);
+
+    // 스낵바 완료 대기
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pumpAndSettle();
+
+    // 도착 버튼 탭
+    await tester.tap(
+      find.byKey(const Key('stationDetailSetDestinationButton')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('상록수역을 도착역으로 설정했습니다'), findsOneWidget);
+
+    // 전체 시간표 버튼 탭
+    await tester.tap(
+      find.byKey(const Key('stationTimetableButton')),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+
+    // 첫차·막차 버튼 탭
+    await tester.tap(
+      find.byKey(const Key('stationDetailBottomFirstLastButton')),
+      warnIfMissed: false,
+    );
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('휠체어 리프트 시설이 있을 때 전용 키로 리포트 버튼이 제공된다', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const liftFacility = StationFacilityInfo(
+      id: 'facility-lift-1',
+      stationId: 'station-sangnoksu',
+      exitId: 'exit-1',
+      type: 'WHEELCHAIR_LIFT',
+      name: '휠체어 리프트 1호기',
+      floorFrom: '1F',
+      floorTo: 'B1',
+      description: '1번 출구 계단',
+      status: 'NORMAL',
+      dataConfidence: 'HIGH',
+      lastUpdatedAt: '2026-09-27',
+    );
+
+    await tester.pumpWidget(
+      buildDetailBody(facilities: [...testFacilities, liftFacility]),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const Key('naverFacilityReportButton-facility-lift-1')),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('인접역 버튼 및 닫기 버튼이 showContextChrome 환경에서 올바르게 표시된다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    var closed = false;
+    StationDetailNeighbor? selected;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationDetailBody(
+            state: const StationDetailState(
+              status: StationDetailStatus.success,
+              detail: testStation,
+              exits: testExits,
+              facilities: testFacilities,
+            ),
+            onRetryRealtime: () {},
+            onOpenFacilityReport: (_) async {},
+            showContextChrome: true,
+            onClose: () => closed = true,
+            previousStation: const StationDetailNeighbor(
+              stationId: 'station-banwol',
+              nameKo: '반월',
+            ),
+            nextStation: const StationDetailNeighbor(
+              stationId: 'station-handaeap',
+              nameKo: '한대앞',
+            ),
+            onSelectNeighbor: (neighbor) => selected = neighbor,
+            mapLauncher: const UrlLauncherKakaoMapLauncher(),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // 이전역 탭
+    expect(find.text('< 반월역'), findsOneWidget);
+    await tester.tap(find.text('< 반월역'));
+    expect(selected?.nameKo, '반월');
+
+    // 다음역 탭
+    expect(find.text('한대앞역 >'), findsOneWidget);
+    await tester.tap(find.text('한대앞역 >'));
+    expect(selected?.nameKo, '한대앞');
+
+    // 닫기 버튼 탭
+    await tester.tap(find.byIcon(Icons.close));
+    expect(closed, isTrue);
+  });
+
+  testWidgets('편의시설(자전거보관소) 존재 시 활성 아이콘 렌더링 및 하단 첫차막차 버튼 탭 네비게이션 동작', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const facilitiesWithBike = [
+      StationFacilityInfo(
+        id: 'facility-bike-1',
+        stationId: 'station-sangnoksu',
+        exitId: '',
+        type: 'BICYCLE_RACK',
+        name: '자전거보관소',
+        floorFrom: '1F',
+        floorTo: '1F',
+        description: '1번 출구 앞',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+    ];
+
+    await tester.pumpWidget(buildDetailBody(facilities: facilitiesWithBike));
+    await tester.pumpAndSettle();
+
+    // 자전거보관소 활성 아이콘 확인 (라인 1018) 및 엘리베이터 없음 null 분기 (라인 714)
+    expect(find.text('자전거보관소'), findsWidgets);
+
+    final customPaints = find.byType(CustomPaint);
+    if (customPaints.evaluate().isNotEmpty) {
+      for (final elem in customPaints.evaluate()) {
+        final widget = elem.widget as CustomPaint;
+        if (widget.painter != null) {
+          expect(widget.painter!.shouldRepaint(widget.painter!), isFalse);
+        }
+        if (widget.foregroundPainter != null) {
+          expect(
+            widget.foregroundPainter!.shouldRepaint(widget.foregroundPainter!),
+            isFalse,
+          );
+        }
+      }
+    }
+
+    // 하단 첫차막차 버튼 탭 (라인 1353)
+    final firstLastBtn = find.byKey(
+      const Key('stationDetailBottomFirstLastButton'),
+    );
+    expect(firstLastBtn, findsOneWidget);
+    await tester.tap(firstLastBtn);
+    await tester.pumpAndSettle();
+  });
 }

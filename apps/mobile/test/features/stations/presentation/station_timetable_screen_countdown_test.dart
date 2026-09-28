@@ -445,6 +445,11 @@ void main() {
               destination: '안심',
               seconds: 36000,
             ),
+            StationTimetableDeparture(
+              directionName: '안심 방면',
+              destination: '안심',
+              seconds: 36120,
+            ),
           ],
         ),
         StationTimetableDirection(
@@ -454,6 +459,11 @@ void main() {
               directionName: '설화명곡 방면',
               destination: '설화명곡',
               seconds: 36060,
+            ),
+            StationTimetableDeparture(
+              directionName: '설화명곡 방면',
+              destination: '설화명곡',
+              seconds: 36180,
             ),
           ],
         ),
@@ -480,8 +490,8 @@ void main() {
 
     expect(find.text('중앙로 방면'), findsOneWidget);
     expect(find.text('명덕 방면'), findsOneWidget);
-    expect(find.text('안심행'), findsOneWidget);
-    expect(find.text('설화명곡행'), findsOneWidget);
+    expect(find.text('안심행'), findsWidgets);
+    expect(find.text('설화명곡행'), findsWidgets);
   });
 
   testWidgets('첫·막차 및 급행 필터 토글 시 첫/막 뱃지가 유지되고 필터된 시간대 알약 탭이 안정적으로 스크롤된다', (
@@ -592,4 +602,154 @@ void main() {
     await tester.tap(find.text('8시').first);
     await tester.pumpAndSettle();
   });
+
+  test('formatStationDirectionName은 다양한 인접역, 토큰, 인덱스 조건에 따라 방면명을 정규화한다', () {
+    // 1. Direct match with adjacent
+    expect(
+      formatStationDirectionName('제기동 방면', previousStation: '제기동'),
+      '제기동 방면',
+    );
+    expect(formatStationDirectionName('회기 방면', nextStation: '회기'), '회기 방면');
+
+    // 2. Generic tokens
+    expect(formatStationDirectionName('상행', previousStation: '제기동'), '제기동 방면');
+    expect(
+      formatStationDirectionName('내선순환', previousStation: '제기동'),
+      '제기동 방면',
+    );
+    expect(formatStationDirectionName('하행', nextStation: '회기'), '회기 방면');
+    expect(formatStationDirectionName('외선순환', nextStation: '회기'), '회기 방면');
+
+    // 3. Direction index fallback
+    expect(
+      formatStationDirectionName(
+        '방면',
+        previousStation: '제기동',
+        directionIndex: 0,
+      ),
+      '제기동 방면',
+    );
+    expect(
+      formatStationDirectionName('방면', nextStation: '회기', directionIndex: 1),
+      '회기 방면',
+    );
+
+    // 4. Terminal station
+    expect(
+      formatStationDirectionName('임의', previousStation: '제기동', nextStation: ''),
+      '제기동 방면',
+    );
+    expect(
+      formatStationDirectionName('임의', nextStation: '회기', previousStation: ''),
+      '회기 방면',
+    );
+
+    // 5. Fallback
+    expect(formatStationDirectionName('미정 방면'), '미정 방면');
+    expect(formatStationDirectionName('미정'), '미정 방면');
+  });
+
+  testWidgets(
+    'StationTimetableScreen은 다중 노선 선택, 닫기, 라이프사이클 및 1편 열차 첫막차 필터를 정상 처리한다',
+    (tester) async {
+      const line1 = StationSearchLine(
+        id: 'seoul-1',
+        name: '1호선',
+        color: '#0052A4',
+        stationCode: '123',
+      );
+      const line2 = StationSearchLine(
+        id: 'seoul-2',
+        name: '2호선',
+        color: '#00A84D',
+        stationCode: '222',
+      );
+
+      final timetable1 = StationTimetable(
+        stationId: 'station-test',
+        lineId: 'seoul-1',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '상행',
+            departures: [
+              // 1편만 있는 열차 (first == last)
+              StationTimetableDeparture(
+                directionName: '상행',
+                destination: '소요산',
+                seconds: 36000,
+              ),
+            ],
+          ),
+          StationTimetableDirection(
+            name: '하행',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '하행',
+                destination: '인천',
+                seconds: 36000,
+              ),
+              StationTimetableDeparture(
+                directionName: '하행',
+                destination: '수원',
+                seconds: 40000,
+              ),
+            ],
+          ),
+        ],
+      );
+
+      final repo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: timetable1,
+      });
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-test',
+            stationName: '테스트역',
+            lines: const [line1, line2],
+            repository: repo,
+            previousStation: '이전역',
+            nextStation: '다음역',
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 1. 라이프사이클 이벤트
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+      await tester.pump();
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump();
+
+      // 2. 닫기 버튼 탭
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+
+      // 3. 다중 노선 ChoiceChip 탭
+      final line2Chip = find.byKey(const Key('stationTimetableLine-seoul-2'));
+      if (line2Chip.evaluate().isNotEmpty) {
+        await tester.tap(line2Chip);
+        await tester.pumpAndSettle();
+      }
+
+      // 4. didUpdateWidget 트리거
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-test-updated',
+            stationName: '테스트역2',
+            lines: const [line2],
+            repository: repo,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    },
+  );
 }

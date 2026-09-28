@@ -314,4 +314,68 @@ void main() {
     expect(find.text('사당행'), findsOneWidget);
     expect(find.text('오이도행'), findsOneWidget);
   });
+
+  testWidgets('다양한 방향 및 목적지 fallback, 시간 단위 ETA 표기 검증', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '사당행',
+              destination: '', // destination empty -> fallbackDestination
+              etaSeconds: 3660, // 1시간 1분 뒤 도착
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '',
+              destination: '진접행', // cleanDest -> leftName (반월 방면)
+              etaSeconds: 7200, // 2시간 뒤 도착
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '',
+              destination: '오이도행', // cleanDest -> rightName (한대앞 방면)
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    expect(find.text('1시간 1분 뒤 도착'), findsOneWidget);
+    expect(find.text('2시간 뒤 도착'), findsOneWidget);
+  });
+
+  testWidgets('인접역이 없을 때 기본 방향 및 목적지 라벨로 폴백한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '상행',
+              destination: '청량리',
+              etaSeconds: 120,
+              message: '',
+            ),
+            NearbyArrivalData(
+              direction: '',
+              destination: '수원행',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.text('상행 방면'), findsOneWidget);
+    expect(find.text('수원 방면'), findsOneWidget);
+  });
 }

@@ -220,4 +220,64 @@ void main() {
       expect(destinationClears, slot == RouteDraftSlot.destination ? 1 : 0);
     });
   }
+
+  testWidgets('확대된 상태에서 focusedStationId를 받으면 scale을 유지하며 포커스한다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NetworkMapCanvas(
+            data: _data,
+            initialViewport: const Rect.fromLTWH(155, 155, 10, 10),
+            focusedStationId: null,
+            preserveFocusedStationScale: false,
+            selectedStationId: null,
+            selectionClearRevision: 0,
+            originStationId: null,
+            waypointStationId: null,
+            destinationStationId: null,
+            onSetOrigin: (_) {},
+            onSetWaypoint: (_) {},
+            onSetDestination: (_) {},
+            onClearOrigin: () {},
+            onClearWaypoint: () {},
+            onClearDestination: () {},
+            onViewportChanged: (_) {},
+            onSelectionDismissed: () {},
+            onStationTapped: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NetworkMapCanvas(
+            data: _data,
+            initialViewport: const Rect.fromLTWH(155, 155, 10, 10),
+            focusedStationId: _station.id,
+            preserveFocusedStationScale: false,
+            selectedStationId: null,
+            selectionClearRevision: 0,
+            originStationId: null,
+            waypointStationId: null,
+            destinationStationId: null,
+            onSetOrigin: (_) {},
+            onSetWaypoint: (_) {},
+            onSetDestination: (_) {},
+            onClearOrigin: () {},
+            onClearWaypoint: () {},
+            onClearDestination: () {},
+            onViewportChanged: (_) {},
+            onSelectionDismissed: () {},
+            onStationTapped: (_) {},
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+  });
 }
