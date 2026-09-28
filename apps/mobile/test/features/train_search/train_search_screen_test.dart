@@ -1221,8 +1221,8 @@ void main() {
       final result = await defaultTrainLaunchUrl(
         Uri.parse('https://example.com'),
         canLaunch: (uri) async => true,
-        launch:
-            (uri, {LaunchMode mode = LaunchMode.platformDefault}) async => true,
+        launch: (uri, {LaunchMode mode = LaunchMode.platformDefault}) async =>
+            true,
       );
       expect(result, isTrue);
     },
