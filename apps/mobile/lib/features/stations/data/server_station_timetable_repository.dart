@@ -83,6 +83,26 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     final contract.JourneySessionResponse session;
     try {
       session = await _sessionProvider.session();
+    } on JourneyRejectedFailure catch (error) {
+      if (error.statusCode >= 500) {
+        throw ServerConnectionException(
+          'Journey server internal failure (${error.statusCode}).',
+          statusCode: error.statusCode,
+          cause: error,
+        );
+      }
+      throw StationTimetableUnavailable(error.error.code.wire);
+    } on JourneyTransportFailure catch (error) {
+      throw ServerConnectionException(
+        'Network transport failure: ${error.operation.wire}',
+        cause: error.cause,
+      );
+    } on JourneyProtocolFailure catch (error) {
+      throw ServerConnectionException(
+        'Journey protocol failure: ${error.operation.wire}',
+        statusCode: error.statusCode,
+        cause: error.cause,
+      );
     } on JourneySessionInvalid {
       throw const StationTimetableUnavailable(
         'Journey session is unavailable.',

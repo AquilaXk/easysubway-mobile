@@ -51,6 +51,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   var _loading = false;
   var _requestId = 0;
   var _isNetworkError = false;
+  var _didSelectOrLoadLine = false;
   Timer? _tickerTimer;
   Duration _tickerElapsed = Duration.zero;
   DateTime? _initClockNow;
@@ -76,6 +77,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     if (widget.stationId != oldWidget.stationId ||
         widget.repository != oldWidget.repository ||
         widget.now != oldWidget.now) {
+      if (widget.stationId != oldWidget.stationId) {
+        _didSelectOrLoadLine = false;
+      }
       _destinationFilters.clear();
       _selectedDirectionFilter = null;
       _lineId = widget.lines.firstOrNull?.id;
@@ -151,8 +155,13 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _isNetworkError = false;
     });
     StationTimetable? unavailable;
-    try {
-      for (final line in widget.lines) {
+    ServerConnectionException? serverException;
+    StackTrace serverStackTrace = StackTrace.empty;
+    Object? otherException;
+    StackTrace otherStackTrace = StackTrace.empty;
+
+    for (final line in widget.lines) {
+      try {
         final timetable = await repository.loadStationTimetableForDate(
           stationId: widget.stationId,
           lineId: line.id,
@@ -164,26 +173,22 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           return;
         }
         unavailable ??= timetable;
+      } on StationTimetableUnavailable {
+        // Line not available in timetable, continue checking next line
+      } on ServerConnectionException catch (error, stackTrace) {
+        serverException = error;
+        serverStackTrace = stackTrace;
+      } catch (error, stackTrace) {
+        otherException = error;
+        otherStackTrace = stackTrace;
       }
       if (!mounted || requestId != _requestId) return;
-      setState(() {
-        _timetable = unavailable;
-        _directionName = null;
-        _loading = false;
-        _isNetworkError = false;
-      });
-    } on StationTimetableUnavailable {
-      if (!mounted || requestId != _requestId) return;
-      setState(() {
-        _timetable = null;
-        _directionName = null;
-        _loading = false;
-        _isNetworkError = false;
-      });
-    } on ServerConnectionException catch (error, stackTrace) {
+    }
+
+    if (serverException != null) {
       reportMobileError(
-        error,
-        stackTrace,
+        serverException,
+        serverStackTrace,
         context: '역 초기 시간표 조회 중 서버 장애가 발생했습니다.',
       );
       if (!mounted || requestId != _requestId) return;
@@ -193,8 +198,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _loading = false;
         _isNetworkError = true;
       });
-    } catch (error, stackTrace) {
-      reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
+      return;
+    }
+
+    if (otherException != null) {
+      reportMobileError(
+        otherException,
+        otherStackTrace,
+        context: '역 시간표 조회 중 예외가 발생했습니다.',
+      );
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _timetable = null;
@@ -202,7 +214,16 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _loading = false;
         _isNetworkError = false;
       });
+      return;
     }
+
+    if (!mounted || requestId != _requestId) return;
+    setState(() {
+      _timetable = unavailable;
+      _directionName = null;
+      _loading = false;
+      _isNetworkError = false;
+    });
   }
 
   Future<void> _load({DateTime? date}) async {
@@ -278,6 +299,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _timetable = timetable;
       _lineId = timetable.lineId;
       _dayType = timetable.dayType;
+      _didSelectOrLoadLine = true;
       _isNetworkError = false;
       _directionName = directionNames.contains(_directionName)
           ? _directionName
@@ -619,6 +641,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                             onSelected: (_) {
                               setState(() {
                                 _lineId = line.id;
+                                _didSelectOrLoadLine = true;
                                 _destinationFilters.clear();
                                 _selectedDirectionFilter = null;
                               });
@@ -789,9 +812,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           const SizedBox(height: 20),
           OutlinedButton.icon(
             key: const Key('station-timetable-retry-button'),
-            onPressed: () {
-              unawaited(_loadInitialAvailableLine(_effectiveNow));
-            },
+            onPressed: _loading
+                ? null
+                : () {
+                    if (_didSelectOrLoadLine && _lineId != null) {
+                      unawaited(_load());
+                    } else {
+                      unawaited(_loadInitialAvailableLine(_effectiveNow));
+                    }
+                  },
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text(
               '다시 시도',
