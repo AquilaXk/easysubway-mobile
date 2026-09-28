@@ -42,7 +42,9 @@ export function isCanonicalCodexFallback(review) {
   return (
     isTrustedHuman(review) &&
     body.startsWith('**Actionable comments posted: ') &&
-    body.includes('<!-- Review source: Codex CLI fallback; canonical visible structure:')
+    (body.includes('<!-- Review source: Aquila fallback; canonical visible structure:') ||
+      body.includes('<!-- Review source: Aquila Universal Review; engine: aquila-review -->') ||
+      body.includes('<!-- Review source: Codex CLI fallback; canonical visible structure:'))
   );
 }
 
