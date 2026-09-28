@@ -244,6 +244,20 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ]),
     0,
   );
+  assert.equal(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '**Actionable comments posted: 0**\n<!-- Review source: Aquila fallback; canonical visible structure: PR #1926 Review 4676157515 -->'),
+    ]),
+    0,
+    'Aquila fallback review must satisfy frozen discovery filter',
+  );
+  assert.equal(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '**Actionable comments posted: 0**\n<!-- Review source: Aquila Universal Review; engine: aquila-review -->'),
+    ]),
+    0,
+    'Aquila Universal Review must satisfy frozen discovery filter',
+  );
   assert.notEqual(
     runReviewFilter([
       review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '', {
