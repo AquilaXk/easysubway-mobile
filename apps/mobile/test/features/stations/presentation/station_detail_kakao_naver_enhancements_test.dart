@@ -38,6 +38,7 @@ void main() {
       hasStairOnlyPath: false,
       dataConfidence: 'HIGH',
       lastVerifiedAt: '2026-09-27',
+      nearbyDoorHint: '반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1',
     ),
     StationExitInfo(
       id: 'exit-2',
@@ -152,6 +153,12 @@ void main() {
         findsOneWidget,
       );
 
+      // 하차문 정보가 없는 2번 출구 선택 시 '출구와 가까운 하차문' 섹션이 숨겨짐을 검증
+      await tester.tap(find.byKey(const Key('stationExitPill-exit-2')));
+      await tester.pumpAndSettle();
+      expect(find.text('일동 방면, 안산상록경찰서'), findsOneWidget);
+      expect(find.text('출구와 가까운 하차문'), findsNothing);
+
       // 잔여 슬롭 버튼 완전 삭제 검증
       expect(find.text('버스 도착 정보 보기'), findsNothing);
       expect(find.text('카카오맵에서 보기'), findsNothing);
@@ -159,6 +166,38 @@ void main() {
       expect(find.text('도보 길안내'), findsNothing);
     },
   );
+
+  testWidgets('공식 하차문 정보가 없는 출구만 존재하는 역은 가짜 모듈로 산술 없이 하차문 섹션을 완전히 숨긴다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const exitsWithoutDoorHint = [
+      StationExitInfo(
+        id: 'exit-no-door-1',
+        stationId: 'station-sangnoksu',
+        exitNumber: '1',
+        name: '1번 출구',
+        description: '상록수역 공영주차장',
+        hasElevatorConnection: true,
+        hasStairOnlyPath: false,
+        dataConfidence: 'HIGH',
+      ),
+    ];
+
+    await tester.pumpWidget(buildDetailBody(exits: exitsWithoutDoorHint));
+    await tester.pumpAndSettle();
+
+    expect(find.text('출구정보'), findsOneWidget);
+    expect(find.text('상록수역 공영주차장'), findsOneWidget);
+    // 가짜 산술로 생성된 하차문 및 섹션 타이틀이 없어야 함
+    expect(find.text('출구와 가까운 하차문'), findsNothing);
+    expect(find.textContaining('반월 방면'), findsNothing);
+    expect(find.textContaining('한대앞 방면'), findsNothing);
+  });
 
   testWidgets(
     '네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드) 및 하단 액션바가 렌더링된다',
@@ -470,4 +509,47 @@ void main() {
     await tester.tap(firstLastBtn);
     await tester.pumpAndSettle();
   });
+
+  test(
+    'StationExitInfo parses nearbyDoorHint and hasNearbyDoorHint behaves correctly',
+    () {
+      final withHint = StationExitInfo.fromJson(const {
+        'id': 'exit-1',
+        'stationId': 'station-1',
+        'exitNumber': '1',
+        'name': '1번 출구',
+        'hasElevatorConnection': true,
+        'hasStairOnlyPath': false,
+        'dataConfidence': 'HIGH',
+        'nearbyDoorHint': '상행 4-4, 7-3',
+      });
+      expect(withHint.nearbyDoorHint, '상행 4-4, 7-3');
+      expect(withHint.hasNearbyDoorHint, isTrue);
+
+      final withoutHint = StationExitInfo.fromJson(const {
+        'id': 'exit-2',
+        'stationId': 'station-1',
+        'exitNumber': '2',
+        'name': '2번 출구',
+        'hasElevatorConnection': false,
+        'hasStairOnlyPath': true,
+        'dataConfidence': 'MEDIUM',
+      });
+      expect(withoutHint.nearbyDoorHint, isNull);
+      expect(withoutHint.hasNearbyDoorHint, isFalse);
+
+      final emptyHint = StationExitInfo.fromJson(const {
+        'id': 'exit-3',
+        'stationId': 'station-1',
+        'exitNumber': '3',
+        'name': '3번 출구',
+        'hasElevatorConnection': false,
+        'hasStairOnlyPath': false,
+        'dataConfidence': 'LOW',
+        'nearbyDoorHint': '   ',
+      });
+      expect(emptyHint.nearbyDoorHint, isNull);
+      expect(emptyHint.hasNearbyDoorHint, isFalse);
+    },
+  );
 }

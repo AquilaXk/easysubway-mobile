@@ -117,6 +117,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       lineId: lineId,
       dayType: dayType,
       directions: List.unmodifiable(directions),
+      isOfflineFallback: true,
     );
   }
 
@@ -164,6 +165,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       lineId: lineId,
       dayType: timetable.dayType,
       directions: List.unmodifiable(filteredDirections),
+      isOfflineFallback: true,
     );
   }
 

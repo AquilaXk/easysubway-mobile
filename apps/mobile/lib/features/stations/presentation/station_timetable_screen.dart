@@ -67,7 +67,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   @override
   void didUpdateWidget(StationTimetableScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (widget.stationId != oldWidget.stationId) {
+    if (widget.stationId != oldWidget.stationId ||
+        widget.repository != oldWidget.repository) {
       _destinationFilters.clear();
       _selectedDirectionFilter = null;
       _lineId = widget.lines.firstOrNull?.id;
@@ -613,6 +614,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                 ),
               )
             else ...[
+              if (timetable.isOfflineFallback) _buildOfflineFallbackNotice(),
               _buildDirectionHeader(directions: visibleDirections),
               const Divider(
                 height: 1,
@@ -636,6 +638,40 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             _buildOffstageTestHelper(
               timetable: timetable,
               currentDirection: activeDirection,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOfflineFallbackNotice() {
+    return Semantics(
+      container: true,
+      label: '오프라인 시간표 안내: 기기에 저장된 시간표를 표시하고 있어요. 최신 운행 정보와 다를 수 있어요.',
+      child: Container(
+        key: const Key('stationTimetableOfflineBanner'),
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        color: EasySubwayAccessibleColors.statusWarningSurface,
+        child: const Row(
+          children: [
+            Icon(
+              Icons.warning_amber_rounded,
+              size: 16,
+              color: EasySubwayAccessibleColors.statusWarningContent,
+            ),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '오프라인 모드: 기기에 저장된 시간표를 표시하고 있어요. 최신 운행 정보와 다를 수 있어요.',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: EasySubwayAccessibleColors.statusWarningContent,
+                  height: 1.3,
+                ),
+              ),
             ),
           ],
         ),

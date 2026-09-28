@@ -4,16 +4,15 @@ import 'package:easysubway_mobile/features/stations/data/drift_station_timetable
 import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 class _FakeServerTimetableRepository implements StationTimetableRepository {
-  _FakeServerTimetableRepository({
-    this.timetableToReturn,
-    this.shouldThrow = false,
-  });
+  _FakeServerTimetableRepository({this.timetableToReturn, this.errorToThrow});
 
   StationTimetable? timetableToReturn;
-  bool shouldThrow;
+  Object? errorToThrow;
 
   @override
   Future<StationTimetable> loadStationTimetable({
@@ -22,8 +21,8 @@ class _FakeServerTimetableRepository implements StationTimetableRepository {
     required StationTimetableDayType dayType,
     required DateTime referenceDate,
   }) async {
-    if (shouldThrow) {
-      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    if (errorToThrow != null) {
+      throw errorToThrow!;
     }
     return timetableToReturn ??
         StationTimetable(
@@ -40,8 +39,8 @@ class _FakeServerTimetableRepository implements StationTimetableRepository {
     required String lineId,
     required DateTime date,
   }) async {
-    if (shouldThrow) {
-      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    if (errorToThrow != null) {
+      throw errorToThrow!;
     }
     return timetableToReturn ??
         StationTimetable(
@@ -59,8 +58,8 @@ class _FakeServerTimetableRepository implements StationTimetableRepository {
     required DateTime asOf,
     int horizonDays = 1,
   }) async {
-    if (shouldThrow) {
-      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    if (errorToThrow != null) {
+      throw errorToThrow!;
     }
     return timetableToReturn ??
         StationTimetable(
@@ -232,26 +231,40 @@ void main() {
           date: DateTime.utc(2026, 9, 25),
         );
         expect(timetable.isAvailable, isTrue);
+        expect(timetable.isOfflineFallback, isFalse);
         expect(timetable.directions.first.name, '춘천 방면');
       },
     );
 
     test(
-      'CompositeStationTimetableRepository falls back to local when server throws',
+      'CompositeStationTimetableRepository falls back to local and marks offline when server throws',
       () async {
-        final serverRepo = _FakeServerTimetableRepository(shouldThrow: true);
+        final serverRepo = _FakeServerTimetableRepository(
+          errorToThrow: Exception('Server network failure'),
+        );
         final localRepo = DriftStationTimetableRepository(database: database);
         final composite = CompositeStationTimetableRepository(
           serverRepository: serverRepo,
           localRepository: localRepo,
         );
 
-        final timetable = await composite.loadStationTimetableForDate(
-          stationId: 'station-sangnoksu',
-          lineId: 'seoul-4',
-          date: DateTime.utc(2026, 9, 25),
+        final reportedErrors = <FlutterErrorDetails>[];
+        final timetable = await runWithMobileErrorReporter(
+          (details) => reportedErrors.add(details),
+          () => composite.loadStationTimetableForDate(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            date: DateTime.utc(2026, 9, 25),
+          ),
         );
+
         expect(timetable.isAvailable, isTrue);
+        expect(timetable.isOfflineFallback, isTrue);
+        expect(reportedErrors, isNotEmpty);
+        expect(
+          reportedErrors.first.context?.toString(),
+          contains('서버 일자별 시간표 조회 실패로 로컬 저장 시간표로 전환합니다'),
+        );
         expect(
           timetable.directions.map((d) => d.name),
           containsAll(['오이도 방면', '진접 방면']),
@@ -282,27 +295,36 @@ void main() {
           date: DateTime.utc(2026, 9, 25),
         );
         expect(timetable.isAvailable, isTrue);
+        expect(timetable.isOfflineFallback, isTrue);
         expect(timetable.directions, hasLength(2));
       },
     );
 
     test(
-      'CompositeStationTimetableRepository delegates loadStationTimetable and falls back to local',
+      'CompositeStationTimetableRepository delegates loadStationTimetable and falls back to local with offline mark',
       () async {
-        final serverRepo = _FakeServerTimetableRepository(shouldThrow: true);
+        final serverRepo = _FakeServerTimetableRepository(
+          errorToThrow: Exception('Server 500 error'),
+        );
         final localRepo = DriftStationTimetableRepository(database: database);
         final composite = CompositeStationTimetableRepository(
           serverRepository: serverRepo,
           localRepository: localRepo,
         );
 
-        final timetable = await composite.loadStationTimetable(
-          stationId: 'station-sangnoksu',
-          lineId: 'seoul-4',
-          dayType: StationTimetableDayType.weekday,
-          referenceDate: DateTime.utc(2026, 9, 25),
+        final reportedErrors = <FlutterErrorDetails>[];
+        final timetable = await runWithMobileErrorReporter(
+          (details) => reportedErrors.add(details),
+          () => composite.loadStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            dayType: StationTimetableDayType.weekday,
+            referenceDate: DateTime.utc(2026, 9, 25),
+          ),
         );
         expect(timetable.isAvailable, isTrue);
+        expect(timetable.isOfflineFallback, isTrue);
+        expect(reportedErrors, isNotEmpty);
 
         final serverSuccess = _FakeServerTimetableRepository(
           timetableToReturn: timetable,
@@ -318,25 +340,34 @@ void main() {
           referenceDate: DateTime.utc(2026, 9, 25),
         );
         expect(successResult.isAvailable, isTrue);
+        expect(successResult.isOfflineFallback, isFalse);
       },
     );
 
     test(
-      'CompositeStationTimetableRepository delegates loadNextStationTimetable and falls back to local',
+      'CompositeStationTimetableRepository delegates loadNextStationTimetable and falls back to local with offline mark',
       () async {
-        final serverRepo = _FakeServerTimetableRepository(shouldThrow: true);
+        final serverRepo = _FakeServerTimetableRepository(
+          errorToThrow: Exception('Server timeout'),
+        );
         final localRepo = DriftStationTimetableRepository(database: database);
         final composite = CompositeStationTimetableRepository(
           serverRepository: serverRepo,
           localRepository: localRepo,
         );
 
-        final timetable = await composite.loadNextStationTimetable(
-          stationId: 'station-sangnoksu',
-          lineId: 'seoul-4',
-          asOf: DateTime.utc(2026, 9, 25, 7, 0),
+        final reportedErrors = <FlutterErrorDetails>[];
+        final timetable = await runWithMobileErrorReporter(
+          (details) => reportedErrors.add(details),
+          () => composite.loadNextStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            asOf: DateTime.utc(2026, 9, 25, 7, 0),
+          ),
         );
         expect(timetable.isAvailable, isTrue);
+        expect(timetable.isOfflineFallback, isTrue);
+        expect(reportedErrors, isNotEmpty);
 
         final serverSuccess = _FakeServerTimetableRepository(
           timetableToReturn: timetable,
@@ -351,6 +382,26 @@ void main() {
           asOf: DateTime.utc(2026, 9, 25, 7, 0),
         );
         expect(successResult.isAvailable, isTrue);
+        expect(successResult.isOfflineFallback, isFalse);
+      },
+    );
+
+    test(
+      'StationTimetable copyWith correctly updates isOfflineFallback and other fields',
+      () {
+        const original = StationTimetable(
+          stationId: 'st-1',
+          lineId: 'line-1',
+          dayType: StationTimetableDayType.weekday,
+          directions: [],
+          isOfflineFallback: false,
+        );
+        final updated = original.copyWith(isOfflineFallback: true);
+        expect(updated.isOfflineFallback, isTrue);
+        expect(updated.stationId, 'st-1');
+
+        final preserved = updated.copyWith();
+        expect(preserved.isOfflineFallback, isTrue);
       },
     );
   });

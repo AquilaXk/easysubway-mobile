@@ -13415,6 +13415,7 @@ void main() {
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
           lastVerifiedAt: '2026-06-19',
+          nearbyDoorHint: '상행 4-4, 7-3, 하행 4-2, 7-1',
         ),
         StationExitInfo(
           id: 'exit-sangnoksu-2',
@@ -13499,6 +13500,7 @@ void main() {
           hasStairOnlyPath: false,
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
+          nearbyDoorHint: '상행 4-4, 7-3, 하행 4-2, 7-1',
         ),
         StationExitInfo(
           id: 'exit-sangnoksu-2',
@@ -13512,6 +13514,7 @@ void main() {
           hasStairOnlyPath: true,
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
+          nearbyDoorHint: '상행 4-1, 7-2, 하행 4-3, 7-4',
         ),
       ],
     );
