@@ -123,22 +123,13 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         cause: error.cause,
       );
     } on JourneyProtocolFailure catch (error) {
-      if ((error.statusCode ?? 500) >= 500) {
-        throw ServerConnectionException(
-          'Journey protocol failure: ${error.operation.wire}',
-          statusCode: error.statusCode,
-          cause: error.cause,
-        );
-      }
-      throw StationTimetableUnavailable(error.operation.wire);
-    } on JourneyRepositoryFailure catch (error) {
-      throw StationTimetableUnavailable(error.operation.wire);
+      throw ServerConnectionException(
+        'Journey protocol failure: ${error.operation.wire}',
+        statusCode: error.statusCode,
+        cause: error.cause,
+      );
     } on FormatException catch (error) {
       throw StationTimetableUnavailable(error.message);
-    } on ServerConnectionException {
-      rethrow;
-    } on StationTimetableUnavailable {
-      rethrow;
     } catch (_) {
       throw const StationTimetableUnavailable(
         'Journey timetable is unavailable.',

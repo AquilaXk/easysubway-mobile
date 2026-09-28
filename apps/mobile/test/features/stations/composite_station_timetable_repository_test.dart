@@ -466,5 +466,117 @@ void main() {
         expect(reportedErrors, isNotEmpty);
       },
     );
+
+    test(
+      'ServerConnectionException toString prints message, statusCode and cause',
+      () {
+        const e1 = ServerConnectionException('timeout');
+        expect(e1.toString(), 'ServerConnectionException: timeout');
+
+        const e2 = ServerConnectionException('server error', statusCode: 500);
+        expect(
+          e2.toString(),
+          'ServerConnectionException: server error (HTTP 500)',
+        );
+
+        final e3 = ServerConnectionException(
+          'failed',
+          statusCode: 502,
+          cause: Exception('bad gateway'),
+        );
+        expect(e3.toString(), contains('(HTTP 502)'));
+        expect(e3.toString(), contains('[cause: Exception: bad gateway]'));
+      },
+    );
+
+    test(
+      'CompositeStationTimetableRepository handles local repository unexpected errors and wraps generic server errors in ServerConnectionException',
+      () async {
+        final serverRepo = _FakeServerTimetableRepository(
+          errorToThrow: StateError('unexpected server failure'),
+        );
+        final throwingLocal = _FakeThrowingLocalTimetableRepository();
+        final composite = CompositeStationTimetableRepository(
+          serverRepository: serverRepo,
+          localRepository: throwingLocal,
+        );
+
+        final reportedErrors = <FlutterErrorDetails>[];
+        // 1. loadStationTimetable
+        await expectLater(
+          runWithMobileErrorReporter(
+            (details) => reportedErrors.add(details),
+            () => composite.loadStationTimetable(
+              stationId: 'station-unknown',
+              lineId: 'seoul-4',
+              dayType: StationTimetableDayType.weekday,
+              referenceDate: DateTime.utc(2026, 9, 25),
+            ),
+          ),
+          throwsA(isA<ServerConnectionException>()),
+        );
+
+        // 2. loadStationTimetableForDate
+        await expectLater(
+          runWithMobileErrorReporter(
+            (details) => reportedErrors.add(details),
+            () => composite.loadStationTimetableForDate(
+              stationId: 'station-unknown',
+              lineId: 'seoul-4',
+              date: DateTime.utc(2026, 9, 25),
+            ),
+          ),
+          throwsA(isA<ServerConnectionException>()),
+        );
+
+        // 3. loadNextStationTimetable
+        await expectLater(
+          runWithMobileErrorReporter(
+            (details) => reportedErrors.add(details),
+            () => composite.loadNextStationTimetable(
+              stationId: 'station-unknown',
+              lineId: 'seoul-4',
+              asOf: DateTime.utc(2026, 9, 25),
+            ),
+          ),
+          throwsA(isA<ServerConnectionException>()),
+        );
+
+        // Both server failure and local unexpected errors are reported
+        expect(reportedErrors.length, greaterThanOrEqualTo(6));
+      },
+    );
   });
+}
+
+class _FakeThrowingLocalTimetableRepository
+    implements StationTimetableRepository {
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) async {
+    throw StateError('local db read failed');
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) async {
+    throw StateError('local db date read failed');
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) async {
+    throw StateError('local db next read failed');
+  }
 }

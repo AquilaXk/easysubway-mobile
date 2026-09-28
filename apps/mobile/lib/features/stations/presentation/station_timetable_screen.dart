@@ -776,12 +776,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           OutlinedButton.icon(
             key: const Key('station-timetable-retry-button'),
             onPressed: () {
-              final now = _effectiveNow;
-              if (widget.lines.length > 1 && _timetable == null) {
-                unawaited(_loadInitialAvailableLine(now));
-              } else {
-                unawaited(_load());
-              }
+              unawaited(_loadInitialAvailableLine(_effectiveNow));
             },
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text(

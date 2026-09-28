@@ -963,4 +963,81 @@ void main() {
       });
     },
   );
+
+  testWidgets(
+    '운행일 변경 시 서버 장애(ServerConnectionException)가 발생하면 네트워크 에러 뷰를 렌더링한다',
+    (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      const line = StationSearchLine(
+        id: 'seoul-2',
+        name: '2호선',
+        color: '#00A84D',
+        stationCode: '222',
+      );
+
+      final timetable = StationTimetable(
+        stationId: 'station-gangnam',
+        lineId: 'seoul-2',
+        dayType: StationTimetableDayType.weekday,
+        directions: const [
+          StationTimetableDirection(
+            name: '외선순환',
+            departures: [
+              StationTimetableDeparture(directionName: '외선순환', seconds: 36000),
+            ],
+          ),
+        ],
+      );
+
+      final repo = _FakeTimetableRepo({
+        StationTimetableDayType.weekday: timetable,
+      });
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await tester.pumpWidget(
+          MaterialApp(
+            home: StationTimetableScreen(
+              stationId: 'station-gangnam',
+              stationName: '강남',
+              lines: const [line],
+              repository: repo,
+            ),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('station-timetable-network-error-view')),
+          findsNothing,
+        );
+
+        // Change day to Saturday when server is down
+        repo.errorToThrow = const ServerConnectionException(
+          '토요일 서버 에러',
+          statusCode: 503,
+        );
+        await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('station-timetable-network-error-view')),
+          findsOneWidget,
+        );
+        expect(reportedErrors, isNotEmpty);
+
+        // Change day to Sunday when generic error occurs
+        repo.errorToThrow = StateError('generic error');
+        await tester.tap(
+          find.byKey(const Key('stationTimetableDay-sundayHoliday')),
+        );
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('station-timetable-network-error-view')),
+          findsNothing,
+        );
+        expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+      });
+    },
+  );
 }
