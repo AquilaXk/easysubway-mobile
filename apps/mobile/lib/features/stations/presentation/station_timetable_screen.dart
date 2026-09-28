@@ -19,6 +19,7 @@ class StationTimetableScreen extends StatefulWidget {
     this.repository,
     this.previousStation,
     this.nextStation,
+    this.now,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class StationTimetableScreen extends StatefulWidget {
   final StationTimetableRepository? repository;
   final String? previousStation;
   final String? nextStation;
+  final DateTime? now;
 
   @override
   State<StationTimetableScreen> createState() => _StationTimetableScreenState();
@@ -51,13 +53,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   var _isNetworkError = false;
   Timer? _tickerTimer;
   Duration _tickerElapsed = Duration.zero;
+  DateTime? _initClockNow;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _lineId = widget.lines.firstOrNull?.id;
-    final now = clock.now();
+    final now = widget.now ?? clock.now();
+    _initClockNow = now;
     _dayType = _todayTimetableDayType(now);
     _selectedHour = _initSelectedHour(now);
     if (widget.repository != null && _lineId != null) {
@@ -70,11 +74,13 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   void didUpdateWidget(StationTimetableScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.stationId != oldWidget.stationId ||
-        widget.repository != oldWidget.repository) {
+        widget.repository != oldWidget.repository ||
+        widget.now != oldWidget.now) {
       _destinationFilters.clear();
       _selectedDirectionFilter = null;
       _lineId = widget.lines.firstOrNull?.id;
-      final now = clock.now();
+      final now = widget.now ?? clock.now();
+      _initClockNow = now;
       _dayType = _todayTimetableDayType(now);
       _selectedHour = _initSelectedHour(now);
       if (widget.repository != null && _lineId != null) {
@@ -118,7 +124,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   }
 
   DateTime get _effectiveNow {
-    return clock.now().add(_tickerElapsed);
+    final explicitNow = widget.now;
+    if (explicitNow != null) {
+      return explicitNow.add(_tickerElapsed);
+    }
+    final currentClock = clock.now();
+    if (currentClock == _initClockNow) {
+      return currentClock.add(_tickerElapsed);
+    }
+    return currentClock;
   }
 
   int _initSelectedHour(DateTime now) {
@@ -208,7 +222,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               stationId: widget.stationId,
               lineId: lineId,
               dayType: _dayType,
-              referenceDate: clock.now(),
+              referenceDate: _effectiveNow,
             )
           : await repository.loadStationTimetableForDate(
               stationId: widget.stationId,

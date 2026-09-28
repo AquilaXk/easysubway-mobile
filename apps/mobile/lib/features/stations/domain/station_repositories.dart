@@ -1,3 +1,4 @@
+import 'package:clock/clock.dart';
 import 'station_line.dart';
 import 'station_models.dart';
 
@@ -182,7 +183,7 @@ abstract class SearchHistoryRepository {
     int limit = 10,
   }) async {
     final queries = await listRecentQueries();
-    final now = DateTime.now();
+    final now = clock.now();
     var offset = queries.length;
     return [
       for (final query in queries)
