@@ -126,9 +126,11 @@ void main() {
     'session or attestor failure is a typed timetable unavailable result',
     () async {
       final sessionFailure = _FakeJourneyRepository(
-        issueFailure: JourneyTransportFailure(
-          contract.JourneyOperation.issueJourneySession,
-          StateError('session unavailable'),
+        issueFailure: _rejected(
+          statusCode: 403,
+          code: contract.JourneyErrorCode.routeSessionAttestationRejected,
+          operation: contract.JourneyOperation.issueJourneySession,
+          now: now,
         ),
         now: now,
       );
@@ -385,6 +387,57 @@ void main() {
       throwsA(isA<ServerConnectionException>()),
     );
   });
+
+  test(
+    '세션 발급 중 네트워크 전송 오류(JourneyTransportFailure) 시 ServerConnectionException을 던진다',
+    () async {
+      final sessionFailure = _FakeJourneyRepository(
+        issueFailure: JourneyTransportFailure(
+          contract.JourneyOperation.issueJourneySession,
+          'SocketException: Failed host lookup',
+        ),
+        now: now,
+      );
+
+      await expectLater(
+        _repository(sessionFailure, now: now).loadStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.weekday,
+          referenceDate: now,
+        ),
+        throwsA(isA<ServerConnectionException>()),
+      );
+    },
+  );
+
+  test('세션 발급 중 서버 503 장애 시 ServerConnectionException을 던진다', () async {
+    final sessionFailure = _FakeJourneyRepository(
+      issueFailure: _rejected(
+        statusCode: 503,
+        code: contract.JourneyErrorCode.routeSessionAttestationUnavailable,
+        operation: contract.JourneyOperation.issueJourneySession,
+        now: now,
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(sessionFailure, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(
+        isA<ServerConnectionException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          503,
+        ),
+      ),
+    );
+  });
 }
 
 ServerStationTimetableRepository _repository(
@@ -452,9 +505,10 @@ JourneyRejectedFailure _rejected({
   required int statusCode,
   required contract.JourneyErrorCode code,
   required DateTime now,
+  contract.JourneyOperation operation =
+      contract.JourneyOperation.searchStationTimetables,
   bool retryable = false,
 }) {
-  const operation = contract.JourneyOperation.searchStationTimetables;
   return JourneyRejectedFailure(
     operation,
     statusCode: statusCode,
