@@ -862,8 +862,14 @@ void main() {
             StationTimetableDirection(
               name: '외선순환',
               departures: [
-                StationTimetableDeparture(directionName: '외선순환', seconds: 36060),
-                StationTimetableDeparture(directionName: '외선순환', seconds: 36180),
+                StationTimetableDeparture(
+                  directionName: '외선순환',
+                  seconds: 36060,
+                ),
+                StationTimetableDeparture(
+                  directionName: '외선순환',
+                  seconds: 36180,
+                ),
               ],
             ),
           ],
@@ -887,7 +893,9 @@ void main() {
 
         expect(find.text('곧 도착'), findsOneWidget);
 
-        currentSimulatedTime = currentSimulatedTime.add(const Duration(seconds: 10));
+        currentSimulatedTime = currentSimulatedTime.add(
+          const Duration(seconds: 10),
+        );
         await tester.pump(const Duration(seconds: 10));
 
         expect(find.text('10:01'), findsOneWidget);

@@ -49,7 +49,10 @@ void main() {
           measuredAt: DateTime(2026, 7, 10, 11, 59, 50),
           permissionPrecision: LocationPermissionPrecision.precise,
         );
-        expect(freshSample.qualityStatus(), CurrentLocationQualityStatus.freshPrecise);
+        expect(
+          freshSample.qualityStatus(),
+          CurrentLocationQualityStatus.freshPrecise,
+        );
         expect(freshSample.canUseForNearbySearch(), true);
         expect(freshSample.nearbySearchBlockedMessage(), isNull);
 
