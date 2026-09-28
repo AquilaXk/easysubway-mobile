@@ -1,6 +1,8 @@
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 
 void main() {
   group('Station verified clock and relative label', () {
@@ -69,5 +71,41 @@ void main() {
         expect(staleSample.nearbySearchBlockedMessage(), isNotNull);
       });
     });
+
+    test(
+      'SearchHistoryRepository.listRecentEntries가 clock.now()를 참조한다',
+      () async {
+        final fixedDate = DateTime(2026, 7, 10, 12, 0, 0);
+        await withClock(Clock.fixed(fixedDate), () async {
+          final repo = _TestSearchHistoryRepository(['강남', '역삼']);
+          final entries = await repo.listRecentEntries();
+          expect(entries.length, 2);
+          expect((entries[0] as RecentStationSearchEntry).query, '강남');
+          expect(entries[0].searchedAt.year, 2026);
+        });
+      },
+    );
   });
+}
+
+class _TestSearchHistoryRepository extends SearchHistoryRepository {
+  final List<String> _queries;
+  _TestSearchHistoryRepository(this._queries);
+
+  @override
+  Future<List<String>> listRecentQueries() async => _queries;
+
+  @override
+  Future<void> recordSearch(
+    String query, {
+    String? region,
+    String? stationId,
+    StationSearchLine? line,
+  }) async {}
+
+  @override
+  Future<void> clearSearches() async {}
+
+  @override
+  Future<void> removeSearch(String query, {String? region}) async {}
 }
