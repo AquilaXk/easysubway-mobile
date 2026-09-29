@@ -456,9 +456,11 @@ jobs:
           require_lane "Mobile contracts" "$CONTRACTS_RESULT" success
           require_lane "Mobile host tests" "$HOST_TESTS_RESULT" "$heavy_expected"
 
-  # debug APK와 release AAB는 variant·서명·R8·16KB page 게이트가 달라 둘 다 유지하고 병렬로 돈다.
-  android-debug-apk:
-    name: Android debug APK
+  # debug APK와 release AAB는 variant·서명·R8·16KB page 게이트가 달라 둘 다 유지한다. 두 빌드를
+  # 한 job에서 APK -> AAB 순서로 돌린다. AAB를 별도 job으로 떼면 warm Gradle 이점을 잃어
+  # AAB 빌드가 약 185초에서 약 280초로 늘고 임계 경로가 길어진다(PR #417 run 36590883607 실측).
+  android-build:
+    name: Android build
     needs: scope
     if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}
     runs-on: ubuntu-latest
@@ -488,35 +490,6 @@ jobs:
       - name: Build debug APK
         working-directory: apps/mobile
         run: flutter build apk --debug
-
-  android-release-aab:
-    name: Android release AAB
-    needs: scope
-    if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    permissions:
-      contents: read
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
-        with:
-          persist-credentials: false
-      - name: Set up Java
-        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
-        with:
-          distribution: temurin
-          java-version: "21"
-          cache: gradle
-      - name: Set up Flutter
-        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
-        with:
-          channel: stable
-          flutter-version-file: .fvmrc
-          cache: true
-      - name: Install Flutter dependencies
-        working-directory: apps/mobile
-        run: flutter pub get
       - name: Create ephemeral preflight key
         env:
           EASYSUBWAY_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mobile-preflight.p12
@@ -552,10 +525,11 @@ jobs:
           node ../../tools/release/hash-android-bundle-payload.mjs \
             --aab build/app/outputs/bundle/release/app-release.aab
 
-  # required check "Android CI". Mobile CI 집계와 같은 규칙으로 두 빌드 lane을 모은다.
+  # required check "Android CI". Mobile CI 집계와 같은 규칙으로 Android build lane 결과를 판정한다.
+  # 빌드 job 자체에 이 이름을 주지 않는 이유: skip 판정 때 skipped check는 통과로 간주되기 때문이다.
   android:
     name: Android CI
-    needs: [scope, android-debug-apk, android-release-aab]
+    needs: [scope, android-build]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -567,8 +541,7 @@ jobs:
           SCOPE_RESULT: ${{ needs.scope.result }}
           RUN_HEAVY_LANES: ${{ needs.scope.outputs.run-heavy-lanes }}
           SCOPE_REASON: ${{ needs.scope.outputs.reason }}
-          DEBUG_APK_RESULT: ${{ needs.android-debug-apk.result }}
-          RELEASE_AAB_RESULT: ${{ needs.android-release-aab.result }}
+          BUILD_RESULT: ${{ needs.android-build.result }}
         run: |
           set -euo pipefail
           fail() { echo "::error::$1" >&2; exit 1; }
@@ -591,8 +564,7 @@ jobs:
             fi
           }
           echo "### Android CI lanes (run-heavy-lanes=${RUN_HEAVY_LANES}, ${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
-          require_lane "Android debug APK" "$DEBUG_APK_RESULT" "$heavy_expected"
-          require_lane "Android release AAB" "$RELEASE_AAB_RESULT" "$heavy_expected"
+          require_lane "Android build" "$BUILD_RESULT" "$heavy_expected"
 
   dependency-vulnerability-scan:
     name: Dependency Vulnerability Scan

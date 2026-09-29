@@ -94,12 +94,13 @@ const MOBILE_HOST_TEST_STEPS = [
   "Enforce mobile coverage ratchet verdict",
 ];
 
-const ANDROID_DEBUG_STEPS = ["Checkout", "Set up Java", "Set up Flutter", "Install Flutter dependencies", "Build debug APK"];
-const ANDROID_RELEASE_STEPS = [
+// debug APK 다음 release AAB를 한 job에서 돌린다. AAB가 debug 빌드로 데워진 Gradle을 이어 쓴다.
+const ANDROID_BUILD_STEPS = [
   "Checkout",
   "Set up Java",
   "Set up Flutter",
   "Install Flutter dependencies",
+  "Build debug APK",
   "Create ephemeral preflight key",
   "Build no-upload release AAB",
 ];
@@ -110,8 +111,7 @@ const SETUP_STEPS = new Set(["Checkout", "Set up Node", "Set up Java", "Set up F
 const ORIGINAL_GATE_STEPS = [
   ...MOBILE_CONTRACT_STEPS,
   ...MOBILE_HOST_TEST_STEPS,
-  ...ANDROID_DEBUG_STEPS,
-  ...ANDROID_RELEASE_STEPS,
+  ...ANDROID_BUILD_STEPS,
 ].filter((name) => !SETUP_STEPS.has(name));
 
 test("workflow 이름과 required check 이름을 유지하고 집계 job이 그 이름을 소유한다", () => {
@@ -124,8 +124,7 @@ test("workflow 이름과 required check 이름을 유지하고 집계 job이 그
     "mobile-contracts",
     "mobile-host-tests",
     "mobile",
-    "android-debug-apk",
-    "android-release-aab",
+    "android-build",
     "android",
     "dependency-vulnerability-scan",
   ]);
@@ -135,8 +134,7 @@ test("workflow 이름과 required check 이름을 유지하고 집계 job이 그
     "Mobile contracts",
     "Mobile host tests",
     "Mobile CI",
-    "Android debug APK",
-    "Android release AAB",
+    "Android build",
     "Android CI",
     "Dependency Vulnerability Scan",
   ]);
@@ -158,8 +156,7 @@ test("PR 실행만 PR 번호 그룹으로 취소하고 main push·dispatch는 ru
 test("검증 단계는 분할 뒤에도 각각 정확히 한 lane에서 한 번 실행된다", () => {
   assert.deepEqual(stepNames(jobBlock("mobile-contracts")), MOBILE_CONTRACT_STEPS);
   assert.deepEqual(stepNames(jobBlock("mobile-host-tests")), MOBILE_HOST_TEST_STEPS);
-  assert.deepEqual(stepNames(jobBlock("android-debug-apk")), ANDROID_DEBUG_STEPS);
-  assert.deepEqual(stepNames(jobBlock("android-release-aab")), ANDROID_RELEASE_STEPS);
+  assert.deepEqual(stepNames(jobBlock("android-build")), ANDROID_BUILD_STEPS);
   const allSteps = [...workflow.matchAll(/^ {6}- name: (.+)$/gmu)].map((match) => match[1]);
   for (const gate of ORIGINAL_GATE_STEPS) {
     assert.equal(allSteps.filter((name) => name === gate).length, 1, gate);
@@ -169,7 +166,7 @@ test("검증 단계는 분할 뒤에도 각각 정확히 한 lane에서 한 번 
 
 test("무거운 lane만 scope 판정에 묶이고 계약 lane은 항상 실행된다", () => {
   const heavyCondition = "    if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}";
-  for (const id of ["mobile-host-tests", "android-debug-apk", "android-release-aab"]) {
+  for (const id of ["mobile-host-tests", "android-build"]) {
     const job = jobBlock(id);
     assert.match(job, /^ {4}needs: scope$/mu, id);
     assert.equal(job.split("\n").filter((line) => line.startsWith("    if:")).join("\n"), heavyCondition, id);
@@ -187,7 +184,7 @@ test("집계 job은 취소된 run에서도 실행돼 모든 lane 결과를 모�
   assert.match(mobile, /^ {4}needs: \[scope, mobile-contracts, mobile-host-tests\]$/mu);
   assert.match(mobile, /^ {4}if: \$\{\{ always\(\) \}\}$/mu);
   const android = jobBlock("android");
-  assert.match(android, /^ {4}needs: \[scope, android-debug-apk, android-release-aab\]$/mu);
+  assert.match(android, /^ {4}needs: \[scope, android-build\]$/mu);
   assert.match(android, /^ {4}if: \$\{\{ always\(\) \}\}$/mu);
   for (const job of [mobile, android]) {
     assert.doesNotMatch(job, /uses: actions\/checkout/u);
@@ -223,8 +220,8 @@ const AGGREGATES = [
     job: "android",
     step: "Require every Android CI lane",
     always: [],
-    heavy: ["DEBUG_APK_RESULT", "RELEASE_AAB_RESULT"],
-    skippedLabels: ["Android debug APK", "Android release AAB"],
+    heavy: ["BUILD_RESULT"],
+    skippedLabels: ["Android build"],
   },
 ];
 
@@ -302,15 +299,14 @@ test("host test lane은 러너 코어 수만큼 병렬로 전체 host test와 co
   assert.match(stepBlock(job, "Verify host test execution parity"), /mobile-host-test-parity\.mjs verify/u);
 });
 
-test("Android lane은 개선 전과 같은 debug APK·release AAB 검증 명령을 병렬로 실행한다", () => {
-  const debug = jobBlock("android-debug-apk");
+test("Android lane은 개선 전과 같은 debug APK·release AAB 검증 명령을 한 job에서 순서대로 실행한다", () => {
+  const build = jobBlock("android-build");
   assert.equal(
-    stepBlock(debug, "Build debug APK"),
-    ["      - name: Build debug APK", "        working-directory: apps/mobile", "        run: flutter build apk --debug", ""].join("\n"),
+    stepBlock(build, "Build debug APK"),
+    ["      - name: Build debug APK", "        working-directory: apps/mobile", "        run: flutter build apk --debug"].join("\n"),
   );
-  const release = jobBlock("android-release-aab");
   assert.equal(
-    stepBlock(release, "Build no-upload release AAB"),
+    stepBlock(build, "Build no-upload release AAB"),
     [
       "      - name: Build no-upload release AAB",
       "        working-directory: apps/mobile",
@@ -335,15 +331,15 @@ test("Android lane은 개선 전과 같은 debug APK·release AAB 검증 명령�
       "",
     ].join("\n"),
   );
-  assert.match(stepBlock(release, "Create ephemeral preflight key"), /keytool -genkeypair -storetype PKCS12/u);
+  assert.match(stepBlock(build, "Create ephemeral preflight key"), /keytool -genkeypair -storetype PKCS12/u);
 });
 
 test("Gradle·Flutter SDK·pub 캐시가 Flutter를 쓰는 모든 lane에 걸려 있다", () => {
-  for (const id of ["mobile-contracts", "mobile-host-tests", "android-debug-apk", "android-release-aab"]) {
+  for (const id of ["mobile-contracts", "mobile-host-tests", "android-build"]) {
     const flutter = stepBlock(jobBlock(id), "Set up Flutter");
     assert.match(flutter, /^ {10}flutter-version-file: \.fvmrc\n {10}cache: true$/mu, id);
   }
-  for (const id of ["android-debug-apk", "android-release-aab"]) {
+  for (const id of ["android-build"]) {
     assert.match(stepBlock(jobBlock(id), "Set up Java"), /^ {10}java-version: "21"\n {10}cache: gradle$/mu, id);
   }
 });
@@ -501,7 +497,7 @@ test("앱 코드·테스트·네이티브 빌드 입력은 skip 가능 경로를
 });
 
 test("무거운 lane이 실행하는 도구와 그 의존 파일은 skip 가능 경로를 참조하지 않는다", () => {
-  const heavyRuns = ["mobile-host-tests", "android-debug-apk", "android-release-aab"].map(jobBlock).join("\n");
+  const heavyRuns = ["mobile-host-tests", "android-build"].map(jobBlock).join("\n");
   const queue = [...heavyRuns.matchAll(/(?:\.\.\/\.\.\/)?(tools\/[A-Za-z0-9_./-]+\.(?:mjs|sh))/gu)].map((match) => match[1]);
   assert.ok(queue.length >= 5, queue.join(","));
   const seen = new Set();

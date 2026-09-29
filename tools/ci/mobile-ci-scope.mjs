@@ -11,7 +11,7 @@ import { execFileSync } from "node:child_process";
 import { appendFileSync, realpathSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-export const HEAVY_LANES = Object.freeze(["Mobile host tests", "Android debug APK", "Android release AAB"]);
+export const HEAVY_LANES = Object.freeze(["Mobile host tests", "Android build"]);
 
 // Flutter host test·analyze 대상이 아닌 다른 workflow, 저장소 메타데이터, 루트 README,
 // Node 계약 테스트 파일. 앱 코드·테스트·네이티브 빌드와 무거운 lane 도구가 이 경로를 읽지

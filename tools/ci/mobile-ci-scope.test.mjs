@@ -116,7 +116,7 @@ test("main push·dispatch·빈 diff는 항상 전체 실행이다", () => {
 });
 
 test("건너뛰는 lane 목록은 무거운 lane 셋으로 닫혀 있다", () => {
-  assert.deepEqual(HEAVY_LANES, ["Mobile host tests", "Android debug APK", "Android release AAB"]);
+  assert.deepEqual(HEAVY_LANES, ["Mobile host tests", "Android build"]);
 });
 
 test("판정기는 trusted base에서 단독 실행되도록 node 내장 모듈만 import한다", () => {
