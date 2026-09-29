@@ -1510,3 +1510,41 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /required check 'Mobile CI' is not successful/,
   );
 });
+
+test('병합 예약과 update-branch만 AUTOMERGE_PAT 병합 토큰을 쓰고 나머지는 github.token을 유지한다', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  assert.ok(
+    workflow.includes(
+      "MERGE_GH_TOKEN: ${{ secrets.AUTOMERGE_PAT != '' && secrets.AUTOMERGE_PAT || github.token }}",
+    ),
+  );
+  assert.ok(workflow.includes("HAS_AUTOMERGE_PAT: ${{ secrets.AUTOMERGE_PAT != '' }}"));
+  assert.ok(workflow.includes('GH_TOKEN: ${{ github.token }}'));
+  assert.match(workflow, /if \[ "\$\{HAS_AUTOMERGE_PAT\}" != "true" \]; then/);
+  assert.match(workflow, /::warning::AUTOMERGE_PAT/);
+
+  const prefix = 'GH_TOKEN="${MERGE_GH_TOKEN}" ';
+  const lines = workflow.split('\n');
+  const mergeLines = lines.filter((line) => /\bgh pr merge --squash\b/.test(line));
+  const updateLines = lines.filter(
+    (line) => /update-branch/.test(line) && /\bgh (api|pr)\b/.test(line),
+  );
+  assert.ok(mergeLines.length >= 1, 'merge call not found');
+  for (const line of [...mergeLines, ...updateLines]) {
+    assert.ok(
+      line.includes(prefix + 'gh '),
+      'merge/update-branch call must use MERGE_GH_TOKEN: ' + line.trim(),
+    );
+  }
+
+  // 병합 토큰은 병합·update-branch 호출 외에는 어디에도 쓰지 않는다.
+  const prefixed = lines.filter((line) => line.includes(prefix));
+  assert.equal(prefixed.length, mergeLines.length + updateLines.length);
+
+  const others = lines.filter(
+    (l) => /gh api --method (POST|PATCH)/.test(l) || /--disable-auto/.test(l) || /gh workflow run/.test(l),
+  );
+  for (const line of others) {
+    assert.ok(!line.includes('MERGE_GH_TOKEN'), 'must keep github.token: ' + line.trim());
+  }
+});
