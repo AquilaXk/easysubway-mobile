@@ -1710,3 +1710,99 @@ test('판정 jq 인자로 commits는 SHA 배열로, comments는 필수 필드로
   );
 });
 
+
+// 조회 함수 하나를 stub gh로 실행한다. stubGh는 `case "$*" in ... esac` 본문이다.
+async function runBoundedReader(name, stubGh) {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const body = workflow.match(new RegExp(`          ${name}\\(\\) \\{\\n([\\s\\S]*?)\\n          \\}`))?.[1];
+  assert.ok(body, `${name} must exist`);
+  const script = [
+    'set -euo pipefail',
+    'repo=o/r',
+    'pr=123',
+    'data_page_limit=3',
+    'page_size=100',
+    'overflow_probe_page=$((data_page_limit + 1))',
+    'gh() {',
+    stubGh,
+    '}',
+    `${name}() {`,
+    body.replace(/^ {10,12}/gm, ''),
+    '}',
+    `if ! out="$(${name})"; then`,
+    '  echo "FAILED"',
+    'else',
+    '  echo "OK"',
+    '  printf "%s\\n" "${out}"',
+    'fi',
+  ].join('\n');
+  const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+  const [status, ...rest] = result.stdout.trim().split('\n');
+  return { status, output: rest.join('\n') };
+}
+
+const readerPages = {
+  bounded_issue_comments: [
+    { id: 1, body: 'first', user: { login: 'a' } },
+    { id: 2, body: null, user: null },
+  ],
+  bounded_pr_commits: [
+    { sha: '1111111111111111111111111111111111111111' },
+    { sha: '2222222222222222222222222222222222222222' },
+  ],
+  bounded_pr_reviews: [
+    {
+      id: 7,
+      state: 'COMMENTED',
+      commit_id: '1111111111111111111111111111111111111111',
+      submitted_at: '2026-09-29T00:00:00Z',
+      author_association: 'OWNER',
+      body: 'review',
+      user: { login: 'a' },
+    },
+  ],
+};
+
+for (const [name, page] of Object.entries(readerPages)) {
+  test(`${name}: 짧은 1페이지는 성공하고 그 페이지를 그대로 반환한다`, async () => {
+    const pageJson = JSON.stringify(page);
+    const result = await runBoundedReader(name, `
+      case "$*" in
+        *page=1*) printf '%s\\n' '${pageJson}' ;;
+        *) echo "unexpected page: $*" >&2; return 1 ;;
+      esac
+    `);
+    assert.equal(result.status, 'OK');
+    assert.deepEqual(JSON.parse(result.output), page);
+  });
+}
+
+test('bounded_issue_comments: 스키마 불일치 페이지는 실패한다', async () => {
+  const result = await runBoundedReader('bounded_issue_comments', `
+    case "$*" in
+      *page=1*) echo '[{"id": "not-a-number", "body": "x", "user": null}]' ;;
+      *) echo "[]" ;;
+    esac
+  `);
+  assert.equal(result.status, 'FAILED');
+});
+
+test('bounded_issue_comments: gh 호출 실패는 출력이 정상이어도 실패로 전파된다', async () => {
+  // 다음 스키마 검사가 대신 잡지 못하도록 유효한 빈 배열을 출력한 뒤 비정상 종료한다.
+  const result = await runBoundedReader('bounded_issue_comments', `
+    echo "[]"
+    return 1
+  `);
+  assert.equal(result.status, 'FAILED');
+});
+
+test('bounded_issue_comments: overflow probe에 잔여 코멘트가 있으면 실패한다', async () => {
+  const result = await runBoundedReader('bounded_issue_comments', `
+    case "$*" in
+      *page=[123]*) node -e 'console.log(JSON.stringify(Array.from({length: 100}, (_, i) => ({id: i + 1, body: "b", user: null}))))' ;;
+      *page=4*) echo '[{"id": 999, "body": "late", "user": null}]' ;;
+      *) echo "[]" ;;
+    esac
+  `);
+  assert.equal(result.status, 'FAILED');
+});
