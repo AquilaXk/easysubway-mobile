@@ -1,10 +1,16 @@
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
+import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
+import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_columns.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_timetable_panel.dart';
+import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/application/station_detail_controller.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_body.dart';
+import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -92,6 +98,130 @@ void _ignoreHorizontalOverflow() {
     }
     originalOnError?.call(details);
   };
+}
+
+class _BadgeAttestor implements JourneyV3IntegrityAttestor {
+  const _BadgeAttestor();
+
+  @override
+  Future<String> attest(String requestHash) async => 'integrity-token';
+}
+
+class _BadgeRepository implements JourneyRepository {
+  @override
+  Future<JourneySessionResponse> issueSession(
+    JourneySessionRequest request,
+  ) async {
+    final now = DateTime.utc(2026, 8, 12);
+    return JourneySessionResponse(
+      token: 'session-token',
+      scope: JourneySessionScope.journeyV3,
+      issuedAt: now,
+      expiresAt: now.add(const Duration(minutes: 5)),
+    );
+  }
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) async {
+    final now = DateTime.utc(2026, 8, 12);
+    return JourneySearchSuccess(
+      contractVersion: JourneyContractVersion.journeySearchV3,
+      requestId: request.requestId,
+      queryId: 'query-1',
+      calculatedAt: now,
+      validUntil: now.add(const Duration(minutes: 5)),
+      effectiveDepartureTime: now,
+      serviceDate: JourneyDate.parse('2026-08-12'),
+      serviceTimezone: 'Asia/Seoul',
+      sourceIdentity: JourneySourceIdentity(
+        routeBundleId: 'bundle-1',
+        routeBundleSha256: 'a' * 64,
+        timetableSnapshotId: 'timetable-1',
+        accessibilitySnapshotId: 'accessibility-1',
+        realtimeSnapshotId: null,
+      ),
+      requestPolicy: JourneyRequestPolicy(
+        timePolicy: request.timePolicy,
+        walkingPace: request.walkingPace,
+        mobilityProfile: request.mobilityProfile,
+        constraintMode: request.constraintMode,
+        maxTransfers: request.maxTransfers,
+        alternativeCount: request.alternativeCount,
+      ),
+      journeys: [
+        Journey(
+          journeyId: 'journey-1',
+          status: JourneyStatus.found,
+          planSource: JourneyPlanSource.serverTimetableRaptor,
+          plannedDepartureTime: now,
+          plannedArrivalTime: now.add(const Duration(minutes: 20)),
+          realtimeDepartureTime: null,
+          realtimeArrivalTime: null,
+          durationSeconds: 1200,
+          transferCount: 1,
+          walkingDistanceMeters: 50,
+          timeSource: JourneyTimeSource.timetable,
+          accessibility: const JourneyAccessibility(
+            result: JourneyAccessibilityResult.verified,
+            stairFree: true,
+            reasonCodes: <String>[],
+          ),
+          legs: <JourneyLeg>[
+            const JourneyEntryLeg(
+              fromStationId: 'station-origin',
+              durationSeconds: 60,
+            ),
+            JourneyRideLeg(
+              lineId: 'gyeongui-jungang',
+              tripId: 'trip-1',
+              directionStationId: 'station-direction',
+              fromStationId: 'station-origin',
+              toStationId: 'station-transfer',
+              plannedDepartureTime: now,
+              plannedArrivalTime: now.add(const Duration(minutes: 10)),
+              realtimeDepartureTime: null,
+              realtimeArrivalTime: null,
+            ),
+            const JourneyTransferLeg(
+              fromStationId: 'station-transfer',
+              toStationId: 'station-destination',
+              durationSeconds: 120,
+            ),
+            JourneyRideLeg(
+              lineId: 'line-2',
+              tripId: 'trip-2',
+              directionStationId: 'station-direction',
+              fromStationId: 'station-transfer',
+              toStationId: 'station-destination',
+              plannedDepartureTime: now.add(const Duration(minutes: 12)),
+              plannedArrivalTime: now.add(const Duration(minutes: 18)),
+              realtimeDepartureTime: null,
+              realtimeArrivalTime: null,
+            ),
+            const JourneyExitLeg(
+              fromStationId: 'station-destination',
+              durationSeconds: 60,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<JourneyProfileSuccess> profileJourneys(
+    JourneyProfileRequest request, {
+    required String sessionToken,
+  }) async => throw UnimplementedError('badge test does not profile');
+
+  @override
+  Future<StationTimetableSearchSuccess> searchStationTimetables(
+    StationTimetableSearchRequest request, {
+    required String sessionToken,
+  }) async => throw UnimplementedError('badge test does not search timetables');
 }
 
 void main() {
@@ -183,39 +313,6 @@ void main() {
       expectTextFits(tester, textFinder, boxHeight: boxHeight);
     });
 
-    testWidgets('4. station_exit_map_preview: Container(height: 36) 확인', (
-      tester,
-    ) async {
-      // Container(height: 36)은 지도 에러/안내 패널의 맵 아이콘 전용 배경이며 Text를 담지 않음.
-      final iconContainer = Container(
-        width: 36,
-        height: 36,
-        decoration: BoxDecoration(borderRadius: BorderRadius.circular(8)),
-        child: const Icon(Icons.map_outlined, size: 20),
-      );
-      await pumpAtScale(tester, Center(child: iconContainer));
-      expect(find.byType(Icon), findsOneWidget);
-      expect(find.byType(Text), findsNothing);
-    });
-
-    testWidgets('5. station_timetable_screen: Container(height: 56) 확인', (
-      tester,
-    ) async {
-      // Container(height: 56)은 Wi-Fi 아이콘 배경 전용이며 Text를 담지 않음.
-      final iconContainer = Container(
-        width: 56,
-        height: 56,
-        decoration: const BoxDecoration(
-          color: Colors.grey,
-          shape: BoxShape.circle,
-        ),
-        child: const Icon(Icons.wifi_off_rounded, size: 28),
-      );
-      await pumpAtScale(tester, Center(child: iconContainer));
-      expect(find.byType(Icon), findsOneWidget);
-      expect(find.byType(Text), findsNothing);
-    });
-
     testWidgets('6. station_detail_body: [출발] 버튼 Container(height: 48)', (
       tester,
     ) async {
@@ -288,36 +385,67 @@ void main() {
       expectTextFits(tester, firstLastFinder, boxHeight: firstLastBoxHeight);
     });
 
-    testWidgets('10. journey_search_screen: 노선도 배지 Container(height: 24) 확인', (
-      tester,
-    ) async {
-      // 10번 배지는 노선도 타임라인 핀으로 24x24 원형 고정(의도적 고정).
-      final badgeContainer = Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: Colors.blue,
-          border: Border.all(color: Colors.white, width: 1.5),
-        ),
-        alignment: Alignment.center,
-        child: const Text(
-          '2',
-          style: TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-            fontSize: 10,
+    for (final scale in [1.0, 2.0]) {
+      testWidgets('10. journey_search_screen: 타임라인 노선 배지가 $scale배에서 잘리지 않는다', (
+        tester,
+      ) async {
+        await pumpAtScale(
+          tester,
+          JourneySearchScreen(
+            repository: _BadgeRepository(),
+            attestor: const _BadgeAttestor(),
+            draft: RouteDraft(
+              origin: const RouteDraftStation(
+                id: 'station-origin',
+                nameKo: '용산',
+              ),
+              destination: const RouteDraftStation(
+                id: 'station-destination',
+                nameKo: '춘천',
+              ),
+              lastModifiedAt: DateTime.utc(2026, 8, 12),
+            ),
+            mobilityType: 'STANDARD',
+            onShellBackToHome: () {},
+            journeyNow: () => DateTime.utc(2026, 8, 12),
           ),
-        ),
-      );
+          scale: scale,
+          size: const Size(412, 900),
+        );
+        await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+        await tester.pumpAndSettle();
+        await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+        await tester.pumpAndSettle();
 
-      await pumpAtScale(tester, Center(child: badgeContainer), scale: 1.0);
-      final textFinder = find.text('2');
-      expect(textFinder, findsOneWidget);
-      final boxHeight = tester.getSize(find.byType(Container).first).height;
-      expect(boxHeight, 24.0);
-      expectTextFits(tester, textFinder, boxHeight: boxHeight);
-    });
+        for (final badge in ['2', '경의']) {
+          final textFinder = find.text(badge);
+          expect(textFinder, findsOneWidget, reason: '배지 $badge');
+          await tester.ensureVisible(textFinder);
+          final paragraph = tester.renderObject<RenderParagraph>(textFinder);
+          final boxFinder = find
+              .ancestor(of: textFinder, matching: find.byType(Container))
+              .first;
+          final box = tester.getSize(boxFinder);
+          debugPrint(
+            'BADGE MEASURE: scale=$scale, badge="$badge", '
+            'text=${paragraph.textSize}, box=$box',
+          );
+          expect(
+            paragraph.textSize.height,
+            lessThanOrEqualTo(box.height + 0.01),
+            reason: '$badge 배지 높이 잘림',
+          );
+          expect(
+            paragraph.textSize.width,
+            lessThanOrEqualTo(box.width + 0.01),
+            reason: '$badge 배지 폭 잘림',
+          );
+          if (scale == 1.0) {
+            expect(box, const Size(24, 24), reason: '$badge 1.0배 24x24 유지');
+          }
+        }
+      });
+    }
 
     testWidgets('station_detail_body 하단 액션 버튼 1.0배 기준 높이가 정확히 48dp이다', (
       tester,
