@@ -270,6 +270,11 @@ jobs:
                 .user.login == "coderabbitai[bot]" and
                 .user.id == 136622811 and
                 .user.type == "Bot";
+              def is_claude:
+                .author_association == "NONE" and
+                .user.login == "claude[bot]" and
+                .user.id == 209825114 and
+                .user.type == "Bot";
               def is_trusted_human:
                 .author_association == "OWNER" or
                 .author_association == "MEMBER" or
@@ -281,7 +286,7 @@ jobs:
                  (.body // "" | contains("<!-- Review source: Aquila Universal Review; engine: aquila-review -->")) or
                  (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:")));
               def is_frozen_discovery:
-                .state == "COMMENTED" and (is_coderabbit or is_codex_fallback);
+                .state == "COMMENTED" and (is_coderabbit or is_claude or is_codex_fallback);
               def exact_actions_marker:
                 .body == "<!-- Automerge frozen discovery authorization: \($head) -->" and
                 .user.login == "github-actions[bot]" and
@@ -295,7 +300,8 @@ jobs:
               [flatten[] |
                 select(
                   is_trusted_human or
-                  is_coderabbit
+                  is_coderabbit or
+                  is_claude
                 )] as $trusted |
               ($commits | type == "array" and length > 0 and
                 all(.[]; (.sha | type) == "string") and
@@ -316,7 +322,7 @@ jobs:
               )) as $states |
               ($states | length > 0 and all(.[]; . == "APPROVED" or . == "COMMENTED")) and
               $has_current_head and
-              (any($trusted[]; .state == "APPROVED" and .commit_id == $head) or
+              (any($trusted[]; .state == "APPROVED" and .commit_id == $head and (is_claude | not)) or
                 ($has_exact_marker and any($trusted[];
                   is_frozen_discovery and (.commit_id as $review_head | $commit_set | index($review_head) != null))))
             ' <<<"${reviews}" >/dev/null; then
