@@ -14,6 +14,91 @@ const workflowUrl = new URL(
   '../../.github/workflows/automerge-queue.yml',
   import.meta.url,
 );
+
+// review gate jq 식 추출·실행 헬퍼. 기존 review-state-filter 테스트와 #406 claude[bot] 테스트가 함께 쓴다 (D7).
+const reviewGateProgram = (workflow) => {
+  const program = workflow.match(
+    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commits "\$\{commits\}" --argjson comments "\$\{comments\}" --argjson verified_claude_commits "\$\{verified_claude_commits\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
+  )?.[1];
+  assert.ok(program, 'review state jq program must stay testable');
+  return program;
+};
+// jq -e 결과를 그대로 돌려준다: status 0=인정, 1=거부, 그 밖은 jq 오류.
+const runReviewGateProgram = (program, reviews, { head, commits, comments, verifiedClaudeCommits = [] }) =>
+  spawnSync(
+    'jq',
+    [
+      '-e',
+      '--arg', 'head', head,
+      '--argjson', 'commits', JSON.stringify(commits),
+      '--argjson', 'comments', JSON.stringify(comments),
+      '--argjson', 'verified_claude_commits', JSON.stringify(verifiedClaudeCommits),
+      program,
+    ],
+    { input: JSON.stringify([reviews]), encoding: 'utf8' },
+  );
+// 게이트의 claude[bot] Review 검증 함수(verified_claude_review_commits) 본문.
+const claudeVerificationHelper = (workflow) => {
+  const helper = workflow.match(
+    /\n {10}# claude-review-verification-begin\n([\s\S]*?)\n {10}# claude-review-verification-end\n/,
+  )?.[1];
+  assert.ok(helper, 'claude[bot] review verification helper must stay executable');
+  return helper.replace(/^ {10}/gm, '');
+};
+// run·compare 응답 fixture. 배열이면 API 응답 모양으로 감싸고, { raw }면 그 값을 그대로 응답한다.
+const claudeRunsResponse = (value) =>
+  Array.isArray(value) ? { total_count: value.length, workflow_runs: value } : value.raw;
+const claudeCompareResponse = (value) => (Array.isArray(value) ? { files: value } : value.raw);
+// verified_claude_review_commits를 게이트와 같은 `if !` + 명령 치환 문맥(set -e가 꺼지는 곳)에서 실행한다.
+// fixture가 없는 commit의 run·compare 조회는 gh 실패다.
+const runClaudeVerification = (workflow, { reviews, commits, base, runsByCommit = {}, compareFilesByCommit = {} }) => {
+  const dir = mkdtempSync(join(tmpdir(), 'automerge-claude-verify-'));
+  const log = join(dir, 'gh.log');
+  writeFileSync(log, '');
+  writeFileSync(join(dir, 'reviews.json'), JSON.stringify(reviews));
+  writeFileSync(join(dir, 'commits.json'), JSON.stringify(commits));
+  for (const [sha, value] of Object.entries(runsByCommit)) {
+    writeFileSync(join(dir, `runs-${sha}.json`), JSON.stringify(claudeRunsResponse(value)));
+  }
+  for (const [sha, value] of Object.entries(compareFilesByCommit)) {
+    writeFileSync(join(dir, `compare-${sha}.json`), JSON.stringify(claudeCompareResponse(value)));
+  }
+  const script = [
+    'set -euo pipefail',
+    `FIX=${JSON.stringify(dir)}`,
+    `GH_LOG=${JSON.stringify(log)}`,
+    'gh() {',
+    '  printf "%s\\n" "gh $*" >> "$GH_LOG"',
+    '  local all="$*" sha',
+    '  case "$all" in',
+    '    *"actions/workflows/claude-code-review.yml/runs?head_sha="*) sha="${all#*head_sha=}"; sha="${sha%%&*}"; [[ -f "$FIX/runs-$sha.json" ]] || return 1; cat "$FIX/runs-$sha.json" ;;',
+    '    *"/compare/"*) sha="${all#*...}"; sha="${sha%%\\?*}"; [[ -f "$FIX/compare-$sha.json" ]] || return 1; cat "$FIX/compare-$sha.json" ;;',
+    '    *) return 99 ;;',
+    '  esac',
+    '}',
+    'repo=o/r',
+    'pr=91',
+    `base=${JSON.stringify(base)}`,
+    'reviews="$(cat "$FIX/reviews.json")"',
+    'commits="$(cat "$FIX/commits.json")"',
+    claudeVerificationHelper(workflow),
+    'if ! verified_claude_commits="$(verified_claude_review_commits)"; then',
+    '  echo SKIPPED',
+    '  exit 3',
+    'fi',
+    'printf "%s\\n" "${verified_claude_commits}"',
+  ].join('\n');
+  const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+  const calls = readFileSync(log, 'utf8').split('\n').filter(Boolean);
+  return {
+    status: result.status,
+    stderr: result.stderr,
+    verified: result.status === 0 ? JSON.parse(result.stdout) : null,
+    runCalls: calls.filter((call) => call.includes('/runs?')).length,
+    compareCalls: calls.filter((call) => call.includes('/compare/')).length,
+  };
+};
+
 test('automerge coordinator fails closed around the native merge queue', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
 
@@ -24,6 +109,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'workflow_dispatch:',
     'pull_request_review:',
     'permissions: {}',
+    'actions: read',
     'checks: read',
     'statuses: read',
     'contents: write',
@@ -35,6 +121,13 @@ test('automerge coordinator fails closed around the native merge queue', async (
     '($statuses | flatten) as $status_records',
     'any(.[]; .sha == $head)',
     '# frozen-discovery-review-filter-begin',
+    '# claude-review-verification-begin',
+    'verified_claude_review_commits() {',
+    'if ! verified_claude_commits="$(verified_claude_review_commits)"; then',
+    '--json baseRefName,baseRefOid,headRefOid',
+    'base="$(jq -r \'.baseRefOid\' <<<"${info}")"',
+    'repos/${repo}/actions/workflows/claude-code-review.yml/runs?head_sha=${sha}&status=success&per_page=20',
+    'repos/${repo}/compare/${base}...${sha}?per_page=1',
     '# exact-head-marker-producer-begin',
     'data_page_limit=3',
     'overflow_probe_page=$((data_page_limit + 1))',
@@ -187,10 +280,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     assert.ok(statusRequest.includes(flag), `status request missing: ${flag}`);
   }
 
-  const reviewProgram = workflow.match(
-    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commits "\$\{commits\}" --argjson comments "\$\{comments\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
-  )?.[1];
-  assert.ok(reviewProgram, 'review state jq program must stay testable');
+  const reviewProgram = reviewGateProgram(workflow);
 
   const fallbackBody =
     '**Actionable comments posted: 0**\n<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->';
@@ -215,10 +305,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     reviews,
     commits = [{ sha: head }, { sha: 'previous-head' }],
     comments = [actionMarker()],
-  ) =>
-    spawnSync('jq', ['-e', '--arg', 'head', head, '--argjson', 'commits', JSON.stringify(commits), '--argjson', 'comments', JSON.stringify(comments), reviewProgram], {
-      input: JSON.stringify([reviews]),
-    }).status;
+  ) => runReviewGateProgram(reviewProgram, reviews, { head, commits, comments }).status;
 
   assert.equal(
     runReviewFilter([
@@ -775,13 +862,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
     const dir = mkdtempSync(join(tmpdir(), 'automerge-queue-loop-'));
     const log = join(dir, 'gh.log');
     for (const pr of prs) {
-      const head = `head${pr.number}`;
+      const head = pr.head ?? `head${pr.number}`;
       writeFileSync(
         join(dir, `pr-${pr.number}.json`),
         JSON.stringify({
           state: pr.state ?? 'OPEN',
           isDraft: false,
           baseRefName: 'main',
+          baseRefOid: 'f'.repeat(40),
           labels: [{ name: 'automerge' }],
           headRefName: `feature-${pr.number}`,
           headRefOid: head,
@@ -791,10 +879,16 @@ test('automerge coordinator fails closed around the native merge queue', async (
       );
       writeFileSync(
         join(dir, `reviews-${pr.number}.json`),
-        JSON.stringify(pr.reviewed === false ? [] : trustedReview(head)[0]),
+        JSON.stringify(pr.reviews ?? (pr.reviewed === false ? [] : trustedReview(head)[0])),
       );
-      writeFileSync(join(dir, `commits-${pr.number}.json`), JSON.stringify([{ sha: head }]));
-      writeFileSync(join(dir, `comments-${pr.number}.json`), JSON.stringify([]));
+      writeFileSync(join(dir, `commits-${pr.number}.json`), JSON.stringify((pr.commits ?? [head]).map((sha) => ({ sha }))));
+      writeFileSync(join(dir, `comments-${pr.number}.json`), JSON.stringify(pr.comments ?? []));
+      for (const [sha, value] of Object.entries(pr.claudeRuns ?? {})) {
+        writeFileSync(join(dir, `claude-runs-${sha}.json`), JSON.stringify(claudeRunsResponse(value)));
+      }
+      for (const [sha, value] of Object.entries(pr.claudeCompare ?? {})) {
+        writeFileSync(join(dir, `claude-compare-${sha}.json`), JSON.stringify(claudeCompareResponse(value)));
+      }
       writeFileSync(
         join(dir, `threads-${pr.number}.json`),
         JSON.stringify({
@@ -838,6 +932,8 @@ test('automerge coordinator fails closed around the native merge queue', async (
       '  local all="$*"',
       '  case "$all" in',
       `    "pr list"*) printf '%s\\n' ${JSON.stringify(JSON.stringify(prs.map((p) => p.number)))} ;;`,
+      '    *"actions/workflows/claude-code-review.yml/runs?head_sha="*) h="${all#*head_sha=}"; h="${h%%&*}"; [[ -f "$FIX/claude-runs-$h.json" ]] || return 1; cat "$FIX/claude-runs-$h.json" ;;',
+      '    *"/compare/"*) h="${all#*...}"; h="${h%%\\?*}"; [[ -f "$FIX/claude-compare-$h.json" ]] || return 1; cat "$FIX/claude-compare-$h.json" ;;',
       '    "pr view "*) set -- $all; cat "$FIX/pr-$3.json" ;;',
       '    *pulls/*/reviews*) n="${all#*pulls/}"; n="${n%%/reviews*}"; cat "$FIX/reviews-$n.json" ;;',
       '    *pulls/*/commits*) n="${all#*pulls/}"; n="${n%%/commits*}"; cat "$FIX/commits-$n.json" ;;',
@@ -855,6 +951,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'bounded_pr_reviews() { gh api "repos/${repo}/pulls/${pr}/reviews?per_page=100&page=1"; }',
       'bounded_pr_commits() { gh api "repos/${repo}/pulls/${pr}/commits?per_page=100&page=1"; }',
       'bounded_issue_comments() { gh api "repos/${repo}/issues/${pr}/comments?per_page=100&page=1"; }',
+      claudeVerificationHelper(workflow),
       'candidates="$(gh pr list)"',
       queueLoop.replace(/^ {10}/gm, ''),
     ].join('\n');
@@ -915,6 +1012,55 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ]).mergedPr,
     1,
   );
+  // #406 D1: 큐 루프는 claude[bot] Review 검증 결과를 게이트에 넘기고, 검증 조회 실패 후보는 건너뛴다.
+  const claudeQueuePr = (number, overrides = {}) => {
+    const claudeHead = String(number).repeat(40);
+    return {
+      number,
+      head: claudeHead,
+      mergeStateStatus: 'CLEAN',
+      reviews: [
+        {
+          id: 1,
+          state: 'COMMENTED',
+          submitted_at: '2026-08-01T00:00:00Z',
+          commit_id: claudeHead,
+          author_association: 'NONE',
+          body: '🔴 0 · 🟡 0 · 🟣 0\n변경 범위를 검토했고 finding이 없습니다.',
+          user: { login: 'claude[bot]', id: 209825114, type: 'Bot' },
+        },
+      ],
+      comments: [
+        {
+          id: 1,
+          body: `<!-- Automerge frozen discovery authorization: ${claudeHead} -->`,
+          user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+        },
+      ],
+      claudeRuns: { [claudeHead]: [{ id: 1, head_sha: claudeHead, conclusion: 'success' }] },
+      claudeCompare: { [claudeHead]: [{ filename: 'apps/mobile/lib/main.dart' }] },
+      ...overrides,
+    };
+  };
+  assert.equal(runQueue([claudeQueuePr(1)]).mergedPr, 1, '검증된 current-head claude[bot] Review와 exact marker가 있으면 병합한다');
+  const failedClaudeRun = runQueue([
+    claudeQueuePr(1, { claudeRuns: { ['1'.repeat(40)]: [{ id: 1, head_sha: '1'.repeat(40), conclusion: 'failure' }] } }),
+    claudeQueuePr(2),
+  ]);
+  assert.equal(failedClaudeRun.mergedPr, 2, '리뷰 commit의 claude-code-review.yml run이 success가 아니면 건너뛴다');
+  assert.match(failedClaudeRun.stdout, /PR #1: no trusted review on the current head/);
+  assert.equal(
+    runQueue([
+      claudeQueuePr(1, { claudeCompare: { ['1'.repeat(40)]: [{ filename: '.github/workflows/claude-code-review.yml' }] } }),
+      claudeQueuePr(2),
+    ]).mergedPr,
+    2,
+    '리뷰 commit 시점 PR diff가 claude-code-review.yml을 바꿨으면 건너뛴다',
+  );
+  const unreadableClaudeRun = runQueue([claudeQueuePr(1, { claudeRuns: {} }), claudeQueuePr(2)]);
+  assert.equal(unreadableClaudeRun.mergedPr, 2, 'run 조회 실패 후보는 건너뛴다');
+  assert.match(unreadableClaudeRun.stdout, /PR #1: claude\[bot\] review verification read failed; skipping\./);
+
   // 아무 후보도 병합할 수 없으면 병합 없이 성공으로 끝난다. 라벨은 건드리지 않는다.
   const allBlocked = runQueue([
     { number: 1, mergeStateStatus: 'BLOCKED' },
@@ -1077,10 +1223,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
 });
 
 // #406: Claude Code 공식 /code-review(claude-code-review.yml)가 게시하는 claude[bot] Review를
-// CodeRabbit과 같은 frozen discovery 자리에서 인정하는 계약. workflow의 jq 식을 그대로 실행한다.
+// CodeRabbit과 같은 frozen discovery 자리에서 인정하는 계약. workflow의 검증 함수와 jq 식을 그대로 실행한다.
+// D1: claude[bot] COMMENTED Review는 (a) 본문 첫 줄 개수 줄, (b) 리뷰 commit에서 claude-code-review.yml run success,
+// (c) 리뷰 commit 시점 PR diff(compare base...commit)에 그 workflow 변경 없음을 모두 만족할 때만 discovery다.
 const CLAUDE_BOT = { login: 'claude[bot]', id: 209825114, type: 'Bot' };
+const CLAUDE_WORKFLOW = '.github/workflows/claude-code-review.yml';
 const claudeGateHead = 'c'.repeat(40);
 const claudeGatePreviousHead = 'd'.repeat(40);
+const claudeGateBase = 'f'.repeat(40);
 const claudeGateHeadMarker = {
   body: `<!-- Automerge frozen discovery authorization: ${claudeGateHead} -->`,
   user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
@@ -1106,32 +1256,46 @@ const memberReview = (id, state, overrides = {}) => ({
   user: { login: 'reviewer', id: 2, type: 'User' },
   ...overrides,
 });
+const claudeRun = (sha, conclusion = 'success') => ({ id: 7, head_sha: sha, conclusion });
+// 기본 fixture: 두 PR commit 모두 claude-code-review.yml run success, 리뷰 commit 시점 PR diff에 workflow 변경 없음.
+const claudeGateFixture = (overrides = {}) => ({
+  commits: [{ sha: claudeGatePreviousHead }, { sha: claudeGateHead }],
+  comments: [claudeGateHeadMarker],
+  base: claudeGateBase,
+  runsByCommit: {
+    [claudeGatePreviousHead]: [claudeRun(claudeGatePreviousHead)],
+    [claudeGateHead]: [claudeRun(claudeGateHead)],
+  },
+  compareFilesByCommit: {
+    [claudeGatePreviousHead]: [{ filename: 'apps/mobile/lib/route.dart' }],
+    [claudeGateHead]: [{ filename: 'apps/mobile/lib/route.dart' }],
+  },
+  ...overrides,
+});
+const withoutKey = (object, key) => Object.fromEntries(Object.entries(object).filter(([entry]) => entry !== key));
+// 큐 루프 한 후보의 review 판정: 검증 함수(조회 실패 = 후보 skip) → review gate jq.
 const loadFrozenDiscoveryGate = () => {
   const workflow = readFileSync(workflowUrl, 'utf8');
-  const program = workflow.match(
-    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commits "\$\{commits\}" --argjson comments "\$\{comments\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
-  )?.[1];
-  assert.ok(program, 'review state jq program must stay testable');
-  // jq -e: 0=true(인정), 1=false(거부). 그 밖의 종료 코드는 jq 오류라 "거부"로 세지 않는다.
-  return (
-    reviews,
-    {
-      commits = [{ sha: claudeGatePreviousHead }, { sha: claudeGateHead }],
-      comments = [claudeGateHeadMarker],
-    } = {},
-  ) => {
-    const result = spawnSync(
-      'jq',
-      ['-e', '--arg', 'head', claudeGateHead, '--argjson', 'commits', JSON.stringify(commits), '--argjson', 'comments', JSON.stringify(comments), program],
-      { input: JSON.stringify([reviews]), encoding: 'utf8' },
-    );
+  const program = reviewGateProgram(workflow);
+  return (reviews, overrides = {}) => {
+    const fixture = claudeGateFixture(overrides);
+    const verification = runClaudeVerification(workflow, { reviews, ...fixture });
+    if (verification.status === 3) return 'rejected';
+    assert.equal(verification.status, 0, `claude review verification failed: ${verification.stderr}`);
+    const result = runReviewGateProgram(program, reviews, {
+      head: claudeGateHead,
+      commits: fixture.commits,
+      comments: fixture.comments,
+      verifiedClaudeCommits: verification.verified,
+    });
+    // jq -e: 0=true(인정), 1=false(거부). 그 밖의 종료 코드는 jq 오류라 "거부"로 세지 않는다.
     if (result.status === 0) return 'accepted';
     if (result.status === 1) return 'rejected';
     throw new Error(`review gate jq failed with status ${result.status}: ${result.stderr}`);
   };
 };
 
-test('frozen discovery gate는 고정 신원 claude[bot] COMMENTED Review를 CodeRabbit 자리에서 인정한다 (#406)', () => {
+test('frozen discovery gate는 검증된 고정 신원 claude[bot] COMMENTED Review를 CodeRabbit 자리에서 인정한다 (#406)', () => {
   const gate = loadFrozenDiscoveryGate();
   assert.equal(gate([claudeReview(1)]), 'accepted', 'PR commit set의 이전 head Review + exact current-head marker');
   assert.equal(
@@ -1139,7 +1303,6 @@ test('frozen discovery gate는 고정 신원 claude[bot] COMMENTED Review를 Cod
     'accepted',
     'current head Review + exact current-head marker',
   );
-  assert.equal(gate([claudeReview(1, { body: '' })]), 'accepted', 'inline wrapper(빈 본문) Review도 봇 신원으로 인정한다');
   assert.equal(
     gate([claudeReview(1), memberReview(2, 'COMMENTED')]),
     'accepted',
@@ -1213,6 +1376,161 @@ test('frozen discovery gate는 claude[bot]을 COMMENTED로만 인정하고 activ
     gate([claudeReview(1), memberReview(2, 'CHANGES_REQUESTED')]),
     'rejected',
     'claude[bot] discovery 뒤 신뢰된 사람의 change request는 병합을 막는다',
+  );
+});
+
+test('frozen discovery gate는 본문 첫 줄 개수 줄이 없는 claude[bot] Review를 discovery로 보지 않는다 (#406 D1 a)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  for (const [body, reason] of [
+    ['', '빈 본문(inline 답글 wrapper) claude[bot] Review만 있다'],
+    [null, '본문 없음'],
+    ['요약만 있고 개수 줄 없음', '개수 줄 없음'],
+    ['요약\n🔴 0 · 🟡 0 · 🟣 0', '개수 줄이 첫 줄이 아니다'],
+    ['🔴 0 · 🟡 0 · 🟣 0\r\n요약', '개수 줄 뒤에 CR이 붙었다'],
+    ['🔴 0 · 🟡 0\n요약', '🟣 개수가 빠졌다'],
+  ]) {
+    assert.equal(gate([claudeReview(1, { body })]), 'rejected', reason);
+    assert.equal(gate([claudeReview(1, { body, commit_id: claudeGateHead })]), 'rejected', `${reason} (current head)`);
+  }
+  assert.equal(gate([claudeReview(1, { body: '🔴 0 · 🟡 0 · 🟣 0' })]), 'accepted', '개수 줄만 있는 본문');
+  assert.equal(
+    gate([claudeReview(1, { body: '' }), claudeReview(2, { commit_id: claudeGateHead })]),
+    'accepted',
+    '빈 본문 wrapper가 섞여도 개수 줄 Review로 인정한다',
+  );
+});
+
+test('frozen discovery gate는 리뷰 commit의 claude-code-review.yml run이 success가 아니면 거부한다 (#406 D1 b)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  const base = claudeGateFixture();
+  for (const [runs, reason] of [
+    [[claudeRun(claudeGatePreviousHead, 'failure')], '검증 step 실패로 run이 failure만 있다'],
+    [[claudeRun(claudeGatePreviousHead, 'cancelled')], 'run이 cancelled만 있다'],
+    [[], '리뷰 commit의 run이 없다'],
+    [[claudeRun(claudeGateHead)], 'success run의 head_sha가 리뷰 commit이 아니다'],
+  ]) {
+    assert.equal(
+      gate([claudeReview(1)], { runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: runs } }),
+      'rejected',
+      reason,
+    );
+  }
+  assert.equal(
+    gate([claudeReview(1)], { runsByCommit: withoutKey(base.runsByCommit, claudeGatePreviousHead) }),
+    'rejected',
+    'run 조회 실패는 후보 skip이다',
+  );
+  assert.equal(
+    gate([claudeReview(1)], { runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: { raw: { message: 'Not Found' } } } }),
+    'rejected',
+    'run 응답 형식 오류는 후보 skip이다',
+  );
+  assert.equal(
+    gate([claudeReview(1), claudeReview(2, { commit_id: claudeGateHead })], {
+      runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: [claudeRun(claudeGatePreviousHead, 'failure')] },
+    }),
+    'accepted',
+    '검증 실패한 이전 Review가 있어도 검증된 current-head Review가 있으면 인정한다',
+  );
+});
+
+test('frozen discovery gate는 리뷰 commit 시점 PR diff가 claude-code-review.yml을 바꿨으면 거부한다 (#406 D1 c)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  const base = claudeGateFixture();
+  const touchedEverywhere = {
+    [claudeGatePreviousHead]: [{ filename: CLAUDE_WORKFLOW }],
+    [claudeGateHead]: [{ filename: 'apps/mobile/lib/route.dart' }, { filename: CLAUDE_WORKFLOW }],
+  };
+  assert.equal(
+    gate([claudeReview(1, { commit_id: claudeGateHead })], { compareFilesByCommit: touchedEverywhere }),
+    'rejected',
+    'PR이 workflow 파일을 바꿨다',
+  );
+  assert.equal(
+    gate([claudeReview(1)], {
+      compareFilesByCommit: {
+        ...base.compareFilesByCommit,
+        [claudeGatePreviousHead]: [{ filename: '.github/workflows/renamed.yml', previous_filename: CLAUDE_WORKFLOW }],
+      },
+    }),
+    'rejected',
+    'PR이 workflow 파일 이름을 바꿨다',
+  );
+  // 중간 commit에서 workflow를 바꿔 리뷰를 받고 다음 commit에서 되돌려도, 리뷰 commit 시점 diff로 판정한다.
+  const touched = { ...base.compareFilesByCommit, [claudeGatePreviousHead]: [{ filename: CLAUDE_WORKFLOW }] };
+  assert.equal(
+    gate([claudeReview(1)], { compareFilesByCommit: touched }),
+    'rejected',
+    '중간 commit에서 바꿨다가 되돌린 PR의 그 commit Review는 거부한다',
+  );
+  assert.equal(
+    gate([claudeReview(1, { commit_id: claudeGateHead })], { compareFilesByCommit: touched }),
+    'accepted',
+    '되돌린 뒤 commit에서 base workflow로 받은 Review는 인정한다',
+  );
+  const truncated = Array.from({ length: 300 }, (_, index) => ({ filename: `apps/mobile/lib/f${index}.dart` }));
+  for (const [compare, reason] of [
+    [truncated, 'compare files가 300개 상한에 닿아 끝까지 볼 수 없다'],
+    [{ raw: { message: 'diff too large' } }, 'compare 응답에 files가 없다'],
+  ]) {
+    assert.equal(
+      gate([claudeReview(1)], { compareFilesByCommit: { ...base.compareFilesByCommit, [claudeGatePreviousHead]: compare } }),
+      'rejected',
+      reason,
+    );
+  }
+  assert.equal(
+    gate([claudeReview(1)], { compareFilesByCommit: withoutKey(base.compareFilesByCommit, claudeGatePreviousHead) }),
+    'rejected',
+    'compare 조회 실패는 후보 skip이다',
+  );
+  assert.equal(gate([claudeReview(1)], { base: 'null' }), 'rejected', 'PR base SHA를 모르면 판정하지 않는다');
+});
+
+test('claude[bot] Review 검증 조회는 claude[bot] 후보가 있을 때만 서로 다른 리뷰 commit마다 run·compare 1회씩이다 (#406 D1)', () => {
+  const workflow = readFileSync(workflowUrl, 'utf8');
+  const verify = (reviews, overrides = {}) => runClaudeVerification(workflow, { reviews, ...claudeGateFixture(overrides) });
+  for (const [reviews, reason] of [
+    [[memberReview(1, 'APPROVED')], 'claude[bot] Review가 없다'],
+    [[claudeReview(1, { body: '' })], '개수 줄 없는 claude[bot] Review뿐이다'],
+    [[claudeReview(1, { commit_id: 'e'.repeat(40) })], 'PR commit 밖 Review뿐이다'],
+    [[claudeReview(1, { state: 'CHANGES_REQUESTED' })], 'COMMENTED가 아니다'],
+  ]) {
+    const result = verify(reviews);
+    assert.deepEqual(
+      { status: result.status, verified: result.verified, runCalls: result.runCalls, compareCalls: result.compareCalls },
+      { status: 0, verified: [], runCalls: 0, compareCalls: 0 },
+      reason,
+    );
+  }
+  const twoCommits = verify([claudeReview(1), claudeReview(2), claudeReview(3, { commit_id: claudeGateHead })]);
+  assert.deepEqual(
+    { status: twoCommits.status, verified: twoCommits.verified, runCalls: twoCommits.runCalls, compareCalls: twoCommits.compareCalls },
+    { status: 0, verified: [claudeGateHead, claudeGatePreviousHead], runCalls: 2, compareCalls: 2 },
+  );
+  const failedRun = verify([claudeReview(1)], {
+    runsByCommit: { [claudeGatePreviousHead]: [claudeRun(claudeGatePreviousHead, 'failure')] },
+  });
+  assert.deepEqual({ runCalls: failedRun.runCalls, compareCalls: failedRun.compareCalls }, { runCalls: 1, compareCalls: 0 }, 'run success가 없으면 compare를 조회하지 않는다');
+});
+
+test('claude[bot] 검증은 기존 CodeRabbit·Aquila·Codex·사람 판정을 바꾸지 않는다 (#406)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  const noClaudeData = { runsByCommit: {}, compareFilesByCommit: {} };
+  const codeRabbit = claudeReview(1, { body: '', user: { login: 'coderabbitai[bot]', id: 136622811, type: 'Bot' } });
+  assert.equal(gate([codeRabbit], noClaudeData), 'accepted', 'CodeRabbit COMMENTED는 개수 줄·run 없이 그대로 인정한다');
+  assert.equal(gate([memberReview(1, 'APPROVED')], { ...noClaudeData, comments: [] }), 'accepted', '사람 current-head APPROVED');
+  assert.equal(gate([memberReview(1, 'CHANGES_REQUESTED'), codeRabbit]), 'rejected', '사람 change request는 계속 막는다');
+  const aquila = memberReview(1, 'COMMENTED', {
+    commit_id: claudeGatePreviousHead,
+    body: '**Actionable comments posted: 0**\n<!-- Review source: Aquila Universal Review; engine: aquila-review -->',
+  });
+  assert.equal(gate([aquila], noClaudeData), 'accepted', 'Aquila Universal Review');
+  // 검증 조회 실패는 후보 전체 skip이다(fail-closed). 사람 승인이 있어도 병합하지 않는다.
+  assert.equal(
+    gate([memberReview(1, 'APPROVED'), claudeReview(2)], { ...noClaudeData, comments: [] }),
+    'rejected',
+    'claude[bot] 후보의 run을 조회할 수 없으면 사람 승인 후보도 이번 실행에서 건너뛴다',
   );
 });
 
@@ -1651,28 +1969,34 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
   );
 });
 
-// #406: verifyAutomergeReviewClosure 미러도 workflow frozen discovery jq와 같은 claude[bot] 판정을 한다.
+// #406: verifyAutomergeReviewClosure 미러도 workflow 게이트(검증 함수 + jq)와 같은 claude[bot] 판정을 한다.
 // 이전 head에 inline finding 1건을 남긴 Review → current head에서 그 path만 고친 closure를 기본 입력으로 쓴다.
-const claudeMirrorClosure = (reviews, overrides = {}) =>
-  verifyAutomergeReviewClosure({
+// 게이트 fixture(claudeGateFixture)의 run·compare 자료를 미러 입력으로 그대로 옮긴다({ raw }는 형식 오류 응답).
+const mirrorData = (byCommit) =>
+  Object.fromEntries(Object.entries(byCommit).map(([sha, value]) => [sha, Array.isArray(value) ? value : value.raw]));
+const claudeMirrorClosure = (reviews, overrides = {}, { closureFiles = [{ filename: 'apps/mobile/lib/route.dart', status: 'modified' }] } = {}) => {
+  const fixture = claudeGateFixture(overrides);
+  return verifyAutomergeReviewClosure({
     head: claudeGateHead,
     reviews,
-    comments: [claudeGateHeadMarker],
+    comments: fixture.comments,
     reviewThreads: {
       pageInfo: { hasNextPage: false },
       nodes: [{ isResolved: true, path: 'apps/mobile/lib/route.dart' }],
     },
-    currentCommits: [
-      { sha: claudeGatePreviousHead, patch: 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void route() {}\n' },
-      { sha: claudeGateHead, patch: 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void fixedRoute() {}\n' },
-    ],
-    closureFiles: [{ filename: 'apps/mobile/lib/route.dart', status: 'modified' }],
-    ...overrides,
+    currentCommits: fixture.commits.map(({ sha }) => ({
+      sha,
+      patch: `diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void route${sha.slice(0, 1)}() {}\n`,
+    })),
+    closureFiles,
+    claudeWorkflowRuns: mirrorData(fixture.runsByCommit),
+    claudeReviewDiffFiles: mirrorData(fixture.compareFilesByCommit),
   });
+};
 // verifier가 판정으로 던진 Error만 거부로 센다. 프로그래밍 오류는 그대로 올려 가짜 거부를 막는다.
-const claudeMirrorVerdict = (reviews, overrides = {}) => {
+const claudeMirrorVerdict = (reviews, overrides = {}, mirrorOptions = {}) => {
   try {
-    claudeMirrorClosure(reviews, overrides);
+    claudeMirrorClosure(reviews, overrides, mirrorOptions);
   } catch (error) {
     if (error instanceof TypeError || error instanceof ReferenceError) throw error;
     return 'rejected';
@@ -1680,12 +2004,118 @@ const claudeMirrorVerdict = (reviews, overrides = {}) => {
   return 'accepted';
 };
 
-test('verifyAutomergeReviewClosure 미러는 고정 신원 claude[bot] COMMENTED Review를 CodeRabbit 자리에서 인정한다 (#406)', () => {
+test('verifyAutomergeReviewClosure 미러는 검증된 고정 신원 claude[bot] COMMENTED Review를 CodeRabbit 자리에서 인정한다 (#406)', () => {
   const result = claudeMirrorClosure([claudeReview(1)]);
   assert.deepEqual(
     { ok: result.ok, type: result.type, discoveryReviewId: result.discoveryReviewId },
     { ok: true, type: 'reused-discovery-review', discoveryReviewId: 1 },
   );
+  const currentHead = claudeMirrorClosure([claudeReview(1, { commit_id: claudeGateHead })], {}, { closureFiles: [] });
+  assert.deepEqual(
+    { ok: currentHead.ok, discoveryReviewId: currentHead.discoveryReviewId },
+    { ok: true, discoveryReviewId: 1 },
+    'finding 0건 기본 경로인 current-head claude[bot] Review도 인정한다 (#407 F5)',
+  );
+});
+
+test('verifyAutomergeReviewClosure 미러의 claude[bot] 판정은 workflow 게이트와 같다 (#406 D1, #407 F5)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  const base = claudeGateFixture();
+  const atCurrentHead = { closureFiles: [] };
+  const truncated = Array.from({ length: 300 }, (_, index) => ({ filename: `apps/mobile/lib/f${index}.dart` }));
+  for (const [reviews, overrides, mirrorOptions, expected, reason] of [
+    [[claudeReview(1)], {}, {}, 'accepted', '검증된 이전 head Review'],
+    [[claudeReview(1, { commit_id: claudeGateHead })], {}, atCurrentHead, 'accepted', '검증된 current-head Review (#407 F5)'],
+    [
+      [claudeReview(1), claudeReview(2, { commit_id: claudeGateHead })],
+      { runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: [claudeRun(claudeGatePreviousHead, 'failure')] } },
+      atCurrentHead,
+      'accepted',
+      '검증 실패한 이전 Review + 검증된 current-head Review',
+    ],
+    [[claudeReview(1, { body: '' })], {}, {}, 'rejected', '빈 본문 claude[bot] Review만 있다'],
+    [[claudeReview(1, { body: '', commit_id: claudeGateHead })], {}, atCurrentHead, 'rejected', '빈 본문 current-head Review만 있다'],
+    [[claudeReview(1, { body: '요약만 있고 개수 줄 없음' })], {}, {}, 'rejected', '개수 줄 없음'],
+    [[claudeReview(1, { body: '요약\n🔴 0 · 🟡 0 · 🟣 0' })], {}, {}, 'rejected', '개수 줄이 첫 줄이 아니다'],
+    [[claudeReview(1, { body: '🔴 0 · 🟡 0 · 🟣 0\r\n요약' })], {}, {}, 'rejected', '개수 줄 뒤 CR'],
+    [
+      [claudeReview(1)],
+      { runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: [claudeRun(claudeGatePreviousHead, 'failure')] } },
+      {},
+      'rejected',
+      'run이 failure만 있다',
+    ],
+    [[claudeReview(1)], { runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: [] } }, {}, 'rejected', 'run이 없다'],
+    [
+      [claudeReview(1)],
+      { runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: [claudeRun(claudeGateHead)] } },
+      {},
+      'rejected',
+      'success run의 head_sha가 리뷰 commit이 아니다',
+    ],
+    [[claudeReview(1)], { runsByCommit: withoutKey(base.runsByCommit, claudeGatePreviousHead) }, {}, 'rejected', 'run 조회 불가'],
+    [
+      [claudeReview(1)],
+      { runsByCommit: { ...base.runsByCommit, [claudeGatePreviousHead]: { raw: { message: 'Not Found' } } } },
+      {},
+      'rejected',
+      'run 응답 형식 오류',
+    ],
+    [
+      [claudeReview(1)],
+      { compareFilesByCommit: { ...base.compareFilesByCommit, [claudeGatePreviousHead]: [{ filename: CLAUDE_WORKFLOW }] } },
+      {},
+      'rejected',
+      '리뷰 commit 시점 PR diff가 workflow를 바꿨다(되돌린 경우 포함)',
+    ],
+    [
+      [claudeReview(1)],
+      {
+        compareFilesByCommit: {
+          ...base.compareFilesByCommit,
+          [claudeGatePreviousHead]: [{ filename: '.github/workflows/renamed.yml', previous_filename: CLAUDE_WORKFLOW }],
+        },
+      },
+      {},
+      'rejected',
+      '리뷰 commit 시점 PR diff가 workflow 이름을 바꿨다',
+    ],
+    [
+      [claudeReview(1)],
+      { compareFilesByCommit: { ...base.compareFilesByCommit, [claudeGatePreviousHead]: truncated } },
+      {},
+      'rejected',
+      'compare files 300개 상한',
+    ],
+    [
+      [claudeReview(1)],
+      { compareFilesByCommit: withoutKey(base.compareFilesByCommit, claudeGatePreviousHead) },
+      {},
+      'rejected',
+      'compare 조회 불가',
+    ],
+    [[claudeReview(1, { commit_id: 'e'.repeat(40) })], {}, {}, 'rejected', 'PR commit 밖 Review'],
+    [
+      [memberReview(1, 'APPROVED'), claudeReview(2)],
+      { comments: [], runsByCommit: {}, compareFilesByCommit: {} },
+      {},
+      'rejected',
+      '사람 current-head 승인이 있어도 claude[bot] 후보 검증 조회가 안 되면 건너뛴다',
+    ],
+    [
+      [memberReview(1, 'APPROVED'), claudeReview(2, { body: '' })],
+      { comments: [], runsByCommit: {}, compareFilesByCommit: {} },
+      {},
+      'accepted',
+      '개수 줄 없는 claude[bot] Review는 후보가 아니라 사람 승인 경로에 영향이 없다',
+    ],
+  ]) {
+    assert.deepEqual(
+      [gate(reviews, overrides), claudeMirrorVerdict(reviews, overrides, mirrorOptions)],
+      [expected, expected],
+      reason,
+    );
+  }
 });
 
 test('verifyAutomergeReviewClosure 미러의 claude[bot] 신원 판정은 workflow jq 게이트와 같다 (#406)', () => {
@@ -1738,11 +2168,11 @@ test('verifyAutomergeReviewClosure 미러는 claude[bot]을 COMMENTED로만 인�
   );
 });
 
-test('verifyAutomergeReviewClosure 미러는 claude[bot] Review에도 commit ancestry와 exact current-head marker를 요구한다 (#406)', () => {
+test('verifyAutomergeReviewClosure 미러는 claude[bot] Review에도 PR commit과 exact current-head marker를 요구한다 (#406)', () => {
   assert.throws(
     () => claudeMirrorClosure([claudeReview(1, { commit_id: 'e'.repeat(40) })]),
-    /reviewed head e{40} not found in current commit ancestry/,
-    'PR commit에 없는 commit의 Review는 거부한다',
+    /no eligible previous-head discovery review found/,
+    'PR commit에 없는 commit의 Review는 검증 후보가 아니라 거부한다',
   );
   assert.throws(
     () => claudeMirrorClosure([claudeReview(1)], { comments: [] }),
