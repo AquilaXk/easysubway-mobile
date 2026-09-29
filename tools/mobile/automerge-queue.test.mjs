@@ -1076,6 +1076,146 @@ test('automerge coordinator fails closed around the native merge queue', async (
   }
 });
 
+// #406: Claude Code 공식 /code-review(claude-code-review.yml)가 게시하는 claude[bot] Review를
+// CodeRabbit과 같은 frozen discovery 자리에서 인정하는 계약. workflow의 jq 식을 그대로 실행한다.
+const CLAUDE_BOT = { login: 'claude[bot]', id: 209825114, type: 'Bot' };
+const claudeGateHead = 'c'.repeat(40);
+const claudeGatePreviousHead = 'd'.repeat(40);
+const claudeGateHeadMarker = {
+  body: `<!-- Automerge frozen discovery authorization: ${claudeGateHead} -->`,
+  user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+};
+const claudeGateAt = (id) => `2026-09-29T00:00:${String(id).padStart(2, '0')}Z`;
+const claudeReview = (id, overrides = {}) => ({
+  id,
+  state: 'COMMENTED',
+  submitted_at: claudeGateAt(id),
+  commit_id: claudeGatePreviousHead,
+  author_association: 'NONE',
+  body: '🔴 0 · 🟡 0 · 🟣 0\n변경 범위를 검토했고 finding이 없습니다.',
+  user: CLAUDE_BOT,
+  ...overrides,
+});
+const memberReview = (id, state, overrides = {}) => ({
+  id,
+  state,
+  submitted_at: claudeGateAt(id),
+  commit_id: claudeGateHead,
+  author_association: 'MEMBER',
+  body: '',
+  user: { login: 'reviewer', id: 2, type: 'User' },
+  ...overrides,
+});
+const loadFrozenDiscoveryGate = () => {
+  const workflow = readFileSync(workflowUrl, 'utf8');
+  const program = workflow.match(
+    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commits "\$\{commits\}" --argjson comments "\$\{comments\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
+  )?.[1];
+  assert.ok(program, 'review state jq program must stay testable');
+  // jq -e: 0=true(인정), 1=false(거부). 그 밖의 종료 코드는 jq 오류라 "거부"로 세지 않는다.
+  return (
+    reviews,
+    {
+      commits = [{ sha: claudeGatePreviousHead }, { sha: claudeGateHead }],
+      comments = [claudeGateHeadMarker],
+    } = {},
+  ) => {
+    const result = spawnSync(
+      'jq',
+      ['-e', '--arg', 'head', claudeGateHead, '--argjson', 'commits', JSON.stringify(commits), '--argjson', 'comments', JSON.stringify(comments), program],
+      { input: JSON.stringify([reviews]), encoding: 'utf8' },
+    );
+    if (result.status === 0) return 'accepted';
+    if (result.status === 1) return 'rejected';
+    throw new Error(`review gate jq failed with status ${result.status}: ${result.stderr}`);
+  };
+};
+
+test('frozen discovery gate는 고정 신원 claude[bot] COMMENTED Review를 CodeRabbit 자리에서 인정한다 (#406)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  assert.equal(gate([claudeReview(1)]), 'accepted', 'PR commit set의 이전 head Review + exact current-head marker');
+  assert.equal(
+    gate([claudeReview(1, { commit_id: claudeGateHead })]),
+    'accepted',
+    'current head Review + exact current-head marker',
+  );
+  assert.equal(gate([claudeReview(1, { body: '' })]), 'accepted', 'inline wrapper(빈 본문) Review도 봇 신원으로 인정한다');
+  assert.equal(
+    gate([claudeReview(1), memberReview(2, 'COMMENTED')]),
+    'accepted',
+    '후속 신뢰된 사람의 빈 COMMENTED가 claude[bot] discovery를 지우지 않는다',
+  );
+});
+
+test('frozen discovery gate는 claude[bot] 이름만 같거나 신원이 어긋난 Review를 거부한다 (#406)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  for (const [overrides, reason] of [
+    [{ user: { ...CLAUDE_BOT, id: 999 } }, 'login만 같고 user.id가 다르면 거부한다'],
+    [{ user: { ...CLAUDE_BOT, type: 'User' } }, 'user.type이 Bot이 아니면 거부한다'],
+    [{ user: { login: 'claude', id: 209825114, type: 'Bot' } }, 'id가 같아도 login이 다르면 거부한다'],
+    [{ user: { login: 'claude-bot[bot]', id: 55, type: 'Bot' } }, '유사한 봇 login은 거부한다'],
+    [{ user: null }, 'user가 없으면 거부한다'],
+    [{ author_association: 'CONTRIBUTOR' }, 'author_association이 NONE이 아니면 거부한다'],
+    [
+      { author_association: 'COLLABORATOR', user: { login: 'claude', id: 77, type: 'User' } },
+      '신뢰된 사람이 claude를 흉내 낸 마커 없는 COMMENTED는 discovery가 아니다',
+    ],
+  ]) {
+    assert.equal(gate([claudeReview(1, overrides)]), 'rejected', reason);
+  }
+});
+
+test('frozen discovery gate는 claude[bot] Review에도 PR commit set과 exact current-head marker를 요구한다 (#406)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  assert.equal(
+    gate([claudeReview(1, { commit_id: 'e'.repeat(40) })]),
+    'rejected',
+    'PR commit set에 없는 commit의 Review는 거부한다',
+  );
+  assert.equal(gate([claudeReview(1)], { comments: [] }), 'rejected', 'exact-head marker가 없으면 거부한다');
+  assert.equal(
+    gate([claudeReview(1)], {
+      comments: [{ ...claudeGateHeadMarker, body: claudeGateHeadMarker.body.replace(claudeGateHead, 'b'.repeat(40)) }],
+    }),
+    'rejected',
+    '다른 head를 가리키는 marker는 거부한다',
+  );
+  assert.equal(
+    gate([claudeReview(1)], { commits: [{ sha: claudeGatePreviousHead }] }),
+    'rejected',
+    'current head가 PR commit set에 없으면 거부한다',
+  );
+});
+
+test('frozen discovery gate는 claude[bot]을 COMMENTED로만 인정하고 active change request는 막는다 (#406)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  assert.equal(
+    gate([claudeReview(1, { state: 'APPROVED', commit_id: claudeGateHead })], { comments: [] }),
+    'rejected',
+    'claude[bot] APPROVED는 current head여도 native 승인 경로로 인정하지 않는다',
+  );
+  assert.equal(
+    gate([claudeReview(1, { state: 'APPROVED' })]),
+    'rejected',
+    'claude[bot] APPROVED는 marker가 있어도 frozen discovery가 아니다',
+  );
+  assert.equal(
+    gate([memberReview(1, 'APPROVED'), claudeReview(2, { state: 'CHANGES_REQUESTED' })]),
+    'rejected',
+    'claude[bot]의 active change request는 신뢰된 사람 승인이 있어도 병합을 막는다',
+  );
+  assert.equal(
+    gate([claudeReview(1), claudeReview(2, { state: 'CHANGES_REQUESTED' })]),
+    'rejected',
+    'claude[bot] 자신의 이후 change request가 discovery를 무효화한다',
+  );
+  assert.equal(
+    gate([claudeReview(1), memberReview(2, 'CHANGES_REQUESTED')]),
+    'rejected',
+    'claude[bot] discovery 뒤 신뢰된 사람의 change request는 병합을 막는다',
+  );
+});
+
 test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile #277)', () => {
   const currentHead = '1'.repeat(40);
   const previousHead = '2'.repeat(40);
