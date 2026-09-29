@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      actions: read
       checks: read
       contents: write
       pull-requests: write
@@ -101,6 +102,56 @@ jobs:
             jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
             printf '%s\n' "${collected}"
           }
+
+          # claude-review-verification-begin
+          # claude[bot] Review는 claude-code-review.yml 검증을 통과한 것만 discovery다 (#406 D1).
+          # 후보(고정 신원·COMMENTED·본문 첫 줄 개수 줄·PR commit)의 서로 다른 commit마다
+          # (b) 그 head_sha에서 이 workflow run이 success였는지, (c) 그 commit 시점 PR diff(compare base...commit)가
+          # claude-code-review.yml을 바꾸지 않았는지 확인한다. pull_request run은 PR 쪽 workflow 파일로 돌므로
+          # 그 파일을 바꾼(중간 commit에서 바꿨다가 되돌린 경우 포함) commit의 run success는 믿지 않는다.
+          # 조회 실패·응답 형식 오류·compare files 300개 상한은 판정 불가라 후보 전체를 건너뛴다(fail-closed).
+          # 이 함수는 `if !` 조건 안에서 불려 set -e가 꺼지므로 모든 실패를 명시적으로 return 1 한다.
+          verified_claude_review_commits() {
+            local commit_shas candidates sha runs succeeded compare touched verified='[]'
+            commit_shas="$(jq -c '[.[].sha]' <<<"${commits}")" || return 1
+            candidates="$(jq -c --argjson commit_shas "${commit_shas}" '
+              [flatten[]
+                | select(.user != null)
+                | select(.author_association == "NONE" and
+                    .user.login == "claude[bot]" and
+                    .user.id == 209825114 and
+                    .user.type == "Bot")
+                | select(.state == "COMMENTED")
+                | select((((.body // "") | split("\n")[0]) // "") | test("^🔴 [0-9]+ · 🟡 [0-9]+ · 🟣 [0-9]+$"))
+                | .commit_id
+                | select(. as $sha | any($commit_shas[]; . == $sha))]
+              | unique
+            ' <<<"${reviews}")" || return 1
+            while IFS= read -r sha; do
+              [[ "${sha}" =~ ^[0-9a-f]{40}$ && "${base}" =~ ^[0-9a-f]{40}$ ]] || return 1
+              runs="$(gh api "repos/${repo}/actions/workflows/claude-code-review.yml/runs?head_sha=${sha}&status=success&per_page=20")" || return 1
+              succeeded="$(jq -r --arg sha "${sha}" '
+                if type == "object" and (.workflow_runs | type) == "array"
+                then any(.workflow_runs[]; .head_sha == $sha and .conclusion == "success")
+                else "unverifiable" end
+              ' <<<"${runs}")" || return 1
+              [[ "${succeeded}" != "unverifiable" ]] || return 1
+              [[ "${succeeded}" == "true" ]] || continue
+              compare="$(gh api "repos/${repo}/compare/${base}...${sha}?per_page=1")" || return 1
+              touched="$(jq -r '
+                if type == "object" and (.files | type) == "array" and (.files | length) < 300 and
+                  all(.files[]; (.filename | type) == "string")
+                then any(.files[]; .filename == ".github/workflows/claude-code-review.yml" or
+                  .previous_filename == ".github/workflows/claude-code-review.yml")
+                else "unverifiable" end
+              ' <<<"${compare}")" || return 1
+              [[ "${touched}" != "unverifiable" ]] || return 1
+              [[ "${touched}" == "false" ]] || continue
+              verified="$(jq -c --arg sha "${sha}" '. + [$sha]' <<<"${verified}")" || return 1
+            done < <(jq -r '.[]' <<<"${candidates}")
+            printf '%s\n' "${verified}"
+          }
+          # claude-review-verification-end
 
           # exact-head-marker-producer-begin
           if [[ "${GITHUB_EVENT_NAME}" == "pull_request_target" ]]; then
@@ -188,7 +239,8 @@ jobs:
           # 한 실행에 최대 한 건이므로 병합 직렬화는 그대로 유지된다.
           # queue-loop-begin
           # 한 실행에서 평가할 후보 수는 job timeout(5분) 때문에 제한해야 한다. 후보마다
-          # API를 5회쯤 호출하므로 무제한으로 훑으면 큐가 길어질수록 job이 timeout으로
+          # API를 5회쯤 호출하고(claude[bot] Review 후보가 있으면 리뷰 commit마다 run·compare
+          # 2회가 더 붙는다) 무제한으로 훑으면 큐가 길어질수록 job이 timeout으로
           # 죽는다. 다만 창을 큐 앞쪽에 고정하면 창 밖의 후보는 매 실행 제외되어, 없애려던
           # head 차단이 1건에서 window건 규모로 옮겨갈 뿐이다. 그래서 창 시작점을 실행마다
           # 새로 고른다.
@@ -237,7 +289,7 @@ jobs:
           # candidate-offset-end
           while IFS= read -r pr; do
             info="$(gh pr view "${pr}" --repo "${repo}" \
-              --json baseRefName,headRefOid,isDraft,labels,mergeStateStatus,state)"
+              --json baseRefName,baseRefOid,headRefOid,isDraft,labels,mergeStateStatus,state)"
             if ! jq -e '
               .state == "OPEN" and
               .isDraft == false and
@@ -249,6 +301,7 @@ jobs:
             fi
 
             head="$(jq -r '.headRefOid' <<<"${info}")"
+            base="$(jq -r '.baseRefOid' <<<"${info}")"
             merge_state="$(jq -r '.mergeStateStatus' <<<"${info}")"
 
             if ! reviews="$(bounded_pr_reviews)"; then
@@ -263,8 +316,12 @@ jobs:
               echo "PR #${pr}: comments read failed; skipping."
               continue
             fi
+            if ! verified_claude_commits="$(verified_claude_review_commits)"; then
+              echo "PR #${pr}: claude[bot] review verification read failed; skipping."
+              continue
+            fi
             # frozen-discovery-review-filter-begin
-            if ! jq -e --arg head "${head}" --argjson commits "${commits}" --argjson comments "${comments}" '
+            if ! jq -e --arg head "${head}" --argjson commits "${commits}" --argjson comments "${comments}" --argjson verified_claude_commits "${verified_claude_commits}" '
               def is_coderabbit:
                 .author_association == "NONE" and
                 .user.login == "coderabbitai[bot]" and
@@ -285,8 +342,12 @@ jobs:
                 ((.body // "" | contains("<!-- Review source: Aquila fallback; canonical visible structure:")) or
                  (.body // "" | contains("<!-- Review source: Aquila Universal Review; engine: aquila-review -->")) or
                  (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:")));
+              # claude[bot]은 verified_claude_review_commits가 개수 줄·run success·workflow 무변경을 확인한 commit의 Review만 discovery다.
+              def is_verified_claude:
+                is_claude and
+                (.commit_id as $review_head | any($verified_claude_commits[]; . == $review_head));
               def is_frozen_discovery:
-                .state == "COMMENTED" and (is_coderabbit or is_claude or is_codex_fallback);
+                .state == "COMMENTED" and (is_coderabbit or is_verified_claude or is_codex_fallback);
               def exact_actions_marker:
                 .body == "<!-- Automerge frozen discovery authorization: \($head) -->" and
                 .user.login == "github-actions[bot]" and

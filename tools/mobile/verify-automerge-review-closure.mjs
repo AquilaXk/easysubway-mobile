@@ -9,6 +9,10 @@ export const CLAUDE_ID = 209825114;
 export const ACTIONS_BOT_LOGIN = 'github-actions[bot]';
 export const ACTIONS_BOT_ID = 41898282;
 export const MARKER_PATTERN = /^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$/;
+export const CLAUDE_REVIEW_WORKFLOW_PATH = '.github/workflows/claude-code-review.yml';
+export const CLAUDE_COUNT_LINE_PATTERN = /^🔴 [0-9]+ · 🟡 [0-9]+ · 🟣 [0-9]+$/u;
+// compare API는 files를 첫 페이지에 최대 300개만 준다. 300개면 잘렸을 수 있어 판정하지 않는다.
+export const COMPARE_FILES_LIMIT = 300;
 
 /**
  * Calculates a canonical whitespace-preserving patch digest.
@@ -46,6 +50,50 @@ export function isClaude(review) {
     review?.user?.id === CLAUDE_ID &&
     review?.user?.type === 'Bot'
   );
+}
+
+export function hasClaudeCountLine(review) {
+  const body = typeof review?.body === 'string' ? review.body : '';
+  return CLAUDE_COUNT_LINE_PATTERN.test(body.split('\n')[0]);
+}
+
+/**
+ * automerge-queue.yml `verified_claude_review_commits`의 미러 (#406 D1).
+ * 후보(고정 신원·COMMENTED·개수 줄·PR commit)의 서로 다른 commit마다 (b) 그 head_sha의
+ * claude-code-review.yml run success, (c) 그 commit 시점 PR diff에 workflow 변경 없음을 확인한다.
+ * run·diff 자료가 없거나 diff가 상한에 닿으면 판정 불가로 던진다(게이트의 후보 skip과 같다).
+ *
+ * @param {object[]} reviews PR Review 목록
+ * @param {string[]} commitShas 현재 PR commit SHA 목록
+ * @param {Record<string, object[]>} claudeWorkflowRuns commit SHA → claude-code-review.yml success run 조회 결과(workflow_runs)
+ * @param {Record<string, object[]>} claudeReviewDiffFiles commit SHA → compare(base...commit) files
+ * @returns {Set<string>} 검증된 claude[bot] Review commit SHA
+ */
+export function verifiedClaudeReviewCommits(reviews, commitShas, claudeWorkflowRuns = {}, claudeReviewDiffFiles = {}) {
+  const candidates = [
+    ...new Set(
+      reviews
+        .filter((r) => isClaude(r) && r.state === 'COMMENTED' && hasClaudeCountLine(r) && commitShas.includes(r.commit_id))
+        .map((r) => r.commit_id),
+    ),
+  ];
+  const verified = new Set();
+  for (const sha of candidates) {
+    const runs = claudeWorkflowRuns[sha];
+    if (!Array.isArray(runs)) {
+      throw new Error(`claude review workflow runs unavailable for ${sha}`);
+    }
+    if (!runs.some((run) => run?.head_sha === sha && run?.conclusion === 'success')) continue;
+    const files = claudeReviewDiffFiles[sha];
+    if (!Array.isArray(files) || files.length >= COMPARE_FILES_LIMIT || !files.every((f) => typeof f?.filename === 'string')) {
+      throw new Error(`claude review diff files unavailable or truncated for ${sha}`);
+    }
+    const touched = files.some(
+      (f) => f.filename === CLAUDE_REVIEW_WORKFLOW_PATH || f.previous_filename === CLAUDE_REVIEW_WORKFLOW_PATH,
+    );
+    if (!touched) verified.add(sha);
+  }
+  return verified;
 }
 
 export function isCanonicalCodexFallback(review) {
@@ -313,10 +361,20 @@ export function verifyAutomergeReviewClosure({
   requiredContexts = [],
   checks = [],
   statuses = [],
+  claudeWorkflowRuns = {},
+  claudeReviewDiffFiles = {},
 }) {
   if (!head || typeof head !== 'string' || !/^[0-9a-f]{40}$/.test(head)) {
     throw new Error(`invalid head commit SHA: ${head}`);
   }
+
+  // 0. claude[bot] Review 검증은 게이트처럼 다른 판정보다 먼저 한다. 조회 불가는 후보 전체 거부다.
+  const verifiedClaudeCommits = verifiedClaudeReviewCommits(
+    reviews,
+    currentCommits.map((c) => c.sha),
+    claudeWorkflowRuns,
+    claudeReviewDiffFiles,
+  );
 
   // 1. Fail closed if 0 trusted reviews exist
   const trustedReviews = reviews.filter((r) => isTrustedHuman(r) || isCodeRabbit(r) || isClaude(r));
@@ -358,11 +416,12 @@ export function verifyAutomergeReviewClosure({
 
   // Find eligible discovery review
   const eligibleReviews = reviews.filter((r) => {
+    // claude[bot]은 workflow jq처럼 PR commit 안의 검증된 COMMENTED Review를 current head여도 인정한다 (#407 F5).
+    if (isClaude(r)) return r.state === 'COMMENTED' && verifiedClaudeCommits.has(r.commit_id);
     if (r.commit_id === head) return false;
     if (r.state === 'DISMISSED') return false;
     if (isTrustedHuman(r) && r.state === 'APPROVED') return true;
     if (isCodeRabbit(r) && r.state === 'COMMENTED') return true;
-    if (isClaude(r) && r.state === 'COMMENTED') return true;
     if (isCanonicalCodexFallback(r) && r.state === 'COMMENTED') return true;
     return false;
   });
