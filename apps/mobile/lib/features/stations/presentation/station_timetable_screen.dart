@@ -513,11 +513,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final effectiveNow = _effectiveNow;
     final isToday = _dayType == _todayTimetableDayType(effectiveNow);
     final availableHours = _buildAvailableHours(timetable);
-    final activeDirection =
-        timetable?.directions
-            .where((item) => item.name == _directionName)
-            .firstOrNull ??
-        timetable?.directions.firstOrNull;
 
     final List<StationTimetableDirection> visibleDirections;
     if (timetable == null || !timetable.isAvailable) {
@@ -710,11 +705,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                 ),
               ),
             ],
-
-            _buildOffstageTestHelper(
-              timetable: timetable,
-              currentDirection: activeDirection,
-            ),
           ],
         ),
       ),
@@ -1577,37 +1567,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                       : EasySubwayAccessibleColors.secondaryText,
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOffstageTestHelper({
-    required StationTimetable? timetable,
-    required StationTimetableDirection? currentDirection,
-  }) {
-    final targetDirection =
-        currentDirection ?? timetable?.directions.firstOrNull;
-    return SizedBox(
-      width: 0,
-      height: 0,
-      child: OverflowBox(
-        minWidth: 0,
-        minHeight: 0,
-        maxWidth: 0,
-        maxHeight: 0,
-        child: Opacity(
-          opacity: 0,
-          child: Column(
-            children: [
-              Text('${widget.stationName} 시간표'),
-              if (targetDirection != null &&
-                  targetDirection.departures.isNotEmpty) ...[
-                Text('첫차 ${targetDirection.firstDeparture.timeLabel}'),
-                Text('막차 ${targetDirection.lastDeparture.timeLabel}'),
-              ],
             ],
           ),
         ),

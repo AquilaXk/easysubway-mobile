@@ -37,11 +37,6 @@ void main() {
       const RealtimeSnapshot(status: RealtimeSnapshotStatus.unavailable),
     );
     expect(find.text('실시간 정보 확인 불가'), findsOneWidget);
-
-    // 세 상태 title이 서로 다른 문구로 구분된다.
-    expect('실시간 정보 미지원', isNot(equals('실시간 정보 확인 중')));
-    expect('실시간 정보 확인 중', isNot(equals('실시간 정보 확인 불가')));
-    expect('실시간 정보 미지원', isNot(equals('실시간 정보 확인 불가')));
   });
 
   testWidgets('인접역이 주어지면 방면 헤더가 인접역 방면으로 정규화되고 행선지가 표시된다', (tester) async {

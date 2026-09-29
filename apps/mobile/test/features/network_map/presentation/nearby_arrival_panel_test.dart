@@ -474,4 +474,57 @@ void main() {
     expect(find.text('소요산 방면'), findsOneWidget);
     expect(find.text('소요산행 방면'), findsNothing);
   });
+
+  testWidgets(
+    '공공 API의 destination이 비어있을 때 스크린리더 시맨틱 라벨도 direction 폴백 행선지를 누락 없이 포함한다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '사당 방면',
+                destination: '',
+                etaSeconds: 120,
+                message: '',
+              ),
+            ],
+          ),
+          leftName: null,
+          rightName: null,
+        ),
+      );
+
+      expect(find.bySemanticsLabel('사당 방면 사당행 2분 뒤 도착'), findsOneWidget);
+    },
+  );
+
+  testWidgets('destination에 이미 행이 포함되어 있어도 사당행행으로 중복되지 않고 사당행으로 단일 낭독된다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '상행',
+              destination: '사당행',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    expect(
+      find.bySemanticsLabel('반월 방면 사당행 3분 뒤 도착, 한대앞 방면 정보 없음'),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel(RegExp('사당행행')), findsNothing);
+  });
 }
