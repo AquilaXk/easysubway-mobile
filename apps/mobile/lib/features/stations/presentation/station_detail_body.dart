@@ -642,7 +642,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
     }
     final String toiletTag;
     if (toilets.isEmpty) {
-      toiletTag = '정보 준비중';
+      toiletTag = '-';
     } else if (insideGate && outsideGate) {
       toiletTag = '개찰구 안/밖';
     } else if (insideGate) {
@@ -650,7 +650,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
     } else if (outsideGate) {
       toiletTag = '개찰구 밖';
     } else {
-      toiletTag = '정보 준비중';
+      toiletTag = '-';
     }
 
     String? foundDoorTag;
@@ -675,9 +675,9 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       }
     }
 
-    final doorTag = foundDoorTag ?? '정보 준비중';
-    final platformTag = foundPlatformTag ?? '정보 준비중';
-    final crossPlatformTag = foundCrossPlatformTag ?? '정보 준비중';
+    final doorTag = foundDoorTag ?? '-';
+    final platformTag = foundPlatformTag ?? '-';
+    final crossPlatformTag = foundCrossPlatformTag ?? '-';
 
     // 2. 편의시설 설치 여부 확인
     final hasBicycle = facilities.any(

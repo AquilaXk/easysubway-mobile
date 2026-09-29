@@ -13665,7 +13665,7 @@ void main() {
     expect(find.text('역정보'), findsOneWidget);
     expect(find.text('시설정보'), findsOneWidget);
     expect(find.text('플랫폼'), findsOneWidget);
-    expect(find.text('정보 준비중'), findsNWidgets(3));
+    expect(find.text('-'), findsNWidgets(3));
     expect(find.text('화장실'), findsOneWidget);
     expect(find.text('개찰구 밖'), findsOneWidget);
     expect(find.text('내리는문'), findsOneWidget);
