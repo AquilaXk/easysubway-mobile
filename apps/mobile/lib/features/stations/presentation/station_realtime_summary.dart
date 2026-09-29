@@ -161,18 +161,28 @@ List<_RealtimeGroup> _groupRealtimeArrivals(
     final isDown = rawDir.contains('하행') || rawDir.contains('외선');
     final isUp = rawDir.contains('상행') || rawDir.contains('내선');
 
+    final cleanRaw =
+        (!rawDir.contains('상행') &&
+            !rawDir.contains('하행') &&
+            rawDir.endsWith('행'))
+        ? rawDir.substring(0, rawDir.length - 1)
+        : rawDir;
+    final cleanDest = dest.endsWith('행')
+        ? dest.substring(0, dest.length - 1)
+        : dest;
+
     String dir;
     if (isDown && !isUp) {
       if (next != null && next.isNotEmpty) {
         dir = '$next 방면';
       } else {
-        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+        dir = cleanRaw.endsWith('방면') ? cleanRaw : '$cleanRaw 방면';
       }
     } else if (isUp && !isDown) {
       if (prev != null && prev.isNotEmpty) {
         dir = '$prev 방면';
       } else {
-        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+        dir = cleanRaw.endsWith('방면') ? cleanRaw : '$cleanRaw 방면';
       }
     } else if (prev != null &&
         prev.isNotEmpty &&
@@ -182,12 +192,9 @@ List<_RealtimeGroup> _groupRealtimeArrivals(
         next.isNotEmpty &&
         (rawDir.contains(next) || dest.contains(next))) {
       dir = '$next 방면';
-    } else if (rawDir.isNotEmpty) {
-      dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
-    } else if (dest.isNotEmpty) {
-      final cleanDest = dest.endsWith('행')
-          ? dest.substring(0, dest.length - 1)
-          : dest;
+    } else if (cleanRaw.isNotEmpty) {
+      dir = cleanRaw.endsWith('방면') ? cleanRaw : '$cleanRaw 방면';
+    } else if (cleanDest.isNotEmpty) {
       dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
     } else {
       dir = '열차 도착';

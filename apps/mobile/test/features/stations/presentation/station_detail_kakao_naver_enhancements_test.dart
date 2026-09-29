@@ -282,6 +282,38 @@ void main() {
     expect(find.text('연결됨'), findsOneWidget);
   });
 
+  testWidgets('공식 승강장 정보에 반대편 횡단 불가(공백 포함) 표기 시 이동 불가로 매핑된다', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const facilitiesWithNoCross = [
+      ...testFacilities,
+      StationFacilityInfo(
+        id: 'facility-platform-nocross',
+        stationId: 'station-sangnoksu',
+        exitId: '',
+        type: 'PLATFORM',
+        name: '상대식 승강장',
+        floorFrom: 'B1',
+        floorTo: 'B1',
+        description: '오른쪽 내리는 문, 반대편 횡단 불가',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+    ];
+
+    await tester.pumpWidget(buildDetailBody(facilities: facilitiesWithNoCross));
+    await tester.pumpAndSettle();
+
+    expect(find.text('내리는문'), findsOneWidget);
+    expect(find.text('오른쪽'), findsOneWidget);
+    expect(find.text('반대편'), findsOneWidget);
+    expect(find.text('이동 불가'), findsOneWidget);
+  });
+
   testWidgets('화장실 정보가 전혀 없으면 임의로 개찰구 밖을 날조하지 않고 -으로 정직하게 표출한다', (
     tester,
   ) async {

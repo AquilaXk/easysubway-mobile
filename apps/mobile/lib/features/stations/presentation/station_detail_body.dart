@@ -665,12 +665,13 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       }
       if (text.contains('섬식')) foundPlatformTag = '섬식';
       if (text.contains('상대식')) foundPlatformTag = '양쪽';
-      if (text.contains('이동 불가') ||
-          text.contains('횡단불가') ||
-          text.contains('반대편 이동불가')) {
+      final noSpaces = text.replaceAll(' ', '');
+      if (noSpaces.contains('이동불가') || noSpaces.contains('횡단불가')) {
         foundCrossPlatformTag = '이동 불가';
       }
-      if (text.contains('횡단가능') || text.contains('반대편 연결')) {
+      if (noSpaces.contains('횡단가능') ||
+          noSpaces.contains('반대편연결') ||
+          noSpaces.contains('반대편이동가능')) {
         foundCrossPlatformTag = '연결됨';
       }
     }

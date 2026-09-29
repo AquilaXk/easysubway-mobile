@@ -366,4 +366,36 @@ void main() {
     expect(find.text('상행 방면'), findsOneWidget);
     expect(find.text('하행 방면'), findsOneWidget);
   });
+
+  testWidgets('rawDir가 행으로 끝나더라도 방면이 중복되지 않고 정규화된다', (tester) async {
+    const arrivals = [
+      RealtimeArrival(
+        lineId: 'line-4',
+        stationName: '역',
+        destination: '',
+        direction: '사당행',
+        trainNo: '401',
+        message: '전역',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationRealtimeSummary(
+            snapshot: const RealtimeSnapshot(
+              status: RealtimeSnapshotStatus.fresh,
+              arrivals: arrivals,
+            ),
+            onRetry: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('사당 방면'), findsOneWidget);
+    expect(find.text('사당행 방면'), findsNothing);
+  });
 }
