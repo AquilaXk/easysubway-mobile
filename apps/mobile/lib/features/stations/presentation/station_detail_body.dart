@@ -1256,7 +1256,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                     );
                   },
                   child: Container(
-                    height: 48,
+                    constraints: const BoxConstraints(minHeight: 48),
                     alignment: Alignment.center,
                     child: const Text(
                       '출발',
@@ -1293,7 +1293,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                     );
                   },
                   child: Container(
-                    height: 48,
+                    constraints: const BoxConstraints(minHeight: 48),
                     alignment: Alignment.center,
                     child: const Text(
                       '도착',
@@ -1322,7 +1322,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   onTap: () => _openTimetable(context),
                   child: Container(
-                    height: 48,
+                    constraints: const BoxConstraints(minHeight: 48),
                     alignment: Alignment.center,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -1362,7 +1362,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(8),
                   onTap: () => _openTimetable(context),
                   child: Container(
-                    height: 48,
+                    constraints: const BoxConstraints(minHeight: 48),
                     alignment: Alignment.center,
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
