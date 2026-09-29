@@ -1550,3 +1550,159 @@ test('병합 예약과 update-branch만 AUTOMERGE_PAT 병합 토큰을 쓰고 �
     assert.ok(!line.includes('MERGE_GH_TOKEN'), 'must keep github.token: ' + line.trim());
   }
 });
+
+test('bounded_pr_reviews: 2페이지에서 gh 호출 실패 시 return 1로 종료되고 fail-closed된다', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const reviewReader = workflow.match(/          bounded_pr_reviews\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(reviewReader, 'bounded_pr_reviews must exist');
+
+  const stubGh = `
+    case "$*" in
+      *page=1*)
+        node -e 'console.log(JSON.stringify(Array.from({length: 100}, (_, i) => ({id: i+1, state: "APPROVED", commit_id: "c", submitted_at: "2026-01-01T00:00:00Z", author_association: "MEMBER", body: "b", user: {login: "u"}}))))'
+        ;;
+      *page=2*)
+        return 1
+        ;;
+      *)
+        echo "[]"
+        ;;
+    esac
+  `;
+
+  const script = [
+    'set -euo pipefail',
+    'repo=o/r',
+    'pr=123',
+    'data_page_limit=3',
+    'page_size=100',
+    'overflow_probe_page=$((data_page_limit + 1))',
+    'gh() {',
+    stubGh,
+    '}',
+    'bounded_pr_reviews() {',
+    reviewReader.replace(/^ {10,12}/gm, ''),
+    '}',
+    'if ! out="$(bounded_pr_reviews)"; then',
+    '  echo "FAILED"',
+    'else',
+    '  echo "OK"',
+    'fi',
+  ].join('\n');
+
+  const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+  assert.equal(result.stdout.trim(), 'FAILED');
+});
+
+test('bounded_pr_reviews: 중간 페이지 파싱 실패 시 return 1로 종료되고 fail-closed된다', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const reviewReader = workflow.match(/          bounded_pr_reviews\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(reviewReader, 'bounded_pr_reviews must exist');
+
+  const stubGh = `
+    case "$*" in
+      *page=1*)
+        # submitted_at 누락으로 jq 스키마 검증 실패
+        echo '[{"id": 1, "state": "APPROVED"}]'
+        ;;
+      *)
+        echo "[]"
+        ;;
+    esac
+  `;
+
+  const script = [
+    'set -euo pipefail',
+    'repo=o/r',
+    'pr=123',
+    'data_page_limit=3',
+    'page_size=100',
+    'overflow_probe_page=$((data_page_limit + 1))',
+    'gh() {',
+    stubGh,
+    '}',
+    'bounded_pr_reviews() {',
+    reviewReader.replace(/^ {10,12}/gm, ''),
+    '}',
+    'if ! out="$(bounded_pr_reviews)"; then',
+    '  echo "FAILED"',
+    'else',
+    '  echo "OK"',
+    'fi',
+  ].join('\n');
+
+  const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+  assert.equal(result.stdout.trim(), 'FAILED');
+});
+
+test('bounded_pr_commits: overflow probe에 잔여 데이터가 있으면 return 1로 종료되고 fail-closed된다', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const commitReader = workflow.match(/          bounded_pr_commits\(\) \{\n([\s\S]*?)\n          \}/)?.[1];
+  assert.ok(commitReader, 'bounded_pr_commits must exist');
+
+  const stubGh = `
+    case "$*" in
+      *page=[123]*)
+        node -e 'console.log(JSON.stringify(Array.from({length: 100}, () => ({sha: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}))))'
+        ;;
+      *page=4*)
+        echo '[{"sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]'
+        ;;
+      *)
+        echo "[]"
+        ;;
+    esac
+  `;
+
+  const script = [
+    'set -euo pipefail',
+    'repo=o/r',
+    'pr=123',
+    'data_page_limit=3',
+    'page_size=100',
+    'overflow_probe_page=$((data_page_limit + 1))',
+    'gh() {',
+    stubGh,
+    '}',
+    'bounded_pr_commits() {',
+    commitReader.replace(/^ {10,12}/gm, ''),
+    '}',
+    'if ! out="$(bounded_pr_commits)"; then',
+    '  echo "FAILED"',
+    'else',
+    '  echo "OK"',
+    'fi',
+  ].join('\n');
+
+  const result = spawnSync('bash', ['-c', script], { encoding: 'utf8' });
+  assert.equal(result.stdout.trim(), 'FAILED');
+});
+
+test('판정 jq 인자로 commits는 SHA 배열로, comments는 필수 필드로 축소되어 전달된다', async () => {
+  const workflow = await readFile(workflowUrl, 'utf8');
+
+  assert.match(
+    workflow,
+    /commit_shas="\$\(jq -c 'map\(\.sha\)' <<<"\$\{commits\}"\)"/,
+    'commits must be projected to SHA array before passing to judgment jq',
+  );
+  assert.ok(
+    workflow.includes('--argjson commit_shas "${commit_shas}"'),
+    'must pass --argjson commit_shas to judgment jq',
+  );
+  assert.ok(
+    !workflow.includes('--argjson commits "${commits}"'),
+    'must not pass full commits object to judgment jq',
+  );
+
+  assert.match(
+    workflow,
+    /comments_slim="\$\(jq -c 'map\(\{user: \{login: \.user\.login, id: \.user\.id, type: \.user\.type\}, body\}\)' <<<"\$\{comments\}"\)"|comments_slim="\$\(jq -c 'map\(\{user, body\}\)' <<<"\$\{comments\}"\)"/,
+    'comments must be projected to slim form before passing to judgment jq',
+  );
+  assert.ok(
+    workflow.includes('--argjson comments "${comments_slim}"') || workflow.includes('--argjson comments_slim "${comments_slim}"'),
+    'must pass slimmed comments to judgment jq',
+  );
+});
+
