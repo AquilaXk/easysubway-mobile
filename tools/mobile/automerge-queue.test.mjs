@@ -1650,3 +1650,111 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /required check 'Mobile CI' is not successful/,
   );
 });
+
+// #406: verifyAutomergeReviewClosure 미러도 workflow frozen discovery jq와 같은 claude[bot] 판정을 한다.
+// 이전 head에 inline finding 1건을 남긴 Review → current head에서 그 path만 고친 closure를 기본 입력으로 쓴다.
+const claudeMirrorClosure = (reviews, overrides = {}) =>
+  verifyAutomergeReviewClosure({
+    head: claudeGateHead,
+    reviews,
+    comments: [claudeGateHeadMarker],
+    reviewThreads: {
+      pageInfo: { hasNextPage: false },
+      nodes: [{ isResolved: true, path: 'apps/mobile/lib/route.dart' }],
+    },
+    currentCommits: [
+      { sha: claudeGatePreviousHead, patch: 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void route() {}\n' },
+      { sha: claudeGateHead, patch: 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void fixedRoute() {}\n' },
+    ],
+    closureFiles: [{ filename: 'apps/mobile/lib/route.dart', status: 'modified' }],
+    ...overrides,
+  });
+// verifier가 판정으로 던진 Error만 거부로 센다. 프로그래밍 오류는 그대로 올려 가짜 거부를 막는다.
+const claudeMirrorVerdict = (reviews, overrides = {}) => {
+  try {
+    claudeMirrorClosure(reviews, overrides);
+  } catch (error) {
+    if (error instanceof TypeError || error instanceof ReferenceError) throw error;
+    return 'rejected';
+  }
+  return 'accepted';
+};
+
+test('verifyAutomergeReviewClosure 미러는 고정 신원 claude[bot] COMMENTED Review를 CodeRabbit 자리에서 인정한다 (#406)', () => {
+  const result = claudeMirrorClosure([claudeReview(1)]);
+  assert.deepEqual(
+    { ok: result.ok, type: result.type, discoveryReviewId: result.discoveryReviewId },
+    { ok: true, type: 'reused-discovery-review', discoveryReviewId: 1 },
+  );
+});
+
+test('verifyAutomergeReviewClosure 미러의 claude[bot] 신원 판정은 workflow jq 게이트와 같다 (#406)', () => {
+  const gate = loadFrozenDiscoveryGate();
+  assert.deepEqual(
+    [gate([claudeReview(1)]), claudeMirrorVerdict([claudeReview(1)])],
+    ['accepted', 'accepted'],
+    '고정 신원은 workflow와 미러가 모두 인정한다',
+  );
+  for (const [overrides, reason] of [
+    [{ user: { ...CLAUDE_BOT, id: 999 } }, 'login만 같고 user.id가 다름'],
+    [{ user: { ...CLAUDE_BOT, type: 'User' } }, 'user.type이 Bot이 아님'],
+    [{ user: { login: 'claude', id: 209825114, type: 'Bot' } }, 'id가 같아도 login이 다름'],
+    [{ user: { login: 'claude-bot[bot]', id: 55, type: 'Bot' } }, '유사한 봇 login'],
+    [{ user: null }, 'user 없음'],
+    [{ author_association: 'CONTRIBUTOR' }, 'author_association이 NONE이 아님'],
+    [
+      { author_association: 'COLLABORATOR', user: { login: 'claude', id: 77, type: 'User' } },
+      '신뢰된 사람이 claude를 흉내 낸 마커 없는 COMMENTED',
+    ],
+  ]) {
+    assert.deepEqual(
+      [gate([claudeReview(1, overrides)]), claudeMirrorVerdict([claudeReview(1, overrides)])],
+      ['rejected', 'rejected'],
+      reason,
+    );
+  }
+});
+
+test('verifyAutomergeReviewClosure 미러는 claude[bot]을 COMMENTED로만 인정하고 active change request는 막는다 (#406)', () => {
+  assert.throws(
+    () => claudeMirrorClosure([claudeReview(1, { state: 'APPROVED', commit_id: claudeGateHead })], { comments: [] }),
+    /missing automerge frozen discovery authorization marker/,
+    'claude[bot] APPROVED는 current head여도 current-head-approved 경로가 아니다',
+  );
+  assert.throws(
+    () => claudeMirrorClosure([claudeReview(1, { state: 'APPROVED' })]),
+    /no eligible previous-head discovery review found/,
+    'claude[bot] APPROVED는 marker가 있어도 frozen discovery가 아니다',
+  );
+  assert.throws(
+    () => claudeMirrorClosure([memberReview(1, 'APPROVED'), claudeReview(2, { state: 'CHANGES_REQUESTED' })]),
+    /active CHANGES_REQUESTED remains from claude\[bot\]/,
+    'claude[bot]의 active change request는 신뢰된 사람 승인이 있어도 막는다',
+  );
+  assert.throws(
+    () => claudeMirrorClosure([claudeReview(1), claudeReview(2, { state: 'CHANGES_REQUESTED' })]),
+    /active CHANGES_REQUESTED remains from claude\[bot\]/,
+    'claude[bot] 자신의 이후 change request가 discovery를 무효화한다',
+  );
+});
+
+test('verifyAutomergeReviewClosure 미러는 claude[bot] Review에도 commit ancestry와 exact current-head marker를 요구한다 (#406)', () => {
+  assert.throws(
+    () => claudeMirrorClosure([claudeReview(1, { commit_id: 'e'.repeat(40) })]),
+    /reviewed head e{40} not found in current commit ancestry/,
+    'PR commit에 없는 commit의 Review는 거부한다',
+  );
+  assert.throws(
+    () => claudeMirrorClosure([claudeReview(1)], { comments: [] }),
+    /missing automerge frozen discovery authorization marker/,
+    'exact-head marker가 없으면 거부한다',
+  );
+  assert.throws(
+    () =>
+      claudeMirrorClosure([claudeReview(1)], {
+        comments: [{ ...claudeGateHeadMarker, body: claudeGateHeadMarker.body.replace(claudeGateHead, 'b'.repeat(40)) }],
+      }),
+    /stale or wrong marker/,
+    '다른 head를 가리키는 marker는 거부한다',
+  );
+});
