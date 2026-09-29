@@ -56,39 +56,39 @@ jobs:
           bounded_issue_comments() {
             local page response collected='[]'
             for ((page = 1; page <= data_page_limit; page++)); do
-              response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${page}")"
-              jq -e 'type == "array" and all(.[]; (.id | type) == "number" and ((.body == null) or (.body | type) == "string") and ((.user == null) or (.user | type) == "object"))' <<<"${response}" >/dev/null
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${page}")" || return 1
+              jq -e 'type == "array" and all(.[]; (.id | type) == "number" and ((.body == null) or (.body | type) == "string") and ((.user == null) or (.user | type) == "object"))' <<<"${response}" >/dev/null || return 1
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
               fi
             done
-            response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${overflow_probe_page}")"
-            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${overflow_probe_page}")" || return 1
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null || return 1
             printf '%s\n' "${collected}"
           }
 
           bounded_pr_commits() {
             local page response collected='[]'
             for ((page = 1; page <= data_page_limit; page++)); do
-              response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${page}")"
-              jq -e 'type == "array" and all(.[]; (.sha | type) == "string" and (.sha | test("^[0-9a-f]{40}$")))' <<<"${response}" >/dev/null
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${page}")" || return 1
+              jq -e 'type == "array" and all(.[]; (.sha | type) == "string" and (.sha | test("^[0-9a-f]{40}$")))' <<<"${response}" >/dev/null || return 1
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
               fi
             done
-            response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${overflow_probe_page}")"
-            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${overflow_probe_page}")" || return 1
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null || return 1
             printf '%s\n' "${collected}"
           }
 
           bounded_pr_reviews() {
             local page response collected='[]'
             for ((page = 1; page <= data_page_limit; page++)); do
-              response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${page}")"
+              response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${page}")" || return 1
               jq -e 'type == "array" and all(.[];
                 (.id | type) == "number" and
                 (.state | type) == "string" and
@@ -97,15 +97,15 @@ jobs:
                 (.author_association | type) == "string" and
                 ((.body == null) or (.body | type) == "string") and
                 ((.user == null) or (.user | type) == "object")
-              )' <<<"${response}" >/dev/null
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              )' <<<"${response}" >/dev/null || return 1
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
               fi
             done
-            response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${overflow_probe_page}")"
-            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${overflow_probe_page}")" || return 1
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null || return 1
             printf '%s\n' "${collected}"
           }
 
@@ -266,12 +266,20 @@ jobs:
               echo "PR #${pr}: commits read failed; skipping."
               continue
             fi
+            commit_shas="$(jq -c 'map(.sha)' <<<"${commits}")" || {
+              echo "PR #${pr}: commits parse failed; skipping."
+              continue
+            }
             if ! comments="$(bounded_issue_comments)"; then
               echo "PR #${pr}: comments read failed; skipping."
               continue
             fi
+            comments_slim="$(jq -c 'map({user, body})' <<<"${comments}")" || {
+              echo "PR #${pr}: comments parse failed; skipping."
+              continue
+            }
             # frozen-discovery-review-filter-begin
-            if ! jq -e --arg head "${head}" --argjson commits "${commits}" --argjson comments "${comments}" '
+            if ! jq -e --arg head "${head}" --argjson commit_shas "${commit_shas}" --argjson comments "${comments_slim}" '
               def is_coderabbit:
                 .author_association == "NONE" and
                 .user.login == "coderabbitai[bot]" and
@@ -304,12 +312,12 @@ jobs:
                   is_trusted_human or
                   is_coderabbit
                 )] as $trusted |
-              ($commits | type == "array" and length > 0 and
-                all(.[]; (.sha | type) == "string") and
-                any(.[]; .sha == $head)) as $has_current_head |
+              ($commit_shas | type == "array" and length > 0 and
+                all(.[]; type == "string") and
+                any(.[]; . == $head)) as $has_current_head |
               ([$comments[]? | select(canonical_actions_marker)]) as $canonical_markers |
               ($canonical_markers | length == 1 and .[0].body == "<!-- Automerge frozen discovery authorization: \($head) -->") as $has_exact_marker |
-              ($commits | map(.sha)) as $commit_set |
+              $commit_shas as $commit_set |
               ($trusted |
               sort_by(.submitted_at, .id) |
               reduce .[] as $review ({};
