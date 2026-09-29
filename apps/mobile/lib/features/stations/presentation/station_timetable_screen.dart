@@ -537,29 +537,31 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         title: Semantics(
           header: true,
           label: '${widget.stationName} 시간표',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _stationDisplayName,
-                style: TextStyle(
-                  color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              if (lineDisplayName.isNotEmpty) ...[
-                const SizedBox(width: 5),
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  lineDisplayName,
+                  _stationDisplayName,
                   style: TextStyle(
-                    color: lineColor,
+                    color: EasySubwayAccessibleColors.text,
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
                 ),
+                if (lineDisplayName.isNotEmpty) ...[
+                  const SizedBox(width: 5),
+                  Text(
+                    lineDisplayName,
+                    style: TextStyle(
+                      color: lineColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         actions: [

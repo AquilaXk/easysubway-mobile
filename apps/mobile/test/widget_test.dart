@@ -12897,14 +12897,15 @@ void main() {
         await tester.tap(find.byKey(const Key('stationTimetableButton')));
         await tester.pumpAndSettle();
 
+        expect(find.bySemanticsLabel('상록수 시간표'), findsOneWidget);
         expect(
           find.byKey(const Key('stationTimetableDirection-사당 방면')),
           findsOneWidget,
         );
         expect(find.text('05:20'), findsOneWidget);
-        expect(find.text('첫차'), findsWidgets);
         expect(find.text('00:25'), findsOneWidget);
-        expect(find.text('막차'), findsWidgets);
+        expect(find.text('첫차'), findsNWidgets(2));
+        expect(find.text('막차'), findsNWidgets(2));
         expect(find.bySemanticsLabel('사당 방면, 00시 25분 출발'), findsOneWidget);
 
         await tester.tap(

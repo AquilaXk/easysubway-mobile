@@ -527,4 +527,33 @@ void main() {
     );
     expect(find.bySemanticsLabel(RegExp('사당행행')), findsNothing);
   });
+
+  testWidgets(
+    '공공 API의 destination이 비어있고 direction이 상행일 때 상행으로 온전하게 낭독 및 표출된다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '상행',
+                destination: '',
+                etaSeconds: 60,
+                message: '',
+              ),
+            ],
+          ),
+          leftName: '반월',
+          rightName: '한대앞',
+        ),
+      );
+
+      expect(find.text('상행'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('반월 방면 상행 1분 뒤 도착, 한대앞 방면 정보 없음'),
+        findsOneWidget,
+      );
+    },
+  );
 }
