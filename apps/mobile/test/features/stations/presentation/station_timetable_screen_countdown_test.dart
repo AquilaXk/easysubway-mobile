@@ -1048,7 +1048,8 @@ void main() {
           findsOneWidget,
         );
         expect(find.text('시간표 정보가 없어요'), findsNothing);
-        expect(reportedErrors, isNotEmpty);
+        // Repository is the single logging source; presentation does not duplicate ServerConnectionException.
+        expect(reportedErrors, isEmpty);
 
         // When user taps retry after network recovers
         repo.errorToThrow = null;
@@ -1164,7 +1165,8 @@ void main() {
           find.byKey(const Key('station-timetable-network-error-view')),
           findsOneWidget,
         );
-        expect(reportedErrors, isNotEmpty);
+        // Repository is the single logging source; presentation does not duplicate ServerConnectionException.
+        expect(reportedErrors, isEmpty);
 
         // Change day to Sunday when generic error occurs
         repo.errorToThrow = StateError('generic error');
@@ -1178,6 +1180,8 @@ void main() {
           findsNothing,
         );
         expect(find.text('시간표 정보가 없어요'), findsOneWidget);
+        // Generic unexpected error is reported by presentation layer
+        expect(reportedErrors, hasLength(1));
       });
     },
   );

@@ -279,7 +279,7 @@ void main() {
     },
   );
 
-  testWidgets('상록수 등 인접역(반월/한대앞)이 주어지면 원천 방면(진접/오이도)을 인접역 방면으로 정규화한다', (
+  testWidgets('공공 API rawDir(상행/하행) 판정을 최우선 적용하여 인접역 방면으로 정규화한다', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -288,13 +288,13 @@ void main() {
           status: NearbyArrivalPanelStatus.fresh,
           arrivals: [
             NearbyArrivalData(
-              direction: '진접 방면',
+              direction: '상행',
               destination: '사당',
               etaSeconds: 120,
               message: '전역 도착',
             ),
             NearbyArrivalData(
-              direction: '오이도 방면',
+              direction: '하행',
               destination: '오이도',
               etaSeconds: 240,
               message: '전역 출발',
@@ -306,13 +306,38 @@ void main() {
       ),
     );
 
-    // 먼 종점 진접/오이도 대신 인접역 반월/한대앞 방면으로 정규화
     expect(find.text('반월 방면'), findsOneWidget);
     expect(find.text('한대앞 방면'), findsOneWidget);
 
-    // 열차 종착역 행선지 표시
     expect(find.text('사당행'), findsOneWidget);
     expect(find.text('오이도행'), findsOneWidget);
+  });
+
+  testWidgets('공공 API 하행 사당행 열차가 좌측(상행)으로 왜곡되지 않고 우측(하행) 열에 정상 매핑된다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '사당',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    // 하행 사당행 열차는 leftName(반월 방면)이 아닌 rightName(한대앞 방면)에 배정되어야 함
+    expect(find.text('한대앞 방면'), findsOneWidget);
+    expect(find.text('사당행'), findsOneWidget);
+    expect(find.text('3분 뒤 도착'), findsOneWidget);
   });
 
   testWidgets('다양한 방향 및 목적지 fallback, 시간 단위 ETA 표기 검증', (tester) async {
@@ -328,14 +353,14 @@ void main() {
               message: '',
             ),
             NearbyArrivalData(
-              direction: '',
-              destination: '진접행', // cleanDest -> leftName (반월 방면)
+              direction: '반월 방면',
+              destination: '진접행',
               etaSeconds: 7200, // 2시간 뒤 도착
               message: '',
             ),
             NearbyArrivalData(
-              direction: '',
-              destination: '오이도행', // cleanDest -> rightName (한대앞 방면)
+              direction: '한대앞 방면',
+              destination: '오이도행',
               etaSeconds: 180,
               message: '',
             ),
@@ -377,5 +402,27 @@ void main() {
 
     expect(find.text('상행 방면'), findsOneWidget);
     expect(find.text('수원 방면'), findsOneWidget);
+  });
+
+  testWidgets('인접역이 없을 때 하행 방향 라벨로 폴백한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '오이도',
+              etaSeconds: 150,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.text('하행 방면'), findsOneWidget);
   });
 }

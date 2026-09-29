@@ -3,6 +3,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/stations/application/station_detail_controller.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_body.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -213,13 +214,15 @@ void main() {
       expect(find.text('역정보'), findsOneWidget);
       expect(find.text('시설정보'), findsOneWidget);
       expect(find.text('플랫폼'), findsOneWidget);
-      expect(find.text('양쪽'), findsWidgets);
       expect(find.text('화장실'), findsOneWidget);
       expect(find.text('개찰구 안/밖'), findsOneWidget);
       expect(find.text('내리는문'), findsOneWidget);
-      expect(find.text('오른쪽'), findsOneWidget);
       expect(find.text('반대편'), findsOneWidget);
-      expect(find.text('연결됨'), findsOneWidget);
+      // 승강장(플랫폼, 내리는문, 반대편) 데이터 부재 시 가짜 기본값 대신 '-'이 정직하게 표출됨
+      expect(find.text('-'), findsNWidgets(3));
+      expect(find.text('양쪽'), findsNothing);
+      expect(find.text('오른쪽'), findsNothing);
+      expect(find.text('연결됨'), findsNothing);
 
       expect(find.text('편의시설'), findsOneWidget);
       expect(find.text('자전거보관소'), findsOneWidget);
@@ -240,6 +243,79 @@ void main() {
       expect(find.text('첫차·막차'), findsOneWidget);
     },
   );
+
+  testWidgets('공식 승강장 정보(내리는문, 플랫폼, 반대편 횡단)가 데이터에 명시된 경우 올바른 태그로 매핑된다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const facilitiesWithPlatform = [
+      ...testFacilities,
+      StationFacilityInfo(
+        id: 'facility-platform-1',
+        stationId: 'station-sangnoksu',
+        exitId: '',
+        type: 'PLATFORM',
+        name: '상대식 승강장',
+        floorFrom: 'B1',
+        floorTo: 'B1',
+        description: '상대식 승강장, 왼쪽 내리는 문, 반대편 횡단가능 연결됨',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      buildDetailBody(facilities: facilitiesWithPlatform),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('플랫폼'), findsOneWidget);
+    expect(find.text('양쪽'), findsOneWidget);
+    expect(find.text('내리는문'), findsOneWidget);
+    expect(find.text('왼쪽'), findsOneWidget);
+    expect(find.text('반대편'), findsOneWidget);
+    expect(find.text('연결됨'), findsOneWidget);
+  });
+
+  testWidgets('화장실 정보가 전혀 없으면 임의로 개찰구 밖을 날조하지 않고 -으로 정직하게 표출한다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const facilitiesWithoutToilet = [
+      StationFacilityInfo(
+        id: 'facility-ev-only',
+        stationId: 'station-sangnoksu',
+        exitId: 'exit-1',
+        type: 'ELEVATOR',
+        name: '1번 출구 엘리베이터',
+        floorFrom: 'B1',
+        floorTo: '1F',
+        description: '1번 출구 지상 연결',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+    ];
+
+    await tester.pumpWidget(
+      buildDetailBody(facilities: facilitiesWithoutToilet),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.text('화장실'), findsOneWidget);
+    expect(find.text('-'), findsNWidgets(4)); // 플랫폼, 화장실, 내리는문, 반대편 모두 -
+    expect(find.text('개찰구 밖'), findsNothing);
+    expect(find.text('개찰구 안'), findsNothing);
+  });
 
   testWidgets('출구 DB가 비어있으면 출구정보를 숨기고 역정보와 하단 액션바만 렌더링된다', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
@@ -594,4 +670,102 @@ void main() {
       expect(emptyHint.semanticLabel, isNot(contains('출구와 가까운 하차문')));
     },
   );
+
+  test(
+    'StationExitInfo.semanticLabel includes description for screen reader destination guidance',
+    () {
+      final withDesc = StationExitInfo.fromJson(const {
+        'id': 'exit-desc-1',
+        'stationId': 'station-1',
+        'exitNumber': '1',
+        'name': '1번 출구',
+        'description': '상록수역 공영주차장, 본오동 방면',
+        'hasElevatorConnection': true,
+        'hasStairOnlyPath': false,
+        'dataConfidence': 'HIGH',
+        'nearbyDoorHint': '상행 4-4',
+      });
+      expect(withDesc.semanticLabel, contains('상록수역 공영주차장, 본오동 방면'));
+      expect(
+        withDesc.semanticLabel,
+        startsWith('1번 출구, 상록수역 공영주차장, 본오동 방면, 엘리베이터 연결'),
+      );
+
+      final withoutDesc = StationExitInfo.fromJson(const {
+        'id': 'exit-desc-2',
+        'stationId': 'station-1',
+        'exitNumber': '2',
+        'name': '2번 출구',
+        'description': '',
+        'hasElevatorConnection': false,
+        'hasStairOnlyPath': true,
+        'dataConfidence': 'MEDIUM',
+      });
+      expect(
+        withoutDesc.semanticLabel,
+        startsWith('2번 출구, 엘리베이터 없음, 계단만 있는 길 있음'),
+      );
+    },
+  );
+
+  testWidgets(
+    'StationDetailBody에 ServerConnectionException 발생 시 _StationTimetableEntry가 안전하게 unavailable 상태로 전이된다',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: StationDetailBody(
+              state: StationDetailState(
+                status: StationDetailStatus.success,
+                detail: testStation,
+                exits: [],
+                facilities: [],
+              ),
+              onRetryRealtime: _noop,
+              onOpenFacilityReport: _noopFacility,
+              timetableRepository: _FailingTimetableRepository(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(StationDetailBody), findsOneWidget);
+    },
+  );
+}
+
+void _noop() {}
+Future<void> _noopFacility(FacilityReportTarget target) async {}
+
+final class _FailingTimetableRepository implements StationTimetableRepository {
+  const _FailingTimetableRepository();
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
 }

@@ -642,34 +642,42 @@ class _StationNaverStationInfoSection extends StatelessWidget {
     }
     final String toiletTag;
     if (toilets.isEmpty) {
-      toiletTag = '개찰구 밖';
+      toiletTag = '-';
     } else if (insideGate && outsideGate) {
       toiletTag = '개찰구 안/밖';
     } else if (insideGate) {
       toiletTag = '개찰구 안';
-    } else {
+    } else if (outsideGate) {
       toiletTag = '개찰구 밖';
+    } else {
+      toiletTag = '-';
     }
 
-    String doorTag = '오른쪽';
-    String platformTag = '양쪽';
-    String crossPlatformTag = '연결됨';
+    String? foundDoorTag;
+    String? foundPlatformTag;
+    String? foundCrossPlatformTag;
     for (final f in facilities) {
       final text = '${f.name} ${f.description}'.toLowerCase();
-      if (text.contains('왼쪽')) doorTag = '왼쪽';
-      if (text.contains('오른쪽')) doorTag = '오른쪽';
-      if (text.contains('단선') || text.contains('단선승강장')) platformTag = '단선';
-      if (text.contains('섬식')) platformTag = '섬식';
-      if (text.contains('상대식')) platformTag = '양쪽';
+      if (text.contains('왼쪽')) foundDoorTag = '왼쪽';
+      if (text.contains('오른쪽')) foundDoorTag = '오른쪽';
+      if (text.contains('단선') || text.contains('단선승강장')) {
+        foundPlatformTag = '단선';
+      }
+      if (text.contains('섬식')) foundPlatformTag = '섬식';
+      if (text.contains('상대식')) foundPlatformTag = '양쪽';
       if (text.contains('이동 불가') ||
           text.contains('횡단불가') ||
           text.contains('반대편 이동불가')) {
-        crossPlatformTag = '이동 불가';
+        foundCrossPlatformTag = '이동 불가';
       }
       if (text.contains('횡단가능') || text.contains('반대편 연결')) {
-        crossPlatformTag = '연결됨';
+        foundCrossPlatformTag = '연결됨';
       }
     }
+
+    final doorTag = foundDoorTag ?? '-';
+    final platformTag = foundPlatformTag ?? '-';
+    final crossPlatformTag = foundCrossPlatformTag ?? '-';
 
     // 2. 편의시설 설치 여부 확인
     final hasBicycle = facilities.any(
@@ -1463,6 +1471,13 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
         });
       }
     } on StationTimetableUnavailable {
+      if (mounted) {
+        setState(() {
+          _timetable = null;
+          _unavailable = true;
+        });
+      }
+    } on ServerConnectionException {
       if (mounted) {
         setState(() {
           _timetable = null;

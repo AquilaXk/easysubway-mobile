@@ -1319,6 +1319,13 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         _nearbyTimetableDisplay = null;
         _clearNearbyTimetableInFlightIf(request);
       });
+    } on ServerConnectionException {
+      if (mounted) {
+        setState(() {
+          _nearbyTimetableDisplay = null;
+          _clearNearbyTimetableInFlightIf(request);
+        });
+      }
     } catch (error, stackTrace) {
       reportMobileError(
         error,
