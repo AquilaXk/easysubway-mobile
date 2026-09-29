@@ -193,11 +193,11 @@ void main() {
     });
 
     // 테스트 폰트는 모든 글자가 1em 정사각형이다. 가장 긴 행은 선택된 `수도권`
-    // (글자 3개 + 체크 아이콘 20 + 좌우 패딩 28)이다. 1.5배는 24×3+48=120이라
-    // 기본 폭 124, 2.0배는 32×3+48=144다.
+    // (글자 3개, 글자마다 자간 -0.2 + 체크 아이콘 20 + 좌우 패딩 28)이다.
+    // 1.5배는 3×(24-0.2)+48=119.4라 기본 폭 124, 2.0배는 3×(32-0.2)+48=143.4다.
     for (final (textScale, expectedPanelWidth) in const [
       (1.5, 124.0),
-      (2.0, 144.0),
+      (2.0, 143.4),
     ]) {
       testWidgets('글자 배율 $textScale에서 모든 권역명이 한 줄로 전부 보이고 패널 폭은 가장 긴 행에 맞춘다', (
         tester,
@@ -213,7 +213,7 @@ void main() {
         _expectPanelInsideScreen(tester, _portraitPhone);
         expect(
           tester.getSize(find.byType(EasySubwayRegionMenuPanel)).width,
-          expectedPanelWidth,
+          moreOrLessEquals(expectedPanelWidth, epsilon: 0.001),
           reason: '패널 폭은 글자 배율 비례 추정이 아니라 가장 긴 권역 행 폭(최소 124)이어야 한다',
         );
         _expectEveryRegionLabelFullyVisible(tester, _fiveMetroRegions);

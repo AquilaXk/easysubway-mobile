@@ -17,6 +17,9 @@ class EasySubwayRegionMenuItem {
   final String label;
 }
 
+/// 패널이 화면 오른쪽·아래 가장자리와 띄우는 최소 여백.
+const _regionMenuScreenEdgeMargin = 16.0;
+
 /// 트리거 버튼 바로 아래·화면 좌측 벽에 밀착하여 콤팩트한 지역 드롭다운 메뉴를 연다.
 Future<void> showEasySubwayRegionMenu({
   required BuildContext triggerContext,
@@ -51,6 +54,13 @@ Future<void> showEasySubwayRegionMenu({
     barrierLabel: '지역 메뉴 닫기',
     barrierColor: const Color(0x99000000),
     pageBuilder: (context, animation, secondaryAnimation) {
+      // #404: 큰 글자에서 행이 자라도 패널은 트리거 아래 남은 화면 높이(하단
+      // 시스템 영역과 여백 16 제외)를 넘지 않고, 넘치는 행은 패널 안에서 스크롤한다.
+      final maxPanelHeight =
+          MediaQuery.sizeOf(context).height -
+          bottomLeft.dy -
+          MediaQuery.paddingOf(context).bottom -
+          _regionMenuScreenEdgeMargin;
       return Stack(
         children: [
           Positioned.fill(
@@ -63,10 +73,13 @@ Future<void> showEasySubwayRegionMenu({
           Positioned(
             top: bottomLeft.dy,
             left: 0,
-            child: EasySubwayRegionMenuPanel(
-              availableRegions: available,
-              selectedRegion: selectedRegion,
-              onRegionSelected: onRegionSelected,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: maxPanelHeight),
+              child: EasySubwayRegionMenuPanel(
+                availableRegions: available,
+                selectedRegion: selectedRegion,
+                onRegionSelected: onRegionSelected,
+              ),
             ),
           ),
         ],
@@ -93,22 +106,13 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const labelFontSize = 16.0;
-    // #404: 패널 폭은 권역명 글자 배율에 비례해 기본 124에서 자라되, 좌측 벽에
-    // 붙은 패널이 화면 밖으로 나가지 않도록 화면 폭 - 16을 넘지 않는다.
-    // 기본 배율(1.0)에서는 정확히 124다. 비선형 배율(Android 14+)도 권역명
-    // 글자 크기 기준으로 환산한다.
+    // #404: 패널 폭은 가장 긴 권역 행(권역명 한 줄 + 체크 아이콘 + 좌우 패딩)의
+    // 실제 폭에 맞춰 기본 124에서 자란다. 좌측 벽에 붙은 패널이 화면 밖으로
+    // 나가지 않도록 화면 폭 - 16이 상한이고, 창이 좁아 상한이 124보다 작으면
+    // 상한이 우선한다.
     const basePanelWidth = 124.0;
-    const screenEdgeMargin = 16.0;
-    final labelScale =
-        MediaQuery.textScalerOf(context).scale(labelFontSize) / labelFontSize;
-    final panelWidth = math.max(
-      basePanelWidth,
-      math.min(
-        basePanelWidth * labelScale,
-        MediaQuery.sizeOf(context).width - screenEdgeMargin,
-      ),
-    );
+    final maxPanelWidth =
+        MediaQuery.sizeOf(context).width - _regionMenuScreenEdgeMargin;
     final tiles = <Widget>[];
     for (final region in availableRegions) {
       final isSelected = _isSelected(region);
@@ -128,11 +132,15 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
               Navigator.of(context).pop();
               onRegionSelected(region.id);
             },
-            // #404: 고정 높이는 큰 글자에서 줄바꿈된 권역명을 잘랐다. 최소 48dp
-            // 터치 타깃만 보장하고 내용에 맞춰 자란다. 상하 8 패딩은 기본 배율의
+            // #404: 고정 높이는 큰 글자에서 줄바꿈된 권역명을 잘랐다. 최소 터치
+            // 타깃만 보장하고 내용에 맞춰 자란다. 텍스트 목록 행이지만 승인된 기본
+            // 레이아웃(행 48)을 지키려고 EasySubwayTouchTarget.general(56) 대신
+            // Material 최소 상호작용 크기(48)를 쓴다. 상하 8 패딩은 기본 배율의
             // 글자 줄(32 이하)에서 행 높이를 정확히 48로 유지한다.
             child: ConstrainedBox(
-              constraints: const BoxConstraints(minHeight: 48),
+              constraints: const BoxConstraints(
+                minHeight: kMinInteractiveDimension,
+              ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 14,
@@ -147,7 +155,7 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
                           color: isSelected
                               ? EasySubwayAccessibleColors.interactionPrimary
                               : EasySubwayAccessibleColors.listRowText,
-                          fontSize: labelFontSize,
+                          fontSize: 16,
                           fontWeight: isSelected
                               ? FontWeight.w700
                               : FontWeight.w600,
@@ -186,14 +194,21 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
           bottomRight: Radius.circular(8),
         ),
       ),
-      child: SizedBox(
-        width: panelWidth,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: tiles,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minWidth: math.min(basePanelWidth, maxPanelWidth),
+          maxWidth: maxPanelWidth,
+        ),
+        child: IntrinsicWidth(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: tiles,
+              ),
+            ),
           ),
         ),
       ),
