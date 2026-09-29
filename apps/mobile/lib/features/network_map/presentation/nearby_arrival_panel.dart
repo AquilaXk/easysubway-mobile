@@ -117,7 +117,11 @@ class NearbyArrivalPanel extends StatelessWidget {
       );
       for (final arrival in visible) {
         final part = [
-          _arrivalDirectionLabel(arrival),
+          _arrivalDirectionLabel(
+            arrival,
+            leftName: leftName,
+            rightName: rightName,
+          ),
           arrival.destination.trim().isEmpty
               ? ''
               : '${arrival.destination.trim()}행',
@@ -227,18 +231,27 @@ String _resolveNearbyArrivalDirection(
   final isDown = rawDir.contains('하행') || rawDir.contains('외선');
   final isUp = rawDir.contains('상행') || rawDir.contains('내선');
 
+  final cleanRaw = (!rawDir.contains('상행') &&
+          !rawDir.contains('하행') &&
+          rawDir.endsWith('행'))
+      ? rawDir.substring(0, rawDir.length - 1)
+      : rawDir;
+  final cleanDest = dest.endsWith('행')
+      ? dest.substring(0, dest.length - 1)
+      : dest;
+
   if (isDown && !isUp) {
     if (right != null && right.isNotEmpty) {
       return '$right 방면';
     }
-    return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+    return cleanRaw.endsWith('방면') ? cleanRaw : '$cleanRaw 방면';
   }
 
   if (isUp && !isDown) {
     if (left != null && left.isNotEmpty) {
       return '$left 방면';
     }
-    return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+    return cleanRaw.endsWith('방면') ? cleanRaw : '$cleanRaw 방면';
   }
 
   if (left != null &&
@@ -251,13 +264,10 @@ String _resolveNearbyArrivalDirection(
       (rawDir.contains(right) || dest.contains(right))) {
     return '$right 방면';
   }
-  if (rawDir.isNotEmpty) {
-    return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
+  if (cleanRaw.isNotEmpty) {
+    return cleanRaw.endsWith('방면') ? cleanRaw : '$cleanRaw 방면';
   }
-  if (dest.isNotEmpty) {
-    final cleanDest = dest.endsWith('행')
-        ? dest.substring(0, dest.length - 1)
-        : dest;
+  if (cleanDest.isNotEmpty) {
     return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
   }
   return '';

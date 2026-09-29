@@ -425,4 +425,53 @@ void main() {
 
     expect(find.text('하행 방면'), findsOneWidget);
   });
+
+  testWidgets('하행 도착 정보의 시맨틱 라벨이 인접역 방면명과 일치한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '오이도',
+              etaSeconds: 120,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: '반월',
+        rightName: '한대앞',
+      ),
+    );
+
+    expect(find.text('한대앞 방면'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('한대앞 방면 오이도행 2분 뒤 도착, 반월 방면 정보 없음'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('rawDir가 행으로 끝나는 경우 방면 중복 없이 정규화된다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '소요산행',
+              destination: '',
+              etaSeconds: 180,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.text('소요산 방면'), findsOneWidget);
+    expect(find.text('소요산행 방면'), findsNothing);
+  });
 }
