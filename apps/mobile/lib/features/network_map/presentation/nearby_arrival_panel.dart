@@ -219,6 +219,7 @@ String _formatArrivalEta(NearbyArrivalData arrival, {DateTime? now}) {
 String _fallbackDestination(String direction) {
   final clean = direction.replaceAll('방면', '').trim();
   if (clean.isEmpty) return '';
+  if (clean == '상행' || clean == '하행') return clean;
   return clean.endsWith('행') ? clean.substring(0, clean.length - 1) : clean;
 }
 
