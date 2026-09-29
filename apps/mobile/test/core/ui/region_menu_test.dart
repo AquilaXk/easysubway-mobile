@@ -193,11 +193,11 @@ void main() {
     });
 
     // 테스트 폰트는 모든 글자가 1em 정사각형이다. 가장 긴 행은 선택된 `수도권`
-    // (글자 3개, 글자마다 자간 -0.2 + 체크 아이콘 20 + 좌우 패딩 28)이다.
-    // 1.5배는 3×(24-0.2)+48=119.4라 기본 폭 124, 2.0배는 3×(32-0.2)+48=143.4다.
+    // (글자 3개, 글자마다 자간 -0.2 + 간격 8 + 체크 아이콘 20 + 좌우 패딩 28)이다.
+    // 1.5배는 3×(24-0.2)+56=127.4, 2.0배는 3×(32-0.2)+56=151.4다.
     for (final (textScale, expectedPanelWidth) in const [
-      (1.5, 124.0),
-      (2.0, 143.4),
+      (1.5, 127.4),
+      (2.0, 151.4),
     ]) {
       testWidgets('글자 배율 $textScale에서 모든 권역명이 한 줄로 전부 보이고 패널 폭은 가장 긴 행에 맞춘다', (
         tester,
@@ -224,6 +224,25 @@ void main() {
           tester,
           screenWidth: _portraitPhone.width,
         );
+        if (textScale == 2.0) {
+          final selectedRow = find.byKey(
+            const ValueKey('networkMapRegionMenuRow_수도권'),
+          );
+          final labelRect = tester.getRect(
+            find.descendant(of: selectedRow, matching: find.text('수도권')),
+          );
+          final checkRect = tester.getRect(
+            find.descendant(
+              of: selectedRow,
+              matching: find.byKey(const Key('regionSelectedCheckmark')),
+            ),
+          );
+          expect(
+            checkRect.left - labelRect.right,
+            greaterThanOrEqualTo(8.0),
+            reason: '큰 글자에서도 체크 아이콘이 권역명에 붙지 않고 8dp 이상 떨어져야 한다',
+          );
+        }
       });
     }
 

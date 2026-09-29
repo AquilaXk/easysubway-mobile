@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../accessible_design.dart';
+import '../../design_tokens.dart';
 
 /// 노선도·역 검색 상단바가 공유하는 지역 메뉴 항목.
 class EasySubwayRegionMenuItem {
@@ -106,7 +107,7 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // #404: 패널 폭은 가장 긴 권역 행(권역명 한 줄 + 체크 아이콘 + 좌우 패딩)의
+    // #404: 패널 폭은 가장 긴 권역 행(권역명 한 줄 + 간격 8 + 체크 아이콘 + 좌우 패딩)의
     // 실제 폭에 맞춰 기본 124에서 자란다. 좌측 벽에 붙은 패널이 화면 밖으로
     // 나가지 않도록 화면 폭 - 16이 상한이고, 창이 좁아 상한이 124보다 작으면
     // 상한이 우선한다.
@@ -163,13 +164,17 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
                         ),
                       ),
                     ),
-                    if (isSelected)
-                      const Icon(
+                    if (isSelected) ...const [
+                      // #404: 큰 글자에서 권역명이 행 폭을 다 채워도 체크 아이콘과
+                      // 붙지 않도록 선택 행에만 간격을 둔다.
+                      SizedBox(width: EasySubwaySpacing.sm),
+                      Icon(
                         Icons.check_rounded,
                         key: Key('regionSelectedCheckmark'),
                         color: EasySubwayAccessibleColors.interactionPrimary,
                         size: 20,
                       ),
+                    ],
                   ],
                 ),
               ),
