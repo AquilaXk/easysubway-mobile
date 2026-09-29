@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:easysubway_mobile/core/ui/region_menu.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -166,4 +167,189 @@ void main() {
     expect(find.byType(EasySubwayRegionMenuPanel), findsOneWidget);
     expect(find.text('수도권'), findsWidgets);
   });
+
+  group('#404 큰 글자 설정에서 권역명이 잘리지 않는다', () {
+    testWidgets('글자 배율 1.0에서는 행 48dp·패널 124dp 모양이 그대로다', (tester) async {
+      await _openRegionMenuAtTextScale(
+        tester,
+        textScale: 1.0,
+        regions: _fiveMetroRegions,
+      );
+
+      expect(tester.takeException(), isNull);
+      expect(
+        tester.getSize(find.byType(EasySubwayRegionMenuPanel)).width,
+        124.0,
+      );
+      for (final region in _fiveMetroRegions) {
+        final rowSize = tester.getSize(
+          find.byKey(ValueKey('networkMapRegionMenuRow_${region.id}')),
+        );
+        expect(rowSize.height, 48.0, reason: '${region.label} 행 높이');
+      }
+    });
+
+    for (final textScale in const [1.5, 2.0]) {
+      testWidgets('글자 배율 $textScale에서 모든 권역명이 행 안에 전부 보이고 행은 48dp 이상이다', (
+        tester,
+      ) async {
+        await _openRegionMenuAtTextScale(
+          tester,
+          textScale: textScale,
+          regions: _fiveMetroRegions,
+        );
+
+        expect(tester.takeException(), isNull);
+        _expectEveryRegionLabelFullyVisible(tester, _fiveMetroRegions);
+        _expectSelectedCheckmarkVisible(tester, screenWidth: 800);
+      });
+    }
+
+    for (final textScale in const [2.0, 3.1]) {
+      testWidgets(
+        '폭 320dp 화면·글자 배율 $textScale에서 패널이 화면 밖으로 나가지 않고 권역명이 잘리지 않는다',
+        (tester) async {
+          tester.view.devicePixelRatio = 2.0;
+          tester.view.physicalSize = const Size(320 * 2.0, 640 * 2.0);
+          addTearDown(tester.view.resetPhysicalSize);
+          addTearDown(tester.view.resetDevicePixelRatio);
+
+          const regions = [
+            EasySubwayRegionMenuItem(id: '수도권', label: '수도권'),
+            EasySubwayRegionMenuItem(id: '부산', label: '부산'),
+            EasySubwayRegionMenuItem(id: '긴이름권역', label: '아주 긴 권역 이름 줄바꿈 확인'),
+          ];
+          await _openRegionMenuAtTextScale(
+            tester,
+            textScale: textScale,
+            regions: regions,
+          );
+
+          expect(tester.takeException(), isNull);
+          final panelRect = tester.getRect(
+            find.byType(EasySubwayRegionMenuPanel),
+          );
+          expect(panelRect.left, 0.0);
+          expect(panelRect.right, lessThanOrEqualTo(320.0));
+          expect(panelRect.width, greaterThanOrEqualTo(124.0));
+          _expectEveryRegionLabelFullyVisible(tester, regions);
+          _expectSelectedCheckmarkVisible(tester, screenWidth: 320);
+        },
+      );
+    }
+  });
+}
+
+const _fiveMetroRegions = [
+  EasySubwayRegionMenuItem(id: '수도권', label: '수도권'),
+  EasySubwayRegionMenuItem(id: '부산', label: '부산'),
+  EasySubwayRegionMenuItem(id: '대구', label: '대구'),
+  EasySubwayRegionMenuItem(id: '광주', label: '광주'),
+  EasySubwayRegionMenuItem(id: '대전', label: '대전'),
+];
+
+/// 시스템 글자 배율을 [textScale]로 두고 `수도권`을 선택한 채 권역 메뉴를 연다.
+Future<void> _openRegionMenuAtTextScale(
+  WidgetTester tester, {
+  required double textScale,
+  required List<EasySubwayRegionMenuItem> regions,
+}) async {
+  await tester.pumpWidget(
+    MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+      home: Scaffold(
+        body: Align(
+          alignment: Alignment.topLeft,
+          child: Padding(
+            padding: const EdgeInsets.only(left: 16, top: 40),
+            child: Builder(
+              builder: (ctx) => TextButton(
+                key: const Key('openRegionMenuButton'),
+                onPressed: () {
+                  unawaited(
+                    showEasySubwayRegionMenu(
+                      triggerContext: ctx,
+                      regions: regions,
+                      selectedRegion: '수도권',
+                      onRegionSelected: (_) {},
+                    ),
+                  );
+                },
+                child: const Text('권역 ⌵'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+  await tester.tap(find.byKey(const Key('openRegionMenuButton')));
+  await tester.pumpAndSettle();
+}
+
+/// `Text`는 부모 높이에 잘려도 예외를 던지지 않으므로, 권역명 문단의 실제
+/// 텍스트 높이(`textSize`)를 행·문단 크기와 직접 비교해 잘림을 잡는다.
+void _expectEveryRegionLabelFullyVisible(
+  WidgetTester tester,
+  List<EasySubwayRegionMenuItem> regions,
+) {
+  for (final region in regions) {
+    final rowFinder = find.byKey(
+      ValueKey('networkMapRegionMenuRow_${region.id}'),
+    );
+    expect(rowFinder, findsOneWidget);
+    final labelFinder = find.descendant(
+      of: rowFinder,
+      matching: find.text(region.label),
+    );
+    final rowRect = tester.getRect(rowFinder);
+    final labelRect = tester.getRect(labelFinder);
+    final paragraph = tester.renderObject<RenderParagraph>(labelFinder);
+    final textHeight = paragraph.textSize.height;
+
+    expect(
+      rowRect.height,
+      greaterThanOrEqualTo(48.0),
+      reason: '${region.label} 행은 최소 터치 타깃 48dp를 유지해야 한다',
+    );
+    expect(
+      rowRect.height,
+      greaterThanOrEqualTo(textHeight),
+      reason:
+          '${region.label} 행 높이(${rowRect.height})가 권역명 텍스트 높이'
+          '($textHeight)보다 작아 권역명이 잘린다',
+    );
+    expect(
+      paragraph.size.height,
+      greaterThanOrEqualTo(textHeight),
+      reason: '${region.label} 문단이 자기 텍스트 높이보다 작게 잘린다',
+    );
+    expect(labelRect.top, greaterThanOrEqualTo(rowRect.top));
+    expect(labelRect.bottom, lessThanOrEqualTo(rowRect.bottom));
+  }
+}
+
+void _expectSelectedCheckmarkVisible(
+  WidgetTester tester, {
+  required double screenWidth,
+}) {
+  final selectedRow = find.byKey(const ValueKey('networkMapRegionMenuRow_수도권'));
+  final checkmark = find.descendant(
+    of: selectedRow,
+    matching: find.byKey(const Key('regionSelectedCheckmark')),
+  );
+  expect(checkmark, findsOneWidget);
+  final rowRect = tester.getRect(selectedRow);
+  final checkRect = tester.getRect(checkmark);
+  expect(checkRect.width, greaterThan(0));
+  expect(checkRect.left, greaterThanOrEqualTo(rowRect.left));
+  expect(checkRect.right, lessThanOrEqualTo(rowRect.right));
+  expect(checkRect.top, greaterThanOrEqualTo(rowRect.top));
+  expect(checkRect.bottom, lessThanOrEqualTo(rowRect.bottom));
+  expect(checkRect.right, lessThanOrEqualTo(screenWidth));
 }
