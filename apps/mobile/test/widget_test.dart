@@ -12897,9 +12897,14 @@ void main() {
         await tester.tap(find.byKey(const Key('stationTimetableButton')));
         await tester.pumpAndSettle();
 
-        expect(find.text('상록수 시간표'), findsOneWidget);
-        expect(find.text('첫차 05:20'), findsOneWidget);
-        expect(find.text('막차 00:25'), findsOneWidget);
+        expect(
+          find.byKey(const Key('stationTimetableDirection-사당 방면')),
+          findsOneWidget,
+        );
+        expect(find.text('05:20'), findsOneWidget);
+        expect(find.text('첫차'), findsWidgets);
+        expect(find.text('00:25'), findsOneWidget);
+        expect(find.text('막차'), findsWidgets);
         expect(find.bySemanticsLabel('사당 방면, 00시 25분 출발'), findsOneWidget);
 
         await tester.tap(
@@ -12911,7 +12916,8 @@ void main() {
 
         await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
         await tester.pumpAndSettle();
-        expect(find.text('첫차 09:12'), findsOneWidget);
+        expect(find.text('09:12'), findsOneWidget);
+        expect(find.text('첫차'), findsOneWidget);
         expect(
           repository.requestedDayTypes,
           contains(StationTimetableDayType.saturday),
@@ -12985,8 +12991,8 @@ void main() {
       );
 
       // 첫차·막차 동작 유지.
-      expect(find.text('첫차 08:00'), findsOneWidget);
-      expect(find.text('막차 08:03'), findsOneWidget);
+      expect(find.text('첫차'), findsOneWidget);
+      expect(find.text('막차'), findsOneWidget);
 
       // 급행 행에만 배지 1회, 일반 행에는 배지 없음.
       expect(

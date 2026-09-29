@@ -349,6 +349,68 @@ void main() {
     expect(find.text('개찰구 안'), findsNothing);
   });
 
+  testWidgets('개찰구 안 단독 화장실 시설만 존재하는 경우 개찰구 안 태그가 정확히 표출된다', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const insideOnlyToilet = [
+      StationFacilityInfo(
+        id: 'facility-toilet-inside',
+        stationId: 'station-sangnoksu',
+        exitId: '',
+        type: 'TOILET',
+        name: '승강장 화장실',
+        floorFrom: '1F',
+        floorTo: '1F',
+        description: '개찰구 안 1번 승강장',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+    ];
+
+    await tester.pumpWidget(buildDetailBody(facilities: insideOnlyToilet));
+    await tester.pumpAndSettle();
+
+    expect(find.text('화장실'), findsOneWidget);
+    expect(find.text('개찰구 안'), findsOneWidget);
+    expect(find.text('개찰구 밖'), findsNothing);
+    expect(find.text('개찰구 안/밖'), findsNothing);
+  });
+
+  testWidgets('개찰구 밖 단독 화장실 시설만 존재하는 경우 개찰구 밖 태그가 정확히 표출된다', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    const outsideOnlyToilet = [
+      StationFacilityInfo(
+        id: 'facility-toilet-outside',
+        stationId: 'station-sangnoksu',
+        exitId: '',
+        type: 'TOILET',
+        name: '대합실 화장실',
+        floorFrom: 'B1',
+        floorTo: 'B1',
+        description: '개찰구 밖 대합실',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+    ];
+
+    await tester.pumpWidget(buildDetailBody(facilities: outsideOnlyToilet));
+    await tester.pumpAndSettle();
+
+    expect(find.text('화장실'), findsOneWidget);
+    expect(find.text('개찰구 밖'), findsOneWidget);
+    expect(find.text('개찰구 안'), findsNothing);
+    expect(find.text('개찰구 안/밖'), findsNothing);
+  });
+
   testWidgets('출구 DB가 비어있으면 출구정보를 숨기고 역정보와 하단 액션바만 렌더링된다', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;

@@ -116,15 +116,19 @@ class NearbyArrivalPanel extends StatelessWidget {
         ),
       );
       for (final arrival in visible) {
+        final rawDest = arrival.destination.trim().isNotEmpty
+            ? arrival.destination.trim()
+            : _fallbackDestination(arrival.direction);
+        final destLabel = rawDest.isEmpty
+            ? ''
+            : (rawDest.endsWith('행') ? rawDest : '$rawDest행');
         final part = [
           _arrivalDirectionLabel(
             arrival,
             leftName: leftName,
             rightName: rightName,
           ),
-          arrival.destination.trim().isEmpty
-              ? ''
-              : '${arrival.destination.trim()}행',
+          destLabel,
           _formatArrivalEta(arrival, now: now),
         ].where((part) => part.isNotEmpty).join(' ');
         if (part.isNotEmpty) {
