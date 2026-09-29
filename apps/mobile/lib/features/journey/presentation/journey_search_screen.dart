@@ -794,6 +794,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     );
     final firstRide = rideLegs.firstOrNull;
     final lastRide = rideLegs.lastOrNull;
+    // 큰 글자 설정에서 노선 배지 텍스트가 잘리지 않도록 트랙 폭과 배지를 함께 키운다.
+    // 1.0배에서는 기존 24dp 그대로다.
+    final trackWidth = math.max(
+      24.0,
+      MediaQuery.textScalerOf(context).scale(24),
+    );
 
     final Color trackColor;
     final Widget nodeIcon;
@@ -886,16 +892,19 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       final stopCount = _legStopCount(leg);
 
       nodeIcon = Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: lineColor,
-          border: Border.all(
-            color: EasySubwayColorPrimitives.neutralWhite,
-            width: 1.5,
+        constraints: BoxConstraints(
+          minWidth: trackWidth,
+          minHeight: trackWidth,
+        ),
+        decoration: ShapeDecoration(
+          shape: const CircleBorder(
+            side: BorderSide(
+              color: EasySubwayColorPrimitives.neutralWhite,
+              width: 1.5,
+            ),
           ),
-          boxShadow: const [
+          color: lineColor,
+          shadows: const [
             BoxShadow(
               color: EasySubwayAccessibleColors.cardShadow,
               blurRadius: 2,
@@ -906,6 +915,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         alignment: Alignment.center,
         child: Text(
           badgeNum,
+          maxLines: 1,
+          softWrap: false,
           style: const TextStyle(
             color: EasySubwayColorPrimitives.neutralWhite,
             fontWeight: FontWeight.w700,
@@ -1243,7 +1254,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 SizedBox(
-                  width: 24,
+                  width: trackWidth,
                   child: Column(
                     children: [
                       nodeIcon,

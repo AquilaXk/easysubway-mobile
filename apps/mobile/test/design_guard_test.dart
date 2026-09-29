@@ -515,8 +515,6 @@ void main() {
     const fixedHeightTextAllowlist = <String, String>{
       'lib/app/app_components.dart:125':
           'Icon 전용 32dp 리딩 박스로 Text를 포함하지 않음 (후속 Column 텍스트 정적 스캔 오탐)',
-      'lib/features/journey/presentation/journey_search_screen.dart:888':
-          '경로 타임라인 노선 배지 24x24 원형 아이콘 (의도적 고정)',
       'lib/features/network_map/presentation/nearby_direction_columns.dart:166':
           '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
       'lib/features/network_map/presentation/nearby_direction_columns.dart:190':

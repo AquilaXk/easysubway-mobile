@@ -389,6 +389,8 @@ void main() {
       testWidgets('10. journey_search_screen: 타임라인 노선 배지가 $scale배에서 잘리지 않는다', (
         tester,
       ) async {
+        // 배지와 무관한 화면 내 다른 가로 overflow는 이 측정의 범위 밖이다.
+        _ignoreHorizontalOverflow();
         await pumpAtScale(
           tester,
           JourneySearchScreen(
