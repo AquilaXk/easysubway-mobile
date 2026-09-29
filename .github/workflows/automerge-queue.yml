@@ -30,12 +30,19 @@ jobs:
       statuses: read
     env:
       GH_TOKEN: ${{ github.token }}
+      # 병합 호출만 PAT로 수행한다(GITHUB_TOKEN 병합은 후속 workflow run을 만들지 않는다).
+      MERGE_GH_TOKEN: ${{ secrets.AUTOMERGE_PAT != '' && secrets.AUTOMERGE_PAT || github.token }}
+      HAS_AUTOMERGE_PAT: ${{ secrets.AUTOMERGE_PAT != '' }}
     steps:
       - name: Coordinate oldest eligible pull request
         shell: bash
         run: |
           # shellcheck disable=SC2016
           set -euo pipefail
+
+          if [ "${HAS_AUTOMERGE_PAT}" != "true" ]; then
+            echo "::warning::AUTOMERGE_PAT secret이 없어 GITHUB_TOKEN으로 병합한다. 병합이 후속 workflow run을 만들지 못해 큐 체인이 멈출 수 있다."
+          fi
 
           repo="${GITHUB_REPOSITORY}"
           owner="${repo%%/*}"
@@ -383,7 +390,7 @@ jobs:
                 # UNSTABLE은 "mergeable하지만 필수가 아닌 check가 green이 아님"이다.
                 # required context는 위에서 ruleset 기준으로 이미 검증했으므로, ruleset이
                 # 필수로 두지 않은 check로 병합을 막지 않는다.
-                if gh pr merge --squash --auto "${pr}" --repo "${repo}" \
+                if GH_TOKEN="${MERGE_GH_TOKEN}" gh pr merge --squash --auto "${pr}" --repo "${repo}" \
                   --match-head-commit "${head}"; then
                   :
                 else
