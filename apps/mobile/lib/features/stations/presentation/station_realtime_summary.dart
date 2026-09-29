@@ -165,28 +165,14 @@ List<_RealtimeGroup> _groupRealtimeArrivals(
     if (isDown && !isUp) {
       if (next != null && next.isNotEmpty) {
         dir = '$next 방면';
-      } else if (rawDir.isNotEmpty) {
-        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
-      } else if (dest.isNotEmpty) {
-        final cleanDest = dest.endsWith('행')
-            ? dest.substring(0, dest.length - 1)
-            : dest;
-        dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
       } else {
-        dir = '열차 도착';
+        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
       }
     } else if (isUp && !isDown) {
       if (prev != null && prev.isNotEmpty) {
         dir = '$prev 방면';
-      } else if (rawDir.isNotEmpty) {
-        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
-      } else if (dest.isNotEmpty) {
-        final cleanDest = dest.endsWith('행')
-            ? dest.substring(0, dest.length - 1)
-            : dest;
-        dir = cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
       } else {
-        dir = '열차 도착';
+        dir = rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
       }
     } else if (prev != null &&
         prev.isNotEmpty &&

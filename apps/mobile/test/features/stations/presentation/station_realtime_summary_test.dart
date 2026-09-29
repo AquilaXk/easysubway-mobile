@@ -325,6 +325,26 @@ void main() {
         positionMessage: '',
         etaSeconds: null,
       ),
+      RealtimeArrival(
+        lineId: 'line-1',
+        stationName: '역',
+        destination: '',
+        direction: '상행',
+        trainNo: '103',
+        message: '전역',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
+      RealtimeArrival(
+        lineId: 'line-1',
+        stationName: '역',
+        destination: '',
+        direction: '하행',
+        trainNo: '104',
+        message: '전역',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
     ];
 
     await tester.pumpWidget(
@@ -343,5 +363,7 @@ void main() {
 
     expect(find.text('수원 방면'), findsOneWidget);
     expect(find.text('소요산 방면'), findsOneWidget);
+    expect(find.text('상행 방면'), findsOneWidget);
+    expect(find.text('하행 방면'), findsOneWidget);
   });
 }

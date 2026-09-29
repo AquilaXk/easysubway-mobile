@@ -231,32 +231,14 @@ String _resolveNearbyArrivalDirection(
     if (right != null && right.isNotEmpty) {
       return '$right 방면';
     }
-    if (rawDir.isNotEmpty) {
-      return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
-    }
-    if (dest.isNotEmpty) {
-      final cleanDest = dest.endsWith('행')
-          ? dest.substring(0, dest.length - 1)
-          : dest;
-      return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
-    }
-    return '';
+    return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
   }
 
   if (isUp && !isDown) {
     if (left != null && left.isNotEmpty) {
       return '$left 방면';
     }
-    if (rawDir.isNotEmpty) {
-      return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
-    }
-    if (dest.isNotEmpty) {
-      final cleanDest = dest.endsWith('행')
-          ? dest.substring(0, dest.length - 1)
-          : dest;
-      return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
-    }
-    return '';
+    return rawDir.endsWith('방면') ? rawDir : '$rawDir 방면';
   }
 
   if (left != null &&

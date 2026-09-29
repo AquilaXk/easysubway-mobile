@@ -403,4 +403,26 @@ void main() {
     expect(find.text('상행 방면'), findsOneWidget);
     expect(find.text('수원 방면'), findsOneWidget);
   });
+
+  testWidgets('인접역이 없을 때 하행 방향 라벨로 폴백한다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.fresh,
+          arrivals: [
+            NearbyArrivalData(
+              direction: '하행',
+              destination: '오이도',
+              etaSeconds: 150,
+              message: '',
+            ),
+          ],
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.text('하행 방면'), findsOneWidget);
+  });
 }

@@ -112,10 +112,6 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         cause: error,
       );
     } catch (error) {
-      if (error is ServerConnectionException ||
-          error is StationTimetableUnavailable) {
-        rethrow;
-      }
       throw ServerConnectionException(
         'Journey session issuance failed: $error',
         cause: error,
@@ -165,14 +161,9 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         'Station timetable data integrity violation: ${error.message}',
         cause: error,
       );
-    } catch (error) {
-      if (error is ServerConnectionException ||
-          error is StationTimetableUnavailable) {
-        rethrow;
-      }
-      throw ServerConnectionException(
-        'Station timetable search failure: $error',
-        cause: error,
+    } catch (_) {
+      throw const StationTimetableUnavailable(
+        'Journey timetable is unavailable.',
       );
     }
   }

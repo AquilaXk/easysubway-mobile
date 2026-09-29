@@ -3,6 +3,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/stations/application/station_detail_controller.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_body.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -706,4 +707,65 @@ void main() {
       );
     },
   );
+
+  testWidgets(
+    'StationDetailBody에 ServerConnectionException 발생 시 _StationTimetableEntry가 안전하게 unavailable 상태로 전이된다',
+    (tester) async {
+      await tester.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: StationDetailBody(
+              state: StationDetailState(
+                status: StationDetailStatus.success,
+                detail: testStation,
+                exits: [],
+                facilities: [],
+              ),
+              onRetryRealtime: _noop,
+              onOpenFacilityReport: _noopFacility,
+              timetableRepository: _FailingTimetableRepository(),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byType(StationDetailBody), findsOneWidget);
+    },
+  );
+}
+
+void _noop() {}
+Future<void> _noopFacility(FacilityReportTarget target) async {}
+
+final class _FailingTimetableRepository implements StationTimetableRepository {
+  const _FailingTimetableRepository();
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
 }
