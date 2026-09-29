@@ -4,6 +4,8 @@ import { readFileSync } from 'node:fs';
 export const TRUSTED_ROLES = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 export const CODERABBIT_LOGIN = 'coderabbitai[bot]';
 export const CODERABBIT_ID = 136622811;
+export const CLAUDE_LOGIN = 'claude[bot]';
+export const CLAUDE_ID = 209825114;
 export const ACTIONS_BOT_LOGIN = 'github-actions[bot]';
 export const ACTIONS_BOT_ID = 41898282;
 export const MARKER_PATTERN = /^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$/;
@@ -33,6 +35,15 @@ export function isCodeRabbit(review) {
     review?.author_association === 'NONE' &&
     review?.user?.login === CODERABBIT_LOGIN &&
     review?.user?.id === CODERABBIT_ID &&
+    review?.user?.type === 'Bot'
+  );
+}
+
+export function isClaude(review) {
+  return (
+    review?.author_association === 'NONE' &&
+    review?.user?.login === CLAUDE_LOGIN &&
+    review?.user?.id === CLAUDE_ID &&
     review?.user?.type === 'Bot'
   );
 }
@@ -78,7 +89,7 @@ export function getActiveReviewStates(reviews) {
 
   const states = {};
   for (const review of sorted) {
-    if (!isTrustedHuman(review) && !isCodeRabbit(review)) {
+    if (!isTrustedHuman(review) && !isCodeRabbit(review) && !isClaude(review)) {
       continue;
     }
     const login = review.user?.login;
@@ -308,7 +319,7 @@ export function verifyAutomergeReviewClosure({
   }
 
   // 1. Fail closed if 0 trusted reviews exist
-  const trustedReviews = reviews.filter((r) => isTrustedHuman(r) || isCodeRabbit(r));
+  const trustedReviews = reviews.filter((r) => isTrustedHuman(r) || isCodeRabbit(r) || isClaude(r));
   if (trustedReviews.length === 0) {
     throw new Error('no trusted reviews found on pull request');
   }
@@ -351,6 +362,7 @@ export function verifyAutomergeReviewClosure({
     if (r.state === 'DISMISSED') return false;
     if (isTrustedHuman(r) && r.state === 'APPROVED') return true;
     if (isCodeRabbit(r) && r.state === 'COMMENTED') return true;
+    if (isClaude(r) && r.state === 'COMMENTED') return true;
     if (isCanonicalCodexFallback(r) && r.state === 'COMMENTED') return true;
     return false;
   });
