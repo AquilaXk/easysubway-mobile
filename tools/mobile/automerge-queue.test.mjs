@@ -33,7 +33,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'integration_id',
     '/commits/${head}/statuses?per_page=100',
     '($statuses | flatten) as $status_records',
-    'any(.[]; .sha == $head)',
+    'any(.[]; . == $head)',
     '# frozen-discovery-review-filter-begin',
     '# exact-head-marker-producer-begin',
     'data_page_limit=3',
@@ -188,7 +188,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   }
 
   const reviewProgram = workflow.match(
-    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commits "\$\{commits\}" --argjson comments "\$\{comments\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
+    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commit_shas "\$\{commit_shas\}" --argjson comments "\$\{comments_slim\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
   )?.[1];
   assert.ok(reviewProgram, 'review state jq program must stay testable');
 
@@ -215,10 +215,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
     reviews,
     commits = [{ sha: head }, { sha: 'previous-head' }],
     comments = [actionMarker()],
-  ) =>
-    spawnSync('jq', ['-e', '--arg', 'head', head, '--argjson', 'commits', JSON.stringify(commits), '--argjson', 'comments', JSON.stringify(comments), reviewProgram], {
+  ) => {
+    const commitShas = Array.isArray(commits) && commits.length > 0 && typeof commits[0] === 'object' && commits[0] !== null
+      ? commits.map((c) => c.sha)
+      : commits;
+    return spawnSync('jq', ['-e', '--arg', 'head', head, '--argjson', 'commit_shas', JSON.stringify(commitShas), '--argjson', 'comments', JSON.stringify(comments), reviewProgram], {
       input: JSON.stringify([reviews]),
     }).status;
+  };
 
   assert.equal(
     runReviewFilter([
