@@ -510,4 +510,63 @@ void main() {
           'splashFactory 는 NoSplash.splashFactory 로 끄라 (#1915). $offenders',
     );
   });
+
+  test('고정 높이 텍스트 컨테이너(≥ 24dp) 방지 가드 (#409)', () {
+    const fixedHeightTextAllowlist = <String, String>{
+      'lib/app/app_components.dart:125':
+          'Icon 전용 32dp 리딩 박스로 Text를 포함하지 않음 (후속 Column 텍스트 정적 스캔 오탐)',
+      'lib/features/journey/presentation/journey_search_screen.dart:888':
+          '경로 타임라인 노선 배지 24x24 원형 아이콘 (의도적 고정)',
+      'lib/features/network_map/presentation/nearby_direction_columns.dart:166':
+          '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
+      'lib/features/network_map/presentation/nearby_direction_columns.dart:190':
+          '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
+      'lib/features/network_map/presentation/nearby_timetable_panel.dart:382':
+          '운행 종료 텍스트(15sp)는 2.0배에서도 43dp로 46dp 안에 들어감',
+      'lib/features/train_search/presentation/train_search_screen.dart:326':
+          '시간표 조회 CTA FilledButton(54dp) — 18sp 텍스트(2.0배 36dp)가 54dp 안에 들어감',
+      'lib/features/train_search/presentation/train_search_screen.dart:1639':
+          '코레일+ 예매 CTA FilledButton.icon(52dp) — 17sp 텍스트(2.0배 34dp)가 52dp 안에 들어감',
+    };
+
+    final boxPattern = RegExp(
+      r'(SizedBox|Container)\(\s*(?:[^()]*?)height:\s*(\d+)',
+    );
+    final nextBoxPattern = RegExp(r'\b(?:SizedBox|Container)\(');
+    final violations = <String>[];
+
+    sources.forEach((path, source) {
+      for (final match in boxPattern.allMatches(source)) {
+        final height = int.tryParse(match.group(2)!) ?? 0;
+        if (height < 24) continue;
+        final matchEnd = match.end;
+        final remaining = source.substring(
+          matchEnd,
+          (matchEnd + 700).clamp(0, source.length),
+        );
+        final nextBoxMatch = nextBoxPattern.firstMatch(remaining);
+        final scope = nextBoxMatch != null
+            ? remaining.substring(0, nextBoxMatch.start)
+            : remaining;
+        if (scope.contains('Text(')) {
+          final line =
+              '\n'.allMatches(source.substring(0, match.start)).length + 1;
+          final key = '$path:$line';
+          if (!fixedHeightTextAllowlist.containsKey(key)) {
+            violations.add('$key: ${match.group(1)}(height: $height)');
+          }
+        }
+      }
+    });
+
+    expect(
+      violations,
+      isEmpty,
+      reason:
+          '텍스트를 담은 고정 높이(≥ 24) 컨테이너는 큰 글자 설정에서 텍스트가 잘린다 (#409).\n'
+          'SizedBox(height: H) -> ConstrainedBox(constraints: BoxConstraints(minHeight: H)),\n'
+          'Container(height: H) -> constraints: BoxConstraints(minHeight: H) 로 수정하라.\n'
+          '${violations.join('\n')}',
+    );
+  });
 }
