@@ -161,7 +161,8 @@ List<_RealtimeGroup> _groupRealtimeArrivals(
     final isDown = rawDir.contains('하행') || rawDir.contains('외선');
     final isUp = rawDir.contains('상행') || rawDir.contains('내선');
 
-    final cleanRaw = (!rawDir.contains('상행') &&
+    final cleanRaw =
+        (!rawDir.contains('상행') &&
             !rawDir.contains('하행') &&
             rawDir.endsWith('행'))
         ? rawDir.substring(0, rawDir.length - 1)
