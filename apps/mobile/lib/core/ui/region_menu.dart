@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -92,6 +93,22 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const labelFontSize = 16.0;
+    // #404: 패널 폭은 권역명 글자 배율에 비례해 기본 124에서 자라되, 좌측 벽에
+    // 붙은 패널이 화면 밖으로 나가지 않도록 화면 폭 - 16을 넘지 않는다.
+    // 기본 배율(1.0)에서는 정확히 124다. 비선형 배율(Android 14+)도 권역명
+    // 글자 크기 기준으로 환산한다.
+    const basePanelWidth = 124.0;
+    const screenEdgeMargin = 16.0;
+    final labelScale =
+        MediaQuery.textScalerOf(context).scale(labelFontSize) / labelFontSize;
+    final panelWidth = math.max(
+      basePanelWidth,
+      math.min(
+        basePanelWidth * labelScale,
+        MediaQuery.sizeOf(context).width - screenEdgeMargin,
+      ),
+    );
     final tiles = <Widget>[];
     for (final region in availableRegions) {
       final isSelected = _isSelected(region);
@@ -111,10 +128,16 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
               Navigator.of(context).pop();
               onRegionSelected(region.id);
             },
-            child: SizedBox(
-              height: 48,
+            // #404: 고정 높이는 큰 글자에서 줄바꿈된 권역명을 잘랐다. 최소 48dp
+            // 터치 타깃만 보장하고 내용에 맞춰 자란다. 상하 8 패딩은 기본 배율의
+            // 글자 줄(32 이하)에서 행 높이를 정확히 48로 유지한다.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 14),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -124,7 +147,7 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
                           color: isSelected
                               ? EasySubwayAccessibleColors.interactionPrimary
                               : EasySubwayAccessibleColors.listRowText,
-                          fontSize: 16,
+                          fontSize: labelFontSize,
                           fontWeight: isSelected
                               ? FontWeight.w700
                               : FontWeight.w600,
@@ -164,7 +187,7 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
         ),
       ),
       child: SizedBox(
-        width: 124,
+        width: panelWidth,
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: 4),
           child: Column(
