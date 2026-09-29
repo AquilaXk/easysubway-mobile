@@ -9,13 +9,88 @@ on:
 
 permissions: {}
 
+# 같은 PR에 새 head가 올라오면 이전 head 검증은 쓸모가 없으므로 PR 실행만 취소한다.
+# main push와 dispatch는 run마다 고유 그룹이라 서로 취소하지 않는다(병합 후 전체 검증 보존).
+# 취소된 run도 completed로 끝나 automerge 코디네이터(workflow_run: CI)를 깨우지만, 코디네이터는
+# 현재 head의 required check만 보므로 이전 head의 취소 결과로 병합하지 않는다.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  mobile:
-    name: Mobile CI
+  # 무거운 lane(host tests·Android 빌드) 실행 여부를 trusted base의 판정기로 정한다.
+  # pull_request에서 바뀐 경로가 모두 skip 가능 경로일 때만 false이고, 그 외(main push·dispatch,
+  # 빈 diff, base에 판정기 없음, 실행 필요 경로 포함)는 전부 true다. 판정표는 mobile-ci-scope 계약 테스트가 고정한다.
+  scope:
+    name: CI scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      run-heavy-lanes: ${{ steps.decide.outputs.run-heavy-lanes }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+      - name: Decide heavy lane scope
+        id: decide
+        env:
+          SCOPE_EVENT: ${{ github.event_name }}
+          SCOPE_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
+          SCOPE_TESTED_SHA: ${{ github.sha }}
+          SCOPE_TRUSTED_ROOT: ${{ runner.temp }}/mobile-ci-scope-trusted-${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          umask 077
+          if [[ "$SCOPE_EVENT" != "pull_request" ]]; then
+            echo "### Mobile CI 실행 범위: ${SCOPE_EVENT} 이벤트는 전체 lane을 실행한다" >> "$GITHUB_STEP_SUMMARY"
+            printf 'run-heavy-lanes=true\nreason=EVENT_NOT_PULL_REQUEST\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [[ ! "$SCOPE_BASE_SHA" =~ ^[0-9a-f]{40}$ || ! "$SCOPE_TESTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "CI scope SHA is invalid" >&2
+            exit 1
+          fi
+          git cat-file -e "${SCOPE_BASE_SHA}^{commit}"
+          git cat-file -e "${SCOPE_TESTED_SHA}^{commit}"
+          source=tools/ci/mobile-ci-scope.mjs
+          listing="$(git ls-tree "$SCOPE_BASE_SHA" -- "$source")"
+          if [[ -z "$listing" ]]; then
+            echo "### Mobile CI 실행 범위: base에 판정기가 없어 전체 lane을 실행한다" >> "$GITHUB_STEP_SUMMARY"
+            printf 'run-heavy-lanes=true\nreason=TRUSTED_SCOPE_ABSENT_IN_BASE\n' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          IFS=$'\t' read -r metadata resolved_path <<< "$listing"
+          if [[ ! "$metadata" =~ ^100644\ blob\ [0-9a-f]{40}$ || "$resolved_path" != "$source" ]]; then
+            echo "trusted CI scope blob identity is invalid" >&2
+            exit 1
+          fi
+          if [[ -e "$SCOPE_TRUSTED_ROOT" || -L "$SCOPE_TRUSTED_ROOT" ]]; then
+            echo "trusted CI scope stage path already exists" >&2
+            exit 1
+          fi
+          mkdir "$SCOPE_TRUSTED_ROOT"
+          git show "${SCOPE_BASE_SHA}:${source}" > "$SCOPE_TRUSTED_ROOT/mobile-ci-scope.mjs"
+          node "$SCOPE_TRUSTED_ROOT/mobile-ci-scope.mjs" decide \
+            --event "$SCOPE_EVENT" \
+            --base-sha "$SCOPE_BASE_SHA" \
+            --tested-sha "$SCOPE_TESTED_SHA"
+          if ! grep -Eqx 'run-heavy-lanes=(true|false)' "$GITHUB_OUTPUT"; then
+            echo "trusted CI scope produced no decision" >&2
+            exit 1
+          fi
+
+  # 계약·정적 검사 lane. 경로와 무관하게 항상 실행한다.
+  mobile-contracts:
+    name: Mobile contracts
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -202,6 +277,8 @@ jobs:
             tools/ci/mobile-coverage-ratchet.test.mjs \
             tools/ci/lib/google-play-auth.test.mjs \
             tools/ci/mobile-changed-path-classifier.test.mjs \
+            tools/ci/mobile-ci-parallel-lanes.test.mjs \
+            tools/ci/mobile-ci-scope.test.mjs \
             tools/ci/mobile-dependabot-policy.test.mjs \
             tools/ci/mobile-root-import-ratchet.test.mjs \
             tools/ci/public-sensitivity-owner-receipt-caller.test.mjs \
@@ -232,6 +309,36 @@ jobs:
       - name: Analyze
         working-directory: apps/mobile
         run: flutter analyze
+
+  # 전체 host test·coverage lane. 러너 vCPU 수만큼 test 프로세스를 병렬 실행한다.
+  mobile-host-tests:
+    name: Mobile host tests
+    needs: scope
+    if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020
+        with:
+          node-version: "24"
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
       - name: Discover host tests
         env:
           TEST_PARITY_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before || github.sha }}
@@ -248,6 +355,7 @@ jobs:
         working-directory: apps/mobile
         run: >-
           flutter test --coverage
+          --concurrency "$(nproc)"
           --file-reporter "json:${RUNNER_TEMP}/mobile-host-test-events.json"
       - name: Verify host test execution parity
         run: |
@@ -304,8 +412,55 @@ jobs:
           node tools/ci/mobile-coverage-ratchet.mjs verdict \
             --analysis-outcome "${{ steps.coverage_ratchet_analyze.outcome }}" \
             --upload-outcome "${{ steps.coverage_ratchet_upload.outcome }}"
-  android:
-    name: Android CI
+
+  # required check "Mobile CI". 모든 lane 결과를 모은다. 실패·누락·취소는 물론, 실행 판정인데
+  # skipped이거나 skip 판정인데 실행된 lane도 실패다. always()라 취소된 run에서도 실패로 남는다.
+  mobile:
+    name: Mobile CI
+    needs: [scope, mobile-contracts, mobile-host-tests]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every Mobile CI lane
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RUN_HEAVY_LANES: ${{ needs.scope.outputs.run-heavy-lanes }}
+          SCOPE_REASON: ${{ needs.scope.outputs.reason }}
+          CONTRACTS_RESULT: ${{ needs.mobile-contracts.result }}
+          HOST_TESTS_RESULT: ${{ needs.mobile-host-tests.result }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1" >&2; exit 1; }
+          [[ "$SCOPE_RESULT" == "success" ]] || fail "CI scope 결과가 success가 아니다: ${SCOPE_RESULT:-missing}"
+          case "$RUN_HEAVY_LANES" in
+            true) heavy_expected=success ;;
+            false)
+              [[ "$EVENT_NAME" == "pull_request" ]] || fail "pull_request가 아닌 이벤트는 무거운 lane을 건너뛸 수 없다"
+              heavy_expected=skipped
+              ;;
+            *) fail "CI scope 판정이 없다: ${RUN_HEAVY_LANES:-missing}" ;;
+          esac
+          require_lane() {
+            local label="$1" actual="$2" expected="$3"
+            [[ "$actual" == "$expected" ]] || fail "${label} 결과가 ${expected}가 아니다: ${actual:-missing}"
+            if [[ "$actual" == "skipped" ]]; then
+              echo "- ${label}: 건너뜀 (${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- ${label}: ${actual}" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          echo "### Mobile CI lanes (run-heavy-lanes=${RUN_HEAVY_LANES}, ${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+          require_lane "Mobile contracts" "$CONTRACTS_RESULT" success
+          require_lane "Mobile host tests" "$HOST_TESTS_RESULT" "$heavy_expected"
+
+  # debug APK와 release AAB는 variant·서명·R8·16KB page 게이트가 달라 둘 다 유지하고 병렬로 돈다.
+  android-debug-apk:
+    name: Android debug APK
+    needs: scope
+    if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
     permissions:
@@ -333,6 +488,35 @@ jobs:
       - name: Build debug APK
         working-directory: apps/mobile
         run: flutter build apk --debug
+
+  android-release-aab:
+    name: Android release AAB
+    needs: scope
+    if: ${{ needs.scope.outputs.run-heavy-lanes == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Java
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
       - name: Create ephemeral preflight key
         env:
           EASYSUBWAY_ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/mobile-preflight.p12
@@ -367,6 +551,48 @@ jobs:
             --artifact-dir "$RUNNER_TEMP/android-16kb-aab-evidence"
           node ../../tools/release/hash-android-bundle-payload.mjs \
             --aab build/app/outputs/bundle/release/app-release.aab
+
+  # required check "Android CI". Mobile CI 집계와 같은 규칙으로 두 빌드 lane을 모은다.
+  android:
+    name: Android CI
+    needs: [scope, android-debug-apk, android-release-aab]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Require every Android CI lane
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SCOPE_RESULT: ${{ needs.scope.result }}
+          RUN_HEAVY_LANES: ${{ needs.scope.outputs.run-heavy-lanes }}
+          SCOPE_REASON: ${{ needs.scope.outputs.reason }}
+          DEBUG_APK_RESULT: ${{ needs.android-debug-apk.result }}
+          RELEASE_AAB_RESULT: ${{ needs.android-release-aab.result }}
+        run: |
+          set -euo pipefail
+          fail() { echo "::error::$1" >&2; exit 1; }
+          [[ "$SCOPE_RESULT" == "success" ]] || fail "CI scope 결과가 success가 아니다: ${SCOPE_RESULT:-missing}"
+          case "$RUN_HEAVY_LANES" in
+            true) heavy_expected=success ;;
+            false)
+              [[ "$EVENT_NAME" == "pull_request" ]] || fail "pull_request가 아닌 이벤트는 무거운 lane을 건너뛸 수 없다"
+              heavy_expected=skipped
+              ;;
+            *) fail "CI scope 판정이 없다: ${RUN_HEAVY_LANES:-missing}" ;;
+          esac
+          require_lane() {
+            local label="$1" actual="$2" expected="$3"
+            [[ "$actual" == "$expected" ]] || fail "${label} 결과가 ${expected}가 아니다: ${actual:-missing}"
+            if [[ "$actual" == "skipped" ]]; then
+              echo "- ${label}: 건너뜀 (${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+            else
+              echo "- ${label}: ${actual}" >> "$GITHUB_STEP_SUMMARY"
+            fi
+          }
+          echo "### Android CI lanes (run-heavy-lanes=${RUN_HEAVY_LANES}, ${SCOPE_REASON})" >> "$GITHUB_STEP_SUMMARY"
+          require_lane "Android debug APK" "$DEBUG_APK_RESULT" "$heavy_expected"
+          require_lane "Android release AAB" "$RELEASE_AAB_RESULT" "$heavy_expected"
 
   dependency-vulnerability-scan:
     name: Dependency Vulnerability Scan

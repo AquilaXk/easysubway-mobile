@@ -18,7 +18,8 @@ function jobBlock(id) {
   assert.notEqual(start, -1, `job ${id} is missing`);
   let end = lines.length;
   for (let index = start + 1; index < lines.length; index += 1) {
-    if (/^ {2}[A-Za-z0-9_-]+:\s*$/u.test(lines[index])) {
+    // 다음 job 키나 다음 job 앞 주석(2칸 들여쓰기)에서 끝난다. job 내부는 4칸 이상이다.
+    if (/^ {2}\S/u.test(lines[index])) {
       end = index;
       break;
     }
@@ -305,7 +306,7 @@ test("Android lane은 개선 전과 같은 debug APK·release AAB 검증 명령�
   const debug = jobBlock("android-debug-apk");
   assert.equal(
     stepBlock(debug, "Build debug APK"),
-    ["      - name: Build debug APK", "        working-directory: apps/mobile", "        run: flutter build apk --debug"].join("\n"),
+    ["      - name: Build debug APK", "        working-directory: apps/mobile", "        run: flutter build apk --debug", ""].join("\n"),
   );
   const release = jobBlock("android-release-aab");
   assert.equal(
@@ -444,6 +445,19 @@ test("scope step: base의 판정기로 판정하므로 PR이 판정기를 바꿔
     const full = runScopeStep(root, { SCOPE_EVENT: "pull_request", SCOPE_BASE_SHA: base, SCOPE_TESTED_SHA: tampered });
     assert.equal(full.status, 0, full.stderr);
     assert.equal(full.output, "run-heavy-lanes=true\nreason=RUN_REQUIRED_PATH\n");
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("scope step: base 판정기가 판정을 내지 않으면 실패다", () => {
+  const { root } = scopeFixture({ withTrustedScope: false });
+  try {
+    const silentBase = commitIn(root, "tools/ci/mobile-ci-scope.mjs", "// 판정을 쓰지 않는 판정기\n");
+    const tested = commitIn(root, "README.md", "changed\n");
+    const result = runScopeStep(root, { SCOPE_EVENT: "pull_request", SCOPE_BASE_SHA: silentBase, SCOPE_TESTED_SHA: tested });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /produced no decision/u);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
