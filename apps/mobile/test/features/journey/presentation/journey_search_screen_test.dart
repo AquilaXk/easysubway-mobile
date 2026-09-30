@@ -1233,6 +1233,23 @@ Journey _journey(String id, DateTime now) {
           plannedArrivalTime: now.add(const Duration(minutes: 10)),
           realtimeDepartureTime: null,
           realtimeArrivalTime: null,
+          servicePattern: JourneyServicePattern.local,
+          stops: <JourneyRideStop>[
+            JourneyRideStop(
+              stationId: 'station-origin',
+              plannedArrivalTime: null,
+              plannedDepartureTime: now,
+              realtimeArrivalTime: null,
+              realtimeDepartureTime: null,
+            ),
+            JourneyRideStop(
+              stationId: 'station-transfer',
+              plannedArrivalTime: now.add(const Duration(minutes: 10)),
+              plannedDepartureTime: null,
+              realtimeArrivalTime: null,
+              realtimeDepartureTime: null,
+            ),
+          ],
         ),
         const JourneyTransferLeg(
           fromStationId: 'station-transfer',
@@ -1249,12 +1266,33 @@ Journey _journey(String id, DateTime now) {
           plannedArrivalTime: now.add(const Duration(minutes: 18)),
           realtimeDepartureTime: null,
           realtimeArrivalTime: null,
+          servicePattern: JourneyServicePattern.local,
+          stops: <JourneyRideStop>[
+            JourneyRideStop(
+              stationId: 'station-transfer',
+              plannedArrivalTime: null,
+              plannedDepartureTime: now.add(const Duration(minutes: 12)),
+              realtimeArrivalTime: null,
+              realtimeDepartureTime: null,
+            ),
+            JourneyRideStop(
+              stationId: 'station-destination',
+              plannedArrivalTime: now.add(const Duration(minutes: 18)),
+              plannedDepartureTime: null,
+              realtimeArrivalTime: null,
+              realtimeDepartureTime: null,
+            ),
+          ],
         ),
         const JourneyExitLeg(
           fromStationId: 'station-destination',
           durationSeconds: 60,
         ),
       ],
+      fare: const JourneyFare(
+        status: JourneyFareStatus.unavailable,
+        sourceSnapshotIds: <String>[],
+      ),
     );
   }
 
@@ -1296,6 +1334,23 @@ Journey _journey(String id, DateTime now) {
         plannedArrivalTime: now.add(const Duration(minutes: 3)),
         realtimeDepartureTime: null,
         realtimeArrivalTime: null,
+        servicePattern: JourneyServicePattern.local,
+        stops: <JourneyRideStop>[
+          JourneyRideStop(
+            stationId: 'station-origin',
+            plannedArrivalTime: null,
+            plannedDepartureTime: now,
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
+          ),
+          JourneyRideStop(
+            stationId: 'station-transfer',
+            plannedArrivalTime: now.add(const Duration(minutes: 3)),
+            plannedDepartureTime: null,
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
+          ),
+        ],
       ),
       transferLeg,
       const JourneyExitLeg(
@@ -1303,6 +1358,10 @@ Journey _journey(String id, DateTime now) {
         durationSeconds: 60,
       ),
     ],
+    fare: const JourneyFare(
+      status: JourneyFareStatus.unavailable,
+      sourceSnapshotIds: <String>[],
+    ),
   );
 }
 

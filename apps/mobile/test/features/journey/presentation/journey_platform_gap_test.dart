@@ -539,12 +539,33 @@ Journey _makeTestJourney({
         realtimeArrivalTime: null,
         boardingPlatformGaps: boardingGaps,
         alightingPlatformGaps: alightingGaps,
+        servicePattern: JourneyServicePattern.local,
+        stops: <JourneyRideStop>[
+          JourneyRideStop(
+            stationId: 'station-origin',
+            plannedArrivalTime: null,
+            plannedDepartureTime: now,
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
+          ),
+          JourneyRideStop(
+            stationId: 'station-destination',
+            plannedArrivalTime: now.add(const Duration(minutes: 8)),
+            plannedDepartureTime: null,
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
+          ),
+        ],
       ),
       const JourneyExitLeg(
         fromStationId: 'station-destination',
         durationSeconds: 60,
       ),
     ],
+    fare: const JourneyFare(
+      status: JourneyFareStatus.unavailable,
+      sourceSnapshotIds: <String>[],
+    ),
   );
 }
 

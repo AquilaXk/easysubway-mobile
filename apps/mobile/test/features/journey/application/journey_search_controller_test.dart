@@ -734,6 +734,14 @@ void main() {
     expect(snapshot.sourceIdentity.realtimeSnapshotId, isNull);
     expect(snapshot.journey.journeyId, 'journey-1');
     expect(
+      snapshot.journey.fare,
+      same(
+        response.journeys
+            .singleWhere((journey) => journey.journeyId == 'journey-1')
+            .fare,
+      ),
+    );
+    expect(
       () => snapshot.journey.accessibility.reasonCodes.add('MUTATED'),
       throwsUnsupportedError,
     );
@@ -819,6 +827,10 @@ Journey _journey(String id) => Journey(
   legs: const <JourneyLeg>[
     JourneyEntryLeg(fromStationId: 'origin', durationSeconds: 0),
   ],
+  fare: const JourneyFare(
+    status: JourneyFareStatus.unavailable,
+    sourceSnapshotIds: <String>[],
+  ),
 );
 
 JourneyRejectedFailure _sessionRequired401() => JourneyRejectedFailure(

@@ -77,6 +77,7 @@ class JourneySelectedSnapshot {
           ),
         ),
         legs: List<JourneyLeg>.unmodifiable(selected.legs),
+        fare: selected.fare,
       );
 
   final JourneyContractVersion contractVersion;
