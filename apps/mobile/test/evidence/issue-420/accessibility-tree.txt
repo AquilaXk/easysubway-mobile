@@ -1,0 +1,281 @@
+SemanticsNode#0
+ │ Rect.fromLTRB(0.0, 0.0, 400.0, 1400.0)
+ │
+ └─SemanticsNode#1
+   │ Rect.fromLTRB(0.0, 0.0, 400.0, 1400.0)
+   │ textDirection: ltr
+   │
+   └─SemanticsNode#2
+     │ Rect.fromLTRB(0.0, 0.0, 400.0, 1400.0)
+     │ sortKey: OrdinalSortKey#ed369(order: 0.0)
+     │
+     └─SemanticsNode#3
+       │ Rect.fromLTRB(0.0, 0.0, 400.0, 1400.0)
+       │ flags: scopesRoute
+       │
+       ├─SemanticsNode#22
+       │ │ Rect.fromLTRB(0.0, 0.0, 400.0, 56.0)
+       │ │
+       │ ├─SemanticsNode#23
+       │ │   Rect.fromLTRB(4.0, 4.0, 52.0, 52.0)
+       │ │   actions: focus, tap
+       │ │   flags: isButton, hasEnabledState, isEnabled, isFocusable
+       │ │   traversalParentIdentifier: _OverlayPortalState#01b68
+       │ │   label: "Back"
+       │ │   tooltip: "Back"
+       │ │   textDirection: ltr
+       │ │
+       │ └─SemanticsNode#24
+       │     Rect.fromLTRB(72.0, 14.0, 182.0, 42.0)
+       │     flags: isHeader, namesRoute
+       │     label: "경로 찾기"
+       │     textDirection: ltr
+       │
+       └─SemanticsNode#4
+         │ Rect.fromLTRB(0.0, 56.0, 400.0, 1057.0)
+         │ flags: hasImplicitScrolling
+         │ scrollExtentMin: 0.0
+         │ scrollPosition: 0.0
+         │ scrollExtentMax: 0.0
+         │
+         ├─SemanticsNode#7
+         │   Rect.fromLTRB(39.0, 27.5, 63.5, 44.5)
+         │   label: "출발"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#8
+         │   Rect.fromLTRB(83.5, 23.0, 369.0, 49.0)
+         │   label: "용산역"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#9
+         │   Rect.fromLTRB(39.0, 70.5, 63.5, 87.5)
+         │   label: "도착"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#10
+         │   Rect.fromLTRB(83.5, 66.0, 369.0, 92.0)
+         │   label: "춘천역"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#11
+         │   Rect.fromLTRB(16.0, 107.0, 87.3, 127.0)
+         │   label: "출발 기준"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#12
+         │ │ Rect.fromLTRB(16.0, 135.0, 384.0, 183.0)
+         │ │ actions: scrollLeft, scrollToOffset
+         │ │ flags: hasImplicitScrolling
+         │ │ scrollExtentMin: 0.0
+         │ │ scrollPosition: 0.0
+         │ │ scrollExtentMax: 17.0
+         │ │
+         │ ├─SemanticsNode#13
+         │ │   Rect.fromLTRB(0.0, 0.0, 92.5, 48.0)
+         │ │   actions: focus, tap
+         │ │   flags: isSelected, isButton, hasEnabledState, isEnabled,
+         │ │     isFocusable, hasSelectedState
+         │ │   label: "지금 출발"
+         │ │   textDirection: ltr
+         │ │
+         │ ├─SemanticsNode#14
+         │ │   Rect.fromLTRB(98.5, 0.0, 190.0, 48.0)
+         │ │   actions: focus, tap
+         │ │   flags: isButton, hasEnabledState, isEnabled, isFocusable,
+         │ │     hasSelectedState
+         │ │   label: "출발 시간"
+         │ │   textDirection: ltr
+         │ │
+         │ ├─SemanticsNode#15
+         │ │   Rect.fromLTRB(196.0, 0.0, 287.5, 48.0)
+         │ │   actions: focus, tap
+         │ │   flags: isButton, hasEnabledState, isEnabled, isFocusable,
+         │ │     hasSelectedState
+         │ │   label: "특정 시간대 출발 대안 보기"
+         │ │   textDirection: ltr
+         │ │
+         │ └─SemanticsNode#16
+         │     Rect.fromLTRB(293.5, 0.0, 368.0, 48.0)
+         │     actions: focus, tap
+         │     flags: isButton, hasEnabledState, isEnabled, isFocusable,
+         │       hasSelectedState
+         │     label: "교통약자 안심 막차 찾기(Last Connection)"
+         │     textDirection: ltr
+         │
+         ├─SemanticsNode#17
+         │   Rect.fromLTRB(16.0, 191.0, 87.3, 211.0)
+         │   label: "걷는 속도"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#18
+         │   Rect.fromLTRB(16.0, 219.0, 133.3, 279.0)
+         │   actions: focus, tap
+         │   flags: isButton, hasEnabledState, isEnabled, isFocusable,
+         │     hasSelectedState
+         │   label: "느린 걸음"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#19
+         │   Rect.fromLTRB(141.3, 219.0, 258.7, 279.0)
+         │   actions: focus, tap
+         │   flags: isSelected, isButton, hasEnabledState, isEnabled,
+         │     isFocusable, hasSelectedState
+         │   label: "표준 걸음"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#20
+         │   Rect.fromLTRB(266.7, 219.0, 384.0, 279.0)
+         │   actions: focus, tap
+         │   flags: isButton, hasEnabledState, isEnabled, isFocusable,
+         │     hasSelectedState
+         │   label: "빠른 걸음"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#21
+         │   Rect.fromLTRB(16.0, 287.0, 384.0, 337.0)
+         │   actions: focus, tap
+         │   flags: isButton, hasEnabledState, isEnabled, isFocusable
+         │   label: "경로 찾기"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#25
+         │   Rect.fromLTRB(16.0, 341.0, 92.3, 362.0)
+         │   label: "경로 후보"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#26
+         │   Rect.fromLTRB(98.3, 341.0, 128.8, 362.0)
+         │   label: "1개"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#28
+         │ │ Rect.fromLTRB(16.0, 374.0, 384.0, 433.0)
+         │ │ actions: focus, tap
+         │ │ flags: isSelected, isButton, isFocusable, hasSelectedState
+         │ │ label:
+         │ │   "10분, 환승 없음, 도보 50m, 09:10 도착, 무단차 경로
+         │ │   최단시간
+         │ │   무단차
+         │ │   10분
+         │ │   09:10 도착 · 도보 50m · 환승 없음 · 카드 1,400원
+         │ │   ♿ 무단차 경로"
+         │ │ textDirection: ltr
+         │ │
+         │ └─SemanticsNode#29
+         │   │ Rect.fromLTRB(184.5, 11.5, 334.0, 29.5)
+         │   │ flags: hasImplicitScrolling
+         │   │ scrollExtentMin: 0.0
+         │   │ scrollPosition: 0.0
+         │   │ scrollExtentMax: 0.0
+         │   │
+         │   └─SemanticsNode#30
+         │       Rect.fromLTRB(5.0, 1.0, 38.8, 17.0)
+         │       label: "2호선"
+         │       textDirection: ltr
+         │
+         ├─SemanticsNode#31
+         │   Rect.fromLTRB(16.0, 437.0, 384.0, 461.0)
+         │   label: "선택 경로 상세"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#32
+         │   Rect.fromLTRB(27.0, 469.0, 91.5, 515.0)
+         │   label: "10"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#33
+         │   Rect.fromLTRB(95.5, 484.4, 160.5, 507.4)
+         │   label: "분 소요"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#34
+         │   Rect.fromLTRB(275.0, 489.3, 365.0, 505.3)
+         │   label: "♿ 무단차 경로"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#35
+         │   Rect.fromLTRB(27.0, 517.5, 133.0, 536.5)
+         │   label: "09:10 도착"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#36
+         │   Rect.fromLTRB(139.0, 517.0, 153.3, 537.0)
+         │   label: "·"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#37
+         │   Rect.fromLTRB(159.3, 517.5, 252.0, 536.5)
+         │   label: "4개 역 이동"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#38
+         │   Rect.fromLTRB(258.0, 517.0, 272.3, 537.0)
+         │   label: "·"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#39
+         │   Rect.fromLTRB(278.3, 517.5, 344.5, 536.5)
+         │   label: "환승 없음"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#40
+         │   Rect.fromLTRB(350.5, 517.0, 364.8, 537.0)
+         │   label: "·"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#41
+         │   Rect.fromLTRB(27.0, 539.0, 146.3, 558.0)
+         │   label: "카드 1,400원"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#42
+         │   Rect.fromLTRB(16.0, 566.0, 384.0, 610.0)
+         │   label: "용산역, 승강장으로 이동, 1분"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#43
+         │   Rect.fromLTRB(22.9, 615.0, 33.1, 629.0)
+         │   label: "2"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#44
+         │   Rect.fromLTRB(59.0, 615.0, 375.0, 679.0)
+         │   label: "열차 탑승, 2호선, 용산역 → 춘천역"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#45
+         │   Rect.fromLTRB(59.0, 683.0, 375.0, 735.0)
+         │   flags: isButton
+         │   label: "탑승 승강장, 틈이 좁은 문 3호차 2번, 5호차 1번, 7호차 4번"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#46
+         │   Rect.fromLTRB(59.0, 735.0, 375.0, 783.0)
+         │   flags: isButton
+         │   label: "탑승 승강장, 틈 넓은 곳 4곳, 목록 보기"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#47
+         │   Rect.fromLTRB(59.0, 787.0, 375.0, 835.0)
+         │   flags: isButton
+         │   label: "하차 승강장, 틈이 좁은 문 1호차 1번"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#48
+         │   Rect.fromLTRB(59.0, 835.0, 375.0, 883.0)
+         │   flags: isButton
+         │   label: "하차 승강장, 틈 넓은 곳 2곳, 목록 보기"
+         │   textDirection: ltr
+         │
+         ├─SemanticsNode#49
+         │   Rect.fromLTRB(16.0, 891.0, 384.0, 933.0)
+         │   label: "춘천역, 도착역 나가기, 1분"
+         │   textDirection: ltr
+         │
+         └─SemanticsNode#50
+             Rect.fromLTRB(16.0, 937.0, 384.0, 985.0)
+             actions: focus, tap
+             flags: isButton, hasEnabledState, isEnabled, isFocusable
+             label: "공유"
+             textDirection: ltr
