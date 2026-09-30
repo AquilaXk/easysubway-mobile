@@ -45,6 +45,23 @@ void main() {
         heightDiffGrade: PlatformHeightDiffGrade.low,
         curved: false,
       ),
+      // 틈은 좁지만 높이차가 LOW가 아닌 위치는 칸 번호가 앞서도 제외돼야 한다(#424 리뷰 F2).
+      const JourneyPlatformGap(
+        platformPosition: '본선 오이도 방면 1-1',
+        carNumber: 1,
+        doorNumber: 1,
+        gapGrade: PlatformGapGrade.narrow,
+        heightDiffGrade: PlatformHeightDiffGrade.normal,
+        curved: false,
+      ),
+      const JourneyPlatformGap(
+        platformPosition: '본선 오이도 방면 2-3',
+        carNumber: 2,
+        doorNumber: 3,
+        gapGrade: PlatformGapGrade.narrow,
+        heightDiffGrade: PlatformHeightDiffGrade.high,
+        curved: false,
+      ),
     ];
 
     final journey = _makeTestJourney(id: 'journey-gap-1', boardingGaps: gaps);
@@ -62,6 +79,9 @@ void main() {
     expect(find.text('틈이 좁은 문 3-2 · 5-1 · 7-4'), findsOneWidget);
     // 4번째인 8-1은 표시되지 않아야 함
     expect(find.textContaining('8-1'), findsNothing);
+    // NARROW라도 높이차가 NORMAL·HIGH인 1-1, 2-3은 표시되지 않아야 함
+    expect(find.textContaining('1-1'), findsNothing);
+    expect(find.textContaining('2-3'), findsNothing);
     // WIDE 위치가 없으므로 "틈 넓은 곳" 줄은 없어야 함
     expect(find.textContaining('틈 넓은 곳'), findsNothing);
   });
