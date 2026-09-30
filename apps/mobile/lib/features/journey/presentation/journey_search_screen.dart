@@ -924,6 +924,166 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           ),
         ),
       );
+      final rideInfoWidget = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              const Text(
+                '열차 탑승',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  color: EasySubwayAccessibleColors.text,
+                  fontSize: 13,
+                ),
+              ),
+              const SizedBox(width: 5),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: lineColor,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  _formatLineName(leg.lineId),
+                  style: const TextStyle(
+                    color: EasySubwayColorPrimitives.neutralWhite,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 11,
+                  ),
+                ),
+              ),
+              if (leg.directionStationId.isNotEmpty) ...[
+                const SizedBox(width: 5),
+                Expanded(
+                  child: Text(
+                    '${_stationName(leg.directionStationId)} 방면',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: EasySubwayAccessibleColors.secondaryText,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ] else
+                const Spacer(),
+              Text(
+                '${_kstTime(leg.realtimeDepartureTime ?? leg.plannedDepartureTime)}–${_kstTime(leg.realtimeArrivalTime ?? leg.plannedArrivalTime)}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: EasySubwayAccessibleColors.secondaryText,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${_stationName(leg.fromStationId)} → ${_stationName(leg.toStationId)}',
+            style: const TextStyle(
+              fontWeight: FontWeight.w700,
+              color: EasySubwayAccessibleColors.text,
+              fontSize: 14,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Wrap(
+            spacing: 4,
+            runSpacing: 2,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    if (isExpanded) {
+                      _expandedLegIndices.remove(index);
+                    } else {
+                      _expandedLegIndices.add(index);
+                    }
+                  });
+                },
+                borderRadius: BorderRadius.circular(4),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 5,
+                    vertical: 1.5,
+                  ),
+                  decoration: BoxDecoration(
+                    color: EasySubwayAccessibleColors.surfaceSubtle,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(color: EasySubwayAccessibleColors.line),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        isExpanded
+                            ? Icons.keyboard_arrow_up
+                            : Icons.keyboard_arrow_down,
+                        size: 12,
+                        color: EasySubwayAccessibleColors.secondaryText,
+                      ),
+                      const SizedBox(width: 2),
+                      Text(
+                        isExpanded ? '접기 ▴' : '$stopCount개 역 이동 ▾',
+                        style: const TextStyle(
+                          color: EasySubwayAccessibleColors.secondaryText,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (isExpanded) ...[
+            const SizedBox(height: 4),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(6),
+              decoration: BoxDecoration(
+                color: EasySubwayAccessibleColors.surfaceBrandChrome,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    '• 출발: ${_stationName(leg.fromStationId)} (${_kstTime(leg.realtimeDepartureTime ?? leg.plannedDepartureTime)})',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '• 방면: ${leg.directionStationId.isNotEmpty ? '${_stationName(leg.directionStationId)} 방면' : '행선 방면'}',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '• 도착: ${_stationName(leg.toStationId)} (${_kstTime(leg.realtimeArrivalTime ?? leg.plannedArrivalTime)})',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      );
+
+      final boardingGuidance = _buildPlatformGapGuidance(
+        isBoarding: true,
+        gaps: leg.boardingPlatformGaps,
+        stationName: _stationName(leg.fromStationId),
+      );
+      final alightingGuidance = _buildPlatformGapGuidance(
+        isBoarding: false,
+        gaps: leg.alightingPlatformGaps,
+        stationName: _stationName(leg.toStationId),
+      );
+
       content = Padding(
         padding: const EdgeInsets.only(bottom: 3),
         child: Container(
@@ -937,153 +1097,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Row(
-                children: [
-                  const Text(
-                    '열차 탑승',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                      fontSize: 13,
-                    ),
-                  ),
-                  const SizedBox(width: 5),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 5,
-                      vertical: 1,
-                    ),
-                    decoration: BoxDecoration(
-                      color: lineColor,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      _formatLineName(leg.lineId),
-                      style: const TextStyle(
-                        color: EasySubwayColorPrimitives.neutralWhite,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 11,
-                      ),
-                    ),
-                  ),
-                  if (leg.directionStationId.isNotEmpty) ...[
-                    const SizedBox(width: 5),
-                    Expanded(
-                      child: Text(
-                        '${_stationName(leg.directionStationId)} 방면',
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: EasySubwayAccessibleColors.secondaryText,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ] else
-                    const Spacer(),
-                  Text(
-                    '${_kstTime(leg.realtimeDepartureTime ?? leg.plannedDepartureTime)}–${_kstTime(leg.realtimeArrivalTime ?? leg.plannedArrivalTime)}',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                ],
+              Semantics(
+                label:
+                    '열차 탑승, ${_formatLineName(leg.lineId)}, ${_stationName(leg.fromStationId)} → ${_stationName(leg.toStationId)}',
+                child: ExcludeSemantics(child: rideInfoWidget),
               ),
-              const SizedBox(height: 2),
-              Text(
-                '${_stationName(leg.fromStationId)} → ${_stationName(leg.toStationId)}',
-                style: const TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: EasySubwayAccessibleColors.text,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Wrap(
-                spacing: 4,
-                runSpacing: 2,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  InkWell(
-                    onTap: () {
-                      setState(() {
-                        if (isExpanded) {
-                          _expandedLegIndices.remove(index);
-                        } else {
-                          _expandedLegIndices.add(index);
-                        }
-                      });
-                    },
-                    borderRadius: BorderRadius.circular(4),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1.5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: EasySubwayAccessibleColors.surfaceSubtle,
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: EasySubwayAccessibleColors.line,
-                        ),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            isExpanded
-                                ? Icons.keyboard_arrow_up
-                                : Icons.keyboard_arrow_down,
-                            size: 12,
-                            color: EasySubwayAccessibleColors.secondaryText,
-                          ),
-                          const SizedBox(width: 2),
-                          Text(
-                            isExpanded ? '접기 ▴' : '$stopCount개 역 이동 ▾',
-                            style: const TextStyle(
-                              color: EasySubwayAccessibleColors.secondaryText,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              if (isExpanded) ...[
-                const SizedBox(height: 4),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: EasySubwayAccessibleColors.surfaceBrandChrome,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        '• 출발: ${_stationName(leg.fromStationId)} (${_kstTime(leg.realtimeDepartureTime ?? leg.plannedDepartureTime)})',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '• 방면: ${leg.directionStationId.isNotEmpty ? '${_stationName(leg.directionStationId)} 방면' : '행선 방면'}',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '• 도착: ${_stationName(leg.toStationId)} (${_kstTime(leg.realtimeArrivalTime ?? leg.plannedArrivalTime)})',
-                        style: const TextStyle(fontSize: 11),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+              boardingGuidance,
+              alightingGuidance,
             ],
           ),
         ),
@@ -1244,6 +1264,37 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       semanticsLabel = '';
     }
 
+    if (leg is JourneyRideLeg) {
+      return Container(
+        key: Key('selected-journey-leg-$index'),
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(
+                width: trackWidth,
+                child: Column(
+                  children: [
+                    nodeIcon,
+                    if (!isLastLeg)
+                      Expanded(
+                        child: Container(
+                          width: 5,
+                          color: trackColor,
+                          margin: const EdgeInsets.symmetric(vertical: 1),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(child: content),
+            ],
+          ),
+        ),
+      );
+    }
+
     return Semantics(
       label: semanticsLabel,
       child: ExcludeSemantics(
@@ -1261,10 +1312,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       if (!isLastLeg)
                         Expanded(
                           child: Container(
-                            width:
-                                leg is JourneyRideLeg || leg is JourneyEntryLeg
-                                ? 5
-                                : 3,
+                            width: leg is JourneyEntryLeg ? 5 : 3,
                             color: trackColor,
                             margin: const EdgeInsets.symmetric(vertical: 1),
                           ),
@@ -1278,6 +1326,267 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  bool get _isStepFree {
+    final preset =
+        mobilityPresetFromRepresentativeMobilityType(widget.mobilityType) ??
+        MobilityPreset.standard;
+    return preset == MobilityPreset.stepFree ||
+        preset == MobilityPreset.noStairs;
+  }
+
+  Widget _buildPlatformGapGuidance({
+    required bool isBoarding,
+    required List<JourneyPlatformGap> gaps,
+    required String stationName,
+  }) {
+    if (!_isStepFree || gaps.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    // 틈이 좁은 문: gapGrade == NARROW && heightDiffGrade == LOW, carNumber != null && doorNumber != null
+    final narrowLowGaps = gaps
+        .where(
+          (g) =>
+              g.gapGrade == PlatformGapGrade.narrow &&
+              g.heightDiffGrade == PlatformHeightDiffGrade.low &&
+              g.carNumber != null &&
+              g.doorNumber != null,
+        )
+        .toList();
+
+    narrowLowGaps.sort((a, b) {
+      final carCmp = a.carNumber!.compareTo(b.carNumber!);
+      if (carCmp != 0) return carCmp;
+      return a.doorNumber!.compareTo(b.doorNumber!);
+    });
+
+    final topNarrow = narrowLowGaps.take(3).toList();
+    final wideCount = gaps
+        .where((g) => g.gapGrade == PlatformGapGrade.wide)
+        .length;
+
+    // 두 줄 모두 없으면 이 영역 자체를 표시하지 않는다.
+    if (topNarrow.isEmpty && wideCount == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final platformLabel = isBoarding ? '탑승 승강장' : '하차 승강장';
+    final lines = <Widget>[];
+
+    if (topNarrow.isNotEmpty) {
+      final narrowText =
+          '틈이 좁은 문 ${topNarrow.map((g) => '${g.carNumber}-${g.doorNumber}').join(' · ')}';
+      final narrowSemantics =
+          '$platformLabel, 틈이 좁은 문 ${topNarrow.map((g) => '${g.carNumber}호차 ${g.doorNumber}번').join(', ')}';
+      lines.add(
+        _buildPlatformGapLine(
+          text: narrowText,
+          semanticsLabel: narrowSemantics,
+          onTap: () => _showPlatformGapBottomSheet(
+            isBoarding: isBoarding,
+            gaps: gaps,
+            stationName: stationName,
+          ),
+        ),
+      );
+    }
+
+    if (wideCount >= 1) {
+      final wideText = '틈 넓은 곳 $wideCount곳';
+      final wideSemantics = '$platformLabel, 틈 넓은 곳 $wideCount곳, 목록 보기';
+      lines.add(
+        _buildPlatformGapLine(
+          text: wideText,
+          semanticsLabel: wideSemantics,
+          onTap: () => _showPlatformGapBottomSheet(
+            isBoarding: isBoarding,
+            gaps: gaps,
+            stationName: stationName,
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: lines,
+      ),
+    );
+  }
+
+  Widget _buildPlatformGapLine({
+    required String text,
+    required String semanticsLabel,
+    required VoidCallback onTap,
+  }) {
+    return Semantics(
+      label: semanticsLabel,
+      button: true,
+      child: ExcludeSemantics(
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(6),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              margin: const EdgeInsets.symmetric(vertical: 2),
+              decoration: BoxDecoration(
+                color: EasySubwayAccessibleColors.surfaceSubtle,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: EasySubwayAccessibleColors.line),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      text,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: EasySubwayAccessibleColors.text,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 16,
+                    color: EasySubwayAccessibleColors.mutedText,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showPlatformGapBottomSheet({
+    required bool isBoarding,
+    required List<JourneyPlatformGap> gaps,
+    required String stationName,
+  }) {
+    unawaited(
+      showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        backgroundColor: EasySubwayAccessibleColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        ),
+        builder: (sheetContext) {
+          return SafeArea(
+            child: RepaintBoundary(
+              key: const Key('platform-gap-bottomsheet-boundary'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          '$stationName ${isBoarding ? '탑승' : '하차'} 승강장',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: EasySubwayAccessibleColors.text,
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          tooltip: '닫기',
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Flexible(
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: gaps.length,
+                        separatorBuilder: (_, _) => const Divider(
+                          height: 1,
+                          color: EasySubwayAccessibleColors.line,
+                        ),
+                        itemBuilder: (context, i) {
+                          final gap = gaps[i];
+                          final position =
+                              (gap.carNumber != null && gap.doorNumber != null)
+                              ? '${gap.carNumber}-${gap.doorNumber}'
+                              : gap.platformPosition;
+
+                          final gapGradeKo = switch (gap.gapGrade) {
+                            PlatformGapGrade.wide => '넓음',
+                            PlatformGapGrade.normal => '보통',
+                            PlatformGapGrade.narrow => '좁음',
+                          };
+
+                          final heightGradeKo = switch (gap.heightDiffGrade) {
+                            PlatformHeightDiffGrade.high => '높음',
+                            PlatformHeightDiffGrade.normal => '보통',
+                            PlatformHeightDiffGrade.low => '낮음',
+                          };
+
+                          final curveSuffix = gap.curved ? ' · 곡선 승강장' : '';
+                          final rowText =
+                              '$position · 틈 $gapGradeKo · 높이차 $heightGradeKo$curveSuffix';
+
+                          final semanticsPosition =
+                              (gap.carNumber != null && gap.doorNumber != null)
+                              ? '${gap.carNumber}호차 ${gap.doorNumber}번 문'
+                              : gap.platformPosition;
+                          final semanticsCurveSuffix = gap.curved
+                              ? ', 곡선 승강장'
+                              : '';
+                          final rowSemantics =
+                              '$semanticsPosition, 틈 $gapGradeKo, 높이차 $heightGradeKo$semanticsCurveSuffix';
+
+                          return Semantics(
+                            label: rowSemantics,
+                            child: ExcludeSemantics(
+                              child: Container(
+                                constraints: const BoxConstraints(
+                                  minHeight: 48,
+                                ),
+                                alignment: Alignment.centerLeft,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 8,
+                                ),
+                                child: Text(
+                                  rowText,
+                                  style: const TextStyle(
+                                    fontSize: 14,
+                                    color: EasySubwayAccessibleColors.text,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }

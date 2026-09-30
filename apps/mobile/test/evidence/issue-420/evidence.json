@@ -1,0 +1,34 @@
+{
+  "schemaVersion": 1,
+  "issue": 420,
+  "capturedAt": "2026-09-30",
+  "platform": "Flutter Widget Test (pixelRatio: 2.0)",
+  "assertions": [
+    "무단차(WHEELCHAIR) 경로 탑승/하차 승강장에 틈이 좁은 문 및 틈 넓은 곳 안내 줄 표시",
+    "틈 넓은 곳 터치 시 승강장 틈·높이차 전체 목록 바텀시트 노출",
+    "일반(STANDARD) 경로 요청 시 승강장 틈·높이차 안내 줄 미표시",
+    "스크린리더(TalkBack/VoiceOver)를 위한 접근성 레이블 제공"
+  ],
+  "files": [
+    {
+      "path": "step-free-guidance.png",
+      "sha256": "62d5af10a7fee10bcd41ba616929b13e4564c32ea4c22981b6868cac2c46d0d0",
+      "description": "무단차 경로 상세 화면에서 승강장 틈이 좁은 문 및 틈 넓은 곳 안내 줄 표시"
+    },
+    {
+      "path": "platform-gap-bottomsheet.png",
+      "sha256": "ee8d16a52c447155646c59dc69205bb7fb9ed5dfc8a3b0bde4a5e5778e1397c6",
+      "description": "틈 넓은 곳 터치 시 노출되는 승강장 틈·높이차 전체 목록 바텀시트"
+    },
+    {
+      "path": "standard-request-hidden.png",
+      "sha256": "71fa218cae16a0e9e6b3d5b65d1b247b9f7e24f4e9e7bb32451270e20de98715",
+      "description": "일반(STANDARD) 경로 상세 화면에서 승강장 틈·높이차 안내 줄 미표시"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "00924a5968dec76ca524096279fa3d23322ad60ca07624552088d59c45b4828f",
+      "description": "무단차 승강장 틈·높이차 안내의 Semantics 노드 트리"
+    }
+  ]
+}

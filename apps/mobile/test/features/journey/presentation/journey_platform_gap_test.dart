@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -212,6 +211,7 @@ void main() {
     // 안내 줄 탭하여 바텀시트 열기
     final lineFinder = find.text('틈 넓은 곳 2곳');
     expect(lineFinder, findsOneWidget);
+    await tester.ensureVisible(lineFinder);
     await tester.tap(lineFinder);
     await tester.pumpAndSettle();
 
@@ -330,7 +330,9 @@ void main() {
     expect(find.bySemanticsLabel('하차 승강장, 틈 넓은 곳 1곳, 목록 보기'), findsOneWidget);
 
     // 하차 승강장 바텀시트 열기
-    await tester.tap(find.bySemanticsLabel('하차 승강장, 틈 넓은 곳 1곳, 목록 보기'));
+    final alightingTarget = find.bySemanticsLabel('하차 승강장, 틈 넓은 곳 1곳, 목록 보기');
+    await tester.ensureVisible(alightingTarget);
+    await tester.tap(alightingTarget);
     await tester.pumpAndSettle();
 
     // 바텀시트 행 Semantics 검증
@@ -373,8 +375,14 @@ void main() {
     await tester.pumpAndSettle();
 
     // 터치 영역 >= 48dp 검증
-    final narrowLine = find.text('틈이 좁은 문 3-2');
-    final wideLine = find.text('틈 넓은 곳 1곳');
+    final narrowLine = find.ancestor(
+      of: find.text('틈이 좁은 문 3-2'),
+      matching: find.byType(InkWell),
+    );
+    final wideLine = find.ancestor(
+      of: find.text('틈 넓은 곳 1곳'),
+      matching: find.byType(InkWell),
+    );
     expect(tester.getSize(narrowLine).height, greaterThanOrEqualTo(48));
     expect(tester.getSize(wideLine).height, greaterThanOrEqualTo(48));
 
