@@ -182,6 +182,13 @@ paths:
                     code: ROUTING_IDENTITY_MISMATCH
                     retryable: false
                     occurredAt: "2026-08-02T23:58:00.482+09:00"
+                facilityStatusUnavailable:
+                  value:
+                    contractVersion: JOURNEY_ERROR_V1
+                    requestId: 01K1Y000000000000000000000
+                    code: FACILITY_STATUS_UNAVAILABLE
+                    retryable: false
+                    occurredAt: "2026-08-02T23:58:00.482+09:00"
                 routeServiceUnavailable:
                   value:
                     contractVersion: JOURNEY_ERROR_V1
@@ -375,6 +382,13 @@ paths:
                     contractVersion: JOURNEY_ERROR_V1
                     requestId: 01K1Y000000000000000000000
                     code: ROUTING_IDENTITY_MISMATCH
+                    retryable: false
+                    occurredAt: "2026-09-01T08:00:00+09:00"
+                facilityStatusUnavailable:
+                  value:
+                    contractVersion: JOURNEY_ERROR_V1
+                    requestId: 01K1Y000000000000000000000
+                    code: FACILITY_STATUS_UNAVAILABLE
                     retryable: false
                     occurredAt: "2026-09-01T08:00:00+09:00"
                 frontierCapacityExceeded:
@@ -1569,6 +1583,63 @@ components:
           type: string
           format: date-time
           nullable: true
+        alightingCarDoors:
+          type: array
+          items:
+            $ref: "#/components/schemas/JourneyAlightingCarDoor"
+        boardingPlatformGaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/JourneyPlatformGap"
+        alightingPlatformGaps:
+          type: array
+          items:
+            $ref: "#/components/schemas/JourneyPlatformGap"
+    JourneyPlatformGap:
+      type: object
+      additionalProperties: false
+      required:
+        - platformPosition
+        - gapGrade
+        - heightDiffGrade
+        - curved
+      properties:
+        platformPosition:
+          type: string
+          minLength: 1
+        carNumber:
+          type: integer
+          minimum: 1
+        doorNumber:
+          type: integer
+          minimum: 1
+        gapGrade:
+          type: string
+          enum: [WIDE, NORMAL, NARROW]
+        heightDiffGrade:
+          type: string
+          enum: [HIGH, NORMAL, LOW]
+        curved:
+          type: boolean
+    JourneyAlightingCarDoor:
+      type: object
+      additionalProperties: false
+      required:
+        - carNumber
+        - doorNumber
+        - targetFacilityType
+      properties:
+        carNumber:
+          type: integer
+          minimum: 1
+          maximum: 10
+        doorNumber:
+          type: integer
+          minimum: 1
+          maximum: 4
+        targetFacilityType:
+          type: string
+          enum: [TRANSFER, ELEVATOR, ESCALATOR, STAIR]
     JourneyTransferLeg:
       type: object
       additionalProperties: false
@@ -1625,6 +1696,7 @@ components:
         - TIMETABLE_STALE
         - REALTIME_REQUIRED_UNAVAILABLE
         - ROUTING_IDENTITY_MISMATCH
+        - FACILITY_STATUS_UNAVAILABLE
         - ROUTE_SERVICE_UNAVAILABLE
         - JOURNEY_SEARCH_TIMEOUT
         - STATION_LINE_NOT_FOUND

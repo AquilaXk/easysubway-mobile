@@ -25,9 +25,9 @@ const expectedOperations = new Map([
   ['/api/v3/station-timetables/search', { id: 'searchStationTimetables', responses: ['200', '400', '404', '503', '401', '429'], request: 'StationTimetableSearchRequest', success: 'StationTimetableSearchSuccess' }],
 ]);
 const expectedErrorTuples = [
-  ['searchJourneys', 400, 'INVALID_JOURNEY_REQUEST'], ['searchJourneys', 404, 'STATION_NOT_FOUND'], ['searchJourneys', 422, 'ROUTE_NOT_FOUND'], ['searchJourneys', 422, 'ACCESSIBILITY_CONSTRAINT_UNSATISFIED'], ['searchJourneys', 503, 'ROUTING_BUNDLE_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_BUNDLE_STALE'], ['searchJourneys', 503, 'TIMETABLE_UNAVAILABLE'], ['searchJourneys', 503, 'TIMETABLE_STALE'], ['searchJourneys', 503, 'REALTIME_REQUIRED_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_IDENTITY_MISMATCH'], ['searchJourneys', 503, 'ROUTE_SERVICE_UNAVAILABLE'], ['searchJourneys', 504, 'JOURNEY_SEARCH_TIMEOUT'],
+  ['searchJourneys', 400, 'INVALID_JOURNEY_REQUEST'], ['searchJourneys', 404, 'STATION_NOT_FOUND'], ['searchJourneys', 422, 'ROUTE_NOT_FOUND'], ['searchJourneys', 422, 'ACCESSIBILITY_CONSTRAINT_UNSATISFIED'], ['searchJourneys', 503, 'ROUTING_BUNDLE_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_BUNDLE_STALE'], ['searchJourneys', 503, 'TIMETABLE_UNAVAILABLE'], ['searchJourneys', 503, 'TIMETABLE_STALE'], ['searchJourneys', 503, 'REALTIME_REQUIRED_UNAVAILABLE'], ['searchJourneys', 503, 'ROUTING_IDENTITY_MISMATCH'], ['searchJourneys', 503, 'ROUTE_SERVICE_UNAVAILABLE'], ['searchJourneys', 503, 'FACILITY_STATUS_UNAVAILABLE'], ['searchJourneys', 504, 'JOURNEY_SEARCH_TIMEOUT'],
   ['searchStationTimetables', 400, 'INVALID_JOURNEY_REQUEST'], ['searchStationTimetables', 404, 'STATION_LINE_NOT_FOUND'], ['searchStationTimetables', 404, 'TIMETABLE_NOT_COVERED'], ['searchStationTimetables', 503, 'TIMETABLE_UNAVAILABLE'], ['searchStationTimetables', 503, 'TIMETABLE_STALE'], ['searchStationTimetables', 503, 'TIMETABLE_IDENTITY_MISMATCH'],
-  ['profileJourneys', 400, 'INVALID_TEMPORAL_QUERY'], ['profileJourneys', 400, 'TEMPORAL_WINDOW_TOO_LARGE'], ['profileJourneys', 404, 'STATION_NOT_FOUND'], ['profileJourneys', 422, 'NO_SERVICE_IN_DEPARTURE_WINDOW'], ['profileJourneys', 422, 'NO_ROUTE_ARRIVING_BY_DEADLINE'], ['profileJourneys', 422, 'NO_LAST_CONNECTION'], ['profileJourneys', 422, 'REALTIME_NOT_APPLICABLE_TO_TEMPORAL_QUERY'], ['profileJourneys', 422, 'TEMPORAL_QUERY_TOO_COMPLEX'], ['profileJourneys', 503, 'REALTIME_REQUIRED_UNAVAILABLE'], ['profileJourneys', 503, 'ROUTING_BUNDLE_UNAVAILABLE'], ['profileJourneys', 503, 'ROUTING_BUNDLE_STALE'], ['profileJourneys', 503, 'ROUTING_IDENTITY_MISMATCH'], ['profileJourneys', 503, 'RAPTOR_FRONTIER_CAPACITY_EXCEEDED'], ['profileJourneys', 504, 'JOURNEY_PROFILE_TIMEOUT'],
+  ['profileJourneys', 400, 'INVALID_TEMPORAL_QUERY'], ['profileJourneys', 400, 'TEMPORAL_WINDOW_TOO_LARGE'], ['profileJourneys', 404, 'STATION_NOT_FOUND'], ['profileJourneys', 422, 'NO_SERVICE_IN_DEPARTURE_WINDOW'], ['profileJourneys', 422, 'NO_ROUTE_ARRIVING_BY_DEADLINE'], ['profileJourneys', 422, 'NO_LAST_CONNECTION'], ['profileJourneys', 422, 'REALTIME_NOT_APPLICABLE_TO_TEMPORAL_QUERY'], ['profileJourneys', 422, 'TEMPORAL_QUERY_TOO_COMPLEX'], ['profileJourneys', 503, 'REALTIME_REQUIRED_UNAVAILABLE'], ['profileJourneys', 503, 'ROUTING_BUNDLE_UNAVAILABLE'], ['profileJourneys', 503, 'ROUTING_BUNDLE_STALE'], ['profileJourneys', 503, 'ROUTING_IDENTITY_MISMATCH'], ['profileJourneys', 503, 'RAPTOR_FRONTIER_CAPACITY_EXCEEDED'], ['profileJourneys', 503, 'FACILITY_STATUS_UNAVAILABLE'], ['profileJourneys', 504, 'JOURNEY_PROFILE_TIMEOUT'],
   ['searchJourneys', 401, 'ROUTE_SESSION_REQUIRED'], ['searchJourneys', 429, 'ROUTE_RATE_LIMITED'],
   ['searchStationTimetables', 401, 'ROUTE_SESSION_REQUIRED'], ['searchStationTimetables', 429, 'ROUTE_RATE_LIMITED'],
   ['profileJourneys', 401, 'ROUTE_SESSION_REQUIRED'], ['profileJourneys', 429, 'ROUTE_RATE_LIMITED'],
@@ -36,7 +36,7 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = '97e4ed7ef406491716a5e8b7527a8c586761edbc75953914d68146f871a2055f';
+const expectedSchemasProjectionSha256 = 'f57dea49563872f740f1355d90f810f3b6988373d2a845f3a393d33c00f8a35c';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -230,7 +230,7 @@ function validateSchemas(schemas, enforceSchemasProjection) {
     }
     if (value.type === 'object') {
       assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not', 'description'], label);
-      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest';
+      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest' || label === 'JourneyRideLeg' || label === 'JourneyPlatformGap';
       if (value.additionalProperties !== false || !Array.isArray(value.required) || !isObject(value.properties) || new Set(value.required).size !== value.required.length || (!isOptionalAllowed && Object.keys(value.properties).length !== value.required.length) || value.required.some((key) => !(key in value.properties))) fail(`${label} must have an exact closed required property set`);
       for (const [key, child] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) fail(`${label} has unsupported property`); schema(child, `${label}.${key}`); }
       if ('not' in value && (!isObject(value.not) || !Array.isArray(value.not.required) || !isObject(value.not.properties))) fail(`${label} has unsupported not constraint`);
@@ -353,6 +353,13 @@ function enumDefinitions(ir) {
     ] : []),
     ['JourneyErrorSemanticCategory', [...new Set(ir.errorDispositions.map((entry) => entry.semanticCategory))]],
     ['JourneyErrorActionKey', [...new Set(ir.errorDispositions.map((entry) => entry.primaryActionKey).filter((value) => value !== null))]],
+    ...('JourneyPlatformGap' in ir.schemas ? [
+      ['PlatformGapGrade', enumAt('JourneyPlatformGap', 'gapGrade')],
+      ['PlatformHeightDiffGrade', enumAt('JourneyPlatformGap', 'heightDiffGrade')],
+    ] : []),
+    ...('JourneyAlightingCarDoor' in ir.schemas ? [
+      ['AlightingTargetFacilityType', enumAt('JourneyAlightingCarDoor', 'targetFacilityType')],
+    ] : []),
     ...Object.entries(ir.schemas).filter(([, schema]) => schema.type === 'string' && Array.isArray(schema.enum)),
   ];
   const names = new Set();
@@ -514,16 +521,139 @@ class JourneyEntryLeg extends JourneyLeg {
   @override Map<String, Object?> toJson() => {'type': JourneyLegType.entry.wire, 'fromStationId': fromStationId, 'durationSeconds': durationSeconds};
 }
 
+class JourneyPlatformGap {
+  final String platformPosition;
+  final int? carNumber;
+  final int? doorNumber;
+  final PlatformGapGrade gapGrade;
+  final PlatformHeightDiffGrade heightDiffGrade;
+  final bool curved;
+  const JourneyPlatformGap({required this.platformPosition, this.carNumber, this.doorNumber, required this.gapGrade, required this.heightDiffGrade, required this.curved});
+  factory JourneyPlatformGap.fromJson(Map<String, Object?> json) {
+    final expectedKeys = {
+      'platformPosition',
+      if (json.containsKey('carNumber')) 'carNumber',
+      if (json.containsKey('doorNumber')) 'doorNumber',
+      'gapGrade',
+      'heightDiffGrade',
+      'curved',
+    };
+    JourneyV3Validation.exactKeys(json, expectedKeys);
+    final rawCarNumber = json['carNumber'];
+    final rawDoorNumber = json['doorNumber'];
+    return JourneyPlatformGap(
+      platformPosition: JourneyV3Validation.nonBlank(json['platformPosition'], 'platformPosition'),
+      carNumber: rawCarNumber == null ? null : JourneyV3Validation.integer(rawCarNumber, 'carNumber', 1),
+      doorNumber: rawDoorNumber == null ? null : JourneyV3Validation.integer(rawDoorNumber, 'doorNumber', 1),
+      gapGrade: PlatformGapGradeWire.fromWire(json['gapGrade']),
+      heightDiffGrade: PlatformHeightDiffGradeWire.fromWire(json['heightDiffGrade']),
+      curved: JourneyV3Validation.boolean(json['curved'], 'curved'),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'platformPosition': platformPosition,
+    if (carNumber != null) 'carNumber': carNumber,
+    if (doorNumber != null) 'doorNumber': doorNumber,
+    'gapGrade': gapGrade.wire,
+    'heightDiffGrade': heightDiffGrade.wire,
+    'curved': curved,
+  };
+}
+
+typedef JourneyPlatformGapGrade = PlatformGapGrade;
+typedef JourneyPlatformHeightDiffGrade = PlatformHeightDiffGrade;
+
+class JourneyAlightingCarDoor {
+  final int carNumber;
+  final int doorNumber;
+  final AlightingTargetFacilityType targetFacilityType;
+  const JourneyAlightingCarDoor({required this.carNumber, required this.doorNumber, required this.targetFacilityType});
+  factory JourneyAlightingCarDoor.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'carNumber', 'doorNumber', 'targetFacilityType'});
+    return JourneyAlightingCarDoor(
+      carNumber: JourneyV3Validation.integer(json['carNumber'], 'carNumber', 1, 10),
+      doorNumber: JourneyV3Validation.integer(json['doorNumber'], 'doorNumber', 1, 4),
+      targetFacilityType: AlightingTargetFacilityTypeWire.fromWire(json['targetFacilityType']),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'carNumber': carNumber,
+    'doorNumber': doorNumber,
+    'targetFacilityType': targetFacilityType.wire,
+  };
+}
+
+typedef JourneyAlightingTargetFacilityType = AlightingTargetFacilityType;
+
 class JourneyRideLeg extends JourneyLeg {
   final String lineId; final String tripId; final String directionStationId; final String fromStationId; final String toStationId;
   final DateTime plannedDepartureTime; final DateTime plannedArrivalTime; final DateTime? realtimeDepartureTime; final DateTime? realtimeArrivalTime;
-  const JourneyRideLeg({required this.lineId, required this.tripId, required this.directionStationId, required this.fromStationId, required this.toStationId, required this.plannedDepartureTime, required this.plannedArrivalTime, required this.realtimeDepartureTime, required this.realtimeArrivalTime});
+  final List<JourneyAlightingCarDoor> alightingCarDoors; final List<JourneyPlatformGap> boardingPlatformGaps; final List<JourneyPlatformGap> alightingPlatformGaps;
+  const JourneyRideLeg({
+    required this.lineId,
+    required this.tripId,
+    required this.directionStationId,
+    required this.fromStationId,
+    required this.toStationId,
+    required this.plannedDepartureTime,
+    required this.plannedArrivalTime,
+    required this.realtimeDepartureTime,
+    required this.realtimeArrivalTime,
+    this.alightingCarDoors = const [],
+    this.boardingPlatformGaps = const [],
+    this.alightingPlatformGaps = const [],
+  });
   factory JourneyRideLeg.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {'type', 'lineId', 'tripId', 'directionStationId', 'fromStationId', 'toStationId', 'plannedDepartureTime', 'plannedArrivalTime', 'realtimeDepartureTime', 'realtimeArrivalTime'});
+    final expectedKeys = {
+      'type',
+      'lineId',
+      'tripId',
+      'directionStationId',
+      'fromStationId',
+      'toStationId',
+      'plannedDepartureTime',
+      'plannedArrivalTime',
+      'realtimeDepartureTime',
+      'realtimeArrivalTime',
+      if (json.containsKey('alightingCarDoors')) 'alightingCarDoors',
+      if (json.containsKey('boardingPlatformGaps')) 'boardingPlatformGaps',
+      if (json.containsKey('alightingPlatformGaps')) 'alightingPlatformGaps',
+    };
+    JourneyV3Validation.exactKeys(json, expectedKeys);
     if (JourneyLegTypeWire.fromWire(json['type']) != JourneyLegType.ride) throw const FormatException('leg type');
-    return JourneyRideLeg(lineId: JourneyV3Validation.nonBlank(json['lineId'], 'lineId'), tripId: JourneyV3Validation.nonBlank(json['tripId'], 'tripId'), directionStationId: JourneyV3Validation.nonBlank(json['directionStationId'], 'directionStationId'), fromStationId: JourneyV3Validation.nonBlank(json['fromStationId'], 'fromStationId'), toStationId: JourneyV3Validation.nonBlank(json['toStationId'], 'toStationId'), plannedDepartureTime: JourneyV3Validation.rfc3339(json['plannedDepartureTime'], 'plannedDepartureTime'), plannedArrivalTime: JourneyV3Validation.rfc3339(json['plannedArrivalTime'], 'plannedArrivalTime'), realtimeDepartureTime: JourneyV3Validation.nullable(json, 'realtimeDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeDepartureTime')), realtimeArrivalTime: JourneyV3Validation.nullable(json, 'realtimeArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeArrivalTime')));
+    final rawAlightingCarDoors = json['alightingCarDoors'];
+    final rawBoardingPlatformGaps = json['boardingPlatformGaps'];
+    final rawAlightingPlatformGaps = json['alightingPlatformGaps'];
+    return JourneyRideLeg(
+      lineId: JourneyV3Validation.nonBlank(json['lineId'], 'lineId'),
+      tripId: JourneyV3Validation.nonBlank(json['tripId'], 'tripId'),
+      directionStationId: JourneyV3Validation.nonBlank(json['directionStationId'], 'directionStationId'),
+      fromStationId: JourneyV3Validation.nonBlank(json['fromStationId'], 'fromStationId'),
+      toStationId: JourneyV3Validation.nonBlank(json['toStationId'], 'toStationId'),
+      plannedDepartureTime: JourneyV3Validation.rfc3339(json['plannedDepartureTime'], 'plannedDepartureTime'),
+      plannedArrivalTime: JourneyV3Validation.rfc3339(json['plannedArrivalTime'], 'plannedArrivalTime'),
+      realtimeDepartureTime: JourneyV3Validation.nullable(json, 'realtimeDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeDepartureTime')),
+      realtimeArrivalTime: JourneyV3Validation.nullable(json, 'realtimeArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeArrivalTime')),
+      alightingCarDoors: rawAlightingCarDoors == null ? const [] : JourneyV3Validation.list(rawAlightingCarDoors, 'alightingCarDoors', (v) => JourneyAlightingCarDoor.fromJson(v as Map<String, Object?>)),
+      boardingPlatformGaps: rawBoardingPlatformGaps == null ? const [] : JourneyV3Validation.list(rawBoardingPlatformGaps, 'boardingPlatformGaps', (v) => JourneyPlatformGap.fromJson(v as Map<String, Object?>)),
+      alightingPlatformGaps: rawAlightingPlatformGaps == null ? const [] : JourneyV3Validation.list(rawAlightingPlatformGaps, 'alightingPlatformGaps', (v) => JourneyPlatformGap.fromJson(v as Map<String, Object?>)),
+    );
   }
-  @override Map<String, Object?> toJson() => {'type': JourneyLegType.ride.wire, 'lineId': lineId, 'tripId': tripId, 'directionStationId': directionStationId, 'fromStationId': fromStationId, 'toStationId': toStationId, 'plannedDepartureTime': JourneyV3Validation.rfc3339Wire(plannedDepartureTime), 'plannedArrivalTime': JourneyV3Validation.rfc3339Wire(plannedArrivalTime), 'realtimeDepartureTime': realtimeDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeDepartureTime!), 'realtimeArrivalTime': realtimeArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeArrivalTime!)};
+  @override Map<String, Object?> toJson() => {
+    'type': JourneyLegType.ride.wire,
+    'lineId': lineId,
+    'tripId': tripId,
+    'directionStationId': directionStationId,
+    'fromStationId': fromStationId,
+    'toStationId': toStationId,
+    'plannedDepartureTime': JourneyV3Validation.rfc3339Wire(plannedDepartureTime),
+    'plannedArrivalTime': JourneyV3Validation.rfc3339Wire(plannedArrivalTime),
+    'realtimeDepartureTime': realtimeDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeDepartureTime!),
+    'realtimeArrivalTime': realtimeArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeArrivalTime!),
+    if (alightingCarDoors.isNotEmpty) 'alightingCarDoors': alightingCarDoors.map((v) => v.toJson()).toList(),
+    if (boardingPlatformGaps.isNotEmpty) 'boardingPlatformGaps': boardingPlatformGaps.map((v) => v.toJson()).toList(),
+    if (alightingPlatformGaps.isNotEmpty) 'alightingPlatformGaps': alightingPlatformGaps.map((v) => v.toJson()).toList(),
+  };
 }
 
 class JourneyTransferLeg extends JourneyLeg {

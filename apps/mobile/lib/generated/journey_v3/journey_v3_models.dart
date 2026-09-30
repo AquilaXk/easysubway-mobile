@@ -213,6 +213,59 @@ class JourneyEntryLeg extends JourneyLeg {
   Map<String, Object?> toJson() => {'type': JourneyLegType.entry.wire, 'fromStationId': fromStationId, 'durationSeconds': durationSeconds};
 }
 
+class JourneyPlatformGap {
+  final String platformPosition;
+  final int? carNumber;
+  final int? doorNumber;
+  final PlatformGapGrade gapGrade;
+  final PlatformHeightDiffGrade heightDiffGrade;
+  final bool curved;
+  const JourneyPlatformGap({required this.platformPosition, this.carNumber, this.doorNumber, required this.gapGrade, required this.heightDiffGrade, required this.curved});
+  factory JourneyPlatformGap.fromJson(Map<String, Object?> json) {
+    final expectedKeys = {'platformPosition', if (json.containsKey('carNumber')) 'carNumber', if (json.containsKey('doorNumber')) 'doorNumber', 'gapGrade', 'heightDiffGrade', 'curved'};
+    JourneyV3Validation.exactKeys(json, expectedKeys);
+    final rawCarNumber = json['carNumber'];
+    final rawDoorNumber = json['doorNumber'];
+    return JourneyPlatformGap(
+      platformPosition: JourneyV3Validation.nonBlank(json['platformPosition'], 'platformPosition'),
+      carNumber: rawCarNumber == null ? null : JourneyV3Validation.integer(rawCarNumber, 'carNumber', 1),
+      doorNumber: rawDoorNumber == null ? null : JourneyV3Validation.integer(rawDoorNumber, 'doorNumber', 1),
+      gapGrade: PlatformGapGradeWire.fromWire(json['gapGrade']),
+      heightDiffGrade: PlatformHeightDiffGradeWire.fromWire(json['heightDiffGrade']),
+      curved: JourneyV3Validation.boolean(json['curved'], 'curved'),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'platformPosition': platformPosition,
+    if (carNumber != null) 'carNumber': carNumber,
+    if (doorNumber != null) 'doorNumber': doorNumber,
+    'gapGrade': gapGrade.wire,
+    'heightDiffGrade': heightDiffGrade.wire,
+    'curved': curved,
+  };
+}
+
+typedef JourneyPlatformGapGrade = PlatformGapGrade;
+typedef JourneyPlatformHeightDiffGrade = PlatformHeightDiffGrade;
+
+class JourneyAlightingCarDoor {
+  final int carNumber;
+  final int doorNumber;
+  final AlightingTargetFacilityType targetFacilityType;
+  const JourneyAlightingCarDoor({required this.carNumber, required this.doorNumber, required this.targetFacilityType});
+  factory JourneyAlightingCarDoor.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'carNumber', 'doorNumber', 'targetFacilityType'});
+    return JourneyAlightingCarDoor(
+      carNumber: JourneyV3Validation.integer(json['carNumber'], 'carNumber', 1, 10),
+      doorNumber: JourneyV3Validation.integer(json['doorNumber'], 'doorNumber', 1, 4),
+      targetFacilityType: AlightingTargetFacilityTypeWire.fromWire(json['targetFacilityType']),
+    );
+  }
+  Map<String, Object?> toJson() => {'carNumber': carNumber, 'doorNumber': doorNumber, 'targetFacilityType': targetFacilityType.wire};
+}
+
+typedef JourneyAlightingTargetFacilityType = AlightingTargetFacilityType;
+
 class JourneyRideLeg extends JourneyLeg {
   final String lineId;
   final String tripId;
@@ -223,6 +276,9 @@ class JourneyRideLeg extends JourneyLeg {
   final DateTime plannedArrivalTime;
   final DateTime? realtimeDepartureTime;
   final DateTime? realtimeArrivalTime;
+  final List<JourneyAlightingCarDoor> alightingCarDoors;
+  final List<JourneyPlatformGap> boardingPlatformGaps;
+  final List<JourneyPlatformGap> alightingPlatformGaps;
   const JourneyRideLeg({
     required this.lineId,
     required this.tripId,
@@ -233,9 +289,12 @@ class JourneyRideLeg extends JourneyLeg {
     required this.plannedArrivalTime,
     required this.realtimeDepartureTime,
     required this.realtimeArrivalTime,
+    this.alightingCarDoors = const [],
+    this.boardingPlatformGaps = const [],
+    this.alightingPlatformGaps = const [],
   });
   factory JourneyRideLeg.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {
+    final expectedKeys = {
       'type',
       'lineId',
       'tripId',
@@ -246,8 +305,15 @@ class JourneyRideLeg extends JourneyLeg {
       'plannedArrivalTime',
       'realtimeDepartureTime',
       'realtimeArrivalTime',
-    });
+      if (json.containsKey('alightingCarDoors')) 'alightingCarDoors',
+      if (json.containsKey('boardingPlatformGaps')) 'boardingPlatformGaps',
+      if (json.containsKey('alightingPlatformGaps')) 'alightingPlatformGaps',
+    };
+    JourneyV3Validation.exactKeys(json, expectedKeys);
     if (JourneyLegTypeWire.fromWire(json['type']) != JourneyLegType.ride) throw const FormatException('leg type');
+    final rawAlightingCarDoors = json['alightingCarDoors'];
+    final rawBoardingPlatformGaps = json['boardingPlatformGaps'];
+    final rawAlightingPlatformGaps = json['alightingPlatformGaps'];
     return JourneyRideLeg(
       lineId: JourneyV3Validation.nonBlank(json['lineId'], 'lineId'),
       tripId: JourneyV3Validation.nonBlank(json['tripId'], 'tripId'),
@@ -258,6 +324,15 @@ class JourneyRideLeg extends JourneyLeg {
       plannedArrivalTime: JourneyV3Validation.rfc3339(json['plannedArrivalTime'], 'plannedArrivalTime'),
       realtimeDepartureTime: JourneyV3Validation.nullable(json, 'realtimeDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeDepartureTime')),
       realtimeArrivalTime: JourneyV3Validation.nullable(json, 'realtimeArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeArrivalTime')),
+      alightingCarDoors: rawAlightingCarDoors == null
+          ? const []
+          : JourneyV3Validation.list(rawAlightingCarDoors, 'alightingCarDoors', (v) => JourneyAlightingCarDoor.fromJson(v as Map<String, Object?>)),
+      boardingPlatformGaps: rawBoardingPlatformGaps == null
+          ? const []
+          : JourneyV3Validation.list(rawBoardingPlatformGaps, 'boardingPlatformGaps', (v) => JourneyPlatformGap.fromJson(v as Map<String, Object?>)),
+      alightingPlatformGaps: rawAlightingPlatformGaps == null
+          ? const []
+          : JourneyV3Validation.list(rawAlightingPlatformGaps, 'alightingPlatformGaps', (v) => JourneyPlatformGap.fromJson(v as Map<String, Object?>)),
     );
   }
   @override
@@ -272,6 +347,9 @@ class JourneyRideLeg extends JourneyLeg {
     'plannedArrivalTime': JourneyV3Validation.rfc3339Wire(plannedArrivalTime),
     'realtimeDepartureTime': realtimeDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeDepartureTime!),
     'realtimeArrivalTime': realtimeArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeArrivalTime!),
+    if (alightingCarDoors.isNotEmpty) 'alightingCarDoors': alightingCarDoors.map((v) => v.toJson()).toList(),
+    if (boardingPlatformGaps.isNotEmpty) 'boardingPlatformGaps': boardingPlatformGaps.map((v) => v.toJson()).toList(),
+    if (alightingPlatformGaps.isNotEmpty) 'alightingPlatformGaps': alightingPlatformGaps.map((v) => v.toJson()).toList(),
   };
 }
 
