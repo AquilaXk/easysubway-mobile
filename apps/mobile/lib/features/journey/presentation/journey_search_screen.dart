@@ -1482,7 +1482,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         isScrollControlled: true,
         backgroundColor: EasySubwayAccessibleColors.surface,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(8)),
         ),
         builder: (sheetContext) {
           return SafeArea(
