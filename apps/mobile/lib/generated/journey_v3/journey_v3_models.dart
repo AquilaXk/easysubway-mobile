@@ -266,6 +266,74 @@ class JourneyAlightingCarDoor {
 
 typedef JourneyAlightingTargetFacilityType = AlightingTargetFacilityType;
 
+class JourneyRideStop {
+  final String stationId;
+  final DateTime? plannedArrivalTime;
+  final DateTime? plannedDepartureTime;
+  final DateTime? realtimeArrivalTime;
+  final DateTime? realtimeDepartureTime;
+  const JourneyRideStop({required this.stationId, required this.plannedArrivalTime, required this.plannedDepartureTime, required this.realtimeArrivalTime, required this.realtimeDepartureTime});
+  factory JourneyRideStop.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'stationId', 'plannedArrivalTime', 'plannedDepartureTime', 'realtimeArrivalTime', 'realtimeDepartureTime'});
+    return JourneyRideStop(
+      stationId: JourneyV3Validation.nonBlank(json['stationId'], 'stationId'),
+      plannedArrivalTime: JourneyV3Validation.nullable(json, 'plannedArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'plannedArrivalTime')),
+      plannedDepartureTime: JourneyV3Validation.nullable(json, 'plannedDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'plannedDepartureTime')),
+      realtimeArrivalTime: JourneyV3Validation.nullable(json, 'realtimeArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeArrivalTime')),
+      realtimeDepartureTime: JourneyV3Validation.nullable(json, 'realtimeDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeDepartureTime')),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'stationId': stationId,
+    'plannedArrivalTime': plannedArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(plannedArrivalTime!),
+    'plannedDepartureTime': plannedDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(plannedDepartureTime!),
+    'realtimeArrivalTime': realtimeArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeArrivalTime!),
+    'realtimeDepartureTime': realtimeDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeDepartureTime!),
+  };
+}
+
+class JourneyFare {
+  final JourneyFareStatus status;
+  final int? adultCardWon;
+  final int? adultCashWon;
+  final int? youthCardWon;
+  final int? youthCashWon;
+  final int? childCardWon;
+  final int? childCashWon;
+  final List<String> sourceSnapshotIds;
+  const JourneyFare({required this.status, this.adultCardWon, this.adultCashWon, this.youthCardWon, this.youthCashWon, this.childCardWon, this.childCashWon, required this.sourceSnapshotIds});
+  factory JourneyFare.fromJson(Map<String, Object?> json) {
+    const amountKeys = ['adultCardWon', 'adultCashWon', 'youthCardWon', 'youthCashWon', 'childCardWon', 'childCashWon'];
+    JourneyV3Validation.exactKeys(json, {
+      'status',
+      for (final key in amountKeys)
+        if (json.containsKey(key)) key,
+      'sourceSnapshotIds',
+    });
+    int? amount(String key) => json.containsKey(key) ? JourneyV3Validation.integer(json[key], key, 0) : null;
+    return JourneyFare(
+      status: JourneyFareStatusWire.fromWire(json['status']),
+      adultCardWon: amount('adultCardWon'),
+      adultCashWon: amount('adultCashWon'),
+      youthCardWon: amount('youthCardWon'),
+      youthCashWon: amount('youthCashWon'),
+      childCardWon: amount('childCardWon'),
+      childCashWon: amount('childCashWon'),
+      sourceSnapshotIds: JourneyV3Validation.list(json['sourceSnapshotIds'], 'sourceSnapshotIds', (v) => JourneyV3Validation.string(v, 'sourceSnapshotIds')),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'status': status.wire,
+    if (adultCardWon != null) 'adultCardWon': adultCardWon,
+    if (adultCashWon != null) 'adultCashWon': adultCashWon,
+    if (youthCardWon != null) 'youthCardWon': youthCardWon,
+    if (youthCashWon != null) 'youthCashWon': youthCashWon,
+    if (childCardWon != null) 'childCardWon': childCardWon,
+    if (childCashWon != null) 'childCashWon': childCashWon,
+    'sourceSnapshotIds': sourceSnapshotIds,
+  };
+}
+
 class JourneyRideLeg extends JourneyLeg {
   final String lineId;
   final String tripId;
@@ -276,6 +344,8 @@ class JourneyRideLeg extends JourneyLeg {
   final DateTime plannedArrivalTime;
   final DateTime? realtimeDepartureTime;
   final DateTime? realtimeArrivalTime;
+  final JourneyServicePattern servicePattern;
+  final List<JourneyRideStop> stops;
   final List<JourneyAlightingCarDoor> alightingCarDoors;
   final List<JourneyPlatformGap> boardingPlatformGaps;
   final List<JourneyPlatformGap> alightingPlatformGaps;
@@ -289,6 +359,8 @@ class JourneyRideLeg extends JourneyLeg {
     required this.plannedArrivalTime,
     required this.realtimeDepartureTime,
     required this.realtimeArrivalTime,
+    required this.servicePattern,
+    required this.stops,
     this.alightingCarDoors = const [],
     this.boardingPlatformGaps = const [],
     this.alightingPlatformGaps = const [],
@@ -305,6 +377,8 @@ class JourneyRideLeg extends JourneyLeg {
       'plannedArrivalTime',
       'realtimeDepartureTime',
       'realtimeArrivalTime',
+      'servicePattern',
+      'stops',
       if (json.containsKey('alightingCarDoors')) 'alightingCarDoors',
       if (json.containsKey('boardingPlatformGaps')) 'boardingPlatformGaps',
       if (json.containsKey('alightingPlatformGaps')) 'alightingPlatformGaps',
@@ -324,6 +398,11 @@ class JourneyRideLeg extends JourneyLeg {
       plannedArrivalTime: JourneyV3Validation.rfc3339(json['plannedArrivalTime'], 'plannedArrivalTime'),
       realtimeDepartureTime: JourneyV3Validation.nullable(json, 'realtimeDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeDepartureTime')),
       realtimeArrivalTime: JourneyV3Validation.nullable(json, 'realtimeArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeArrivalTime')),
+      servicePattern: JourneyServicePatternWire.fromWire(json['servicePattern']),
+      stops: JourneyV3Validation.list(json['stops'], 'stops', (v) {
+        if (v is! Map<String, Object?>) throw const FormatException('stop must be object');
+        return JourneyRideStop.fromJson(v);
+      }, minimum: 2),
       alightingCarDoors: rawAlightingCarDoors == null
           ? const []
           : JourneyV3Validation.list(rawAlightingCarDoors, 'alightingCarDoors', (v) => JourneyAlightingCarDoor.fromJson(v as Map<String, Object?>)),
@@ -347,6 +426,8 @@ class JourneyRideLeg extends JourneyLeg {
     'plannedArrivalTime': JourneyV3Validation.rfc3339Wire(plannedArrivalTime),
     'realtimeDepartureTime': realtimeDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeDepartureTime!),
     'realtimeArrivalTime': realtimeArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeArrivalTime!),
+    'servicePattern': servicePattern.wire,
+    'stops': stops.map((v) => v.toJson()).toList(),
     if (alightingCarDoors.isNotEmpty) 'alightingCarDoors': alightingCarDoors.map((v) => v.toJson()).toList(),
     if (boardingPlatformGaps.isNotEmpty) 'boardingPlatformGaps': boardingPlatformGaps.map((v) => v.toJson()).toList(),
     if (alightingPlatformGaps.isNotEmpty) 'alightingPlatformGaps': alightingPlatformGaps.map((v) => v.toJson()).toList(),
@@ -522,6 +603,7 @@ class Journey {
   final JourneyTimeSource timeSource;
   final JourneyAccessibility accessibility;
   final List<JourneyLeg> legs;
+  final JourneyFare fare;
   const Journey({
     required this.journeyId,
     required this.status,
@@ -536,6 +618,7 @@ class Journey {
     required this.timeSource,
     required this.accessibility,
     required this.legs,
+    required this.fare,
   });
   factory Journey.fromJson(Map<String, Object?> json) {
     JourneyV3Validation.exactKeys(json, {
@@ -552,9 +635,12 @@ class Journey {
       'timeSource',
       'accessibility',
       'legs',
+      'fare',
     });
     final accessibility = json['accessibility'];
     if (accessibility is! Map<String, Object?>) throw const FormatException('accessibility must be object');
+    final fare = json['fare'];
+    if (fare is! Map<String, Object?>) throw const FormatException('fare must be object');
     return Journey(
       journeyId: JourneyV3Validation.nonBlank(json['journeyId'], 'journeyId'),
       status: JourneyStatusWire.fromWire(json['status']),
@@ -572,6 +658,7 @@ class Journey {
         if (v is! Map<String, Object?>) throw const FormatException('leg must be object');
         return JourneyLeg.fromJson(v);
       }, minimum: 1),
+      fare: JourneyFare.fromJson(fare),
     );
   }
   Map<String, Object?> toJson() => {
@@ -588,6 +675,7 @@ class Journey {
     'timeSource': timeSource.wire,
     'accessibility': accessibility.toJson(),
     'legs': legs.map((v) => v.toJson()).toList(growable: false),
+    'fare': fare.toJson(),
   };
 }
 

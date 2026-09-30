@@ -36,7 +36,7 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = 'f57dea49563872f740f1355d90f810f3b6988373d2a845f3a393d33c00f8a35c';
+const expectedSchemasProjectionSha256 = 'd5131bed6994a801f1c008e5eb4f0f05fbb3e3ed7b80c297594d1d19e9790501';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -204,7 +204,7 @@ function assertAllowed(value, keys, label) { if (!isObject(value) || Object.keys
 function validateSchemas(schemas, enforceSchemasProjection) {
   if (!isObject(schemas) || Object.keys(schemas).length === 0) fail('components.schemas must be nonempty'); const state = new Map();
   const visit = (name) => { if (!(name in schemas)) fail(`unresolved schema reference ${name}`); if (state.get(name) === 'visiting') fail(`cyclic schema reference ${name}`); if (state.get(name) === 'done') return; state.set(name, 'visiting'); schema(schemas[name], name); state.set(name, 'done'); };
-  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'JourneyProfileSourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime']);
+  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'JourneyProfileSourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime', 'JourneyRideStop.plannedArrivalTime', 'JourneyRideStop.plannedDepartureTime', 'JourneyRideStop.realtimeArrivalTime', 'JourneyRideStop.realtimeDepartureTime']);
   const schema = (value, label) => {
     if (!isObject(value)) fail(`${label} must be a schema object`);
     if ('$ref' in value) { assertAllowed(value, ['$ref'], label); visit(ref(value.$ref, label)); return; }
@@ -230,7 +230,7 @@ function validateSchemas(schemas, enforceSchemasProjection) {
     }
     if (value.type === 'object') {
       assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not', 'description'], label);
-      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest' || label === 'JourneyRideLeg' || label === 'JourneyPlatformGap';
+      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest' || label === 'JourneyRideLeg' || label === 'JourneyPlatformGap' || label === 'JourneyFare';
       if (value.additionalProperties !== false || !Array.isArray(value.required) || !isObject(value.properties) || new Set(value.required).size !== value.required.length || (!isOptionalAllowed && Object.keys(value.properties).length !== value.required.length) || value.required.some((key) => !(key in value.properties))) fail(`${label} must have an exact closed required property set`);
       for (const [key, child] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) fail(`${label} has unsupported property`); schema(child, `${label}.${key}`); }
       if ('not' in value && (!isObject(value.not) || !Array.isArray(value.not.required) || !isObject(value.not.properties))) fail(`${label} has unsupported not constraint`);
@@ -359,6 +359,12 @@ function enumDefinitions(ir) {
     ] : []),
     ...('JourneyAlightingCarDoor' in ir.schemas ? [
       ['AlightingTargetFacilityType', enumAt('JourneyAlightingCarDoor', 'targetFacilityType')],
+    ] : []),
+    ...('JourneyRideStop' in ir.schemas ? [
+      ['JourneyServicePattern', enumAt('JourneyRideLeg', 'servicePattern')],
+    ] : []),
+    ...('JourneyFare' in ir.schemas ? [
+      ['JourneyFareStatus', enumAt('JourneyFare', 'status')],
     ] : []),
     ...Object.entries(ir.schemas).filter(([, schema]) => schema.type === 'string' && Array.isArray(schema.enum)),
   ];
@@ -585,9 +591,73 @@ class JourneyAlightingCarDoor {
 
 typedef JourneyAlightingTargetFacilityType = AlightingTargetFacilityType;
 
+class JourneyRideStop {
+  final String stationId;
+  final DateTime? plannedArrivalTime;
+  final DateTime? plannedDepartureTime;
+  final DateTime? realtimeArrivalTime;
+  final DateTime? realtimeDepartureTime;
+  const JourneyRideStop({required this.stationId, required this.plannedArrivalTime, required this.plannedDepartureTime, required this.realtimeArrivalTime, required this.realtimeDepartureTime});
+  factory JourneyRideStop.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'stationId', 'plannedArrivalTime', 'plannedDepartureTime', 'realtimeArrivalTime', 'realtimeDepartureTime'});
+    return JourneyRideStop(
+      stationId: JourneyV3Validation.nonBlank(json['stationId'], 'stationId'),
+      plannedArrivalTime: JourneyV3Validation.nullable(json, 'plannedArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'plannedArrivalTime')),
+      plannedDepartureTime: JourneyV3Validation.nullable(json, 'plannedDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'plannedDepartureTime')),
+      realtimeArrivalTime: JourneyV3Validation.nullable(json, 'realtimeArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeArrivalTime')),
+      realtimeDepartureTime: JourneyV3Validation.nullable(json, 'realtimeDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeDepartureTime')),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'stationId': stationId,
+    'plannedArrivalTime': plannedArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(plannedArrivalTime!),
+    'plannedDepartureTime': plannedDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(plannedDepartureTime!),
+    'realtimeArrivalTime': realtimeArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeArrivalTime!),
+    'realtimeDepartureTime': realtimeDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeDepartureTime!),
+  };
+}
+
+class JourneyFare {
+  final JourneyFareStatus status;
+  final int? adultCardWon;
+  final int? adultCashWon;
+  final int? youthCardWon;
+  final int? youthCashWon;
+  final int? childCardWon;
+  final int? childCashWon;
+  final List<String> sourceSnapshotIds;
+  const JourneyFare({required this.status, this.adultCardWon, this.adultCashWon, this.youthCardWon, this.youthCashWon, this.childCardWon, this.childCashWon, required this.sourceSnapshotIds});
+  factory JourneyFare.fromJson(Map<String, Object?> json) {
+    const amountKeys = ['adultCardWon', 'adultCashWon', 'youthCardWon', 'youthCashWon', 'childCardWon', 'childCashWon'];
+    JourneyV3Validation.exactKeys(json, {'status', for (final key in amountKeys) if (json.containsKey(key)) key, 'sourceSnapshotIds'});
+    int? amount(String key) => json.containsKey(key) ? JourneyV3Validation.integer(json[key], key, 0) : null;
+    return JourneyFare(
+      status: JourneyFareStatusWire.fromWire(json['status']),
+      adultCardWon: amount('adultCardWon'),
+      adultCashWon: amount('adultCashWon'),
+      youthCardWon: amount('youthCardWon'),
+      youthCashWon: amount('youthCashWon'),
+      childCardWon: amount('childCardWon'),
+      childCashWon: amount('childCashWon'),
+      sourceSnapshotIds: JourneyV3Validation.list(json['sourceSnapshotIds'], 'sourceSnapshotIds', (v) => JourneyV3Validation.string(v, 'sourceSnapshotIds')),
+    );
+  }
+  Map<String, Object?> toJson() => {
+    'status': status.wire,
+    if (adultCardWon != null) 'adultCardWon': adultCardWon,
+    if (adultCashWon != null) 'adultCashWon': adultCashWon,
+    if (youthCardWon != null) 'youthCardWon': youthCardWon,
+    if (youthCashWon != null) 'youthCashWon': youthCashWon,
+    if (childCardWon != null) 'childCardWon': childCardWon,
+    if (childCashWon != null) 'childCashWon': childCashWon,
+    'sourceSnapshotIds': sourceSnapshotIds,
+  };
+}
+
 class JourneyRideLeg extends JourneyLeg {
   final String lineId; final String tripId; final String directionStationId; final String fromStationId; final String toStationId;
   final DateTime plannedDepartureTime; final DateTime plannedArrivalTime; final DateTime? realtimeDepartureTime; final DateTime? realtimeArrivalTime;
+  final JourneyServicePattern servicePattern; final List<JourneyRideStop> stops;
   final List<JourneyAlightingCarDoor> alightingCarDoors; final List<JourneyPlatformGap> boardingPlatformGaps; final List<JourneyPlatformGap> alightingPlatformGaps;
   const JourneyRideLeg({
     required this.lineId,
@@ -599,6 +669,8 @@ class JourneyRideLeg extends JourneyLeg {
     required this.plannedArrivalTime,
     required this.realtimeDepartureTime,
     required this.realtimeArrivalTime,
+    required this.servicePattern,
+    required this.stops,
     this.alightingCarDoors = const [],
     this.boardingPlatformGaps = const [],
     this.alightingPlatformGaps = const [],
@@ -615,6 +687,8 @@ class JourneyRideLeg extends JourneyLeg {
       'plannedArrivalTime',
       'realtimeDepartureTime',
       'realtimeArrivalTime',
+      'servicePattern',
+      'stops',
       if (json.containsKey('alightingCarDoors')) 'alightingCarDoors',
       if (json.containsKey('boardingPlatformGaps')) 'boardingPlatformGaps',
       if (json.containsKey('alightingPlatformGaps')) 'alightingPlatformGaps',
@@ -634,6 +708,8 @@ class JourneyRideLeg extends JourneyLeg {
       plannedArrivalTime: JourneyV3Validation.rfc3339(json['plannedArrivalTime'], 'plannedArrivalTime'),
       realtimeDepartureTime: JourneyV3Validation.nullable(json, 'realtimeDepartureTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeDepartureTime')),
       realtimeArrivalTime: JourneyV3Validation.nullable(json, 'realtimeArrivalTime', (value) => JourneyV3Validation.rfc3339(value, 'realtimeArrivalTime')),
+      servicePattern: JourneyServicePatternWire.fromWire(json['servicePattern']),
+      stops: JourneyV3Validation.list(json['stops'], 'stops', (v) { if (v is! Map<String, Object?>) throw const FormatException('stop must be object'); return JourneyRideStop.fromJson(v); }, minimum: 2),
       alightingCarDoors: rawAlightingCarDoors == null ? const [] : JourneyV3Validation.list(rawAlightingCarDoors, 'alightingCarDoors', (v) => JourneyAlightingCarDoor.fromJson(v as Map<String, Object?>)),
       boardingPlatformGaps: rawBoardingPlatformGaps == null ? const [] : JourneyV3Validation.list(rawBoardingPlatformGaps, 'boardingPlatformGaps', (v) => JourneyPlatformGap.fromJson(v as Map<String, Object?>)),
       alightingPlatformGaps: rawAlightingPlatformGaps == null ? const [] : JourneyV3Validation.list(rawAlightingPlatformGaps, 'alightingPlatformGaps', (v) => JourneyPlatformGap.fromJson(v as Map<String, Object?>)),
@@ -650,6 +726,8 @@ class JourneyRideLeg extends JourneyLeg {
     'plannedArrivalTime': JourneyV3Validation.rfc3339Wire(plannedArrivalTime),
     'realtimeDepartureTime': realtimeDepartureTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeDepartureTime!),
     'realtimeArrivalTime': realtimeArrivalTime == null ? null : JourneyV3Validation.rfc3339Wire(realtimeArrivalTime!),
+    'servicePattern': servicePattern.wire,
+    'stops': stops.map((v) => v.toJson()).toList(),
     if (alightingCarDoors.isNotEmpty) 'alightingCarDoors': alightingCarDoors.map((v) => v.toJson()).toList(),
     if (boardingPlatformGaps.isNotEmpty) 'boardingPlatformGaps': boardingPlatformGaps.map((v) => v.toJson()).toList(),
     if (alightingPlatformGaps.isNotEmpty) 'alightingPlatformGaps': alightingPlatformGaps.map((v) => v.toJson()).toList(),
@@ -687,8 +765,17 @@ function renderModels() {
   return `${renderValidatedRequestModels()}\n${renderLegModels()}\n${responseBody.slice(responseHeader.length)}`;
 }
 
+function renderFareResponseModels(source) {
+  source = replaceRequired(source, 'final JourneyAccessibility accessibility; final List<JourneyLeg> legs;', 'final JourneyAccessibility accessibility; final List<JourneyLeg> legs; final JourneyFare fare;', 'journey fare field');
+  source = replaceRequired(source, 'required this.accessibility,required this.legs});', 'required this.accessibility,required this.legs,required this.fare});', 'journey fare constructor');
+  source = replaceRequired(source, "'timeSource','accessibility','legs'});", "'timeSource','accessibility','legs','fare'});", 'journey fare JSON keys');
+  source = replaceRequired(source, "if(accessibility is! Map<String,Object?>) throw const FormatException('accessibility must be object');", "if(accessibility is! Map<String,Object?>) throw const FormatException('accessibility must be object'); final fare=json['fare']; if(fare is! Map<String,Object?>) throw const FormatException('fare must be object');", 'journey fare JSON object');
+  source = replaceRequired(source, 'return JourneyLeg.fromJson(v);},minimum:1)); }', 'return JourneyLeg.fromJson(v);},minimum:1),fare:JourneyFare.fromJson(fare)); }', 'journey fare JSON parsing');
+  return replaceRequired(source, "'legs':legs.map((v)=>v.toJson()).toList(growable:false)};", "'legs':legs.map((v)=>v.toJson()).toList(growable:false),'fare':fare.toJson()};", 'journey fare JSON encoding');
+}
+
 function renderStrictModels() {
-  let source = renderWalkingPaceResponseModels(renderModels());
+  let source = renderFareResponseModels(renderWalkingPaceResponseModels(renderModels()));
   const responseAnchor = "final policy=JourneyRequestPolicy.fromJson(requestPolicy); final journeys=";
   const responseReplacement = "final policy=JourneyRequestPolicy.fromJson(requestPolicy); final parsedSourceIdentity=JourneySourceIdentity.fromJson(sourceIdentity); if(policy.timePolicy==TimePolicy.timetableRequired&&parsedSourceIdentity.realtimeSnapshotId!=null) throw const FormatException('TIMETABLE_REQUIRED source realtime contract'); if(policy.timePolicy==TimePolicy.realtimeRequired&&parsedSourceIdentity.realtimeSnapshotId==null) throw const FormatException('REALTIME_REQUIRED source realtime contract'); final journeys=";
   if (!source.includes(responseAnchor)) fail('source-identity renderer anchor is missing');

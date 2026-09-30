@@ -395,6 +395,40 @@ extension AlightingTargetFacilityTypeWire on AlightingTargetFacilityType {
   }
 }
 
+enum JourneyServicePattern { local, express }
+
+extension JourneyServicePatternWire on JourneyServicePattern {
+  String get wire => switch (this) {
+    JourneyServicePattern.local => "LOCAL",
+    JourneyServicePattern.express => "EXPRESS",
+  };
+  static JourneyServicePattern fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "LOCAL" => JourneyServicePattern.local,
+      "EXPRESS" => JourneyServicePattern.express,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum JourneyFareStatus { available, unavailable }
+
+extension JourneyFareStatusWire on JourneyFareStatus {
+  String get wire => switch (this) {
+    JourneyFareStatus.available => "AVAILABLE",
+    JourneyFareStatus.unavailable => "UNAVAILABLE",
+  };
+  static JourneyFareStatus fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "AVAILABLE" => JourneyFareStatus.available,
+      "UNAVAILABLE" => JourneyFareStatus.unavailable,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
 enum TimePolicy { timetableRequired, realtimeRequired }
 
 extension TimePolicyWire on TimePolicy {
