@@ -255,6 +255,59 @@ void main() {
     expect(y2, lessThan(y3));
   });
 
+  testWidgets('(5b) 같은 칸은 문 번호 오름차순이고, 틈이 좁은 문 줄도 바텀시트를 열며 닫기로 닫힌다', (
+    tester,
+  ) async {
+    final gaps = [
+      const JourneyPlatformGap(
+        platformPosition: '본선 당고개 방면 3-4',
+        carNumber: 3,
+        doorNumber: 4,
+        gapGrade: PlatformGapGrade.narrow,
+        heightDiffGrade: PlatformHeightDiffGrade.low,
+        curved: false,
+      ),
+      const JourneyPlatformGap(
+        platformPosition: '본선 당고개 방면 3-1',
+        carNumber: 3,
+        doorNumber: 1,
+        gapGrade: PlatformGapGrade.narrow,
+        heightDiffGrade: PlatformHeightDiffGrade.low,
+        curved: false,
+      ),
+    ];
+
+    final journey = _makeTestJourney(id: 'journey-gap-5b', boardingGaps: gaps);
+    final repo = _GapTestRepository(journey);
+
+    await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-5b')));
+    await tester.pumpAndSettle();
+
+    // 서버 순서(3-4, 3-1)와 달리 같은 칸 안에서는 문 번호 오름차순이다.
+    final lineFinder = find.text('틈이 좁은 문 3-1 · 3-4');
+    expect(lineFinder, findsOneWidget);
+
+    await tester.ensureVisible(lineFinder);
+    await tester.tap(lineFinder);
+    await tester.pumpAndSettle();
+
+    // 바텀시트는 서버 순서 그대로다.
+    final row1 = find.text('3-4 · 틈 좁음 · 높이차 낮음');
+    final row2 = find.text('3-1 · 틈 좁음 · 높이차 낮음');
+    expect(row1, findsOneWidget);
+    expect(row2, findsOneWidget);
+    expect(tester.getTopLeft(row1).dy, lessThan(tester.getTopLeft(row2).dy));
+
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+    expect(row1, findsNothing);
+    expect(row2, findsNothing);
+  });
+
   testWidgets('(6) Semantics 라벨 문자열 정확히', (tester) async {
     final handle = tester.ensureSemantics();
     final boardingGaps = [
