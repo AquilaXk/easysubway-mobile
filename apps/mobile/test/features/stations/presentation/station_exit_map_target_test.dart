@@ -62,7 +62,7 @@ StationExitInfo _exit({double? latitude, double? longitude}) {
     latitude: latitude,
     longitude: longitude,
     hasElevatorConnection: true,
-    hasStairOnlyPath: false,
+    hasStairOnlyPath: StairOnlyPathStatus.unknown,
     dataConfidence: 'HIGH',
   );
 }
