@@ -12045,7 +12045,7 @@ void main() {
             latitude: 37.3021,
             longitude: 126.8661,
             hasElevatorConnection: true,
-            hasStairOnlyPath: StairOnlyPathStatus.unknown,
+            hasStairOnlyPath: StairOnlyPathStatus.absent,
             dataConfidence: 'HIGH',
             dataSourceType: 'OFFICIAL_FILE',
             fieldValidationStatus: 'VERIFIED',

@@ -86,7 +86,7 @@ class StationExitCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                      if (exit.hasStairOnlyPath != StairOnlyPathStatus.present)
+                      if (exit.hasStairOnlyPath == StairOnlyPathStatus.absent)
                         Container(
                           padding: const EdgeInsets.symmetric(
                             horizontal: 6,
