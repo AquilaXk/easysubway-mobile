@@ -493,18 +493,21 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           children: [
             SizedBox(
               width: trackWidth,
-              child: Column(
-                children: [
-                  marker,
-                  if (!isLast)
-                    Expanded(
-                      child: Container(
-                        width: trackThickness,
-                        color: trackColor,
-                        margin: const EdgeInsets.symmetric(vertical: 2),
+              // 노드 원·세로 선은 장식이다. 내용은 오른쪽 노드 라벨이 읽는다.
+              child: ExcludeSemantics(
+                child: Column(
+                  children: [
+                    marker,
+                    if (!isLast)
+                      Expanded(
+                        child: Container(
+                          width: trackThickness,
+                          color: trackColor,
+                          margin: const EdgeInsets.symmetric(vertical: 2),
+                        ),
                       ),
-                    ),
-                ],
+                  ],
+                ),
               ),
             ),
             const SizedBox(width: 12),

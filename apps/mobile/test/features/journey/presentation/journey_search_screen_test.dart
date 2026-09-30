@@ -1074,6 +1074,8 @@ void main() {
     );
     expect(find.bySemanticsLabel('강남, 09:00 출발, 승강장까지 도보 2분'), findsOneWidget);
     expect(find.bySemanticsLabel('교대 환승, 도보 3분'), findsOneWidget);
+    // 노드 원 안의 노선 번호는 장식이라 따로 읽지 않는다.
+    expect(find.bySemanticsLabel('2'), findsNothing);
     expect(find.bySemanticsLabel('양재, 09:35 도착, 출구까지 도보 1분'), findsOneWidget);
 
     await tester.tap(
