@@ -112,6 +112,70 @@ void main() {
 
     expect(find.text('지도 앱을 열지 못했어요. 잠시 후 다시 시도해 주세요.'), findsOneWidget);
   });
+
+  testWidgets('unknown 상태의 출구 카드는 "계단 없는 이동 가능" 표시가 없고 Semantics에도 포함하지 않는다', (
+    tester,
+  ) async {
+    const unknownExit = StationExitInfo(
+      id: 'exit-unknown-1',
+      stationId: 'station-sangnoksu',
+      exitNumber: '9',
+      name: '9번 출구',
+      hasElevatorConnection: true,
+      hasStairOnlyPath: StairOnlyPathStatus.unknown,
+      dataConfidence: 'HIGH',
+    );
+
+    await _pumpSection(tester, exits: [unknownExit]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('계단 없는 이동 가능'), findsNothing);
+    expect(unknownExit.stairPathLabel, isNull);
+    expect(unknownExit.semanticLabel, isNot(contains('계단 없는 이동 가능')));
+    expect(unknownExit.semanticLabel, isNot(contains('계단만 있는 길 있음')));
+  });
+
+  testWidgets('absent 상태의 출구 카드는 "계단 없는 이동 가능"을 표시하고 Semantics에도 포함한다', (
+    tester,
+  ) async {
+    const absentExit = StationExitInfo(
+      id: 'exit-absent-1',
+      stationId: 'station-sangnoksu',
+      exitNumber: '1',
+      name: '1번 출구',
+      hasElevatorConnection: true,
+      hasStairOnlyPath: StairOnlyPathStatus.absent,
+      dataConfidence: 'HIGH',
+    );
+
+    await _pumpSection(tester, exits: [absentExit]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('계단 없는 이동 가능'), findsOneWidget);
+    expect(absentExit.stairPathLabel, '계단 없는 이동 가능');
+    expect(absentExit.semanticLabel, contains('계단 없는 이동 가능'));
+  });
+
+  testWidgets('present 상태의 출구 카드는 "계단 없는 이동 가능"을 표시하지 않고 Semantics에 "계단만 있는 길 있음"을 포함한다', (
+    tester,
+  ) async {
+    const presentExit = StationExitInfo(
+      id: 'exit-present-1',
+      stationId: 'station-sangnoksu',
+      exitNumber: '2',
+      name: '2번 출구',
+      hasElevatorConnection: false,
+      hasStairOnlyPath: StairOnlyPathStatus.present,
+      dataConfidence: 'HIGH',
+    );
+
+    await _pumpSection(tester, exits: [presentExit]);
+    await tester.pumpAndSettle();
+
+    expect(find.text('계단 없는 이동 가능'), findsNothing);
+    expect(presentExit.stairPathLabel, '계단만 있는 길 있음');
+    expect(presentExit.semanticLabel, contains('계단만 있는 길 있음'));
+  });
 }
 
 class _FailingMapLauncher implements KakaoMapLauncher {
@@ -187,7 +251,7 @@ const _exits = [
     latitude: 37.301,
     longitude: 126.861,
     hasElevatorConnection: true,
-    hasStairOnlyPath: false,
+    hasStairOnlyPath: StairOnlyPathStatus.absent,
     dataConfidence: 'HIGH',
   ),
   StationExitInfo(
@@ -198,7 +262,7 @@ const _exits = [
     latitude: 37.302,
     longitude: 126.862,
     hasElevatorConnection: false,
-    hasStairOnlyPath: true,
+    hasStairOnlyPath: StairOnlyPathStatus.present,
     dataConfidence: 'HIGH',
   ),
   StationExitInfo(
@@ -209,7 +273,7 @@ const _exits = [
     latitude: 37.303,
     longitude: 126.863,
     hasElevatorConnection: true,
-    hasStairOnlyPath: false,
+    hasStairOnlyPath: StairOnlyPathStatus.unknown,
     dataConfidence: 'HIGH',
   ),
 ];
