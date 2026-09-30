@@ -366,7 +366,14 @@ class JourneySearchController extends ChangeNotifier {
             cause: FormatException('Journey response is expired'),
           );
         }
-        _state = JourneySearchState.success(response);
+        // 기본 선택은 서버 순서의 첫 후보다(#423).
+        _state = JourneySearchState.success(
+          response,
+          selectedSnapshot: JourneySelectedSnapshot.fromResponse(
+            response,
+            response.journeys.first,
+          ),
+        );
         _scheduleResponseExpiry(response, generation, observedAt);
         _safeNotify();
       }

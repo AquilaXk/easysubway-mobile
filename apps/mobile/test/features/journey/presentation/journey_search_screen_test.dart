@@ -338,7 +338,9 @@ void main() {
     await tester.pumpAndSettle();
 
     alarm.notifier.cancelErrorOnce = StateError('cancel failed');
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-2')));
+    final otherCandidate = find.byKey(const Key('journey-candidate-journey-2'));
+    await tester.ensureVisible(otherCandidate);
+    await tester.tap(otherCandidate);
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
