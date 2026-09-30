@@ -464,11 +464,7 @@ class StationDetail {
   }
 }
 
-enum StairOnlyPathStatus {
-  present,
-  absent,
-  unknown,
-}
+enum StairOnlyPathStatus { present, absent, unknown }
 
 class StationExitInfo {
   const StationExitInfo({

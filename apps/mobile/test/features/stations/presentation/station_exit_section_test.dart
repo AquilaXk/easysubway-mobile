@@ -156,26 +156,27 @@ void main() {
     expect(absentExit.semanticLabel, contains('계단 없는 이동 가능'));
   });
 
-  testWidgets('present 상태의 출구 카드는 "계단 없는 이동 가능"을 표시하지 않고 Semantics에 "계단만 있는 길 있음"을 포함한다', (
-    tester,
-  ) async {
-    const presentExit = StationExitInfo(
-      id: 'exit-present-1',
-      stationId: 'station-sangnoksu',
-      exitNumber: '2',
-      name: '2번 출구',
-      hasElevatorConnection: false,
-      hasStairOnlyPath: StairOnlyPathStatus.present,
-      dataConfidence: 'HIGH',
-    );
+  testWidgets(
+    'present 상태의 출구 카드는 "계단 없는 이동 가능"을 표시하지 않고 Semantics에 "계단만 있는 길 있음"을 포함한다',
+    (tester) async {
+      const presentExit = StationExitInfo(
+        id: 'exit-present-1',
+        stationId: 'station-sangnoksu',
+        exitNumber: '2',
+        name: '2번 출구',
+        hasElevatorConnection: false,
+        hasStairOnlyPath: StairOnlyPathStatus.present,
+        dataConfidence: 'HIGH',
+      );
 
-    await _pumpSection(tester, exits: [presentExit]);
-    await tester.pumpAndSettle();
+      await _pumpSection(tester, exits: [presentExit]);
+      await tester.pumpAndSettle();
 
-    expect(find.text('계단 없는 이동 가능'), findsNothing);
-    expect(presentExit.stairPathLabel, '계단만 있는 길 있음');
-    expect(presentExit.semanticLabel, contains('계단만 있는 길 있음'));
-  });
+      expect(find.text('계단 없는 이동 가능'), findsNothing);
+      expect(presentExit.stairPathLabel, '계단만 있는 길 있음');
+      expect(presentExit.semanticLabel, contains('계단만 있는 길 있음'));
+    },
+  );
 }
 
 class _FailingMapLauncher implements KakaoMapLauncher {
