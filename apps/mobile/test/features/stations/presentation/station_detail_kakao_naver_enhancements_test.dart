@@ -689,7 +689,7 @@ void main() {
         'exitNumber': '1',
         'name': '1번 출구',
         'hasElevatorConnection': true,
-        'hasStairOnlyPath': false,
+        'hasStairOnlyPath': 'absent',
         'dataConfidence': 'HIGH',
         'nearbyDoorHint': '상행 4-4, 7-3',
       });
@@ -702,7 +702,7 @@ void main() {
         'exitNumber': '2',
         'name': '2번 출구',
         'hasElevatorConnection': false,
-        'hasStairOnlyPath': true,
+        'hasStairOnlyPath': 'present',
         'dataConfidence': 'MEDIUM',
       });
       expect(withoutHint.nearbyDoorHint, isNull);
@@ -714,7 +714,7 @@ void main() {
         'exitNumber': '3',
         'name': '3번 출구',
         'hasElevatorConnection': false,
-        'hasStairOnlyPath': false,
+        'hasStairOnlyPath': 'absent',
         'dataConfidence': 'LOW',
         'nearbyDoorHint': '   ',
       });
@@ -732,7 +732,7 @@ void main() {
         'exitNumber': '1',
         'name': '1번 출구',
         'hasElevatorConnection': true,
-        'hasStairOnlyPath': false,
+        'hasStairOnlyPath': 'absent',
         'dataConfidence': 'HIGH',
         'nearbyDoorHint': '상행 4-4, 7-3',
       });
@@ -746,7 +746,7 @@ void main() {
         'exitNumber': '2',
         'name': '2번 출구',
         'hasElevatorConnection': false,
-        'hasStairOnlyPath': true,
+        'hasStairOnlyPath': 'present',
         'dataConfidence': 'MEDIUM',
       });
       expect(withoutHint.semanticLabel, isNot(contains('출구와 가까운 하차문')));
@@ -757,7 +757,7 @@ void main() {
         'exitNumber': '3',
         'name': '3번 출구',
         'hasElevatorConnection': false,
-        'hasStairOnlyPath': false,
+        'hasStairOnlyPath': 'absent',
         'dataConfidence': 'LOW',
         'nearbyDoorHint': '   ',
       });
@@ -775,7 +775,7 @@ void main() {
         'name': '1번 출구',
         'description': '상록수역 공영주차장, 본오동 방면',
         'hasElevatorConnection': true,
-        'hasStairOnlyPath': false,
+        'hasStairOnlyPath': 'absent',
         'dataConfidence': 'HIGH',
         'nearbyDoorHint': '상행 4-4',
       });
@@ -792,7 +792,7 @@ void main() {
         'name': '2번 출구',
         'description': '',
         'hasElevatorConnection': false,
-        'hasStairOnlyPath': true,
+        'hasStairOnlyPath': 'present',
         'dataConfidence': 'MEDIUM',
       });
       expect(

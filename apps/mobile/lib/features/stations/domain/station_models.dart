@@ -817,20 +817,15 @@ StairOnlyPathStatus _stairOnlyPathStatusFromJson(
   Map<String, Object?> json,
   String key,
 ) {
+  // 근거 없는 bool·'true'/'false'는 검증된 계단 정보로 보지 않는다(Fallback 금지).
+  // 확인된 상태를 뜻하는 'present'/'absent'만 받아들이고 나머지는 unknown이다.
   final value = json[key];
-  if (value is bool) {
-    return value ? StairOnlyPathStatus.present : StairOnlyPathStatus.absent;
-  }
   if (value is String) {
     switch (value.trim().toLowerCase()) {
       case 'present':
-      case 'true':
         return StairOnlyPathStatus.present;
       case 'absent':
-      case 'false':
         return StairOnlyPathStatus.absent;
-      case 'unknown':
-        return StairOnlyPathStatus.unknown;
     }
   }
   return StairOnlyPathStatus.unknown;

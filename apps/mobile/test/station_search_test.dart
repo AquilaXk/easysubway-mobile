@@ -628,7 +628,7 @@ void main() {
                   'latitude': 37.302795,
                   'longitude': 126.866489,
                   'hasElevatorConnection': true,
-                  'hasStairOnlyPath': false,
+                  'hasStairOnlyPath': 'absent',
                   'dataConfidence': 'HIGH',
                   'dataSourceType': 'OFFICIAL_FILE',
                 },
@@ -740,12 +740,14 @@ void main() {
         }).hasStairOnlyPath;
       }
 
-      expect(parse(true), StairOnlyPathStatus.present);
-      expect(parse(false), StairOnlyPathStatus.absent);
+      // 근거가 붙지 않은 bool·'true'/'false'는 검증된 계단 정보가 아니므로 unknown이다(#418 리뷰 F1).
+      expect(parse(true), StairOnlyPathStatus.unknown);
+      expect(parse(false), StairOnlyPathStatus.unknown);
+      expect(parse(' TRUE '), StairOnlyPathStatus.unknown);
+      expect(parse('false'), StairOnlyPathStatus.unknown);
       expect(parse('present'), StairOnlyPathStatus.present);
-      expect(parse(' TRUE '), StairOnlyPathStatus.present);
+      expect(parse(' PRESENT '), StairOnlyPathStatus.present);
       expect(parse('absent'), StairOnlyPathStatus.absent);
-      expect(parse('false'), StairOnlyPathStatus.absent);
       expect(parse('unknown'), StairOnlyPathStatus.unknown);
       expect(parse('maybe'), StairOnlyPathStatus.unknown);
       expect(parse(1), StairOnlyPathStatus.unknown);
