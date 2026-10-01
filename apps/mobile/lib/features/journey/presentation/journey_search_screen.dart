@@ -12,11 +12,12 @@ import '../../mobility_profile/mobility_profile_policy.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import 'journey_get_off_alarm_toggle.dart';
+import 'result/journey_result_view_model.dart';
+import 'result/journey_result_widgets.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
 import '../../../core/crashlytics/mobile_crash_reporting.dart';
 import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
-import '../../stations/domain/station_line.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
 
@@ -78,7 +79,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   DateTime? _lastConnectionDate;
 
   final Map<String, String> _resolvedStationNames = {};
-  final Set<int> _expandedLegIndices = {};
+  final Set<String> _expandedRideKeys = {};
 
   @override
   void initState() {
@@ -109,8 +110,14 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             :final fromStationId,
             :final toStationId,
             :final directionStationId,
+            :final stops,
           ) =>
-            [fromStationId, toStationId, directionStationId],
+            [
+              fromStationId,
+              toStationId,
+              directionStationId,
+              for (final stop in stops) stop.stationId,
+            ],
           JourneyTransferLeg(:final fromStationId, :final toStationId) => [
             fromStationId,
             toStationId,
@@ -137,36 +144,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   String _stationName(String stationId) =>
       _resolvedStationNames[stationId] ?? stationId;
-
-  String _formatLineName(String lineId) {
-    final clean = lineId.replaceAll(RegExp(r'^line-|^seoul-|^korail-'), '');
-    const knownLines = <String, String>{
-      'gyeongui-jungang': '경의중앙선',
-      'suin-bundang': '수인분당선',
-      'shinbundang': '신분당선',
-      'arex': '공항철도',
-      'airport': '공항철도',
-      'gyeongchun': '경춘선',
-      'gyeonggang': '경강선',
-      'seohae': '서해선',
-      'sillim': '신림선',
-      'ui-sinseol': '우이신설선',
-      'everline': '에버라인',
-      'gimpo-gold': '김포골드라인',
-    };
-    if (knownLines.containsKey(clean)) {
-      return knownLines[clean]!;
-    }
-    if (int.tryParse(clean) != null) {
-      return '$clean호선';
-    }
-    return lineId;
-  }
-
-  Color _resolveLineColor(String lineId) {
-    final hex = fallbackLineColorHex(lineId: lineId);
-    return stationLineColor(hex);
-  }
 
   String _lineBadgeNumber(String lineId) {
     final clean = lineId.replaceAll(RegExp(r'^line-|^seoul-|^korail-'), '');
@@ -238,15 +215,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     }
   }
 
-  String _arrivalTime(Journey journey) {
-    return _kstTime(journey.realtimeArrivalTime ?? journey.plannedArrivalTime);
-  }
-
-  String _kstTime(DateTime dateTime) {
-    final value = dateTime.toUtc().add(const Duration(hours: 9));
-    return '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
-  }
-
   DateTime _seoulWallTime(DateTime instant) {
     final value = instant.toUtc().add(const Duration(hours: 9));
     return DateTime(
@@ -257,8 +225,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       value.minute,
     );
   }
-
-  String _durationLabel(int seconds) => '${(seconds + 59) ~/ 60}분';
 
   Widget? _outOfStationTransferBadge(JourneyTransferLeg leg) {
     if (leg.transferType != 'OUT_OF_STATION') return null;
@@ -361,408 +327,40 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     );
   }
 
-  Widget _candidateRow(
-    BuildContext context,
-    Journey journey, {
-    int index = 0,
-    List<Journey> allJourneys = const [],
-  }) {
-    final selected = _controller.state.selectedJourneyId == journey.journeyId;
-    final durationMinutes = (journey.durationSeconds + 59) ~/ 60;
-    final transfer = journey.transferCount == 0
-        ? '환승 없음'
-        : '환승 ${journey.transferCount}회';
-    final accessibility = journey.accessibility.stairFree
-        ? '무단차 경로'
-        : '무단차 경로 아님';
-    JourneyTransferLeg? outOfStationLeg;
-    for (final leg in journey.legs) {
-      if (leg is JourneyTransferLeg && leg.transferType == 'OUT_OF_STATION') {
-        outOfStationLeg = leg;
-        break;
-      }
-    }
-    final rideLegs = journey.legs.whereType<JourneyRideLeg>().toList(
-      growable: false,
-    );
-    final summary =
-        '$durationMinutes분, $transfer, 도보 ${journey.walkingDistanceMeters}m, ${_arrivalTime(journey)} 도착, $accessibility';
-    final color = Theme.of(context).colorScheme.primary;
-    void selectJourney() => unawaited(_selectJourney(journey));
-
-    final tags = <String>[];
-    if (allJourneys.isNotEmpty) {
-      final minDuration = allJourneys
-          .map((j) => j.durationSeconds)
-          .fold<int>(allJourneys.first.durationSeconds, math.min);
-      final minTransfers = allJourneys
-          .map((j) => j.transferCount)
-          .fold<int>(allJourneys.first.transferCount, math.min);
-
-      final isFastest = journey.durationSeconds == minDuration;
-      final isLeastTransfers = journey.transferCount == minTransfers;
-
-      if (isFastest &&
-          index ==
-              allJourneys.indexWhere((j) => j.durationSeconds == minDuration)) {
-        tags.add('최단시간');
-      } else if (isLeastTransfers &&
-          index ==
-              allJourneys.indexWhere((j) => j.transferCount == minTransfers)) {
-        tags.add('최소환승');
-      }
-
-      if (journey.accessibility.stairFree) {
-        tags.add('무단차');
-      }
-    }
-
-    if (tags.isEmpty) {
-      tags.add(
-        index == 0
-            ? '최단시간'
-            : (index == 1
-                  ? '최소환승'
-                  : (journey.accessibility.stairFree ? '무단차' : '대안경로')),
-      );
-    }
-
-    return Semantics(
-      button: true,
-      selected: selected,
-      label: summary,
-      child: InkWell(
-        key: Key('journey-candidate-${journey.journeyId}'),
-        onTap: _isAlarmTransitioning ? null : selectJourney,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 48),
-          decoration: BoxDecoration(
-            color: selected
-                ? color.withValues(alpha: 0.08)
-                : EasySubwayAccessibleColors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: selected ? color : EasySubwayAccessibleColors.line,
-              width: selected ? 2.0 : 1.0,
-            ),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                children: [
-                  for (final tag in tags) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 5,
-                        vertical: 1,
-                      ),
-                      decoration: BoxDecoration(
-                        color: selected
-                            ? color
-                            : (tag == '무단차'
-                                  ? EasySubwayColorPrimitives.statusSuccessSoft
-                                  : EasySubwayAccessibleColors
-                                        .surfaceBrandChrome),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(
-                          color: selected
-                              ? color
-                              : (tag == '무단차'
-                                    ? EasySubwayAccessibleColors.mint
-                                    : EasySubwayAccessibleColors.primary
-                                          .withValues(alpha: 0.25)),
-                        ),
-                      ),
-                      child: Text(
-                        tag,
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700,
-                          color: selected
-                              ? EasySubwayColorPrimitives.neutralWhite
-                              : (tag == '무단차'
-                                    ? EasySubwayAccessibleColors.mint
-                                    : EasySubwayAccessibleColors.primary),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                  ],
-                  const SizedBox(width: 2),
-                  Text(
-                    '$durationMinutes분',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                      color: selected ? color : EasySubwayAccessibleColors.text,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          for (
-                            var rIdx = 0;
-                            rIdx < rideLegs.length;
-                            rIdx++
-                          ) ...[
-                            if (rIdx > 0)
-                              const Padding(
-                                padding: EdgeInsets.symmetric(horizontal: 2),
-                                child: Icon(
-                                  Icons.arrow_forward_ios_rounded,
-                                  size: 9,
-                                  color:
-                                      EasySubwayAccessibleColors.secondaryText,
-                                ),
-                              ),
-                            Container(
-                              key: rIdx == 0
-                                  ? Key(
-                                      'journey-candidate-line-${journey.journeyId}',
-                                    )
-                                  : null,
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1,
-                              ),
-                              decoration: BoxDecoration(
-                                color: _resolveLineColor(rideLegs[rIdx].lineId),
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Text(
-                                _formatLineName(rideLegs[rIdx].lineId),
-                                style: const TextStyle(
-                                  color: EasySubwayColorPrimitives.neutralWhite,
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
-                                ),
-                              ),
-                            ),
-                          ],
-                          if (outOfStationLeg != null) ...[
-                            const SizedBox(width: 6),
-                            _outOfStationTransferBadge(outOfStationLeg)!,
-                          ],
-                        ],
-                      ),
-                    ),
-                  ),
-                  if (selected) ...[
-                    const SizedBox(width: 4),
-                    Icon(
-                      Icons.check_circle_rounded,
-                      key: Key('selected-journey-${journey.journeyId}'),
-                      color: color,
-                      size: 18,
-                    ),
-                  ],
-                ],
-              ),
-              const SizedBox(height: 2),
-              Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      '${_arrivalTime(journey)} 도착 · 도보 ${journey.walkingDistanceMeters}m · $transfer · 카드 1,400원',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: EasySubwayAccessibleColors.secondaryText,
-                        fontSize: 11,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    journey.accessibility.stairFree ? '♿ 무단차 경로' : '일반 경로',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: journey.accessibility.stairFree
-                          ? EasySubwayAccessibleColors.mint
-                          : EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  int _legStopCount(JourneyRideLeg leg) {
-    final minutes = leg.plannedArrivalTime
-        .difference(leg.plannedDepartureTime)
-        .inMinutes;
-    return math.max(1, (minutes / 2.2).round());
-  }
-
-  int _estimatedStopCount(Journey journey) {
-    var count = 0;
-    for (final leg in journey.legs.whereType<JourneyRideLeg>()) {
-      count += _legStopCount(leg);
-    }
-    return math.max(1, count);
-  }
-
   Widget _selectedDetail(JourneySelectedSnapshot snapshot) {
     final journey = snapshot.journey;
-    final durationMinutes = (journey.durationSeconds + 59) ~/ 60;
-    final transferLabel = journey.transferCount == 0
-        ? '환승 없음'
-        : '환승 ${journey.transferCount}회';
-    final totalStops = _estimatedStopCount(journey);
-
+    final viewModel = JourneyResultViewModel.fromJourney(
+      journey,
+      stationName: _stationName,
+    );
+    final rideColors = [
+      for (final node in viewModel.timeline)
+        if (node is JourneyRideNode) journeyLineColor(node.lineId),
+    ];
+    final timeline = viewModel.timeline;
     return Column(
       key: const Key('selected-journey-detail'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Divider(height: 4),
-        Text(
-          '선택 경로 상세',
-          style: Theme.of(
-            context,
-          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        JourneyResultSummaryView(summary: viewModel.summary),
+        const SizedBox(height: 12),
+        JourneySegmentBar(
+          segments: viewModel.segments,
+          semanticsLabel: viewModel.segmentsSemanticsLabel,
         ),
-        const SizedBox(height: 3),
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: EasySubwayAccessibleColors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: EasySubwayAccessibleColors.line),
+        const SizedBox(height: 20),
+        for (var index = 0; index < timeline.length; index++)
+          _timelineNode(
+            journey.journeyId,
+            timeline[index],
+            isLast: index == timeline.length - 1,
+            departureColor:
+                rideColors.firstOrNull ?? EasySubwayAccessibleColors.primary,
+            arrivalColor:
+                rideColors.lastOrNull ?? EasySubwayAccessibleColors.primary,
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.baseline,
-                textBaseline: TextBaseline.alphabetic,
-                children: [
-                  Text(
-                    '$durationMinutes',
-                    style: const TextStyle(
-                      fontSize: 32,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  const Text(
-                    '분 소요',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
-                  ),
-                  const Spacer(),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 7,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: journey.accessibility.stairFree
-                          ? EasySubwayColorPrimitives.statusSuccessSoft
-                          : EasySubwayAccessibleColors.surfaceBrandChrome,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(
-                        color: journey.accessibility.stairFree
-                            ? EasySubwayAccessibleColors.mint
-                            : EasySubwayAccessibleColors.primary.withValues(
-                                alpha: 0.3,
-                              ),
-                      ),
-                    ),
-                    child: Text(
-                      journey.accessibility.stairFree ? '♿ 무단차 경로' : '일반 경로',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: journey.accessibility.stairFree
-                            ? EasySubwayAccessibleColors.mint
-                            : EasySubwayAccessibleColors.primary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 2),
-              Wrap(
-                spacing: 6,
-                runSpacing: 2,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  Text(
-                    '${_arrivalTime(journey)} 도착',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
-                  ),
-                  const Text(
-                    '·',
-                    style: TextStyle(
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                  Text(
-                    '$totalStops개 역 이동',
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                  const Text(
-                    '·',
-                    style: TextStyle(
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                  Text(
-                    transferLabel,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                  const Text(
-                    '·',
-                    style: TextStyle(
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                  const Text(
-                    '카드 1,400원',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 3),
-        for (var index = 0; index < journey.legs.length; index++)
-          _detailLeg(index, journey.legs[index], journey),
         if (widget.getOffAlarmController case final alarmController?) ...[
-          const SizedBox(height: 3),
+          const SizedBox(height: 8),
           JourneyGetOffAlarmToggle(
             snapshot: snapshot,
             controller: alarmController,
@@ -770,7 +368,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             now: widget.getOffAlarmNow ?? DateTime.now,
           ),
         ],
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
         Builder(
           builder: (buttonContext) => OutlinedButton.icon(
             style: OutlinedButton.styleFrom(
@@ -787,546 +385,454 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     );
   }
 
-  Widget _detailLeg(int index, JourneyLeg leg, Journey journey) {
-    final isLastLeg = index == journey.legs.length - 1;
-    final rideLegs = journey.legs.whereType<JourneyRideLeg>().toList(
-      growable: false,
-    );
-    final firstRide = rideLegs.firstOrNull;
-    final lastRide = rideLegs.lastOrNull;
+  /// 세로 선 + 원형 노드 한 줄. 탑승 구간 선은 노선 색, 도보 구간 선은 회색이다.
+  Widget _timelineNode(
+    String journeyId,
+    JourneyTimelineNode node, {
+    required bool isLast,
+    required Color departureColor,
+    required Color arrivalColor,
+  }) {
     // 큰 글자 설정에서 노선 배지 텍스트가 잘리지 않도록 트랙 폭과 배지를 함께 키운다.
-    // 1.0배에서는 기존 24dp 그대로다.
+    // 1.0배에서는 24dp 그대로다.
     final trackWidth = math.max(
       24.0,
       MediaQuery.textScalerOf(context).scale(24),
     );
-
-    final Color trackColor;
-    final Widget nodeIcon;
+    final Widget marker;
     final Widget content;
-    final String semanticsLabel;
-
-    if (leg is JourneyEntryLeg) {
-      final lineColor = firstRide != null
-          ? _resolveLineColor(firstRide.lineId)
-          : EasySubwayAccessibleColors.primary;
-      trackColor = lineColor;
-      nodeIcon = Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: EasySubwayAccessibleColors.surface,
-          border: Border.all(color: lineColor, width: 3),
-        ),
-        alignment: Alignment.center,
-        child: Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(shape: BoxShape.circle, color: lineColor),
-        ),
-      );
-      content = Padding(
-        padding: const EdgeInsets.only(bottom: 3),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _stationName(leg.fromStationId),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${_kstTime(journey.realtimeDepartureTime ?? journey.plannedDepartureTime)} 출발',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-              ],
-            ),
-            Row(
-              children: [
-                const Icon(
-                  Icons.directions_walk_rounded,
-                  size: 13,
-                  color: EasySubwayAccessibleColors.secondaryText,
-                ),
-                const SizedBox(width: 4),
-                const Text(
-                  '승강장으로 이동',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _durationLabel(leg.durationSeconds),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: EasySubwayAccessibleColors.mutedText,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      );
-      semanticsLabel =
-          '${_stationName(leg.fromStationId)}, 승강장으로 이동, ${_durationLabel(leg.durationSeconds)}';
-    } else if (leg is JourneyRideLeg) {
-      final lineColor = _resolveLineColor(leg.lineId);
-      trackColor = lineColor;
-      final badgeNum = _lineBadgeNumber(leg.lineId);
-      final isExpanded = _expandedLegIndices.contains(index);
-      final stopCount = _legStopCount(leg);
-
-      nodeIcon = Container(
-        constraints: BoxConstraints(
-          minWidth: trackWidth,
-          minHeight: trackWidth,
-        ),
-        decoration: ShapeDecoration(
-          shape: const CircleBorder(
-            side: BorderSide(
-              color: EasySubwayColorPrimitives.neutralWhite,
-              width: 1.5,
-            ),
+    var trackColor = EasySubwayAccessibleColors.line;
+    var trackThickness = 3.0;
+    switch (node) {
+      case JourneyDepartureNode():
+        marker = _ringMarker(departureColor);
+        content = _stationNodeContent(
+          semanticsLabel: node.semanticsLabel,
+          stationName: node.stationName,
+          timeLabel: '${node.departureTime} 출발',
+          walkLabel: node.walkLabel,
+        );
+      case JourneyRideNode():
+        final lineColor = journeyLineColor(node.lineId);
+        trackColor = lineColor;
+        trackThickness = 5;
+        marker = Container(
+          constraints: BoxConstraints(
+            minWidth: trackWidth,
+            minHeight: trackWidth,
           ),
-          color: lineColor,
-          shadows: const [
-            BoxShadow(
-              color: EasySubwayAccessibleColors.cardShadow,
-              blurRadius: 2,
-              offset: Offset(0, 1),
+          decoration: ShapeDecoration(
+            shape: const CircleBorder(
+              side: BorderSide(
+                color: EasySubwayColorPrimitives.neutralWhite,
+                width: 1.5,
+              ),
             ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          badgeNum,
-          maxLines: 1,
-          softWrap: false,
-          style: const TextStyle(
-            color: EasySubwayColorPrimitives.neutralWhite,
-            fontWeight: FontWeight.w700,
-            fontSize: 10,
+            color: lineColor,
           ),
-        ),
-      );
-      final rideInfoWidget = Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              const Text(
-                '열차 탑승',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: EasySubwayAccessibleColors.text,
-                  fontSize: 13,
-                ),
-              ),
-              const SizedBox(width: 5),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-                decoration: BoxDecoration(
-                  color: lineColor,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  _formatLineName(leg.lineId),
-                  style: const TextStyle(
-                    color: EasySubwayColorPrimitives.neutralWhite,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 11,
-                  ),
-                ),
-              ),
-              if (leg.directionStationId.isNotEmpty) ...[
-                const SizedBox(width: 5),
-                Expanded(
-                  child: Text(
-                    '${_stationName(leg.directionStationId)} 방면',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: EasySubwayAccessibleColors.secondaryText,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ] else
-                const Spacer(),
-              Text(
-                '${_kstTime(leg.realtimeDepartureTime ?? leg.plannedDepartureTime)}–${_kstTime(leg.realtimeArrivalTime ?? leg.plannedArrivalTime)}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: EasySubwayAccessibleColors.secondaryText,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 2),
-          Text(
-            '${_stationName(leg.fromStationId)} → ${_stationName(leg.toStationId)}',
+          alignment: Alignment.center,
+          child: Text(
+            _lineBadgeNumber(node.lineId),
+            maxLines: 1,
+            softWrap: false,
             style: const TextStyle(
+              color: EasySubwayColorPrimitives.neutralWhite,
               fontWeight: FontWeight.w700,
-              color: EasySubwayAccessibleColors.text,
-              fontSize: 14,
+              fontSize: 10,
             ),
           ),
-          const SizedBox(height: 2),
-          Wrap(
-            spacing: 4,
-            runSpacing: 2,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              InkWell(
-                onTap: () {
-                  setState(() {
-                    if (isExpanded) {
-                      _expandedLegIndices.remove(index);
-                    } else {
-                      _expandedLegIndices.add(index);
-                    }
-                  });
-                },
-                borderRadius: BorderRadius.circular(4),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 5,
-                    vertical: 1.5,
-                  ),
-                  decoration: BoxDecoration(
-                    color: EasySubwayAccessibleColors.surfaceSubtle,
-                    borderRadius: BorderRadius.circular(4),
-                    border: Border.all(color: EasySubwayAccessibleColors.line),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        isExpanded
-                            ? Icons.keyboard_arrow_up
-                            : Icons.keyboard_arrow_down,
-                        size: 12,
-                        color: EasySubwayAccessibleColors.secondaryText,
-                      ),
-                      const SizedBox(width: 2),
-                      Text(
-                        isExpanded ? '접기 ▴' : '$stopCount개 역 이동 ▾',
-                        style: const TextStyle(
-                          color: EasySubwayAccessibleColors.secondaryText,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 11,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-          if (isExpanded) ...[
-            const SizedBox(height: 4),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(6),
-              decoration: BoxDecoration(
-                color: EasySubwayAccessibleColors.surfaceBrandChrome,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    '• 출발: ${_stationName(leg.fromStationId)} (${_kstTime(leg.realtimeDepartureTime ?? leg.plannedDepartureTime)})',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '• 방면: ${leg.directionStationId.isNotEmpty ? '${_stationName(leg.directionStationId)} 방면' : '행선 방면'}',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '• 도착: ${_stationName(leg.toStationId)} (${_kstTime(leg.realtimeArrivalTime ?? leg.plannedArrivalTime)})',
-                    style: const TextStyle(fontSize: 11),
-                  ),
-                ],
+        );
+        content = _rideNodeContent(journeyId, node);
+      case JourneyTransferNode():
+        marker = SizedBox.square(
+          dimension: 24,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: EasySubwayAccessibleColors.surface,
+              border: Border.all(
+                color: EasySubwayAccessibleColors.primary,
+                width: 1.5,
               ),
             ),
-          ],
-        ],
-      );
-
-      final boardingGuidance = _buildPlatformGapGuidance(
-        isBoarding: true,
-        gaps: leg.boardingPlatformGaps,
-        stationName: _stationName(leg.fromStationId),
-      );
-      final alightingGuidance = _buildPlatformGapGuidance(
-        isBoarding: false,
-        gaps: leg.alightingPlatformGaps,
-        stationName: _stationName(leg.toStationId),
-      );
-
-      content = Padding(
-        padding: const EdgeInsets.only(bottom: 3),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: EasySubwayAccessibleColors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: EasySubwayAccessibleColors.line),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Semantics(
-                label:
-                    '열차 탑승, ${_formatLineName(leg.lineId)}, ${_stationName(leg.fromStationId)} → ${_stationName(leg.toStationId)}',
-                child: ExcludeSemantics(child: rideInfoWidget),
-              ),
-              boardingGuidance,
-              alightingGuidance,
-            ],
-          ),
-        ),
-      );
-      semanticsLabel =
-          '열차 탑승, ${_formatLineName(leg.lineId)}, ${_stationName(leg.fromStationId)} → ${_stationName(leg.toStationId)}';
-    } else if (leg is JourneyTransferLeg) {
-      trackColor = EasySubwayAccessibleColors.line;
-      final badge = _outOfStationTransferBadge(leg);
-      final fare = _outOfStationFareBreakdown(leg);
-
-      nodeIcon = Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: EasySubwayAccessibleColors.surface,
-          border: Border.all(
-            color: EasySubwayAccessibleColors.primary,
-            width: 1.5,
-          ),
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.sync_alt_rounded,
-          size: 13,
-          color: EasySubwayAccessibleColors.primary,
-        ),
-      );
-      content = Padding(
-        padding: const EdgeInsets.only(bottom: 3),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 2),
-          child: Row(
-            children: [
-              const Icon(
-                Icons.transfer_within_a_station_rounded,
-                size: 14,
-                color: EasySubwayAccessibleColors.secondaryText,
-              ),
-              const SizedBox(width: 4),
-              const Text(
-                '환승 이동',
-                style: TextStyle(
-                  fontWeight: FontWeight.w700,
-                  color: EasySubwayAccessibleColors.text,
-                  fontSize: 13,
-                ),
-              ),
-              if (badge != null) ...[const SizedBox(width: 6), badge],
-              const Spacer(),
-              Text(
-                _durationLabel(leg.durationSeconds),
-                style: const TextStyle(
-                  fontWeight: FontWeight.w600,
-                  color: EasySubwayAccessibleColors.secondaryText,
-                  fontSize: 12,
-                ),
-              ),
-              if (fare != null) ...[const SizedBox(width: 4), fare],
-            ],
-          ),
-        ),
-      );
-      semanticsLabel = '환승 이동, ${_durationLabel(leg.durationSeconds)}';
-    } else if (leg is JourneyExitLeg) {
-      final lineColor = lastRide != null
-          ? _resolveLineColor(lastRide.lineId)
-          : EasySubwayAccessibleColors.primary;
-      trackColor = lineColor;
-      nodeIcon = Container(
-        width: 24,
-        height: 24,
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: lineColor,
-          border: Border.all(
-            color: EasySubwayColorPrimitives.neutralWhite,
-            width: 1.5,
-          ),
-          boxShadow: const [
-            BoxShadow(
-              color: EasySubwayAccessibleColors.cardShadow,
-              blurRadius: 2,
-              offset: Offset(0, 1),
+            child: const Icon(
+              Icons.sync_alt_rounded,
+              size: 13,
+              color: EasySubwayAccessibleColors.primary,
             ),
-          ],
-        ),
-        alignment: Alignment.center,
-        child: const Icon(
-          Icons.place_rounded,
-          size: 13,
-          color: EasySubwayColorPrimitives.neutralWhite,
-        ),
-      );
-      content = Padding(
-        padding: const EdgeInsets.only(bottom: 1),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    _stationName(leg.fromStationId),
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
-                  ),
-                ),
-                Text(
-                  '${_arrivalTime(journey)} 도착',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-              ],
+          ),
+        );
+        content = _transferNodeContent(node);
+      case JourneyArrivalNode():
+        marker = SizedBox.square(
+          dimension: 24,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: arrivalColor,
             ),
-            Row(
-              children: [
-                const Icon(
-                  Icons.exit_to_app_rounded,
-                  size: 13,
-                  color: EasySubwayAccessibleColors.secondaryText,
-                ),
-                const SizedBox(width: 4),
-                const Text(
-                  '도착역 나가기',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  _durationLabel(leg.durationSeconds),
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: EasySubwayAccessibleColors.mutedText,
-                  ),
-                ),
-              ],
+            child: const Icon(
+              Icons.place_rounded,
+              size: 14,
+              color: EasySubwayColorPrimitives.neutralWhite,
             ),
-          ],
-        ),
-      );
-      semanticsLabel =
-          '${_stationName(leg.fromStationId)}, 도착역 나가기, ${_durationLabel(leg.durationSeconds)}';
-    } else {
-      trackColor = EasySubwayAccessibleColors.line;
-      nodeIcon = const SizedBox(width: 24, height: 24);
-      content = const SizedBox.shrink();
-      semanticsLabel = '';
+          ),
+        );
+        content = _stationNodeContent(
+          semanticsLabel: node.semanticsLabel,
+          stationName: node.stationName,
+          timeLabel: '${node.arrivalTime} 도착',
+          walkLabel: node.walkLabel,
+        );
     }
-
-    if (leg is JourneyRideLeg) {
-      return Container(
-        key: Key('selected-journey-leg-$index'),
-        child: IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              SizedBox(
-                width: trackWidth,
+    return KeyedSubtree(
+      key: Key('selected-journey-leg-${node.legIndex}'),
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: trackWidth,
+              // 노드 원·세로 선은 장식이다. 내용은 오른쪽 노드 라벨이 읽는다.
+              child: ExcludeSemantics(
                 child: Column(
                   children: [
-                    nodeIcon,
-                    if (!isLastLeg)
+                    marker,
+                    if (!isLast)
                       Expanded(
                         child: Container(
-                          width: 5,
+                          width: trackThickness,
                           color: trackColor,
-                          margin: const EdgeInsets.symmetric(vertical: 1),
+                          margin: const EdgeInsets.symmetric(vertical: 2),
                         ),
                       ),
                   ],
                 ),
               ),
-              const SizedBox(width: 10),
-              Expanded(child: content),
-            ],
-          ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: isLast ? 4 : 16),
+                child: content,
+              ),
+            ),
+          ],
         ),
-      );
-    }
+      ),
+    );
+  }
 
+  Widget _ringMarker(Color color) {
+    return SizedBox.square(
+      dimension: 24,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: EasySubwayAccessibleColors.surface,
+          border: Border.all(color: color, width: 3),
+        ),
+      ),
+    );
+  }
+
+  Widget _stationNodeContent({
+    required String semanticsLabel,
+    required String stationName,
+    required String timeLabel,
+    required String walkLabel,
+  }) {
     return Semantics(
       label: semanticsLabel,
       child: ExcludeSemantics(
-        child: Container(
-          key: Key('selected-journey-leg-$index'),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                SizedBox(
-                  width: trackWidth,
-                  child: Column(
+                Expanded(
+                  child: Text(
+                    stationName,
+                    style: const TextStyle(
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
+                      color: EasySubwayAccessibleColors.text,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  timeLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: EasySubwayAccessibleColors.secondaryText,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 2),
+            Text(
+              walkLabel,
+              style: const TextStyle(
+                fontSize: 13,
+                color: EasySubwayAccessibleColors.mutedText,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _rideNodeContent(String journeyId, JourneyRideNode node) {
+    final expandKey = '$journeyId:${node.legIndex}';
+    final expanded = _expandedRideKeys.contains(expandKey);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          label: node.semanticsLabel,
+          child: ExcludeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Wrap(
+                        spacing: 6,
+                        runSpacing: 2,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          Text(
+                            node.lineName,
+                            style: const TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w700,
+                              color: EasySubwayAccessibleColors.text,
+                            ),
+                          ),
+                          if (node.directionLabel case final direction?)
+                            Text(
+                              direction,
+                              style: const TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                                color: EasySubwayAccessibleColors.text,
+                              ),
+                            ),
+                          if (node.isExpress)
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: EasySubwayAccessibleColors
+                                    .statusDangerSurface,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: const Padding(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 5,
+                                  vertical: 1,
+                                ),
+                                child: Text(
+                                  '급행',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w700,
+                                    color: EasySubwayAccessibleColors
+                                        .statusDangerContent,
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${node.departureTime} 출발',
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: EasySubwayAccessibleColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+                if (node.carDoorLabel case final carDoor?) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      nodeIcon,
-                      if (!isLastLeg)
-                        Expanded(
-                          child: Container(
-                            width: leg is JourneyEntryLeg ? 5 : 3,
-                            color: trackColor,
-                            margin: const EdgeInsets.symmetric(vertical: 1),
+                      const Icon(
+                        Icons.directions_subway_outlined,
+                        size: 15,
+                        color: EasySubwayAccessibleColors.primary,
+                      ),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          carDoor,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: EasySubwayAccessibleColors.primary,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        _buildPlatformGapGuidance(
+          isBoarding: true,
+          gaps: node.boardingPlatformGaps,
+          stationName: node.boardingStationName,
+        ),
+        if (node.intermediateStops.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            child: ExcludeSemantics(
+              child: Text(
+                node.stopToggleLabel,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: EasySubwayAccessibleColors.secondaryText,
+                ),
+              ),
+            ),
+          )
+        else ...[
+          _rideStopsToggle(node, expandKey: expandKey, expanded: expanded),
+          if (expanded)
+            for (final stop in node.intermediateStops)
+              MergeSemantics(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          stop.name,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            color: EasySubwayAccessibleColors.text,
+                          ),
+                        ),
+                      ),
+                      if (stop.time case final time?)
+                        Text(
+                          time,
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: EasySubwayAccessibleColors.mutedText,
                           ),
                         ),
                     ],
                   ),
                 ),
-                const SizedBox(width: 10),
-                Expanded(child: content),
+              ),
+        ],
+        _buildPlatformGapGuidance(
+          isBoarding: false,
+          gaps: node.alightingPlatformGaps,
+          stationName: node.alightingStationName,
+        ),
+      ],
+    );
+  }
+
+  Widget _rideStopsToggle(
+    JourneyRideNode node, {
+    required String expandKey,
+    required bool expanded,
+  }) {
+    void toggle() => setState(() {
+      if (!_expandedRideKeys.remove(expandKey)) {
+        _expandedRideKeys.add(expandKey);
+      }
+    });
+    return Semantics(
+      button: true,
+      expanded: expanded,
+      label: node.stopToggleLabel,
+      onTap: toggle,
+      excludeSemantics: true,
+      child: InkWell(
+        key: Key('journey-ride-stops-toggle-${node.legIndex}'),
+        onTap: toggle,
+        borderRadius: BorderRadius.circular(4),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 48),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  node.stopToggleLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: EasySubwayAccessibleColors.secondaryText,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 2),
+              Icon(
+                expanded ? Icons.expand_less : Icons.expand_more,
+                size: 18,
+                color: EasySubwayAccessibleColors.secondaryText,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _transferNodeContent(JourneyTransferNode node) {
+    final badge = _outOfStationTransferBadge(node.leg);
+    final fare = _outOfStationFareBreakdown(node.leg);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          label: node.semanticsLabel,
+          child: ExcludeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  node.stationName,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: EasySubwayAccessibleColors.text,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  node.walkLabel,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    color: EasySubwayAccessibleColors.secondaryText,
+                  ),
+                ),
               ],
             ),
           ),
         ),
-      ),
+        if (badge != null || fare != null) ...[
+          const SizedBox(height: 4),
+          Wrap(spacing: 6, runSpacing: 4, children: [?badge, ?fare]),
+        ],
+      ],
     );
   }
 
@@ -1593,14 +1099,22 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   String _shareText(JourneySelectedSnapshot snapshot) {
     final journey = snapshot.journey;
-    final transfer = journey.transferCount == 0
-        ? '환승 없음'
-        : '환승 ${journey.transferCount}회';
+    final summary = JourneyResultViewModel.fromJourney(
+      journey,
+      stationName: _stationName,
+    ).summary;
     final accessibility = journey.accessibility.stairFree
         ? '무단차 경로'
         : '무단차 경로 아님';
+    final details = [
+      summary.durationLabel,
+      summary.transferLabel,
+      ?summary.fareLabel,
+      '${summary.arrivalTime} 도착',
+      accessibility,
+    ];
     return '${widget.draft.origin!.displayName} → ${widget.draft.destination!.displayName}\n'
-        '${_durationLabel(journey.durationSeconds)} · $transfer · ${_arrivalTime(journey)} 도착 · $accessibility';
+        '${details.join(' · ')}';
   }
 
   Future<void> _share(
@@ -2632,21 +2146,23 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
-                for (
-                  var index = 0;
-                  index < state.response!.journeys.length;
-                  index++
-                ) ...[
-                  if (index > 0) const SizedBox(height: 6),
-                  _candidateRow(
-                    context,
-                    state.response!.journeys[index],
-                    index: index,
-                    allJourneys: state.response!.journeys,
-                  ),
-                ],
-                if (state.selectedSnapshot case final snapshot?)
+                JourneyRouteTabs(
+                  tabs: journeyRouteTabs(state.response!.journeys),
+                  selectedJourneyId: state.selectedJourneyId,
+                  onSelect: _isAlarmTransitioning
+                      ? null
+                      : (journeyId) => unawaited(
+                          _selectJourney(
+                            state.response!.journeys.singleWhere(
+                              (journey) => journey.journeyId == journeyId,
+                            ),
+                          ),
+                        ),
+                ),
+                if (state.selectedSnapshot case final snapshot?) ...[
+                  const SizedBox(height: 16),
                   _selectedDetail(snapshot),
+                ],
               ],
             ],
           ),
