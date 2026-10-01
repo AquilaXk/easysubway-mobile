@@ -932,9 +932,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     required String semanticsLabel,
     required VoidCallback onTap,
   }) {
+    // ExcludeSemantics가 InkWell의 탭 동작까지 지우므로, 스크린리더 두 번 탭은 바깥 노드의
+    // onTap으로 받는다(#426).
     return Semantics(
       label: semanticsLabel,
       button: true,
+      onTap: onTap,
       child: ExcludeSemantics(
         child: InkWell(
           onTap: onTap,
