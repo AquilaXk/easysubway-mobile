@@ -63,7 +63,13 @@ void main() {
           lineId: 'seoul-4',
           asOf: now,
         ),
-        throwsA(isA<StationTimetableUnavailable>()),
+        throwsA(
+          isA<ServerConnectionException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            401,
+          ),
+        ),
       );
       expect(journey.issueCalls, 1);
       expect(journey.searchCalls, 1);
@@ -123,7 +129,7 @@ void main() {
   });
 
   test(
-    'session or attestor failure is a typed timetable unavailable result',
+    'session or attestor failure is a typed server connection exception',
     () async {
       final sessionFailure = _FakeJourneyRepository(
         issueFailure: _rejected(
@@ -142,7 +148,13 @@ void main() {
           lineId: 'seoul-4',
           asOf: now,
         ),
-        throwsA(isA<StationTimetableUnavailable>()),
+        throwsA(
+          isA<ServerConnectionException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            403,
+          ),
+        ),
       );
       await expectLater(
         _repository(
@@ -154,7 +166,13 @@ void main() {
           lineId: 'seoul-4',
           asOf: now,
         ),
-        throwsA(isA<StationTimetableUnavailable>()),
+        throwsA(
+          isA<ServerConnectionException>().having(
+            (e) => e.message,
+            'message',
+            contains('Journey session issuance failed'),
+          ),
+        ),
       );
       expect(sessionFailure.issueCalls, 1);
       expect(attestorFailure.issueCalls, 0);
@@ -162,7 +180,7 @@ void main() {
   );
 
   test(
-    'server FormatException은 그 사유를 가진 typed timetable unavailable로 닫는다',
+    'server FormatException은 데이터 무결성 위반 ServerConnectionException으로 닫는다',
     () async {
       final journey = _FakeJourneyRepository(
         failure: const FormatException('malformed server timetable'),
@@ -176,10 +194,12 @@ void main() {
           date: now,
         ),
         throwsA(
-          isA<StationTimetableUnavailable>().having(
-            (failure) => failure.reason,
-            'reason',
-            'malformed server timetable',
+          isA<ServerConnectionException>().having(
+            (failure) => failure.message,
+            'message',
+            contains(
+              'Station timetable data integrity violation: malformed server timetable',
+            ),
           ),
         ),
       );
@@ -250,28 +270,39 @@ void main() {
     expect(journey.searchCalls, 1);
   });
 
-  test('허용 범위를 벗어난 service-day seconds는 typed unavailable로 닫는다', () async {
-    final journey = _FakeJourneyRepository(
-      timetable: _success(
-        selector: contract.StationTimetableNextDeparturesSelector(
-          asOf: now,
-          horizonDays: 1,
+  test(
+    '허용 범위를 벗어난 service-day seconds는 무결성 위반 ServerConnectionException으로 닫는다',
+    () async {
+      final journey = _FakeJourneyRepository(
+        timetable: _success(
+          selector: contract.StationTimetableNextDeparturesSelector(
+            asOf: now,
+            horizonDays: 1,
+          ),
+          departures: [
+            _departure('2026-08-11', 108000, '2026-08-12T21:00:00Z'),
+          ],
+          now: now,
         ),
-        departures: [_departure('2026-08-11', 108000, '2026-08-12T21:00:00Z')],
         now: now,
-      ),
-      now: now,
-    );
+      );
 
-    await expectLater(
-      _repository(journey, now: now).loadNextStationTimetable(
-        stationId: 'station-sadang',
-        lineId: 'seoul-4',
-        asOf: now,
-      ),
-      throwsA(isA<StationTimetableUnavailable>()),
-    );
-  });
+      await expectLater(
+        _repository(journey, now: now).loadNextStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          asOf: now,
+        ),
+        throwsA(
+          isA<ServerConnectionException>().having(
+            (e) => e.message,
+            'message',
+            contains('Station timetable departure ordering mismatch'),
+          ),
+        ),
+      );
+    },
+  );
 
   test(
     'invalid next-departures horizon은 server 요청 전에 typed unavailable이다',
@@ -470,6 +501,114 @@ void main() {
       );
     },
   );
+
+  test('서버 403 거절 시 ServerConnectionException을 던진다', () async {
+    final journey = _FakeJourneyRepository(
+      failure: _customRejected(statusCode: 403, now: now),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(journey, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(
+        isA<ServerConnectionException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          403,
+        ),
+      ),
+    );
+  });
+
+  test('서버 429 레이트 리밋 시 ServerConnectionException을 던진다', () async {
+    final journey = _FakeJourneyRepository(
+      failure: _rejected(
+        statusCode: 429,
+        code: contract.JourneyErrorCode.routeRateLimited,
+        now: now,
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(journey, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(
+        isA<ServerConnectionException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          429,
+        ),
+      ),
+    );
+  });
+
+  test('세션 발급 중 429 레이트 리밋 시 ServerConnectionException을 던진다', () async {
+    final sessionFailure = _FakeJourneyRepository(
+      issueFailure: _customRejected(
+        statusCode: 429,
+        operation: contract.JourneyOperation.issueJourneySession,
+        now: now,
+      ),
+      now: now,
+    );
+
+    await expectLater(
+      _repository(sessionFailure, now: now).loadStationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        referenceDate: now,
+      ),
+      throwsA(
+        isA<ServerConnectionException>().having(
+          (e) => e.statusCode,
+          'statusCode',
+          429,
+        ),
+      ),
+    );
+  });
+
+  test(
+    '세션 응답의 유효기간 검증 실패(JourneySessionInvalid) 시 ServerConnectionException을 던진다',
+    () async {
+      final invalidSessionJourney = _FakeJourneyRepository(
+        sessionResponse: contract.JourneySessionResponse(
+          token: 'invalid-token',
+          issuedAt: now,
+          expiresAt: now.subtract(const Duration(minutes: 1)),
+          scope: contract.JourneySessionScope.journeyV3,
+        ),
+        now: now,
+      );
+
+      await expectLater(
+        _repository(invalidSessionJourney, now: now).loadStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.weekday,
+          referenceDate: now,
+        ),
+        throwsA(
+          isA<ServerConnectionException>().having(
+            (e) => e.message,
+            'message',
+            contains('Journey session is invalid or unavailable.'),
+          ),
+        ),
+      );
+    },
+  );
 }
 
 ServerStationTimetableRepository _repository(
@@ -581,17 +720,43 @@ JourneyRejectedFailure _sessionRejected(DateTime now) {
   );
 }
 
+JourneyRejectedFailure _customRejected({
+  required int statusCode,
+  required DateTime now,
+  contract.JourneyOperation operation =
+      contract.JourneyOperation.searchStationTimetables,
+}) {
+  return JourneyRejectedFailure(
+    operation,
+    statusCode: statusCode,
+    error: contract.JourneyV3Error(
+      contractVersion: contract.JourneyErrorContractVersion.journeyErrorV1,
+      requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+      code: contract.JourneyErrorCode.invalidJourneyRequest,
+      retryable: false,
+      occurredAt: now,
+    ),
+    disposition: contract.JourneyErrorDispositions.lookup(
+      contract.JourneyOperation.searchStationTimetables,
+      400,
+      contract.JourneyErrorCode.invalidJourneyRequest,
+    ),
+  );
+}
+
 class _FakeJourneyRepository implements JourneyRepository {
   _FakeJourneyRepository({
     this.timetable,
     this.failure,
     this.issueFailure,
+    this.sessionResponse,
     required this.now,
   });
 
   final contract.StationTimetableSearchSuccess? timetable;
   final Object? failure;
   final Object? issueFailure;
+  final contract.JourneySessionResponse? sessionResponse;
   final DateTime now;
   int issueCalls = 0;
   int searchCalls = 0;
@@ -602,6 +767,7 @@ class _FakeJourneyRepository implements JourneyRepository {
   ) async {
     issueCalls++;
     if (issueFailure != null) throw issueFailure!;
+    if (sessionResponse != null) return sessionResponse!;
     return contract.JourneySessionResponse(
       token: 'session-token',
       scope: contract.JourneySessionScope.journeyV3,

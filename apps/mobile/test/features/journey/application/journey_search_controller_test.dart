@@ -680,7 +680,7 @@ void main() {
     replacementTimer.invokeEvenIfCancelled();
   });
 
-  test('성공 후보는 exact journeyId만 명시 선택하고 새 검색은 선택을 지운다', () async {
+  test('성공은 첫 후보를 기본 선택하고 exact journeyId만 명시 선택한다', () async {
     final response = _success();
     final controller = JourneySearchController(
       repository: _Repository()..success = response,
@@ -694,8 +694,9 @@ void main() {
     expect(controller.state.status, JourneySearchStatus.success);
     expect(controller.state.response, same(response));
     expect(controller.state.failure, isNull);
-    expect(controller.state.selectedJourneyId, isNull);
-    expect(controller.state.selectedSnapshot, isNull);
+    // 기본 선택은 서버 순서의 첫 후보다(#423).
+    expect(controller.state.selectedJourneyId, 'journey-2');
+    expect(controller.state.selectedSnapshot!.journey.journeyId, 'journey-2');
 
     expect(controller.selectJourney('journey-1'), isTrue);
     expect(controller.state.response, same(response));
@@ -734,6 +735,14 @@ void main() {
     expect(snapshot.sourceIdentity.realtimeSnapshotId, isNull);
     expect(snapshot.journey.journeyId, 'journey-1');
     expect(
+      snapshot.journey.fare,
+      same(
+        response.journeys
+            .singleWhere((journey) => journey.journeyId == 'journey-1')
+            .fare,
+      ),
+    );
+    expect(
       () => snapshot.journey.accessibility.reasonCodes.add('MUTATED'),
       throwsUnsupportedError,
     );
@@ -752,8 +761,8 @@ void main() {
     expect(controller.state.selectedSnapshot, isNull);
     await next;
     expect(controller.state.status, JourneySearchStatus.success);
-    expect(controller.state.selectedJourneyId, isNull);
-    expect(controller.state.selectedSnapshot, isNull);
+    expect(controller.state.selectedJourneyId, 'journey-2');
+    expect(controller.state.selectedSnapshot, isNot(same(snapshot)));
   });
 }
 
@@ -819,6 +828,10 @@ Journey _journey(String id) => Journey(
   legs: const <JourneyLeg>[
     JourneyEntryLeg(fromStationId: 'origin', durationSeconds: 0),
   ],
+  fare: const JourneyFare(
+    status: JourneyFareStatus.unavailable,
+    sourceSnapshotIds: <String>[],
+  ),
 );
 
 JourneyRejectedFailure _sessionRequired401() => JourneyRejectedFailure(

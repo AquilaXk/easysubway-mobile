@@ -24,6 +24,10 @@ Journey _createSampleJourney(String id) {
     legs: const <JourneyLeg>[
       JourneyEntryLeg(fromStationId: 'station-origin', durationSeconds: 60),
     ],
+    fare: const JourneyFare(
+      status: JourneyFareStatus.unavailable,
+      sourceSnapshotIds: <String>[],
+    ),
   );
 }
 

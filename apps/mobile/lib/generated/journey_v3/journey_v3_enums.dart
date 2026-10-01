@@ -336,6 +336,99 @@ extension JourneyErrorActionKeyWire on JourneyErrorActionKey {
   }
 }
 
+enum PlatformGapGrade { wide, normal, narrow }
+
+extension PlatformGapGradeWire on PlatformGapGrade {
+  String get wire => switch (this) {
+    PlatformGapGrade.wide => "WIDE",
+    PlatformGapGrade.normal => "NORMAL",
+    PlatformGapGrade.narrow => "NARROW",
+  };
+  static PlatformGapGrade fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "WIDE" => PlatformGapGrade.wide,
+      "NORMAL" => PlatformGapGrade.normal,
+      "NARROW" => PlatformGapGrade.narrow,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum PlatformHeightDiffGrade { high, normal, low }
+
+extension PlatformHeightDiffGradeWire on PlatformHeightDiffGrade {
+  String get wire => switch (this) {
+    PlatformHeightDiffGrade.high => "HIGH",
+    PlatformHeightDiffGrade.normal => "NORMAL",
+    PlatformHeightDiffGrade.low => "LOW",
+  };
+  static PlatformHeightDiffGrade fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "HIGH" => PlatformHeightDiffGrade.high,
+      "NORMAL" => PlatformHeightDiffGrade.normal,
+      "LOW" => PlatformHeightDiffGrade.low,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum AlightingTargetFacilityType { transfer, elevator, escalator, stair }
+
+extension AlightingTargetFacilityTypeWire on AlightingTargetFacilityType {
+  String get wire => switch (this) {
+    AlightingTargetFacilityType.transfer => "TRANSFER",
+    AlightingTargetFacilityType.elevator => "ELEVATOR",
+    AlightingTargetFacilityType.escalator => "ESCALATOR",
+    AlightingTargetFacilityType.stair => "STAIR",
+  };
+  static AlightingTargetFacilityType fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "TRANSFER" => AlightingTargetFacilityType.transfer,
+      "ELEVATOR" => AlightingTargetFacilityType.elevator,
+      "ESCALATOR" => AlightingTargetFacilityType.escalator,
+      "STAIR" => AlightingTargetFacilityType.stair,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum JourneyServicePattern { local, express }
+
+extension JourneyServicePatternWire on JourneyServicePattern {
+  String get wire => switch (this) {
+    JourneyServicePattern.local => "LOCAL",
+    JourneyServicePattern.express => "EXPRESS",
+  };
+  static JourneyServicePattern fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "LOCAL" => JourneyServicePattern.local,
+      "EXPRESS" => JourneyServicePattern.express,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum JourneyFareStatus { available, unavailable }
+
+extension JourneyFareStatusWire on JourneyFareStatus {
+  String get wire => switch (this) {
+    JourneyFareStatus.available => "AVAILABLE",
+    JourneyFareStatus.unavailable => "UNAVAILABLE",
+  };
+  static JourneyFareStatus fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "AVAILABLE" => JourneyFareStatus.available,
+      "UNAVAILABLE" => JourneyFareStatus.unavailable,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
 enum TimePolicy { timetableRequired, realtimeRequired }
 
 extension TimePolicyWire on TimePolicy {
@@ -421,6 +514,7 @@ enum JourneyErrorCode {
   timetableStale,
   realtimeRequiredUnavailable,
   routingIdentityMismatch,
+  facilityStatusUnavailable,
   routeServiceUnavailable,
   journeySearchTimeout,
   stationLineNotFound,
@@ -454,6 +548,7 @@ extension JourneyErrorCodeWire on JourneyErrorCode {
     JourneyErrorCode.timetableStale => "TIMETABLE_STALE",
     JourneyErrorCode.realtimeRequiredUnavailable => "REALTIME_REQUIRED_UNAVAILABLE",
     JourneyErrorCode.routingIdentityMismatch => "ROUTING_IDENTITY_MISMATCH",
+    JourneyErrorCode.facilityStatusUnavailable => "FACILITY_STATUS_UNAVAILABLE",
     JourneyErrorCode.routeServiceUnavailable => "ROUTE_SERVICE_UNAVAILABLE",
     JourneyErrorCode.journeySearchTimeout => "JOURNEY_SEARCH_TIMEOUT",
     JourneyErrorCode.stationLineNotFound => "STATION_LINE_NOT_FOUND",
@@ -487,6 +582,7 @@ extension JourneyErrorCodeWire on JourneyErrorCode {
       "TIMETABLE_STALE" => JourneyErrorCode.timetableStale,
       "REALTIME_REQUIRED_UNAVAILABLE" => JourneyErrorCode.realtimeRequiredUnavailable,
       "ROUTING_IDENTITY_MISMATCH" => JourneyErrorCode.routingIdentityMismatch,
+      "FACILITY_STATUS_UNAVAILABLE" => JourneyErrorCode.facilityStatusUnavailable,
       "ROUTE_SERVICE_UNAVAILABLE" => JourneyErrorCode.routeServiceUnavailable,
       "JOURNEY_SEARCH_TIMEOUT" => JourneyErrorCode.journeySearchTimeout,
       "STATION_LINE_NOT_FOUND" => JourneyErrorCode.stationLineNotFound,

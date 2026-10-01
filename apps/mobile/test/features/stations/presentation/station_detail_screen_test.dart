@@ -84,7 +84,7 @@ class _FakeStationSearchRepository implements StationSearchRepository {
         name: '1번 출구',
         description: '상록수역 광장',
         hasElevatorConnection: true,
-        hasStairOnlyPath: false,
+        hasStairOnlyPath: StairOnlyPathStatus.unknown,
         dataConfidence: 'HIGH',
         lastVerifiedAt: '2026-09-27',
       ),

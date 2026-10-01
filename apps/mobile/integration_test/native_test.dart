@@ -253,10 +253,31 @@ Journey _nativeJourney(DateTime now) => Journey(
       plannedArrivalTime: now.add(const Duration(minutes: 4)),
       realtimeDepartureTime: null,
       realtimeArrivalTime: null,
+      servicePattern: JourneyServicePattern.local,
+      stops: <JourneyRideStop>[
+        JourneyRideStop(
+          stationId: 'station-origin',
+          plannedArrivalTime: null,
+          plannedDepartureTime: now,
+          realtimeArrivalTime: null,
+          realtimeDepartureTime: null,
+        ),
+        JourneyRideStop(
+          stationId: 'station-destination',
+          plannedArrivalTime: now.add(const Duration(minutes: 4)),
+          plannedDepartureTime: null,
+          realtimeArrivalTime: null,
+          realtimeDepartureTime: null,
+        ),
+      ],
     ),
     const JourneyExitLeg(
       fromStationId: 'station-destination',
       durationSeconds: 60,
     ),
   ],
+  fare: const JourneyFare(
+    status: JourneyFareStatus.unavailable,
+    sourceSnapshotIds: <String>[],
+  ),
 );
