@@ -167,6 +167,20 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/5",
       "reason": "RouteMapSvgViewport platform view bridge has no production consumer and is physically removed.",
       "reviewTrigger": "Mobile #5 native 2D canvas restoration and platform WebView removal"
+    },
+    {
+      "path": "apps/mobile/test/features/fare/fare_calculator_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/429",
+      "reason": "Local fare calculation was removed; fares come only from the Journey V3 server fare (backend #430, #444).",
+      "reviewTrigger": "Mobile #429 local fare code removal"
+    },
+    {
+      "path": "apps/mobile/test/features/fare/official_od_fare_repository_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/429",
+      "reason": "Local fare calculation was removed; fares come only from the Journey V3 server fare (backend #430, #444).",
+      "reviewTrigger": "Mobile #429 local fare code removal"
     }
   ]
 }
