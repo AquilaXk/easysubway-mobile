@@ -36,7 +36,7 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = 'd5131bed6994a801f1c008e5eb4f0f05fbb3e3ed7b80c297594d1d19e9790501';
+const expectedSchemasProjectionSha256 = '169707a0c7f65d3ebcd5bcfdd429ccf33decb17396e4883a646309b38daa73da';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -735,14 +735,14 @@ class JourneyRideLeg extends JourneyLeg {
 }
 
 class JourneyTransferLeg extends JourneyLeg {
-  final String fromStationId; final String toStationId; final int durationSeconds; final String? transferType; final bool farePenaltyApplies; final int additionalFareWon; final int? transferLimitMinutes;
-  const JourneyTransferLeg({required this.fromStationId, required this.toStationId, required this.durationSeconds, this.transferType, this.farePenaltyApplies = false, this.additionalFareWon = 0, this.transferLimitMinutes});
+  final String fromStationId; final String toStationId; final int durationSeconds; final String? transferType; final bool farePenaltyApplies; final int? transferLimitMinutes;
+  const JourneyTransferLeg({required this.fromStationId, required this.toStationId, required this.durationSeconds, this.transferType, this.farePenaltyApplies = false, this.transferLimitMinutes});
   factory JourneyTransferLeg.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {'type', 'fromStationId', 'toStationId', 'durationSeconds', if (json.containsKey('transferType')) 'transferType', if (json.containsKey('farePenaltyApplies')) 'farePenaltyApplies', if (json.containsKey('additionalFareWon')) 'additionalFareWon', if (json.containsKey('transferLimitMinutes')) 'transferLimitMinutes'});
+    JourneyV3Validation.exactKeys(json, {'type', 'fromStationId', 'toStationId', 'durationSeconds', if (json.containsKey('transferType')) 'transferType', if (json.containsKey('farePenaltyApplies')) 'farePenaltyApplies', if (json.containsKey('transferLimitMinutes')) 'transferLimitMinutes'});
     if (JourneyLegTypeWire.fromWire(json['type']) != JourneyLegType.transfer) throw const FormatException('leg type');
-    return JourneyTransferLeg(fromStationId: JourneyV3Validation.nonBlank(json['fromStationId'], 'fromStationId'), toStationId: JourneyV3Validation.nonBlank(json['toStationId'], 'toStationId'), durationSeconds: JourneyV3Validation.integer(json['durationSeconds'], 'durationSeconds', 0), transferType: json['transferType'] == null ? null : JourneyV3Validation.string(json['transferType'], 'transferType'), farePenaltyApplies: json['farePenaltyApplies'] == null ? false : JourneyV3Validation.boolean(json['farePenaltyApplies'], 'farePenaltyApplies'), additionalFareWon: json['additionalFareWon'] == null ? 0 : JourneyV3Validation.integer(json['additionalFareWon'], 'additionalFareWon', 0), transferLimitMinutes: json['transferLimitMinutes'] == null ? null : JourneyV3Validation.integer(json['transferLimitMinutes'], 'transferLimitMinutes', 0));
+    return JourneyTransferLeg(fromStationId: JourneyV3Validation.nonBlank(json['fromStationId'], 'fromStationId'), toStationId: JourneyV3Validation.nonBlank(json['toStationId'], 'toStationId'), durationSeconds: JourneyV3Validation.integer(json['durationSeconds'], 'durationSeconds', 0), transferType: json['transferType'] == null ? null : JourneyV3Validation.string(json['transferType'], 'transferType'), farePenaltyApplies: json['farePenaltyApplies'] == null ? false : JourneyV3Validation.boolean(json['farePenaltyApplies'], 'farePenaltyApplies'), transferLimitMinutes: json['transferLimitMinutes'] == null ? null : JourneyV3Validation.integer(json['transferLimitMinutes'], 'transferLimitMinutes', 0));
   }
-  @override Map<String, Object?> toJson() => {'type': JourneyLegType.transfer.wire, 'fromStationId': fromStationId, 'toStationId': toStationId, 'durationSeconds': durationSeconds, if (transferType != null) 'transferType': transferType, if (farePenaltyApplies) 'farePenaltyApplies': farePenaltyApplies, if (additionalFareWon != 0) 'additionalFareWon': additionalFareWon, if (transferLimitMinutes != null) 'transferLimitMinutes': transferLimitMinutes};
+  @override Map<String, Object?> toJson() => {'type': JourneyLegType.transfer.wire, 'fromStationId': fromStationId, 'toStationId': toStationId, 'durationSeconds': durationSeconds, if (transferType != null) 'transferType': transferType, if (farePenaltyApplies) 'farePenaltyApplies': farePenaltyApplies, if (transferLimitMinutes != null) 'transferLimitMinutes': transferLimitMinutes};
 }
 
 class JourneyExitLeg extends JourneyLeg {

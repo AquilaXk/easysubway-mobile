@@ -440,17 +440,8 @@ class JourneyTransferLeg extends JourneyLeg {
   final int durationSeconds;
   final String? transferType;
   final bool farePenaltyApplies;
-  final int additionalFareWon;
   final int? transferLimitMinutes;
-  const JourneyTransferLeg({
-    required this.fromStationId,
-    required this.toStationId,
-    required this.durationSeconds,
-    this.transferType,
-    this.farePenaltyApplies = false,
-    this.additionalFareWon = 0,
-    this.transferLimitMinutes,
-  });
+  const JourneyTransferLeg({required this.fromStationId, required this.toStationId, required this.durationSeconds, this.transferType, this.farePenaltyApplies = false, this.transferLimitMinutes});
   factory JourneyTransferLeg.fromJson(Map<String, Object?> json) {
     JourneyV3Validation.exactKeys(json, {
       'type',
@@ -459,7 +450,6 @@ class JourneyTransferLeg extends JourneyLeg {
       'durationSeconds',
       if (json.containsKey('transferType')) 'transferType',
       if (json.containsKey('farePenaltyApplies')) 'farePenaltyApplies',
-      if (json.containsKey('additionalFareWon')) 'additionalFareWon',
       if (json.containsKey('transferLimitMinutes')) 'transferLimitMinutes',
     });
     if (JourneyLegTypeWire.fromWire(json['type']) != JourneyLegType.transfer) throw const FormatException('leg type');
@@ -469,7 +459,6 @@ class JourneyTransferLeg extends JourneyLeg {
       durationSeconds: JourneyV3Validation.integer(json['durationSeconds'], 'durationSeconds', 0),
       transferType: json['transferType'] == null ? null : JourneyV3Validation.string(json['transferType'], 'transferType'),
       farePenaltyApplies: json['farePenaltyApplies'] == null ? false : JourneyV3Validation.boolean(json['farePenaltyApplies'], 'farePenaltyApplies'),
-      additionalFareWon: json['additionalFareWon'] == null ? 0 : JourneyV3Validation.integer(json['additionalFareWon'], 'additionalFareWon', 0),
       transferLimitMinutes: json['transferLimitMinutes'] == null ? null : JourneyV3Validation.integer(json['transferLimitMinutes'], 'transferLimitMinutes', 0),
     );
   }
@@ -481,7 +470,6 @@ class JourneyTransferLeg extends JourneyLeg {
     'durationSeconds': durationSeconds,
     if (transferType != null) 'transferType': transferType,
     if (farePenaltyApplies) 'farePenaltyApplies': farePenaltyApplies,
-    if (additionalFareWon != 0) 'additionalFareWon': additionalFareWon,
     if (transferLimitMinutes != null) 'transferLimitMinutes': transferLimitMinutes,
   };
 }
