@@ -181,6 +181,55 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/429",
       "reason": "Local fare calculation was removed; fares come only from the Journey V3 server fare (backend #430, #444).",
       "reviewTrigger": "Mobile #429 local fare code removal"
+    },
+    {
+      "path": "apps/mobile/test/features/fare/official_od_fare_quote_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "OfficialOdFareQuote model was unreachable from lib/main.dart after local fare removal (#429); the catalog uses its own drift row class.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/realtime/realtime_controller_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "RealtimeStationController was unreachable from lib/main.dart; station detail and network map use realtime_repository.dart directly.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/infrastructure/route_map_renderer_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "WebView-era route map renderer lifecycle abstraction was unreachable from lib/main.dart after the structured canvas promotion (#1641).",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/infrastructure/structured_route_map_renderer_controller_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "StructuredRouteMapRendererController implemented only the removed renderer abstraction and was unreachable from lib/main.dart.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/domain/route_map_linear_geometry_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "RouteMapLinearGeometry was unreachable from lib/main.dart; the network map renders the structured route map directly.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/stations/presentation/station_detail_header_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "Pre-redesign station detail header was unreachable from lib/main.dart after the station detail redesign.",
+      "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/stations/presentation/station_facility_status_summary_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
+      "reason": "Station facility status summary was unreachable from lib/main.dart after the station detail redesign (#381).",
+      "reviewTrigger": "Mobile #431 orphan source removal"
     }
   ]
 }
