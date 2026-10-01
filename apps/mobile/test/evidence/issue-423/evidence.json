@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "issue": 423,
+  "capturedAt": "2026-10-01",
+  "platform": "Android emulator easysubway_ps16k_api36 (Android 16 API 36), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "후보 경로를 가로 탭으로 두고 첫 후보를 기본 선택하며, 선택한 경로 하나의 상세만 본문에 표시",
+    "요약은 소요시간(크게), 출발→도착 시각, 환승·카드 운임·도보 순서이고 운임이 없으면 운임 항목만 빠짐",
+    "구간 막대는 탑승은 노선 색, 도보는 회색이며 시간 비율 폭",
+    "역 타임라인은 출발·탑승(노선·방면·급행·칸-문)·정차역 토글·환승(도보 시간)·도착 순서",
+    "무단차 요청이면 탑승·하차 승강장 틈 안내(#420)가 탑승 노드에 붙음",
+    "글자 2.0배에서 탭·요약·타임라인이 잘리거나 겹치지 않음",
+    "TalkBack이 읽는 탭·요약·구간·타임라인 노드 라벨이 이슈 문구와 일치"
+  ],
+  "files": [
+    {
+      "path": "direct.png",
+      "sha256": "593791cac3a01297da4692a4c9b672876d82307693a9997a4b3a1fce101019ed",
+      "description": "직통 경로: 탭·요약(카드 1,450원)·구간 막대·9개 역 이동·엘리베이터 가까운 문 7-3 안내"
+    },
+    {
+      "path": "transfer-summary.png",
+      "sha256": "b168f45014ee8c3255bb226362378fec4b761e5214c1ef96cd6b453d3dda2ca3",
+      "description": "환승 1회 경로: 최단시간/최소환승·무단차 탭, 35분 요약, 구간 막대, 출발·탑승·환승·탑승·도착 타임라인"
+    },
+    {
+      "path": "transfer-stops-expanded.png",
+      "sha256": "6bc70ecac80641e7fbce20e377f63b31b0351f2ef0d33faa92df986c40e76cd0",
+      "description": "환승 1회 경로에서 '5개 역 이동 · 12분'을 펼쳐 경유역 4곳의 이름과 시각이 보이는 상태"
+    },
+    {
+      "path": "express.png",
+      "sha256": "c5dc383faf79c70a8e5234d983f269912195a4bf04d1188a3a16fa212d296555",
+      "description": "급행 경로(9호선 급행 중앙보훈병원 방면): 급행 표시, 실시간 반영, 2개 역 이동 펼침(고속터미널)"
+    },
+    {
+      "path": "step-free-platform-gap.png",
+      "sha256": "0cc65a5b82d4f4f5aeec67ba4ba059d69c54ba33794996cf996057d1bddf0686",
+      "description": "무단차(WHEELCHAIR) 요청: ♿ 무단차 경로 배지와 탑승·하차 승강장 틈 안내 줄이 탑승 노드에 붙은 상태"
+    },
+    {
+      "path": "fare-unavailable.png",
+      "sha256": "7973d9dcb241c103234ce00130aa390be69ed8efa02fec895ec608282e1fad63",
+      "description": "운임 UNAVAILABLE 경로: 요약 셋째 줄이 '환승 없음 · 도보 240m'로 운임 항목만 빠진 상태"
+    },
+    {
+      "path": "text-scale-2x.png",
+      "sha256": "1aa21896bc5b0e1b08a3bb26fdde91e35ed18ccd0cc3c66c859d2971e8b798a6",
+      "description": "글자 2.0배: 탭·요약·구간 막대·타임라인 상단이 잘림·겹침 없이 줄바꿈되는 상태"
+    },
+    {
+      "path": "text-scale-2x-timeline.png",
+      "sha256": "1f160d1be095abc6609472ba1e6e42efd84ef6088c11cc65444d3dcdaaf959ec",
+      "description": "글자 2.0배: 타임라인 전체(노선 배지·방면·칸-문·정차역 토글·도착)가 잘림 없이 표시되는 상태"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "564455a0c0e0b402f1d2ca987cf4eef513bd1eac0b3c9c80847909e055705740",
+      "description": "uiautomator dump로 수집한 Android 접근성 트리: 탭(selected)·요약·구간·타임라인·정차역 토글(button) 라벨"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 JourneySearchScreen에 고정 fixture repository를 주입해 flutter test -d emulator-5554로 실행하고, 각 상태에서 adb exec-out screencap과 adb shell uiautomator dump로 수집. lib/ 변경 없음(테스트 전용 hook 없음). 시각은 캡처 시점 기준 fixture라 화면 시각이 실행 시각을 따른다.",
+  "notes": "TalkBack 실기 낭독은 수행하지 않았다(대신 TalkBack이 읽는 Android 접근성 트리를 첨부). 텍스트 배율 2.0 캡처는 MediaQuery textScaler 2.0으로 렌더했다."
+}

@@ -352,7 +352,7 @@ class DriftStationRepository
             longitude: row.read<double?>('longitude'),
             hasElevatorConnection:
                 row.read<int>('has_elevator_connection') == 1,
-            hasStairOnlyPath: false,
+            hasStairOnlyPath: StairOnlyPathStatus.unknown,
             dataConfidence: _fieldValidationConfidence(
               row.read<String?>('field_quality_level'),
               row.read<int?>('field_checked_at_value'),

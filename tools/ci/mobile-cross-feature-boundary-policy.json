@@ -3,7 +3,7 @@
   "artifactKind": "mobile-cross-feature-boundary-policy-v2",
   "repository": "AquilaXk/easysubway-mobile",
   "inventoryPath": "tools/ci/mobile-cross-feature-boundary-inventory.json",
-  "inventorySha256": "458fdd33f1e4eeb6be48142b20d31d0a09fd388fd6deaa03a09b6d5d0b3340f7",
+  "inventorySha256": "62d678d3bb943ae1994283f26c3aaa496994eabef9c19a10e0008e1291a54eb5",
   "featurePrefix": "apps/mobile/lib/features/",
   "forbiddenTargetSegments": [
     "application",

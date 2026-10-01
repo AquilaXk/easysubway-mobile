@@ -12045,7 +12045,7 @@ void main() {
             latitude: 37.3021,
             longitude: 126.8661,
             hasElevatorConnection: true,
-            hasStairOnlyPath: false,
+            hasStairOnlyPath: StairOnlyPathStatus.absent,
             dataConfidence: 'HIGH',
             dataSourceType: 'OFFICIAL_FILE',
             fieldValidationStatus: 'VERIFIED',
@@ -12365,7 +12365,7 @@ void main() {
           exitNumber: '1',
           name: '1번 출구',
           hasElevatorConnection: true,
-          hasStairOnlyPath: false,
+          hasStairOnlyPath: StairOnlyPathStatus.unknown,
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
           fieldValidationStatus: 'VERIFIED',
@@ -12718,7 +12718,7 @@ void main() {
           exitNumber: '1',
           name: '1번 출구',
           hasElevatorConnection: true,
-          hasStairOnlyPath: false,
+          hasStairOnlyPath: StairOnlyPathStatus.unknown,
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
         ),
@@ -12897,9 +12897,15 @@ void main() {
         await tester.tap(find.byKey(const Key('stationTimetableButton')));
         await tester.pumpAndSettle();
 
-        expect(find.text('상록수 시간표'), findsOneWidget);
-        expect(find.text('첫차 05:20'), findsOneWidget);
-        expect(find.text('막차 00:25'), findsOneWidget);
+        expect(find.bySemanticsLabel('상록수 시간표'), findsOneWidget);
+        expect(
+          find.byKey(const Key('stationTimetableDirection-사당 방면')),
+          findsOneWidget,
+        );
+        expect(find.text('05:20'), findsOneWidget);
+        expect(find.text('00:25'), findsOneWidget);
+        expect(find.text('첫차'), findsNWidgets(2));
+        expect(find.text('막차'), findsNWidgets(2));
         expect(find.bySemanticsLabel('사당 방면, 00시 25분 출발'), findsOneWidget);
 
         await tester.tap(
@@ -12911,7 +12917,8 @@ void main() {
 
         await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
         await tester.pumpAndSettle();
-        expect(find.text('첫차 09:12'), findsOneWidget);
+        expect(find.text('09:12'), findsOneWidget);
+        expect(find.text('첫차'), findsOneWidget);
         expect(
           repository.requestedDayTypes,
           contains(StationTimetableDayType.saturday),
@@ -12985,8 +12992,8 @@ void main() {
       );
 
       // 첫차·막차 동작 유지.
-      expect(find.text('첫차 08:00'), findsOneWidget);
-      expect(find.text('막차 08:03'), findsOneWidget);
+      expect(find.text('첫차'), findsOneWidget);
+      expect(find.text('막차'), findsOneWidget);
 
       // 급행 행에만 배지 1회, 일반 행에는 배지 없음.
       expect(
@@ -13414,7 +13421,7 @@ void main() {
             latitude: 37.3021,
             longitude: 126.8661,
             hasElevatorConnection: true,
-            hasStairOnlyPath: false,
+            hasStairOnlyPath: StairOnlyPathStatus.unknown,
             dataConfidence: 'HIGH',
             dataSourceType: 'OFFICIAL_FILE',
             lastVerifiedAt: '2026-06-19',
@@ -13426,7 +13433,7 @@ void main() {
             exitNumber: '2',
             name: '2번 출구',
             hasElevatorConnection: false,
-            hasStairOnlyPath: true,
+            hasStairOnlyPath: StairOnlyPathStatus.present,
             dataConfidence: 'LOW',
             dataSourceType: 'OFFICIAL_FILE',
           ),
@@ -13501,7 +13508,7 @@ void main() {
           longitude: 126.8661,
           description: '1번 출구 공영주차장 방면',
           hasElevatorConnection: true,
-          hasStairOnlyPath: false,
+          hasStairOnlyPath: StairOnlyPathStatus.unknown,
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
           nearbyDoorHint: '상행 4-4, 7-3, 하행 4-2, 7-1',
@@ -13515,7 +13522,7 @@ void main() {
           longitude: 126.8665,
           description: '2번 출구 버스환승센터 방면',
           hasElevatorConnection: false,
-          hasStairOnlyPath: true,
+          hasStairOnlyPath: StairOnlyPathStatus.present,
           dataConfidence: 'HIGH',
           dataSourceType: 'OFFICIAL_FILE',
           nearbyDoorHint: '상행 4-1, 7-2, 하행 4-3, 7-4',
@@ -13580,7 +13587,7 @@ void main() {
           exitNumber: '2',
           name: '2번 출구',
           hasElevatorConnection: false,
-          hasStairOnlyPath: true,
+          hasStairOnlyPath: StairOnlyPathStatus.present,
           dataConfidence: 'LOW',
           dataSourceType: 'OFFICIAL_FILE',
         ),
@@ -13665,13 +13672,11 @@ void main() {
     expect(find.text('역정보'), findsOneWidget);
     expect(find.text('시설정보'), findsOneWidget);
     expect(find.text('플랫폼'), findsOneWidget);
-    expect(find.text('양쪽'), findsWidgets);
+    expect(find.text('-'), findsNWidgets(3));
     expect(find.text('화장실'), findsOneWidget);
     expect(find.text('개찰구 밖'), findsOneWidget);
     expect(find.text('내리는문'), findsOneWidget);
-    expect(find.text('오른쪽'), findsOneWidget);
     expect(find.text('반대편'), findsOneWidget);
-    expect(find.text('연결됨'), findsOneWidget);
 
     expect(find.text('편의시설'), findsOneWidget);
     expect(find.text('자전거보관소'), findsOneWidget);

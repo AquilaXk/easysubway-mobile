@@ -829,7 +829,7 @@ StationExitInfo _exit({
     latitude: latitude,
     longitude: longitude,
     hasElevatorConnection: true,
-    hasStairOnlyPath: false,
+    hasStairOnlyPath: StairOnlyPathStatus.unknown,
     dataConfidence: 'HIGH',
   );
 }

@@ -195,6 +195,27 @@ JourneySelectedSnapshot _snapshot({
                   realtimeArrivalTime: realtime
                       ? DateTime.utc(2026, 8, 12, 0, 4)
                       : null,
+                  servicePattern: JourneyServicePattern.local,
+                  stops: <JourneyRideStop>[
+                    JourneyRideStop(
+                      stationId: 'origin',
+                      plannedArrivalTime: null,
+                      plannedDepartureTime: DateTime.utc(2026, 8, 12, 0, 1),
+                      realtimeArrivalTime: null,
+                      realtimeDepartureTime: realtime
+                          ? DateTime.utc(2026, 8, 12, 0, 2)
+                          : null,
+                    ),
+                    JourneyRideStop(
+                      stationId: 'transfer',
+                      plannedArrivalTime: DateTime.utc(2026, 8, 12, 0, 3),
+                      plannedDepartureTime: null,
+                      realtimeArrivalTime: realtime
+                          ? DateTime.utc(2026, 8, 12, 0, 4)
+                          : null,
+                      realtimeDepartureTime: null,
+                    ),
+                  ],
                 ),
                 JourneyRideLeg(
                   lineId: 'line-2',
@@ -210,8 +231,33 @@ JourneySelectedSnapshot _snapshot({
                   realtimeArrivalTime: realtime && !partialRealtime
                       ? DateTime.utc(2026, 8, 12, 0, 6)
                       : null,
+                  servicePattern: JourneyServicePattern.local,
+                  stops: <JourneyRideStop>[
+                    JourneyRideStop(
+                      stationId: 'transfer',
+                      plannedArrivalTime: null,
+                      plannedDepartureTime: DateTime.utc(2026, 8, 12, 0, 4),
+                      realtimeArrivalTime: null,
+                      realtimeDepartureTime: realtime
+                          ? DateTime.utc(2026, 8, 12, 0, 5)
+                          : null,
+                    ),
+                    JourneyRideStop(
+                      stationId: 'destination',
+                      plannedArrivalTime: DateTime.utc(2026, 8, 12, 0, 5),
+                      plannedDepartureTime: null,
+                      realtimeArrivalTime: realtime && !partialRealtime
+                          ? DateTime.utc(2026, 8, 12, 0, 6)
+                          : null,
+                      realtimeDepartureTime: null,
+                    ),
+                  ],
                 ),
               ],
+        fare: const JourneyFare(
+          status: JourneyFareStatus.unavailable,
+          sourceSnapshotIds: <String>[],
+        ),
       ),
     ],
   );

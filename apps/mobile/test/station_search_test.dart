@@ -628,7 +628,7 @@ void main() {
                   'latitude': 37.302795,
                   'longitude': 126.866489,
                   'hasElevatorConnection': true,
-                  'hasStairOnlyPath': false,
+                  'hasStairOnlyPath': 'absent',
                   'dataConfidence': 'HIGH',
                   'dataSourceType': 'OFFICIAL_FILE',
                 },
@@ -706,6 +706,53 @@ void main() {
     expect(facilities.single.confidenceLabel, '');
     expect(facilities.single.dataSourceLabel, '공식 안내');
   });
+
+  test(
+    'StationExitInfo.fromJson은 hasStairOnlyPath가 없거나 null이면 unknown으로 설정한다',
+    () {
+      final exitWithoutStair = StationExitInfo.fromJson(const {
+        'id': 'exit-sangnoksu-1',
+        'stationId': 'station-sangnoksu',
+        'exitNumber': '1',
+        'name': '1번 출구',
+        'hasElevatorConnection': true,
+        'dataConfidence': 'HIGH',
+      });
+      expect(exitWithoutStair.hasStairOnlyPath, StairOnlyPathStatus.unknown);
+      expect(exitWithoutStair.stairPathLabel, isNull);
+      expect(exitWithoutStair.semanticLabel, isNot(contains('계단 없는 이동 가능')));
+      expect(exitWithoutStair.semanticLabel, isNot(contains('계단만 있는 길 있음')));
+    },
+  );
+
+  test(
+    'StationExitInfo.fromJson은 hasStairOnlyPath 값을 3상태로 해석하고 알 수 없는 값은 unknown으로 둔다',
+    () {
+      StairOnlyPathStatus parse(Object? value) {
+        return StationExitInfo.fromJson({
+          'id': 'exit-sangnoksu-1',
+          'stationId': 'station-sangnoksu',
+          'exitNumber': '1',
+          'name': '1번 출구',
+          'hasElevatorConnection': true,
+          'hasStairOnlyPath': value,
+          'dataConfidence': 'HIGH',
+        }).hasStairOnlyPath;
+      }
+
+      // 근거가 붙지 않은 bool·'true'/'false'는 검증된 계단 정보가 아니므로 unknown이다(#418 리뷰 F1).
+      expect(parse(true), StairOnlyPathStatus.unknown);
+      expect(parse(false), StairOnlyPathStatus.unknown);
+      expect(parse(' TRUE '), StairOnlyPathStatus.unknown);
+      expect(parse('false'), StairOnlyPathStatus.unknown);
+      expect(parse('present'), StairOnlyPathStatus.present);
+      expect(parse(' PRESENT '), StairOnlyPathStatus.present);
+      expect(parse('absent'), StairOnlyPathStatus.absent);
+      expect(parse('unknown'), StairOnlyPathStatus.unknown);
+      expect(parse('maybe'), StairOnlyPathStatus.unknown);
+      expect(parse(1), StairOnlyPathStatus.unknown);
+    },
+  );
 
   test('즐겨찾기 역 API 저장소는 인증 헤더와 함께 목록을 요청하고 결과를 파싱한다', () async {
     late String? authorizationHeader;
@@ -1533,7 +1580,7 @@ void main() {
           id: 'exit-sangnoksu-2',
           name: '2번 출구',
           hasElevatorConnection: false,
-          hasStairOnlyPath: true,
+          hasStairOnlyPath: StairOnlyPathStatus.present,
         ),
       ],
       facilities: [
@@ -1786,7 +1833,7 @@ StationExitInfo _stationExit({
   String id = 'exit-sangnoksu-1',
   String name = '1번 출구',
   bool hasElevatorConnection = true,
-  bool hasStairOnlyPath = false,
+  StairOnlyPathStatus hasStairOnlyPath = StairOnlyPathStatus.unknown,
 }) {
   return StationExitInfo(
     id: id,

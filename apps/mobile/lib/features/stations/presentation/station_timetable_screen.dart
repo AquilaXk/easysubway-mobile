@@ -156,7 +156,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     });
     StationTimetable? unavailable;
     ServerConnectionException? serverException;
-    StackTrace serverStackTrace = StackTrace.empty;
     Object? otherException;
     StackTrace otherStackTrace = StackTrace.empty;
 
@@ -175,9 +174,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         unavailable ??= timetable;
       } on StationTimetableUnavailable {
         // Line not available in timetable, continue checking next line
-      } on ServerConnectionException catch (error, stackTrace) {
+      } on ServerConnectionException catch (error) {
         serverException = error;
-        serverStackTrace = stackTrace;
       } catch (error, stackTrace) {
         otherException = error;
         otherStackTrace = stackTrace;
@@ -186,11 +184,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     }
 
     if (serverException != null) {
-      reportMobileError(
-        serverException,
-        serverStackTrace,
-        context: '역 초기 시간표 조회 중 서버 장애가 발생했습니다.',
-      );
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _timetable = null;
@@ -262,12 +255,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _loading = false;
         _isNetworkError = false;
       });
-    } on ServerConnectionException catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '역 시간표 조회 중 서버 장애가 발생했습니다.',
-      );
+    } on ServerConnectionException {
       if (!mounted || requestId != _requestId) {
         return;
       }
@@ -525,11 +513,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final effectiveNow = _effectiveNow;
     final isToday = _dayType == _todayTimetableDayType(effectiveNow);
     final availableHours = _buildAvailableHours(timetable);
-    final activeDirection =
-        timetable?.directions
-            .where((item) => item.name == _directionName)
-            .firstOrNull ??
-        timetable?.directions.firstOrNull;
 
     final List<StationTimetableDirection> visibleDirections;
     if (timetable == null || !timetable.isAvailable) {
@@ -554,29 +537,31 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         title: Semantics(
           header: true,
           label: '${widget.stationName} 시간표',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _stationDisplayName,
-                style: TextStyle(
-                  color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              if (lineDisplayName.isNotEmpty) ...[
-                const SizedBox(width: 5),
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  lineDisplayName,
+                  _stationDisplayName,
                   style: TextStyle(
-                    color: lineColor,
+                    color: EasySubwayAccessibleColors.text,
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
                 ),
+                if (lineDisplayName.isNotEmpty) ...[
+                  const SizedBox(width: 5),
+                  Text(
+                    lineDisplayName,
+                    style: TextStyle(
+                      color: lineColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         actions: [
@@ -722,11 +707,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                 ),
               ),
             ],
-
-            _buildOffstageTestHelper(
-              timetable: timetable,
-              currentDirection: activeDirection,
-            ),
           ],
         ),
       ),
@@ -1589,37 +1569,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                       : EasySubwayAccessibleColors.secondaryText,
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOffstageTestHelper({
-    required StationTimetable? timetable,
-    required StationTimetableDirection? currentDirection,
-  }) {
-    final targetDirection =
-        currentDirection ?? timetable?.directions.firstOrNull;
-    return SizedBox(
-      width: 0,
-      height: 0,
-      child: OverflowBox(
-        minWidth: 0,
-        minHeight: 0,
-        maxWidth: 0,
-        maxHeight: 0,
-        child: Opacity(
-          opacity: 0,
-          child: Column(
-            children: [
-              Text('${widget.stationName} 시간표'),
-              if (targetDirection != null &&
-                  targetDirection.departures.isNotEmpty) ...[
-                Text('첫차 ${targetDirection.firstDeparture.timeLabel}'),
-                Text('막차 ${targetDirection.lastDeparture.timeLabel}'),
-              ],
             ],
           ),
         ),

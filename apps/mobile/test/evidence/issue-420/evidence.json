@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "issue": 420,
+  "capturedAt": "2026-10-01",
+  "platform": "Android emulator easysubway_ps16k_api36 (sdk_gphone16k_arm64, Android 16 API 36), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "무단차(WHEELCHAIR) 경로 탑승/하차 승강장에 틈이 좁은 문 및 틈 넓은 곳 안내 줄 표시",
+    "틈 넓은 곳 터치 시 승강장 틈·높이차 전체 목록 바텀시트 노출",
+    "일반(STANDARD) 경로 요청 시 승강장 틈·높이차 안내 줄 미표시",
+    "스크린리더(TalkBack/VoiceOver)를 위한 접근성 레이블 제공"
+  ],
+  "files": [
+    {
+      "path": "step-free-guidance.png",
+      "sha256": "27a7d1c30ed76f388f967d81d4e3b1a8d74ca36cd90acedc2d0c4f38c4229764",
+      "description": "무단차 경로 상세 화면에서 승강장 틈이 좁은 문 및 틈 넓은 곳 안내 줄 표시"
+    },
+    {
+      "path": "platform-gap-bottomsheet.png",
+      "sha256": "c862cbfe096f867147a90e603a29eeb00c5f7b3d695bea5e5bbee90487339bba",
+      "description": "틈 넓은 곳 터치 시 노출되는 승강장 틈·높이차 전체 목록 바텀시트"
+    },
+    {
+      "path": "standard-request-hidden.png",
+      "sha256": "51f1837ce6d8c10faba90004d474c5f6beeb37f03b66263ace177c913f99e152",
+      "description": "일반(STANDARD) 경로 상세 화면에서 승강장 틈·높이차 안내 줄 미표시"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "00924a5968dec76ca524096279fa3d23322ad60ca07624552088d59c45b4828f",
+      "description": "무단차 승강장 틈·높이차 안내의 Semantics 노드 트리"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 JourneySearchScreen에 고정 fixture repository(_GapTestRepository, 위젯 테스트와 동일)를 주입해 flutter test -d emulator로 실행하고 adb exec-out screencap으로 캡처. lib/ 변경 없음. 이전 위젯 테스트 렌더는 앱 폰트 미로드로 한글이 깨져 교체(#424 F1).",
+  "notes": "standard-request-hidden.png의 화면은 mobilityType STANDARD 요청이며 fixture 여정이 stairFree라 무단차 배지는 보이나 승강장 틈·높이차 줄은 없다. 접근성은 accessibility-tree.txt(Semantics 트리) 유지; TalkBack 실기 낭독은 미수행."
+}
