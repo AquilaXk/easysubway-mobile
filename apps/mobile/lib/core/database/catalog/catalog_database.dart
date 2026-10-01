@@ -101,7 +101,7 @@ class CatalogSchemaRescuePlan {
 /// 수도권 통합요금 기본거리(10km) 초과분 요금 단계(#1911).
 ///
 /// 10~50km 구간은 5km당 100원씩 8회, 50km 초과 구간은 8km당 100원씩
-/// 반복 부과된다(마지막 단계만 반복 — `FareCalculator` dartdoc 참고).
+/// 반복 부과된다(마지막 단계만 반복).
 /// `seedBaselineIfEmpty()`와 `_backfillBaselineFareRules()` 양쪽에서
 /// 값이 어긋나지 않도록 이 상수 하나만 사용한다.
 const capitalIntegratedAdditionalStepsJson =
