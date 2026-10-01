@@ -62,10 +62,11 @@ test("pub version updates separate codegen and Workmanager compatibility lanes",
     "        applies-to: version-updates",
     '          - "build_runner"',
     '          - "drift_dev"',
-    '          - "meta"',
     '          - "minor"',
     '          - "patch"',
   ]);
+  // meta는 Flutter SDK(flutter_test)가 고정하므로 어떤 그룹도 갱신 대상으로 삼지 않는다.
+  assert.doesNotMatch(codegen, /^          - "meta"$/mu);
   assertLines(workmanager, [
     "        applies-to: version-updates",
     '          - "workmanager*"',
@@ -88,12 +89,16 @@ test("known incompatible releases are ignored narrowly instead of hiding update 
   const pubUpdate = indentedBlock(dependabot, '  - package-ecosystem: "pub"');
   const ignored = indentedBlock(pubUpdate, "    ignore:");
 
-  assert.equal((ignored.match(/^      - dependency-name:/gmu) ?? []).length, 2);
+  assert.equal((ignored.match(/^      - dependency-name:/gmu) ?? []).length, 4);
   assert.doesNotMatch(ignored, /dependency-name: "\*"/u);
   assert.doesNotMatch(ignored, /update-types:/u);
   assertLines(ignored, [
     '      - dependency-name: "build_runner"\n        versions:\n          - ">= 2.15.2"',
-    '      - dependency-name: "meta"\n        versions:\n          - "1.19.0"',
+    // Flutter 3.44.0 flutter_test SDK pin(meta 1.18.0, clock 1.1.2)을 넘는 버전.
+    '      - dependency-name: "meta"\n        versions:\n          - ">= 1.19.0"',
+    '      - dependency-name: "clock"\n        versions:\n          - ">= 1.1.3"',
+    // sqlite3 >= 3.6.0은 hooks 2.2.0 → record_use → meta ^1.19.0을 요구해 meta를 함께 올린다.
+    '      - dependency-name: "sqlite3"\n        versions:\n          - ">= 3.6.0"',
   ]);
 });
 
