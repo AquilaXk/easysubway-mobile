@@ -46,14 +46,15 @@ updates:
       # 쓰지 않는다.
       prefix: "[CI] 의존성 업데이트"
     groups:
-      # build_runner·drift_dev·meta는 analyzer와 Flutter SDK pin을 공유한다. 일반 패키지와
+      # build_runner·drift_dev는 analyzer와 Flutter SDK pin을 공유한다. 일반 패키지와
       # 섞지 않아 solver 실패가 호환 가능한 업데이트를 막지 않게 한다.
+      # meta는 Flutter SDK(flutter_test)가 고정하므로 어떤 그룹도 갱신 대상으로 삼지 않는다.
+      # Flutter SDK를 올릴 때 pubspec.yaml의 exact pin과 함께 사람이 갱신한다.
       pub-codegen:
         applies-to: version-updates
         patterns:
           - "build_runner"
           - "drift_dev"
-          - "meta"
         update-types:
           - "minor"
           - "patch"
@@ -86,13 +87,22 @@ updates:
 
     # #257/#258/#264 current-head CI 및 Flutter 3.44.0 meta 1.18.0 pin에서
     # solver 충돌이 확인된 비호환 버전 범위를 보류한다.
+    # meta·clock은 Flutter 3.44.0 flutter_test가 각각 1.18.0·1.1.2로 고정한다(#372·#375·#391).
+    # sqlite3 >= 3.6.0은 hooks 2.2.0 → record_use → meta ^1.19.0을 요구해 그룹 PR이
+    # meta를 함께 올리므로(#391) 같은 사유로 보류한다. Flutter SDK를 올릴 때 재판정한다.
     ignore:
       - dependency-name: "build_runner"
         versions:
           - ">= 2.15.2"
       - dependency-name: "meta"
         versions:
-          - "1.19.0"
+          - ">= 1.19.0"
+      - dependency-name: "clock"
+        versions:
+          - ">= 1.1.3"
+      - dependency-name: "sqlite3"
+        versions:
+          - ">= 3.6.0"
 
   # (2) github-actions — 워크플로 5개(automerge-queue / ci / osv-scheduled /
   # release-artifacts / store-distribution-evidence)의 action 핀이 대상이다.
