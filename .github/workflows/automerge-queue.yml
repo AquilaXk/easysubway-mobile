@@ -30,12 +30,19 @@ jobs:
       statuses: read
     env:
       GH_TOKEN: ${{ github.token }}
+      # 병합 호출만 PAT로 수행한다(GITHUB_TOKEN 병합은 후속 workflow run을 만들지 않는다).
+      MERGE_GH_TOKEN: ${{ secrets.AUTOMERGE_PAT != '' && secrets.AUTOMERGE_PAT || github.token }}
+      HAS_AUTOMERGE_PAT: ${{ secrets.AUTOMERGE_PAT != '' }}
     steps:
       - name: Coordinate oldest eligible pull request
         shell: bash
         run: |
           # shellcheck disable=SC2016
           set -euo pipefail
+
+          if [ "${HAS_AUTOMERGE_PAT}" != "true" ]; then
+            echo "::warning::AUTOMERGE_PAT secret이 없어 GITHUB_TOKEN으로 병합한다. 병합이 후속 workflow run을 만들지 못해 큐 체인이 멈출 수 있다."
+          fi
 
           repo="${GITHUB_REPOSITORY}"
           owner="${repo%%/*}"
@@ -49,39 +56,39 @@ jobs:
           bounded_issue_comments() {
             local page response collected='[]'
             for ((page = 1; page <= data_page_limit; page++)); do
-              response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${page}")"
-              jq -e 'type == "array" and all(.[]; (.id | type) == "number" and ((.body == null) or (.body | type) == "string") and ((.user == null) or (.user | type) == "object"))' <<<"${response}" >/dev/null
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${page}")" || return 1
+              jq -e 'type == "array" and all(.[]; (.id | type) == "number" and ((.body == null) or (.body | type) == "string") and ((.user == null) or (.user | type) == "object"))' <<<"${response}" >/dev/null || return 1
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
               fi
             done
-            response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${overflow_probe_page}")"
-            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${overflow_probe_page}")" || return 1
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null || return 1
             printf '%s\n' "${collected}"
           }
 
           bounded_pr_commits() {
             local page response collected='[]'
             for ((page = 1; page <= data_page_limit; page++)); do
-              response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${page}")"
-              jq -e 'type == "array" and all(.[]; (.sha | type) == "string" and (.sha | test("^[0-9a-f]{40}$")))' <<<"${response}" >/dev/null
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${page}")" || return 1
+              jq -e 'type == "array" and all(.[]; (.sha | type) == "string" and (.sha | test("^[0-9a-f]{40}$")))' <<<"${response}" >/dev/null || return 1
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
               fi
             done
-            response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${overflow_probe_page}")"
-            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${overflow_probe_page}")" || return 1
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null || return 1
             printf '%s\n' "${collected}"
           }
 
           bounded_pr_reviews() {
             local page response collected='[]'
             for ((page = 1; page <= data_page_limit; page++)); do
-              response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${page}")"
+              response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${page}")" || return 1
               jq -e 'type == "array" and all(.[];
                 (.id | type) == "number" and
                 (.state | type) == "string" and
@@ -90,15 +97,15 @@ jobs:
                 (.author_association | type) == "string" and
                 ((.body == null) or (.body | type) == "string") and
                 ((.user == null) or (.user | type) == "object")
-              )' <<<"${response}" >/dev/null
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')"
+              )' <<<"${response}" >/dev/null || return 1
+              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
               fi
             done
-            response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${overflow_probe_page}")"
-            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null
+            response="$(gh api "repos/${repo}/pulls/${pr}/reviews?per_page=${page_size}&page=${overflow_probe_page}")" || return 1
+            jq -e 'type == "array" and length == 0' <<<"${response}" >/dev/null || return 1
             printf '%s\n' "${collected}"
           }
 
@@ -235,6 +242,172 @@ jobs:
             offset="$(( RANDOM % total ))"
           fi
           # candidate-offset-end
+          # authorization-marker-sync-begin
+          # exact-head marker는 라벨 이벤트가 게시한다. 코디네이터는 두 경우에만 marker를 맞춘다.
+          #  - 재발행: 아래 BEHIND 분기가 P에서 base 갱신을 요청했다는 canonical 기록이 정확히
+          #    하나 있고, 기존 canonical marker의 head가 그 P이며, 현재 head가 P를 첫 부모로,
+          #    main의 조상을 둘째 부모로 둔 두 부모 병합 커밋일 때 marker를 그 head로 PATCH한다.
+          #    그 밖의 head 변화(세션 push, 세션이 만든 병합 커밋)는 재발행하지 않는다. 기록은
+          #    재발행 뒤에도 그대로 두고 다음 갱신 요청이 새 P로 PATCH한다.
+          #  - 복구: canonical marker가 아예 없고(라벨 run이 concurrency 대기 중 취소된 경우)
+          #    리뷰 게이트와 같은 정의의 discovery가 PR commit set 안의 커밋에 있으며, 현재
+          #    head가 최신 automerge labeled 이벤트 시점에 이미 PR head였을 때만 그 head로
+          #    POST한다. 판정은 head 커밋의 committer date <= 최신 automerge labeled 시각이고, 그
+          #    시각 이후 head_ref_force_pushed 이벤트가 없는지로 한다. 일반 push는 push 시각을
+          #    남기지 않으므로 committer date를 쓴다. committer date는 작성자가 조작할 수 있어
+          #    소유 계정 신뢰를 전제로 한 실수 방지이지 위조 방어가 아니다. 이벤트는 1페이지
+          #    (가득 차면 overflow 확인 1회)까지만 읽는다.
+          # 조회·형식·변경 실패와 애매한 상태는 marker를 건드리지 않고 아래 리뷰 게이트가 거절하게
+          # 둔다. 변경은 github.token(github-actions[bot])으로만 한다. 게이트는 그 봇의 marker만
+          # 인정한다. 성공하면 GitHub이 돌려준 comment로 comments를 갱신한다(PATCH는 같은 id를
+          # 교체, POST는 추가). 게이트가 canonical marker 정확히 1개를 요구하기 때문이다.
+          marker_prefix="<!-- Automerge frozen discovery authorization: "
+          base_update_prefix="<!-- Automerge base update requested: "
+          # comments에서 github-actions[bot]가 남긴 `<prefix><40hex> -->` comment의 id·head 목록.
+          canonical_bot_comment_heads() {
+            jq -c --arg prefix "$1" '
+              [.[] | select(
+                type == "object" and
+                (.user | type == "object") and
+                .user.login == "github-actions[bot]" and
+                .user.id == 41898282 and
+                .user.type == "Bot" and
+                (.body | type == "string") and
+                (.body | test("^" + $prefix + "[0-9a-f]{40} -->$"))
+              ) | {id, head: (.body | capture(": (?<sha>[0-9a-f]{40}) -->$").sha)}]
+            ' <<<"${comments}"
+          }
+          # 코디네이터가 요청해 수락된 base 갱신을 PR당 canonical 기록 하나로 남긴다.
+          record_base_update() {
+            local target="$1" requested_head="$2" records="$3" record_body record_count
+            record_body="${base_update_prefix}${requested_head} -->"
+            record_count="$(jq 'length' <<<"${records}")"
+            if [[ "${record_count}" -gt 1 ]] || ! jq -e 'all(.[]; .id | type == "number")' <<<"${records}" >/dev/null; then
+              echo "::warning::PR #${target}: base update record is not a single canonical comment; the next head will need a new label authorization."
+              return 0
+            fi
+            if [[ "${record_count}" -eq 1 ]]; then
+              if ! gh api --method PATCH "repos/${repo}/issues/comments/$(jq -r '.[0].id' <<<"${records}")" -f body="${record_body}" >/dev/null; then
+                echo "::warning::PR #${target}: base update record could not be written; the next head will need a new label authorization."
+              fi
+            elif ! gh api --method POST "repos/${repo}/issues/${target}/comments" -f body="${record_body}" >/dev/null; then
+              echo "::warning::PR #${target}: base update record could not be written; the next head will need a new label authorization."
+            fi
+          }
+          # 입력: pr, head, comments, commits, commit_shas, reviews. 출력: 갱신된 comments.
+          sync_authorization_marker() {
+            local marker_body markers marker_count marker_id marker_head records head_commit second_parent ancestry
+            local response events overflow head_date
+            marker_body="${marker_prefix}${head} -->"
+            markers="$(canonical_bot_comment_heads "${marker_prefix}")"
+            marker_count="$(jq 'length' <<<"${markers}")"
+            if [[ "${marker_count}" -gt 1 ]] || ! jq -e 'all(.[]; .id | type == "number")' <<<"${markers}" >/dev/null; then
+              echo "::warning::PR #${pr}: authorization marker is not a single canonical comment; leaving it unchanged."
+              return 0
+            fi
+            if [[ "${marker_count}" -eq 1 ]]; then
+              marker_id="$(jq -r '.[0].id' <<<"${markers}")"
+              marker_head="$(jq -r '.[0].head' <<<"${markers}")"
+              if [[ "${marker_head}" == "${head}" ]]; then
+                return 0
+              fi
+              records="$(canonical_bot_comment_heads "${base_update_prefix}")"
+              if ! jq -e --arg head "${marker_head}" 'length == 1 and (.[0].id | type == "number") and .[0].head == $head' <<<"${records}" >/dev/null; then
+                echo "PR #${pr}: no single coordinator base update record for authorized head ${marker_head}; authorization is not reissued."
+                return 0
+              fi
+              if ! head_commit="$(gh api "repos/${repo}/commits/${head}")" ||
+                ! jq -e --arg first "${marker_head}" '
+                  (.parents | type == "array") and
+                  (.parents | length == 2) and
+                  all(.parents[]; (.sha | type == "string") and (.sha | test("^[0-9a-f]{40}$"))) and
+                  .parents[0].sha == $first
+                ' <<<"${head_commit}" >/dev/null; then
+                echo "PR #${pr}: head ${head} is not proven to be a base-update merge on authorized head ${marker_head}; authorization is not reissued."
+                return 0
+              fi
+              second_parent="$(jq -r '.parents[1].sha' <<<"${head_commit}")"
+              if ! ancestry="$(gh api "repos/${repo}/compare/${second_parent}...main" --jq '.status')" ||
+                [[ "${ancestry}" != ahead && "${ancestry}" != identical ]]; then
+                echo "PR #${pr}: merge parent ${second_parent} is not proven to be on main; authorization is not reissued."
+                return 0
+              fi
+              if ! response="$(gh api --method PATCH "repos/${repo}/issues/comments/${marker_id}" -f body="${marker_body}")"; then
+                echo "::warning::PR #${pr}: authorization marker could not be reissued for ${head}."
+                return 0
+              fi
+            else
+              if ! jq -e --argjson commit_shas "${commit_shas}" '
+                def is_coderabbit:
+                  .author_association == "NONE" and
+                  .user.login == "coderabbitai[bot]" and
+                  .user.id == 136622811 and
+                  .user.type == "Bot";
+                def is_trusted_human:
+                  .author_association == "OWNER" or
+                  .author_association == "MEMBER" or
+                  .author_association == "COLLABORATOR";
+                def is_codex_fallback:
+                  is_trusted_human and
+                  (.body // "" | startswith("**Actionable comments posted: ")) and
+                  ((.body // "" | contains("<!-- Review source: Aquila fallback; canonical visible structure:")) or
+                   (.body // "" | contains("<!-- Review source: Aquila Universal Review; engine: aquila-review -->")) or
+                   (.body // "" | contains("<!-- Review source: Codex CLI fallback; canonical visible structure:")));
+                def is_frozen_discovery:
+                  .state == "COMMENTED" and (is_coderabbit or is_codex_fallback);
+                [flatten[] | select(is_trusted_human or is_coderabbit)] as $trusted |
+                any($trusted[]; is_frozen_discovery and (.commit_id as $review_head | $commit_shas | index($review_head) != null))
+              ' <<<"${reviews}" >/dev/null; then
+                echo "PR #${pr}: no authorization marker and no gate-recognized discovery review in the PR commit set; authorization is not recovered."
+                return 0
+              fi
+              if ! events="$(gh api "repos/${repo}/issues/${pr}/events?per_page=100&page=1")" ||
+                ! jq -e 'type == "array" and all(.[]; type == "object")' <<<"${events}" >/dev/null; then
+                echo "PR #${pr}: label events could not be read; authorization is not recovered."
+                return 0
+              fi
+              if [[ "$(jq 'length' <<<"${events}")" -ge 100 ]] &&
+                { ! overflow="$(gh api "repos/${repo}/issues/${pr}/events?per_page=100&page=2")" ||
+                  ! jq -e 'type == "array" and length == 0' <<<"${overflow}" >/dev/null; }; then
+                echo "PR #${pr}: label events exceed the bounded read; authorization is not recovered."
+                return 0
+              fi
+              head_date="$(jq -r --arg head "${head}" '
+                [.[] | select(.sha == $head) | .commit.committer.date] | unique |
+                if length == 1 and (.[0] | type == "string") then .[0] else "" end
+              ' <<<"${commits}")"
+              if ! jq -e --arg head_date "${head_date}" '
+                ([.[] | select(.event == "labeled" and .label.name? == "automerge") | .created_at | fromdateiso8601] | max) as $labeled_at |
+                ($labeled_at | type == "number") and
+                ($head_date | fromdateiso8601) <= $labeled_at and
+                all(.[] | select(.event == "head_ref_force_pushed"); (.created_at | fromdateiso8601) < $labeled_at)
+              ' <<<"${events}" >/dev/null 2>&1; then
+                echo "PR #${pr}: head ${head} is not proven to predate the latest automerge label; authorization is not recovered."
+                return 0
+              fi
+              if ! response="$(gh api --method POST "repos/${repo}/issues/${pr}/comments" -f body="${marker_body}")"; then
+                echo "::warning::PR #${pr}: authorization marker could not be recovered for ${head}."
+                return 0
+              fi
+            fi
+            if ! jq -e --arg body "${marker_body}" '
+              type == "object" and
+              (.id | type == "number") and
+              (.user | type == "object") and
+              .user.login == "github-actions[bot]" and
+              .user.id == 41898282 and
+              .user.type == "Bot" and
+              .body == $body
+            ' <<<"${response}" >/dev/null; then
+              echo "::warning::PR #${pr}: authorization marker response did not prove the current head; it is not used."
+              return 0
+            fi
+            comments="$(jq -c --argjson response "$(jq -c '{id, body, user}' <<<"${response}")" '
+              if any(.[]; .id == $response.id) then map(if .id == $response.id then $response else . end) else . + [$response] end
+            ' <<<"${comments}")"
+            echo "PR #${pr}: authorization marker now covers ${head}."
+          }
+          # authorization-marker-sync-end
           while IFS= read -r pr; do
             info="$(gh pr view "${pr}" --repo "${repo}" \
               --json baseRefName,headRefOid,isDraft,labels,mergeStateStatus,state)"
@@ -259,12 +432,22 @@ jobs:
               echo "PR #${pr}: commits read failed; skipping."
               continue
             fi
+            commit_shas="$(jq -c 'map(.sha)' <<<"${commits}")" || {
+              echo "PR #${pr}: commits parse failed; skipping."
+              continue
+            }
             if ! comments="$(bounded_issue_comments)"; then
               echo "PR #${pr}: comments read failed; skipping."
               continue
             fi
+            sync_authorization_marker
+            base_update_records="$(canonical_bot_comment_heads "${base_update_prefix}")"
+            comments_slim="$(jq -c 'map({user, body})' <<<"${comments}")" || {
+              echo "PR #${pr}: comments parse failed; skipping."
+              continue
+            }
             # frozen-discovery-review-filter-begin
-            if ! jq -e --arg head "${head}" --argjson commits "${commits}" --argjson comments "${comments}" '
+            if ! jq -e --arg head "${head}" --argjson commit_shas "${commit_shas}" --argjson comments "${comments_slim}" '
               def is_coderabbit:
                 .author_association == "NONE" and
                 .user.login == "coderabbitai[bot]" and
@@ -297,12 +480,12 @@ jobs:
                   is_trusted_human or
                   is_coderabbit
                 )] as $trusted |
-              ($commits | type == "array" and length > 0 and
-                all(.[]; (.sha | type) == "string") and
-                any(.[]; .sha == $head)) as $has_current_head |
+              ($commit_shas | type == "array" and length > 0 and
+                all(.[]; type == "string") and
+                any(.[]; . == $head)) as $has_current_head |
               ([$comments[]? | select(canonical_actions_marker)]) as $canonical_markers |
               ($canonical_markers | length == 1 and .[0].body == "<!-- Automerge frozen discovery authorization: \($head) -->") as $has_exact_marker |
-              ($commits | map(.sha)) as $commit_set |
+              $commit_shas as $commit_set |
               ($trusted |
               sort_by(.submitted_at, .id) |
               reduce .[] as $review ({};
@@ -383,7 +566,7 @@ jobs:
                 # UNSTABLE은 "mergeable하지만 필수가 아닌 check가 green이 아님"이다.
                 # required context는 위에서 ruleset 기준으로 이미 검증했으므로, ruleset이
                 # 필수로 두지 않은 check로 병합을 막지 않는다.
-                if gh pr merge --squash --auto "${pr}" --repo "${repo}" \
+                if GH_TOKEN="${MERGE_GH_TOKEN}" gh pr merge --squash --auto "${pr}" --repo "${repo}" \
                   --match-head-commit "${head}"; then
                   :
                 else
@@ -394,8 +577,25 @@ jobs:
                 exit 0
                 ;;
               BEHIND)
-                echo "::warning::PR #${pr} is behind main; its owning SSD worktree must rebase and push."
-                continue
+                # GITHUB_TOKEN이 만든 병합 커밋은 CI를 트리거하지 못하므로 PAT가 없으면 소유
+                # 세션에 돌려보낸다. PAT가 있으면 게이트를 통과한 현재 head를 고정해 base만
+                # 갱신하고, 수락된 요청을 기록한 뒤 실행을 끝낸다. 새 head의 CI 완료가 다음
+                # 실행을 부르고, 그 실행이 기록으로 marker를 재발행한 뒤 같은 게이트를 다시
+                # 통과해야 병합한다.
+                if [[ "${HAS_AUTOMERGE_PAT}" != true ]]; then
+                  echo "::warning::PR #${pr} is behind main; its owning SSD worktree must rebase and push."
+                  continue
+                fi
+                if GH_TOKEN="${MERGE_GH_TOKEN}" gh api --method PUT "repos/${repo}/pulls/${pr}/update-branch" \
+                  -f expected_head_sha="${head}" >/dev/null; then
+                  record_base_update "${pr}" "${head}" "${base_update_records}"
+                  echo "PR #${pr}: behind main; requested a base merge on gated head ${head}. The next run re-evaluates the new head."
+                  exit 0
+                else
+                  status=$?
+                  echo "::warning::PR #${pr} is behind main and its base merge request failed (status ${status}); skipping without merging."
+                  continue
+                fi
                 ;;
               DIRTY)
                 # 충돌은 소유 세션이 rebase 해야 풀린다. GitHub이 PR에 충돌을 직접 표시하므로

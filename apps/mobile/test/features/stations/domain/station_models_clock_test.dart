@@ -1,6 +1,8 @@
 import 'package:clock/clock.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 
 void main() {
   group('Station verified clock and relative label', () {
@@ -37,5 +39,73 @@ void main() {
       // withClock 외부에서는 2099년이 아닌 실제 현재 시각으로 자동 복원됨
       expect(clock.now().year, lessThan(2099));
     });
+
+    test('withClock Zone 안에서 CurrentLocation.qualityStatus가 격리된 시계를 따른다', () {
+      final fixedNow = DateTime(2026, 7, 10, 12, 0, 0);
+      withClock(Clock.fixed(fixedNow), () {
+        // 10초 전 측정된 위치: freshPrecise
+        final freshSample = CurrentLocation(
+          latitude: 37.5,
+          longitude: 127.0,
+          accuracyMeters: 10.0,
+          measuredAt: DateTime(2026, 7, 10, 11, 59, 50),
+          permissionPrecision: LocationPermissionPrecision.precise,
+        );
+        expect(
+          freshSample.qualityStatus(),
+          CurrentLocationQualityStatus.freshPrecise,
+        );
+        expect(freshSample.canUseForNearbySearch(), true);
+        expect(freshSample.nearbySearchBlockedMessage(), isNull);
+
+        // 10분 전 측정된 위치: stale (_nearbyLocationMaxAge: 5분)
+        final staleSample = CurrentLocation(
+          latitude: 37.5,
+          longitude: 127.0,
+          accuracyMeters: 10.0,
+          measuredAt: DateTime(2026, 7, 10, 11, 50, 0),
+          permissionPrecision: LocationPermissionPrecision.precise,
+        );
+        expect(staleSample.qualityStatus(), CurrentLocationQualityStatus.stale);
+        expect(staleSample.canUseForNearbySearch(), false);
+        expect(staleSample.nearbySearchBlockedMessage(), isNotNull);
+      });
+    });
+
+    test(
+      'SearchHistoryRepository.listRecentEntries가 clock.now()를 참조한다',
+      () async {
+        final fixedDate = DateTime(2026, 7, 10, 12, 0, 0);
+        await withClock(Clock.fixed(fixedDate), () async {
+          final repo = _TestSearchHistoryRepository(['강남', '역삼']);
+          final entries = await repo.listRecentEntries();
+          expect(entries.length, 2);
+          expect((entries[0] as RecentStationSearchEntry).query, '강남');
+          expect(entries[0].searchedAt.year, 2026);
+        });
+      },
+    );
   });
+}
+
+class _TestSearchHistoryRepository extends SearchHistoryRepository {
+  final List<String> _queries;
+  _TestSearchHistoryRepository(this._queries);
+
+  @override
+  Future<List<String>> listRecentQueries() async => _queries;
+
+  @override
+  Future<void> recordSearch(
+    String query, {
+    String? region,
+    String? stationId,
+    StationSearchLine? line,
+  }) async {}
+
+  @override
+  Future<void> clearSearches() async {}
+
+  @override
+  Future<void> removeSearch(String query, {String? region}) async {}
 }

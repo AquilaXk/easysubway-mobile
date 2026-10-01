@@ -420,6 +420,27 @@ JourneySelectedSnapshot _snapshot({
         realtimeArrivalTime: realtime
             ? now.add(const Duration(minutes: 16))
             : null,
+        servicePattern: JourneyServicePattern.local,
+        stops: <JourneyRideStop>[
+          JourneyRideStop(
+            stationId: 'origin',
+            plannedArrivalTime: null,
+            plannedDepartureTime: now.add(const Duration(minutes: 1)),
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: realtime
+                ? now.add(const Duration(minutes: 2))
+                : null,
+          ),
+          JourneyRideStop(
+            stationId: 'transfer',
+            plannedArrivalTime: now.add(const Duration(minutes: 15)),
+            plannedDepartureTime: null,
+            realtimeArrivalTime: realtime
+                ? now.add(const Duration(minutes: 16))
+                : null,
+            realtimeDepartureTime: null,
+          ),
+        ],
       ),
       JourneyRideLeg(
         lineId: 'line-2',
@@ -435,8 +456,33 @@ JourneySelectedSnapshot _snapshot({
         realtimeArrivalTime: realtime && !partialRealtime
             ? now.add(const Duration(minutes: 31))
             : null,
+        servicePattern: JourneyServicePattern.local,
+        stops: <JourneyRideStop>[
+          JourneyRideStop(
+            stationId: 'transfer',
+            plannedArrivalTime: null,
+            plannedDepartureTime: now.add(const Duration(minutes: 16)),
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: realtime
+                ? now.add(const Duration(minutes: 17))
+                : null,
+          ),
+          JourneyRideStop(
+            stationId: 'destination',
+            plannedArrivalTime: now.add(const Duration(minutes: 30)),
+            plannedDepartureTime: null,
+            realtimeArrivalTime: realtime && !partialRealtime
+                ? now.add(const Duration(minutes: 31))
+                : null,
+            realtimeDepartureTime: null,
+          ),
+        ],
       ),
     ],
+    fare: const JourneyFare(
+      status: JourneyFareStatus.unavailable,
+      sourceSnapshotIds: <String>[],
+    ),
   );
   return JourneySelectedSnapshot.fromResponse(
     JourneySearchSuccess(

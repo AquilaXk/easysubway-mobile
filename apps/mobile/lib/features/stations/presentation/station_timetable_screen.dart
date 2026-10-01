@@ -19,6 +19,7 @@ class StationTimetableScreen extends StatefulWidget {
     this.repository,
     this.previousStation,
     this.nextStation,
+    this.now,
     super.key,
   });
 
@@ -28,6 +29,7 @@ class StationTimetableScreen extends StatefulWidget {
   final StationTimetableRepository? repository;
   final String? previousStation;
   final String? nextStation;
+  final DateTime? now;
 
   @override
   State<StationTimetableScreen> createState() => _StationTimetableScreenState();
@@ -48,15 +50,19 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   final Map<int, GlobalKey> _hourKeys = {};
   var _loading = false;
   var _requestId = 0;
+  var _isNetworkError = false;
+  var _didSelectOrLoadLine = false;
   Timer? _tickerTimer;
   Duration _tickerElapsed = Duration.zero;
+  DateTime? _initClockNow;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _lineId = widget.lines.firstOrNull?.id;
-    final now = clock.now();
+    final now = widget.now ?? clock.now();
+    _initClockNow = now;
     _dayType = _todayTimetableDayType(now);
     _selectedHour = _initSelectedHour(now);
     if (widget.repository != null && _lineId != null) {
@@ -69,11 +75,16 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   void didUpdateWidget(StationTimetableScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.stationId != oldWidget.stationId ||
-        widget.repository != oldWidget.repository) {
+        widget.repository != oldWidget.repository ||
+        widget.now != oldWidget.now) {
+      if (widget.stationId != oldWidget.stationId) {
+        _didSelectOrLoadLine = false;
+      }
       _destinationFilters.clear();
       _selectedDirectionFilter = null;
       _lineId = widget.lines.firstOrNull?.id;
-      final now = clock.now();
+      final now = widget.now ?? clock.now();
+      _initClockNow = now;
       _dayType = _todayTimetableDayType(now);
       _selectedHour = _initSelectedHour(now);
       if (widget.repository != null && _lineId != null) {
@@ -117,7 +128,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   }
 
   DateTime get _effectiveNow {
-    return clock.now().add(_tickerElapsed);
+    final explicitNow = widget.now;
+    if (explicitNow != null) {
+      return explicitNow.add(_tickerElapsed);
+    }
+    final currentClock = clock.now();
+    if (currentClock == _initClockNow) {
+      return currentClock.add(_tickerElapsed);
+    }
+    return currentClock;
   }
 
   int _initSelectedHour(DateTime now) {
@@ -131,10 +150,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final repository = widget.repository;
     if (repository == null) return;
     final requestId = ++_requestId;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _isNetworkError = false;
+    });
     StationTimetable? unavailable;
-    try {
-      for (final line in widget.lines) {
+    ServerConnectionException? serverException;
+    Object? otherException;
+    StackTrace otherStackTrace = StackTrace.empty;
+
+    for (final line in widget.lines) {
+      try {
         final timetable = await repository.loadStationTimetableForDate(
           stationId: widget.stationId,
           lineId: line.id,
@@ -146,29 +172,51 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           return;
         }
         unavailable ??= timetable;
+      } on StationTimetableUnavailable {
+        // Line not available in timetable, continue checking next line
+      } on ServerConnectionException catch (error) {
+        serverException = error;
+      } catch (error, stackTrace) {
+        otherException = error;
+        otherStackTrace = stackTrace;
       }
       if (!mounted || requestId != _requestId) return;
-      setState(() {
-        _timetable = unavailable;
-        _directionName = null;
-        _loading = false;
-      });
-    } on StationTimetableUnavailable {
-      if (!mounted || requestId != _requestId) return;
-      setState(() {
-        _timetable = null;
-        _directionName = null;
-        _loading = false;
-      });
-    } catch (error, stackTrace) {
-      reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
-      if (!mounted || requestId != _requestId) return;
-      setState(() {
-        _timetable = null;
-        _directionName = null;
-        _loading = false;
-      });
     }
+
+    if (serverException != null) {
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _timetable = null;
+        _directionName = null;
+        _loading = false;
+        _isNetworkError = true;
+      });
+      return;
+    }
+
+    if (otherException != null) {
+      reportMobileError(
+        otherException,
+        otherStackTrace,
+        context: '역 시간표 조회 중 예외가 발생했습니다.',
+      );
+      if (!mounted || requestId != _requestId) return;
+      setState(() {
+        _timetable = null;
+        _directionName = null;
+        _loading = false;
+        _isNetworkError = false;
+      });
+      return;
+    }
+
+    if (!mounted || requestId != _requestId) return;
+    setState(() {
+      _timetable = unavailable;
+      _directionName = null;
+      _loading = false;
+      _isNetworkError = false;
+    });
   }
 
   Future<void> _load({DateTime? date}) async {
@@ -178,14 +226,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       return;
     }
     final requestId = ++_requestId;
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _isNetworkError = false;
+    });
     try {
       final timetable = date == null
           ? await repository.loadStationTimetable(
               stationId: widget.stationId,
               lineId: lineId,
               dayType: _dayType,
-              referenceDate: clock.now(),
+              referenceDate: _effectiveNow,
             )
           : await repository.loadStationTimetableForDate(
               stationId: widget.stationId,
@@ -202,6 +253,17 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
+        _isNetworkError = false;
+      });
+    } on ServerConnectionException {
+      if (!mounted || requestId != _requestId) {
+        return;
+      }
+      setState(() {
+        _timetable = null;
+        _directionName = null;
+        _loading = false;
+        _isNetworkError = true;
       });
     } catch (error, stackTrace) {
       reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
@@ -212,6 +274,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         _timetable = null;
         _directionName = null;
         _loading = false;
+        _isNetworkError = false;
       });
     }
   }
@@ -224,6 +287,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _timetable = timetable;
       _lineId = timetable.lineId;
       _dayType = timetable.dayType;
+      _didSelectOrLoadLine = true;
+      _isNetworkError = false;
       _directionName = directionNames.contains(_directionName)
           ? _directionName
           : timetable.directions.firstOrNull?.name;
@@ -448,11 +513,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final effectiveNow = _effectiveNow;
     final isToday = _dayType == _todayTimetableDayType(effectiveNow);
     final availableHours = _buildAvailableHours(timetable);
-    final activeDirection =
-        timetable?.directions
-            .where((item) => item.name == _directionName)
-            .firstOrNull ??
-        timetable?.directions.firstOrNull;
 
     final List<StationTimetableDirection> visibleDirections;
     if (timetable == null || !timetable.isAvailable) {
@@ -477,29 +537,31 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         title: Semantics(
           header: true,
           label: '${widget.stationName} 시간표',
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                _stationDisplayName,
-                style: TextStyle(
-                  color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 18,
-                ),
-              ),
-              if (lineDisplayName.isNotEmpty) ...[
-                const SizedBox(width: 5),
+          child: ExcludeSemantics(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
                 Text(
-                  lineDisplayName,
+                  _stationDisplayName,
                   style: TextStyle(
-                    color: lineColor,
+                    color: EasySubwayAccessibleColors.text,
                     fontWeight: FontWeight.bold,
                     fontSize: 18,
                   ),
                 ),
+                if (lineDisplayName.isNotEmpty) ...[
+                  const SizedBox(width: 5),
+                  Text(
+                    lineDisplayName,
+                    style: TextStyle(
+                      color: lineColor,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 18,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
         actions: [
@@ -564,6 +626,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                             onSelected: (_) {
                               setState(() {
                                 _lineId = line.id;
+                                _didSelectOrLoadLine = true;
                                 _destinationFilters.clear();
                                 _selectedDirectionFilter = null;
                               });
@@ -603,6 +666,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
             if (_loading)
               const Expanded(child: Center(child: CircularProgressIndicator()))
+            else if (_isNetworkError)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: _buildNetworkErrorView(),
+                  ),
+                ),
+              )
             else if (timetable == null || !timetable.isAvailable)
               const Expanded(
                 child: Center(
@@ -635,11 +707,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                 ),
               ),
             ],
-
-            _buildOffstageTestHelper(
-              timetable: timetable,
-              currentDirection: activeDirection,
-            ),
           ],
         ),
       ),
@@ -676,6 +743,79 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildNetworkErrorView() {
+    return Semantics(
+      container: true,
+      label: '네트워크 연결 불안정, 시간표 정보를 불러오지 못했습니다. 다시 시도해 주세요.',
+      child: Column(
+        key: const Key('station-timetable-network-error-view'),
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: const BoxDecoration(
+              color: EasySubwayAccessibleColors.surfaceSubtle,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.wifi_off_rounded,
+              size: 28,
+              color: EasySubwayAccessibleColors.secondaryText,
+            ),
+          ),
+          const SizedBox(height: 16),
+          const Text(
+            '네트워크 연결 불안정',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+              color: EasySubwayAccessibleColors.text,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          const Text(
+            '시간표 정보를 불러올 수 없어요.\n네트워크 상태를 확인하고 다시 시도해 주세요.',
+            style: TextStyle(
+              fontSize: 14,
+              color: EasySubwayAccessibleColors.secondaryText,
+              height: 1.4,
+            ),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            key: const Key('station-timetable-retry-button'),
+            onPressed: _loading
+                ? null
+                : () {
+                    if (_didSelectOrLoadLine && _lineId != null) {
+                      unawaited(_load());
+                    } else {
+                      unawaited(_loadInitialAvailableLine(_effectiveNow));
+                    }
+                  },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text(
+              '다시 시도',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: EasySubwayAccessibleColors.primary,
+              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1429,37 +1569,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                       : EasySubwayAccessibleColors.secondaryText,
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildOffstageTestHelper({
-    required StationTimetable? timetable,
-    required StationTimetableDirection? currentDirection,
-  }) {
-    final targetDirection =
-        currentDirection ?? timetable?.directions.firstOrNull;
-    return SizedBox(
-      width: 0,
-      height: 0,
-      child: OverflowBox(
-        minWidth: 0,
-        minHeight: 0,
-        maxWidth: 0,
-        maxHeight: 0,
-        child: Opacity(
-          opacity: 0,
-          child: Column(
-            children: [
-              Text('${widget.stationName} 시간표'),
-              if (targetDirection != null &&
-                  targetDirection.departures.isNotEmpty) ...[
-                Text('첫차 ${targetDirection.firstDeparture.timeLabel}'),
-                Text('막차 ${targetDirection.lastDeparture.timeLabel}'),
-              ],
             ],
           ),
         ),

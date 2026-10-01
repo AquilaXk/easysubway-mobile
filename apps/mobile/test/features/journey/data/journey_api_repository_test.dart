@@ -197,6 +197,31 @@ Map<String, Object?> _successJson({
                       '2026-08-11T00:01:00Z',
                     ),
                     realtimeArrivalTime: DateTime.parse('2026-08-11T00:06:00Z'),
+                    servicePattern: JourneyServicePattern.local,
+                    stops: <JourneyRideStop>[
+                      JourneyRideStop(
+                        stationId: 'station-origin',
+                        plannedArrivalTime: null,
+                        plannedDepartureTime: DateTime.parse(
+                          '2026-08-11T00:00:00Z',
+                        ),
+                        realtimeArrivalTime: null,
+                        realtimeDepartureTime: DateTime.parse(
+                          '2026-08-11T00:01:00Z',
+                        ),
+                      ),
+                      JourneyRideStop(
+                        stationId: 'station-destination',
+                        plannedArrivalTime: DateTime.parse(
+                          '2026-08-11T00:05:00Z',
+                        ),
+                        plannedDepartureTime: null,
+                        realtimeArrivalTime: DateTime.parse(
+                          '2026-08-11T00:06:00Z',
+                        ),
+                        realtimeDepartureTime: null,
+                      ),
+                    ],
                   ),
                 ]
               : const [
@@ -205,6 +230,10 @@ Map<String, Object?> _successJson({
                     durationSeconds: 0,
                   ),
                 ],
+          fare: const JourneyFare(
+            status: JourneyFareStatus.unavailable,
+            sourceSnapshotIds: <String>[],
+          ),
         ),
       )
       .toList(growable: false);
@@ -484,6 +513,123 @@ void main() {
       success.journeys.every((journey) => journey.accessibility.stairFree),
       isTrue,
     );
+  });
+
+  test('ride servicePattern·stops와 journey fare wire를 strict하게 파싱한다', () async {
+    Map<String, Object?> body({
+      Object? servicePattern = 'EXPRESS',
+      List<Object?>? stops,
+      Object? fare,
+      bool omitFare = false,
+    }) {
+      final withRide = _mutateFirstRide(
+        _successJson(request: _realtimeSearchRequest),
+        (ride) {
+          ride['servicePattern'] = servicePattern;
+          ride['stops'] =
+              stops ??
+              <Object?>[
+                {
+                  'stationId': 'station-origin',
+                  'plannedArrivalTime': null,
+                  'plannedDepartureTime': '2026-08-11T00:00:00Z',
+                  'realtimeArrivalTime': null,
+                  'realtimeDepartureTime': '2026-08-11T00:01:00Z',
+                },
+                {
+                  'stationId': 'station-middle',
+                  'plannedArrivalTime': null,
+                  'plannedDepartureTime': null,
+                  'realtimeArrivalTime': null,
+                  'realtimeDepartureTime': null,
+                },
+                {
+                  'stationId': 'station-destination',
+                  'plannedArrivalTime': '2026-08-11T00:05:00Z',
+                  'plannedDepartureTime': null,
+                  'realtimeArrivalTime': '2026-08-11T00:06:00Z',
+                  'realtimeDepartureTime': null,
+                },
+              ];
+        },
+      );
+      return _mutateFirstJourney(withRide, (journey) {
+        if (omitFare) {
+          journey.remove('fare');
+        } else {
+          journey['fare'] =
+              fare ??
+              <String, Object?>{
+                'status': 'AVAILABLE',
+                'adultCardWon': 1550,
+                'sourceSnapshotIds': <Object?>['fare-snapshot-1'],
+              };
+        }
+      });
+    }
+
+    Future<JourneySearchSuccess> search(Map<String, Object?> json) =>
+        JourneyApiRepository(
+          _StubApiClient([ApiResponse(statusCode: 200, jsonBody: json)]),
+        ).searchJourneys(_realtimeSearchRequest, sessionToken: 'session-token');
+
+    final success = await search(body());
+    final journey = success.journeys.first;
+    final ride = journey.legs.whereType<JourneyRideLeg>().single;
+    expect(ride.servicePattern, JourneyServicePattern.express);
+    expect(ride.stops.map((stop) => stop.stationId), [
+      'station-origin',
+      'station-middle',
+      'station-destination',
+    ]);
+    expect(ride.stops[1].plannedArrivalTime, isNull);
+    expect(ride.stops[2].realtimeArrivalTime, DateTime.utc(2026, 8, 11, 0, 6));
+    expect(journey.fare.status, JourneyFareStatus.available);
+    expect(journey.fare.adultCardWon, 1550);
+    expect(journey.fare.adultCashWon, isNull);
+    expect(journey.fare.sourceSnapshotIds, ['fare-snapshot-1']);
+
+    final invalidBodies = <Map<String, Object?>>[
+      body(servicePattern: 'SUPER_EXPRESS'),
+      body(
+        stops: <Object?>[
+          {
+            'stationId': 'station-origin',
+            'plannedArrivalTime': null,
+            'plannedDepartureTime': '2026-08-11T00:00:00Z',
+            'realtimeArrivalTime': null,
+            'realtimeDepartureTime': null,
+          },
+        ],
+      ),
+      body(
+        stops: <Object?>[
+          {'stationId': 'station-origin'},
+          {'stationId': 'station-destination'},
+        ],
+      ),
+      body(omitFare: true),
+      body(
+        fare: <String, Object?>{
+          'status': 'AVAILABLE',
+          'adultCardWon': null,
+          'sourceSnapshotIds': <Object?>[],
+        },
+      ),
+      body(
+        fare: <String, Object?>{
+          'status': 'AVAILABLE',
+          'adultCardWon': -1,
+          'sourceSnapshotIds': <Object?>[],
+        },
+      ),
+    ];
+    for (final invalid in invalidBodies) {
+      await expectLater(
+        search(invalid),
+        throwsA(isA<JourneyProtocolFailure>()),
+      );
+    }
   });
 
   test('Backend-domain response 교차필드 invariant 위반은 전체 실패다', () async {

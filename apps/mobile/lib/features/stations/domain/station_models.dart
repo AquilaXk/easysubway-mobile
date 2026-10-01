@@ -172,7 +172,7 @@ class CurrentLocation {
     if (measuredAt == null || accuracyMeters == null) {
       return CurrentLocationQualityStatus.unavailable;
     }
-    final age = (now ?? DateTime.now()).difference(measuredAt);
+    final age = (now ?? clock.now()).difference(measuredAt);
     if (age > maxAge || age.isNegative) {
       return CurrentLocationQualityStatus.stale;
     }
@@ -464,6 +464,8 @@ class StationDetail {
   }
 }
 
+enum StairOnlyPathStatus { present, absent, unknown }
+
 class StationExitInfo {
   const StationExitInfo({
     required this.id,
@@ -474,7 +476,7 @@ class StationExitInfo {
     this.latitude,
     this.longitude,
     required this.hasElevatorConnection,
-    required this.hasStairOnlyPath,
+    this.hasStairOnlyPath = StairOnlyPathStatus.unknown,
     required this.dataConfidence,
     this.dataSourceType = '',
     this.fieldValidationStatus = 'UNKNOWN',
@@ -492,7 +494,7 @@ class StationExitInfo {
       latitude: _optionalDouble(json, 'latitude'),
       longitude: _optionalDouble(json, 'longitude'),
       hasElevatorConnection: _requiredBool(json, 'hasElevatorConnection'),
-      hasStairOnlyPath: _requiredBool(json, 'hasStairOnlyPath'),
+      hasStairOnlyPath: _stairOnlyPathStatusFromJson(json, 'hasStairOnlyPath'),
       dataConfidence: _requiredString(json, 'dataConfidence'),
       dataSourceType: _stringOrEmpty(json, 'dataSourceType'),
       fieldValidationStatus: _stringOrDefault(
@@ -515,7 +517,7 @@ class StationExitInfo {
   final double? latitude;
   final double? longitude;
   final bool hasElevatorConnection;
-  final bool hasStairOnlyPath;
+  final StairOnlyPathStatus hasStairOnlyPath;
   final String dataConfidence;
   final String dataSourceType;
   final String fieldValidationStatus;
@@ -531,8 +533,12 @@ class StationExitInfo {
     return hasElevatorConnection ? '엘리베이터 연결' : '엘리베이터 없음';
   }
 
-  String get stairPathLabel {
-    return hasStairOnlyPath ? '계단만 있는 길 있음' : '계단 없는 이동 가능';
+  String? get stairPathLabel {
+    return switch (hasStairOnlyPath) {
+      StairOnlyPathStatus.present => '계단만 있는 길 있음',
+      StairOnlyPathStatus.absent => '계단 없는 이동 가능',
+      StairOnlyPathStatus.unknown => null,
+    };
   }
 
   String get confidenceLabel => _dataConfidenceLabel(dataConfidence);
@@ -546,7 +552,19 @@ class StationExitInfo {
       _fieldVerificationStatusLabel(fieldValidationStatus);
 
   String get semanticLabel {
-    final parts = <String>[name, elevatorConnectionLabel, stairPathLabel];
+    final parts = <String>[name];
+    final desc = description.trim();
+    if (desc.isNotEmpty) {
+      parts.add(desc);
+    }
+    parts.add(elevatorConnectionLabel);
+    final stairLabel = stairPathLabel;
+    if (stairLabel != null) {
+      parts.add(stairLabel);
+    }
+    if (hasNearbyDoorHint) {
+      parts.add('출구와 가까운 하차문 ${nearbyDoorHint!.trim()}');
+    }
     final verifiedAt = lastVerifiedAt.trim();
     if (verifiedAt.isNotEmpty) {
       parts.add('최근 확인 ${stationVerifiedRelativeLabel(verifiedAt)}');
@@ -793,6 +811,24 @@ bool _requiredBool(Map<String, Object?> json, String key) {
     return value;
   }
   throw FormatException('Missing required station boolean field: $key');
+}
+
+StairOnlyPathStatus _stairOnlyPathStatusFromJson(
+  Map<String, Object?> json,
+  String key,
+) {
+  // 근거 없는 bool·'true'/'false'는 검증된 계단 정보로 보지 않는다(Fallback 금지).
+  // 확인된 상태를 뜻하는 'present'/'absent'만 받아들이고 나머지는 unknown이다.
+  final value = json[key];
+  if (value is String) {
+    switch (value.trim().toLowerCase()) {
+      case 'present':
+        return StairOnlyPathStatus.present;
+      case 'absent':
+        return StairOnlyPathStatus.absent;
+    }
+  }
+  return StairOnlyPathStatus.unknown;
 }
 
 double? _optionalDouble(Map<String, Object?> json, String key) {

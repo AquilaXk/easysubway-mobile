@@ -37,11 +37,6 @@ void main() {
       const RealtimeSnapshot(status: RealtimeSnapshotStatus.unavailable),
     );
     expect(find.text('실시간 정보 확인 불가'), findsOneWidget);
-
-    // 세 상태 title이 서로 다른 문구로 구분된다.
-    expect('실시간 정보 미지원', isNot(equals('실시간 정보 확인 중')));
-    expect('실시간 정보 확인 중', isNot(equals('실시간 정보 확인 불가')));
-    expect('실시간 정보 미지원', isNot(equals('실시간 정보 확인 불가')));
   });
 
   testWidgets('인접역이 주어지면 방면 헤더가 인접역 방면으로 정규화되고 행선지가 표시된다', (tester) async {
@@ -50,7 +45,7 @@ void main() {
         lineId: 'seoul-4',
         stationName: '상록수',
         destination: '사당',
-        direction: '진접 방면',
+        direction: '상행',
         trainNo: '4012',
         message: '전역 도착',
         positionMessage: '상록수',
@@ -60,7 +55,7 @@ void main() {
         lineId: 'seoul-4',
         stationName: '상록수',
         destination: '오이도',
-        direction: '오이도 방면',
+        direction: '하행',
         trainNo: '4015',
         message: '전역 출발',
         positionMessage: '중앙',
@@ -97,6 +92,45 @@ void main() {
     expect(find.text('12분 뒤 도착'), findsOneWidget);
   });
 
+  testWidgets('공공 API가 하행으로 내려준 사당행 열차가 상행으로 왜곡되지 않고 하행(한대앞 방면)으로 정확히 분류된다', (
+    tester,
+  ) async {
+    const arrivals = [
+      RealtimeArrival(
+        lineId: 'seoul-4',
+        stationName: '상록수',
+        destination: '사당',
+        direction: '하행',
+        trainNo: '4020',
+        message: '전역 도착',
+        positionMessage: '반월',
+        etaSeconds: 180,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationRealtimeSummary(
+            snapshot: const RealtimeSnapshot(
+              status: RealtimeSnapshotStatus.fresh,
+              arrivals: arrivals,
+            ),
+            previousStation: '반월',
+            nextStation: '한대앞',
+            onRetry: () {},
+          ),
+        ),
+      ),
+    );
+
+    // 하행 사당행 열차는 previousStation(반월 방면, 상행)이 아닌 nextStation(한대앞 방면, 하행)으로 매핑되어야 함
+    expect(find.text('한대앞 방면'), findsOneWidget);
+    expect(find.text('반월 방면'), findsNothing);
+    expect(find.text('사당행'), findsOneWidget);
+    expect(find.text('3분 뒤 도착'), findsOneWidget);
+  });
+
   testWidgets('도착 임박(당역 도착, 진입)은 곧 도착 빨간 강조이고, 전역 도착은 빨간 위험이 아닌 전역 상태로 표시된다', (
     tester,
   ) async {
@@ -105,7 +139,7 @@ void main() {
         lineId: 'seoul-4',
         stationName: '상록수',
         destination: '오이도',
-        direction: '오이도 방면',
+        direction: '하행',
         trainNo: '4010',
         message: '당역 도착',
         positionMessage: '상록수',
@@ -115,7 +149,7 @@ void main() {
         lineId: 'seoul-4',
         stationName: '상록수',
         destination: '사당',
-        direction: '진접 방면',
+        direction: '상행',
         trainNo: '4012',
         message: '전역 도착',
         positionMessage: '반월',
@@ -214,12 +248,12 @@ void main() {
         positionMessage: '3역전',
         etaSeconds: null,
       ),
-      // 6. direction 없는 cleanDest 매핑 (진접 -> prev, 인천 -> next)
+      // 6. rawDir 기반 매핑 (상행 -> prev, 하행 -> next)
       RealtimeArrival(
         lineId: 'seoul-4',
         stationName: '상록수',
         destination: '진접행',
-        direction: '',
+        direction: '상행',
         trainNo: '4006',
         message: '진입',
         positionMessage: '상록수진입',
@@ -229,7 +263,7 @@ void main() {
         lineId: 'seoul-4',
         stationName: '상록수',
         destination: '인천',
-        direction: '',
+        direction: '하행',
         trainNo: '4007',
         message: '도착',
         positionMessage: '상록수',
@@ -286,6 +320,26 @@ void main() {
         positionMessage: '',
         etaSeconds: null,
       ),
+      RealtimeArrival(
+        lineId: 'line-1',
+        stationName: '역',
+        destination: '',
+        direction: '상행',
+        trainNo: '103',
+        message: '전역',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
+      RealtimeArrival(
+        lineId: 'line-1',
+        stationName: '역',
+        destination: '',
+        direction: '하행',
+        trainNo: '104',
+        message: '전역',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
     ];
 
     await tester.pumpWidget(
@@ -304,5 +358,39 @@ void main() {
 
     expect(find.text('수원 방면'), findsOneWidget);
     expect(find.text('소요산 방면'), findsOneWidget);
+    expect(find.text('상행 방면'), findsOneWidget);
+    expect(find.text('하행 방면'), findsOneWidget);
+  });
+
+  testWidgets('rawDir가 행으로 끝나더라도 방면이 중복되지 않고 정규화된다', (tester) async {
+    const arrivals = [
+      RealtimeArrival(
+        lineId: 'line-4',
+        stationName: '역',
+        destination: '',
+        direction: '사당행',
+        trainNo: '401',
+        message: '전역',
+        positionMessage: '',
+        etaSeconds: null,
+      ),
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationRealtimeSummary(
+            snapshot: const RealtimeSnapshot(
+              status: RealtimeSnapshotStatus.fresh,
+              arrivals: arrivals,
+            ),
+            onRetry: () {},
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('사당 방면'), findsOneWidget);
+    expect(find.text('사당행 방면'), findsNothing);
   });
 }

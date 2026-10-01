@@ -8,6 +8,7 @@ import 'package:easysubway_mobile/features/route_draft/application/route_draft_c
 import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -292,4 +293,79 @@ void main() {
       await tester.pumpAndSettle();
     }
   });
+
+  testWidgets(
+    'NetworkMapScreen 주변역 시간표 조회 시 ServerConnectionException이 발생해도 크래시 없이 초기화된다',
+    (tester) async {
+      tester.view.physicalSize = const Size(420, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final routeDraftController = RouteDraftController();
+      addTearDown(routeDraftController.dispose);
+      StationSearchResult? focusStationRequest;
+      late StateSetter updateHost;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              updateHost = setState;
+              return NetworkMapScreen(
+                repository: const _MapRepository(),
+                timetableRepository: const _FailingTimetableRepository(),
+                routeDraftController: routeDraftController,
+                onOpenStationSearch: (_, _) {},
+                focusStationRequest: focusStationRequest,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 패널 열기
+      updateHost(() => focusStationRequest = _focusedStation);
+      await tester.pumpAndSettle();
+
+      // 시간표 탭하여 _loadNearbyTimetable 호출 유도
+      final toggle = find.byKey(const Key('networkMapNearbyDataSourceToggle'));
+      if (toggle.evaluate().isNotEmpty) {
+        await tester.tap(find.text('시간표'));
+        await tester.pumpAndSettle();
+      }
+    },
+  );
+}
+
+final class _FailingTimetableRepository implements StationTimetableRepository {
+  const _FailingTimetableRepository();
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) {
+    throw const ServerConnectionException('서버 연결 실패');
+  }
 }

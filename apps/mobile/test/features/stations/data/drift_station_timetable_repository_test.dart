@@ -49,6 +49,7 @@ void main() {
         referenceDate: DateTime.utc(2026, 9, 26),
       );
       expect(sat.isAvailable, isTrue);
+      expect(sat.isOfflineFallback, isTrue);
 
       final sun = await repository.loadStationTimetable(
         stationId: 'station-sangnoksu',
@@ -57,6 +58,7 @@ void main() {
         referenceDate: DateTime.utc(2026, 9, 27),
       );
       expect(sun.isAvailable, isTrue);
+      expect(sun.isOfflineFallback, isTrue);
     });
 
     test('loadNextStationTimetable은 기준 시각 이후 열차만 필터링하여 반환한다', () async {
@@ -67,6 +69,7 @@ void main() {
         asOf: DateTime.utc(2026, 9, 26, 9, 0, 0),
       );
       expect(beforeTrain.isAvailable, isTrue);
+      expect(beforeTrain.isOfflineFallback, isTrue);
       expect(beforeTrain.directions, isNotEmpty);
 
       final afterTrain = await repository.loadNextStationTimetable(
@@ -75,6 +78,7 @@ void main() {
         asOf: DateTime.utc(2026, 9, 26, 11, 0, 0),
       );
       expect(afterTrain.directions, isEmpty);
+      expect(afterTrain.isOfflineFallback, isTrue);
     });
   });
 }
