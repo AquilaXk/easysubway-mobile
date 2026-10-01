@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
@@ -413,6 +414,63 @@ void main() {
       find.bySemanticsLabel('3호차 2번 문, 틈 넓음, 높이차 보통, 곡선 승강장'),
       findsOneWidget,
     );
+
+    handle.dispose();
+  });
+
+  testWidgets('(6b) 안내 줄은 스크린리더 탭 동작으로 바텀시트를 연다(#426)', (tester) async {
+    final handle = tester.ensureSemantics();
+    final gaps = [
+      const JourneyPlatformGap(
+        platformPosition: '본선 오이도 방면 3-2',
+        carNumber: 3,
+        doorNumber: 2,
+        gapGrade: PlatformGapGrade.narrow,
+        heightDiffGrade: PlatformHeightDiffGrade.low,
+        curved: false,
+      ),
+      const JourneyPlatformGap(
+        platformPosition: '본선 오이도 방면 6-1',
+        carNumber: 6,
+        doorNumber: 1,
+        gapGrade: PlatformGapGrade.wide,
+        heightDiffGrade: PlatformHeightDiffGrade.normal,
+        curved: false,
+      ),
+    ];
+    final journey = _makeTestJourney(id: 'journey-gap-6b', boardingGaps: gaps);
+    final repo = _GapTestRepository(journey);
+
+    await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-6b')));
+    await tester.pumpAndSettle();
+
+    final sheetRow = find.text('3-2 · 틈 좁음 · 높이차 낮음');
+    for (final label in [
+      '탑승 승강장, 틈이 좁은 문 3호차 2번',
+      '탑승 승강장, 틈 넓은 곳 1곳, 목록 보기',
+    ]) {
+      final line = find.bySemanticsLabel(label);
+      expect(line, findsOneWidget);
+      await tester.ensureVisible(line);
+      final node = tester.getSemantics(line);
+      expect(
+        node.getSemanticsData().hasAction(SemanticsAction.tap),
+        isTrue,
+        reason: '$label 줄에 스크린리더 탭 동작이 있어야 한다',
+      );
+
+      // 스크린리더의 두 번 탭과 같은 Semantics 탭 동작으로 바텀시트가 열린다.
+      node.owner!.performAction(node.id, SemanticsAction.tap);
+      await tester.pumpAndSettle();
+      expect(sheetRow, findsOneWidget);
+
+      await tester.tap(find.byTooltip('닫기'));
+      await tester.pumpAndSettle();
+      expect(sheetRow, findsNothing);
+    }
 
     handle.dispose();
   });
