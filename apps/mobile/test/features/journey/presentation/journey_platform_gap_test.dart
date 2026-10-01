@@ -463,10 +463,7 @@ void main() {
       );
 
       // 스크린리더의 두 번 탭과 같은 Semantics 탭 동작으로 바텀시트가 열린다.
-      tester.binding.pipelineOwner.semanticsOwner!.performAction(
-        node.id,
-        SemanticsAction.tap,
-      );
+      node.owner!.performAction(node.id, SemanticsAction.tap);
       await tester.pumpAndSettle();
       expect(sheetRow, findsOneWidget);
 
