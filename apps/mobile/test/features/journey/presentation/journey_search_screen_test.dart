@@ -617,11 +617,49 @@ void main() {
       expect(find.text(label), findsOneWidget);
     }
 
+    // 재승차 운임은 금액 없이 사실만 표시한다. 금액은 여정 총운임(fare)에만 있다(backend#444).
+    expect(find.text('추가 요금 +1,400원'), findsNothing);
+    expect(find.textContaining('추가 요금'), findsNothing);
+  });
+
+  testWidgets('재승차(farePenaltyApplies)면 환승 노드에 "재승차 운임 발생"만 표시한다', (
+    tester,
+  ) async {
+    final handle = tester.ensureSemantics();
+    final repository = _Repository();
+    repository.journeyIds = <String>[
+      'journey-oos-green',
+      'journey-oos-amber',
+      'journey-oos-red',
+    ];
+    await _pumpScreen(tester, repository: repository);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    const notice = Key('reboarding-fare-notice');
+    for (final id in <String>['journey-oos-green', 'journey-oos-amber']) {
+      final candidate = find.byKey(Key('journey-candidate-$id'));
+      await tester.ensureVisible(candidate);
+      await tester.tap(candidate);
+      await tester.pumpAndSettle();
+      expect(find.byKey(notice), findsNothing, reason: '$id: 재승차 아님');
+      expect(find.text('재승차 운임 발생'), findsNothing);
+    }
+
+    final red = find.byKey(const Key('journey-candidate-journey-oos-red'));
+    await tester.ensureVisible(red);
+    await tester.tap(red);
+    await tester.pumpAndSettle();
+    expect(find.byKey(notice), findsOneWidget);
+    expect(find.text('재승차 운임 발생'), findsOneWidget);
+    expect(find.bySemanticsLabel('재승차 운임 발생'), findsOneWidget);
+    expect(find.textContaining('원'), findsNothing);
     expect(
       find.byKey(const Key('out-of-station-fare-breakdown')),
-      findsOneWidget,
+      findsNothing,
     );
-    expect(find.text('추가 요금 +1,400원'), findsOneWidget);
+    handle.dispose();
   });
 
   testWidgets(
@@ -1439,7 +1477,6 @@ Journey _journey(String id, DateTime now) {
       durationSeconds: 40 * 60,
       transferType: 'OUT_OF_STATION',
       farePenaltyApplies: true,
-      additionalFareWon: 1400,
     );
   } else {
     transferLeg = const JourneyTransferLeg(

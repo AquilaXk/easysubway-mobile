@@ -298,30 +298,26 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     );
   }
 
-  Widget? _outOfStationFareBreakdown(JourneyTransferLeg leg) {
-    if (leg.transferType != 'OUT_OF_STATION') return null;
-    if (!leg.farePenaltyApplies && leg.additionalFareWon <= 0) return null;
-    final amount = leg.additionalFareWon > 0 ? leg.additionalFareWon : 1400;
-    final s = amount.toString();
-    final buffer = StringBuffer();
-    for (int i = 0; i < s.length; i++) {
-      if (i > 0 && (s.length - i) % 3 == 0) {
-        buffer.write(',');
-      }
-      buffer.write(s[i]);
-    }
-    return Container(
-      key: const Key('out-of-station-fare-breakdown'),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        '추가 요금 +${buffer.toString()}원',
-        style: const TextStyle(
-          fontSize: 11,
-          color: EasySubwayAccessibleColors.contentSecondary,
+  /// 재승차(역 밖 환승 제한 시간 초과)는 사실만 알린다. 금액은 여정 총운임(fare)에만 있다.
+  Widget? _reboardingFareNotice(JourneyTransferLeg leg) {
+    if (!leg.farePenaltyApplies) return null;
+    return Semantics(
+      label: JourneyTransferNode.reboardingFareLabel,
+      child: ExcludeSemantics(
+        child: Container(
+          key: const Key('reboarding-fare-notice'),
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+          decoration: BoxDecoration(
+            color: EasySubwayAccessibleColors.surfaceSubtle,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: const Text(
+            JourneyTransferNode.reboardingFareLabel,
+            style: TextStyle(
+              fontSize: 11,
+              color: EasySubwayAccessibleColors.contentSecondary,
+            ),
+          ),
         ),
       ),
     );
@@ -798,7 +794,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   Widget _transferNodeContent(JourneyTransferNode node) {
     final badge = _outOfStationTransferBadge(node.leg);
-    final fare = _outOfStationFareBreakdown(node.leg);
+    final reboarding = _reboardingFareNotice(node.leg);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -828,9 +824,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             ),
           ),
         ),
-        if (badge != null || fare != null) ...[
+        if (badge != null || reboarding != null) ...[
           const SizedBox(height: 4),
-          Wrap(spacing: 6, runSpacing: 4, children: [?badge, ?fare]),
+          Wrap(spacing: 6, runSpacing: 4, children: [?badge, ?reboarding]),
         ],
       ],
     );
