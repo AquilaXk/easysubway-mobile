@@ -39,7 +39,7 @@ dependencies:
   path_provider: ^2.1.6
   crypto: ^3.0.7
   # Flutter 3.44.0의 flutter_test SDK package와 같은 exact pin이다(#260).
-  meta: 1.19.0
+  meta: 1.18.0
   path: ^1.9.1
   collection: ^1.19.1
   clock: ^1.1.2
