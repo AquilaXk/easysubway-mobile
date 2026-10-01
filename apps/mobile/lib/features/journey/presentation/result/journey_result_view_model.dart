@@ -318,8 +318,11 @@ final class JourneyTransferNode extends JourneyTimelineNode {
   final String stationName;
   final String walkMinutesLabel;
 
-  /// 역 밖 환승 배지·추가 운임 규칙이 읽는 원본 환승 구간.
+  /// 역 밖 환승 배지·재승차 안내가 읽는 원본 환승 구간.
   final JourneyTransferLeg leg;
+
+  /// 재승차가 있으면 환승 노드에 이 문구만 표시한다(금액은 표시하지 않는다).
+  static const reboardingFareLabel = '재승차 운임 발생';
 
   String get walkLabel => '환승 · 도보 $walkMinutesLabel';
 
