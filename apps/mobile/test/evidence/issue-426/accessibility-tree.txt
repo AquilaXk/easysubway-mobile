@@ -1,0 +1,17 @@
+# #426 승강장 틈 안내 줄 Android 접근성 트리 (TalkBack이 읽는 노드)
+# 수집: Android emulator easysubway_ps16k_api36 (Android 16, API 36), adb shell uiautomator dump
+# 표기: content-desc 또는 text  [클래스, clickable 여부]  bounds
+
+- Back  [Button, clickable]  [11,139][137,265]
+- 경로 찾기  [View, not clickable]  [189,149][493,254]
+- 경로 후보  [View, not clickable]  [42,275][277,292]
+- 1개  [View, not clickable]  [293,275][383,292]
+- 최단시간, 무단차, 10분, 환승 없음, 09:10 도착  [Button, clickable]  [42,324][430,618]
+- 10분 소요, 09:00 출발, 09:10 도착, 환승 없음, 도보 50m  [View, not clickable]  [42,660][692,1014]
+- ♿ 무단차 경로  [View, not clickable]  [58,1040][363,1111]
+- 구간: 도보 1분, 2호선 8분, 도보 1분  [View, not clickable]  [42,1148][1038,1214]
+- 용산역, 09:00 출발, 승강장까지 도보 1분  [View, not clickable]  [168,1266][1038,1445]
+- 2호선 station-direction 방면 탑승, 09:00 출발, 1개 역 이동, 8분  [View, not clickable]  [168,1487][1038,1670]
+- 탑승 승강장, 틈이 좁은 문 3호차 2번, 5호차 1번, 7호차 4번  [Button, clickable]  [168,1681][1038,1807]
+- 춘천역, 09:10 도착, 출구까지 도보 1분  [View, not clickable]  [168,1959][1038,2138]
+- 공유  [Button, clickable]  [42,2169][1038,2295]
