@@ -257,22 +257,20 @@ class JourneyApiRepository implements JourneyRepository {
     _validateAlternativeCategories(success.journeys);
   }
 
-  /// backend #471 대표 묶음 규칙(OpenAPI `Journey.alternativeCategories`).
-  /// 묶음은 모든 여정에 있거나 모두 없다. FASTEST는 정확히 한 여정, 각 묶음은
-  /// 많아야 한 여정에 붙는다. STAIR_FREE는 계단 없는 여정에만 붙는다.
+  /// backend #471 대표 묶음 규칙. 계약 문구만 검사한다(OpenAPI
+  /// `Journey.alternativeCategories`: "Exactly one journey carries FASTEST; each
+  /// group appears on at most one journey", `JourneySearchSuccess.journeys`:
+  /// 계단 없는 묶음은 "the earliest journey whose accessibility.stairFree is
+  /// true"). 묶음은 여정마다 선택 필드라 일부 여정에만 있어도 받는다.
   void _validateAlternativeCategories(List<Journey> journeys) {
-    final withCategories = journeys
-        .where((journey) => journey.alternativeCategories != null)
-        .length;
-    if (withCategories == 0) return;
-    if (withCategories != journeys.length) {
-      throw const FormatException(
-        'Journey alternative categories must be on every journey',
-      );
+    if (journeys.every((journey) => journey.alternativeCategories == null)) {
+      return;
     }
     final seen = <JourneyAlternativeCategory>{};
     for (final journey in journeys) {
-      for (final category in journey.alternativeCategories!) {
+      for (final category
+          in journey.alternativeCategories ??
+              const <JourneyAlternativeCategory>[]) {
         if (!seen.add(category)) {
           throw const FormatException(
             'Journey alternative category must be on at most one journey',

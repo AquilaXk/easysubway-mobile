@@ -472,6 +472,25 @@ void main() {
       ['최소환승'],
       ['경로 3', '무단차'],
     ]);
+
+    // 묶음이 일부 여정에만 오면(계약상 선택 필드) 사실 기반 라벨로 만든다.
+    final mixed = journeyRouteTabs([
+      candidate('a', 30, 1, [JourneyAlternativeCategory.fastest]),
+      _journey(
+        id: 'b',
+        departure: _kst(8, 0),
+        arrival: _kst(8, 35),
+        durationSeconds: 35 * 60,
+        transferCount: 0,
+        legs: const <JourneyLeg>[
+          JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
+        ],
+      ),
+    ]);
+    expect(mixed.map((tab) => tab.labels), [
+      ['최단시간'],
+      ['최소환승'],
+    ]);
   });
 
   test('(5) 탭 라벨은 사실에서만 만든다', () {
