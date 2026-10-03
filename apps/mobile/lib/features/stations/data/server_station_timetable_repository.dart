@@ -53,9 +53,11 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
   }) => _load(
     stationId,
     lineId,
-    contract.StationTimetableDayTypeSelector(
-      dayType: _toContractDayType(dayType),
-      referenceDate: contract.JourneyDate.parse(_seoulDate(referenceDate)),
+    // 요일 종류(DAY_TYPE)를 보내지 않는다. 토요일 시간표가 없는 기관에
+    // DAY_TYPE=SATURDAY를 보내면 400이다(backend #479). 탭 요일에 맞는 가장
+    // 가까운 날짜를 보내고, 그 날의 요일 종류는 서버가 판정한다(resolvedDayType).
+    contract.StationTimetableServiceDateSelector(
+      contract.JourneyDate.parse(_nextSeoulDateFor(dayType, referenceDate)),
     ),
   );
 
@@ -275,6 +277,13 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       lineId: lineId,
       dayType: _fromContractDayType(response.resolvedDayType),
       directions: List.unmodifiable(directions),
+      serviceDate: switch (response.selector) {
+        final contract.StationTimetableServiceDateSelector date =>
+          date.serviceDate.toString(),
+        final contract.StationTimetableDayTypeSelector dayType =>
+          dayType.referenceDate.toString(),
+        contract.StationTimetableNextDeparturesSelector() => null,
+      },
     );
   }
 
@@ -302,15 +311,27 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     return '${seoul.year.toString().padLeft(4, '0')}-${seoul.month.toString().padLeft(2, '0')}-${seoul.day.toString().padLeft(2, '0')}';
   }
 
-  contract.StationTimetableDayType _toContractDayType(
-    StationTimetableDayType value,
-  ) => switch (value) {
-    StationTimetableDayType.weekday => contract.StationTimetableDayType.weekday,
-    StationTimetableDayType.saturday =>
-      contract.StationTimetableDayType.saturday,
-    StationTimetableDayType.sundayHoliday =>
-      contract.StationTimetableDayType.sundayHoliday,
-  };
+  /// [referenceDate]의 서울 날짜부터 [dayType] 탭에 해당하는 첫 날짜.
+  /// 평일 탭은 월~금, 토요일 탭은 토요일, 공휴일 탭은 일요일이다. 그 날이
+  /// 실제로 어떤 시간표로 운행하는지는 서버가 판정한다.
+  String _nextSeoulDateFor(
+    StationTimetableDayType dayType,
+    DateTime referenceDate,
+  ) {
+    final seoul = referenceDate.toUtc().add(const Duration(hours: 9));
+    var date = DateTime.utc(seoul.year, seoul.month, seoul.day);
+    bool matches(DateTime value) => switch (dayType) {
+      StationTimetableDayType.weekday => value.weekday <= DateTime.friday,
+      StationTimetableDayType.saturday => value.weekday == DateTime.saturday,
+      StationTimetableDayType.sundayHoliday => value.weekday == DateTime.sunday,
+    };
+    while (!matches(date)) {
+      date = date.add(const Duration(days: 1));
+    }
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
 
   StationTimetableDayType _fromContractDayType(
     contract.StationTimetableDayType value,

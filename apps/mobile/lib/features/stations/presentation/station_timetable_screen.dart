@@ -39,6 +39,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     with WidgetsBindingObserver {
   late String? _lineId;
   late StationTimetableDayType _dayType;
+
+  /// 사용자가 고른(또는 오늘의) 요일 탭. 서버가 판정한 [_dayType]과 다르면
+  /// 그 날짜가 어떤 시간표로 운행하는지 알린다.
+  late StationTimetableDayType _requestedDayType;
   StationTimetable? _timetable;
   String? _directionName;
   String? _selectedDirectionFilter;
@@ -64,6 +68,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final now = widget.now ?? clock.now();
     _initClockNow = now;
     _dayType = _todayTimetableDayType(now);
+    _requestedDayType = _dayType;
     _selectedHour = _initSelectedHour(now);
     if (widget.repository != null && _lineId != null) {
       unawaited(_loadInitialAvailableLine(now));
@@ -86,6 +91,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       final now = widget.now ?? clock.now();
       _initClockNow = now;
       _dayType = _todayTimetableDayType(now);
+      _requestedDayType = _dayType;
       _selectedHour = _initSelectedHour(now);
       if (widget.repository != null && _lineId != null) {
         unawaited(_loadInitialAvailableLine(now));
@@ -651,6 +657,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               thickness: 1,
               color: EasySubwayAccessibleColors.line,
             ),
+            ?_buildServiceDayNote(timetable),
 
             () {
               final renderedHours = _getSortedDeparturesHours(
@@ -820,6 +827,43 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     );
   }
 
+  /// 고른 요일 탭과 서버가 판정한 요일 종류가 다를 때(예: 토요일 시간표가 없는
+  /// 노선의 토요일) 그 날짜의 실제 운행 시간표를 알린다.
+  Widget? _buildServiceDayNote(StationTimetable? timetable) {
+    final serviceDate = timetable?.serviceDate;
+    if (timetable == null ||
+        serviceDate == null ||
+        _loading ||
+        timetable.dayType == _requestedDayType) {
+      return null;
+    }
+    final parts = serviceDate.split('-').map(int.parse).toList();
+    final date = DateTime.utc(parts[0], parts[1], parts[2]);
+    const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+    final dayLabel = _dayTypeLabel(timetable.dayType);
+    return Container(
+      width: double.infinity,
+      color: EasySubwayAccessibleColors.surfaceSubtle,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Text(
+        '${date.month}월 ${date.day}일(${weekdays[date.weekday - 1]})은 '
+        '$dayLabel 시간표로 운행해요',
+        key: const Key('station-timetable-service-day-note'),
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: EasySubwayAccessibleColors.text,
+        ),
+      ),
+    );
+  }
+
+  String _dayTypeLabel(StationTimetableDayType dayType) => switch (dayType) {
+    StationTimetableDayType.weekday => '평일',
+    StationTimetableDayType.saturday => '토요일',
+    StationTimetableDayType.sundayHoliday => '공휴일',
+  };
+
   Widget _buildDayAndFilterBar() {
     return Container(
       color: EasySubwayAccessibleColors.surface,
@@ -855,16 +899,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
   Widget _buildDayTab(StationTimetableDayType dayType) {
     final isSelected = _dayType == dayType;
-    final label = switch (dayType) {
-      StationTimetableDayType.weekday => '평일',
-      StationTimetableDayType.saturday => '토요일',
-      StationTimetableDayType.sundayHoliday => '공휴일',
-    };
+    final label = _dayTypeLabel(dayType);
 
     return InkWell(
       key: Key('stationTimetableDay-${dayType.name}'),
       onTap: () {
-        setState(() => _dayType = dayType);
+        setState(() {
+          _dayType = dayType;
+          _requestedDayType = dayType;
+        });
         unawaited(_load());
       },
       child: Padding(
