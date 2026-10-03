@@ -3,6 +3,7 @@ import 'package:easysubway_mobile/features/journey/domain/journey_profile_models
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart'
     as contract;
 import 'package:flutter_test/flutter_test.dart';
@@ -610,6 +611,13 @@ void main() {
     },
   );
 
+  test('앱 역 검색 저장소의 역 상세 이름으로 역 이름을 붙인다', () async {
+    final resolver = stationDetailNameResolver(_StationDetailRepository());
+
+    expect(await resolver('station-yeoksam'), '역삼');
+    await expectLater(resolver('station-unknown'), throwsA(isA<StateError>()));
+  });
+
   group('다음 정차역 기준 방면 묶음(#437)', () {
     contract.StationTimetableSelector selector() =>
         contract.StationTimetableServiceDateSelector(
@@ -1019,4 +1027,23 @@ class _Attestor implements JourneyV3IntegrityAttestor {
 class _ThrowingAttestor implements JourneyV3IntegrityAttestor {
   @override
   Future<String> attest(String requestHash) => throw StateError('attestor');
+}
+
+class _StationDetailRepository implements StationSearchRepository {
+  @override
+  Future<StationDetail> getStationDetail(String stationId) async {
+    if (stationId != 'station-yeoksam') throw StateError('not in catalog');
+    return StationDetail(
+      id: stationId,
+      nameKo: '역삼',
+      nameEn: 'Yeoksam',
+      region: 'seoul',
+      dataQualityLevel: 'VERIFIED',
+      lastVerifiedAt: '2026-08-01',
+      lines: const [],
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
