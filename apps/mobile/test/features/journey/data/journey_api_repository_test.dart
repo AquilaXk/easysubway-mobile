@@ -69,6 +69,7 @@ Map<String, Object?> _timetableSuccessJson() => StationTimetableSearchSuccess(
   serviceTimezone: StationTimetableServiceTimezone.asiaSeoul,
   directionGroups: [
     StationTimetableDirectionGroup(
+      nextStationId: 'station-next',
       directionName: '상행',
       departures: [
         StationTimetableDeparture(
@@ -77,6 +78,7 @@ Map<String, Object?> _timetableSuccessJson() => StationTimetableSearchSuccess(
           departureAt: DateTime.parse('2026-08-11T01:00:00Z'),
           servicePattern: StationTimetableServicePattern.local,
           serviceClass: StationTimetableServiceClass.subway,
+          terminalStationId: 'station-terminal',
         ),
       ],
     ),

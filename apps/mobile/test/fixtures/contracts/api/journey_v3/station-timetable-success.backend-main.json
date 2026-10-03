@@ -2,14 +2,47 @@
   "contractVersion": "STATION_TIMETABLE_SEARCH_V3",
   "stationId": "station-gangnam",
   "lineId": "line-2",
-  "selector": {"kind": "SERVICE_DATE", "serviceDate": "2026-08-24"},
+  "selector": {
+    "kind": "SERVICE_DATE",
+    "serviceDate": "2026-08-24"
+  },
   "resolvedDayType": "WEEKDAY",
   "serviceTimezone": "Asia/Seoul",
   "directionGroups": [
     {
-      "directionName": "역삼 방면",
+      "nextStationId": "station-yeoksam",
+      "directionName": null,
       "departures": [
-        {"serviceDate": "2026-08-24", "secondsFromServiceDayStart": 32400, "departureAt": "2026-08-24T09:00:00+09:00", "servicePattern": "LOCAL", "serviceClass": "SUBWAY"}
+        {
+          "serviceDate": "2026-08-24",
+          "secondsFromServiceDayStart": 32400,
+          "departureAt": "2026-08-24T09:00:00+09:00",
+          "servicePattern": "LOCAL",
+          "serviceClass": "SUBWAY",
+          "terminalStationId": "station-seongsu"
+        },
+        {
+          "serviceDate": "2026-08-24",
+          "secondsFromServiceDayStart": 32700,
+          "departureAt": "2026-08-24T09:05:00+09:00",
+          "servicePattern": "LOCAL",
+          "serviceClass": "SUBWAY",
+          "terminalStationId": "station-seongsu"
+        }
+      ]
+    },
+    {
+      "nextStationId": "station-gyodae",
+      "directionName": null,
+      "departures": [
+        {
+          "serviceDate": "2026-08-24",
+          "secondsFromServiceDayStart": 32460,
+          "departureAt": "2026-08-24T09:01:00+09:00",
+          "servicePattern": "LOCAL",
+          "serviceClass": "SUBWAY",
+          "terminalStationId": "station-seongsu"
+        }
       ]
     }
   ],

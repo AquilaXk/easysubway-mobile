@@ -882,24 +882,24 @@ class StationTimetableDeparture {
   final DateTime departureAt;
   final StationTimetableServicePattern servicePattern;
   final StationTimetableServiceClass serviceClass;
-  final String? terminalStationId;
+  final String terminalStationId;
   const StationTimetableDeparture({
     required this.serviceDate,
     required this.secondsFromServiceDayStart,
     required this.departureAt,
     required this.servicePattern,
     required this.serviceClass,
-    this.terminalStationId,
+    required this.terminalStationId,
   });
   factory StationTimetableDeparture.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {'serviceDate', 'secondsFromServiceDayStart', 'departureAt', 'servicePattern', 'serviceClass', if (json.containsKey('terminalStationId')) 'terminalStationId'});
+    JourneyV3Validation.exactKeys(json, {'serviceDate', 'secondsFromServiceDayStart', 'departureAt', 'servicePattern', 'serviceClass', 'terminalStationId'});
     return StationTimetableDeparture(
       serviceDate: JourneyDate.parse(json['serviceDate']),
       secondsFromServiceDayStart: JourneyV3Validation.integer(json['secondsFromServiceDayStart'], 'secondsFromServiceDayStart', 0, 107999),
       departureAt: JourneyV3Validation.rfc3339(json['departureAt'], 'departureAt'),
       servicePattern: StationTimetableServicePatternWire.fromWire(json['servicePattern']),
       serviceClass: StationTimetableServiceClassWire.fromWire(json['serviceClass']),
-      terminalStationId: json.containsKey('terminalStationId') ? JourneyV3Validation.nonBlank(json['terminalStationId'], 'terminalStationId') : null,
+      terminalStationId: JourneyV3Validation.nonBlank(json['terminalStationId'], 'terminalStationId'),
     );
   }
   Map<String, Object?> toJson() => {
@@ -908,19 +908,19 @@ class StationTimetableDeparture {
     'departureAt': JourneyV3Validation.rfc3339Wire(departureAt),
     'servicePattern': servicePattern.wire,
     'serviceClass': serviceClass.wire,
-    if (terminalStationId != null) 'terminalStationId': terminalStationId,
+    'terminalStationId': terminalStationId,
   };
 }
 
 class StationTimetableDirectionGroup {
-  final String? nextStationId;
+  final String nextStationId;
   final String? directionName;
   final List<StationTimetableDeparture> departures;
-  const StationTimetableDirectionGroup({this.nextStationId, required this.directionName, required this.departures});
+  const StationTimetableDirectionGroup({required this.nextStationId, required this.directionName, required this.departures});
   factory StationTimetableDirectionGroup.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {if (json.containsKey('nextStationId')) 'nextStationId', 'directionName', 'departures'});
+    JourneyV3Validation.exactKeys(json, {'nextStationId', 'directionName', 'departures'});
     return StationTimetableDirectionGroup(
-      nextStationId: json.containsKey('nextStationId') ? JourneyV3Validation.nonBlank(json['nextStationId'], 'nextStationId') : null,
+      nextStationId: JourneyV3Validation.nonBlank(json['nextStationId'], 'nextStationId'),
       directionName: JourneyV3Validation.nullable(json, 'directionName', (v) => JourneyV3Validation.nonBlank(v, 'directionName')),
       departures: JourneyV3Validation.list(json['departures'], 'departures', (v) {
         if (v is! Map<String, Object?>) throw const FormatException('departure must be object');
@@ -928,7 +928,7 @@ class StationTimetableDirectionGroup {
       }),
     );
   }
-  Map<String, Object?> toJson() => {if (nextStationId != null) 'nextStationId': nextStationId, 'directionName': directionName, 'departures': departures.map((v) => v.toJson()).toList(growable: false)};
+  Map<String, Object?> toJson() => {'nextStationId': nextStationId, 'directionName': directionName, 'departures': departures.map((v) => v.toJson()).toList(growable: false)};
 }
 
 class StationTimetableSourceIdentity {

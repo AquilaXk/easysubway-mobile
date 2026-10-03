@@ -636,6 +636,7 @@ contract.StationTimetableDeparture _departure(
   departureAt: DateTime.parse(departureAt),
   servicePattern: contract.StationTimetableServicePattern.local,
   serviceClass: contract.StationTimetableServiceClass.subway,
+  terminalStationId: 'station-danggogae',
 );
 
 contract.StationTimetableSearchSuccess _success({
@@ -657,6 +658,7 @@ contract.StationTimetableSearchSuccess _success({
       directionGroups ??
       [
         contract.StationTimetableDirectionGroup(
+          nextStationId: 'station-chongshin',
           directionName: '당고개 방면',
           departures: departures,
         ),

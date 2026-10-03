@@ -18,9 +18,9 @@ import 'package:flutter_test/flutter_test.dart';
 //   구간 대신 RIDE-TRANSFER-RIDE로 구성했다.
 // - search-success.backend-pr471.json: backend PR #471 브랜치의 같은 테스트가
 //   고정한 추가 필드(`stairFreeAlternative`, `alternativeCategories`).
-// - station-timetable-success.backend-main.json: 현재 계약의 역 시간표 형태.
-// - station-timetable-success.backend-pr479.json: backend PR #479 형태
-//   (`nextStationId`, null `directionName`, `terminalStationId`).
+// - station-timetable-success.backend-main.json: backend main(#479 병합·배포)
+//   역 시간표 형태(`nextStationId`, null `directionName`, `terminalStationId`).
+// - station-timetable-success.pre-pr479.json: #479 이전 형태. 이제 거부한다.
 Map<String, Object?> _fixture(String name) =>
     jsonDecode(
           File(
@@ -255,7 +255,7 @@ void main() {
   });
 
   group('Station timetable success wire shape', () {
-    test('현재 계약 형태를 해석한다', () {
+    test('backend main 형태(다음 정차역·종착역, 방면 이름 null)를 해석한다', () {
       final json = _fixture('station-timetable-success.backend-main.json');
 
       expect(
@@ -264,18 +264,18 @@ void main() {
       );
     });
 
-    test('backend #479 형태(다음 정차역·종착역, 방면 이름 null)를 해석한다', () {
-      final json = _fixture('station-timetable-success.backend-pr479.json');
+    test('#479는 배포됐으므로 다음 정차역·종착역이 없는 이전 형태는 거부한다', () {
+      final json = _fixture('station-timetable-success.pre-pr479.json');
 
       expect(
         () => StationTimetableSearchSuccess.fromJson(json),
-        returnsNormally,
+        throwsA(isA<FormatException>()),
       );
     });
 
     test('#479 다음 정차역·종착역을 담고 방면 이름 null을 그대로 둔다', () {
       final success = StationTimetableSearchSuccess.fromJson(
-        _fixture('station-timetable-success.backend-pr479.json'),
+        _fixture('station-timetable-success.backend-main.json'),
       );
 
       expect(success.directionGroups.map((g) => g.nextStationId), [
@@ -294,24 +294,11 @@ void main() {
       );
     });
 
-    test('현재 계약 형태는 다음 정차역·종착역 없이 방면 이름을 담는다', () {
-      final success = StationTimetableSearchSuccess.fromJson(
-        _fixture('station-timetable-success.backend-main.json'),
-      );
-
-      expect(success.directionGroups.single.nextStationId, isNull);
-      expect(success.directionGroups.single.directionName, '역삼 방면');
-      expect(
-        success.directionGroups.single.departures.single.terminalStationId,
-        isNull,
-      );
-    });
-
     test('#479 필드도 null·빈 값·계약 밖 키·directionName 누락은 거부한다', () {
       Map<String, Object?> group(Map<String, Object?> json) =>
           (json['directionGroups']! as List).cast<Map<String, Object?>>().first;
       Map<String, Object?> pr479() =>
-          _fixture('station-timetable-success.backend-pr479.json');
+          _fixture('station-timetable-success.backend-main.json');
       final cases = <String, Map<String, Object?>>{
         'nextStationId null': (() {
           final json = pr479();
@@ -321,6 +308,19 @@ void main() {
         'nextStationId blank': (() {
           final json = pr479();
           group(json)['nextStationId'] = ' ';
+          return json;
+        })(),
+        'nextStationId missing': (() {
+          final json = pr479();
+          group(json).remove('nextStationId');
+          return json;
+        })(),
+        'terminalStationId missing': (() {
+          final json = pr479();
+          (group(json)['departures']! as List)
+              .cast<Map<String, Object?>>()
+              .first
+              .remove('terminalStationId');
           return json;
         })(),
         'directionName missing': (() {
