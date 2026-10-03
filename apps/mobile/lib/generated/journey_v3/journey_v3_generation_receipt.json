@@ -3,7 +3,7 @@
   "generator": {
     "id": "easysubway-mobile-journey-v3-client",
     "version": "2.0.0",
-    "sourceSha256": "5fcef2938fe1d689b5a7909272317a886988c2908c6db02e71a6306e3e7874a0",
+    "sourceSha256": "ed81c0c377f3ffcf83cad08ea2d5660568ea6a5b1d82494dd60ea02de4fccda1",
     "formatter": {
       "command": "dart format",
       "sdkVersion": "3.12.0"
@@ -18,10 +18,10 @@
       },
       {
         "path": "tools/mobile/generate-journey-v3-client.mjs",
-        "sha256": "5fcef2938fe1d689b5a7909272317a886988c2908c6db02e71a6306e3e7874a0"
+        "sha256": "ed81c0c377f3ffcf83cad08ea2d5660568ea6a5b1d82494dd60ea02de4fccda1"
       }
     ],
-    "generationSourceTreeSha256": "3e7aa6ae015ca0d089be300f7f66e0efa2d7f5314e0b99aad2b85fab4b6d2d2a"
+    "generationSourceTreeSha256": "e6018d1e6bc2c03ea7b6d4ca53b484cd63e0458c83840a4331678e6a9847302f"
   },
   "runtime": {
     "node": {

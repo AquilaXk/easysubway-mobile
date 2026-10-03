@@ -1080,6 +1080,9 @@ function journeyV3KeyCoverageMismatches(ir, sources, undeployed = undeployedRequ
   for (const field of undeployed.keys()) {
     const [name, key] = field.split('.');
     if (!ir.schemas[name]?.required?.includes(key)) mismatches.push(`${field}: undeployed-required entry is not a required contract field`);
+    // An undeployed field is only legitimate while its addition is still pending.
+    // Once the locked contract carries it, both entries must go in the same change.
+    if (!ir.pendingAdditions.some((entry) => entry.schema === name && entry.property === key && entry.required === true)) mismatches.push(`${field}: undeployed-required entry has no matching pendingContractAdditions entry; remove both together once the locked contract carries the field`);
   }
   return mismatches.sort();
 }
