@@ -831,6 +831,171 @@ function renderClosedErrors(ir) {
 export function renderJourneyV3ErrorsAndBarrelForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); const lock = duplicateFreeJson(regular(options.lockPath, 'lock').toString('utf8'), 'lock'); return Object.freeze({ error: renderClosedErrors(ir), contract: renderDartContract(lock, ir.sessionIntegrity) }); }
 export function renderJourneyV3DartLiteralSeamForTest({ enumToken, lock }) { return Object.freeze({ enums: renderDartEnums({ schemas: { SpecialWire: { type: 'string', enum: [enumToken] } }, errorDispositions: [{ semanticCategory: 'TEST', primaryActionKey: 'test.action' }] }), contract: renderDartContract(lock) }); }
 
+// #438 key coverage gate.
+// The Dart renderers are hand-written templates. The schemas projection hash only
+// detects that the contract changed; it cannot tell whether the templates were
+// updated with it. #344 re-pinned the hash for a contract that added the required
+// JourneySearchSuccess.serviceDayCutoff without touching the templates, so the
+// generated decoder rejected every production search response. This gate makes
+// that impossible: for every object schema the generated client decodes, the key
+// set passed to JourneyV3Validation.exactKeys must equal the contract's
+// required + optional properties. Unconditional keys must be exactly the required
+// keys; `if (json.containsKey('k')) 'k'` keys must be exactly the optional keys
+// plus the undeployed required keys below.
+// profileJourneys is decoded by hand-written domain models
+// (apps/mobile/lib/features/journey/domain/journey_profile_models.dart), not by
+// this generator, so its schemas are outside this gate.
+const generatedOperationIds = Object.freeze(['issueJourneySession', 'searchJourneys', 'searchStationTimetables']);
+const generatedClassBySchema = Object.freeze({ JourneyError: 'JourneyV3Error' });
+// Contract-required fields that production does not emit yet. The decoder
+// accepts them present or absent until the producing backend change is
+// deployed; remove the entry then.
+const undeployedRequiredFields = new Map();
+const schemaRefPrefix = '#/components/schemas/';
+
+function generatedObjectSchemaNames(ir) {
+  const roots = ['JourneyError'];
+  for (const operation of ir.operations) {
+    if (!generatedOperationIds.includes(operation.id)) continue;
+    const expectation = expectedOperations.get(operation.path);
+    roots.push(expectation.request, expectation.success);
+  }
+  const names = new Set(); const seen = new Set();
+  const walk = (schema) => {
+    if (!isObject(schema)) return;
+    if (typeof schema.$ref === 'string') {
+      const name = schema.$ref.slice(schemaRefPrefix.length);
+      if (seen.has(name)) return;
+      seen.add(name);
+      const target = ir.schemas[name];
+      if (!isObject(target)) fail(`key coverage cannot resolve ${name}`);
+      if (target.type === 'object') names.add(name);
+      walk(target);
+      return;
+    }
+    if (Array.isArray(schema.oneOf)) schema.oneOf.forEach(walk);
+    if (isObject(schema.items)) walk(schema.items);
+    if (isObject(schema.properties)) Object.values(schema.properties).forEach(walk);
+  };
+  for (const root of roots) walk({ $ref: `${schemaRefPrefix}${root}` });
+  return [...names].sort();
+}
+
+function dartBalancedEnd(source, openIndex) {
+  const pairs = { '{': '}', '(': ')', '[': ']' };
+  const stack = [pairs[source[openIndex]]];
+  if (stack[0] === undefined) fail('key coverage scanner expected an opening bracket');
+  let index = openIndex + 1;
+  while (index < source.length) {
+    const character = source[index];
+    if (character === "'" || character === '"') {
+      const raw = source[index - 1] === 'r';
+      index += 1;
+      while (index < source.length && source[index] !== character) {
+        if (!raw && source[index] === '\\') index += 1;
+        else if (!raw && source[index] === '$' && source[index + 1] === '{') index = dartBalancedEnd(source, index + 1);
+        index += 1;
+      }
+      if (index >= source.length) fail('key coverage scanner found an unterminated Dart string');
+    } else if (character in pairs) {
+      stack.push(pairs[character]);
+    } else if (character === '}' || character === ')' || character === ']') {
+      if (stack.pop() !== character) fail('key coverage scanner found unbalanced Dart brackets');
+      if (stack.length === 0) return index;
+    }
+    index += 1;
+  }
+  fail('key coverage scanner found an unterminated Dart block');
+}
+
+function dartTopLevelEntries(text) {
+  const entries = []; let depth = 0; let start = 0; let quote = null;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quote) { if (character === '\\') index += 1; else if (character === quote) quote = null; continue; }
+    if (character === "'" || character === '"') quote = character;
+    else if ('{(['.includes(character)) depth += 1;
+    else if ('})]'.includes(character)) depth -= 1;
+    else if (character === ',' && depth === 0) { entries.push(text.slice(start, index)); start = index + 1; }
+  }
+  entries.push(text.slice(start));
+  return entries.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+}
+
+function generatedDecoderKeys(source, className) {
+  const factory = new RegExp(`factory ${className}\\.fromJson\\(Map<String,\\s*Object\\?> json\\)\\s*\\{`).exec(source);
+  if (!factory) return null;
+  const bodyStart = factory.index + factory[0].length - 1;
+  const body = source.slice(bodyStart, dartBalancedEnd(source, bodyStart) + 1);
+  const call = /JourneyV3Validation\.exactKeys\(json,\s*/.exec(body);
+  if (!call) fail(`${className}.fromJson does not call JourneyV3Validation.exactKeys`);
+  let literal;
+  if (body[call.index + call[0].length] === '{') {
+    const open = call.index + call[0].length;
+    literal = body.slice(open + 1, dartBalancedEnd(body, open));
+  } else {
+    const variable = /^([A-Za-z_][A-Za-z0-9_]*)\s*\)/.exec(body.slice(call.index + call[0].length));
+    const declaration = variable && new RegExp(`final ${variable[1]} = \\{`).exec(body);
+    if (!declaration) fail(`${className}.fromJson exactKeys argument is not a local set literal`);
+    const open = declaration.index + declaration[0].length - 1;
+    literal = body.slice(open + 1, dartBalancedEnd(body, open));
+  }
+  const keys = { required: new Set(), conditional: new Set() };
+  const add = (set, key) => { if (keys.required.has(key) || keys.conditional.has(key)) fail(`${className}.fromJson lists ${key} twice`); set.add(key); };
+  for (const entry of dartTopLevelEntries(literal)) {
+    const required = /^'([A-Za-z][A-Za-z0-9]*)'$/.exec(entry);
+    const conditional = /^if\s*\(\s*json\.containsKey\(\s*'([A-Za-z][A-Za-z0-9]*)'\s*\)\s*\)\s*'([A-Za-z][A-Za-z0-9]*)'$/.exec(entry);
+    const loop = /^for\s*\(\s*final\s+([A-Za-z]+)\s+in\s+([A-Za-z]+)\s*\)\s*if\s*\(\s*json\.containsKey\(\s*\1\s*\)\s*\)\s*\1$/.exec(entry);
+    if (required) add(keys.required, required[1]);
+    else if (conditional && conditional[1] === conditional[2]) add(keys.conditional, conditional[1]);
+    else if (loop) {
+      const list = new RegExp(`const ${loop[2]} = \\[`).exec(body);
+      if (!list) fail(`${className}.fromJson loop keys are not a local const list`);
+      const open = list.index + list[0].length - 1;
+      for (const item of dartTopLevelEntries(body.slice(open + 1, dartBalancedEnd(body, open)))) {
+        const name = /^'([A-Za-z][A-Za-z0-9]*)'$/.exec(item);
+        if (!name) fail(`${className}.fromJson loop key ${item} is not a literal`);
+        add(keys.conditional, name[1]);
+      }
+    } else fail(`${className}.fromJson has an unsupported exactKeys entry: ${entry}`);
+  }
+  return keys;
+}
+
+function setDifference(left, right) { return [...left].filter((key) => !right.has(key)).sort(); }
+
+function journeyV3KeyCoverageMismatches(ir, sources) {
+  const source = sources.join('\n');
+  const mismatches = [];
+  for (const name of generatedObjectSchemaNames(ir)) {
+    const schema = ir.schemas[name];
+    const className = generatedClassBySchema[name] ?? name;
+    const keys = generatedDecoderKeys(source, className);
+    if (!keys) { mismatches.push(`${name}: no generated ${className}.fromJson decoder`); continue; }
+    const contractRequired = new Set(schema.required);
+    const expectedRequired = new Set([...contractRequired].filter((key) => !undeployedRequiredFields.has(`${name}.${key}`)));
+    const expectedConditional = new Set(Object.keys(schema.properties).filter((key) => !expectedRequired.has(key)));
+    for (const key of setDifference(expectedRequired, keys.required)) mismatches.push(`${name}.${key}: contract requires it but the generated decoder ${keys.conditional.has(key) ? 'treats it as optional' : 'does not accept it'}`);
+    for (const key of setDifference(expectedConditional, keys.conditional)) mismatches.push(`${name}.${key}: contract allows it to be absent but the generated decoder ${keys.required.has(key) ? 'requires it' : 'does not accept it'}`);
+    for (const key of setDifference(new Set([...keys.required, ...keys.conditional]), new Set(Object.keys(schema.properties)))) mismatches.push(`${name}.${key}: generated decoder accepts a key outside the contract`);
+  }
+  for (const field of undeployedRequiredFields.keys()) {
+    const [name, key] = field.split('.');
+    if (!ir.schemas[name]?.required?.includes(key)) mismatches.push(`${field}: undeployed-required entry is not a required contract field`);
+  }
+  return mismatches.sort();
+}
+
+function assertJourneyV3KeyCoverage(ir, sources) {
+  const mismatches = journeyV3KeyCoverageMismatches(ir, sources);
+  if (mismatches.length > 0) fail(`generated decoder keys differ from the contract:\n  ${mismatches.join('\n  ')}`);
+}
+
+export function journeyV3KeyCoverageMismatchesForTest(options) {
+  const ir = validate({ ...options, enforceTrackedLock: false });
+  return journeyV3KeyCoverageMismatches(ir, [renderStrictModels(ir), renderClosedErrors(ir)]);
+}
+
 function renderFiles(options, enforceTrackedLock, snapshot) {
   const ir = validate({ ...options, enforceTrackedLock, enforceSchemasProjection: enforceTrackedLock || options.enforceSchemasProjection === true, snapshot });
   const lockBytes = snapshot?.lockBytes ?? regular(options.lockPath, 'lock');
@@ -841,13 +1006,15 @@ function renderFiles(options, enforceTrackedLock, snapshot) {
     if (!generated.startsWith('// Generated ') || firstLineEnd < 0) fail('generated Dart header is not canonical');
     return `// GENERATED CODE - DO NOT MODIFY BY HAND\n// dart format width=200\n${generated}`;
   };
-  return Object.freeze({
+  const files = Object.freeze({
     'journey_v3_contract.dart': generatedHeader(renderDartContract(lock, ir.sessionIntegrity)),
     'journey_v3_enums.dart': generatedHeader(renderDartEnums(ir)),
     'journey_v3_error.dart': generatedHeader(renderClosedErrors(ir)),
-    'journey_v3_models.dart': generatedHeader(renderStrictModels()),
+    'journey_v3_models.dart': generatedHeader(renderStrictModels(ir)),
     'journey_v3_validation.dart': generatedHeader(renderStrictValidation()),
   });
+  assertJourneyV3KeyCoverage(ir, [files['journey_v3_models.dart'], files['journey_v3_error.dart']]);
+  return files;
 }
 
 export function renderJourneyV3FilesForTest(options) {
