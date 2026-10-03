@@ -384,10 +384,13 @@ void main() {
         referenceDate: now,
       ),
       throwsA(
-        isA<ServerConnectionException>().having(
-          (e) => e.statusCode,
-          'statusCode',
-          503,
+        allOf(
+          isA<ServerConnectionException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            503,
+          ),
+          isNot(isA<ServerUnreachableException>()),
         ),
       ),
     );
@@ -460,7 +463,8 @@ void main() {
         dayType: StationTimetableDayType.weekday,
         referenceDate: now,
       ),
-      throwsA(isA<ServerConnectionException>()),
+      // #437 리뷰 F2: 네트워크에 닿지 못한 경우만 로컬 시간표 전환 대상이다.
+      throwsA(isA<ServerUnreachableException>()),
     );
   });
 
@@ -482,7 +486,7 @@ void main() {
           dayType: StationTimetableDayType.weekday,
           referenceDate: now,
         ),
-        throwsA(isA<ServerConnectionException>()),
+        throwsA(isA<ServerUnreachableException>()),
       );
     },
   );
@@ -506,10 +510,13 @@ void main() {
         referenceDate: now,
       ),
       throwsA(
-        isA<ServerConnectionException>().having(
-          (e) => e.statusCode,
-          'statusCode',
-          503,
+        allOf(
+          isA<ServerConnectionException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            503,
+          ),
+          isNot(isA<ServerUnreachableException>()),
         ),
       ),
     );
