@@ -1018,9 +1018,12 @@ function dartTopLevelEntries(text) {
 }
 
 function generatedDecoderKeys(source, className) {
-  const factory = new RegExp(`factory ${className}\\.fromJson\\(Map<String,\\s*Object\\?> json\\)\\s*\\{`).exec(source);
-  if (!factory) return null;
-  const bodyStart = factory.index + factory[0].length - 1;
+  // Plain string search only: these names come from contract and template text,
+  // so they are never compiled into regular expressions.
+  const factoryStart = source.indexOf(`factory ${className}.fromJson(Map<String`);
+  if (factoryStart < 0) return null;
+  const bodyStart = source.indexOf('{', source.indexOf(' json)', factoryStart));
+  if (bodyStart < 0) fail(`${className}.fromJson has no body`);
   const body = source.slice(bodyStart, dartBalancedEnd(source, bodyStart) + 1);
   const call = /JourneyV3Validation\.exactKeys\(json,\s*/.exec(body);
   if (!call) fail(`${className}.fromJson does not call JourneyV3Validation.exactKeys`);
@@ -1030,9 +1033,9 @@ function generatedDecoderKeys(source, className) {
     literal = body.slice(open + 1, dartBalancedEnd(body, open));
   } else {
     const variable = /^([A-Za-z_][A-Za-z0-9_]*)\s*\)/.exec(body.slice(call.index + call[0].length));
-    const declaration = variable && new RegExp(`final ${variable[1]} = \\{`).exec(body);
-    if (!declaration) fail(`${className}.fromJson exactKeys argument is not a local set literal`);
-    const open = declaration.index + declaration[0].length - 1;
+    const declaration = variable ? body.indexOf(`final ${variable[1]} = {`) : -1;
+    if (declaration < 0) fail(`${className}.fromJson exactKeys argument is not a local set literal`);
+    const open = body.indexOf('{', declaration);
     literal = body.slice(open + 1, dartBalancedEnd(body, open));
   }
   const keys = { required: new Set(), conditional: new Set() };
@@ -1044,9 +1047,9 @@ function generatedDecoderKeys(source, className) {
     if (required) add(keys.required, required[1]);
     else if (conditional && conditional[1] === conditional[2]) add(keys.conditional, conditional[1]);
     else if (loop) {
-      const list = new RegExp(`const ${loop[2]} = \\[`).exec(body);
-      if (!list) fail(`${className}.fromJson loop keys are not a local const list`);
-      const open = list.index + list[0].length - 1;
+      const list = body.indexOf(`const ${loop[2]} = [`);
+      if (list < 0) fail(`${className}.fromJson loop keys are not a local const list`);
+      const open = body.indexOf('[', list);
       for (const item of dartTopLevelEntries(body.slice(open + 1, dartBalancedEnd(body, open)))) {
         const name = /^'([A-Za-z][A-Za-z0-9]*)'$/.exec(item);
         if (!name) fail(`${className}.fromJson loop key ${item} is not a literal`);
