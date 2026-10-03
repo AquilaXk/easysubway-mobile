@@ -105,4 +105,111 @@ void main() {
       );
     });
   }
+
+  testWidgets('서버 상태 안내의 다시 시도는 첫 조회와 요일 탭 조회를 다시 한다', (tester) async {
+    final repository = _RecoveringRepository();
+    await runWithMobileErrorReporter((_) {}, () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StationTimetableScreen(
+            stationId: 'station-gangnam',
+            stationName: '강남',
+            lines: const [
+              StationSearchLine(
+                id: 'seoul-2',
+                name: '2호선',
+                color: '#00A84D',
+                stationCode: '222',
+              ),
+            ],
+            repository: repository,
+            now: DateTime(2026, 10, 7, 9),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('지금은 시간표를 불러올 수 없어요'), findsOneWidget);
+
+      repository.failNext = false;
+      await tester.tap(
+        find.byKey(const Key('station-timetable-server-retry-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('역삼 방면'), findsWidgets);
+
+      repository.failNext = true;
+      await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
+      await tester.pumpAndSettle();
+      expect(find.text('지금은 시간표를 불러올 수 없어요'), findsOneWidget);
+
+      repository.failNext = false;
+      await tester.tap(
+        find.byKey(const Key('station-timetable-server-retry-button')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('역삼 방면'), findsWidgets);
+      expect(repository.dayTypeCalls, [
+        StationTimetableDayType.saturday,
+        StationTimetableDayType.saturday,
+      ]);
+    });
+  });
+}
+
+/// 서버 503 뒤 회복하는 저장소.
+class _RecoveringRepository implements StationTimetableRepository {
+  var failNext = true;
+  final dayTypeCalls = <StationTimetableDayType>[];
+
+  StationTimetable _timetable(StationTimetableDayType dayType) =>
+      StationTimetable(
+        stationId: 'station-gangnam',
+        lineId: 'seoul-2',
+        dayType: dayType,
+        directions: const [
+          StationTimetableDirection(
+            name: '역삼 방면',
+            departures: [
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
+                seconds: 36000,
+                destination: '성수',
+              ),
+            ],
+          ),
+        ],
+      );
+
+  Future<StationTimetable> _answer(StationTimetableDayType dayType) async {
+    if (failNext) {
+      throw const ServerConnectionException('TIMETABLE_STALE', statusCode: 503);
+    }
+    return _timetable(dayType);
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) {
+    dayTypeCalls.add(dayType);
+    return _answer(dayType);
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) => _answer(StationTimetableDayType.weekday);
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => _answer(StationTimetableDayType.weekday);
 }

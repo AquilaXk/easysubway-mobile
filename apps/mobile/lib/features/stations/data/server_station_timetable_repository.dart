@@ -278,13 +278,11 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       lineId: lineId,
       dayType: _fromContractDayType(response.resolvedDayType),
       directions: List.unmodifiable(directions),
-      serviceDate: switch (response.selector) {
-        final contract.StationTimetableServiceDateSelector date =>
-          date.serviceDate.toString(),
-        final contract.StationTimetableDayTypeSelector dayType =>
-          dayType.referenceDate.toString(),
-        contract.StationTimetableNextDeparturesSelector() => null,
-      },
+      // 응답 selector는 요청과 같음을 위에서 확인했다. 앱은 DAY_TYPE을 보내지
+      // 않으므로 서비스일은 SERVICE_DATE 응답에만 있다.
+      serviceDate: selector is contract.StationTimetableServiceDateSelector
+          ? selector.serviceDate.toString()
+          : null,
     );
   }
 
