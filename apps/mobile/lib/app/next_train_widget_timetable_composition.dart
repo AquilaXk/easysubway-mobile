@@ -1,7 +1,9 @@
+import '../core/database/catalog/catalog_database.dart';
 import '../core/network/api_client.dart';
 import '../features/journey/data/journey_api_repository.dart';
 import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
 import '../features/journey/journey_session_provider.dart';
+import '../features/stations/data/drift_station_repository.dart';
 import '../features/stations/data/server_station_timetable_repository.dart';
 import '../features/stations/data/station_api_base_uri.dart';
 import '../features/stations/domain/station_repositories.dart';
@@ -11,7 +13,8 @@ import '../features/stations/domain/station_repositories.dart';
 /// The widget feature receives only [StationTimetableRepository], keeping the
 /// Journey V3 transport, integrity, and session implementations at the app
 /// composition boundary.
-StationTimetableRepository createNextTrainWidgetTimetableRepository({
+StationTimetableRepository createNextTrainWidgetTimetableRepository(
+  CatalogDatabase catalog, {
   Uri? Function() resolveBaseUri = defaultOptionalStationApiBaseUri,
   JourneyV3IntegrityAttestor Function() createAttestor =
       JourneyMethodChannelIntegrityAttestor.new,
@@ -23,6 +26,9 @@ StationTimetableRepository createNextTrainWidgetTimetableRepository({
   final journeyRepository = JourneyApiRepository(ApiClient(baseUri: baseUri));
   return ServerStationTimetableRepository(
     journeyRepository: journeyRepository,
+    stationNameResolver: stationDetailNameResolver(
+      DriftStationRepository(database: catalog),
+    ),
     sessionProvider: JourneySessionProvider(
       repository: journeyRepository,
       attestor: createAttestor(),

@@ -6,23 +6,42 @@ import '../domain/station_repositories.dart';
 
 export '../domain/station_repositories.dart' show ServerConnectionException;
 
-/// Server-authoritative timetable adapter. It never consults the catalog or
-/// retains a prior timetable when the Journey V3 operation rejects a request.
+/// 역 ID의 앱 카탈로그 이름. 찾지 못하면 예외를 던진다.
+typedef StationTimetableStationNameResolver =
+    Future<String> Function(String stationId);
+
+/// 역 검색 저장소(앱 카탈로그)의 역 상세 이름으로 이름을 붙인다.
+StationTimetableStationNameResolver stationDetailNameResolver(
+  StationSearchRepository repository,
+) =>
+    (stationId) async => (await repository.getStationDetail(stationId)).nameKo;
+
+/// Server-authoritative timetable adapter. It never retains a prior timetable
+/// when the Journey V3 operation rejects a request. The catalog is used only to
+/// name stations the server identifies (next stop and terminal, #437).
 class ServerStationTimetableRepository implements StationTimetableRepository {
   ServerStationTimetableRepository({
     required JourneyRepository journeyRepository,
     required JourneySessionProvider sessionProvider,
+    required StationTimetableStationNameResolver stationNameResolver,
     DateTime Function()? now,
-  }) : this._(journeyRepository, sessionProvider, now ?? DateTime.now);
+  }) : this._(
+         journeyRepository,
+         sessionProvider,
+         stationNameResolver,
+         now ?? DateTime.now,
+       );
 
   ServerStationTimetableRepository._(
     this._journeyRepository,
     this._sessionProvider,
+    this._stationNameResolver,
     this._now,
   );
 
   final JourneyRepository _journeyRepository;
   final JourneySessionProvider _sessionProvider;
+  final StationTimetableStationNameResolver _stationNameResolver;
   final DateTime Function() _now;
 
   @override
@@ -126,7 +145,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         ),
         sessionToken: session.token,
       );
-      return _map(
+      return await _map(
         response,
         stationId: stationId,
         lineId: lineId,
@@ -161,6 +180,8 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         'Station timetable data integrity violation: ${error.message}',
         cause: error,
       );
+    } on StationTimetableUnavailable {
+      rethrow;
     } catch (_) {
       throw const StationTimetableUnavailable(
         'Journey timetable is unavailable.',
@@ -168,12 +189,12 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     }
   }
 
-  StationTimetable _map(
+  Future<StationTimetable> _map(
     contract.StationTimetableSearchSuccess response, {
     required String stationId,
     required String lineId,
     required contract.StationTimetableSelector selector,
-  }) {
+  }) async {
     if (response.stationId != stationId ||
         response.lineId != lineId ||
         response.selector.toJson().toString() != selector.toJson().toString() ||
@@ -184,18 +205,38 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         'Station timetable identity or freshness mismatch',
       );
     }
-    final directionNames = <String>{};
+    // 방면은 다음 정차역(backend #479 nextStationId)으로 묶고 이름은 앱
+    // 카탈로그에서 붙인다. 원천 방면 이름(directionName)은 라벨에 쓰지 않는다.
+    // nextStationId·terminalStationId가 없는 이전 형태 응답은 방면 문자열을
+    // 잘라 행선지를 만들지 않고 무결성 오류로 처리한다.
+    final nextStationIds = <String>{};
     final directions = <StationTimetableDirection>[];
+    final names = <String, String>{};
+    Future<String> stationName(String stationId) async {
+      final cached = names[stationId];
+      if (cached != null) return cached;
+      final String name;
+      try {
+        name = await _stationNameResolver(stationId);
+      } catch (_) {
+        throw const StationTimetableUnavailable(
+          'TIMETABLE_STATION_NAME_UNAVAILABLE',
+        );
+      }
+      if (name.trim().isEmpty) {
+        throw const StationTimetableUnavailable(
+          'TIMETABLE_STATION_NAME_UNAVAILABLE',
+        );
+      }
+      return names[stationId] = name;
+    }
+
     for (final group in response.directionGroups) {
-      // backend #479 묶음(다음 정차역 기준, directionName null 가능)의 표시는
-      // #437에서 한다. 그 전에는 방면 이름이 없는 묶음을 추정 이름으로 채우지
-      // 않고 무결성 오류로 처리한다.
-      final directionName = group.directionName;
-      if (directionName == null ||
-          directionName.trim().isEmpty ||
-          !directionNames.add(directionName)) {
+      final nextStationId = group.nextStationId;
+      if (nextStationId == null || !nextStationIds.add(nextStationId)) {
         throw const FormatException('Station timetable direction mismatch');
       }
+      final directionName = '${await stationName(nextStationId)} 방면';
       DateTime? previousDepartureAt;
       final departures = <StationTimetableDeparture>[];
       for (final departure in group.departures) {
@@ -209,12 +250,19 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
           );
         }
         previousDepartureAt = departure.departureAt;
+        final terminalStationId = departure.terminalStationId;
+        if (terminalStationId == null) {
+          throw const FormatException(
+            'Station timetable departure terminal is missing',
+          );
+        }
+        final destination = await stationName(terminalStationId);
         departures.add(
           StationTimetableDeparture(
             directionName: directionName,
             seconds: departure.secondsFromServiceDayStart,
             departureAt: departure.departureAt,
-            destination: directionName.replaceAll('방면', '').trim(),
+            destination: destination,
             servicePattern: departure.servicePattern.wire,
             serviceClass: departure.serviceClass.wire,
           ),

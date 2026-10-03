@@ -30,7 +30,7 @@ typedef ReadWidgetValue = Future<String?> Function(String key);
 typedef ReportNextTrainWidgetError =
     void Function(Object error, StackTrace stackTrace);
 typedef CreateNextTrainWidgetTimetableRepository =
-    StationTimetableRepository Function();
+    StationTimetableRepository Function(CatalogDatabase catalog);
 
 /// Host tests supply these Android callbacks without loading platform plugins.
 @visibleForTesting
@@ -444,7 +444,7 @@ Future<bool> runHeadlessNextTrainWidgetRefresh({
       NextTrainWidgetRepository(
         catalogDatabase: databases.catalog,
         userDatabase: databases.user,
-        timetableRepository: createTimetableRepository(),
+        timetableRepository: createTimetableRepository(databases.catalog),
       ),
     );
   } finally {
@@ -486,7 +486,9 @@ Future<void> configureMain({
               (databases) => NextTrainWidgetRepository(
                 catalogDatabase: databases.catalog,
                 userDatabase: databases.user,
-                timetableRepository: createTimetableRepository(),
+                timetableRepository: createTimetableRepository(
+                  databases.catalog,
+                ),
               ).availableSelections(),
               openDatabases: openDatabases,
               closeDatabases: closeDatabases,
@@ -499,7 +501,9 @@ Future<void> configureMain({
                       load: NextTrainWidgetRepository(
                         catalogDatabase: databases.catalog,
                         userDatabase: databases.user,
-                        timetableRepository: createTimetableRepository(),
+                        timetableRepository: createTimetableRepository(
+                          databases.catalog,
+                        ),
                       ).load,
                       saveValue: saveWidgetValue ?? _saveWidgetValue,
                       updateWidget: updateNativeWidget ?? _updateNativeWidget,
