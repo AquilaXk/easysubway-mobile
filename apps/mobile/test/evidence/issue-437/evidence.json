@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "issue": 437,
+  "capturedAt": "2026-10-04",
+  "platform": "Android emulator easysubway_ps16k_api36 (Android 16 API 36), 실제 앱 화면 adb screencap 1080x2400",
+  "assertions": [
+    "2호선 강남 서버 시간표가 다음 정차역 기준 \"역삼 방면 / 교대 방면\" 두 묶음으로 나온다(두 묶음의 종착이 같아도 섞이지 않는다)",
+    "출발마다 행선지가 terminalStationId의 카탈로그 이름(성수행·신도림행)으로 나온다",
+    "directionName이 null인 응답을 해석하고, 방면 문자열을 잘라 행선지를 만들지 않는다",
+    "TalkBack이 읽는 접근성 라벨이 \"역삼 방면, 성수행, 05시 30분 출발\" 형태다"
+  ],
+  "files": [
+    {
+      "path": "gangnam-line2-next-station.png",
+      "sha256": "a851085f7df257d208eb164cc96406bd14926c96f050ff1899a7596c601ab113",
+      "description": "강남역 2호선 시간표 화면: 역삼 방면/교대 방면, 출발별 성수행·신도림행"
+    },
+    {
+      "path": "accessibility-tree.txt",
+      "sha256": "d76be22e4a0ded38b6937a07739f3189a23c0c96853eb5fd9cee02090bf4a19c",
+      "description": "uiautomator dump 접근성 라벨"
+    }
+  ],
+  "captureMethod": "임시 integration_test(커밋 안 함)에서 StationTimetableScreen에 실제 ServerStationTimetableRepository와 실제 JourneyApiRepository를 넣고, 전송 계층(ApiClient.postJson)만 backend #479 형태 응답(nextStationId 역삼/교대, directionName null, terminalStationId 성수/신도림)을 내도록 바꿨다. 역 이름은 테스트용 카탈로그 표로 붙였다. flutter test -d emulator-5554로 실행하고 adb exec-out screencap, adb shell uiautomator dump로 수집했다. lib/ 테스트 전용 hook 없음. 시각·종착 구성은 화면 확인용이며 실제 시간표가 아니다.",
+  "notes": "backend #479가 배포되지 않아 운영 응답으로는 찍을 수 없다(현재 운영 역 시간표는 503 TIMETABLE_STALE). TalkBack 실기 낭독은 하지 않았고 접근성 트리로 대체했다."
+}
