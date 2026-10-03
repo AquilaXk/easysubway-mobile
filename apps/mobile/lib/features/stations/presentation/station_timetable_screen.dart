@@ -55,6 +55,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   var _loading = false;
   var _requestId = 0;
   var _isNetworkError = false;
+
+  /// 서버가 응답했지만 시간표를 보여 줄 수 없는 상태(만료·무결성 오류·역 이름
+  /// 확인 불가 등). 로컬 시간표로 덮지 않고 그대로 알린다(#437).
+  var _isServerError = false;
   var _didSelectOrLoadLine = false;
   Timer? _tickerTimer;
   Duration _tickerElapsed = Duration.zero;
@@ -159,9 +163,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     setState(() {
       _loading = true;
       _isNetworkError = false;
+      _isServerError = false;
     });
     StationTimetable? unavailable;
     ServerConnectionException? serverException;
+    var serverUnavailable = false;
     Object? otherException;
     StackTrace otherStackTrace = StackTrace.empty;
 
@@ -178,8 +184,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           return;
         }
         unavailable ??= timetable;
-      } on StationTimetableUnavailable {
-        // Line not available in timetable, continue checking next line
+      } on StationTimetableUnavailable catch (error) {
+        // 이 노선 시간표가 없으면 다음 노선을 본다. 서버가 보여 줄 수 없다고 답한
+        // 경우는 기억해 두고 다른 노선이 없으면 그 상태를 알린다.
+        if (!_isNoTimetable(error)) serverUnavailable = true;
       } on ServerConnectionException catch (error) {
         serverException = error;
       } catch (error, stackTrace) {
@@ -189,13 +197,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       if (!mounted || requestId != _requestId) return;
     }
 
-    if (serverException != null) {
+    if (serverException != null || serverUnavailable) {
       if (!mounted || requestId != _requestId) return;
+      final unreachable = serverException is ServerUnreachableException;
       setState(() {
         _timetable = null;
         _directionName = null;
         _loading = false;
-        _isNetworkError = true;
+        _isNetworkError = unreachable;
+        _isServerError = !unreachable;
       });
       return;
     }
@@ -235,6 +245,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     setState(() {
       _loading = true;
       _isNetworkError = false;
+      _isServerError = false;
     });
     try {
       final timetable = date == null
@@ -253,23 +264,26 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         return;
       }
       _applyTimetable(timetable);
-    } on StationTimetableUnavailable {
+    } on StationTimetableUnavailable catch (error) {
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _timetable = null;
         _directionName = null;
         _loading = false;
         _isNetworkError = false;
+        _isServerError = !_isNoTimetable(error);
       });
-    } on ServerConnectionException {
+    } on ServerConnectionException catch (error) {
       if (!mounted || requestId != _requestId) {
         return;
       }
+      final unreachable = error is ServerUnreachableException;
       setState(() {
         _timetable = null;
         _directionName = null;
         _loading = false;
-        _isNetworkError = true;
+        _isNetworkError = unreachable;
+        _isServerError = !unreachable;
       });
     } catch (error, stackTrace) {
       reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
@@ -295,6 +309,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _dayType = timetable.dayType;
       _didSelectOrLoadLine = true;
       _isNetworkError = false;
+      _isServerError = false;
       _directionName = directionNames.contains(_directionName)
           ? _directionName
           : timetable.directions.firstOrNull?.name;
@@ -682,6 +697,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                   ),
                 ),
               )
+            else if (_isServerError)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: _buildServerErrorView(),
+                  ),
+                ),
+              )
             else if (timetable == null || !timetable.isAvailable)
               const Expanded(
                 child: Center(
@@ -750,6 +774,75 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 서버가 시간표 없음(노선·날짜 미포함)이라고 답한 경우. 그 밖의 사용 불가
+  /// 사유는 서버 오류 상태로 알린다.
+  bool _isNoTimetable(StationTimetableUnavailable error) =>
+      error.reason == 'TIMETABLE_NOT_COVERED' ||
+      error.reason == 'STATION_LINE_NOT_FOUND';
+
+  Widget _buildServerErrorView() {
+    return Semantics(
+      container: true,
+      label: '지금은 시간표를 불러올 수 없어요. 잠시 후 다시 시도해 주세요.',
+      child: Column(
+        key: const Key('station-timetable-server-error-view'),
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ExcludeSemantics(
+            child: Text(
+              '지금은 시간표를 불러올 수 없어요',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: EasySubwayAccessibleColors.text,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const ExcludeSemantics(
+            child: Text(
+              '잠시 후 다시 시도해 주세요.',
+              style: TextStyle(
+                fontSize: 14,
+                color: EasySubwayAccessibleColors.secondaryText,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            key: const Key('station-timetable-server-retry-button'),
+            onPressed: _loading
+                ? null
+                : () {
+                    if (_didSelectOrLoadLine && _lineId != null) {
+                      unawaited(_load());
+                    } else {
+                      unawaited(_loadInitialAvailableLine(_effectiveNow));
+                    }
+                  },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text(
+              '다시 시도',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: EasySubwayAccessibleColors.primary,
+              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

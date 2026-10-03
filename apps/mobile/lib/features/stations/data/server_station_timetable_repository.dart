@@ -4,7 +4,8 @@ import '../../journey/domain/journey_repository.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
 
-export '../domain/station_repositories.dart' show ServerConnectionException;
+export '../domain/station_repositories.dart'
+    show ServerConnectionException, ServerUnreachableException;
 
 /// 역 ID의 앱 카탈로그 이름. 찾지 못하면 예외를 던진다.
 typedef StationTimetableStationNameResolver =
@@ -117,7 +118,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       }
       throw StationTimetableUnavailable(error.error.code.wire);
     } on JourneyTransportFailure catch (error) {
-      throw ServerConnectionException(
+      throw ServerUnreachableException(
         'Network transport failure: ${error.operation.wire}',
         cause: error.cause,
       );
@@ -167,7 +168,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       }
       throw StationTimetableUnavailable(error.error.code.wire);
     } on JourneyTransportFailure catch (error) {
-      throw ServerConnectionException(
+      throw ServerUnreachableException(
         'Network transport failure: ${error.operation.wire}',
         cause: error.cause,
       );

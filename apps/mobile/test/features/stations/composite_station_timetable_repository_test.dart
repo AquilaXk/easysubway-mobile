@@ -265,7 +265,7 @@ void main() {
         expect(reportedErrors, isNotEmpty);
         expect(
           reportedErrors.first.context?.toString(),
-          contains('서버 일자별 시간표 조회 실패로 로컬 저장 시간표로 전환합니다'),
+          contains('서버에 연결할 수 없어 일자별 로컬 저장 시간표로 전환합니다'),
         );
         expect(
           timetable.directions.map((d) => d.name),

@@ -306,3 +306,10 @@ class ServerConnectionException implements Exception {
     return buffer.toString();
   }
 }
+
+/// 서버에 닿지 못한 실패(전송 계층 실패). 기기에 저장된 로컬 시간표로 전환해도
+/// 되는 유일한 서버 실패다. 서버가 응답한 실패(없음·만료·무결성 오류)는
+/// [ServerConnectionException]이나 시간표 사용 불가로 남는다(#437).
+class ServerUnreachableException extends ServerConnectionException {
+  const ServerUnreachableException(super.message, {super.cause});
+}
