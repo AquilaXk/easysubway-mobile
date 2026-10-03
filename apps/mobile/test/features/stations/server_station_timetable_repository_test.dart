@@ -207,68 +207,112 @@ void main() {
     },
   );
 
-  test('day type와 service date selector는 KST date로 server에 전달한다', () async {
-    final journey = _FakeJourneyRepository(
-      timetable: _success(
-        selector: contract.StationTimetableDayTypeSelector(
-          dayType: contract.StationTimetableDayType.saturday,
-          referenceDate: contract.JourneyDate.parse('2026-08-11'),
+  // #437 리뷰 F1: 요일 탭은 요일 종류(DAY_TYPE)를 보내지 않는다. 토요일 시간표가
+  // 없는 기관에 DAY_TYPE=SATURDAY를 보내면 400이다. 탭 요일에 해당하는 가장 가까운
+  // 날짜를 SERVICE_DATE로 보내고, 서버가 판정한 resolvedDayType을 그대로 쓴다.
+  group('요일 탭은 날짜로 조회하고 서버가 판정한 요일 종류를 쓴다', () {
+    Future<(StationTimetable, _FakeJourneyRepository)> load(
+      StationTimetableDayType dayType,
+      DateTime referenceDate,
+      String expectedServiceDate,
+      contract.StationTimetableDayType resolved,
+    ) async {
+      final journey = _FakeJourneyRepository(
+        timetable: _success(
+          selector: contract.StationTimetableServiceDateSelector(
+            contract.JourneyDate.parse(expectedServiceDate),
+          ),
+          departures: const [],
+          now: now,
+          resolvedDayType: resolved,
         ),
-        departures: const [],
         now: now,
-      ),
-      now: now,
-    );
-    await _repository(journey, now: now).loadStationTimetable(
-      stationId: 'station-sadang',
-      lineId: 'seoul-4',
-      dayType: StationTimetableDayType.saturday,
-      referenceDate: DateTime.utc(2026, 8, 10, 15),
-    );
-    final serviceDateJourney = _FakeJourneyRepository(
-      timetable: _success(
-        selector: contract.StationTimetableServiceDateSelector(
-          contract.JourneyDate.parse('2026-08-11'),
-        ),
-        departures: const [],
-        now: now,
-      ),
-      now: now,
-    );
-    await _repository(serviceDateJourney, now: now).loadStationTimetableForDate(
-      stationId: 'station-sadang',
-      lineId: 'seoul-4',
-      date: DateTime.utc(2026, 8, 10, 15),
-    );
+      );
+      final timetable = await _repository(journey, now: now)
+          .loadStationTimetable(
+            stationId: 'station-sadang',
+            lineId: 'seoul-4',
+            dayType: dayType,
+            referenceDate: referenceDate,
+          );
+      return (timetable, journey);
+    }
 
-    expect(journey.searchCalls, 1);
-    expect(serviceDateJourney.searchCalls, 1);
-  });
+    test('토요일 휴일 달력 기관: 토요일 탭은 다음 토요일 날짜로 묻고 공휴일 시간표를 받는다', () async {
+      // 2026-08-11(화) KST 기준 다음 토요일은 2026-08-15다.
+      final (timetable, journey) = await load(
+        StationTimetableDayType.saturday,
+        DateTime.utc(2026, 8, 10, 15),
+        '2026-08-15',
+        contract.StationTimetableDayType.sundayHoliday,
+      );
 
-  test('sunday-holiday day type은 server selector와 응답에 대칭으로 보존한다', () async {
-    final selector = contract.StationTimetableDayTypeSelector(
-      dayType: contract.StationTimetableDayType.sundayHoliday,
-      referenceDate: contract.JourneyDate.parse('2026-08-16'),
-    );
-    final journey = _FakeJourneyRepository(
-      timetable: _success(
-        selector: selector,
-        departures: const [],
-        now: now,
-        resolvedDayType: contract.StationTimetableDayType.sundayHoliday,
-      ),
-      now: now,
-    );
+      final selector = journey.requests.single.selector;
+      expect(selector, isA<contract.StationTimetableServiceDateSelector>());
+      expect(
+        (selector as contract.StationTimetableServiceDateSelector).serviceDate
+            .toString(),
+        '2026-08-15',
+      );
+      expect(timetable.dayType, StationTimetableDayType.sundayHoliday);
+      expect(timetable.serviceDate, '2026-08-15');
+    });
 
-    final timetable = await _repository(journey, now: now).loadStationTimetable(
-      stationId: 'station-sadang',
-      lineId: 'seoul-4',
-      dayType: StationTimetableDayType.sundayHoliday,
-      referenceDate: DateTime.utc(2026, 8, 15, 15),
-    );
+    test('공휴일 탭은 다음 일요일, 평일 탭은 다음 평일 날짜로 묻는다', () async {
+      final (holiday, holidayJourney) = await load(
+        StationTimetableDayType.sundayHoliday,
+        DateTime.utc(2026, 8, 15, 15), // 2026-08-16(일) KST
+        '2026-08-16',
+        contract.StationTimetableDayType.sundayHoliday,
+      );
+      final (weekday, weekdayJourney) = await load(
+        StationTimetableDayType.weekday,
+        DateTime.utc(2026, 8, 14, 15), // 2026-08-15(토) KST
+        '2026-08-17',
+        contract.StationTimetableDayType.weekday,
+      );
 
-    expect(timetable.dayType, StationTimetableDayType.sundayHoliday);
-    expect(journey.searchCalls, 1);
+      expect(holidayJourney.requests.single.selector.toJson(), {
+        'kind': 'SERVICE_DATE',
+        'serviceDate': '2026-08-16',
+      });
+      expect(holiday.dayType, StationTimetableDayType.sundayHoliday);
+      expect(weekdayJourney.requests.single.selector.toJson(), {
+        'kind': 'SERVICE_DATE',
+        'serviceDate': '2026-08-17',
+      });
+      expect(weekday.dayType, StationTimetableDayType.weekday);
+    });
+
+    test(
+      '400 INVALID_JOURNEY_REQUEST와 404 TIMETABLE_NOT_COVERED는 코드를 담은 시간표 사용 불가다',
+      () async {
+        for (final (status, code) in [
+          (400, contract.JourneyErrorCode.invalidJourneyRequest),
+          (404, contract.JourneyErrorCode.timetableNotCovered),
+        ]) {
+          final journey = _FakeJourneyRepository(
+            failure: _rejected(statusCode: status, code: code, now: now),
+            now: now,
+          );
+          await expectLater(
+            _repository(journey, now: now).loadStationTimetable(
+              stationId: 'station-sadang',
+              lineId: 'seoul-4',
+              dayType: StationTimetableDayType.saturday,
+              referenceDate: DateTime.utc(2026, 8, 10, 15),
+            ),
+            throwsA(
+              isA<StationTimetableUnavailable>().having(
+                (e) => e.reason,
+                'reason',
+                code.wire,
+              ),
+            ),
+          );
+        }
+      },
+    );
   });
 
   test(
@@ -941,6 +985,7 @@ class _FakeJourneyRepository implements JourneyRepository {
   final DateTime now;
   int issueCalls = 0;
   int searchCalls = 0;
+  final requests = <contract.StationTimetableSearchRequest>[];
 
   @override
   Future<contract.JourneySessionResponse> issueSession(
@@ -969,6 +1014,7 @@ class _FakeJourneyRepository implements JourneyRepository {
     required String sessionToken,
   }) async {
     searchCalls++;
+    requests.add(request);
     if (failure != null) throw failure!;
     return timetable!;
   }
