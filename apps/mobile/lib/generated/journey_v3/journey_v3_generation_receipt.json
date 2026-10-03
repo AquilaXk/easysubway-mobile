@@ -3,7 +3,7 @@
   "generator": {
     "id": "easysubway-mobile-journey-v3-client",
     "version": "2.0.0",
-    "sourceSha256": "e435dd8131cb8fdbc21ad7b2ef9a2f30b4a40ca0de8790cebb5444433d2f27e9",
+    "sourceSha256": "b3377011819b0e3e6a45bf8fbcaf9849585110d52acb12c5d5552950f681dc4c",
     "formatter": {
       "command": "dart format",
       "sdkVersion": "3.12.0"
@@ -14,14 +14,14 @@
     "sourceFiles": [
       {
         "path": "contracts/mobile/journey-v3-client.lock.json",
-        "sha256": "841d9f1beee8096602d7a17817996f388ce2191aa8aa56052dc6f09bd29224de"
+        "sha256": "3ebe073f38c348a067ee915a5817b9450123f154d57b7d1023b56935ea497396"
       },
       {
         "path": "tools/mobile/generate-journey-v3-client.mjs",
-        "sha256": "e435dd8131cb8fdbc21ad7b2ef9a2f30b4a40ca0de8790cebb5444433d2f27e9"
+        "sha256": "b3377011819b0e3e6a45bf8fbcaf9849585110d52acb12c5d5552950f681dc4c"
       }
     ],
-    "generationSourceTreeSha256": "841b8112db6b3fe88312cdfd0b5bfae4190882bcfb3c38966fb36be312e48a04"
+    "generationSourceTreeSha256": "54ac7bb4857e92bc1d10f01cab0a976867de76f2e0260d98e6d7a3629cad86e2"
   },
   "runtime": {
     "node": {
@@ -43,23 +43,23 @@
       "<output-root>/journey_v3_generation_receipt.json"
     ]
   },
-  "configSha256": "392ce2f638f71318687ece973371ecac5317566a965826a5a4b3ff7bf1bb1268",
-  "lockSha256": "841d9f1beee8096602d7a17817996f388ce2191aa8aa56052dc6f09bd29224de",
+  "configSha256": "4d8e2ea5f8209601dd611c970eb5c4f60ac8c5241146a3834b4fd27ae96ea506",
+  "lockSha256": "3ebe073f38c348a067ee915a5817b9450123f154d57b7d1023b56935ea497396",
   "producer": {
     "repository": "AquilaXk/easysubway-backend",
-    "gitSha": "4a1da5b75dbc185652e91c70575b7caadd523ada"
+    "gitSha": "cd824e1a296f3dbaa13857165fd7d7e7653e3668"
   },
   "artifact": {
     "repository": "ghcr.io/aquilaxk/easysubway-backend-contracts",
-    "manifestDigest": "sha256:6220d43b7d7136a7078b0dbd2019b9e4695f330358d7ba24eb1cb302d898d862",
+    "manifestDigest": "sha256:6d7b8f6092814d4fee3fba7a86959ec17091d2b2071aad49f7950d4cb5d9c098",
     "artifactType": "application/vnd.easysubway.journey.contract-bundle.v2"
   },
   "payload": {
     "fileName": "journey-v3-contract-bundle-v2.json",
     "mediaType": "application/vnd.easysubway.journey.contract-bundle.v2+json",
-    "sha256": "8968213141405ff41fa1e2a8b99b5b2ad1cbacc9290d235c3dac6cb8d5415d02"
+    "sha256": "0869eb2ed2f7a6b0b402d4de5b6b5a601a9c7cb1398280717adc16d5c220a083"
   },
-  "publicationReceiptSha256": "1b6241ad1642f0e1169080f344222c43e8e0b48f7df81b0f04b76b0e3e85beaf",
+  "publicationReceiptSha256": "abadaa3be270e0e1cd59163e7fa2333057e73f7de419cba3198f559a4f36e31b",
   "resources": [
     {
       "id": "journey-v3-error-catalog",
@@ -87,7 +87,7 @@
       "path": "contracts/api/journey-v3.openapi.yaml",
       "owner": "AquilaXk/easysubway-backend",
       "mediaType": "application/yaml",
-      "sha256": "e7a8d77a801769203a5816725d95406bba4104d5ce9d426a50f136268d6c265c"
+      "sha256": "85707bc0cc3404d9af54c266e791d7f5af0536385207e4ad1461b6628eaf35f5"
     }
   ],
   "supportedFeatures": [
@@ -108,11 +108,11 @@
   "files": [
     {
       "path": "journey_v3_contract.dart",
-      "sha256": "d054722fc36ba2b2fdf8cddf1cdcc313fb12e659a417b38b866e5ed5e586060f"
+      "sha256": "f30e752b1fcb46bcabc3af1552fc1fe62521383c9521742f060acab7ffe4d1f7"
     },
     {
       "path": "journey_v3_enums.dart",
-      "sha256": "615bb05ce36565524a29748b26ff349214cf84bb64f1a18bb69c1711751ad804"
+      "sha256": "b419ef80675c740484d26ec445b50451a426e61d316b5b6c3711df8953ac287c"
     },
     {
       "path": "journey_v3_error.dart",
@@ -120,12 +120,12 @@
     },
     {
       "path": "journey_v3_models.dart",
-      "sha256": "812d54025d25563d4fc9a45bf01ea1d08cb8a52fac3fc811f57920df91c3c2bb"
+      "sha256": "dca193cf9ca9025be601e8d0b4b42523e694495bbec3b9163f37e7b278cb5262"
     },
     {
       "path": "journey_v3_validation.dart",
       "sha256": "aac18e70d8410e9807536bd6e67607e91d92bb05e070e37ef50a8161751909a8"
     }
   ],
-  "treeSha256": "41a987b6eb626bd765fb466f81f2e394dfe8787860c9d4ebc65349b4f079253a"
+  "treeSha256": "0ca8755b59018beb06c49dab80586801d94b7976f024d113bae010896029f18e"
 }

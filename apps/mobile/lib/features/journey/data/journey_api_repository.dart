@@ -308,7 +308,7 @@ class JourneyApiRepository implements JourneyRepository {
       );
     }
     for (final group in success.directionGroups) {
-      if (group.directionName.trim().isEmpty) {
+      if (group.directionName?.trim().isEmpty ?? false) {
         throw const FormatException(
           'Station timetable direction must be nonblank',
         );

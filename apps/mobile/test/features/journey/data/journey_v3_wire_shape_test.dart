@@ -83,6 +83,103 @@ void main() {
       expect(() => JourneySearchSuccess.fromJson(json), returnsNormally);
     });
 
+    test('serviceDayCutoff 값을 그대로 담고, #471 필드가 없으면 비어 있다', () {
+      final success = JourneySearchSuccess.fromJson(
+        _fixture('search-success.backend-main.json'),
+      );
+
+      expect(success.serviceDayCutoff, '03:00');
+      expect(success.stairFreeAlternative, isNull);
+      expect(success.journeys.map((j) => j.alternativeCategories), [
+        isNull,
+        isNull,
+      ]);
+    });
+
+    test('serviceDayCutoff는 배포된 필수 필드라 빠지거나 다른 값이면 거부한다', () {
+      final missing = _fixture('search-success.backend-main.json')
+        ..remove('serviceDayCutoff');
+      final changed = _fixture('search-success.backend-main.json')
+        ..['serviceDayCutoff'] = '04:00';
+
+      expect(
+        () => JourneySearchSuccess.fromJson(missing),
+        throwsA(isA<FormatException>()),
+      );
+      expect(
+        () => JourneySearchSuccess.fromJson(changed),
+        throwsA(isA<FormatException>()),
+      );
+    });
+
+    test('#471 계단 없는 대안 결과와 대표 묶음을 해석한다', () {
+      final success = JourneySearchSuccess.fromJson(
+        _fixture('search-success.backend-pr471.json'),
+      );
+
+      expect(
+        success.stairFreeAlternative?.status,
+        JourneyStairFreeAlternativeStatus.included,
+      );
+      expect(
+        success.stairFreeAlternative?.facilityStatus,
+        JourneyStairFreeFacilityStatus.unobserved,
+      );
+      expect(success.journeys.map((j) => j.alternativeCategories), [
+        [
+          JourneyAlternativeCategory.fastest,
+          JourneyAlternativeCategory.stairFree,
+        ],
+        [JourneyAlternativeCategory.fewestTransfers],
+      ]);
+    });
+
+    test('#471 필드도 계약 밖 값·키·null은 거부한다', () {
+      Map<String, Object?> pr471() =>
+          _fixture('search-success.backend-pr471.json');
+      List<Map<String, Object?>> journeys(Map<String, Object?> json) =>
+          (json['journeys']! as List).cast<Map<String, Object?>>();
+      final cases = <String, Map<String, Object?>>{
+        'stairFreeAlternative null': pr471()..['stairFreeAlternative'] = null,
+        'stairFreeAlternative extra key': pr471()
+          ..['stairFreeAlternative'] = {
+            'status': 'INCLUDED',
+            'facilityStatus': 'APPLIED',
+            'note': 'x',
+          },
+        'unknown status': pr471()
+          ..['stairFreeAlternative'] = {
+            'status': 'MAYBE',
+            'facilityStatus': 'APPLIED',
+          },
+        'duplicate category': (() {
+          final json = pr471();
+          journeys(json).first['alternativeCategories'] = [
+            'FASTEST',
+            'FASTEST',
+          ];
+          return json;
+        })(),
+        'unknown category': (() {
+          final json = pr471();
+          journeys(json).first['alternativeCategories'] = ['CHEAPEST'];
+          return json;
+        })(),
+        'null categories': (() {
+          final json = pr471();
+          journeys(json).first['alternativeCategories'] = null;
+          return json;
+        })(),
+      };
+      for (final MapEntry(:key, :value) in cases.entries) {
+        expect(
+          () => JourneySearchSuccess.fromJson(value),
+          throwsA(isA<FormatException>()),
+          reason: key,
+        );
+      }
+    });
+
     test('계약에 없는 최상위 키는 계속 거부한다', () {
       final json = _fixture('search-success.backend-main.json')
         ..['debugTrace'] = 'x';
@@ -98,13 +195,97 @@ void main() {
     test('현재 계약 형태를 해석한다', () {
       final json = _fixture('station-timetable-success.backend-main.json');
 
-      expect(() => StationTimetableSearchSuccess.fromJson(json), returnsNormally);
+      expect(
+        () => StationTimetableSearchSuccess.fromJson(json),
+        returnsNormally,
+      );
     });
 
     test('backend #479 형태(다음 정차역·종착역, 방면 이름 null)를 해석한다', () {
       final json = _fixture('station-timetable-success.backend-pr479.json');
 
-      expect(() => StationTimetableSearchSuccess.fromJson(json), returnsNormally);
+      expect(
+        () => StationTimetableSearchSuccess.fromJson(json),
+        returnsNormally,
+      );
+    });
+
+    test('#479 다음 정차역·종착역을 담고 방면 이름 null을 그대로 둔다', () {
+      final success = StationTimetableSearchSuccess.fromJson(
+        _fixture('station-timetable-success.backend-pr479.json'),
+      );
+
+      expect(success.directionGroups.map((g) => g.nextStationId), [
+        'station-yeoksam',
+        'station-gyodae',
+      ]);
+      expect(success.directionGroups.map((g) => g.directionName), [
+        isNull,
+        isNull,
+      ]);
+      expect(
+        success.directionGroups.first.departures.map(
+          (d) => d.terminalStationId,
+        ),
+        ['station-seongsu', 'station-seongsu'],
+      );
+    });
+
+    test('현재 계약 형태는 다음 정차역·종착역 없이 방면 이름을 담는다', () {
+      final success = StationTimetableSearchSuccess.fromJson(
+        _fixture('station-timetable-success.backend-main.json'),
+      );
+
+      expect(success.directionGroups.single.nextStationId, isNull);
+      expect(success.directionGroups.single.directionName, '역삼 방면');
+      expect(
+        success.directionGroups.single.departures.single.terminalStationId,
+        isNull,
+      );
+    });
+
+    test('#479 필드도 null·빈 값·계약 밖 키·directionName 누락은 거부한다', () {
+      Map<String, Object?> group(Map<String, Object?> json) =>
+          (json['directionGroups']! as List).cast<Map<String, Object?>>().first;
+      Map<String, Object?> pr479() =>
+          _fixture('station-timetable-success.backend-pr479.json');
+      final cases = <String, Map<String, Object?>>{
+        'nextStationId null': (() {
+          final json = pr479();
+          group(json)['nextStationId'] = null;
+          return json;
+        })(),
+        'nextStationId blank': (() {
+          final json = pr479();
+          group(json)['nextStationId'] = ' ';
+          return json;
+        })(),
+        'directionName missing': (() {
+          final json = pr479();
+          group(json).remove('directionName');
+          return json;
+        })(),
+        'terminalStationId null': (() {
+          final json = pr479();
+          (group(json)['departures']! as List)
+                  .cast<Map<String, Object?>>()
+                  .first['terminalStationId'] =
+              null;
+          return json;
+        })(),
+        'group extra key': (() {
+          final json = pr479();
+          group(json)['directionCode'] = 'UP';
+          return json;
+        })(),
+      };
+      for (final MapEntry(:key, :value) in cases.entries) {
+        expect(
+          () => StationTimetableSearchSuccess.fromJson(value),
+          throwsA(isA<FormatException>()),
+          reason: key,
+        );
+      }
     });
   });
 }

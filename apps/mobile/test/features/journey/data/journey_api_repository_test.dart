@@ -246,6 +246,7 @@ Map<String, Object?> _successJson({
     effectiveDepartureTime: DateTime.parse('2026-08-11T00:00:00Z'),
     serviceDate: JourneyDate.parse('2026-08-11'),
     serviceTimezone: 'Asia/Seoul',
+    serviceDayCutoff: '03:00',
     sourceIdentity: JourneySourceIdentity(
       routeBundleId: 'bundle-1',
       routeBundleSha256: 'a' * 64,

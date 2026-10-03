@@ -384,6 +384,7 @@ class JourneyProfileSuccess {
       effectiveDepartureTime: effectiveDeparture,
       serviceDate: JourneyDate.parse(serviceDateStr),
       serviceTimezone: 'Asia/Seoul',
+      serviceDayCutoff: '03:00',
       sourceIdentity:
           sourceIdentity ??
           JourneySourceIdentity(

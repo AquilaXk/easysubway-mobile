@@ -36,7 +36,7 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = '169707a0c7f65d3ebcd5bcfdd429ccf33decb17396e4883a646309b38daa73da';
+const expectedSchemasProjectionSha256 = '4470aceac9fb0d47f7344aaa8d0470f1f156a134d867444595eb540b90cd4b5d';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -204,7 +204,7 @@ function assertAllowed(value, keys, label) { if (!isObject(value) || Object.keys
 function validateSchemas(schemas, enforceSchemasProjection) {
   if (!isObject(schemas) || Object.keys(schemas).length === 0) fail('components.schemas must be nonempty'); const state = new Map();
   const visit = (name) => { if (!(name in schemas)) fail(`unresolved schema reference ${name}`); if (state.get(name) === 'visiting') fail(`cyclic schema reference ${name}`); if (state.get(name) === 'done') return; state.set(name, 'visiting'); schema(schemas[name], name); state.set(name, 'done'); };
-  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'JourneyProfileSourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime', 'JourneyRideStop.plannedArrivalTime', 'JourneyRideStop.plannedDepartureTime', 'JourneyRideStop.realtimeArrivalTime', 'JourneyRideStop.realtimeDepartureTime']);
+  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'JourneyProfileSourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime', 'JourneyRideStop.plannedArrivalTime', 'JourneyRideStop.plannedDepartureTime', 'JourneyRideStop.realtimeArrivalTime', 'JourneyRideStop.realtimeDepartureTime', 'StationTimetableDirectionGroup.directionName']);
   const schema = (value, label) => {
     if (!isObject(value)) fail(`${label} must be a schema object`);
     if ('$ref' in value) { assertAllowed(value, ['$ref'], label); visit(ref(value.$ref, label)); return; }
@@ -229,8 +229,9 @@ function validateSchemas(schemas, enforceSchemasProjection) {
       return;
     }
     if (value.type === 'object') {
-      assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not', 'description'], label);
-      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest' || label === 'JourneyRideLeg' || label === 'JourneyPlatformGap' || label === 'JourneyFare';
+      assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not', 'description', 'deprecated'], label);
+      if ('deprecated' in value && value.deprecated !== true) fail(`${label} has invalid deprecated flag`);
+      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest' || label === 'JourneyRideLeg' || label === 'JourneyPlatformGap' || label === 'JourneyFare' || label === 'Journey';
       if (value.additionalProperties !== false || !Array.isArray(value.required) || !isObject(value.properties) || new Set(value.required).size !== value.required.length || (!isOptionalAllowed && Object.keys(value.properties).length !== value.required.length) || value.required.some((key) => !(key in value.properties))) fail(`${label} must have an exact closed required property set`);
       for (const [key, child] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) fail(`${label} has unsupported property`); schema(child, `${label}.${key}`); }
       if ('not' in value && (!isObject(value.not) || !Array.isArray(value.not.required) || !isObject(value.not.properties))) fail(`${label} has unsupported not constraint`);
@@ -271,6 +272,46 @@ function validateSchemas(schemas, enforceSchemasProjection) {
   if (enforceSchemasProjection) {
     const projectionSha256 = sha256(Buffer.from(canonicalJson(schemas), 'utf8'));
     if (projectionSha256 !== expectedSchemasProjectionSha256) fail(`components.schemas projection SHA-256 does not match ${projectionSha256}`);
+  }
+  return schemas;
+}
+
+// #438 transition policy, part 1: contract additions from backend PRs that are
+// approved but not merged, so no published contract bundle carries them yet.
+// They are overlaid on the locked contract so the client is ready before the
+// backend deploys. Each entry mirrors the PR's journey-v3.openapi.yaml change
+// (descriptions omitted). When the lock moves to a bundle that already has an
+// entry, generation fails until the entry is removed here.
+const pendingContractAdditions = Object.freeze([
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'JourneyStairFreeAlternative', definition: Object.freeze({ type: 'object', additionalProperties: false, required: ['status', 'facilityStatus'], properties: { status: { type: 'string', enum: ['INCLUDED', 'OMITTED', 'NOT_FOUND', 'UNDETERMINED'] }, facilityStatus: { type: 'string', enum: ['APPLIED', 'UNOBSERVED'] } } }) }),
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'JourneySearchSuccess', property: 'stairFreeAlternative', required: true, definition: Object.freeze({ $ref: '#/components/schemas/JourneyStairFreeAlternative' }) }),
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'Journey', property: 'alternativeCategories', required: false, definition: Object.freeze({ type: 'array', uniqueItems: true, maxItems: 3, items: { type: 'string', enum: ['FASTEST', 'FEWEST_TRANSFERS', 'STAIR_FREE'] } }) }),
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#479', schema: 'StationTimetableDirectionGroup', property: 'nextStationId', required: true, definition: Object.freeze({ type: 'string', minLength: 1 }) }),
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#479', schema: 'StationTimetableDirectionGroup', property: 'directionName', replaces: Object.freeze({ type: 'string', minLength: 1 }), definition: Object.freeze({ type: 'string', minLength: 1, nullable: true }) }),
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#479', schema: 'StationTimetableDeparture', property: 'terminalStationId', required: true, definition: Object.freeze({ type: 'string', minLength: 1 }) }),
+]);
+
+function applyPendingContractAdditions(lockedSchemas) {
+  const schemas = JSON.parse(JSON.stringify(lockedSchemas));
+  for (const entry of pendingContractAdditions) {
+    const definition = JSON.parse(JSON.stringify(entry.definition));
+    if (entry.property === undefined) {
+      if (entry.schema in schemas) fail(`pending contract addition ${entry.schema} (${entry.source}) is already in the locked contract; remove it from pendingContractAdditions`);
+      schemas[entry.schema] = definition;
+      continue;
+    }
+    const target = schemas[entry.schema];
+    if (!isObject(target) || !isObject(target.properties)) fail(`pending contract addition target ${entry.schema} is missing from the locked contract`);
+    const existing = target.properties[entry.property];
+    if (entry.replaces !== undefined) {
+      if (canonicalJson(existing) === canonicalJson(definition)) fail(`pending contract change ${entry.schema}.${entry.property} (${entry.source}) is already in the locked contract; remove it from pendingContractAdditions`);
+      if (canonicalJson(existing) !== canonicalJson(entry.replaces)) fail(`pending contract change ${entry.schema}.${entry.property} (${entry.source}) no longer matches the locked contract`);
+      target.properties[entry.property] = definition;
+      continue;
+    }
+    if (existing !== undefined) fail(`pending contract addition ${entry.schema}.${entry.property} (${entry.source}) is already in the locked contract; remove it from pendingContractAdditions`);
+    target.properties[entry.property] = definition;
+    if (entry.required) target.required = [...target.required, entry.property];
   }
   return schemas;
 }
@@ -320,7 +361,7 @@ function expectedOperationsHas(operation) { return [...expectedOperations.values
 
 function validate({ contractRoot, lockPath, enforceTrackedLock, enforceSchemasProjection, snapshot }) {
   if (enforceTrackedLock && resolve(lockPath) !== trackedLock) fail('lock must be the tracked journey-v3-client lock'); const lockBytes = snapshot?.lockBytes ?? regular(lockPath, 'lock'); const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock); validateStage(lock, lockBytes, contractRoot, snapshot);
-  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const sessionIntegrityBytes = snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'session integrity'); const yaml = (snapshot?.resourceBytes[resourcePaths[3]] ?? regular(join(contractRoot, resourcePaths[3]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); const sessionIntegrity = validateSessionIntegrity(sessionIntegrityBytes); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(document.components.schemas, enforceSchemasProjection); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; const catalogCodes = new Set(errors.map((entry) => entry.code)); if (!Array.isArray(errorCodes) || errorCodes.length !== catalogCodes.size || new Set(errorCodes).size !== errorCodes.length || errorCodes.some((code) => !catalogCodes.has(code))) fail('JourneyErrorCode must exactly bind the declared catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors, sessionIntegrity });
+  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const sessionIntegrityBytes = snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'session integrity'); const yaml = (snapshot?.resourceBytes[resourcePaths[3]] ?? regular(join(contractRoot, resourcePaths[3]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); const sessionIntegrity = validateSessionIntegrity(sessionIntegrityBytes); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(applyPendingContractAdditions(validateSchemas(document.components.schemas, enforceSchemasProjection)), false); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; const catalogCodes = new Set(errors.map((entry) => entry.code)); if (!Array.isArray(errorCodes) || errorCodes.length !== catalogCodes.size || new Set(errorCodes).size !== errorCodes.length || errorCodes.some((code) => !catalogCodes.has(code))) fail('JourneyErrorCode must exactly bind the declared catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors, sessionIntegrity });
 }
 
 const dartCase = (token) => token.split(/[^A-Za-z0-9]+/).filter(Boolean).map((part, index) => { const normalized = part === part.toUpperCase() ? part.toLowerCase() : `${part[0].toLowerCase()}${part.slice(1)}`; return index === 0 ? normalized : `${normalized[0].toUpperCase()}${normalized.slice(1)}`; }).join('');
@@ -332,6 +373,11 @@ function enumDefinitions(ir) {
   const enumAt = (schemaName, property) => {
     const values = ir.schemas[schemaName]?.properties?.[property]?.enum;
     if (!Array.isArray(values) || values.length === 0) fail(`${schemaName}.${property} must be a closed string enum`);
+    return values;
+  };
+  const itemEnumAt = (schemaName, property) => {
+    const values = ir.schemas[schemaName]?.properties?.[property]?.items?.enum;
+    if (!Array.isArray(values) || values.length === 0) fail(`${schemaName}.${property} items must be a closed string enum`);
     return values;
   };
   const stationSchemaNames = ['StationTimetableServiceDateSelector', 'StationTimetableDayTypeSelector', 'StationTimetableNextDeparturesSelector', 'StationTimetableDeparture', 'StationTimetableSearchSuccess'];
@@ -365,6 +411,13 @@ function enumDefinitions(ir) {
     ] : []),
     ...('JourneyFare' in ir.schemas ? [
       ['JourneyFareStatus', enumAt('JourneyFare', 'status')],
+    ] : []),
+    ...('JourneyStairFreeAlternative' in ir.schemas ? [
+      ['JourneyStairFreeAlternativeStatus', enumAt('JourneyStairFreeAlternative', 'status')],
+      ['JourneyStairFreeFacilityStatus', enumAt('JourneyStairFreeAlternative', 'facilityStatus')],
+    ] : []),
+    ...(ir.schemas.Journey?.properties?.alternativeCategories ? [
+      ['JourneyAlternativeCategory', itemEnumAt('Journey', 'alternativeCategories')],
     ] : []),
     ...Object.entries(ir.schemas).filter(([, schema]) => schema.type === 'string' && Array.isArray(schema.enum)),
   ];
@@ -774,8 +827,43 @@ function renderFareResponseModels(source) {
   return replaceRequired(source, "'legs':legs.map((v)=>v.toJson()).toList(growable:false)};", "'legs':legs.map((v)=>v.toJson()).toList(growable:false),'fare':fare.toJson()};", 'journey fare JSON encoding');
 }
 
-function renderStrictModels() {
-  let source = renderFareResponseModels(renderWalkingPaceResponseModels(renderModels()));
+// #438: serviceDayCutoff (backend #301) and the accessible-route alternatives
+// (backend #471). Wire constants come from the contract, not from the template.
+function renderServiceDayAndAlternativeResponseModels(source, ir) {
+  const cutoffValues = ir.schemas.JourneySearchSuccess?.properties?.serviceDayCutoff?.enum;
+  if (!Array.isArray(cutoffValues) || cutoffValues.length !== 1 || !/^\d{2}:\d{2}$/.test(cutoffValues[0])) fail('JourneySearchSuccess.serviceDayCutoff must be one fixed HH:MM wire value');
+  const cutoff = cutoffValues[0];
+  const categories = ir.schemas.Journey?.properties?.alternativeCategories;
+  if (!isObject(categories) || categories.type !== 'array' || categories.uniqueItems !== true || !Number.isInteger(categories.maxItems)) fail('Journey.alternativeCategories must be a bounded unique array');
+  source = replaceRequired(source, 'final JourneyDate serviceDate; final String serviceTimezone; final JourneySourceIdentity sourceIdentity;', 'final JourneyDate serviceDate; final String serviceTimezone; final String serviceDayCutoff; final JourneySourceIdentity sourceIdentity;', 'search service day cutoff field');
+  source = replaceRequired(source, 'final List<Journey> journeys;\n const JourneySearchSuccess({', 'final List<Journey> journeys; final JourneyStairFreeAlternative? stairFreeAlternative;\n const JourneySearchSuccess({', 'search stair-free alternative field');
+  source = replaceRequired(source, 'required this.serviceTimezone,required this.sourceIdentity,required this.requestPolicy,required this.journeys});', 'required this.serviceTimezone,required this.serviceDayCutoff,required this.sourceIdentity,required this.requestPolicy,required this.journeys,this.stairFreeAlternative});', 'search constructor');
+  source = replaceRequired(source, "'serviceDate','serviceTimezone','sourceIdentity','requestPolicy','journeys'});", "'serviceDate','serviceTimezone','serviceDayCutoff','sourceIdentity','requestPolicy','journeys',if(json.containsKey('stairFreeAlternative'))'stairFreeAlternative'}); final stairFreeAlternative=json['stairFreeAlternative']; if(json.containsKey('stairFreeAlternative')&&stairFreeAlternative is! Map<String,Object?>){throw const FormatException('stairFreeAlternative must be object');}", 'search JSON keys');
+  source = replaceRequired(source, "return 'Asia/Seoul';}),sourceIdentity:", `return 'Asia/Seoul';}),serviceDayCutoff:JourneyV3Validation.enumWire(json['serviceDayCutoff'],'serviceDayCutoff',(v){if(v!='${cutoff}'){throw const FormatException();} return '${cutoff}';}),sourceIdentity:`, 'search service day cutoff parsing');
+  source = replaceRequired(source, 'requestPolicy:policy,journeys:journeys); }', 'requestPolicy:policy,journeys:journeys,stairFreeAlternative:stairFreeAlternative is Map<String,Object?>?JourneyStairFreeAlternative.fromJson(stairFreeAlternative):null); }', 'search stair-free alternative parsing');
+  source = replaceRequired(source, "'serviceTimezone':serviceTimezone,'sourceIdentity':sourceIdentity.toJson(),", "'serviceTimezone':serviceTimezone,'serviceDayCutoff':serviceDayCutoff,'sourceIdentity':sourceIdentity.toJson(),", 'search service day cutoff encoding');
+  source = replaceRequired(source, "'journeys':journeys.map((v)=>v.toJson()).toList(growable:false)};", "'journeys':journeys.map((v)=>v.toJson()).toList(growable:false),if(stairFreeAlternative!=null)'stairFreeAlternative':stairFreeAlternative!.toJson()};", 'search stair-free alternative encoding');
+  source = replaceRequired(source, 'final List<JourneyLeg> legs; final JourneyFare fare;', 'final List<JourneyLeg> legs; final JourneyFare fare; final List<JourneyAlternativeCategory>? alternativeCategories;', 'journey alternative categories field');
+  source = replaceRequired(source, 'required this.legs,required this.fare});', 'required this.legs,required this.fare,this.alternativeCategories});', 'journey alternative categories constructor');
+  source = replaceRequired(source, "'timeSource','accessibility','legs','fare'});", "'timeSource','accessibility','legs','fare',if(json.containsKey('alternativeCategories'))'alternativeCategories'});", 'journey alternative categories JSON keys');
+  source = replaceRequired(source, 'fare:JourneyFare.fromJson(fare)); }', `fare:JourneyFare.fromJson(fare),alternativeCategories:json.containsKey('alternativeCategories')?JourneyV3Validation.list(json['alternativeCategories'],'alternativeCategories',(v)=>JourneyAlternativeCategoryWire.fromWire(v),maximum:${categories.maxItems},unique:true):null); }`, 'journey alternative categories parsing');
+  source = replaceRequired(source, ",'fare':fare.toJson()};", ",'fare':fare.toJson(),if(alternativeCategories!=null)'alternativeCategories':alternativeCategories!.map((v)=>v.wire).toList(growable:false)};", 'journey alternative categories encoding');
+  return `${source}
+class JourneyStairFreeAlternative {
+  final JourneyStairFreeAlternativeStatus status;
+  final JourneyStairFreeFacilityStatus facilityStatus;
+  const JourneyStairFreeAlternative({required this.status, required this.facilityStatus});
+  factory JourneyStairFreeAlternative.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'status', 'facilityStatus'});
+    return JourneyStairFreeAlternative(status: JourneyStairFreeAlternativeStatusWire.fromWire(json['status']), facilityStatus: JourneyStairFreeFacilityStatusWire.fromWire(json['facilityStatus']));
+  }
+  Map<String, Object?> toJson() => {'status': status.wire, 'facilityStatus': facilityStatus.wire};
+}
+`;
+}
+
+function renderStrictModels(ir) {
+  let source = renderServiceDayAndAlternativeResponseModels(renderFareResponseModels(renderWalkingPaceResponseModels(renderModels())), ir);
   const responseAnchor = "final policy=JourneyRequestPolicy.fromJson(requestPolicy); final journeys=";
   const responseReplacement = "final policy=JourneyRequestPolicy.fromJson(requestPolicy); final parsedSourceIdentity=JourneySourceIdentity.fromJson(sourceIdentity); if(policy.timePolicy==TimePolicy.timetableRequired&&parsedSourceIdentity.realtimeSnapshotId!=null) throw const FormatException('TIMETABLE_REQUIRED source realtime contract'); if(policy.timePolicy==TimePolicy.realtimeRequired&&parsedSourceIdentity.realtimeSnapshotId==null) throw const FormatException('REALTIME_REQUIRED source realtime contract'); final journeys=";
   if (!source.includes(responseAnchor)) fail('source-identity renderer anchor is missing');
@@ -802,14 +890,14 @@ class StationTimetableServiceDateSelector extends StationTimetableSelector { fin
 class StationTimetableDayTypeSelector extends StationTimetableSelector { final StationTimetableDayType dayType; final JourneyDate referenceDate; const StationTimetableDayTypeSelector({required this.dayType,required this.referenceDate}); factory StationTimetableDayTypeSelector.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'kind','dayType','referenceDate'}); if (StationTimetableSelectorKindWire.fromWire(json['kind']) != StationTimetableSelectorKind.dayType) throw const FormatException('selector kind'); return StationTimetableDayTypeSelector(dayType:StationTimetableDayTypeWire.fromWire(json['dayType']),referenceDate:JourneyDate.parse(json['referenceDate'])); } @override Map<String,Object?> toJson()=>{'kind':StationTimetableSelectorKind.dayType.wire,'dayType':dayType.wire,'referenceDate':referenceDate.toString()}; }
 class StationTimetableNextDeparturesSelector extends StationTimetableSelector { final DateTime asOf; final int horizonDays; const StationTimetableNextDeparturesSelector({required this.asOf,required this.horizonDays}); factory StationTimetableNextDeparturesSelector.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'kind','asOf','horizonDays'}); if (StationTimetableSelectorKindWire.fromWire(json['kind']) != StationTimetableSelectorKind.nextDepartures) throw const FormatException('selector kind'); return StationTimetableNextDeparturesSelector(asOf:JourneyV3Validation.rfc3339(json['asOf'],'asOf'),horizonDays:JourneyV3Validation.integer(json['horizonDays'],'horizonDays',1,8)); } @override Map<String,Object?> toJson()=>{'kind':StationTimetableSelectorKind.nextDepartures.wire,'asOf':JourneyV3Validation.rfc3339Wire(asOf),'horizonDays':horizonDays}; }
 class StationTimetableSearchRequest { final String stationId; final String lineId; final StationTimetableSelector selector; const StationTimetableSearchRequest({required this.stationId,required this.lineId,required this.selector}); factory StationTimetableSearchRequest.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'stationId','lineId','selector'}); final selector=json['selector']; if(selector is! Map<String,Object?>) throw const FormatException('selector must be object'); return StationTimetableSearchRequest(stationId:JourneyV3Validation.nonBlank(json['stationId'],'stationId'),lineId:JourneyV3Validation.nonBlank(json['lineId'],'lineId'),selector:StationTimetableSelector.fromJson(selector)); } Map<String,Object?> toJson()=>{'stationId':stationId,'lineId':lineId,'selector':selector.toJson()}; }
-class StationTimetableDeparture { final JourneyDate serviceDate; final int secondsFromServiceDayStart; final DateTime departureAt; final StationTimetableServicePattern servicePattern; final StationTimetableServiceClass serviceClass; const StationTimetableDeparture({required this.serviceDate,required this.secondsFromServiceDayStart,required this.departureAt,required this.servicePattern,required this.serviceClass}); factory StationTimetableDeparture.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'serviceDate','secondsFromServiceDayStart','departureAt','servicePattern','serviceClass'}); return StationTimetableDeparture(serviceDate:JourneyDate.parse(json['serviceDate']),secondsFromServiceDayStart:JourneyV3Validation.integer(json['secondsFromServiceDayStart'],'secondsFromServiceDayStart',0,107999),departureAt:JourneyV3Validation.rfc3339(json['departureAt'],'departureAt'),servicePattern:StationTimetableServicePatternWire.fromWire(json['servicePattern']),serviceClass:StationTimetableServiceClassWire.fromWire(json['serviceClass'])); } Map<String,Object?> toJson()=>{'serviceDate':serviceDate.toString(),'secondsFromServiceDayStart':secondsFromServiceDayStart,'departureAt':JourneyV3Validation.rfc3339Wire(departureAt),'servicePattern':servicePattern.wire,'serviceClass':serviceClass.wire}; }
-class StationTimetableDirectionGroup { final String directionName; final List<StationTimetableDeparture> departures; const StationTimetableDirectionGroup({required this.directionName,required this.departures}); factory StationTimetableDirectionGroup.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'directionName','departures'}); return StationTimetableDirectionGroup(directionName:JourneyV3Validation.nonBlank(json['directionName'],'directionName'),departures:JourneyV3Validation.list(json['departures'],'departures',(v){if(v is! Map<String,Object?>) throw const FormatException('departure must be object');return StationTimetableDeparture.fromJson(v);})); } Map<String,Object?> toJson()=>{'directionName':directionName,'departures':departures.map((v)=>v.toJson()).toList(growable:false)}; }
+class StationTimetableDeparture { final JourneyDate serviceDate; final int secondsFromServiceDayStart; final DateTime departureAt; final StationTimetableServicePattern servicePattern; final StationTimetableServiceClass serviceClass; final String? terminalStationId; const StationTimetableDeparture({required this.serviceDate,required this.secondsFromServiceDayStart,required this.departureAt,required this.servicePattern,required this.serviceClass,this.terminalStationId}); factory StationTimetableDeparture.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'serviceDate','secondsFromServiceDayStart','departureAt','servicePattern','serviceClass',if(json.containsKey('terminalStationId'))'terminalStationId'}); return StationTimetableDeparture(serviceDate:JourneyDate.parse(json['serviceDate']),secondsFromServiceDayStart:JourneyV3Validation.integer(json['secondsFromServiceDayStart'],'secondsFromServiceDayStart',0,107999),departureAt:JourneyV3Validation.rfc3339(json['departureAt'],'departureAt'),servicePattern:StationTimetableServicePatternWire.fromWire(json['servicePattern']),serviceClass:StationTimetableServiceClassWire.fromWire(json['serviceClass']),terminalStationId:json.containsKey('terminalStationId')?JourneyV3Validation.nonBlank(json['terminalStationId'],'terminalStationId'):null); } Map<String,Object?> toJson()=>{'serviceDate':serviceDate.toString(),'secondsFromServiceDayStart':secondsFromServiceDayStart,'departureAt':JourneyV3Validation.rfc3339Wire(departureAt),'servicePattern':servicePattern.wire,'serviceClass':serviceClass.wire,if(terminalStationId!=null)'terminalStationId':terminalStationId}; }
+class StationTimetableDirectionGroup { final String? nextStationId; final String? directionName; final List<StationTimetableDeparture> departures; const StationTimetableDirectionGroup({this.nextStationId,required this.directionName,required this.departures}); factory StationTimetableDirectionGroup.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {if(json.containsKey('nextStationId'))'nextStationId','directionName','departures'}); return StationTimetableDirectionGroup(nextStationId:json.containsKey('nextStationId')?JourneyV3Validation.nonBlank(json['nextStationId'],'nextStationId'):null,directionName:JourneyV3Validation.nullable(json,'directionName',(v)=>JourneyV3Validation.nonBlank(v,'directionName')),departures:JourneyV3Validation.list(json['departures'],'departures',(v){if(v is! Map<String,Object?>) throw const FormatException('departure must be object');return StationTimetableDeparture.fromJson(v);})); } Map<String,Object?> toJson()=>{if(nextStationId!=null)'nextStationId':nextStationId,'directionName':directionName,'departures':departures.map((v)=>v.toJson()).toList(growable:false)}; }
 class StationTimetableSourceIdentity { final String timetableArtifactId; final String timetableSnapshotSha256; final String canonicalStationVersion; final String canonicalStationSetSha256; final String sourceLineageSha256; final String evidenceHash; final DateTime freshUntil; const StationTimetableSourceIdentity({required this.timetableArtifactId,required this.timetableSnapshotSha256,required this.canonicalStationVersion,required this.canonicalStationSetSha256,required this.sourceLineageSha256,required this.evidenceHash,required this.freshUntil}); factory StationTimetableSourceIdentity.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'timetableArtifactId','timetableSnapshotSha256','canonicalStationVersion','canonicalStationSetSha256','sourceLineageSha256','evidenceHash','freshUntil'}); return StationTimetableSourceIdentity(timetableArtifactId:JourneyV3Validation.nonBlank(json['timetableArtifactId'],'timetableArtifactId'),timetableSnapshotSha256:JourneyV3Validation.sha256(json['timetableSnapshotSha256'],'timetableSnapshotSha256'),canonicalStationVersion:JourneyV3Validation.nonBlank(json['canonicalStationVersion'],'canonicalStationVersion'),canonicalStationSetSha256:JourneyV3Validation.sha256(json['canonicalStationSetSha256'],'canonicalStationSetSha256'),sourceLineageSha256:JourneyV3Validation.sha256(json['sourceLineageSha256'],'sourceLineageSha256'),evidenceHash:JourneyV3Validation.sha256(json['evidenceHash'],'evidenceHash'),freshUntil:JourneyV3Validation.rfc3339(json['freshUntil'],'freshUntil')); } Map<String,Object?> toJson()=>{'timetableArtifactId':timetableArtifactId,'timetableSnapshotSha256':timetableSnapshotSha256,'canonicalStationVersion':canonicalStationVersion,'canonicalStationSetSha256':canonicalStationSetSha256,'sourceLineageSha256':sourceLineageSha256,'evidenceHash':evidenceHash,'freshUntil':JourneyV3Validation.rfc3339Wire(freshUntil)}; }
 class StationTimetableSearchSuccess { final StationTimetableSearchContractVersion contractVersion; final String stationId; final String lineId; final StationTimetableSelector selector; final StationTimetableDayType resolvedDayType; final StationTimetableServiceTimezone serviceTimezone; final List<StationTimetableDirectionGroup> directionGroups; final StationTimetableSourceIdentity sourceIdentity; const StationTimetableSearchSuccess({required this.contractVersion,required this.stationId,required this.lineId,required this.selector,required this.resolvedDayType,required this.serviceTimezone,required this.directionGroups,required this.sourceIdentity}); factory StationTimetableSearchSuccess.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'contractVersion','stationId','lineId','selector','resolvedDayType','serviceTimezone','directionGroups','sourceIdentity'}); final selector=json['selector']; final sourceIdentity=json['sourceIdentity']; if(selector is! Map<String,Object?>||sourceIdentity is! Map<String,Object?>) throw const FormatException('nested timetable object'); return StationTimetableSearchSuccess(contractVersion:StationTimetableSearchContractVersionWire.fromWire(json['contractVersion']),stationId:JourneyV3Validation.nonBlank(json['stationId'],'stationId'),lineId:JourneyV3Validation.nonBlank(json['lineId'],'lineId'),selector:StationTimetableSelector.fromJson(selector),resolvedDayType:StationTimetableDayTypeWire.fromWire(json['resolvedDayType']),serviceTimezone:StationTimetableServiceTimezoneWire.fromWire(json['serviceTimezone']),directionGroups:JourneyV3Validation.list(json['directionGroups'],'directionGroups',(v){if(v is! Map<String,Object?>) throw const FormatException('direction group must be object');return StationTimetableDirectionGroup.fromJson(v);}),sourceIdentity:StationTimetableSourceIdentity.fromJson(sourceIdentity)); } Map<String,Object?> toJson()=>{'contractVersion':contractVersion.wire,'stationId':stationId,'lineId':lineId,'selector':selector.toJson(),'resolvedDayType':resolvedDayType.wire,'serviceTimezone':serviceTimezone.wire,'directionGroups':directionGroups.map((v)=>v.toJson()).toList(growable:false),'sourceIdentity':sourceIdentity.toJson()}; }
 `;
 }
 
-export function renderJourneyV3ModelsForTest(options) { validate({ ...options, enforceTrackedLock: false }); return renderStrictModels(); }
+export function renderJourneyV3ModelsForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); return renderStrictModels(ir); }
 function dartLiteral(value) { return JSON.stringify(value).replaceAll('$', '\\$'); }
 function renderErrors(ir) {
   const rows = ir.errorDispositions.map((entry) => `    '${entry.operation}|${entry.httpStatus}|${entry.code}': JourneyErrorDisposition(operation: '${entry.operation}', httpStatus: ${entry.httpStatus}, code: JourneyErrorCode.${dartCase(entry.code)}, semanticCategory: ${dartLiteral(entry.semanticCategory)}, exposure: ${dartLiteral(entry.exposure)}, userVisible: true, publicMessageKey: ${dartLiteral(entry.publicMessageKey)}, canonicalKoreanCopy: ${dartLiteral(entry.canonicalKoreanCopy)}, mobileResourceKey: ${dartLiteral(entry.mobileResourceKey)}, mobilePresentation: ${dartLiteral(entry.mobilePresentation)}, retryDisposition: ${dartLiteral(entry.retryDisposition)}, primaryActionKey: ${entry.primaryActionKey === null ? 'null' : dartLiteral(entry.primaryActionKey)}, secondaryActionKey: null, safeDiagnosticKey: ${dartLiteral(entry.safeDiagnosticKey)}, sensitiveDetailPolicy: ${dartLiteral(entry.sensitiveDetailPolicy)}),`).join('\n');
@@ -850,7 +938,14 @@ const generatedClassBySchema = Object.freeze({ JourneyError: 'JourneyV3Error' })
 // Contract-required fields that production does not emit yet. The decoder
 // accepts them present or absent until the producing backend change is
 // deployed; remove the entry then.
-const undeployedRequiredFields = new Map();
+// #438 transition policy, part 2: production does not emit these yet, and the
+// backend changes may deploy after this client ships. The decoder accepts each
+// key present or absent; any key outside the contract is still rejected.
+const undeployedRequiredFields = new Map([
+  ['JourneySearchSuccess.stairFreeAlternative', 'AquilaXk/easysubway-backend#471'],
+  ['StationTimetableDirectionGroup.nextStationId', 'AquilaXk/easysubway-backend#479'],
+  ['StationTimetableDeparture.terminalStationId', 'AquilaXk/easysubway-backend#479'],
+]);
 const schemaRefPrefix = '#/components/schemas/';
 
 function generatedObjectSchemaNames(ir) {
@@ -976,7 +1071,7 @@ function journeyV3KeyCoverageMismatches(ir, sources) {
     const expectedRequired = new Set([...contractRequired].filter((key) => !undeployedRequiredFields.has(`${name}.${key}`)));
     const expectedConditional = new Set(Object.keys(schema.properties).filter((key) => !expectedRequired.has(key)));
     for (const key of setDifference(expectedRequired, keys.required)) mismatches.push(`${name}.${key}: contract requires it but the generated decoder ${keys.conditional.has(key) ? 'treats it as optional' : 'does not accept it'}`);
-    for (const key of setDifference(expectedConditional, keys.conditional)) mismatches.push(`${name}.${key}: contract allows it to be absent but the generated decoder ${keys.required.has(key) ? 'requires it' : 'does not accept it'}`);
+    for (const key of setDifference(expectedConditional, keys.conditional)) mismatches.push(`${name}.${key}: ${contractRequired.has(key) ? `contract requires it, but it is undeployed (${undeployedRequiredFields.get(`${name}.${key}`)}) so the decoder must accept it present or absent; the generated decoder` : 'contract allows it to be absent but the generated decoder'} ${keys.required.has(key) ? 'requires it' : 'does not accept it'}`);
     for (const key of setDifference(new Set([...keys.required, ...keys.conditional]), new Set(Object.keys(schema.properties)))) mismatches.push(`${name}.${key}: generated decoder accepts a key outside the contract`);
   }
   for (const field of undeployedRequiredFields.keys()) {
