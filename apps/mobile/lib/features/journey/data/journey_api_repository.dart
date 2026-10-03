@@ -254,6 +254,41 @@ class JourneyApiRepository implements JourneyRepository {
       }
       _validateJourneySemantics(journey);
     }
+    _validateAlternativeCategories(success.journeys);
+  }
+
+  /// backend #471 대표 묶음 규칙. 계약 문구만 검사한다(OpenAPI
+  /// `Journey.alternativeCategories`: "Exactly one journey carries FASTEST; each
+  /// group appears on at most one journey", `JourneySearchSuccess.journeys`:
+  /// 계단 없는 묶음은 "the earliest journey whose accessibility.stairFree is
+  /// true"). 묶음은 여정마다 선택 필드라 일부 여정에만 있어도 받는다.
+  void _validateAlternativeCategories(List<Journey> journeys) {
+    if (journeys.every((journey) => journey.alternativeCategories == null)) {
+      return;
+    }
+    final seen = <JourneyAlternativeCategory>{};
+    for (final journey in journeys) {
+      for (final category
+          in journey.alternativeCategories ??
+              const <JourneyAlternativeCategory>[]) {
+        if (!seen.add(category)) {
+          throw const FormatException(
+            'Journey alternative category must be on at most one journey',
+          );
+        }
+        if (category == JourneyAlternativeCategory.stairFree &&
+            !journey.accessibility.stairFree) {
+          throw const FormatException(
+            'Journey STAIR_FREE category requires a stair-free journey',
+          );
+        }
+      }
+    }
+    if (!seen.contains(JourneyAlternativeCategory.fastest)) {
+      throw const FormatException(
+        'Journey alternative categories must include FASTEST',
+      );
+    }
   }
 
   void _validateJourneySemantics(Journey journey) {
@@ -308,7 +343,7 @@ class JourneyApiRepository implements JourneyRepository {
       );
     }
     for (final group in success.directionGroups) {
-      if (group.directionName.trim().isEmpty) {
+      if (group.directionName?.trim().isEmpty ?? false) {
         throw const FormatException(
           'Station timetable direction must be nonblank',
         );

@@ -429,6 +429,63 @@ extension JourneyFareStatusWire on JourneyFareStatus {
   }
 }
 
+enum JourneyStairFreeAlternativeStatus { included, omitted, notFound, undetermined }
+
+extension JourneyStairFreeAlternativeStatusWire on JourneyStairFreeAlternativeStatus {
+  String get wire => switch (this) {
+    JourneyStairFreeAlternativeStatus.included => "INCLUDED",
+    JourneyStairFreeAlternativeStatus.omitted => "OMITTED",
+    JourneyStairFreeAlternativeStatus.notFound => "NOT_FOUND",
+    JourneyStairFreeAlternativeStatus.undetermined => "UNDETERMINED",
+  };
+  static JourneyStairFreeAlternativeStatus fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "INCLUDED" => JourneyStairFreeAlternativeStatus.included,
+      "OMITTED" => JourneyStairFreeAlternativeStatus.omitted,
+      "NOT_FOUND" => JourneyStairFreeAlternativeStatus.notFound,
+      "UNDETERMINED" => JourneyStairFreeAlternativeStatus.undetermined,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum JourneyStairFreeFacilityStatus { applied, unobserved }
+
+extension JourneyStairFreeFacilityStatusWire on JourneyStairFreeFacilityStatus {
+  String get wire => switch (this) {
+    JourneyStairFreeFacilityStatus.applied => "APPLIED",
+    JourneyStairFreeFacilityStatus.unobserved => "UNOBSERVED",
+  };
+  static JourneyStairFreeFacilityStatus fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "APPLIED" => JourneyStairFreeFacilityStatus.applied,
+      "UNOBSERVED" => JourneyStairFreeFacilityStatus.unobserved,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
+enum JourneyAlternativeCategory { fastest, fewestTransfers, stairFree }
+
+extension JourneyAlternativeCategoryWire on JourneyAlternativeCategory {
+  String get wire => switch (this) {
+    JourneyAlternativeCategory.fastest => "FASTEST",
+    JourneyAlternativeCategory.fewestTransfers => "FEWEST_TRANSFERS",
+    JourneyAlternativeCategory.stairFree => "STAIR_FREE",
+  };
+  static JourneyAlternativeCategory fromWire(Object? value) {
+    if (value is! String) throw const FormatException('wire value must be string');
+    return switch (value) {
+      "FASTEST" => JourneyAlternativeCategory.fastest,
+      "FEWEST_TRANSFERS" => JourneyAlternativeCategory.fewestTransfers,
+      "STAIR_FREE" => JourneyAlternativeCategory.stairFree,
+      _ => throw const FormatException('unrecognized wire value'),
+    };
+  }
+}
+
 enum TimePolicy { timetableRequired, realtimeRequired }
 
 extension TimePolicyWire on TimePolicy {

@@ -187,8 +187,13 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     final directionNames = <String>{};
     final directions = <StationTimetableDirection>[];
     for (final group in response.directionGroups) {
-      if (group.directionName.trim().isEmpty ||
-          !directionNames.add(group.directionName)) {
+      // backend #479 묶음(다음 정차역 기준, directionName null 가능)의 표시는
+      // #437에서 한다. 그 전에는 방면 이름이 없는 묶음을 추정 이름으로 채우지
+      // 않고 무결성 오류로 처리한다.
+      final directionName = group.directionName;
+      if (directionName == null ||
+          directionName.trim().isEmpty ||
+          !directionNames.add(directionName)) {
         throw const FormatException('Station timetable direction mismatch');
       }
       DateTime? previousDepartureAt;
@@ -206,10 +211,10 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         previousDepartureAt = departure.departureAt;
         departures.add(
           StationTimetableDeparture(
-            directionName: group.directionName,
+            directionName: directionName,
             seconds: departure.secondsFromServiceDayStart,
             departureAt: departure.departureAt,
-            destination: group.directionName.replaceAll('방면', '').trim(),
+            destination: directionName.replaceAll('방면', '').trim(),
             servicePattern: departure.servicePattern.wire,
             serviceClass: departure.serviceClass.wire,
           ),
@@ -218,7 +223,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       if (departures.isNotEmpty) {
         directions.add(
           StationTimetableDirection(
-            name: group.directionName,
+            name: directionName,
             departures: List.unmodifiable(departures),
           ),
         );

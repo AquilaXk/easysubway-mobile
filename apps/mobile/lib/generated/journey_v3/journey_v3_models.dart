@@ -592,6 +592,7 @@ class Journey {
   final JourneyAccessibility accessibility;
   final List<JourneyLeg> legs;
   final JourneyFare fare;
+  final List<JourneyAlternativeCategory>? alternativeCategories;
   const Journey({
     required this.journeyId,
     required this.status,
@@ -607,6 +608,7 @@ class Journey {
     required this.accessibility,
     required this.legs,
     required this.fare,
+    this.alternativeCategories,
   });
   factory Journey.fromJson(Map<String, Object?> json) {
     JourneyV3Validation.exactKeys(json, {
@@ -624,6 +626,7 @@ class Journey {
       'accessibility',
       'legs',
       'fare',
+      if (json.containsKey('alternativeCategories')) 'alternativeCategories',
     });
     final accessibility = json['accessibility'];
     if (accessibility is! Map<String, Object?>) throw const FormatException('accessibility must be object');
@@ -647,6 +650,9 @@ class Journey {
         return JourneyLeg.fromJson(v);
       }, minimum: 1),
       fare: JourneyFare.fromJson(fare),
+      alternativeCategories: json.containsKey('alternativeCategories')
+          ? JourneyV3Validation.list(json['alternativeCategories'], 'alternativeCategories', (v) => JourneyAlternativeCategoryWire.fromWire(v), maximum: 3, unique: true)
+          : null,
     );
   }
   Map<String, Object?> toJson() => {
@@ -664,6 +670,7 @@ class Journey {
     'accessibility': accessibility.toJson(),
     'legs': legs.map((v) => v.toJson()).toList(growable: false),
     'fare': fare.toJson(),
+    if (alternativeCategories != null) 'alternativeCategories': alternativeCategories!.map((v) => v.wire).toList(growable: false),
   };
 }
 
@@ -676,9 +683,11 @@ class JourneySearchSuccess {
   final DateTime effectiveDepartureTime;
   final JourneyDate serviceDate;
   final String serviceTimezone;
+  final String serviceDayCutoff;
   final JourneySourceIdentity sourceIdentity;
   final JourneyRequestPolicy requestPolicy;
   final List<Journey> journeys;
+  final JourneyStairFreeAlternative? stairFreeAlternative;
   const JourneySearchSuccess({
     required this.contractVersion,
     required this.requestId,
@@ -688,9 +697,11 @@ class JourneySearchSuccess {
     required this.effectiveDepartureTime,
     required this.serviceDate,
     required this.serviceTimezone,
+    required this.serviceDayCutoff,
     required this.sourceIdentity,
     required this.requestPolicy,
     required this.journeys,
+    this.stairFreeAlternative,
   });
   factory JourneySearchSuccess.fromJson(Map<String, Object?> json) {
     JourneyV3Validation.exactKeys(json, {
@@ -702,10 +713,16 @@ class JourneySearchSuccess {
       'effectiveDepartureTime',
       'serviceDate',
       'serviceTimezone',
+      'serviceDayCutoff',
       'sourceIdentity',
       'requestPolicy',
       'journeys',
+      if (json.containsKey('stairFreeAlternative')) 'stairFreeAlternative',
     });
+    final stairFreeAlternative = json['stairFreeAlternative'];
+    if (json.containsKey('stairFreeAlternative') && stairFreeAlternative is! Map<String, Object?>) {
+      throw const FormatException('stairFreeAlternative must be object');
+    }
     final sourceIdentity = json['sourceIdentity'];
     final requestPolicy = json['requestPolicy'];
     if (sourceIdentity is! Map<String, Object?> || requestPolicy is! Map<String, Object?>) throw const FormatException('nested response must be object');
@@ -753,9 +770,16 @@ class JourneySearchSuccess {
         if (v != 'Asia/Seoul') throw const FormatException();
         return 'Asia/Seoul';
       }),
+      serviceDayCutoff: JourneyV3Validation.enumWire(json['serviceDayCutoff'], 'serviceDayCutoff', (v) {
+        if (v != '03:00') {
+          throw const FormatException();
+        }
+        return '03:00';
+      }),
       sourceIdentity: parsedSourceIdentity,
       requestPolicy: policy,
       journeys: journeys,
+      stairFreeAlternative: stairFreeAlternative is Map<String, Object?> ? JourneyStairFreeAlternative.fromJson(stairFreeAlternative) : null,
     );
   }
   Map<String, Object?> toJson() => {
@@ -767,10 +791,23 @@ class JourneySearchSuccess {
     'effectiveDepartureTime': JourneyV3Validation.rfc3339Wire(effectiveDepartureTime),
     'serviceDate': serviceDate.toString(),
     'serviceTimezone': serviceTimezone,
+    'serviceDayCutoff': serviceDayCutoff,
     'sourceIdentity': sourceIdentity.toJson(),
     'requestPolicy': requestPolicy.toJson(),
     'journeys': journeys.map((v) => v.toJson()).toList(growable: false),
+    if (stairFreeAlternative != null) 'stairFreeAlternative': stairFreeAlternative!.toJson(),
   };
+}
+
+class JourneyStairFreeAlternative {
+  final JourneyStairFreeAlternativeStatus status;
+  final JourneyStairFreeFacilityStatus facilityStatus;
+  const JourneyStairFreeAlternative({required this.status, required this.facilityStatus});
+  factory JourneyStairFreeAlternative.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'status', 'facilityStatus'});
+    return JourneyStairFreeAlternative(status: JourneyStairFreeAlternativeStatusWire.fromWire(json['status']), facilityStatus: JourneyStairFreeFacilityStatusWire.fromWire(json['facilityStatus']));
+  }
+  Map<String, Object?> toJson() => {'status': status.wire, 'facilityStatus': facilityStatus.wire};
 }
 
 sealed class StationTimetableSelector {
@@ -845,15 +882,24 @@ class StationTimetableDeparture {
   final DateTime departureAt;
   final StationTimetableServicePattern servicePattern;
   final StationTimetableServiceClass serviceClass;
-  const StationTimetableDeparture({required this.serviceDate, required this.secondsFromServiceDayStart, required this.departureAt, required this.servicePattern, required this.serviceClass});
+  final String terminalStationId;
+  const StationTimetableDeparture({
+    required this.serviceDate,
+    required this.secondsFromServiceDayStart,
+    required this.departureAt,
+    required this.servicePattern,
+    required this.serviceClass,
+    required this.terminalStationId,
+  });
   factory StationTimetableDeparture.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {'serviceDate', 'secondsFromServiceDayStart', 'departureAt', 'servicePattern', 'serviceClass'});
+    JourneyV3Validation.exactKeys(json, {'serviceDate', 'secondsFromServiceDayStart', 'departureAt', 'servicePattern', 'serviceClass', 'terminalStationId'});
     return StationTimetableDeparture(
       serviceDate: JourneyDate.parse(json['serviceDate']),
       secondsFromServiceDayStart: JourneyV3Validation.integer(json['secondsFromServiceDayStart'], 'secondsFromServiceDayStart', 0, 107999),
       departureAt: JourneyV3Validation.rfc3339(json['departureAt'], 'departureAt'),
       servicePattern: StationTimetableServicePatternWire.fromWire(json['servicePattern']),
       serviceClass: StationTimetableServiceClassWire.fromWire(json['serviceClass']),
+      terminalStationId: JourneyV3Validation.nonBlank(json['terminalStationId'], 'terminalStationId'),
     );
   }
   Map<String, Object?> toJson() => {
@@ -862,24 +908,27 @@ class StationTimetableDeparture {
     'departureAt': JourneyV3Validation.rfc3339Wire(departureAt),
     'servicePattern': servicePattern.wire,
     'serviceClass': serviceClass.wire,
+    'terminalStationId': terminalStationId,
   };
 }
 
 class StationTimetableDirectionGroup {
-  final String directionName;
+  final String nextStationId;
+  final String? directionName;
   final List<StationTimetableDeparture> departures;
-  const StationTimetableDirectionGroup({required this.directionName, required this.departures});
+  const StationTimetableDirectionGroup({required this.nextStationId, required this.directionName, required this.departures});
   factory StationTimetableDirectionGroup.fromJson(Map<String, Object?> json) {
-    JourneyV3Validation.exactKeys(json, {'directionName', 'departures'});
+    JourneyV3Validation.exactKeys(json, {'nextStationId', 'directionName', 'departures'});
     return StationTimetableDirectionGroup(
-      directionName: JourneyV3Validation.nonBlank(json['directionName'], 'directionName'),
+      nextStationId: JourneyV3Validation.nonBlank(json['nextStationId'], 'nextStationId'),
+      directionName: JourneyV3Validation.nullable(json, 'directionName', (v) => JourneyV3Validation.nonBlank(v, 'directionName')),
       departures: JourneyV3Validation.list(json['departures'], 'departures', (v) {
         if (v is! Map<String, Object?>) throw const FormatException('departure must be object');
         return StationTimetableDeparture.fromJson(v);
       }),
     );
   }
-  Map<String, Object?> toJson() => {'directionName': directionName, 'departures': departures.map((v) => v.toJson()).toList(growable: false)};
+  Map<String, Object?> toJson() => {'nextStationId': nextStationId, 'directionName': directionName, 'departures': departures.map((v) => v.toJson()).toList(growable: false)};
 }
 
 class StationTimetableSourceIdentity {

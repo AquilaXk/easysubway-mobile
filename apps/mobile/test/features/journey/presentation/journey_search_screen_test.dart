@@ -1377,6 +1377,7 @@ class _Repository implements JourneyRepository {
       calculatedAt: responseTime,
       validUntil: responseTime.add(const Duration(minutes: 5)),
       temporalQuery: request.temporalQuery,
+      serviceDayCutoff: '03:00',
       journeys: journeyIds
           .map(
             (id) => JourneyProfileJourneyCandidate(
@@ -1431,6 +1432,7 @@ JourneySearchSuccess _success(
     effectiveDepartureTime: responseNow,
     serviceDate: JourneyDate.parse('2026-08-12'),
     serviceTimezone: 'Asia/Seoul',
+    serviceDayCutoff: '03:00',
     sourceIdentity: JourneySourceIdentity(
       routeBundleId: 'bundle-1',
       routeBundleSha256: 'a' * 64,

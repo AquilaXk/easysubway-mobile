@@ -133,6 +133,7 @@ JourneySelectedSnapshot _snapshot({
     effectiveDepartureTime: DateTime.utc(2026, 8, 12),
     serviceDate: JourneyDate.parse('2026-08-12'),
     serviceTimezone: 'Asia/Seoul',
+    serviceDayCutoff: '03:00',
     sourceIdentity: JourneySourceIdentity(
       routeBundleId: 'route',
       routeBundleSha256: 'a' * 64,

@@ -301,6 +301,7 @@ class JourneyProfileSuccess {
     required this.validUntil,
     required this.temporalQuery,
     required this.journeys,
+    required this.serviceDayCutoff,
     this.sourceIdentity,
   });
 
@@ -320,6 +321,8 @@ class JourneyProfileSuccess {
     if (rawJourneys is! List) {
       throw const FormatException('journeys must be array');
     }
+
+    final serviceDayCutoff = _serviceDayCutoff(json['serviceDays']);
 
     JourneySourceIdentity? sourceId;
     if (json['sourceIdentity'] case final Map<String, Object?> rawSource) {
@@ -342,8 +345,37 @@ class JourneyProfileSuccess {
         }
         return JourneyProfileJourneyCandidate.fromJson(c);
       }).toList(),
+      serviceDayCutoff: serviceDayCutoff,
       sourceIdentity: sourceId,
     );
+  }
+
+  /// 프로필 응답 `serviceDays[]`(JourneyProfileServiceDayIdentity)의 서비스일
+  /// 경계 시각. 모든 서비스일이 같은 값이어야 하며, 없거나 다르면 거부한다.
+  static String _serviceDayCutoff(Object? raw) {
+    final cutoffs = JourneyV3Validation.list(raw, 'serviceDays', (value) {
+      if (value is! Map<String, Object?>) {
+        throw const FormatException('serviceDay must be object');
+      }
+      JourneyV3Validation.exactKeys(value, {
+        'serviceDate',
+        'serviceTimezone',
+        'serviceDayCutoff',
+      });
+      JourneyDate.parse(value['serviceDate']);
+      if (value['serviceTimezone'] != 'Asia/Seoul') {
+        throw const FormatException('serviceTimezone must be Asia/Seoul');
+      }
+      return JourneyV3Validation.matching(
+        value['serviceDayCutoff'],
+        'serviceDayCutoff',
+        RegExp(r'^([01]\d|2[0-3]):[0-5]\d$'),
+      );
+    }, minimum: 1).toSet();
+    if (cutoffs.length != 1) {
+      throw const FormatException('serviceDays must share one cutoff');
+    }
+    return cutoffs.single;
   }
 
   final String contractVersion;
@@ -354,6 +386,9 @@ class JourneyProfileSuccess {
   final JourneyTemporalQuery temporalQuery;
   final List<JourneyProfileJourneyCandidate> journeys;
   final JourneySourceIdentity? sourceIdentity;
+
+  /// 응답 serviceDays의 서비스일 경계 시각(HH:MM).
+  final String serviceDayCutoff;
 
   List<Journey> get journeyList =>
       journeys.map((c) => c.journey).toList(growable: false);
@@ -384,6 +419,7 @@ class JourneyProfileSuccess {
       effectiveDepartureTime: effectiveDeparture,
       serviceDate: JourneyDate.parse(serviceDateStr),
       serviceTimezone: 'Asia/Seoul',
+      serviceDayCutoff: serviceDayCutoff,
       sourceIdentity:
           sourceIdentity ??
           JourneySourceIdentity(

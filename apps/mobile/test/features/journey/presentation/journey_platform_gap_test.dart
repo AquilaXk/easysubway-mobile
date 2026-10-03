@@ -667,6 +667,7 @@ class _GapTestRepository implements JourneyRepository {
       effectiveDepartureTime: now,
       serviceDate: JourneyDate.parse('2026-08-12'),
       serviceTimezone: 'Asia/Seoul',
+      serviceDayCutoff: '03:00',
       sourceIdentity: JourneySourceIdentity(
         routeBundleId: 'bundle-1',
         routeBundleSha256: 'a' * 64,

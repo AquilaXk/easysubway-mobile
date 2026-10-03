@@ -69,6 +69,7 @@ Map<String, Object?> _timetableSuccessJson() => StationTimetableSearchSuccess(
   serviceTimezone: StationTimetableServiceTimezone.asiaSeoul,
   directionGroups: [
     StationTimetableDirectionGroup(
+      nextStationId: 'station-next',
       directionName: '상행',
       departures: [
         StationTimetableDeparture(
@@ -77,6 +78,7 @@ Map<String, Object?> _timetableSuccessJson() => StationTimetableSearchSuccess(
           departureAt: DateTime.parse('2026-08-11T01:00:00Z'),
           servicePattern: StationTimetableServicePattern.local,
           serviceClass: StationTimetableServiceClass.subway,
+          terminalStationId: 'station-terminal',
         ),
       ],
     ),
@@ -246,6 +248,7 @@ Map<String, Object?> _successJson({
     effectiveDepartureTime: DateTime.parse('2026-08-11T00:00:00Z'),
     serviceDate: JourneyDate.parse('2026-08-11'),
     serviceTimezone: 'Asia/Seoul',
+    serviceDayCutoff: '03:00',
     sourceIdentity: JourneySourceIdentity(
       routeBundleId: 'bundle-1',
       routeBundleSha256: 'a' * 64,
@@ -1017,6 +1020,13 @@ void main() {
           'earliestReadyAt': '2026-08-11T09:00:00.000Z',
           'latestReadyAt': '2026-08-11T10:00:00.000Z',
         },
+        'serviceDays': [
+          {
+            'serviceDate': '2026-08-11',
+            'serviceTimezone': 'Asia/Seoul',
+            'serviceDayCutoff': '03:00',
+          },
+        ],
         'journeys': [
           {
             'journeyId': 'j-1',

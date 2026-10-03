@@ -36,7 +36,7 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = '169707a0c7f65d3ebcd5bcfdd429ccf33decb17396e4883a646309b38daa73da';
+const expectedSchemasProjectionSha256 = '5b6f910bb58bcf8d3c64198653546f5675b37aa78d9f2cda5941280eadf42c71';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -204,7 +204,7 @@ function assertAllowed(value, keys, label) { if (!isObject(value) || Object.keys
 function validateSchemas(schemas, enforceSchemasProjection) {
   if (!isObject(schemas) || Object.keys(schemas).length === 0) fail('components.schemas must be nonempty'); const state = new Map();
   const visit = (name) => { if (!(name in schemas)) fail(`unresolved schema reference ${name}`); if (state.get(name) === 'visiting') fail(`cyclic schema reference ${name}`); if (state.get(name) === 'done') return; state.set(name, 'visiting'); schema(schemas[name], name); state.set(name, 'done'); };
-  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'JourneyProfileSourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime', 'JourneyRideStop.plannedArrivalTime', 'JourneyRideStop.plannedDepartureTime', 'JourneyRideStop.realtimeArrivalTime', 'JourneyRideStop.realtimeDepartureTime']);
+  const nullableFields = new Set(['JourneySourceIdentity.realtimeSnapshotId', 'JourneyProfileSourceIdentity.realtimeSnapshotId', 'Journey.realtimeDepartureTime', 'Journey.realtimeArrivalTime', 'JourneyRideLeg.realtimeDepartureTime', 'JourneyRideLeg.realtimeArrivalTime', 'JourneyRideStop.plannedArrivalTime', 'JourneyRideStop.plannedDepartureTime', 'JourneyRideStop.realtimeArrivalTime', 'JourneyRideStop.realtimeDepartureTime', 'StationTimetableDirectionGroup.directionName']);
   const schema = (value, label) => {
     if (!isObject(value)) fail(`${label} must be a schema object`);
     if ('$ref' in value) { assertAllowed(value, ['$ref'], label); visit(ref(value.$ref, label)); return; }
@@ -229,8 +229,9 @@ function validateSchemas(schemas, enforceSchemasProjection) {
       return;
     }
     if (value.type === 'object') {
-      assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not', 'description'], label);
-      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest' || label === 'JourneyRideLeg' || label === 'JourneyPlatformGap' || label === 'JourneyFare';
+      assertAllowed(value, ['type', 'additionalProperties', 'required', 'properties', 'not', 'description', 'deprecated'], label);
+      if ('deprecated' in value && value.deprecated !== true) fail(`${label} has invalid deprecated flag`);
+      const isOptionalAllowed = label === 'JourneyTransferLeg' || label === 'JourneySearchRequest' || label === 'JourneyRideLeg' || label === 'JourneyPlatformGap' || label === 'JourneyFare' || label === 'Journey';
       if (value.additionalProperties !== false || !Array.isArray(value.required) || !isObject(value.properties) || new Set(value.required).size !== value.required.length || (!isOptionalAllowed && Object.keys(value.properties).length !== value.required.length) || value.required.some((key) => !(key in value.properties))) fail(`${label} must have an exact closed required property set`);
       for (const [key, child] of Object.entries(value.properties)) { if (!/^[A-Za-z][A-Za-z0-9]*$/.test(key)) fail(`${label} has unsupported property`); schema(child, `${label}.${key}`); }
       if ('not' in value && (!isObject(value.not) || !Array.isArray(value.not.required) || !isObject(value.not.properties))) fail(`${label} has unsupported not constraint`);
@@ -271,6 +272,43 @@ function validateSchemas(schemas, enforceSchemasProjection) {
   if (enforceSchemasProjection) {
     const projectionSha256 = sha256(Buffer.from(canonicalJson(schemas), 'utf8'));
     if (projectionSha256 !== expectedSchemasProjectionSha256) fail(`components.schemas projection SHA-256 does not match ${projectionSha256}`);
+  }
+  return schemas;
+}
+
+// #438 transition policy, part 1: contract additions from backend PRs that are
+// approved but not merged, so no published contract bundle carries them yet.
+// They are overlaid on the locked contract so the client is ready before the
+// backend deploys. Each entry mirrors the PR's journey-v3.openapi.yaml change
+// (descriptions omitted). When the lock moves to a bundle that already has an
+// entry, generation fails until the entry is removed here.
+const pendingContractAdditions = Object.freeze([
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'JourneyStairFreeAlternative', definition: Object.freeze({ type: 'object', additionalProperties: false, required: ['status', 'facilityStatus'], properties: { status: { type: 'string', enum: ['INCLUDED', 'OMITTED', 'NOT_FOUND', 'UNDETERMINED'] }, facilityStatus: { type: 'string', enum: ['APPLIED', 'UNOBSERVED'] } } }) }),
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'JourneySearchSuccess', property: 'stairFreeAlternative', required: true, definition: Object.freeze({ $ref: '#/components/schemas/JourneyStairFreeAlternative' }) }),
+  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'Journey', property: 'alternativeCategories', required: false, definition: Object.freeze({ type: 'array', uniqueItems: true, maxItems: 3, items: { type: 'string', enum: ['FASTEST', 'FEWEST_TRANSFERS', 'STAIR_FREE'] } }) }),
+]);
+
+function applyPendingContractAdditions(lockedSchemas, pendingAdditions = pendingContractAdditions) {
+  const schemas = JSON.parse(JSON.stringify(lockedSchemas));
+  for (const entry of pendingAdditions) {
+    const definition = JSON.parse(JSON.stringify(entry.definition));
+    if (entry.property === undefined) {
+      if (entry.schema in schemas) fail(`pending contract addition ${entry.schema} (${entry.source}) is already in the locked contract; remove it from pendingContractAdditions`);
+      schemas[entry.schema] = definition;
+      continue;
+    }
+    const target = schemas[entry.schema];
+    if (!isObject(target) || !isObject(target.properties)) fail(`pending contract addition target ${entry.schema} is missing from the locked contract`);
+    const existing = target.properties[entry.property];
+    if (entry.replaces !== undefined) {
+      if (canonicalJson(existing) === canonicalJson(definition)) fail(`pending contract change ${entry.schema}.${entry.property} (${entry.source}) is already in the locked contract; remove it from pendingContractAdditions`);
+      if (canonicalJson(existing) !== canonicalJson(entry.replaces)) fail(`pending contract change ${entry.schema}.${entry.property} (${entry.source}) no longer matches the locked contract`);
+      target.properties[entry.property] = definition;
+      continue;
+    }
+    if (existing !== undefined) fail(`pending contract addition ${entry.schema}.${entry.property} (${entry.source}) is already in the locked contract; remove it from pendingContractAdditions`);
+    target.properties[entry.property] = definition;
+    if (entry.required) target.required = [...target.required, entry.property];
   }
   return schemas;
 }
@@ -318,9 +356,9 @@ function validateErrors(catalog, disposition) {
   exactKeys(disposition, ['schemaVersion', 'artifactKind', 'sourceCatalog', 'entries'], 'error disposition'); exactKeys(disposition.sourceCatalog, ['path', 'schemaVersion', 'sha256'], 'error disposition sourceCatalog'); if (disposition.schemaVersion !== 'JOURNEY_ERROR_DISPOSITION_V1' || disposition.artifactKind !== 'journey-v3-error-disposition' || disposition.sourceCatalog.path !== 'journey-v3-error-catalog.json' || disposition.sourceCatalog.schemaVersion !== 'JOURNEY_ERROR_CATALOG_V1' || !Array.isArray(disposition.entries) || disposition.entries.length !== expectedErrorTuples.length) fail('error disposition is unsupported'); const seen = new Set(); const bindings = []; for (const entry of disposition.entries) { const keys = ['operation', 'httpStatus', 'machineCode', 'semanticCategory', 'exposure', 'userVisible', 'publicMessageKey', 'canonicalKoreanCopy', 'mobileResourceKey', 'mobilePresentation', 'retryDisposition', 'primaryActionKey', 'secondaryActionKey', 'safeDiagnosticKey', 'sensitiveDetailPolicy']; exactKeys(entry, keys, 'error disposition entry'); const key = `${entry.operation}\0${entry.httpStatus}\0${entry.machineCode}`; if (!tuples.has(key) || seen.has(key) || entry.exposure !== 'MOBILE_USER_VISIBLE' || entry.userVisible !== true || entry.mobilePresentation !== 'FAILURE_SCREEN' || entry.retryDisposition !== 'FORBIDDEN' || entry.secondaryActionKey !== null || entry.sensitiveDetailPolicy !== 'NEVER_PUBLIC' || typeof entry.semanticCategory !== 'string' || typeof entry.publicMessageKey !== 'string' || typeof entry.canonicalKoreanCopy !== 'string' || typeof entry.mobileResourceKey !== 'string' || typeof entry.safeDiagnosticKey !== 'string' || !(entry.primaryActionKey === null || typeof entry.primaryActionKey === 'string')) fail('error disposition does not have the fixed mobile policy'); seen.add(key); bindings.push(Object.freeze({ ...entry, code: entry.machineCode })); } if (seen.size !== tuples.size) fail('error catalog and disposition are not one-to-one'); return Object.freeze(bindings); }
 function expectedOperationsHas(operation) { return [...expectedOperations.values()].some(({ id }) => id === operation); }
 
-function validate({ contractRoot, lockPath, enforceTrackedLock, enforceSchemasProjection, snapshot }) {
+function validate({ contractRoot, lockPath, enforceTrackedLock, enforceSchemasProjection, snapshot, pendingAdditions = pendingContractAdditions }) {
   if (enforceTrackedLock && resolve(lockPath) !== trackedLock) fail('lock must be the tracked journey-v3-client lock'); const lockBytes = snapshot?.lockBytes ?? regular(lockPath, 'lock'); const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock); validateStage(lock, lockBytes, contractRoot, snapshot);
-  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const sessionIntegrityBytes = snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'session integrity'); const yaml = (snapshot?.resourceBytes[resourcePaths[3]] ?? regular(join(contractRoot, resourcePaths[3]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); const sessionIntegrity = validateSessionIntegrity(sessionIntegrityBytes); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(document.components.schemas, enforceSchemasProjection); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; const catalogCodes = new Set(errors.map((entry) => entry.code)); if (!Array.isArray(errorCodes) || errorCodes.length !== catalogCodes.size || new Set(errorCodes).size !== errorCodes.length || errorCodes.some((code) => !catalogCodes.has(code))) fail('JourneyErrorCode must exactly bind the declared catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors, sessionIntegrity });
+  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const sessionIntegrityBytes = snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'session integrity'); const yaml = (snapshot?.resourceBytes[resourcePaths[3]] ?? regular(join(contractRoot, resourcePaths[3]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); const sessionIntegrity = validateSessionIntegrity(sessionIntegrityBytes); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(applyPendingContractAdditions(validateSchemas(document.components.schemas, enforceSchemasProjection), pendingAdditions), false); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; const catalogCodes = new Set(errors.map((entry) => entry.code)); if (!Array.isArray(errorCodes) || errorCodes.length !== catalogCodes.size || new Set(errorCodes).size !== errorCodes.length || errorCodes.some((code) => !catalogCodes.has(code))) fail('JourneyErrorCode must exactly bind the declared catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), pendingAdditions, errorCatalog: Object.freeze(errors), errorDispositions: errors, sessionIntegrity });
 }
 
 const dartCase = (token) => token.split(/[^A-Za-z0-9]+/).filter(Boolean).map((part, index) => { const normalized = part === part.toUpperCase() ? part.toLowerCase() : `${part[0].toLowerCase()}${part.slice(1)}`; return index === 0 ? normalized : `${normalized[0].toUpperCase()}${normalized.slice(1)}`; }).join('');
@@ -332,6 +370,11 @@ function enumDefinitions(ir) {
   const enumAt = (schemaName, property) => {
     const values = ir.schemas[schemaName]?.properties?.[property]?.enum;
     if (!Array.isArray(values) || values.length === 0) fail(`${schemaName}.${property} must be a closed string enum`);
+    return values;
+  };
+  const itemEnumAt = (schemaName, property) => {
+    const values = ir.schemas[schemaName]?.properties?.[property]?.items?.enum;
+    if (!Array.isArray(values) || values.length === 0) fail(`${schemaName}.${property} items must be a closed string enum`);
     return values;
   };
   const stationSchemaNames = ['StationTimetableServiceDateSelector', 'StationTimetableDayTypeSelector', 'StationTimetableNextDeparturesSelector', 'StationTimetableDeparture', 'StationTimetableSearchSuccess'];
@@ -365,6 +408,13 @@ function enumDefinitions(ir) {
     ] : []),
     ...('JourneyFare' in ir.schemas ? [
       ['JourneyFareStatus', enumAt('JourneyFare', 'status')],
+    ] : []),
+    ...('JourneyStairFreeAlternative' in ir.schemas ? [
+      ['JourneyStairFreeAlternativeStatus', enumAt('JourneyStairFreeAlternative', 'status')],
+      ['JourneyStairFreeFacilityStatus', enumAt('JourneyStairFreeAlternative', 'facilityStatus')],
+    ] : []),
+    ...(ir.schemas.Journey?.properties?.alternativeCategories ? [
+      ['JourneyAlternativeCategory', itemEnumAt('Journey', 'alternativeCategories')],
     ] : []),
     ...Object.entries(ir.schemas).filter(([, schema]) => schema.type === 'string' && Array.isArray(schema.enum)),
   ];
@@ -774,8 +824,43 @@ function renderFareResponseModels(source) {
   return replaceRequired(source, "'legs':legs.map((v)=>v.toJson()).toList(growable:false)};", "'legs':legs.map((v)=>v.toJson()).toList(growable:false),'fare':fare.toJson()};", 'journey fare JSON encoding');
 }
 
-function renderStrictModels() {
-  let source = renderFareResponseModels(renderWalkingPaceResponseModels(renderModels()));
+// #438: serviceDayCutoff (backend #301) and the accessible-route alternatives
+// (backend #471). Wire constants come from the contract, not from the template.
+function renderServiceDayAndAlternativeResponseModels(source, ir) {
+  const cutoffValues = ir.schemas.JourneySearchSuccess?.properties?.serviceDayCutoff?.enum;
+  if (!Array.isArray(cutoffValues) || cutoffValues.length !== 1 || !/^\d{2}:\d{2}$/.test(cutoffValues[0])) fail('JourneySearchSuccess.serviceDayCutoff must be one fixed HH:MM wire value');
+  const cutoff = cutoffValues[0];
+  const categories = ir.schemas.Journey?.properties?.alternativeCategories;
+  if (!isObject(categories) || categories.type !== 'array' || categories.uniqueItems !== true || !Number.isInteger(categories.maxItems)) fail('Journey.alternativeCategories must be a bounded unique array');
+  source = replaceRequired(source, 'final JourneyDate serviceDate; final String serviceTimezone; final JourneySourceIdentity sourceIdentity;', 'final JourneyDate serviceDate; final String serviceTimezone; final String serviceDayCutoff; final JourneySourceIdentity sourceIdentity;', 'search service day cutoff field');
+  source = replaceRequired(source, 'final List<Journey> journeys;\n const JourneySearchSuccess({', 'final List<Journey> journeys; final JourneyStairFreeAlternative? stairFreeAlternative;\n const JourneySearchSuccess({', 'search stair-free alternative field');
+  source = replaceRequired(source, 'required this.serviceTimezone,required this.sourceIdentity,required this.requestPolicy,required this.journeys});', 'required this.serviceTimezone,required this.serviceDayCutoff,required this.sourceIdentity,required this.requestPolicy,required this.journeys,this.stairFreeAlternative});', 'search constructor');
+  source = replaceRequired(source, "'serviceDate','serviceTimezone','sourceIdentity','requestPolicy','journeys'});", "'serviceDate','serviceTimezone','serviceDayCutoff','sourceIdentity','requestPolicy','journeys',if(json.containsKey('stairFreeAlternative'))'stairFreeAlternative'}); final stairFreeAlternative=json['stairFreeAlternative']; if(json.containsKey('stairFreeAlternative')&&stairFreeAlternative is! Map<String,Object?>){throw const FormatException('stairFreeAlternative must be object');}", 'search JSON keys');
+  source = replaceRequired(source, "return 'Asia/Seoul';}),sourceIdentity:", `return 'Asia/Seoul';}),serviceDayCutoff:JourneyV3Validation.enumWire(json['serviceDayCutoff'],'serviceDayCutoff',(v){if(v!='${cutoff}'){throw const FormatException();} return '${cutoff}';}),sourceIdentity:`, 'search service day cutoff parsing');
+  source = replaceRequired(source, 'requestPolicy:policy,journeys:journeys); }', 'requestPolicy:policy,journeys:journeys,stairFreeAlternative:stairFreeAlternative is Map<String,Object?>?JourneyStairFreeAlternative.fromJson(stairFreeAlternative):null); }', 'search stair-free alternative parsing');
+  source = replaceRequired(source, "'serviceTimezone':serviceTimezone,'sourceIdentity':sourceIdentity.toJson(),", "'serviceTimezone':serviceTimezone,'serviceDayCutoff':serviceDayCutoff,'sourceIdentity':sourceIdentity.toJson(),", 'search service day cutoff encoding');
+  source = replaceRequired(source, "'journeys':journeys.map((v)=>v.toJson()).toList(growable:false)};", "'journeys':journeys.map((v)=>v.toJson()).toList(growable:false),if(stairFreeAlternative!=null)'stairFreeAlternative':stairFreeAlternative!.toJson()};", 'search stair-free alternative encoding');
+  source = replaceRequired(source, 'final List<JourneyLeg> legs; final JourneyFare fare;', 'final List<JourneyLeg> legs; final JourneyFare fare; final List<JourneyAlternativeCategory>? alternativeCategories;', 'journey alternative categories field');
+  source = replaceRequired(source, 'required this.legs,required this.fare});', 'required this.legs,required this.fare,this.alternativeCategories});', 'journey alternative categories constructor');
+  source = replaceRequired(source, "'timeSource','accessibility','legs','fare'});", "'timeSource','accessibility','legs','fare',if(json.containsKey('alternativeCategories'))'alternativeCategories'});", 'journey alternative categories JSON keys');
+  source = replaceRequired(source, 'fare:JourneyFare.fromJson(fare)); }', `fare:JourneyFare.fromJson(fare),alternativeCategories:json.containsKey('alternativeCategories')?JourneyV3Validation.list(json['alternativeCategories'],'alternativeCategories',(v)=>JourneyAlternativeCategoryWire.fromWire(v),maximum:${categories.maxItems},unique:true):null); }`, 'journey alternative categories parsing');
+  source = replaceRequired(source, ",'fare':fare.toJson()};", ",'fare':fare.toJson(),if(alternativeCategories!=null)'alternativeCategories':alternativeCategories!.map((v)=>v.wire).toList(growable:false)};", 'journey alternative categories encoding');
+  return `${source}
+class JourneyStairFreeAlternative {
+  final JourneyStairFreeAlternativeStatus status;
+  final JourneyStairFreeFacilityStatus facilityStatus;
+  const JourneyStairFreeAlternative({required this.status, required this.facilityStatus});
+  factory JourneyStairFreeAlternative.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {'status', 'facilityStatus'});
+    return JourneyStairFreeAlternative(status: JourneyStairFreeAlternativeStatusWire.fromWire(json['status']), facilityStatus: JourneyStairFreeFacilityStatusWire.fromWire(json['facilityStatus']));
+  }
+  Map<String, Object?> toJson() => {'status': status.wire, 'facilityStatus': facilityStatus.wire};
+}
+`;
+}
+
+function renderStrictModels(ir) {
+  let source = renderServiceDayAndAlternativeResponseModels(renderFareResponseModels(renderWalkingPaceResponseModels(renderModels())), ir);
   const responseAnchor = "final policy=JourneyRequestPolicy.fromJson(requestPolicy); final journeys=";
   const responseReplacement = "final policy=JourneyRequestPolicy.fromJson(requestPolicy); final parsedSourceIdentity=JourneySourceIdentity.fromJson(sourceIdentity); if(policy.timePolicy==TimePolicy.timetableRequired&&parsedSourceIdentity.realtimeSnapshotId!=null) throw const FormatException('TIMETABLE_REQUIRED source realtime contract'); if(policy.timePolicy==TimePolicy.realtimeRequired&&parsedSourceIdentity.realtimeSnapshotId==null) throw const FormatException('REALTIME_REQUIRED source realtime contract'); final journeys=";
   if (!source.includes(responseAnchor)) fail('source-identity renderer anchor is missing');
@@ -802,14 +887,14 @@ class StationTimetableServiceDateSelector extends StationTimetableSelector { fin
 class StationTimetableDayTypeSelector extends StationTimetableSelector { final StationTimetableDayType dayType; final JourneyDate referenceDate; const StationTimetableDayTypeSelector({required this.dayType,required this.referenceDate}); factory StationTimetableDayTypeSelector.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'kind','dayType','referenceDate'}); if (StationTimetableSelectorKindWire.fromWire(json['kind']) != StationTimetableSelectorKind.dayType) throw const FormatException('selector kind'); return StationTimetableDayTypeSelector(dayType:StationTimetableDayTypeWire.fromWire(json['dayType']),referenceDate:JourneyDate.parse(json['referenceDate'])); } @override Map<String,Object?> toJson()=>{'kind':StationTimetableSelectorKind.dayType.wire,'dayType':dayType.wire,'referenceDate':referenceDate.toString()}; }
 class StationTimetableNextDeparturesSelector extends StationTimetableSelector { final DateTime asOf; final int horizonDays; const StationTimetableNextDeparturesSelector({required this.asOf,required this.horizonDays}); factory StationTimetableNextDeparturesSelector.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'kind','asOf','horizonDays'}); if (StationTimetableSelectorKindWire.fromWire(json['kind']) != StationTimetableSelectorKind.nextDepartures) throw const FormatException('selector kind'); return StationTimetableNextDeparturesSelector(asOf:JourneyV3Validation.rfc3339(json['asOf'],'asOf'),horizonDays:JourneyV3Validation.integer(json['horizonDays'],'horizonDays',1,8)); } @override Map<String,Object?> toJson()=>{'kind':StationTimetableSelectorKind.nextDepartures.wire,'asOf':JourneyV3Validation.rfc3339Wire(asOf),'horizonDays':horizonDays}; }
 class StationTimetableSearchRequest { final String stationId; final String lineId; final StationTimetableSelector selector; const StationTimetableSearchRequest({required this.stationId,required this.lineId,required this.selector}); factory StationTimetableSearchRequest.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'stationId','lineId','selector'}); final selector=json['selector']; if(selector is! Map<String,Object?>) throw const FormatException('selector must be object'); return StationTimetableSearchRequest(stationId:JourneyV3Validation.nonBlank(json['stationId'],'stationId'),lineId:JourneyV3Validation.nonBlank(json['lineId'],'lineId'),selector:StationTimetableSelector.fromJson(selector)); } Map<String,Object?> toJson()=>{'stationId':stationId,'lineId':lineId,'selector':selector.toJson()}; }
-class StationTimetableDeparture { final JourneyDate serviceDate; final int secondsFromServiceDayStart; final DateTime departureAt; final StationTimetableServicePattern servicePattern; final StationTimetableServiceClass serviceClass; const StationTimetableDeparture({required this.serviceDate,required this.secondsFromServiceDayStart,required this.departureAt,required this.servicePattern,required this.serviceClass}); factory StationTimetableDeparture.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'serviceDate','secondsFromServiceDayStart','departureAt','servicePattern','serviceClass'}); return StationTimetableDeparture(serviceDate:JourneyDate.parse(json['serviceDate']),secondsFromServiceDayStart:JourneyV3Validation.integer(json['secondsFromServiceDayStart'],'secondsFromServiceDayStart',0,107999),departureAt:JourneyV3Validation.rfc3339(json['departureAt'],'departureAt'),servicePattern:StationTimetableServicePatternWire.fromWire(json['servicePattern']),serviceClass:StationTimetableServiceClassWire.fromWire(json['serviceClass'])); } Map<String,Object?> toJson()=>{'serviceDate':serviceDate.toString(),'secondsFromServiceDayStart':secondsFromServiceDayStart,'departureAt':JourneyV3Validation.rfc3339Wire(departureAt),'servicePattern':servicePattern.wire,'serviceClass':serviceClass.wire}; }
-class StationTimetableDirectionGroup { final String directionName; final List<StationTimetableDeparture> departures; const StationTimetableDirectionGroup({required this.directionName,required this.departures}); factory StationTimetableDirectionGroup.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'directionName','departures'}); return StationTimetableDirectionGroup(directionName:JourneyV3Validation.nonBlank(json['directionName'],'directionName'),departures:JourneyV3Validation.list(json['departures'],'departures',(v){if(v is! Map<String,Object?>) throw const FormatException('departure must be object');return StationTimetableDeparture.fromJson(v);})); } Map<String,Object?> toJson()=>{'directionName':directionName,'departures':departures.map((v)=>v.toJson()).toList(growable:false)}; }
+class StationTimetableDeparture { final JourneyDate serviceDate; final int secondsFromServiceDayStart; final DateTime departureAt; final StationTimetableServicePattern servicePattern; final StationTimetableServiceClass serviceClass; final String terminalStationId; const StationTimetableDeparture({required this.serviceDate,required this.secondsFromServiceDayStart,required this.departureAt,required this.servicePattern,required this.serviceClass,required this.terminalStationId}); factory StationTimetableDeparture.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'serviceDate','secondsFromServiceDayStart','departureAt','servicePattern','serviceClass','terminalStationId'}); return StationTimetableDeparture(serviceDate:JourneyDate.parse(json['serviceDate']),secondsFromServiceDayStart:JourneyV3Validation.integer(json['secondsFromServiceDayStart'],'secondsFromServiceDayStart',0,107999),departureAt:JourneyV3Validation.rfc3339(json['departureAt'],'departureAt'),servicePattern:StationTimetableServicePatternWire.fromWire(json['servicePattern']),serviceClass:StationTimetableServiceClassWire.fromWire(json['serviceClass']),terminalStationId:JourneyV3Validation.nonBlank(json['terminalStationId'],'terminalStationId')); } Map<String,Object?> toJson()=>{'serviceDate':serviceDate.toString(),'secondsFromServiceDayStart':secondsFromServiceDayStart,'departureAt':JourneyV3Validation.rfc3339Wire(departureAt),'servicePattern':servicePattern.wire,'serviceClass':serviceClass.wire,'terminalStationId':terminalStationId}; }
+class StationTimetableDirectionGroup { final String nextStationId; final String? directionName; final List<StationTimetableDeparture> departures; const StationTimetableDirectionGroup({required this.nextStationId,required this.directionName,required this.departures}); factory StationTimetableDirectionGroup.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'nextStationId','directionName','departures'}); return StationTimetableDirectionGroup(nextStationId:JourneyV3Validation.nonBlank(json['nextStationId'],'nextStationId'),directionName:JourneyV3Validation.nullable(json,'directionName',(v)=>JourneyV3Validation.nonBlank(v,'directionName')),departures:JourneyV3Validation.list(json['departures'],'departures',(v){if(v is! Map<String,Object?>) throw const FormatException('departure must be object');return StationTimetableDeparture.fromJson(v);})); } Map<String,Object?> toJson()=>{'nextStationId':nextStationId,'directionName':directionName,'departures':departures.map((v)=>v.toJson()).toList(growable:false)}; }
 class StationTimetableSourceIdentity { final String timetableArtifactId; final String timetableSnapshotSha256; final String canonicalStationVersion; final String canonicalStationSetSha256; final String sourceLineageSha256; final String evidenceHash; final DateTime freshUntil; const StationTimetableSourceIdentity({required this.timetableArtifactId,required this.timetableSnapshotSha256,required this.canonicalStationVersion,required this.canonicalStationSetSha256,required this.sourceLineageSha256,required this.evidenceHash,required this.freshUntil}); factory StationTimetableSourceIdentity.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'timetableArtifactId','timetableSnapshotSha256','canonicalStationVersion','canonicalStationSetSha256','sourceLineageSha256','evidenceHash','freshUntil'}); return StationTimetableSourceIdentity(timetableArtifactId:JourneyV3Validation.nonBlank(json['timetableArtifactId'],'timetableArtifactId'),timetableSnapshotSha256:JourneyV3Validation.sha256(json['timetableSnapshotSha256'],'timetableSnapshotSha256'),canonicalStationVersion:JourneyV3Validation.nonBlank(json['canonicalStationVersion'],'canonicalStationVersion'),canonicalStationSetSha256:JourneyV3Validation.sha256(json['canonicalStationSetSha256'],'canonicalStationSetSha256'),sourceLineageSha256:JourneyV3Validation.sha256(json['sourceLineageSha256'],'sourceLineageSha256'),evidenceHash:JourneyV3Validation.sha256(json['evidenceHash'],'evidenceHash'),freshUntil:JourneyV3Validation.rfc3339(json['freshUntil'],'freshUntil')); } Map<String,Object?> toJson()=>{'timetableArtifactId':timetableArtifactId,'timetableSnapshotSha256':timetableSnapshotSha256,'canonicalStationVersion':canonicalStationVersion,'canonicalStationSetSha256':canonicalStationSetSha256,'sourceLineageSha256':sourceLineageSha256,'evidenceHash':evidenceHash,'freshUntil':JourneyV3Validation.rfc3339Wire(freshUntil)}; }
 class StationTimetableSearchSuccess { final StationTimetableSearchContractVersion contractVersion; final String stationId; final String lineId; final StationTimetableSelector selector; final StationTimetableDayType resolvedDayType; final StationTimetableServiceTimezone serviceTimezone; final List<StationTimetableDirectionGroup> directionGroups; final StationTimetableSourceIdentity sourceIdentity; const StationTimetableSearchSuccess({required this.contractVersion,required this.stationId,required this.lineId,required this.selector,required this.resolvedDayType,required this.serviceTimezone,required this.directionGroups,required this.sourceIdentity}); factory StationTimetableSearchSuccess.fromJson(Map<String,Object?> json) { JourneyV3Validation.exactKeys(json, {'contractVersion','stationId','lineId','selector','resolvedDayType','serviceTimezone','directionGroups','sourceIdentity'}); final selector=json['selector']; final sourceIdentity=json['sourceIdentity']; if(selector is! Map<String,Object?>||sourceIdentity is! Map<String,Object?>) throw const FormatException('nested timetable object'); return StationTimetableSearchSuccess(contractVersion:StationTimetableSearchContractVersionWire.fromWire(json['contractVersion']),stationId:JourneyV3Validation.nonBlank(json['stationId'],'stationId'),lineId:JourneyV3Validation.nonBlank(json['lineId'],'lineId'),selector:StationTimetableSelector.fromJson(selector),resolvedDayType:StationTimetableDayTypeWire.fromWire(json['resolvedDayType']),serviceTimezone:StationTimetableServiceTimezoneWire.fromWire(json['serviceTimezone']),directionGroups:JourneyV3Validation.list(json['directionGroups'],'directionGroups',(v){if(v is! Map<String,Object?>) throw const FormatException('direction group must be object');return StationTimetableDirectionGroup.fromJson(v);}),sourceIdentity:StationTimetableSourceIdentity.fromJson(sourceIdentity)); } Map<String,Object?> toJson()=>{'contractVersion':contractVersion.wire,'stationId':stationId,'lineId':lineId,'selector':selector.toJson(),'resolvedDayType':resolvedDayType.wire,'serviceTimezone':serviceTimezone.wire,'directionGroups':directionGroups.map((v)=>v.toJson()).toList(growable:false),'sourceIdentity':sourceIdentity.toJson()}; }
 `;
 }
 
-export function renderJourneyV3ModelsForTest(options) { validate({ ...options, enforceTrackedLock: false }); return renderStrictModels(); }
+export function renderJourneyV3ModelsForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); return renderStrictModels(ir); }
 function dartLiteral(value) { return JSON.stringify(value).replaceAll('$', '\\$'); }
 function renderErrors(ir) {
   const rows = ir.errorDispositions.map((entry) => `    '${entry.operation}|${entry.httpStatus}|${entry.code}': JourneyErrorDisposition(operation: '${entry.operation}', httpStatus: ${entry.httpStatus}, code: JourneyErrorCode.${dartCase(entry.code)}, semanticCategory: ${dartLiteral(entry.semanticCategory)}, exposure: ${dartLiteral(entry.exposure)}, userVisible: true, publicMessageKey: ${dartLiteral(entry.publicMessageKey)}, canonicalKoreanCopy: ${dartLiteral(entry.canonicalKoreanCopy)}, mobileResourceKey: ${dartLiteral(entry.mobileResourceKey)}, mobilePresentation: ${dartLiteral(entry.mobilePresentation)}, retryDisposition: ${dartLiteral(entry.retryDisposition)}, primaryActionKey: ${entry.primaryActionKey === null ? 'null' : dartLiteral(entry.primaryActionKey)}, secondaryActionKey: null, safeDiagnosticKey: ${dartLiteral(entry.safeDiagnosticKey)}, sensitiveDetailPolicy: ${dartLiteral(entry.sensitiveDetailPolicy)}),`).join('\n');
@@ -831,6 +916,188 @@ function renderClosedErrors(ir) {
 export function renderJourneyV3ErrorsAndBarrelForTest(options) { const ir = validate({ ...options, enforceTrackedLock: false }); const lock = duplicateFreeJson(regular(options.lockPath, 'lock').toString('utf8'), 'lock'); return Object.freeze({ error: renderClosedErrors(ir), contract: renderDartContract(lock, ir.sessionIntegrity) }); }
 export function renderJourneyV3DartLiteralSeamForTest({ enumToken, lock }) { return Object.freeze({ enums: renderDartEnums({ schemas: { SpecialWire: { type: 'string', enum: [enumToken] } }, errorDispositions: [{ semanticCategory: 'TEST', primaryActionKey: 'test.action' }] }), contract: renderDartContract(lock) }); }
 
+// #438 key coverage gate.
+// The Dart renderers are hand-written templates. The schemas projection hash only
+// detects that the contract changed; it cannot tell whether the templates were
+// updated with it. #344 re-pinned the hash for a contract that added the required
+// JourneySearchSuccess.serviceDayCutoff without touching the templates, so the
+// generated decoder rejected every production search response. This gate makes
+// that impossible: for every object schema the generated client decodes, the key
+// set passed to JourneyV3Validation.exactKeys must equal the contract's
+// required + optional properties. Unconditional keys must be exactly the required
+// keys; `if (json.containsKey('k')) 'k'` keys must be exactly the optional keys
+// plus the undeployed required keys below.
+// profileJourneys is decoded by hand-written domain models
+// (apps/mobile/lib/features/journey/domain/journey_profile_models.dart), not by
+// this generator, so its schemas are outside this gate.
+const generatedOperationIds = Object.freeze(['issueJourneySession', 'searchJourneys', 'searchStationTimetables']);
+const generatedClassBySchema = Object.freeze({ JourneyError: 'JourneyV3Error' });
+// Contract-required fields that production does not emit yet. The decoder
+// accepts them present or absent until the producing backend change is
+// deployed; remove the entry then.
+// #438 transition policy, part 2: production does not emit these yet, and the
+// backend changes may deploy after this client ships. The decoder accepts each
+// key present or absent; any key outside the contract is still rejected.
+const undeployedRequiredFields = new Map([
+  ['JourneySearchSuccess.stairFreeAlternative', 'AquilaXk/easysubway-backend#471'],
+]);
+const schemaRefPrefix = '#/components/schemas/';
+
+function generatedObjectSchemaNames(ir) {
+  const roots = ['JourneyError'];
+  for (const operation of ir.operations) {
+    if (!generatedOperationIds.includes(operation.id)) continue;
+    const expectation = expectedOperations.get(operation.path);
+    roots.push(expectation.request, expectation.success);
+  }
+  const names = new Set(); const seen = new Set();
+  const walk = (schema) => {
+    if (!isObject(schema)) return;
+    if (typeof schema.$ref === 'string') {
+      const name = schema.$ref.slice(schemaRefPrefix.length);
+      if (seen.has(name)) return;
+      seen.add(name);
+      const target = ir.schemas[name];
+      if (!isObject(target)) fail(`key coverage cannot resolve ${name}`);
+      if (target.type === 'object') names.add(name);
+      walk(target);
+      return;
+    }
+    if (Array.isArray(schema.oneOf)) schema.oneOf.forEach(walk);
+    if (isObject(schema.items)) walk(schema.items);
+    if (isObject(schema.properties)) Object.values(schema.properties).forEach(walk);
+  };
+  for (const root of roots) walk({ $ref: `${schemaRefPrefix}${root}` });
+  return [...names].sort();
+}
+
+function dartBalancedEnd(source, openIndex) {
+  const pairs = { '{': '}', '(': ')', '[': ']' };
+  const stack = [pairs[source[openIndex]]];
+  if (stack[0] === undefined) fail('key coverage scanner expected an opening bracket');
+  let index = openIndex + 1;
+  while (index < source.length) {
+    const character = source[index];
+    if (character === "'" || character === '"') {
+      const raw = source[index - 1] === 'r';
+      index += 1;
+      while (index < source.length && source[index] !== character) {
+        if (!raw && source[index] === '\\') index += 1;
+        else if (!raw && source[index] === '$' && source[index + 1] === '{') index = dartBalancedEnd(source, index + 1);
+        index += 1;
+      }
+      if (index >= source.length) fail('key coverage scanner found an unterminated Dart string');
+    } else if (character in pairs) {
+      stack.push(pairs[character]);
+    } else if (character === '}' || character === ')' || character === ']') {
+      if (stack.pop() !== character) fail('key coverage scanner found unbalanced Dart brackets');
+      if (stack.length === 0) return index;
+    }
+    index += 1;
+  }
+  fail('key coverage scanner found an unterminated Dart block');
+}
+
+function dartTopLevelEntries(text) {
+  const entries = []; let depth = 0; let start = 0; let quote = null;
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index];
+    if (quote) { if (character === '\\') index += 1; else if (character === quote) quote = null; continue; }
+    if (character === "'" || character === '"') quote = character;
+    else if ('{(['.includes(character)) depth += 1;
+    else if ('})]'.includes(character)) depth -= 1;
+    else if (character === ',' && depth === 0) { entries.push(text.slice(start, index)); start = index + 1; }
+  }
+  entries.push(text.slice(start));
+  return entries.map((entry) => entry.trim()).filter((entry) => entry.length > 0);
+}
+
+function generatedDecoderKeys(source, className) {
+  // Plain string search only: these names come from contract and template text,
+  // so they are never compiled into regular expressions.
+  const factoryStart = source.indexOf(`factory ${className}.fromJson(Map<String`);
+  if (factoryStart < 0) return null;
+  const bodyStart = source.indexOf('{', source.indexOf(' json)', factoryStart));
+  if (bodyStart < 0) fail(`${className}.fromJson has no body`);
+  const body = source.slice(bodyStart, dartBalancedEnd(source, bodyStart) + 1);
+  const call = /JourneyV3Validation\.exactKeys\(json,\s*/.exec(body);
+  if (!call) fail(`${className}.fromJson does not call JourneyV3Validation.exactKeys`);
+  let literal;
+  if (body[call.index + call[0].length] === '{') {
+    const open = call.index + call[0].length;
+    literal = body.slice(open + 1, dartBalancedEnd(body, open));
+  } else {
+    const variable = /^([A-Za-z_][A-Za-z0-9_]*)\s*\)/.exec(body.slice(call.index + call[0].length));
+    const declaration = variable ? body.indexOf(`final ${variable[1]} = {`) : -1;
+    if (declaration < 0) fail(`${className}.fromJson exactKeys argument is not a local set literal`);
+    const open = body.indexOf('{', declaration);
+    literal = body.slice(open + 1, dartBalancedEnd(body, open));
+  }
+  const keys = { required: new Set(), conditional: new Set() };
+  const add = (set, key) => { if (keys.required.has(key) || keys.conditional.has(key)) fail(`${className}.fromJson lists ${key} twice`); set.add(key); };
+  for (const entry of dartTopLevelEntries(literal)) {
+    const required = /^'([A-Za-z][A-Za-z0-9]*)'$/.exec(entry);
+    const conditional = /^if\s*\(\s*json\.containsKey\(\s*'([A-Za-z][A-Za-z0-9]*)'\s*\)\s*\)\s*'([A-Za-z][A-Za-z0-9]*)'$/.exec(entry);
+    const loop = /^for\s*\(\s*final\s+([A-Za-z]+)\s+in\s+([A-Za-z]+)\s*\)\s*if\s*\(\s*json\.containsKey\(\s*\1\s*\)\s*\)\s*\1$/.exec(entry);
+    if (required) add(keys.required, required[1]);
+    else if (conditional && conditional[1] === conditional[2]) add(keys.conditional, conditional[1]);
+    else if (loop) {
+      const list = body.indexOf(`const ${loop[2]} = [`);
+      if (list < 0) fail(`${className}.fromJson loop keys are not a local const list`);
+      const open = body.indexOf('[', list);
+      for (const item of dartTopLevelEntries(body.slice(open + 1, dartBalancedEnd(body, open)))) {
+        const name = /^'([A-Za-z][A-Za-z0-9]*)'$/.exec(item);
+        if (!name) fail(`${className}.fromJson loop key ${item} is not a literal`);
+        add(keys.conditional, name[1]);
+      }
+    } else fail(`${className}.fromJson has an unsupported exactKeys entry: ${entry}`);
+  }
+  return keys;
+}
+
+function setDifference(left, right) { return [...left].filter((key) => !right.has(key)).sort(); }
+
+function journeyV3KeyCoverageMismatches(ir, sources, undeployed = undeployedRequiredFields) {
+  const source = sources.join('\n');
+  const mismatches = [];
+  for (const name of generatedObjectSchemaNames(ir)) {
+    const schema = ir.schemas[name];
+    const className = generatedClassBySchema[name] ?? name;
+    const keys = generatedDecoderKeys(source, className);
+    if (!keys) { mismatches.push(`${name}: no generated ${className}.fromJson decoder`); continue; }
+    const contractRequired = new Set(schema.required);
+    const expectedRequired = new Set([...contractRequired].filter((key) => !undeployed.has(`${name}.${key}`)));
+    const expectedConditional = new Set(Object.keys(schema.properties).filter((key) => !expectedRequired.has(key)));
+    for (const key of setDifference(expectedRequired, keys.required)) mismatches.push(`${name}.${key}: contract requires it but the generated decoder ${keys.conditional.has(key) ? 'treats it as optional' : 'does not accept it'}`);
+    for (const key of setDifference(expectedConditional, keys.conditional)) mismatches.push(`${name}.${key}: ${contractRequired.has(key) ? `contract requires it, but it is undeployed (${undeployed.get(`${name}.${key}`)}) so the decoder must accept it present or absent; the generated decoder` : 'contract allows it to be absent but the generated decoder'} ${keys.required.has(key) ? 'requires it' : 'does not accept it'}`);
+    for (const key of setDifference(new Set([...keys.required, ...keys.conditional]), new Set(Object.keys(schema.properties)))) mismatches.push(`${name}.${key}: generated decoder accepts a key outside the contract`);
+  }
+  for (const field of undeployed.keys()) {
+    const [name, key] = field.split('.');
+    if (!ir.schemas[name]?.required?.includes(key)) mismatches.push(`${field}: undeployed-required entry is not a required contract field`);
+    // An undeployed field is only legitimate while its addition is still pending.
+    // Once the locked contract carries it, both entries must go in the same change.
+    if (!ir.pendingAdditions.some((entry) => entry.schema === name && entry.property === key && entry.required === true)) mismatches.push(`${field}: undeployed-required entry has no matching pendingContractAdditions entry; remove both together once the locked contract carries the field`);
+  }
+  return mismatches.sort();
+}
+
+function assertJourneyV3KeyCoverage(ir, sources) {
+  const mismatches = journeyV3KeyCoverageMismatches(ir, sources);
+  if (mismatches.length > 0) fail(`generated decoder keys differ from the contract:\n  ${mismatches.join('\n  ')}`);
+}
+
+// Test seam: replace the transition tables or mutate the rendered models to
+// prove which drifts the gate catches.
+export function journeyV3KeyCoverageMismatchesForTest(options, { pendingAdditions = pendingContractAdditions, undeployed = undeployedRequiredFields, transformModels = (source) => source } = {}) {
+  const ir = validate({ ...options, enforceTrackedLock: false, pendingAdditions });
+  return journeyV3KeyCoverageMismatches(ir, [transformModels(renderStrictModels(ir)), renderClosedErrors(ir)], undeployed);
+}
+
+export function journeyV3TransitionTablesForTest() {
+  return Object.freeze({ pendingAdditions: [...pendingContractAdditions], undeployed: new Map(undeployedRequiredFields) });
+}
+
 function renderFiles(options, enforceTrackedLock, snapshot) {
   const ir = validate({ ...options, enforceTrackedLock, enforceSchemasProjection: enforceTrackedLock || options.enforceSchemasProjection === true, snapshot });
   const lockBytes = snapshot?.lockBytes ?? regular(options.lockPath, 'lock');
@@ -841,13 +1108,15 @@ function renderFiles(options, enforceTrackedLock, snapshot) {
     if (!generated.startsWith('// Generated ') || firstLineEnd < 0) fail('generated Dart header is not canonical');
     return `// GENERATED CODE - DO NOT MODIFY BY HAND\n// dart format width=200\n${generated}`;
   };
-  return Object.freeze({
+  const files = Object.freeze({
     'journey_v3_contract.dart': generatedHeader(renderDartContract(lock, ir.sessionIntegrity)),
     'journey_v3_enums.dart': generatedHeader(renderDartEnums(ir)),
     'journey_v3_error.dart': generatedHeader(renderClosedErrors(ir)),
-    'journey_v3_models.dart': generatedHeader(renderStrictModels()),
+    'journey_v3_models.dart': generatedHeader(renderStrictModels(ir)),
     'journey_v3_validation.dart': generatedHeader(renderStrictValidation()),
   });
+  assertJourneyV3KeyCoverage(ir, [files['journey_v3_models.dart'], files['journey_v3_error.dart']]);
+  return files;
 }
 
 export function renderJourneyV3FilesForTest(options) {
