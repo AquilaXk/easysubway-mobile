@@ -291,9 +291,9 @@ const pendingContractAdditions = Object.freeze([
   Object.freeze({ source: 'AquilaXk/easysubway-backend#479', schema: 'StationTimetableDeparture', property: 'terminalStationId', required: true, definition: Object.freeze({ type: 'string', minLength: 1 }) }),
 ]);
 
-function applyPendingContractAdditions(lockedSchemas) {
+function applyPendingContractAdditions(lockedSchemas, pendingAdditions = pendingContractAdditions) {
   const schemas = JSON.parse(JSON.stringify(lockedSchemas));
-  for (const entry of pendingContractAdditions) {
+  for (const entry of pendingAdditions) {
     const definition = JSON.parse(JSON.stringify(entry.definition));
     if (entry.property === undefined) {
       if (entry.schema in schemas) fail(`pending contract addition ${entry.schema} (${entry.source}) is already in the locked contract; remove it from pendingContractAdditions`);
@@ -359,9 +359,9 @@ function validateErrors(catalog, disposition) {
   exactKeys(disposition, ['schemaVersion', 'artifactKind', 'sourceCatalog', 'entries'], 'error disposition'); exactKeys(disposition.sourceCatalog, ['path', 'schemaVersion', 'sha256'], 'error disposition sourceCatalog'); if (disposition.schemaVersion !== 'JOURNEY_ERROR_DISPOSITION_V1' || disposition.artifactKind !== 'journey-v3-error-disposition' || disposition.sourceCatalog.path !== 'journey-v3-error-catalog.json' || disposition.sourceCatalog.schemaVersion !== 'JOURNEY_ERROR_CATALOG_V1' || !Array.isArray(disposition.entries) || disposition.entries.length !== expectedErrorTuples.length) fail('error disposition is unsupported'); const seen = new Set(); const bindings = []; for (const entry of disposition.entries) { const keys = ['operation', 'httpStatus', 'machineCode', 'semanticCategory', 'exposure', 'userVisible', 'publicMessageKey', 'canonicalKoreanCopy', 'mobileResourceKey', 'mobilePresentation', 'retryDisposition', 'primaryActionKey', 'secondaryActionKey', 'safeDiagnosticKey', 'sensitiveDetailPolicy']; exactKeys(entry, keys, 'error disposition entry'); const key = `${entry.operation}\0${entry.httpStatus}\0${entry.machineCode}`; if (!tuples.has(key) || seen.has(key) || entry.exposure !== 'MOBILE_USER_VISIBLE' || entry.userVisible !== true || entry.mobilePresentation !== 'FAILURE_SCREEN' || entry.retryDisposition !== 'FORBIDDEN' || entry.secondaryActionKey !== null || entry.sensitiveDetailPolicy !== 'NEVER_PUBLIC' || typeof entry.semanticCategory !== 'string' || typeof entry.publicMessageKey !== 'string' || typeof entry.canonicalKoreanCopy !== 'string' || typeof entry.mobileResourceKey !== 'string' || typeof entry.safeDiagnosticKey !== 'string' || !(entry.primaryActionKey === null || typeof entry.primaryActionKey === 'string')) fail('error disposition does not have the fixed mobile policy'); seen.add(key); bindings.push(Object.freeze({ ...entry, code: entry.machineCode })); } if (seen.size !== tuples.size) fail('error catalog and disposition are not one-to-one'); return Object.freeze(bindings); }
 function expectedOperationsHas(operation) { return [...expectedOperations.values()].some(({ id }) => id === operation); }
 
-function validate({ contractRoot, lockPath, enforceTrackedLock, enforceSchemasProjection, snapshot }) {
+function validate({ contractRoot, lockPath, enforceTrackedLock, enforceSchemasProjection, snapshot, pendingAdditions = pendingContractAdditions }) {
   if (enforceTrackedLock && resolve(lockPath) !== trackedLock) fail('lock must be the tracked journey-v3-client lock'); const lockBytes = snapshot?.lockBytes ?? regular(lockPath, 'lock'); const lock = duplicateFreeJson(lockBytes.toString('utf8'), 'lock'); validateLock(lock); validateStage(lock, lockBytes, contractRoot, snapshot);
-  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const sessionIntegrityBytes = snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'session integrity'); const yaml = (snapshot?.resourceBytes[resourcePaths[3]] ?? regular(join(contractRoot, resourcePaths[3]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); const sessionIntegrity = validateSessionIntegrity(sessionIntegrityBytes); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(applyPendingContractAdditions(validateSchemas(document.components.schemas, enforceSchemasProjection)), false); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; const catalogCodes = new Set(errors.map((entry) => entry.code)); if (!Array.isArray(errorCodes) || errorCodes.length !== catalogCodes.size || new Set(errorCodes).size !== errorCodes.length || errorCodes.some((code) => !catalogCodes.has(code))) fail('JourneyErrorCode must exactly bind the declared catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), errorCatalog: Object.freeze(errors), errorDispositions: errors, sessionIntegrity });
+  const catalogBytes = snapshot?.resourceBytes[resourcePaths[0]] ?? regular(join(contractRoot, resourcePaths[0]), 'error catalog'); const dispositionBytes = snapshot?.resourceBytes[resourcePaths[1]] ?? regular(join(contractRoot, resourcePaths[1]), 'error disposition'); const sessionIntegrityBytes = snapshot?.resourceBytes[resourcePaths[2]] ?? regular(join(contractRoot, resourcePaths[2]), 'session integrity'); const yaml = (snapshot?.resourceBytes[resourcePaths[3]] ?? regular(join(contractRoot, resourcePaths[3]), 'OpenAPI')).toString('utf8'); const catalog = duplicateFreeJson(catalogBytes.toString('utf8'), 'error catalog'); const disposition = duplicateFreeJson(dispositionBytes.toString('utf8'), 'error disposition'); const sessionIntegrity = validateSessionIntegrity(sessionIntegrityBytes); if (disposition.sourceCatalog?.sha256 !== sha256(catalogBytes)) fail('error disposition source catalog SHA-256 does not match'); const document = parseYaml(yaml); const operations = validateOperations(document); const schemas = validateSchemas(applyPendingContractAdditions(validateSchemas(document.components.schemas, enforceSchemasProjection), pendingAdditions), false); validateOperationSchemaReferences(operations, schemas); const requestNot = schemas.JourneySearchRequest?.not; exactKeys(requestNot, ['required', 'properties'], 'JourneySearchRequest.not'); exactKeys(requestNot.properties, ['mobilityProfile', 'constraintMode'], 'JourneySearchRequest.not.properties'); if (JSON.stringify(requestNot.required) !== JSON.stringify(['mobilityProfile', 'constraintMode']) || JSON.stringify(requestNot.properties.mobilityProfile?.enum) !== JSON.stringify(['NO_STAIRS']) || JSON.stringify(requestNot.properties.constraintMode?.enum) !== JSON.stringify(['NONE'])) fail('JourneySearchRequest must prohibit NO_STAIRS plus NONE'); const errors = validateErrors(catalog, disposition); const errorCodes = schemas.JourneyErrorCode?.enum; const catalogCodes = new Set(errors.map((entry) => entry.code)); if (!Array.isArray(errorCodes) || errorCodes.length !== catalogCodes.size || new Set(errorCodes).size !== errorCodes.length || errorCodes.some((code) => !catalogCodes.has(code))) fail('JourneyErrorCode must exactly bind the declared catalog'); return Object.freeze({ operations: Object.freeze(operations), schemas: Object.freeze(schemas), pendingAdditions, errorCatalog: Object.freeze(errors), errorDispositions: errors, sessionIntegrity });
 }
 
 const dartCase = (token) => token.split(/[^A-Za-z0-9]+/).filter(Boolean).map((part, index) => { const normalized = part === part.toUpperCase() ? part.toLowerCase() : `${part[0].toLowerCase()}${part.slice(1)}`; return index === 0 ? normalized : `${normalized[0].toUpperCase()}${normalized.slice(1)}`; }).join('');
@@ -1062,7 +1062,7 @@ function generatedDecoderKeys(source, className) {
 
 function setDifference(left, right) { return [...left].filter((key) => !right.has(key)).sort(); }
 
-function journeyV3KeyCoverageMismatches(ir, sources) {
+function journeyV3KeyCoverageMismatches(ir, sources, undeployed = undeployedRequiredFields) {
   const source = sources.join('\n');
   const mismatches = [];
   for (const name of generatedObjectSchemaNames(ir)) {
@@ -1071,13 +1071,13 @@ function journeyV3KeyCoverageMismatches(ir, sources) {
     const keys = generatedDecoderKeys(source, className);
     if (!keys) { mismatches.push(`${name}: no generated ${className}.fromJson decoder`); continue; }
     const contractRequired = new Set(schema.required);
-    const expectedRequired = new Set([...contractRequired].filter((key) => !undeployedRequiredFields.has(`${name}.${key}`)));
+    const expectedRequired = new Set([...contractRequired].filter((key) => !undeployed.has(`${name}.${key}`)));
     const expectedConditional = new Set(Object.keys(schema.properties).filter((key) => !expectedRequired.has(key)));
     for (const key of setDifference(expectedRequired, keys.required)) mismatches.push(`${name}.${key}: contract requires it but the generated decoder ${keys.conditional.has(key) ? 'treats it as optional' : 'does not accept it'}`);
-    for (const key of setDifference(expectedConditional, keys.conditional)) mismatches.push(`${name}.${key}: ${contractRequired.has(key) ? `contract requires it, but it is undeployed (${undeployedRequiredFields.get(`${name}.${key}`)}) so the decoder must accept it present or absent; the generated decoder` : 'contract allows it to be absent but the generated decoder'} ${keys.required.has(key) ? 'requires it' : 'does not accept it'}`);
+    for (const key of setDifference(expectedConditional, keys.conditional)) mismatches.push(`${name}.${key}: ${contractRequired.has(key) ? `contract requires it, but it is undeployed (${undeployed.get(`${name}.${key}`)}) so the decoder must accept it present or absent; the generated decoder` : 'contract allows it to be absent but the generated decoder'} ${keys.required.has(key) ? 'requires it' : 'does not accept it'}`);
     for (const key of setDifference(new Set([...keys.required, ...keys.conditional]), new Set(Object.keys(schema.properties)))) mismatches.push(`${name}.${key}: generated decoder accepts a key outside the contract`);
   }
-  for (const field of undeployedRequiredFields.keys()) {
+  for (const field of undeployed.keys()) {
     const [name, key] = field.split('.');
     if (!ir.schemas[name]?.required?.includes(key)) mismatches.push(`${field}: undeployed-required entry is not a required contract field`);
   }
@@ -1089,9 +1089,15 @@ function assertJourneyV3KeyCoverage(ir, sources) {
   if (mismatches.length > 0) fail(`generated decoder keys differ from the contract:\n  ${mismatches.join('\n  ')}`);
 }
 
-export function journeyV3KeyCoverageMismatchesForTest(options) {
-  const ir = validate({ ...options, enforceTrackedLock: false });
-  return journeyV3KeyCoverageMismatches(ir, [renderStrictModels(ir), renderClosedErrors(ir)]);
+// Test seam: replace the transition tables or mutate the rendered models to
+// prove which drifts the gate catches.
+export function journeyV3KeyCoverageMismatchesForTest(options, { pendingAdditions = pendingContractAdditions, undeployed = undeployedRequiredFields, transformModels = (source) => source } = {}) {
+  const ir = validate({ ...options, enforceTrackedLock: false, pendingAdditions });
+  return journeyV3KeyCoverageMismatches(ir, [transformModels(renderStrictModels(ir)), renderClosedErrors(ir)], undeployed);
+}
+
+export function journeyV3TransitionTablesForTest() {
+  return Object.freeze({ pendingAdditions: [...pendingContractAdditions], undeployed: new Map(undeployedRequiredFields) });
 }
 
 function renderFiles(options, enforceTrackedLock, snapshot) {
