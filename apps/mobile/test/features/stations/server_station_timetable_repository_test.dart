@@ -609,14 +609,221 @@ void main() {
       );
     },
   );
+
+  group('다음 정차역 기준 방면 묶음(#437)', () {
+    contract.StationTimetableSelector selector() =>
+        contract.StationTimetableServiceDateSelector(
+          contract.JourneyDate.parse('2026-08-11'),
+        );
+    Future<StationTimetable> load(
+      List<contract.StationTimetableDirectionGroup> groups, {
+      Future<String> Function(String stationId) stationName = _catalogName,
+    }) =>
+        _repository(
+          _FakeJourneyRepository(
+            timetable: _success(
+              selector: selector(),
+              departures: const [],
+              directionGroups: groups,
+              now: now,
+            ),
+            now: now,
+          ),
+          now: now,
+          stationName: stationName,
+        ).loadStationTimetableForDate(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          date: now,
+        );
+
+    test('2호선 강남 형태: 종착이 같아도 다음 정차역으로 두 방면을 만든다', () async {
+      final timetable = await load([
+        contract.StationTimetableDirectionGroup(
+          nextStationId: 'station-yeoksam',
+          directionName: null,
+          departures: [
+            _departure(
+              '2026-08-11',
+              32400,
+              '2026-08-11T00:00:00Z',
+              terminalStationId: 'station-seongsu',
+            ),
+          ],
+        ),
+        contract.StationTimetableDirectionGroup(
+          nextStationId: 'station-gyodae',
+          directionName: null,
+          departures: [
+            _departure(
+              '2026-08-11',
+              32460,
+              '2026-08-11T00:01:00Z',
+              terminalStationId: 'station-seongsu',
+            ),
+          ],
+        ),
+      ]);
+
+      expect(timetable.directions.map((d) => d.name), ['역삼 방면', '교대 방면']);
+      expect(
+        timetable.directions.map((d) => d.departures.single.directionName),
+        ['역삼 방면', '교대 방면'],
+      );
+      expect(timetable.directions.map((d) => d.departures.single.destination), [
+        '성수',
+        '성수',
+      ]);
+    });
+
+    test('인천 형태: 원천 방면 이름이 있어도 라벨은 다음 정차역 이름이다', () async {
+      final timetable = await load([
+        contract.StationTimetableDirectionGroup(
+          nextStationId: 'station-incheon-terminal',
+          directionName: '송도달빛축제공원행',
+          departures: [
+            _departure(
+              '2026-08-11',
+              32400,
+              '2026-08-11T00:00:00Z',
+              terminalStationId: 'station-songdo-moonlight',
+            ),
+          ],
+        ),
+      ]);
+
+      expect(timetable.directions.single.name, '인천터미널 방면');
+      expect(
+        timetable.directions.single.departures.single.destination,
+        '송도달빛축제공원',
+      );
+    });
+
+    test('카탈로그에 없는 다음 정차역·종착역은 추정 이름 없이 시간표 사용 불가다', () async {
+      for (final groups in [
+        [
+          contract.StationTimetableDirectionGroup(
+            nextStationId: 'station-unknown',
+            directionName: '어딘가 방면',
+            departures: [
+              _departure('2026-08-11', 32400, '2026-08-11T00:00:00Z'),
+            ],
+          ),
+        ],
+        [
+          contract.StationTimetableDirectionGroup(
+            nextStationId: 'station-yeoksam',
+            directionName: null,
+            departures: [
+              _departure(
+                '2026-08-11',
+                32400,
+                '2026-08-11T00:00:00Z',
+                terminalStationId: 'station-unknown',
+              ),
+            ],
+          ),
+        ],
+      ]) {
+        await expectLater(
+          load(groups),
+          throwsA(
+            isA<StationTimetableUnavailable>().having(
+              (e) => e.reason,
+              'reason',
+              'TIMETABLE_STATION_NAME_UNAVAILABLE',
+            ),
+          ),
+        );
+      }
+    });
+
+    test('다음 정차역·종착역이 없는 이전 형태 응답은 방면 문자열을 잘라 쓰지 않고 무결성 오류다', () async {
+      for (final groups in [
+        [
+          contract.StationTimetableDirectionGroup(
+            directionName: '당고개 방면',
+            departures: [
+              _departure(
+                '2026-08-11',
+                32400,
+                '2026-08-11T00:00:00Z',
+                terminalStationId: null,
+              ),
+            ],
+          ),
+        ],
+        [
+          contract.StationTimetableDirectionGroup(
+            nextStationId: 'station-yeoksam',
+            directionName: null,
+            departures: [
+              _departure(
+                '2026-08-11',
+                32400,
+                '2026-08-11T00:00:00Z',
+                terminalStationId: null,
+              ),
+            ],
+          ),
+        ],
+      ]) {
+        await expectLater(
+          load(groups),
+          throwsA(isA<ServerConnectionException>()),
+        );
+      }
+    });
+
+    test('같은 다음 정차역 묶음이 두 번 오면 무결성 오류다', () async {
+      contract.StationTimetableDirectionGroup group(String name) =>
+          contract.StationTimetableDirectionGroup(
+            nextStationId: 'station-yeoksam',
+            directionName: name,
+            departures: [
+              _departure(
+                '2026-08-11',
+                32400,
+                '2026-08-11T00:00:00Z',
+                terminalStationId: 'station-seongsu',
+              ),
+            ],
+          );
+
+      await expectLater(
+        load([group('가 방면'), group('나 방면')]),
+        throwsA(isA<ServerConnectionException>()),
+      );
+    });
+  });
+}
+
+// 앱 카탈로그 역 이름(테스트용).
+const _catalogNames = <String, String>{
+  'station-chongshin': '총신대입구(이수)',
+  'station-danggogae': '당고개',
+  'station-yeoksam': '역삼',
+  'station-gyodae': '교대',
+  'station-seongsu': '성수',
+  'station-incheon-terminal': '인천터미널',
+  'station-gyeyang': '계양',
+  'station-songdo-moonlight': '송도달빛축제공원',
+};
+
+Future<String> _catalogName(String stationId) async {
+  final name = _catalogNames[stationId];
+  if (name == null) throw StateError('station $stationId is not in catalog');
+  return name;
 }
 
 ServerStationTimetableRepository _repository(
   _FakeJourneyRepository journey, {
   required DateTime now,
   JourneyV3IntegrityAttestor? attestor,
+  Future<String> Function(String stationId) stationName = _catalogName,
 }) => ServerStationTimetableRepository(
   journeyRepository: journey,
+  stationNameResolver: stationName,
   sessionProvider: JourneySessionProvider(
     repository: journey,
     attestor: attestor ?? const _Attestor(),
@@ -629,14 +836,15 @@ ServerStationTimetableRepository _repository(
 contract.StationTimetableDeparture _departure(
   String serviceDate,
   int seconds,
-  String departureAt,
-) => contract.StationTimetableDeparture(
+  String departureAt, {
+  String? terminalStationId = 'station-danggogae',
+}) => contract.StationTimetableDeparture(
   serviceDate: contract.JourneyDate.parse(serviceDate),
   secondsFromServiceDayStart: seconds,
   departureAt: DateTime.parse(departureAt),
   servicePattern: contract.StationTimetableServicePattern.local,
   serviceClass: contract.StationTimetableServiceClass.subway,
-  terminalStationId: 'station-danggogae',
+  terminalStationId: terminalStationId,
 );
 
 contract.StationTimetableSearchSuccess _success({
@@ -659,7 +867,7 @@ contract.StationTimetableSearchSuccess _success({
       [
         contract.StationTimetableDirectionGroup(
           nextStationId: 'station-chongshin',
-          directionName: '당고개 방면',
+          directionName: null,
           departures: departures,
         ),
       ],
