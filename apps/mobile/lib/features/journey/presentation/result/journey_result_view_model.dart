@@ -373,9 +373,38 @@ class JourneyRouteTab {
       [...labels, durationLabel, transferLabel, '$arrivalTime 도착'].join(', ');
 }
 
+/// 계단 없는 경로 묶음 라벨. 상용 지하철 서비스의 '계단회피' 표현을 따른다.
+const journeyStairFreeCategoryLabel = '계단회피';
+
+String _alternativeCategoryLabel(JourneyAlternativeCategory category) =>
+    switch (category) {
+      JourneyAlternativeCategory.fastest => '최단시간',
+      JourneyAlternativeCategory.fewestTransfers => '최소환승',
+      JourneyAlternativeCategory.stairFree => journeyStairFreeCategoryLabel,
+    };
+
 /// 후보 목록(서버 순서)에서 경로 탭을 만든다. 라벨은 소요시간·환승 횟수·무단차
 /// 사실에서만 만들고, 순서만으로 라벨을 붙이지 않는다.
+///
+/// 서버가 여정마다 대표 묶음(`alternativeCategories`, backend #471)을 주면 그
+/// 묶음을 라벨로 쓴다. 묶음을 주지 않는 서버 응답이면 사실에서 라벨을 만든다.
 List<JourneyRouteTab> journeyRouteTabs(List<Journey> journeys) {
+  if (journeys.isNotEmpty &&
+      journeys.every((journey) => journey.alternativeCategories != null)) {
+    return List.unmodifiable([
+      for (var index = 0; index < journeys.length; index++)
+        _routeTab(journeys[index], [
+          for (final category in journeys[index].alternativeCategories!)
+            _alternativeCategoryLabel(category),
+          if (journeys[index].alternativeCategories!.isEmpty) '경로 ${index + 1}',
+          if (journeys[index].accessibility.stairFree &&
+              !journeys[index].alternativeCategories!.contains(
+                JourneyAlternativeCategory.stairFree,
+              ))
+            '무단차',
+        ]),
+    ]);
+  }
   var fastest = 0;
   var leastTransfers = 0;
   for (var index = 1; index < journeys.length; index++) {
@@ -389,26 +418,28 @@ List<JourneyRouteTab> journeyRouteTabs(List<Journey> journeys) {
   }
   return List.unmodifiable([
     for (var index = 0; index < journeys.length; index++)
-      JourneyRouteTab._(
-        journeyId: journeys[index].journeyId,
-        labels: List.unmodifiable([
-          if (index == fastest)
-            '최단시간'
-          else if (index == leastTransfers)
-            '최소환승'
-          else
-            '경로 ${index + 1}',
-          if (journeys[index].accessibility.stairFree) '무단차',
-        ]),
-        durationLabel: '${_minutes(journeys[index].durationSeconds)}분',
-        transferLabel: journeyTransferLabel(journeys[index].transferCount),
-        arrivalTime: journeyKstTime(
-          journeys[index].realtimeArrivalTime ??
-              journeys[index].plannedArrivalTime,
-        ),
-      ),
+      _routeTab(journeys[index], [
+        if (index == fastest)
+          '최단시간'
+        else if (index == leastTransfers)
+          '최소환승'
+        else
+          '경로 ${index + 1}',
+        if (journeys[index].accessibility.stairFree) '무단차',
+      ]),
   ]);
 }
+
+JourneyRouteTab _routeTab(Journey journey, List<String> labels) =>
+    JourneyRouteTab._(
+      journeyId: journey.journeyId,
+      labels: List.unmodifiable(labels),
+      durationLabel: '${_minutes(journey.durationSeconds)}분',
+      transferLabel: journeyTransferLabel(journey.transferCount),
+      arrivalTime: journeyKstTime(
+        journey.realtimeArrivalTime ?? journey.plannedArrivalTime,
+      ),
+    );
 
 /// 서울 표준시(KST) `HH:mm`.
 String journeyKstTime(DateTime instant) {

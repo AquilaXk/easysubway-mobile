@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/features/journey/data/journey_api_repository.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -178,6 +179,57 @@ void main() {
           reason: key,
         );
       }
+    });
+
+    test('대표 묶음 규칙을 어기는 응답은 저장소에서 프로토콜 실패로 거부한다', () async {
+      List<Map<String, Object?>> journeys(Map<String, Object?> json) =>
+          (json['journeys']! as List).cast<Map<String, Object?>>();
+      Map<String, Object?> pr471() =>
+          _fixture('search-success.backend-pr471.json');
+      final cases = <String, Map<String, Object?>>{
+        // 계단 있는 여정에 계단회피 묶음을 붙이면 안 된다.
+        'STAIR_FREE on stairs journey': (() {
+          final json = pr471();
+          journeys(json)[1]['alternativeCategories'] = [
+            'FEWEST_TRANSFERS',
+            'STAIR_FREE',
+          ];
+          journeys(json)[0]['alternativeCategories'] = ['FASTEST'];
+          return json;
+        })(),
+        'same category twice': (() {
+          final json = pr471();
+          journeys(json)[1]['alternativeCategories'] = ['FASTEST'];
+          return json;
+        })(),
+        'no FASTEST': (() {
+          final json = pr471();
+          journeys(json)[0]['alternativeCategories'] = ['STAIR_FREE'];
+          return json;
+        })(),
+        'categories on only some journeys': (() {
+          final json = pr471();
+          journeys(json)[1].remove('alternativeCategories');
+          return json;
+        })(),
+      };
+      for (final MapEntry(:key, :value) in cases.entries) {
+        final repository = JourneyApiRepository(_StubApiClient(value));
+        await expectLater(
+          repository.searchJourneys(
+            _standardSearchRequest,
+            sessionToken: 'session-token',
+          ),
+          throwsA(isA<JourneyProtocolFailure>()),
+          reason: key,
+        );
+      }
+      await expectLater(
+        JourneyApiRepository(
+          _StubApiClient(pr471()),
+        ).searchJourneys(_standardSearchRequest, sessionToken: 'session-token'),
+        completes,
+      );
     });
 
     test('계약에 없는 최상위 키는 계속 거부한다', () {

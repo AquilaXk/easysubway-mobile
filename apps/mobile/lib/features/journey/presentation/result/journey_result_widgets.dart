@@ -84,7 +84,9 @@ class JourneyRouteTabs extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: selected
                             ? EasySubwayAccessibleColors.onPrimary
-                            : (tab.labels[index] == '무단차'
+                            : (tab.labels[index] == '무단차' ||
+                                      tab.labels[index] ==
+                                          journeyStairFreeCategoryLabel
                                   ? EasySubwayAccessibleColors.mint
                                   : EasySubwayAccessibleColors.primary),
                       ),

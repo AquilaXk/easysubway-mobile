@@ -254,6 +254,43 @@ class JourneyApiRepository implements JourneyRepository {
       }
       _validateJourneySemantics(journey);
     }
+    _validateAlternativeCategories(success.journeys);
+  }
+
+  /// backend #471 대표 묶음 규칙(OpenAPI `Journey.alternativeCategories`).
+  /// 묶음은 모든 여정에 있거나 모두 없다. FASTEST는 정확히 한 여정, 각 묶음은
+  /// 많아야 한 여정에 붙는다. STAIR_FREE는 계단 없는 여정에만 붙는다.
+  void _validateAlternativeCategories(List<Journey> journeys) {
+    final withCategories = journeys
+        .where((journey) => journey.alternativeCategories != null)
+        .length;
+    if (withCategories == 0) return;
+    if (withCategories != journeys.length) {
+      throw const FormatException(
+        'Journey alternative categories must be on every journey',
+      );
+    }
+    final seen = <JourneyAlternativeCategory>{};
+    for (final journey in journeys) {
+      for (final category in journey.alternativeCategories!) {
+        if (!seen.add(category)) {
+          throw const FormatException(
+            'Journey alternative category must be on at most one journey',
+          );
+        }
+        if (category == JourneyAlternativeCategory.stairFree &&
+            !journey.accessibility.stairFree) {
+          throw const FormatException(
+            'Journey STAIR_FREE category requires a stair-free journey',
+          );
+        }
+      }
+    }
+    if (!seen.contains(JourneyAlternativeCategory.fastest)) {
+      throw const FormatException(
+        'Journey alternative categories must include FASTEST',
+      );
+    }
   }
 
   void _validateJourneySemantics(Journey journey) {

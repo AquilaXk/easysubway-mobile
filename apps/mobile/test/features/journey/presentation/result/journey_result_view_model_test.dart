@@ -90,6 +90,7 @@ Journey _journey({
   JourneyTimeSource timeSource = JourneyTimeSource.timetable,
   bool stairFree = false,
   JourneyFare fare = _availableFare,
+  List<JourneyAlternativeCategory>? alternativeCategories,
 }) => Journey(
   journeyId: id,
   status: JourneyStatus.found,
@@ -109,6 +110,7 @@ Journey _journey({
   ),
   legs: legs,
   fare: fare,
+  alternativeCategories: alternativeCategories,
 );
 
 const _transferDoor = JourneyAlightingCarDoor(
@@ -417,6 +419,59 @@ void main() {
       ),
     ).summary;
     expect(large.fareLabel, '카드 12,050원');
+  });
+
+  test('(5b) 서버가 대표 묶음을 주면 그 묶음으로 탭 라벨을 만든다(#438)', () {
+    Journey candidate(
+      String id,
+      int minutes,
+      int transfers,
+      List<JourneyAlternativeCategory> categories, {
+      bool stairFree = false,
+    }) => _journey(
+      id: id,
+      departure: _kst(8, 0),
+      arrival: _kst(8, minutes),
+      durationSeconds: minutes * 60,
+      transferCount: transfers,
+      stairFree: stairFree,
+      alternativeCategories: categories,
+      legs: const <JourneyLeg>[
+        JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
+      ],
+    );
+
+    // 상용 지하철 서비스의 최소시간·최소환승·계단회피 분류를 따른다.
+    // 계단회피 묶음이 붙은 여정에는 같은 사실인 무단차 표시를 겹쳐 달지 않는다.
+    final tabs = journeyRouteTabs([
+      candidate('a', 30, 2, [JourneyAlternativeCategory.fastest]),
+      candidate('b', 34, 1, [JourneyAlternativeCategory.fewestTransfers]),
+      candidate('c', 41, 2, [
+        JourneyAlternativeCategory.stairFree,
+      ], stairFree: true),
+    ]);
+    expect(tabs.map((tab) => tab.labels), [
+      ['최단시간'],
+      ['최소환승'],
+      ['계단회피'],
+    ]);
+    expect(tabs[2].semanticsLabel, '계단회피, 41분, 환승 2회, 08:41 도착');
+
+    // 한 여정이 여러 묶음을 대표하면 서버 묶음 순서대로 모두 붙인다.
+    // 묶음이 빈 여정은 남는 자리를 채운 경로다.
+    final merged = journeyRouteTabs([
+      candidate('a', 30, 1, [
+        JourneyAlternativeCategory.fastest,
+        JourneyAlternativeCategory.stairFree,
+      ], stairFree: true),
+      candidate('b', 35, 0, [JourneyAlternativeCategory.fewestTransfers]),
+      candidate('c', 38, 1, const [], stairFree: true),
+    ]);
+    expect(merged.map((tab) => tab.labels), [
+      ['최단시간', '계단회피'],
+      ['최소환승'],
+      ['경로 3', '무단차'],
+    ]);
   });
 
   test('(5) 탭 라벨은 사실에서만 만든다', () {
