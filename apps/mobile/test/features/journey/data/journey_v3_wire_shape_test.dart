@@ -207,11 +207,6 @@ void main() {
           journeys(json)[0]['alternativeCategories'] = ['STAIR_FREE'];
           return json;
         })(),
-        'categories on only some journeys': (() {
-          final json = pr471();
-          journeys(json)[1].remove('alternativeCategories');
-          return json;
-        })(),
       };
       for (final MapEntry(:key, :value) in cases.entries) {
         final repository = JourneyApiRepository(_StubApiClient(value));
@@ -227,6 +222,22 @@ void main() {
       await expectLater(
         JourneyApiRepository(
           _StubApiClient(pr471()),
+        ).searchJourneys(_standardSearchRequest, sessionToken: 'session-token'),
+        completes,
+      );
+    });
+
+    test('대표 묶음이 일부 여정에만 있어도 계약 위반이 아니라 받는다(#438 리뷰 F6)', () async {
+      // 계약(backend #471 Journey.alternativeCategories)은 여정마다 선택 필드이고
+      // "모든 여정에 있다"는 규칙이 없다. 계약보다 엄격하면 정상 응답을 거부한다.
+      final json = _fixture('search-success.backend-pr471.json');
+      ((json['journeys']! as List).cast<Map<String, Object?>>())[1].remove(
+        'alternativeCategories',
+      );
+
+      await expectLater(
+        JourneyApiRepository(
+          _StubApiClient(json),
         ).searchJourneys(_standardSearchRequest, sessionToken: 'session-token'),
         completes,
       );
