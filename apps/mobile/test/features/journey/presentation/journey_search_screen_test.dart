@@ -1377,6 +1377,7 @@ class _Repository implements JourneyRepository {
       calculatedAt: responseTime,
       validUntil: responseTime.add(const Duration(minutes: 5)),
       temporalQuery: request.temporalQuery,
+      serviceDayCutoff: '03:00',
       journeys: journeyIds
           .map(
             (id) => JourneyProfileJourneyCandidate(

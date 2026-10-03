@@ -1018,6 +1018,13 @@ void main() {
           'earliestReadyAt': '2026-08-11T09:00:00.000Z',
           'latestReadyAt': '2026-08-11T10:00:00.000Z',
         },
+        'serviceDays': [
+          {
+            'serviceDate': '2026-08-11',
+            'serviceTimezone': 'Asia/Seoul',
+            'serviceDayCutoff': '03:00',
+          },
+        ],
         'journeys': [
           {
             'journeyId': 'j-1',
