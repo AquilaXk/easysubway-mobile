@@ -746,43 +746,6 @@ void main() {
       }
     });
 
-    test('다음 정차역·종착역이 없는 이전 형태 응답은 방면 문자열을 잘라 쓰지 않고 무결성 오류다', () async {
-      for (final groups in [
-        [
-          contract.StationTimetableDirectionGroup(
-            directionName: '당고개 방면',
-            departures: [
-              _departure(
-                '2026-08-11',
-                32400,
-                '2026-08-11T00:00:00Z',
-                terminalStationId: null,
-              ),
-            ],
-          ),
-        ],
-        [
-          contract.StationTimetableDirectionGroup(
-            nextStationId: 'station-yeoksam',
-            directionName: null,
-            departures: [
-              _departure(
-                '2026-08-11',
-                32400,
-                '2026-08-11T00:00:00Z',
-                terminalStationId: null,
-              ),
-            ],
-          ),
-        ],
-      ]) {
-        await expectLater(
-          load(groups),
-          throwsA(isA<ServerConnectionException>()),
-        );
-      }
-    });
-
     test('같은 다음 정차역 묶음이 두 번 오면 무결성 오류다', () async {
       contract.StationTimetableDirectionGroup group(String name) =>
           contract.StationTimetableDirectionGroup(
@@ -845,7 +808,7 @@ contract.StationTimetableDeparture _departure(
   String serviceDate,
   int seconds,
   String departureAt, {
-  String? terminalStationId = 'station-danggogae',
+  String terminalStationId = 'station-danggogae',
 }) => contract.StationTimetableDeparture(
   serviceDate: contract.JourneyDate.parse(serviceDate),
   secondsFromServiceDayStart: seconds,

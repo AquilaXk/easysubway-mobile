@@ -206,9 +206,8 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       );
     }
     // 방면은 다음 정차역(backend #479 nextStationId)으로 묶고 이름은 앱
-    // 카탈로그에서 붙인다. 원천 방면 이름(directionName)은 라벨에 쓰지 않는다.
-    // nextStationId·terminalStationId가 없는 이전 형태 응답은 방면 문자열을
-    // 잘라 행선지를 만들지 않고 무결성 오류로 처리한다.
+    // 카탈로그에서 붙인다. 원천 방면 이름(directionName)은 라벨에 쓰지 않고,
+    // 방면 문자열을 잘라 행선지를 만들지 않는다.
     final nextStationIds = <String>{};
     final directions = <StationTimetableDirection>[];
     final names = <String, String>{};
@@ -233,7 +232,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
 
     for (final group in response.directionGroups) {
       final nextStationId = group.nextStationId;
-      if (nextStationId == null || !nextStationIds.add(nextStationId)) {
+      if (!nextStationIds.add(nextStationId)) {
         throw const FormatException('Station timetable direction mismatch');
       }
       final directionName = '${await stationName(nextStationId)} 방면';
@@ -250,13 +249,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
           );
         }
         previousDepartureAt = departure.departureAt;
-        final terminalStationId = departure.terminalStationId;
-        if (terminalStationId == null) {
-          throw const FormatException(
-            'Station timetable departure terminal is missing',
-          );
-        }
-        final destination = await stationName(terminalStationId);
+        final destination = await stationName(departure.terminalStationId);
         departures.add(
           StationTimetableDeparture(
             directionName: directionName,
