@@ -181,6 +181,62 @@ void main() {
     });
 
     test(
+      '검색 결과의 serviceDayCutoff는 프로필 응답 serviceDays에서 가져온다(#438 리뷰 F3)',
+      () {
+        Map<String, Object?> profile(Object? serviceDays) => {
+          'contractVersion': 'JOURNEY_PROFILE_V1',
+          'requestId': '01J00000000000000000000000',
+          'queryId': 'q-1',
+          'calculatedAt': '2026-08-11T08:50:00.000Z',
+          'validUntil': '2026-08-11T09:50:00.000Z',
+          'temporalQuery': {
+            'kind': 'DEPART_BETWEEN',
+            'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+            'latestReadyAt': '2026-08-11T10:00:00.000Z',
+          },
+          'journeys': [validCandidateMap],
+          'serviceDays': ?serviceDays,
+        };
+        Map<String, Object?> day(String date, String cutoff) => {
+          'serviceDate': date,
+          'serviceTimezone': 'Asia/Seoul',
+          'serviceDayCutoff': cutoff,
+        };
+        JourneySearchSuccess convert(Map<String, Object?> json) =>
+            JourneyProfileSuccess.fromJson(json).toSearchSuccess(
+              timePolicy: TimePolicy.timetableRequired,
+              walkingPace: WalkingPace.standard,
+              mobilityProfile: MobilityProfile.standard,
+              constraintMode: ConstraintMode.none,
+              maxTransfers: 3,
+              alternativeCount: 3,
+            );
+
+        expect(
+          convert(
+            profile([day('2026-08-11', '03:00'), day('2026-08-12', '03:00')]),
+          ).serviceDayCutoff,
+          '03:00',
+        );
+        for (final invalid in <Object?>[
+          null,
+          const <Object?>[],
+          [day('2026-08-11', '03:00'), day('2026-08-12', '04:00')],
+          [day('2026-08-11', '3시')],
+          [
+            {...day('2026-08-11', '03:00'), 'extra': true},
+          ],
+        ]) {
+          expect(
+            () => convert(profile(invalid)),
+            throwsFormatException,
+            reason: '$invalid',
+          );
+        }
+      },
+    );
+
+    test(
       'JourneyProfileSuccess round-trips and converts to search success',
       () {
         final successMap = {
