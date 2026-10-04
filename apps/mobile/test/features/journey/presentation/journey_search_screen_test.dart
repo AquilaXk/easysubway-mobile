@@ -307,12 +307,11 @@ void main() {
     );
   });
 
-  // #441: 서버 계단 없는 대안 결과(backend #471)를 교통약자에게 구분해 안내한다.
-  testWidgets('계단 정보를 확인할 수 없는 환승이 있으면 경로 후보 위에 안내하고 스크린리더로 읽힌다', (
-    tester,
-  ) async {
-    final semantics = tester.ensureSemantics();
+  // #441: 서버 계단 없는 대안 결과(backend #471)를 필요한 사용자에게만 구분해 안내한다.
+  // 상용 지하철 서비스는 계단회피를 사용자가 고르는 길찾기 옵션으로만 보여 준다(#441 QA).
+  testWidgets('일반 이동 프로필 사용자에게는 계단 상태 안내·계단 없는 경로 표시를 하지 않는다', (tester) async {
     final repository = _Repository()
+      ..journeyIds = <String>['journey-multileg', 'journey-2']
       ..stairFreeAlternative = const JourneyStairFreeAlternative(
         status: JourneyStairFreeAlternativeStatus.undetermined,
         facilityStatus: JourneyStairFreeFacilityStatus.unobserved,
@@ -322,65 +321,56 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('계단 없이 갈 수 있는지 확인하지 못했어요'), findsOneWidget);
     expect(
-      find.text('계단 정보가 없는 환승 통로가 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.'),
+      find.byKey(const Key('journey-candidate-journey-2')),
       findsOneWidget,
     );
-    // 결과에 계단 없는 여정이 없으므로 시설 미반영 안내는 붙이지 않는다.
-    expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsNothing);
+    expect(find.byKey(const Key('journey-stair-status-notices')), findsNothing);
+    expect(find.textContaining('계단'), findsNothing);
+    expect(find.textContaining('엘리베이터 고장'), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('계단')), findsNothing);
+  });
+
+  testWidgets('계단 없는 경로를 요청한 사용자에게는 계단 없는 경로 표시와 엘리베이터 고장 미반영을 알린다', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final repository = _Repository()
+      ..journeyIds = <String>['journey-multileg']
+      ..stairFreeAlternative = const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.included,
+        facilityStatus: JourneyStairFreeFacilityStatus.unobserved,
+      );
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      mobilityType: 'WHEELCHAIR',
+    );
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsOneWidget);
     expect(
       find.bySemanticsLabel(
-        '계단 없이 갈 수 있는지 확인하지 못했어요. 계단 정보가 없는 환승 통로가 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
+        '엘리베이터 고장 정보는 반영하지 못했어요. 계단 없는 경로의 엘리베이터가 지금 운행 중인지 확인되지 않았어요.',
       ),
       findsOneWidget,
     );
+    expect(find.text('계단 없는 경로'), findsWidgets);
     expect(
       tester
           .getTopLeft(find.byKey(const Key('journey-stair-status-notices')))
           .dy,
       lessThan(
         tester
-            .getTopLeft(find.byKey(const Key('journey-candidate-journey-2')))
+            .getTopLeft(
+              find.byKey(const Key('journey-candidate-journey-multileg')),
+            )
             .dy,
       ),
     );
     semantics.dispose();
-  });
-
-  testWidgets('계단 없는 경로가 없으면 없다고 알리고, 계단 없는 경로의 엘리베이터 고장 미반영을 알린다', (
-    tester,
-  ) async {
-    final notFound = _Repository()
-      ..stairFreeAlternative = const JourneyStairFreeAlternative(
-        status: JourneyStairFreeAlternativeStatus.notFound,
-        facilityStatus: JourneyStairFreeFacilityStatus.applied,
-      );
-    await _pumpScreen(tester, repository: notFound);
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-    expect(find.text('계단회피 경로가 없어요'), findsOneWidget);
-    expect(find.text('찾은 경로는 모두 환승할 때 계단을 지나요.'), findsOneWidget);
-
-    final unobserved = _Repository()
-      ..journeyIds = <String>['journey-multileg']
-      ..stairFreeAlternative = const JourneyStairFreeAlternative(
-        status: JourneyStairFreeAlternativeStatus.included,
-        facilityStatus: JourneyStairFreeFacilityStatus.unobserved,
-      );
-    await tester.pumpWidget(const SizedBox.shrink());
-    await _pumpScreen(tester, repository: unobserved);
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-    expect(find.text('계단회피 경로가 없어요'), findsNothing);
-    expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsOneWidget);
-
-    final applied = _Repository()..journeyIds = <String>['journey-multileg'];
-    await tester.pumpWidget(const SizedBox.shrink());
-    await _pumpScreen(tester, repository: applied);
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('journey-stair-status-notices')), findsNothing);
   });
 
   for (final (mobilityType, profile) in [
@@ -388,8 +378,9 @@ void main() {
     ('WHEELCHAIR', MobilityProfile.stepFree),
   ]) {
     testWidgets(
-      '$mobilityType 계단 없는 경로 요청이 422면 사실과 일반 경로 보기를 안내하고, 누르면 계단 여부를 표시한 일반 검색을 한다',
+      '$mobilityType 계단 없는 경로 요청이 422면 사실과 일반 경로 보기를 안내하고, 누르면 계단 정보를 함께 보이는 일반 검색을 한다',
       (tester) async {
+        final semantics = tester.ensureSemantics();
         final repository = _Repository()
           ..rejectionToThrow = _accessibilityConstraintRejection()
           ..stairFreeAlternative = const JourneyStairFreeAlternative(
@@ -411,7 +402,10 @@ void main() {
           ConstraintMode.requireStepFree,
         );
         expect(find.text('계단 없이 갈 수 있는 경로를 찾지 못했어요.'), findsOneWidget);
-        expect(find.text('계단 여부를 함께 표시한 일반 경로는 볼 수 있어요.'), findsOneWidget);
+        expect(
+          find.text('일반 경로를 볼까요? 환승할 때 계단이 있는지 함께 알려 드려요.'),
+          findsOneWidget,
+        );
         expect(find.textContaining('검증'), findsNothing);
         final standardRoutes = find.widgetWithText(FilledButton, '일반 경로 보기');
         expect(standardRoutes, findsOneWidget);
@@ -423,7 +417,7 @@ void main() {
 
         expect(repository.requests, hasLength(2));
         // NO_STAIRS는 계약상 NONE과 함께 보낼 수 없다. 두 프로필 모두 계단 없는
-        // 경로를 우선 고르는 STEP_FREE + NONE으로 계단 여부를 표시한 일반 경로를 받는다.
+        // 경로를 우선 고르는 STEP_FREE + NONE으로 계단 정보를 함께 받는다.
         expect(
           repository.requests.last.mobilityProfile,
           MobilityProfile.stepFree,
@@ -442,10 +436,36 @@ void main() {
           find.byKey(const Key('journey-candidate-journey-2')),
           findsOneWidget,
         );
-        expect(find.text('계단 없이 갈 수 있는지 확인하지 못했어요'), findsOneWidget);
+        expect(find.text('계단 정보가 없는 환승이 있어요'), findsOneWidget);
+        expect(
+          find.bySemanticsLabel(
+            '계단 정보가 없는 환승이 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
+          ),
+          findsOneWidget,
+        );
+        // 결과에 계단 없는 여정이 없으므로 시설 미반영 안내는 붙이지 않는다.
+        expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsNothing);
+        semantics.dispose();
       },
     );
   }
+
+  testWidgets('일반 경로에도 계단 없는 경로가 없으면 없다고 알린다', (tester) async {
+    final repository = _Repository()
+      ..rejectionToThrow = _accessibilityConstraintRejection()
+      ..stairFreeAlternative = const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.notFound,
+        facilityStatus: JourneyStairFreeFacilityStatus.applied,
+      );
+    await _pumpScreen(tester, repository: repository, mobilityType: 'LUGGAGE');
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '일반 경로 보기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('계단 없이 갈 수 있는 경로가 없어요'), findsOneWidget);
+    expect(find.text('찾은 경로는 모두 환승할 때 계단을 지나요.'), findsOneWidget);
+  });
 
   testWidgets('다른 후보·새 검색은 기존 Journey 알림 취소 성공 뒤에만 전환한다', (tester) async {
     final repository = _Repository();
@@ -1334,9 +1354,41 @@ void main() {
     await tester.ensureVisible(shareButton);
     await tester.tap(shareButton);
     await tester.pump();
+    expect(shared.last, '용산역 → 춘천역\n35분 · 환승 1회 · 카드 1,550원 · 09:35 도착');
+
+    final expressTab = find.byKey(
+      const Key('journey-candidate-journey-spec-express'),
+    );
+    await tester.ensureVisible(expressTab);
+    await tester.tap(expressTab);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(shareButton);
+    await tester.tap(shareButton);
+    await tester.pump();
+    expect(shared.last, '용산역 → 춘천역\n40분 · 환승 없음 · 09:41 도착');
+  });
+
+  testWidgets('계단 없는 경로를 요청한 사용자의 공유 문구에는 계단 정보를 쉬운 말로 넣는다', (tester) async {
+    final repository = _Repository()
+      ..journeyIds = <String>['journey-spec', 'journey-spec-express'];
+    final shared = <String>[];
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      mobilityType: 'WHEELCHAIR',
+      stationNameResolver: _specStationName,
+      shareInvoker: (text, _) async => shared.add(text),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    final shareButton = find.widgetWithText(OutlinedButton, '공유');
+    await tester.ensureVisible(shareButton);
+    await tester.tap(shareButton);
+    await tester.pump();
     expect(
       shared.last,
-      '용산역 → 춘천역\n35분 · 환승 1회 · 카드 1,550원 · 09:35 도착 · 무단차 경로 아님',
+      '용산역 → 춘천역\n35분 · 환승 1회 · 카드 1,550원 · 09:35 도착 · 계단 정보가 없거나 계단이 있는 경로',
     );
 
     final expressTab = find.byKey(
@@ -1348,7 +1400,7 @@ void main() {
     await tester.ensureVisible(shareButton);
     await tester.tap(shareButton);
     await tester.pump();
-    expect(shared.last, '용산역 → 춘천역\n40분 · 환승 없음 · 09:41 도착 · 무단차 경로');
+    expect(shared.last, '용산역 → 춘천역\n40분 · 환승 없음 · 09:41 도착 · 계단 없는 경로');
   });
 }
 

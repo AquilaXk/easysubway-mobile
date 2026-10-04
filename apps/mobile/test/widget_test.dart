@@ -8732,6 +8732,42 @@ void main() {
     }
   });
 
+  // #441 QA: 값이 없을 때 내부 판정 용어(미확정) 대신 사실(정보 없음)을 보인다.
+  testWidgets('데이터 출처 화면은 값이 없는 허용 여부를 정보 없음으로 보인다', (tester) async {
+    final manifest =
+        jsonDecode(
+              File(
+                'assets/datapacks/metro_map_pack/manifest.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final maps = (manifest['maps'] as List).cast<Map<String, Object?>>();
+    final license =
+        Map<String, Object?>.of(maps.first['license']! as Map<String, Object?>)
+          ..remove('attributionRequired')
+          ..remove('commercialUseAllowed')
+          ..remove('redistributionAllowed');
+    manifest['maps'] = [
+      {...maps.first, 'license': license},
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataSourceAttributionScreen(
+          initialManifest: manifest,
+          initialInventory: const {'sources': <Object?>[]},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final noValue = find.text('정보 없음 / 정보 없음');
+    await tester.scrollUntilVisible(noValue, 160);
+    expect(noValue, findsOneWidget);
+    expect(find.text('정보 없음'), findsWidgets);
+    expect(find.textContaining('미확정'), findsNothing);
+  });
+
   testWidgets('데이터 및 지도 출처 화면은 manifest와 source inventory를 보여준다', (
     tester,
   ) async {
