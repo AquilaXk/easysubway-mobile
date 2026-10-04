@@ -30,6 +30,7 @@ class StationTimetable {
     required this.dayType,
     required this.directions,
     this.isOfflineFallback = false,
+    this.serviceDate,
   });
 
   final String stationId;
@@ -37,6 +38,10 @@ class StationTimetable {
   final StationTimetableDayType dayType;
   final List<StationTimetableDirection> directions;
   final bool isOfflineFallback;
+
+  /// 서버가 이 시간표를 판정한 서비스일(`YYYY-MM-DD`). 서버가 날짜로 답한
+  /// 시간표에만 있다.
+  final String? serviceDate;
 
   bool get isAvailable => directions.isNotEmpty;
 
@@ -53,6 +58,7 @@ class StationTimetable {
       dayType: dayType ?? this.dayType,
       directions: directions ?? this.directions,
       isOfflineFallback: isOfflineFallback ?? this.isOfflineFallback,
+      serviceDate: serviceDate,
     );
   }
 }

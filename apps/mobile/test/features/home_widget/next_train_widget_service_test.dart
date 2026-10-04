@@ -216,7 +216,9 @@ void main() {
 
       expect(
         await runHeadlessNextTrainWidgetRefresh(
-          createTimetableRepository: () {
+          createTimetableRepository: (createdCatalog) {
+            // #437: 서버 시간표 저장소는 역 이름을 같은 카탈로그에서 붙인다.
+            expect(createdCatalog, same(catalog));
             created += 1;
             return _NoopTimetableRepository();
           },
@@ -251,7 +253,7 @@ void main() {
 
       await expectLater(
         runHeadlessNextTrainWidgetRefresh(
-          createTimetableRepository: _NoopTimetableRepository.new,
+          createTimetableRepository: (_) => _NoopTimetableRepository(),
           openDatabases: () async => (catalog: catalog, user: user),
           refresh: (_) async => throw StateError('headless refresh failed'),
           closeDatabases: ({required catalog, required user}) async {
@@ -283,7 +285,7 @@ void main() {
       final stored = <String, Object?>{};
 
       await configureMain(
-        createTimetableRepository: () {
+        createTimetableRepository: (_) {
           created += 1;
           return _AvailableTimetableRepository();
         },
@@ -319,7 +321,7 @@ void main() {
   test('widget configuration은 widget ID 부재를 typed failure로 종료한다', () async {
     await expectLater(
       configureMain(
-        createTimetableRepository: _NoopTimetableRepository.new,
+        createTimetableRepository: (_) => _NoopTimetableRepository(),
         initializeAndRegisterRefresh: () async {},
         readWidgetId: () async => null,
         runWidgetApp: (_) => throw StateError('must not launch'),
@@ -341,7 +343,7 @@ void main() {
       var closed = 0;
 
       await configureMain(
-        createTimetableRepository: _AvailableTimetableRepository.new,
+        createTimetableRepository: (_) => _AvailableTimetableRepository(),
         initializeAndRegisterRefresh: () async => registered += 1,
         readWidgetId: () async => '42',
         runWidgetApp: (widget) => capturedApp = widget,

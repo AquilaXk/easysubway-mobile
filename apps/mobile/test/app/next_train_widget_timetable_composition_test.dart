@@ -1,20 +1,28 @@
 import 'package:easysubway_mobile/app/next_train_widget_timetable_composition.dart';
+import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/features/journey/data/journey_method_channel_integrity_attestor.dart';
 import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   test('headless widget composition은 API base URI 부재를 즉시 실패로 표현한다', () {
+    final catalog = CatalogDatabase.memory();
+    addTearDown(catalog.close);
     expect(
-      () =>
-          createNextTrainWidgetTimetableRepository(resolveBaseUri: () => null),
+      () => createNextTrainWidgetTimetableRepository(
+        catalog,
+        resolveBaseUri: () => null,
+      ),
       throwsA(isA<StateError>()),
     );
   });
 
   test('headless widget composition은 주입한 Journey 경계만 조립한다', () {
     var attestors = 0;
+    final catalog = CatalogDatabase.memory();
+    addTearDown(catalog.close);
     final repository = createNextTrainWidgetTimetableRepository(
+      catalog,
       resolveBaseUri: () => Uri.parse('https://journey.example.test'),
       createAttestor: () {
         attestors += 1;

@@ -3,6 +3,7 @@ import 'package:easysubway_mobile/features/journey/domain/journey_profile_models
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart'
     as contract;
 import 'package:flutter_test/flutter_test.dart';
@@ -206,68 +207,112 @@ void main() {
     },
   );
 
-  test('day type와 service date selector는 KST date로 server에 전달한다', () async {
-    final journey = _FakeJourneyRepository(
-      timetable: _success(
-        selector: contract.StationTimetableDayTypeSelector(
-          dayType: contract.StationTimetableDayType.saturday,
-          referenceDate: contract.JourneyDate.parse('2026-08-11'),
+  // #437 리뷰 F1: 요일 탭은 요일 종류(DAY_TYPE)를 보내지 않는다. 토요일 시간표가
+  // 없는 기관에 DAY_TYPE=SATURDAY를 보내면 400이다. 탭 요일에 해당하는 가장 가까운
+  // 날짜를 SERVICE_DATE로 보내고, 서버가 판정한 resolvedDayType을 그대로 쓴다.
+  group('요일 탭은 날짜로 조회하고 서버가 판정한 요일 종류를 쓴다', () {
+    Future<(StationTimetable, _FakeJourneyRepository)> load(
+      StationTimetableDayType dayType,
+      DateTime referenceDate,
+      String expectedServiceDate,
+      contract.StationTimetableDayType resolved,
+    ) async {
+      final journey = _FakeJourneyRepository(
+        timetable: _success(
+          selector: contract.StationTimetableServiceDateSelector(
+            contract.JourneyDate.parse(expectedServiceDate),
+          ),
+          departures: const [],
+          now: now,
+          resolvedDayType: resolved,
         ),
-        departures: const [],
         now: now,
-      ),
-      now: now,
-    );
-    await _repository(journey, now: now).loadStationTimetable(
-      stationId: 'station-sadang',
-      lineId: 'seoul-4',
-      dayType: StationTimetableDayType.saturday,
-      referenceDate: DateTime.utc(2026, 8, 10, 15),
-    );
-    final serviceDateJourney = _FakeJourneyRepository(
-      timetable: _success(
-        selector: contract.StationTimetableServiceDateSelector(
-          contract.JourneyDate.parse('2026-08-11'),
-        ),
-        departures: const [],
-        now: now,
-      ),
-      now: now,
-    );
-    await _repository(serviceDateJourney, now: now).loadStationTimetableForDate(
-      stationId: 'station-sadang',
-      lineId: 'seoul-4',
-      date: DateTime.utc(2026, 8, 10, 15),
-    );
+      );
+      final timetable = await _repository(journey, now: now)
+          .loadStationTimetable(
+            stationId: 'station-sadang',
+            lineId: 'seoul-4',
+            dayType: dayType,
+            referenceDate: referenceDate,
+          );
+      return (timetable, journey);
+    }
 
-    expect(journey.searchCalls, 1);
-    expect(serviceDateJourney.searchCalls, 1);
-  });
+    test('토요일 휴일 달력 기관: 토요일 탭은 다음 토요일 날짜로 묻고 공휴일 시간표를 받는다', () async {
+      // 2026-08-11(화) KST 기준 다음 토요일은 2026-08-15다.
+      final (timetable, journey) = await load(
+        StationTimetableDayType.saturday,
+        DateTime.utc(2026, 8, 10, 15),
+        '2026-08-15',
+        contract.StationTimetableDayType.sundayHoliday,
+      );
 
-  test('sunday-holiday day type은 server selector와 응답에 대칭으로 보존한다', () async {
-    final selector = contract.StationTimetableDayTypeSelector(
-      dayType: contract.StationTimetableDayType.sundayHoliday,
-      referenceDate: contract.JourneyDate.parse('2026-08-16'),
-    );
-    final journey = _FakeJourneyRepository(
-      timetable: _success(
-        selector: selector,
-        departures: const [],
-        now: now,
-        resolvedDayType: contract.StationTimetableDayType.sundayHoliday,
-      ),
-      now: now,
-    );
+      final selector = journey.requests.single.selector;
+      expect(selector, isA<contract.StationTimetableServiceDateSelector>());
+      expect(
+        (selector as contract.StationTimetableServiceDateSelector).serviceDate
+            .toString(),
+        '2026-08-15',
+      );
+      expect(timetable.dayType, StationTimetableDayType.sundayHoliday);
+      expect(timetable.serviceDate, '2026-08-15');
+    });
 
-    final timetable = await _repository(journey, now: now).loadStationTimetable(
-      stationId: 'station-sadang',
-      lineId: 'seoul-4',
-      dayType: StationTimetableDayType.sundayHoliday,
-      referenceDate: DateTime.utc(2026, 8, 15, 15),
-    );
+    test('공휴일 탭은 다음 일요일, 평일 탭은 다음 평일 날짜로 묻는다', () async {
+      final (holiday, holidayJourney) = await load(
+        StationTimetableDayType.sundayHoliday,
+        DateTime.utc(2026, 8, 15, 15), // 2026-08-16(일) KST
+        '2026-08-16',
+        contract.StationTimetableDayType.sundayHoliday,
+      );
+      final (weekday, weekdayJourney) = await load(
+        StationTimetableDayType.weekday,
+        DateTime.utc(2026, 8, 14, 15), // 2026-08-15(토) KST
+        '2026-08-17',
+        contract.StationTimetableDayType.weekday,
+      );
 
-    expect(timetable.dayType, StationTimetableDayType.sundayHoliday);
-    expect(journey.searchCalls, 1);
+      expect(holidayJourney.requests.single.selector.toJson(), {
+        'kind': 'SERVICE_DATE',
+        'serviceDate': '2026-08-16',
+      });
+      expect(holiday.dayType, StationTimetableDayType.sundayHoliday);
+      expect(weekdayJourney.requests.single.selector.toJson(), {
+        'kind': 'SERVICE_DATE',
+        'serviceDate': '2026-08-17',
+      });
+      expect(weekday.dayType, StationTimetableDayType.weekday);
+    });
+
+    test(
+      '400 INVALID_JOURNEY_REQUEST와 404 TIMETABLE_NOT_COVERED는 코드를 담은 시간표 사용 불가다',
+      () async {
+        for (final (status, code) in [
+          (400, contract.JourneyErrorCode.invalidJourneyRequest),
+          (404, contract.JourneyErrorCode.timetableNotCovered),
+        ]) {
+          final journey = _FakeJourneyRepository(
+            failure: _rejected(statusCode: status, code: code, now: now),
+            now: now,
+          );
+          await expectLater(
+            _repository(journey, now: now).loadStationTimetable(
+              stationId: 'station-sadang',
+              lineId: 'seoul-4',
+              dayType: StationTimetableDayType.saturday,
+              referenceDate: DateTime.utc(2026, 8, 10, 15),
+            ),
+            throwsA(
+              isA<StationTimetableUnavailable>().having(
+                (e) => e.reason,
+                'reason',
+                code.wire,
+              ),
+            ),
+          );
+        }
+      },
+    );
   });
 
   test(
@@ -339,10 +384,13 @@ void main() {
         referenceDate: now,
       ),
       throwsA(
-        isA<ServerConnectionException>().having(
-          (e) => e.statusCode,
-          'statusCode',
-          503,
+        allOf(
+          isA<ServerConnectionException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            503,
+          ),
+          isNot(isA<ServerUnreachableException>()),
         ),
       ),
     );
@@ -415,7 +463,8 @@ void main() {
         dayType: StationTimetableDayType.weekday,
         referenceDate: now,
       ),
-      throwsA(isA<ServerConnectionException>()),
+      // #437 리뷰 F2: 네트워크에 닿지 못한 경우만 로컬 시간표 전환 대상이다.
+      throwsA(isA<ServerUnreachableException>()),
     );
   });
 
@@ -437,7 +486,7 @@ void main() {
           dayType: StationTimetableDayType.weekday,
           referenceDate: now,
         ),
-        throwsA(isA<ServerConnectionException>()),
+        throwsA(isA<ServerUnreachableException>()),
       );
     },
   );
@@ -461,10 +510,13 @@ void main() {
         referenceDate: now,
       ),
       throwsA(
-        isA<ServerConnectionException>().having(
-          (e) => e.statusCode,
-          'statusCode',
-          503,
+        allOf(
+          isA<ServerConnectionException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            503,
+          ),
+          isNot(isA<ServerUnreachableException>()),
         ),
       ),
     );
@@ -609,14 +661,191 @@ void main() {
       );
     },
   );
+
+  test('앱 역 검색 저장소의 역 상세 이름으로 역 이름을 붙인다', () async {
+    final resolver = stationDetailNameResolver(_StationDetailRepository());
+
+    expect(await resolver('station-yeoksam'), '역삼');
+    await expectLater(resolver('station-unknown'), throwsA(isA<StateError>()));
+  });
+
+  group('다음 정차역 기준 방면 묶음(#437)', () {
+    contract.StationTimetableSelector selector() =>
+        contract.StationTimetableServiceDateSelector(
+          contract.JourneyDate.parse('2026-08-11'),
+        );
+    Future<StationTimetable> load(
+      List<contract.StationTimetableDirectionGroup> groups, {
+      Future<String> Function(String stationId) stationName = _catalogName,
+    }) =>
+        _repository(
+          _FakeJourneyRepository(
+            timetable: _success(
+              selector: selector(),
+              departures: const [],
+              directionGroups: groups,
+              now: now,
+            ),
+            now: now,
+          ),
+          now: now,
+          stationName: stationName,
+        ).loadStationTimetableForDate(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          date: now,
+        );
+
+    test('2호선 강남 형태: 종착이 같아도 다음 정차역으로 두 방면을 만든다', () async {
+      final timetable = await load([
+        contract.StationTimetableDirectionGroup(
+          nextStationId: 'station-yeoksam',
+          directionName: null,
+          departures: [
+            _departure(
+              '2026-08-11',
+              32400,
+              '2026-08-11T00:00:00Z',
+              terminalStationId: 'station-seongsu',
+            ),
+          ],
+        ),
+        contract.StationTimetableDirectionGroup(
+          nextStationId: 'station-gyodae',
+          directionName: null,
+          departures: [
+            _departure(
+              '2026-08-11',
+              32460,
+              '2026-08-11T00:01:00Z',
+              terminalStationId: 'station-seongsu',
+            ),
+          ],
+        ),
+      ]);
+
+      expect(timetable.directions.map((d) => d.name), ['역삼 방면', '교대 방면']);
+      expect(
+        timetable.directions.map((d) => d.departures.single.directionName),
+        ['역삼 방면', '교대 방면'],
+      );
+      expect(timetable.directions.map((d) => d.departures.single.destination), [
+        '성수',
+        '성수',
+      ]);
+    });
+
+    test('인천 형태: 원천 방면 이름이 있어도 라벨은 다음 정차역 이름이다', () async {
+      final timetable = await load([
+        contract.StationTimetableDirectionGroup(
+          nextStationId: 'station-incheon-terminal',
+          directionName: '송도달빛축제공원행',
+          departures: [
+            _departure(
+              '2026-08-11',
+              32400,
+              '2026-08-11T00:00:00Z',
+              terminalStationId: 'station-songdo-moonlight',
+            ),
+          ],
+        ),
+      ]);
+
+      expect(timetable.directions.single.name, '인천터미널 방면');
+      expect(
+        timetable.directions.single.departures.single.destination,
+        '송도달빛축제공원',
+      );
+    });
+
+    test('카탈로그에 없는 다음 정차역·종착역은 추정 이름 없이 시간표 사용 불가다', () async {
+      for (final groups in [
+        [
+          contract.StationTimetableDirectionGroup(
+            nextStationId: 'station-unknown',
+            directionName: '어딘가 방면',
+            departures: [
+              _departure('2026-08-11', 32400, '2026-08-11T00:00:00Z'),
+            ],
+          ),
+        ],
+        [
+          contract.StationTimetableDirectionGroup(
+            nextStationId: 'station-yeoksam',
+            directionName: null,
+            departures: [
+              _departure(
+                '2026-08-11',
+                32400,
+                '2026-08-11T00:00:00Z',
+                terminalStationId: 'station-unknown',
+              ),
+            ],
+          ),
+        ],
+      ]) {
+        await expectLater(
+          load(groups),
+          throwsA(
+            isA<StationTimetableUnavailable>().having(
+              (e) => e.reason,
+              'reason',
+              'TIMETABLE_STATION_NAME_UNAVAILABLE',
+            ),
+          ),
+        );
+      }
+    });
+
+    test('같은 다음 정차역 묶음이 두 번 오면 무결성 오류다', () async {
+      contract.StationTimetableDirectionGroup group(String name) =>
+          contract.StationTimetableDirectionGroup(
+            nextStationId: 'station-yeoksam',
+            directionName: name,
+            departures: [
+              _departure(
+                '2026-08-11',
+                32400,
+                '2026-08-11T00:00:00Z',
+                terminalStationId: 'station-seongsu',
+              ),
+            ],
+          );
+
+      await expectLater(
+        load([group('가 방면'), group('나 방면')]),
+        throwsA(isA<ServerConnectionException>()),
+      );
+    });
+  });
+}
+
+// 앱 카탈로그 역 이름(테스트용).
+const _catalogNames = <String, String>{
+  'station-chongshin': '총신대입구(이수)',
+  'station-danggogae': '당고개',
+  'station-yeoksam': '역삼',
+  'station-gyodae': '교대',
+  'station-seongsu': '성수',
+  'station-incheon-terminal': '인천터미널',
+  'station-gyeyang': '계양',
+  'station-songdo-moonlight': '송도달빛축제공원',
+};
+
+Future<String> _catalogName(String stationId) async {
+  final name = _catalogNames[stationId];
+  if (name == null) throw StateError('station $stationId is not in catalog');
+  return name;
 }
 
 ServerStationTimetableRepository _repository(
   _FakeJourneyRepository journey, {
   required DateTime now,
   JourneyV3IntegrityAttestor? attestor,
+  Future<String> Function(String stationId) stationName = _catalogName,
 }) => ServerStationTimetableRepository(
   journeyRepository: journey,
+  stationNameResolver: stationName,
   sessionProvider: JourneySessionProvider(
     repository: journey,
     attestor: attestor ?? const _Attestor(),
@@ -629,14 +858,15 @@ ServerStationTimetableRepository _repository(
 contract.StationTimetableDeparture _departure(
   String serviceDate,
   int seconds,
-  String departureAt,
-) => contract.StationTimetableDeparture(
+  String departureAt, {
+  String terminalStationId = 'station-danggogae',
+}) => contract.StationTimetableDeparture(
   serviceDate: contract.JourneyDate.parse(serviceDate),
   secondsFromServiceDayStart: seconds,
   departureAt: DateTime.parse(departureAt),
   servicePattern: contract.StationTimetableServicePattern.local,
   serviceClass: contract.StationTimetableServiceClass.subway,
-  terminalStationId: 'station-danggogae',
+  terminalStationId: terminalStationId,
 );
 
 contract.StationTimetableSearchSuccess _success({
@@ -659,7 +889,7 @@ contract.StationTimetableSearchSuccess _success({
       [
         contract.StationTimetableDirectionGroup(
           nextStationId: 'station-chongshin',
-          directionName: '당고개 방면',
+          directionName: null,
           departures: departures,
         ),
       ],
@@ -762,6 +992,7 @@ class _FakeJourneyRepository implements JourneyRepository {
   final DateTime now;
   int issueCalls = 0;
   int searchCalls = 0;
+  final requests = <contract.StationTimetableSearchRequest>[];
 
   @override
   Future<contract.JourneySessionResponse> issueSession(
@@ -790,6 +1021,7 @@ class _FakeJourneyRepository implements JourneyRepository {
     required String sessionToken,
   }) async {
     searchCalls++;
+    requests.add(request);
     if (failure != null) throw failure!;
     return timetable!;
   }
@@ -811,4 +1043,23 @@ class _Attestor implements JourneyV3IntegrityAttestor {
 class _ThrowingAttestor implements JourneyV3IntegrityAttestor {
   @override
   Future<String> attest(String requestHash) => throw StateError('attestor');
+}
+
+class _StationDetailRepository implements StationSearchRepository {
+  @override
+  Future<StationDetail> getStationDetail(String stationId) async {
+    if (stationId != 'station-yeoksam') throw StateError('not in catalog');
+    return StationDetail(
+      id: stationId,
+      nameKo: '역삼',
+      nameEn: 'Yeoksam',
+      region: 'seoul',
+      dataQualityLevel: 'VERIFIED',
+      lastVerifiedAt: '2026-08-01',
+      lines: const [],
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

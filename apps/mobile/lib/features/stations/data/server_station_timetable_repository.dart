@@ -4,25 +4,45 @@ import '../../journey/domain/journey_repository.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
 
-export '../domain/station_repositories.dart' show ServerConnectionException;
+export '../domain/station_repositories.dart'
+    show ServerConnectionException, ServerUnreachableException;
 
-/// Server-authoritative timetable adapter. It never consults the catalog or
-/// retains a prior timetable when the Journey V3 operation rejects a request.
+/// 역 ID의 앱 카탈로그 이름. 찾지 못하면 예외를 던진다.
+typedef StationTimetableStationNameResolver =
+    Future<String> Function(String stationId);
+
+/// 역 검색 저장소(앱 카탈로그)의 역 상세 이름으로 이름을 붙인다.
+StationTimetableStationNameResolver stationDetailNameResolver(
+  StationSearchRepository repository,
+) =>
+    (stationId) async => (await repository.getStationDetail(stationId)).nameKo;
+
+/// Server-authoritative timetable adapter. It never retains a prior timetable
+/// when the Journey V3 operation rejects a request. The catalog is used only to
+/// name stations the server identifies (next stop and terminal, #437).
 class ServerStationTimetableRepository implements StationTimetableRepository {
   ServerStationTimetableRepository({
     required JourneyRepository journeyRepository,
     required JourneySessionProvider sessionProvider,
+    required StationTimetableStationNameResolver stationNameResolver,
     DateTime Function()? now,
-  }) : this._(journeyRepository, sessionProvider, now ?? DateTime.now);
+  }) : this._(
+         journeyRepository,
+         sessionProvider,
+         stationNameResolver,
+         now ?? DateTime.now,
+       );
 
   ServerStationTimetableRepository._(
     this._journeyRepository,
     this._sessionProvider,
+    this._stationNameResolver,
     this._now,
   );
 
   final JourneyRepository _journeyRepository;
   final JourneySessionProvider _sessionProvider;
+  final StationTimetableStationNameResolver _stationNameResolver;
   final DateTime Function() _now;
 
   @override
@@ -34,9 +54,11 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
   }) => _load(
     stationId,
     lineId,
-    contract.StationTimetableDayTypeSelector(
-      dayType: _toContractDayType(dayType),
-      referenceDate: contract.JourneyDate.parse(_seoulDate(referenceDate)),
+    // 요일 종류(DAY_TYPE)를 보내지 않는다. 토요일 시간표가 없는 기관에
+    // DAY_TYPE=SATURDAY를 보내면 400이다(backend #479). 탭 요일에 맞는 가장
+    // 가까운 날짜를 보내고, 그 날의 요일 종류는 서버가 판정한다(resolvedDayType).
+    contract.StationTimetableServiceDateSelector(
+      contract.JourneyDate.parse(_nextSeoulDateFor(dayType, referenceDate)),
     ),
   );
 
@@ -96,7 +118,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       }
       throw StationTimetableUnavailable(error.error.code.wire);
     } on JourneyTransportFailure catch (error) {
-      throw ServerConnectionException(
+      throw ServerUnreachableException(
         'Network transport failure: ${error.operation.wire}',
         cause: error.cause,
       );
@@ -126,7 +148,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         ),
         sessionToken: session.token,
       );
-      return _map(
+      return await _map(
         response,
         stationId: stationId,
         lineId: lineId,
@@ -146,7 +168,7 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       }
       throw StationTimetableUnavailable(error.error.code.wire);
     } on JourneyTransportFailure catch (error) {
-      throw ServerConnectionException(
+      throw ServerUnreachableException(
         'Network transport failure: ${error.operation.wire}',
         cause: error.cause,
       );
@@ -161,6 +183,8 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         'Station timetable data integrity violation: ${error.message}',
         cause: error,
       );
+    } on StationTimetableUnavailable {
+      rethrow;
     } catch (_) {
       throw const StationTimetableUnavailable(
         'Journey timetable is unavailable.',
@@ -168,12 +192,12 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     }
   }
 
-  StationTimetable _map(
+  Future<StationTimetable> _map(
     contract.StationTimetableSearchSuccess response, {
     required String stationId,
     required String lineId,
     required contract.StationTimetableSelector selector,
-  }) {
+  }) async {
     if (response.stationId != stationId ||
         response.lineId != lineId ||
         response.selector.toJson().toString() != selector.toJson().toString() ||
@@ -184,18 +208,37 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
         'Station timetable identity or freshness mismatch',
       );
     }
-    final directionNames = <String>{};
+    // 방면은 다음 정차역(backend #479 nextStationId)으로 묶고 이름은 앱
+    // 카탈로그에서 붙인다. 원천 방면 이름(directionName)은 라벨에 쓰지 않고,
+    // 방면 문자열을 잘라 행선지를 만들지 않는다.
+    final nextStationIds = <String>{};
     final directions = <StationTimetableDirection>[];
+    final names = <String, String>{};
+    Future<String> stationName(String stationId) async {
+      final cached = names[stationId];
+      if (cached != null) return cached;
+      final String name;
+      try {
+        name = await _stationNameResolver(stationId);
+      } catch (_) {
+        throw const StationTimetableUnavailable(
+          'TIMETABLE_STATION_NAME_UNAVAILABLE',
+        );
+      }
+      if (name.trim().isEmpty) {
+        throw const StationTimetableUnavailable(
+          'TIMETABLE_STATION_NAME_UNAVAILABLE',
+        );
+      }
+      return names[stationId] = name;
+    }
+
     for (final group in response.directionGroups) {
-      // backend #479 묶음(다음 정차역 기준, directionName null 가능)의 표시는
-      // #437에서 한다. 그 전에는 방면 이름이 없는 묶음을 추정 이름으로 채우지
-      // 않고 무결성 오류로 처리한다.
-      final directionName = group.directionName;
-      if (directionName == null ||
-          directionName.trim().isEmpty ||
-          !directionNames.add(directionName)) {
+      final nextStationId = group.nextStationId;
+      if (!nextStationIds.add(nextStationId)) {
         throw const FormatException('Station timetable direction mismatch');
       }
+      final directionName = '${await stationName(nextStationId)} 방면';
       DateTime? previousDepartureAt;
       final departures = <StationTimetableDeparture>[];
       for (final departure in group.departures) {
@@ -209,12 +252,13 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
           );
         }
         previousDepartureAt = departure.departureAt;
+        final destination = await stationName(departure.terminalStationId);
         departures.add(
           StationTimetableDeparture(
             directionName: directionName,
             seconds: departure.secondsFromServiceDayStart,
             departureAt: departure.departureAt,
-            destination: directionName.replaceAll('방면', '').trim(),
+            destination: destination,
             servicePattern: departure.servicePattern.wire,
             serviceClass: departure.serviceClass.wire,
           ),
@@ -234,6 +278,11 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
       lineId: lineId,
       dayType: _fromContractDayType(response.resolvedDayType),
       directions: List.unmodifiable(directions),
+      // 응답 selector는 요청과 같음을 위에서 확인했다. 앱은 DAY_TYPE을 보내지
+      // 않으므로 서비스일은 SERVICE_DATE 응답에만 있다.
+      serviceDate: selector is contract.StationTimetableServiceDateSelector
+          ? selector.serviceDate.toString()
+          : null,
     );
   }
 
@@ -261,15 +310,27 @@ class ServerStationTimetableRepository implements StationTimetableRepository {
     return '${seoul.year.toString().padLeft(4, '0')}-${seoul.month.toString().padLeft(2, '0')}-${seoul.day.toString().padLeft(2, '0')}';
   }
 
-  contract.StationTimetableDayType _toContractDayType(
-    StationTimetableDayType value,
-  ) => switch (value) {
-    StationTimetableDayType.weekday => contract.StationTimetableDayType.weekday,
-    StationTimetableDayType.saturday =>
-      contract.StationTimetableDayType.saturday,
-    StationTimetableDayType.sundayHoliday =>
-      contract.StationTimetableDayType.sundayHoliday,
-  };
+  /// [referenceDate]의 서울 날짜부터 [dayType] 탭에 해당하는 첫 날짜.
+  /// 평일 탭은 월~금, 토요일 탭은 토요일, 공휴일 탭은 일요일이다. 그 날이
+  /// 실제로 어떤 시간표로 운행하는지는 서버가 판정한다.
+  String _nextSeoulDateFor(
+    StationTimetableDayType dayType,
+    DateTime referenceDate,
+  ) {
+    final seoul = referenceDate.toUtc().add(const Duration(hours: 9));
+    var date = DateTime.utc(seoul.year, seoul.month, seoul.day);
+    bool matches(DateTime value) => switch (dayType) {
+      StationTimetableDayType.weekday => value.weekday <= DateTime.friday,
+      StationTimetableDayType.saturday => value.weekday == DateTime.saturday,
+      StationTimetableDayType.sundayHoliday => value.weekday == DateTime.sunday,
+    };
+    while (!matches(date)) {
+      date = date.add(const Duration(days: 1));
+    }
+    return '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+  }
 
   StationTimetableDayType _fromContractDayType(
     contract.StationTimetableDayType value,

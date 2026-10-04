@@ -237,10 +237,12 @@ void main() {
     );
 
     test(
-      'CompositeStationTimetableRepository falls back to local and marks offline when server throws',
+      'CompositeStationTimetableRepository falls back to local and marks offline only when the server is unreachable',
       () async {
         final serverRepo = _FakeServerTimetableRepository(
-          errorToThrow: Exception('Server network failure'),
+          errorToThrow: const ServerUnreachableException(
+            'Network transport failure',
+          ),
         );
         final localRepo = DriftStationTimetableRepository(database: database);
         final composite = CompositeStationTimetableRepository(
@@ -263,7 +265,7 @@ void main() {
         expect(reportedErrors, isNotEmpty);
         expect(
           reportedErrors.first.context?.toString(),
-          contains('서버 일자별 시간표 조회 실패로 로컬 저장 시간표로 전환합니다'),
+          contains('서버에 연결할 수 없어 일자별 로컬 저장 시간표로 전환합니다'),
         );
         expect(
           timetable.directions.map((d) => d.name),
@@ -273,7 +275,7 @@ void main() {
     );
 
     test(
-      'CompositeStationTimetableRepository falls back to local when server returns empty',
+      'CompositeStationTimetableRepository keeps an explicit empty server timetable instead of local data',
       () async {
         final serverRepo = _FakeServerTimetableRepository(
           timetableToReturn: StationTimetable(
@@ -294,9 +296,59 @@ void main() {
           lineId: 'seoul-4',
           date: DateTime.utc(2026, 9, 25),
         );
-        expect(timetable.isAvailable, isTrue);
-        expect(timetable.isOfflineFallback, isTrue);
-        expect(timetable.directions, hasLength(2));
+        expect(timetable.isAvailable, isFalse);
+        expect(timetable.isOfflineFallback, isFalse);
+      },
+    );
+
+    // #437 리뷰 F2: 서버가 "없음·만료·무결성 오류"라고 명시적으로 답하면 기기 로컬
+    // 시간표로 덮지 않는다. 로컬 시간표는 네트워크에 닿을 수 없을 때만 쓴다.
+    test(
+      'CompositeStationTimetableRepository never covers explicit server answers with local data',
+      () async {
+        final localRepo = DriftStationTimetableRepository(database: database);
+        for (final (error, matcher) in <(Object, Matcher)>[
+          (
+            const StationTimetableUnavailable('TIMETABLE_NOT_COVERED'),
+            isA<StationTimetableUnavailable>(),
+          ),
+          (
+            const StationTimetableUnavailable(
+              'TIMETABLE_STATION_NAME_UNAVAILABLE',
+            ),
+            isA<StationTimetableUnavailable>(),
+          ),
+          (
+            const ServerConnectionException('TIMETABLE_STALE', statusCode: 503),
+            isA<ServerConnectionException>(),
+          ),
+          (
+            const ServerConnectionException(
+              'Station timetable data integrity violation',
+            ),
+            isA<ServerConnectionException>(),
+          ),
+          (StateError('unexpected'), isA<ServerConnectionException>()),
+        ]) {
+          final composite = CompositeStationTimetableRepository(
+            serverRepository: _FakeServerTimetableRepository(
+              errorToThrow: error,
+            ),
+            localRepository: localRepo,
+          );
+          await expectLater(
+            runWithMobileErrorReporter(
+              (_) {},
+              () => composite.loadStationTimetableForDate(
+                stationId: 'station-sangnoksu',
+                lineId: 'seoul-4',
+                date: DateTime.utc(2026, 9, 25),
+              ),
+            ),
+            throwsA(allOf(matcher, isNot(isA<ServerUnreachableException>()))),
+            reason: '$error',
+          );
+        }
       },
     );
 
@@ -304,7 +356,7 @@ void main() {
       'CompositeStationTimetableRepository delegates loadStationTimetable and falls back to local with offline mark',
       () async {
         final serverRepo = _FakeServerTimetableRepository(
-          errorToThrow: Exception('Server 500 error'),
+          errorToThrow: const ServerUnreachableException('offline'),
         );
         final localRepo = DriftStationTimetableRepository(database: database);
         final composite = CompositeStationTimetableRepository(
@@ -348,7 +400,7 @@ void main() {
       'CompositeStationTimetableRepository delegates loadNextStationTimetable and falls back to local with offline mark',
       () async {
         final serverRepo = _FakeServerTimetableRepository(
-          errorToThrow: Exception('Server timeout'),
+          errorToThrow: const ServerUnreachableException('offline'),
         );
         final localRepo = DriftStationTimetableRepository(database: database);
         final composite = CompositeStationTimetableRepository(
@@ -406,7 +458,7 @@ void main() {
     );
 
     test(
-      'CompositeStationTimetableRepository does NOT report error when server throws StationTimetableUnavailable',
+      'CompositeStationTimetableRepository rethrows StationTimetableUnavailable without reporting or local data',
       () async {
         final serverRepo = _FakeServerTimetableRepository(
           errorToThrow: const StationTimetableUnavailable('NOT_COVERED'),
@@ -418,18 +470,18 @@ void main() {
         );
 
         final reportedErrors = <FlutterErrorDetails>[];
-        final timetable = await runWithMobileErrorReporter(
-          (details) => reportedErrors.add(details),
-          () => composite.loadStationTimetable(
-            stationId: 'station-sangnoksu',
-            lineId: 'seoul-4',
-            dayType: StationTimetableDayType.weekday,
-            referenceDate: DateTime.utc(2026, 9, 25),
+        await expectLater(
+          runWithMobileErrorReporter(
+            (details) => reportedErrors.add(details),
+            () => composite.loadStationTimetable(
+              stationId: 'station-sangnoksu',
+              lineId: 'seoul-4',
+              dayType: StationTimetableDayType.weekday,
+              referenceDate: DateTime.utc(2026, 9, 25),
+            ),
           ),
+          throwsA(isA<StationTimetableUnavailable>()),
         );
-
-        expect(timetable.isAvailable, isTrue);
-        expect(timetable.isOfflineFallback, isTrue);
         expect(reportedErrors, isEmpty);
       },
     );
@@ -490,10 +542,10 @@ void main() {
     );
 
     test(
-      'CompositeStationTimetableRepository handles local repository unexpected errors and wraps generic server errors in ServerConnectionException',
+      'CompositeStationTimetableRepository reports local repository errors and rethrows the unreachable server error',
       () async {
         final serverRepo = _FakeServerTimetableRepository(
-          errorToThrow: StateError('unexpected server failure'),
+          errorToThrow: const ServerUnreachableException('offline'),
         );
         final throwingLocal = _FakeThrowingLocalTimetableRepository();
         final composite = CompositeStationTimetableRepository(
@@ -513,7 +565,7 @@ void main() {
               referenceDate: DateTime.utc(2026, 9, 25),
             ),
           ),
-          throwsA(isA<ServerConnectionException>()),
+          throwsA(isA<ServerUnreachableException>()),
         );
 
         // 2. loadStationTimetableForDate
@@ -526,7 +578,7 @@ void main() {
               date: DateTime.utc(2026, 9, 25),
             ),
           ),
-          throwsA(isA<ServerConnectionException>()),
+          throwsA(isA<ServerUnreachableException>()),
         );
 
         // 3. loadNextStationTimetable
@@ -539,7 +591,7 @@ void main() {
               asOf: DateTime.utc(2026, 9, 25),
             ),
           ),
-          throwsA(isA<ServerConnectionException>()),
+          throwsA(isA<ServerUnreachableException>()),
         );
 
         // Both server failure and local unexpected errors are reported

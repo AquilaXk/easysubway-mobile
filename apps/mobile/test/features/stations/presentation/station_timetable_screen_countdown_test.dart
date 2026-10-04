@@ -37,13 +37,13 @@ class _FakeTimetableRepo implements StationTimetableRepository {
     if (lineTimetables.containsKey(lineId)) {
       final t = lineTimetables[lineId]![dayType];
       if (t == null) {
-        throw const StationTimetableUnavailable('No timetable');
+        throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
       }
       return t;
     }
     final t = timetables[dayType];
     if (t == null) {
-      throw const StationTimetableUnavailable('No timetable');
+      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
     }
     return t;
   }
@@ -1015,9 +1015,8 @@ void main() {
 
       final repo = _FakeTimetableRepo(
         {StationTimetableDayType.weekday: timetable},
-        errorToThrow: const ServerConnectionException(
-          '503 Service Unavailable',
-          statusCode: 503,
+        errorToThrow: const ServerUnreachableException(
+          'Network transport failure',
         ),
       );
 
@@ -1080,7 +1079,9 @@ void main() {
 
       final repo = _FakeTimetableRepo(
         {},
-        errorToThrow: const StationTimetableUnavailable('NOT_COVERED'),
+        errorToThrow: const StationTimetableUnavailable(
+          'TIMETABLE_NOT_COVERED',
+        ),
       );
 
       await runWithMobileErrorReporter(reportedErrors.add, () async {
@@ -1161,8 +1162,13 @@ void main() {
         await tester.tap(find.byKey(const Key('stationTimetableDay-saturday')));
         await tester.pumpAndSettle();
 
+        // #437 리뷰 F2: 서버가 응답한 503은 네트워크 안내가 아니라 서버 상태 안내다.
         expect(
           find.byKey(const Key('station-timetable-network-error-view')),
+          findsNothing,
+        );
+        expect(
+          find.byKey(const Key('station-timetable-server-error-view')),
           findsOneWidget,
         );
         // Repository is the single logging source; presentation does not duplicate ServerConnectionException.
@@ -1218,7 +1224,11 @@ void main() {
 
       final repo = _FakeTimetableRepo(
         {},
-        lineErrors: {'seoul-1': const StationTimetableUnavailable('미지원')},
+        lineErrors: {
+          'seoul-1': const StationTimetableUnavailable(
+            'STATION_LINE_NOT_FOUND',
+          ),
+        },
         lineTimetables: {
           'seoul-2': {StationTimetableDayType.weekday: timetable2},
         },
@@ -1311,7 +1321,7 @@ void main() {
 
       // Now set error on line 2 and select line 2
       repo.lineErrors = {
-        'seoul-2': const ServerConnectionException('서버 503', statusCode: 503),
+        'seoul-2': const ServerUnreachableException('네트워크 단절'),
       };
       await tester.tap(find.text('2호선'));
       await tester.pumpAndSettle();
@@ -1342,7 +1352,7 @@ void main() {
 
     final repo = _FakeTimetableRepo(
       {},
-      errorToThrow: const ServerConnectionException('서버 에러', statusCode: 500),
+      errorToThrow: const ServerUnreachableException('네트워크 단절'),
     );
 
     await runWithMobileErrorReporter((_) {}, () async {

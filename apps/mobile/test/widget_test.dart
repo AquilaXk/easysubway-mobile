@@ -7031,7 +7031,7 @@ void main() {
 
     await runWithMobileErrorReporter(reportedErrors.add, () async {
       for (final failure in <Object>[
-        const StationTimetableUnavailable('server unavailable'),
+        const StationTimetableUnavailable('TIMETABLE_NOT_COVERED'),
         StateError('server failed'),
       ]) {
         final timetableCompleter = Completer<StationTimetable>();
@@ -7162,7 +7162,7 @@ void main() {
     await tester.pumpWidget(const SizedBox.shrink());
 
     timetableCompleter.completeError(
-      const StationTimetableUnavailable('server unavailable'),
+      const StationTimetableUnavailable('TIMETABLE_NOT_COVERED'),
     );
     await tester.pump();
 
@@ -16541,7 +16541,7 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
       throw timetableError!;
     }
     if (lineId == unavailableLineId) {
-      throw const StationTimetableUnavailable('server unavailable');
+      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
     }
     if (lineId != timetableLineId) {
       return StationTimetable(

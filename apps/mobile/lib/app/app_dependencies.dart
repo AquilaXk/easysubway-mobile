@@ -173,6 +173,9 @@ class AppDependencies {
     final resolvedServerStationTimetableRepository =
         ServerStationTimetableRepository(
           journeyRepository: lazyJourneyRepository,
+          stationNameResolver: stationDetailNameResolver(
+            resolvedStationRepository,
+          ),
           sessionProvider: resolvedJourneySessionProvider,
         );
     final resolvedStationTimetableRepository =

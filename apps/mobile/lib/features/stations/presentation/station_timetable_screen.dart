@@ -39,6 +39,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     with WidgetsBindingObserver {
   late String? _lineId;
   late StationTimetableDayType _dayType;
+
+  /// 사용자가 고른(또는 오늘의) 요일 탭. 서버가 판정한 [_dayType]과 다르면
+  /// 그 날짜가 어떤 시간표로 운행하는지 알린다.
+  late StationTimetableDayType _requestedDayType;
   StationTimetable? _timetable;
   String? _directionName;
   String? _selectedDirectionFilter;
@@ -51,6 +55,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   var _loading = false;
   var _requestId = 0;
   var _isNetworkError = false;
+
+  /// 서버가 응답했지만 시간표를 보여 줄 수 없는 상태(만료·무결성 오류·역 이름
+  /// 확인 불가 등). 로컬 시간표로 덮지 않고 그대로 알린다(#437).
+  var _isServerError = false;
   var _didSelectOrLoadLine = false;
   Timer? _tickerTimer;
   Duration _tickerElapsed = Duration.zero;
@@ -64,6 +72,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final now = widget.now ?? clock.now();
     _initClockNow = now;
     _dayType = _todayTimetableDayType(now);
+    _requestedDayType = _dayType;
     _selectedHour = _initSelectedHour(now);
     if (widget.repository != null && _lineId != null) {
       unawaited(_loadInitialAvailableLine(now));
@@ -86,6 +95,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       final now = widget.now ?? clock.now();
       _initClockNow = now;
       _dayType = _todayTimetableDayType(now);
+      _requestedDayType = _dayType;
       _selectedHour = _initSelectedHour(now);
       if (widget.repository != null && _lineId != null) {
         unawaited(_loadInitialAvailableLine(now));
@@ -153,9 +163,11 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     setState(() {
       _loading = true;
       _isNetworkError = false;
+      _isServerError = false;
     });
     StationTimetable? unavailable;
     ServerConnectionException? serverException;
+    var serverUnavailable = false;
     Object? otherException;
     StackTrace otherStackTrace = StackTrace.empty;
 
@@ -172,8 +184,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           return;
         }
         unavailable ??= timetable;
-      } on StationTimetableUnavailable {
-        // Line not available in timetable, continue checking next line
+      } on StationTimetableUnavailable catch (error) {
+        // 이 노선 시간표가 없으면 다음 노선을 본다. 서버가 보여 줄 수 없다고 답한
+        // 경우는 기억해 두고 다른 노선이 없으면 그 상태를 알린다.
+        if (!_isNoTimetable(error)) serverUnavailable = true;
       } on ServerConnectionException catch (error) {
         serverException = error;
       } catch (error, stackTrace) {
@@ -183,13 +197,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       if (!mounted || requestId != _requestId) return;
     }
 
-    if (serverException != null) {
+    if (serverException != null || serverUnavailable) {
       if (!mounted || requestId != _requestId) return;
+      final unreachable = serverException is ServerUnreachableException;
       setState(() {
         _timetable = null;
         _directionName = null;
         _loading = false;
-        _isNetworkError = true;
+        _isNetworkError = unreachable;
+        _isServerError = !unreachable;
       });
       return;
     }
@@ -229,6 +245,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     setState(() {
       _loading = true;
       _isNetworkError = false;
+      _isServerError = false;
     });
     try {
       final timetable = date == null
@@ -247,23 +264,26 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         return;
       }
       _applyTimetable(timetable);
-    } on StationTimetableUnavailable {
+    } on StationTimetableUnavailable catch (error) {
       if (!mounted || requestId != _requestId) return;
       setState(() {
         _timetable = null;
         _directionName = null;
         _loading = false;
         _isNetworkError = false;
+        _isServerError = !_isNoTimetable(error);
       });
-    } on ServerConnectionException {
+    } on ServerConnectionException catch (error) {
       if (!mounted || requestId != _requestId) {
         return;
       }
+      final unreachable = error is ServerUnreachableException;
       setState(() {
         _timetable = null;
         _directionName = null;
         _loading = false;
-        _isNetworkError = true;
+        _isNetworkError = unreachable;
+        _isServerError = !unreachable;
       });
     } catch (error, stackTrace) {
       reportMobileError(error, stackTrace, context: '역 시간표 조회 중 예외가 발생했습니다.');
@@ -289,6 +309,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _dayType = timetable.dayType;
       _didSelectOrLoadLine = true;
       _isNetworkError = false;
+      _isServerError = false;
       _directionName = directionNames.contains(_directionName)
           ? _directionName
           : timetable.directions.firstOrNull?.name;
@@ -651,6 +672,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               thickness: 1,
               color: EasySubwayAccessibleColors.line,
             ),
+            ?_buildServiceDayNote(timetable),
 
             () {
               final renderedHours = _getSortedDeparturesHours(
@@ -672,6 +694,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                   child: Padding(
                     padding: const EdgeInsets.all(32),
                     child: _buildNetworkErrorView(),
+                  ),
+                ),
+              )
+            else if (_isServerError)
+              Expanded(
+                child: Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32),
+                    child: _buildServerErrorView(),
                   ),
                 ),
               )
@@ -743,6 +774,75 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  /// 서버가 시간표 없음(노선·날짜 미포함)이라고 답한 경우. 그 밖의 사용 불가
+  /// 사유는 서버 오류 상태로 알린다.
+  bool _isNoTimetable(StationTimetableUnavailable error) =>
+      error.reason == 'TIMETABLE_NOT_COVERED' ||
+      error.reason == 'STATION_LINE_NOT_FOUND';
+
+  Widget _buildServerErrorView() {
+    return Semantics(
+      container: true,
+      label: '지금은 시간표를 불러올 수 없어요. 잠시 후 다시 시도해 주세요.',
+      child: Column(
+        key: const Key('station-timetable-server-error-view'),
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const ExcludeSemantics(
+            child: Text(
+              '지금은 시간표를 불러올 수 없어요',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: EasySubwayAccessibleColors.text,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 8),
+          const ExcludeSemantics(
+            child: Text(
+              '잠시 후 다시 시도해 주세요.',
+              style: TextStyle(
+                fontSize: 14,
+                color: EasySubwayAccessibleColors.secondaryText,
+                height: 1.4,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ),
+          const SizedBox(height: 20),
+          OutlinedButton.icon(
+            key: const Key('station-timetable-server-retry-button'),
+            onPressed: _loading
+                ? null
+                : () {
+                    if (_didSelectOrLoadLine && _lineId != null) {
+                      unawaited(_load());
+                    } else {
+                      unawaited(_loadInitialAvailableLine(_effectiveNow));
+                    }
+                  },
+            icon: const Icon(Icons.refresh_rounded, size: 18),
+            label: const Text(
+              '다시 시도',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: EasySubwayAccessibleColors.primary,
+              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -820,6 +920,43 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     );
   }
 
+  /// 고른 요일 탭과 서버가 판정한 요일 종류가 다를 때(예: 토요일 시간표가 없는
+  /// 노선의 토요일) 그 날짜의 실제 운행 시간표를 알린다.
+  Widget? _buildServiceDayNote(StationTimetable? timetable) {
+    final serviceDate = timetable?.serviceDate;
+    if (timetable == null ||
+        serviceDate == null ||
+        _loading ||
+        timetable.dayType == _requestedDayType) {
+      return null;
+    }
+    final parts = serviceDate.split('-').map(int.parse).toList();
+    final date = DateTime.utc(parts[0], parts[1], parts[2]);
+    const weekdays = ['월', '화', '수', '목', '금', '토', '일'];
+    final dayLabel = _dayTypeLabel(timetable.dayType);
+    return Container(
+      width: double.infinity,
+      color: EasySubwayAccessibleColors.surfaceSubtle,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      child: Text(
+        '${date.month}월 ${date.day}일(${weekdays[date.weekday - 1]})은 '
+        '$dayLabel 시간표로 운행해요',
+        key: const Key('station-timetable-service-day-note'),
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          color: EasySubwayAccessibleColors.text,
+        ),
+      ),
+    );
+  }
+
+  String _dayTypeLabel(StationTimetableDayType dayType) => switch (dayType) {
+    StationTimetableDayType.weekday => '평일',
+    StationTimetableDayType.saturday => '토요일',
+    StationTimetableDayType.sundayHoliday => '공휴일',
+  };
+
   Widget _buildDayAndFilterBar() {
     return Container(
       color: EasySubwayAccessibleColors.surface,
@@ -855,16 +992,15 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
   Widget _buildDayTab(StationTimetableDayType dayType) {
     final isSelected = _dayType == dayType;
-    final label = switch (dayType) {
-      StationTimetableDayType.weekday => '평일',
-      StationTimetableDayType.saturday => '토요일',
-      StationTimetableDayType.sundayHoliday => '공휴일',
-    };
+    final label = _dayTypeLabel(dayType);
 
     return InkWell(
       key: Key('stationTimetableDay-${dayType.name}'),
       onTap: () {
-        setState(() => _dayType = dayType);
+        setState(() {
+          _dayType = dayType;
+          _requestedDayType = dayType;
+        });
         unawaited(_load());
       },
       child: Padding(
