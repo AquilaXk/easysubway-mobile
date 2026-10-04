@@ -36,7 +36,7 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = '5b6f910bb58bcf8d3c64198653546f5675b37aa78d9f2cda5941280eadf42c71';
+const expectedSchemasProjectionSha256 = 'e8edd81f659bec1a7be6430d6aac34797af0389aad37b3e852009c90d002d1c2';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
@@ -282,11 +282,7 @@ function validateSchemas(schemas, enforceSchemasProjection) {
 // backend deploys. Each entry mirrors the PR's journey-v3.openapi.yaml change
 // (descriptions omitted). When the lock moves to a bundle that already has an
 // entry, generation fails until the entry is removed here.
-const pendingContractAdditions = Object.freeze([
-  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'JourneyStairFreeAlternative', definition: Object.freeze({ type: 'object', additionalProperties: false, required: ['status', 'facilityStatus'], properties: { status: { type: 'string', enum: ['INCLUDED', 'OMITTED', 'NOT_FOUND', 'UNDETERMINED'] }, facilityStatus: { type: 'string', enum: ['APPLIED', 'UNOBSERVED'] } } }) }),
-  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'JourneySearchSuccess', property: 'stairFreeAlternative', required: true, definition: Object.freeze({ $ref: '#/components/schemas/JourneyStairFreeAlternative' }) }),
-  Object.freeze({ source: 'AquilaXk/easysubway-backend#471', schema: 'Journey', property: 'alternativeCategories', required: false, definition: Object.freeze({ type: 'array', uniqueItems: true, maxItems: 3, items: { type: 'string', enum: ['FASTEST', 'FEWEST_TRANSFERS', 'STAIR_FREE'] } }) }),
-]);
+const pendingContractAdditions = Object.freeze([]);
 
 function applyPendingContractAdditions(lockedSchemas, pendingAdditions = pendingContractAdditions) {
   const schemas = JSON.parse(JSON.stringify(lockedSchemas));
@@ -826,6 +822,10 @@ function renderFareResponseModels(source) {
 
 // #438: serviceDayCutoff (backend #301) and the accessible-route alternatives
 // (backend #471). Wire constants come from the contract, not from the template.
+// #441: stairFreeAlternative is a required wire key (decoding rejects absence).
+// The Dart field type stays nullable and the constructor requires it explicitly
+// only because profileJourneys results are converted into this model and the
+// profile contract has no such field; that conversion passes null, never a guess.
 function renderServiceDayAndAlternativeResponseModels(source, ir) {
   const cutoffValues = ir.schemas.JourneySearchSuccess?.properties?.serviceDayCutoff?.enum;
   if (!Array.isArray(cutoffValues) || cutoffValues.length !== 1 || !/^\d{2}:\d{2}$/.test(cutoffValues[0])) fail('JourneySearchSuccess.serviceDayCutoff must be one fixed HH:MM wire value');
@@ -834,10 +834,10 @@ function renderServiceDayAndAlternativeResponseModels(source, ir) {
   if (!isObject(categories) || categories.type !== 'array' || categories.uniqueItems !== true || !Number.isInteger(categories.maxItems)) fail('Journey.alternativeCategories must be a bounded unique array');
   source = replaceRequired(source, 'final JourneyDate serviceDate; final String serviceTimezone; final JourneySourceIdentity sourceIdentity;', 'final JourneyDate serviceDate; final String serviceTimezone; final String serviceDayCutoff; final JourneySourceIdentity sourceIdentity;', 'search service day cutoff field');
   source = replaceRequired(source, 'final List<Journey> journeys;\n const JourneySearchSuccess({', 'final List<Journey> journeys; final JourneyStairFreeAlternative? stairFreeAlternative;\n const JourneySearchSuccess({', 'search stair-free alternative field');
-  source = replaceRequired(source, 'required this.serviceTimezone,required this.sourceIdentity,required this.requestPolicy,required this.journeys});', 'required this.serviceTimezone,required this.serviceDayCutoff,required this.sourceIdentity,required this.requestPolicy,required this.journeys,this.stairFreeAlternative});', 'search constructor');
-  source = replaceRequired(source, "'serviceDate','serviceTimezone','sourceIdentity','requestPolicy','journeys'});", "'serviceDate','serviceTimezone','serviceDayCutoff','sourceIdentity','requestPolicy','journeys',if(json.containsKey('stairFreeAlternative'))'stairFreeAlternative'}); final stairFreeAlternative=json['stairFreeAlternative']; if(json.containsKey('stairFreeAlternative')&&stairFreeAlternative is! Map<String,Object?>){throw const FormatException('stairFreeAlternative must be object');}", 'search JSON keys');
+  source = replaceRequired(source, 'required this.serviceTimezone,required this.sourceIdentity,required this.requestPolicy,required this.journeys});', 'required this.serviceTimezone,required this.serviceDayCutoff,required this.sourceIdentity,required this.requestPolicy,required this.journeys,required this.stairFreeAlternative});', 'search constructor');
+  source = replaceRequired(source, "'serviceDate','serviceTimezone','sourceIdentity','requestPolicy','journeys'});", "'serviceDate','serviceTimezone','serviceDayCutoff','sourceIdentity','requestPolicy','journeys','stairFreeAlternative'}); final stairFreeAlternative=json['stairFreeAlternative']; if(stairFreeAlternative is! Map<String,Object?>){throw const FormatException('stairFreeAlternative must be object');}", 'search JSON keys');
   source = replaceRequired(source, "return 'Asia/Seoul';}),sourceIdentity:", `return 'Asia/Seoul';}),serviceDayCutoff:JourneyV3Validation.enumWire(json['serviceDayCutoff'],'serviceDayCutoff',(v){if(v!='${cutoff}'){throw const FormatException();} return '${cutoff}';}),sourceIdentity:`, 'search service day cutoff parsing');
-  source = replaceRequired(source, 'requestPolicy:policy,journeys:journeys); }', 'requestPolicy:policy,journeys:journeys,stairFreeAlternative:stairFreeAlternative is Map<String,Object?>?JourneyStairFreeAlternative.fromJson(stairFreeAlternative):null); }', 'search stair-free alternative parsing');
+  source = replaceRequired(source, 'requestPolicy:policy,journeys:journeys); }', 'requestPolicy:policy,journeys:journeys,stairFreeAlternative:JourneyStairFreeAlternative.fromJson(stairFreeAlternative)); }', 'search stair-free alternative parsing');
   source = replaceRequired(source, "'serviceTimezone':serviceTimezone,'sourceIdentity':sourceIdentity.toJson(),", "'serviceTimezone':serviceTimezone,'serviceDayCutoff':serviceDayCutoff,'sourceIdentity':sourceIdentity.toJson(),", 'search service day cutoff encoding');
   source = replaceRequired(source, "'journeys':journeys.map((v)=>v.toJson()).toList(growable:false)};", "'journeys':journeys.map((v)=>v.toJson()).toList(growable:false),if(stairFreeAlternative!=null)'stairFreeAlternative':stairFreeAlternative!.toJson()};", 'search stair-free alternative encoding');
   source = replaceRequired(source, 'final List<JourneyLeg> legs; final JourneyFare fare;', 'final List<JourneyLeg> legs; final JourneyFare fare; final List<JourneyAlternativeCategory>? alternativeCategories;', 'journey alternative categories field');
@@ -938,9 +938,7 @@ const generatedClassBySchema = Object.freeze({ JourneyError: 'JourneyV3Error' })
 // #438 transition policy, part 2: production does not emit these yet, and the
 // backend changes may deploy after this client ships. The decoder accepts each
 // key present or absent; any key outside the contract is still rejected.
-const undeployedRequiredFields = new Map([
-  ['JourneySearchSuccess.stairFreeAlternative', 'AquilaXk/easysubway-backend#471'],
-]);
+const undeployedRequiredFields = new Map();
 const schemaRefPrefix = '#/components/schemas/';
 
 function generatedObjectSchemaNames(ir) {

@@ -420,6 +420,9 @@ class JourneyProfileSuccess {
       serviceDate: JourneyDate.parse(serviceDateStr),
       serviceTimezone: 'Asia/Seoul',
       serviceDayCutoff: serviceDayCutoff,
+      // 프로필 계약(JourneyProfileSuccess)에는 계단 없는 대안 결과가 없다.
+      // 값을 추정하지 않고 비워 둔다(#441).
+      stairFreeAlternative: null,
       sourceIdentity:
           sourceIdentity ??
           JourneySourceIdentity(

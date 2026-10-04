@@ -12,12 +12,13 @@ import 'package:flutter_test/flutter_test.dart';
 // 공유했다. 그래서 디코더가 계약 필드를 빠뜨려도 잡지 못했다. 이 fixture는
 // 생성 코드와 독립인 backend 응답 형태다.
 //
-// - search-success.backend-main.json: backend main(cd824e1a)
+// - search-success.backend-main.json: backend main(#471 병합·배포, 83e6b51e)
 //   `JourneySearchResponseMapperTest`가 고정한 wire 형태. 요청 정책만 표준
 //   검색(STANDARD/NONE)으로 바꿨고, #455 이후 서버가 내지 않는 ENTRY/EXIT
-//   구간 대신 RIDE-TRANSFER-RIDE로 구성했다.
-// - search-success.backend-pr471.json: backend PR #471 브랜치의 같은 테스트가
-//   고정한 추가 필드(`stairFreeAlternative`, `alternativeCategories`).
+//   구간 대신 RIDE-TRANSFER-RIDE로 구성했다. #471 필드
+//   (`stairFreeAlternative`, `alternativeCategories`)를 담는다.
+// - search-success.pre-pr471.json: #471 이전 형태(`stairFreeAlternative` 없음).
+//   #471은 운영에 배포됐으므로 이제 거부한다(#441).
 // - station-timetable-success.backend-main.json: backend main(#479 병합·배포)
 //   역 시간표 형태(`nextStationId`, null `directionName`, `terminalStationId`).
 // - station-timetable-success.pre-pr479.json: #479 이전 형태. 이제 거부한다.
@@ -78,23 +79,21 @@ void main() {
       );
     });
 
-    test('backend #471 응답(배포 전 추가 필드 포함)도 해석한다', () {
-      final json = _fixture('search-success.backend-pr471.json');
+    test('#471은 배포됐으므로 stairFreeAlternative가 없는 이전 형태는 거부한다', () {
+      final json = _fixture('search-success.pre-pr471.json');
 
-      expect(() => JourneySearchSuccess.fromJson(json), returnsNormally);
+      expect(
+        () => JourneySearchSuccess.fromJson(json),
+        throwsA(isA<FormatException>()),
+      );
     });
 
-    test('serviceDayCutoff 값을 그대로 담고, #471 필드가 없으면 비어 있다', () {
+    test('serviceDayCutoff 값을 그대로 담는다', () {
       final success = JourneySearchSuccess.fromJson(
         _fixture('search-success.backend-main.json'),
       );
 
       expect(success.serviceDayCutoff, '03:00');
-      expect(success.stairFreeAlternative, isNull);
-      expect(success.journeys.map((j) => j.alternativeCategories), [
-        isNull,
-        isNull,
-      ]);
     });
 
     test('serviceDayCutoff는 배포된 필수 필드라 빠지거나 다른 값이면 거부한다', () {
@@ -115,7 +114,7 @@ void main() {
 
     test('#471 계단 없는 대안 결과와 대표 묶음을 해석한다', () {
       final success = JourneySearchSuccess.fromJson(
-        _fixture('search-success.backend-pr471.json'),
+        _fixture('search-success.backend-main.json'),
       );
 
       expect(
@@ -135,12 +134,13 @@ void main() {
       ]);
     });
 
-    test('#471 필드도 계약 밖 값·키·null은 거부한다', () {
+    test('#471 필드도 누락·계약 밖 값·키·null은 거부한다', () {
       Map<String, Object?> pr471() =>
-          _fixture('search-success.backend-pr471.json');
+          _fixture('search-success.backend-main.json');
       List<Map<String, Object?>> journeys(Map<String, Object?> json) =>
           (json['journeys']! as List).cast<Map<String, Object?>>();
       final cases = <String, Map<String, Object?>>{
+        'stairFreeAlternative missing': pr471()..remove('stairFreeAlternative'),
         'stairFreeAlternative null': pr471()..['stairFreeAlternative'] = null,
         'stairFreeAlternative extra key': pr471()
           ..['stairFreeAlternative'] = {
@@ -185,7 +185,7 @@ void main() {
       List<Map<String, Object?>> journeys(Map<String, Object?> json) =>
           (json['journeys']! as List).cast<Map<String, Object?>>();
       Map<String, Object?> pr471() =>
-          _fixture('search-success.backend-pr471.json');
+          _fixture('search-success.backend-main.json');
       final cases = <String, Map<String, Object?>>{
         // 계단 있는 여정에 계단회피 묶음을 붙이면 안 된다.
         'STAIR_FREE on stairs journey': (() {
@@ -230,7 +230,7 @@ void main() {
     test('대표 묶음이 일부 여정에만 있어도 계약 위반이 아니라 받는다(#438 리뷰 F6)', () async {
       // 계약(backend #471 Journey.alternativeCategories)은 여정마다 선택 필드이고
       // "모든 여정에 있다"는 규칙이 없다. 계약보다 엄격하면 정상 응답을 거부한다.
-      final json = _fixture('search-success.backend-pr471.json');
+      final json = _fixture('search-success.backend-main.json');
       ((json['journeys']! as List).cast<Map<String, Object?>>())[1].remove(
         'alternativeCategories',
       );

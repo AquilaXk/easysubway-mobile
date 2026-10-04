@@ -24,7 +24,6 @@ jobs:
       GOLDEN_EVIDENCE_DIR: mobile-golden-evidence
       GOLDEN_FAILURES_ROOT: apps/mobile/test/features/network_map/presentation/failures
       GOLDEN_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      GOLDEN_TEST: test/features/network_map/presentation/station_fan_menu_golden_test.dart
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -66,8 +65,16 @@ jobs:
           evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
           actual_report="$RUNNER_TEMP/mobile-golden-actual-events.json"
           flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
+          golden_tests=()
+          while IFS= read -r golden_test; do
+            golden_tests+=("${golden_test#apps/mobile/}")
+          done < <(jq -er '.tests[]' "$evidence_root/golden-parity.json")
+          if [[ "${#golden_tests[@]}" -eq 0 ]]; then
+            echo "golden parity inventory has no suites" >&2
+            exit 1
+          fi
           set +e
-          flutter test "$GOLDEN_TEST" \
+          flutter test "${golden_tests[@]}" \
             --file-reporter "json:$actual_report"
           test_exit_code=$?
           set -e
@@ -90,8 +97,16 @@ jobs:
           evidence_root="$RUNNER_TEMP/$GOLDEN_EVIDENCE_DIR"
           mutation_report="$RUNNER_TEMP/mobile-golden-mutation-events.json"
           flutter_identity="$RUNNER_TEMP/mobile-golden-flutter-version.json"
+          golden_tests=()
+          while IFS= read -r golden_test; do
+            golden_tests+=("${golden_test#apps/mobile/}")
+          done < <(jq -er '.tests[]' "$evidence_root/golden-parity.json")
+          if [[ "${#golden_tests[@]}" -eq 0 ]]; then
+            echo "golden parity inventory has no suites" >&2
+            exit 1
+          fi
           set +e
-          flutter test "$GOLDEN_TEST" \
+          flutter test "${golden_tests[@]}" \
             --name "^기본 상태$" \
             --dart-define=EASYSUBWAY_GOLDEN_MUTATION=true \
             --file-reporter "json:$mutation_report" \
@@ -117,6 +132,6 @@ jobs:
           name: mobile-golden-${{ env.GOLDEN_HEAD_SHA }}
           path: |
             ${{ runner.temp }}/mobile-golden-evidence
-            ${{ env.GOLDEN_FAILURES_ROOT }}
+            apps/mobile/test/**/failures/**
           retention-days: 5
           if-no-files-found: error

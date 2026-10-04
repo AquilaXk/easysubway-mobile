@@ -701,7 +701,7 @@ class JourneySearchSuccess {
     required this.sourceIdentity,
     required this.requestPolicy,
     required this.journeys,
-    this.stairFreeAlternative,
+    required this.stairFreeAlternative,
   });
   factory JourneySearchSuccess.fromJson(Map<String, Object?> json) {
     JourneyV3Validation.exactKeys(json, {
@@ -717,10 +717,10 @@ class JourneySearchSuccess {
       'sourceIdentity',
       'requestPolicy',
       'journeys',
-      if (json.containsKey('stairFreeAlternative')) 'stairFreeAlternative',
+      'stairFreeAlternative',
     });
     final stairFreeAlternative = json['stairFreeAlternative'];
-    if (json.containsKey('stairFreeAlternative') && stairFreeAlternative is! Map<String, Object?>) {
+    if (stairFreeAlternative is! Map<String, Object?>) {
       throw const FormatException('stairFreeAlternative must be object');
     }
     final sourceIdentity = json['sourceIdentity'];
@@ -779,7 +779,7 @@ class JourneySearchSuccess {
       sourceIdentity: parsedSourceIdentity,
       requestPolicy: policy,
       journeys: journeys,
-      stairFreeAlternative: stairFreeAlternative is Map<String, Object?> ? JourneyStairFreeAlternative.fromJson(stairFreeAlternative) : null,
+      stairFreeAlternative: JourneyStairFreeAlternative.fromJson(stairFreeAlternative),
     );
   }
   Map<String, Object?> toJson() => {

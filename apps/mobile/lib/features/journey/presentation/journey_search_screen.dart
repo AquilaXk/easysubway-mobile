@@ -201,8 +201,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       JourneySearchStatus.searching: () => '경로를 찾고 있어요.',
       JourneySearchStatus.success: () =>
           '경로 ${state.response!.journeys.length}개를 찾았어요.',
-      JourneySearchStatus.failure: () =>
-          state.rejection?.disposition.canonicalKoreanCopy ?? '경로를 찾지 못했어요.',
+      JourneySearchStatus.failure: () {
+        final copy = journeyFailureCopy(state.rejection?.disposition);
+        return [copy.message, ?copy.detail].join(' ');
+      },
     }[state.status]?.call();
     if (message != null) {
       unawaited(
@@ -338,7 +340,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       key: const Key('selected-journey-detail'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        JourneyResultSummaryView(summary: viewModel.summary),
+        JourneyResultSummaryView(
+          summary: viewModel.summary,
+          showStairStatus: journeyShowsStairStatus(snapshot.requestPolicy),
+        ),
         const SizedBox(height: 12),
         JourneySegmentBar(
           segments: viewModel.segments,
@@ -1102,15 +1107,18 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       journey,
       stationName: _stationName,
     ).summary;
-    final accessibility = journey.accessibility.stairFree
-        ? '무단차 경로'
-        : '무단차 경로 아님';
+    // 계단 표시는 계단 없는 경로가 필요한 사용자에게만 넣는다(#441 QA).
+    final stairStatus = !journeyShowsStairStatus(snapshot.requestPolicy)
+        ? null
+        : journey.accessibility.stairFree
+        ? journeyStairFreeCategoryLabel
+        : '계단 정보가 없거나 계단이 있는 경로';
     final details = [
       summary.durationLabel,
       summary.transferLabel,
       ?summary.fareLabel,
       '${summary.arrivalTime} 도착',
-      accessibility,
+      ?stairStatus,
     ];
     return '${widget.draft.origin!.displayName} → ${widget.draft.destination!.displayName}\n'
         '${details.join(' · ')}';
@@ -1240,8 +1248,35 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     }
   }
 
-  Future<void> _search() async {
+  Future<void> _search() => _runSearch(_searchCommand());
+
+  /// 계단 없는 경로만 요청했다가 그런 경로가 없을 때(422
+  /// ACCESSIBILITY_CONSTRAINT_UNSATISFIED) 사용자가 고르는 다음 행동이다.
+  /// 같은 조건으로 계단 제약만 풀어(NONE) 계단 여부를 표시한 일반 경로를 받는다.
+  /// 계약상 NO_STAIRS는 NONE과 함께 보낼 수 없으므로, 두 프로필 모두 계단 없는
+  /// 경로를 우선 고르는 STEP_FREE로 보낸다(backend #471 결과 구성 규칙).
+  Future<void> _showStandardRoutes() {
     final command = _searchCommand();
+    return _runSearch(
+      command == null
+          ? null
+          : JourneySearchCommand(
+              originStationId: command.originStationId,
+              destinationStationId: command.destinationStationId,
+              viaStationId: command.viaStationId,
+              departure: command.departure,
+              timePolicy: command.timePolicy,
+              walkingPace: command.walkingPace,
+              mobilityProfile: MobilityProfile.stepFree,
+              constraintMode: ConstraintMode.none,
+              maxTransfers: command.maxTransfers,
+              alternativeCount: command.alternativeCount,
+              profileTemporalQuery: command.profileTemporalQuery,
+            ),
+    );
+  }
+
+  Future<void> _runSearch(JourneySearchCommand? command) async {
     if (command == null || _isAlarmTransitioning) return;
     final alarmController = widget.getOffAlarmController;
     if (alarmController != null &&
@@ -2058,9 +2093,19 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 Builder(
                   builder: (context) {
                     final disposition = state.rejection?.disposition;
-                    final copy =
-                        disposition?.canonicalKoreanCopy ??
-                        '경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.';
+                    final copy = journeyFailureCopy(disposition);
+                    if (copy.offersStandardRoutes) {
+                      return Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: JourneyStepFreeUnavailablePanel(
+                          copy: copy,
+                          onShowStandardRoutes: _isAlarmTransitioning
+                              ? null
+                              : () => unawaited(_showStandardRoutes()),
+                          onReselectStations: widget.onShellBackToHome,
+                        ),
+                      );
+                    }
                     final canRetry =
                         disposition == null ||
                         disposition.retryDisposition != 'FORBIDDEN';
@@ -2069,7 +2114,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       children: [
                         const SizedBox(height: 8),
                         Text(
-                          copy,
+                          copy.message,
                           key: const Key('journey-failure-message'),
                           style: TextStyle(
                             fontSize: 13,
@@ -2145,8 +2190,30 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   ),
                 ),
                 const SizedBox(height: 8),
+                if (journeyStairStatusNotices(
+                      state.response!.stairFreeAlternative,
+                      hasStairFreeJourney: state.response!.journeys.any(
+                        (journey) => journey.accessibility.stairFree,
+                      ),
+                    )
+                    case final notices
+                    when notices.isNotEmpty &&
+                        journeyShowsStairStatus(
+                          state.response!.requestPolicy,
+                        )) ...[
+                  JourneyStairStatusNotices(
+                    key: const Key('journey-stair-status-notices'),
+                    notices: notices,
+                  ),
+                  const SizedBox(height: 8),
+                ],
                 JourneyRouteTabs(
-                  tabs: journeyRouteTabs(state.response!.journeys),
+                  tabs: journeyRouteTabs(
+                    state.response!.journeys,
+                    showStairStatus: journeyShowsStairStatus(
+                      state.response!.requestPolicy,
+                    ),
+                  ),
                   selectedJourneyId: state.selectedJourneyId,
                   onSelect: _isAlarmTransitioning
                       ? null

@@ -441,9 +441,9 @@ void main() {
       ],
     );
 
-    // 상용 지하철 서비스의 최소시간·최소환승·계단회피 분류를 따른다.
-    // 계단회피 묶음이 붙은 여정에는 같은 사실인 무단차 표시를 겹쳐 달지 않는다.
-    final tabs = journeyRouteTabs([
+    // 상용 지하철 서비스의 빠른·환승 적은·계단 없는 분류를 쉬운 말로 붙인다(#441 QA).
+    // 계단 없는 경로 묶음이 붙은 여정에는 같은 사실을 겹쳐 달지 않는다.
+    final tabs = journeyRouteTabs(showStairStatus: true, [
       candidate('a', 30, 2, [JourneyAlternativeCategory.fastest]),
       candidate('b', 34, 1, [JourneyAlternativeCategory.fewestTransfers]),
       candidate('c', 41, 2, [
@@ -451,15 +451,15 @@ void main() {
       ], stairFree: true),
     ]);
     expect(tabs.map((tab) => tab.labels), [
-      ['최단시간'],
-      ['최소환승'],
-      ['계단회피'],
+      ['빠른 경로'],
+      ['환승 적은 경로'],
+      ['계단 없는 경로'],
     ]);
-    expect(tabs[2].semanticsLabel, '계단회피, 41분, 환승 2회, 08:41 도착');
+    expect(tabs[2].semanticsLabel, '계단 없는 경로, 41분, 환승 2회, 08:41 도착');
 
     // 한 여정이 여러 묶음을 대표하면 서버 묶음 순서대로 모두 붙인다.
     // 묶음이 빈 여정은 남는 자리를 채운 경로다.
-    final merged = journeyRouteTabs([
+    final merged = journeyRouteTabs(showStairStatus: true, [
       candidate('a', 30, 1, [
         JourneyAlternativeCategory.fastest,
         JourneyAlternativeCategory.stairFree,
@@ -468,13 +468,13 @@ void main() {
       candidate('c', 38, 1, const [], stairFree: true),
     ]);
     expect(merged.map((tab) => tab.labels), [
-      ['최단시간', '계단회피'],
-      ['최소환승'],
-      ['경로 3', '무단차'],
+      ['빠른 경로', '계단 없는 경로'],
+      ['환승 적은 경로'],
+      ['경로 3', '계단 없는 경로'],
     ]);
 
     // 묶음이 일부 여정에만 오면(계약상 선택 필드) 사실 기반 라벨로 만든다.
-    final mixed = journeyRouteTabs([
+    final mixed = journeyRouteTabs(showStairStatus: true, [
       candidate('a', 30, 1, [JourneyAlternativeCategory.fastest]),
       _journey(
         id: 'b',
@@ -488,8 +488,8 @@ void main() {
       ),
     ]);
     expect(mixed.map((tab) => tab.labels), [
-      ['최단시간'],
-      ['최소환승'],
+      ['빠른 경로'],
+      ['환승 적은 경로'],
     ]);
   });
 
@@ -512,7 +512,7 @@ void main() {
     );
 
     // 가장 빠른 후보가 둘째이면 첫째는 경로 1이다.
-    final fastestSecond = journeyRouteTabs([
+    final fastestSecond = journeyRouteTabs(showStairStatus: true, [
       candidate('a', 40, 1),
       candidate('b', 30, 1),
       candidate('c', 45, 0, stairFree: true),
@@ -520,26 +520,122 @@ void main() {
     ]);
     expect(fastestSecond.map((tab) => tab.labels), [
       ['경로 1'],
-      ['최단시간'],
-      ['최소환승', '무단차'],
+      ['빠른 경로'],
+      ['환승 적은 경로', '계단 없는 경로'],
       ['경로 4'],
     ]);
     expect(fastestSecond.map((tab) => tab.journeyId), ['a', 'b', 'c', 'd']);
     expect(fastestSecond[1].durationLabel, '30분');
     expect(fastestSecond[1].transferLabel, '환승 1회');
     expect(fastestSecond[1].arrivalTime, '08:30');
-    expect(fastestSecond[1].semanticsLabel, '최단시간, 30분, 환승 1회, 08:30 도착');
-    expect(fastestSecond[2].semanticsLabel, '최소환승, 무단차, 45분, 환승 없음, 08:45 도착');
+    expect(fastestSecond[1].semanticsLabel, '빠른 경로, 30분, 환승 1회, 08:30 도착');
+    expect(
+      fastestSecond[2].semanticsLabel,
+      '환승 적은 경로, 계단 없는 경로, 45분, 환승 없음, 08:45 도착',
+    );
 
-    // 최소환승 후보가 최단시간 후보와 같으면 최소환승 라벨은 없다.
-    final sameCandidate = journeyRouteTabs([
+    // 환승 적은 후보가 빠른 후보와 같으면 환승 적은 경로 라벨은 없다.
+    final sameCandidate = journeyRouteTabs(showStairStatus: true, [
       candidate('a', 30, 0),
       candidate('b', 40, 1, stairFree: true),
     ]);
     expect(sameCandidate.map((tab) => tab.labels), [
-      ['최단시간'],
-      ['경로 2', '무단차'],
+      ['빠른 경로'],
+      ['경로 2', '계단 없는 경로'],
     ]);
+  });
+
+  // #441 QA: 일반 이동 프로필 사용자에게는 계단 관련 표시를 하지 않는다. 상용 지하철
+  // 서비스는 계단회피를 사용자가 고르는 길찾기 옵션으로만 보여 준다.
+  test('(5-1) 계단 표시가 필요 없는 사용자에게는 계단 없는 경로 라벨을 붙이지 않는다', () {
+    Journey candidate(
+      String id,
+      int minutes,
+      int transfers,
+      List<JourneyAlternativeCategory>? categories, {
+      bool stairFree = false,
+    }) => _journey(
+      id: id,
+      departure: _kst(8, 0),
+      arrival: _kst(8, minutes),
+      durationSeconds: minutes * 60,
+      transferCount: transfers,
+      stairFree: stairFree,
+      alternativeCategories: categories,
+      legs: const <JourneyLeg>[
+        JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
+      ],
+    );
+
+    final grouped = journeyRouteTabs(showStairStatus: false, [
+      candidate('a', 30, 1, [
+        JourneyAlternativeCategory.fastest,
+        JourneyAlternativeCategory.stairFree,
+      ], stairFree: true),
+      candidate('b', 35, 0, [JourneyAlternativeCategory.fewestTransfers]),
+      candidate('c', 41, 2, [
+        JourneyAlternativeCategory.stairFree,
+      ], stairFree: true),
+    ]);
+    expect(grouped.map((tab) => tab.labels), [
+      ['빠른 경로'],
+      ['환승 적은 경로'],
+      ['경로 3'],
+    ]);
+
+    final facts = journeyRouteTabs(showStairStatus: false, [
+      candidate('a', 30, 1, null),
+      candidate('b', 45, 0, null, stairFree: true),
+    ]);
+    expect(facts.map((tab) => tab.labels), [
+      ['빠른 경로'],
+      ['환승 적은 경로'],
+    ]);
+  });
+
+  test('(5-2) 계단 표시는 계단 없는 경로가 필요한 이동 프로필이나 계단 없는 경로 요청에만 켠다', () {
+    JourneyRequestPolicy policy(
+      MobilityProfile profile,
+      ConstraintMode constraint,
+    ) => JourneyRequestPolicy(
+      timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
+      mobilityProfile: profile,
+      constraintMode: constraint,
+      maxTransfers: 3,
+      alternativeCount: 3,
+    );
+
+    expect(
+      journeyShowsStairStatus(
+        policy(MobilityProfile.standard, ConstraintMode.none),
+      ),
+      isFalse,
+    );
+    expect(
+      journeyShowsStairStatus(
+        policy(MobilityProfile.slow, ConstraintMode.none),
+      ),
+      isFalse,
+    );
+    expect(
+      journeyShowsStairStatus(
+        policy(MobilityProfile.stepFree, ConstraintMode.none),
+      ),
+      isTrue,
+    );
+    expect(
+      journeyShowsStairStatus(
+        policy(MobilityProfile.noStairs, ConstraintMode.requireStepFree),
+      ),
+      isTrue,
+    );
+    expect(
+      journeyShowsStairStatus(
+        policy(MobilityProfile.stepFree, ConstraintMode.requireStepFree),
+      ),
+      isTrue,
+    );
   });
 
   test('(6) 방면이 빈 문자열이면 방면 문구를 만들지 않는다', () {
@@ -716,5 +812,150 @@ void main() {
     expect(journeyLineName('gyeonggang'), '경강선');
     expect(journeyLineName('korail-gyeongui-jungang'), '경의중앙선');
     expect(journeyLineName('line-private'), 'line-private');
+  });
+
+  // #441: 계단 없는 대안 상태(backend #471 JourneyStairFreeAlternative) 안내.
+  group('계단 상태 안내', () {
+    JourneyStairFreeAlternative alternative(
+      JourneyStairFreeAlternativeStatus status,
+      JourneyStairFreeFacilityStatus facility,
+    ) => JourneyStairFreeAlternative(status: status, facilityStatus: facility);
+
+    test('NOT_FOUND는 계단 없는 경로가 없고 모든 경로가 계단을 지난다고 안내한다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.notFound,
+          JourneyStairFreeFacilityStatus.applied,
+        ),
+        hasStairFreeJourney: false,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairFreeNotFound,
+      ]);
+      expect(notices.single.title, '계단 없이 갈 수 있는 경로가 없어요');
+      expect(notices.single.body, '찾은 경로는 모두 환승할 때 계단을 지나요.');
+      expect(
+        notices.single.semanticsLabel,
+        '계단 없이 갈 수 있는 경로가 없어요. 찾은 경로는 모두 환승할 때 계단을 지나요.',
+      );
+    });
+
+    test('UNDETERMINED는 계단 정보를 확인할 수 없는 환승 통로가 있다고 구분해 안내한다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.undetermined,
+          JourneyStairFreeFacilityStatus.applied,
+        ),
+        hasStairFreeJourney: false,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
+      ]);
+      expect(notices.single.title, '계단 정보가 없는 환승이 있어요');
+      expect(notices.single.body, '출발 전에 환승역 엘리베이터 위치를 확인해 주세요.');
+    });
+
+    test('UNOBSERVED는 계단 없는 경로가 있을 때 엘리베이터 고장 정보 미반영을 안내한다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.included,
+          JourneyStairFreeFacilityStatus.unobserved,
+        ),
+        hasStairFreeJourney: true,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.facilityOutageUnobserved,
+      ]);
+      expect(notices.single.title, '엘리베이터 고장 정보는 반영하지 못했어요');
+      expect(notices.single.body, '계단 없는 경로의 엘리베이터가 지금 운행 중인지 확인되지 않았어요.');
+    });
+
+    test('상태 안내와 시설 안내가 함께 필요하면 상태 안내를 먼저 둔다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.undetermined,
+          JourneyStairFreeFacilityStatus.unobserved,
+        ),
+        hasStairFreeJourney: true,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
+        JourneyStairStatusNoticeKind.facilityOutageUnobserved,
+      ]);
+    });
+
+    test('계단 없는 경로가 결과에 없으면 시설 미반영 안내를 붙이지 않는다', () {
+      // 계약: UNOBSERVED는 계단 없는 여정의 엘리베이터 운행이 확인되지 않았다는 뜻이다.
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.notFound,
+          JourneyStairFreeFacilityStatus.unobserved,
+        ),
+        hasStairFreeJourney: false,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairFreeNotFound,
+      ]);
+    });
+
+    test('INCLUDED·OMITTED와 APPLIED는 안내가 없다', () {
+      for (final status in [
+        JourneyStairFreeAlternativeStatus.included,
+        JourneyStairFreeAlternativeStatus.omitted,
+      ]) {
+        expect(
+          journeyStairStatusNotices(
+            alternative(status, JourneyStairFreeFacilityStatus.applied),
+            hasStairFreeJourney: true,
+          ),
+          isEmpty,
+          reason: status.wire,
+        );
+      }
+    });
+
+    test('서버가 상태를 주지 않은 결과(프로필 검색)는 추정해 안내하지 않는다', () {
+      expect(
+        journeyStairStatusNotices(null, hasStairFreeJourney: false),
+        isEmpty,
+      );
+    });
+  });
+
+  // #441: 계단 없는 경로만 요청했는데 서버가 422 ACCESSIBILITY_CONSTRAINT_UNSATISFIED를
+  // 주면 사실과 다음 행동을 안내한다. 내부 판정 용어(검증 등)는 쓰지 않는다.
+  test('계단 없는 경로 요청 422는 모바일 문구와 일반 경로 보기 행동을 준다', () {
+    final disposition = JourneyErrorDispositions.lookup(
+      JourneyOperation.searchJourneys,
+      422,
+      JourneyErrorCode.accessibilityConstraintUnsatisfied,
+    );
+
+    final copy = journeyFailureCopy(disposition);
+
+    expect(copy.message, '계단 없이 갈 수 있는 경로를 찾지 못했어요.');
+    expect(copy.detail, '일반 경로를 볼까요? 환승할 때 계단이 있는지 함께 알려 드려요.');
+    expect(copy.offersStandardRoutes, isTrue);
+    expect(copy.message, isNot(contains('검증')));
+  });
+
+  test('다른 거절 응답은 서버 문구를 그대로 쓰고 일반 경로 보기를 주지 않는다', () {
+    final disposition = JourneyErrorDispositions.lookup(
+      JourneyOperation.searchJourneys,
+      422,
+      JourneyErrorCode.routeNotFound,
+    );
+
+    final copy = journeyFailureCopy(disposition);
+
+    expect(copy.message, '현재 조건에 맞는 경로가 없어요.');
+    expect(copy.detail, isNull);
+    expect(copy.offersStandardRoutes, isFalse);
+    expect(journeyFailureCopy(null).message, '경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.');
   });
 }

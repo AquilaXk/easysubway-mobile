@@ -8732,6 +8732,104 @@ void main() {
     }
   });
 
+  // #444 리뷰 F1: CI canary 같은 내부 운영용 원천은 사용자 데이터 출처 목록에서
+  // 빼고, 렌더된 카드 제목·행 전체에 내부 용어가 없음을 고정한다(#443 금지어 일부).
+  testWidgets('데이터 출처 카드 제목과 행에는 내부 운영용 원천과 내부 용어가 없다', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 200000);
+    addTearDown(tester.view.reset);
+    final manifest =
+        jsonDecode(
+              File(
+                'assets/datapacks/metro_map_pack/manifest.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final inventory =
+        jsonDecode(
+              File('assets/datapacks/source-inventory.json').readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final sources = (inventory['sources']! as List)
+        .cast<Map<String, Object?>>();
+    // 실제 자산에 CI canary 원천이 있어야 이 테스트가 의미가 있다.
+    final canary = sources.singleWhere(
+      (source) => source['id'] == 'seoul-metro-official-od-fare-canary',
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataSourceAttributionScreen(
+          initialManifest: manifest,
+          initialInventory: inventory,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final rendered = <String>[
+      for (final text in tester.widgetList<Text>(find.byType(Text))) ?text.data,
+      for (final semantics in tester.widgetList<Semantics>(
+        find.byType(Semantics),
+      ))
+        ?semantics.properties.label,
+    ];
+    expect(rendered, contains('서울교통공사_실시간운임정보'));
+    expect(rendered, isNot(contains(canary['displayName'])));
+    const forbidden = <String>[
+      'canary',
+      '검증',
+      'pilot',
+      '파일럿',
+      '계단회피',
+      '무단차',
+      '미확정',
+      'STEP_FREE',
+      'UNDETERMINED',
+    ];
+    for (final value in rendered) {
+      for (final word in forbidden) {
+        expect(value, isNot(contains(word)), reason: '"$word" in "$value"');
+      }
+    }
+  });
+
+  // #441 QA: 값이 없을 때 내부 판정 용어(미확정) 대신 사실(정보 없음)을 보인다.
+  testWidgets('데이터 출처 화면은 값이 없는 허용 여부를 정보 없음으로 보인다', (tester) async {
+    final manifest =
+        jsonDecode(
+              File(
+                'assets/datapacks/metro_map_pack/manifest.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final maps = (manifest['maps'] as List).cast<Map<String, Object?>>();
+    final license =
+        Map<String, Object?>.of(maps.first['license']! as Map<String, Object?>)
+          ..remove('attributionRequired')
+          ..remove('commercialUseAllowed')
+          ..remove('redistributionAllowed');
+    manifest['maps'] = [
+      {...maps.first, 'license': license},
+    ];
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataSourceAttributionScreen(
+          initialManifest: manifest,
+          initialInventory: const {'sources': <Object?>[]},
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final noValue = find.text('정보 없음 / 정보 없음');
+    await tester.scrollUntilVisible(noValue, 160);
+    expect(noValue, findsOneWidget);
+    expect(find.text('정보 없음'), findsWidgets);
+    expect(find.textContaining('미확정'), findsNothing);
+  });
+
   testWidgets('데이터 및 지도 출처 화면은 manifest와 source inventory를 보여준다', (
     tester,
   ) async {
