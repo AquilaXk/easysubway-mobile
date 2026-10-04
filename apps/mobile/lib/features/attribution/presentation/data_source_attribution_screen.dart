@@ -95,7 +95,9 @@ class _DataSourceAttributionScreenState
                 final sources = (inventory['sources'] as List)
                     .cast<Map<String, Object?>>()
                     .where(
-                      (source) => !source.containsKey('rawSnapshotAdmission'),
+                      (source) =>
+                          !source.containsKey('rawSnapshotAdmission') &&
+                          !_isInternalCanarySource(source),
                     )
                     .toList(growable: false);
                 return ListView(
@@ -143,6 +145,16 @@ class _DataSourceAttributionScreenState
       ),
     );
   }
+}
+
+/// CI canary 원천은 데이터 수집 검사용 내부 원천이라 사용자 출처 목록에 넣지
+/// 않는다(#444 리뷰 F1). source-inventory에는 canary를 뜻하는 구조 필드가
+/// 없다. requiredForProductionPack·productionUseAllowed·capabilities는 서비스용
+/// 원천(빠른하차 등)과 값이 같아 구분하지 못한다. 그래서 안정 식별자인 `id`의
+/// 마지막 토큰 `canary`로 판정한다. 표시 이름은 보지 않는다.
+bool _isInternalCanarySource(Map<String, Object?> source) {
+  final id = source['id'];
+  return id is String && id.split('-').last == 'canary';
 }
 
 class _AttributionCard extends StatelessWidget {
