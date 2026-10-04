@@ -132,6 +132,6 @@ jobs:
           name: mobile-golden-${{ env.GOLDEN_HEAD_SHA }}
           path: |
             ${{ runner.temp }}/mobile-golden-evidence
-            ${{ env.GOLDEN_FAILURES_ROOT }}
+            apps/mobile/test/**/failures/**
           retention-days: 5
           if-no-files-found: error
