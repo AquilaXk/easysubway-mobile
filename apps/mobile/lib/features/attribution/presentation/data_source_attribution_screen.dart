@@ -272,7 +272,7 @@ class _AttributionCard extends StatelessWidget {
     if (value == false) {
       return '아니오';
     }
-    return '미확정';
+    return '정보 없음';
   }
 
   static String _allowed(Object? value) {
@@ -282,7 +282,7 @@ class _AttributionCard extends StatelessWidget {
     if (value == false) {
       return '불가';
     }
-    return '미확정';
+    return '정보 없음';
   }
 }
 

@@ -1080,17 +1080,21 @@ void main() {
     );
   });
 
-  testWidgets('journey search는 다중 구간 환승 경로에서 무단차 태그, 경강선 노선명을 지원한다', (
+  testWidgets('journey search는 다중 구간 환승 경로에서 계단 없는 경로 표시, 경강선 노선명을 지원한다', (
     tester,
   ) async {
     final repository = _Repository()..journeyIds = ['journey-multileg'];
-    await _pumpScreen(tester, repository: repository, mobilityType: 'STANDARD');
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      mobilityType: 'WHEELCHAIR',
+    );
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('무단차'), findsOneWidget);
-    expect(find.text('♿ 무단차 경로'), findsOneWidget);
+    // 탭 라벨과 요약 표시 두 곳(#441 QA: 계단 없는 경로가 필요한 사용자에게만).
+    expect(find.text('계단 없는 경로'), findsNWidgets(2));
     expect(find.text('경강선'), findsOneWidget);
     expect(find.text('2호선'), findsOneWidget);
 
@@ -1100,15 +1104,15 @@ void main() {
     expect(find.textContaining('빠른 하차'), findsNothing);
   });
 
-  testWidgets('최소환승 태그 및 방향역 ID가 없는 여정 레그가 정상 렌더링된다', (tester) async {
+  testWidgets('환승 적은 경로 태그 및 방향역 ID가 없는 여정 레그가 정상 렌더링된다', (tester) async {
     final repository = _Repository()
       ..journeyIds = <String>['journey-1', 'journey-least-transfer'];
     await _pumpScreen(tester, repository: repository, mobilityType: 'STANDARD');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('최단시간'), findsOneWidget);
-    expect(find.text('최소환승'), findsOneWidget);
+    expect(find.text('빠른 경로'), findsOneWidget);
+    expect(find.text('환승 적은 경로'), findsOneWidget);
     expect(find.textContaining('방면'), findsOneWidget);
 
     await tester.tap(
@@ -1143,9 +1147,10 @@ void main() {
       tester.getSemantics(expressTab).flagsCollection.isSelected,
       isNot(Tristate.isTrue),
     );
-    expect(find.text('최단시간'), findsOneWidget);
-    expect(find.text('최소환승'), findsOneWidget);
-    expect(find.text('무단차'), findsOneWidget);
+    expect(find.text('빠른 경로'), findsOneWidget);
+    expect(find.text('환승 적은 경로'), findsOneWidget);
+    // 일반 이동 프로필이면 계단 없는 경로 표시를 하지 않는다(#441 QA).
+    expect(find.text('계단 없는 경로'), findsNothing);
     final detail = find.byKey(const Key('selected-journey-detail'));
     expect(
       find.descendant(of: detail, matching: find.text('35분')),
@@ -1155,7 +1160,7 @@ void main() {
     expect(find.text('환승 1회 · 카드 1,550원 · 도보 320m'), findsOneWidget);
     expect(find.text('빠른 환승 3-2'), findsOneWidget);
     expect(find.text('실시간 반영'), findsNothing);
-    expect(find.text('♿ 무단차 경로'), findsNothing);
+    expect(find.textContaining('계단'), findsNothing);
 
     await tester.tap(expressTab);
     await tester.pumpAndSettle();
@@ -1177,7 +1182,7 @@ void main() {
     // 운임이 없으면 운임 항목만 빠진다.
     expect(find.text('환승 없음 · 도보 150m'), findsOneWidget);
     expect(find.textContaining('카드'), findsNothing);
-    expect(find.text('♿ 무단차 경로'), findsOneWidget);
+    expect(find.textContaining('계단'), findsNothing);
     expect(find.text('급행'), findsOneWidget);
     expect(find.text('중앙보훈병원 방면'), findsOneWidget);
     expect(find.text('빠른 환승 3-2'), findsNothing);
@@ -1253,9 +1258,12 @@ void main() {
       find.bySemanticsLabel('구간: 도보 2분, 2호선 12분, 환승 도보 3분, 3호선 8분, 도보 1분'),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('최단시간, 35분, 환승 1회, 09:35 도착'), findsOneWidget);
     expect(
-      find.bySemanticsLabel('최소환승, 무단차, 40분, 환승 없음, 09:41 도착'),
+      find.bySemanticsLabel('빠른 경로, 35분, 환승 1회, 09:35 도착'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('환승 적은 경로, 40분, 환승 없음, 09:41 도착'),
       findsOneWidget,
     );
     expect(
@@ -1986,7 +1994,7 @@ Journey _specJourney(DateTime now) {
   );
 }
 
-/// 신논현 → (9호선 급행 중앙보훈병원 방면, 2개 역) → 동작, 실시간·무단차·운임 없음
+/// 신논현 → (9호선 급행 중앙보훈병원 방면, 2개 역) → 동작, 실시간·계단 없음·운임 없음
 Journey _specExpressJourney(DateTime now) {
   DateTime at(int minutes) => now.add(Duration(minutes: minutes));
   return Journey(

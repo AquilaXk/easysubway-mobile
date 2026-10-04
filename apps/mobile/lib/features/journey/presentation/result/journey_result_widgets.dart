@@ -84,9 +84,8 @@ class JourneyRouteTabs extends StatelessWidget {
                         fontWeight: FontWeight.w700,
                         color: selected
                             ? EasySubwayAccessibleColors.onPrimary
-                            : (tab.labels[index] == '무단차' ||
-                                      tab.labels[index] ==
-                                          journeyStairFreeCategoryLabel
+                            : (tab.labels[index] ==
+                                      journeyStairFreeCategoryLabel
                                   ? EasySubwayAccessibleColors.mint
                                   : EasySubwayAccessibleColors.primary),
                       ),
@@ -117,9 +116,16 @@ class JourneyRouteTabs extends StatelessWidget {
 
 /// 요약: 소요시간(크게), 출발·도착 시각, 환승·운임·도보.
 class JourneyResultSummaryView extends StatelessWidget {
-  const JourneyResultSummaryView({required this.summary, super.key});
+  const JourneyResultSummaryView({
+    required this.summary,
+    required this.showStairStatus,
+    super.key,
+  });
 
   final JourneyResultSummary summary;
+
+  /// false면 계단 없는 경로 표시를 하지 않는다(#441 QA).
+  final bool showStairStatus;
 
   @override
   Widget build(BuildContext context) {
@@ -175,7 +181,7 @@ class JourneyResultSummaryView extends StatelessWidget {
             ),
           ),
         ),
-        if (summary.isStairFree) ...[
+        if (showStairStatus && summary.isStairFree) ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -184,7 +190,7 @@ class JourneyResultSummaryView extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
             child: const Text(
-              '♿ 무단차 경로',
+              journeyStairFreeCategoryLabel,
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w700,
@@ -296,7 +302,7 @@ class JourneySegmentBar extends StatelessWidget {
   }
 }
 
-/// 경로 후보 위의 계단회피 상태 안내(#441). 안내마다 한 덩어리로 읽힌다.
+/// 경로 후보 위의 계단 상태 안내(#441). 안내마다 한 덩어리로 읽힌다.
 class JourneyStairStatusNotices extends StatelessWidget {
   const JourneyStairStatusNotices({required this.notices, super.key});
 

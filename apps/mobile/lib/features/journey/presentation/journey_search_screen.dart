@@ -340,7 +340,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       key: const Key('selected-journey-detail'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        JourneyResultSummaryView(summary: viewModel.summary),
+        JourneyResultSummaryView(
+          summary: viewModel.summary,
+          showStairStatus: journeyShowsStairStatus(snapshot.requestPolicy),
+        ),
         const SizedBox(height: 12),
         JourneySegmentBar(
           segments: viewModel.segments,
@@ -1104,15 +1107,18 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       journey,
       stationName: _stationName,
     ).summary;
-    final accessibility = journey.accessibility.stairFree
-        ? '무단차 경로'
-        : '무단차 경로 아님';
+    // 계단 표시는 계단 없는 경로가 필요한 사용자에게만 넣는다(#441 QA).
+    final stairStatus = !journeyShowsStairStatus(snapshot.requestPolicy)
+        ? null
+        : journey.accessibility.stairFree
+        ? journeyStairFreeCategoryLabel
+        : '계단 정보가 없거나 계단이 있는 경로';
     final details = [
       summary.durationLabel,
       summary.transferLabel,
       ?summary.fareLabel,
       '${summary.arrivalTime} 도착',
-      accessibility,
+      ?stairStatus,
     ];
     return '${widget.draft.origin!.displayName} → ${widget.draft.destination!.displayName}\n'
         '${details.join(' · ')}';
@@ -2190,7 +2196,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                         (journey) => journey.accessibility.stairFree,
                       ),
                     )
-                    case final notices when notices.isNotEmpty) ...[
+                    case final notices
+                    when notices.isNotEmpty &&
+                        journeyShowsStairStatus(
+                          state.response!.requestPolicy,
+                        )) ...[
                   JourneyStairStatusNotices(
                     key: const Key('journey-stair-status-notices'),
                     notices: notices,
@@ -2198,7 +2208,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   const SizedBox(height: 8),
                 ],
                 JourneyRouteTabs(
-                  tabs: journeyRouteTabs(state.response!.journeys),
+                  tabs: journeyRouteTabs(
+                    state.response!.journeys,
+                    showStairStatus: journeyShowsStairStatus(
+                      state.response!.requestPolicy,
+                    ),
+                  ),
                   selectedJourneyId: state.selectedJourneyId,
                   onSelect: _isAlarmTransitioning
                       ? null

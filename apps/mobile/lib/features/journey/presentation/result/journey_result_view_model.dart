@@ -373,36 +373,58 @@ class JourneyRouteTab {
       [...labels, durationLabel, transferLabel, '$arrivalTime 도착'].join(', ');
 }
 
-/// 계단 없는 경로 묶음 라벨. 상용 지하철 서비스의 '계단회피' 표현을 따른다.
-const journeyStairFreeCategoryLabel = '계단회피';
+/// 계단 없는 경로 라벨. 상용 지하철 서비스의 계단 없는 경로 분류를 쉬운 말로 쓴다(#441 QA).
+const journeyStairFreeCategoryLabel = '계단 없는 경로';
+const _fastestLabel = '빠른 경로';
+const _fewestTransfersLabel = '환승 적은 경로';
 
 String _alternativeCategoryLabel(JourneyAlternativeCategory category) =>
     switch (category) {
-      JourneyAlternativeCategory.fastest => '최단시간',
-      JourneyAlternativeCategory.fewestTransfers => '최소환승',
+      JourneyAlternativeCategory.fastest => _fastestLabel,
+      JourneyAlternativeCategory.fewestTransfers => _fewestTransfersLabel,
       JourneyAlternativeCategory.stairFree => journeyStairFreeCategoryLabel,
     };
 
-/// 후보 목록(서버 순서)에서 경로 탭을 만든다. 라벨은 소요시간·환승 횟수·무단차
+/// 계단 표시(계단 없는 경로 라벨, 계단 상태 안내)가 필요한 검색인지(#441 QA).
+/// 계단 없는 경로가 필요한 이동 프로필(NO_STAIRS·STEP_FREE)이거나 계단 없는 경로를
+/// 요청한 검색만 해당한다. 상용 지하철 서비스도 계단회피를 사용자가 고르는 길찾기
+/// 옵션으로만 보여 주므로, 일반·느린 걸음 사용자에게는 계단 표시를 하지 않는다.
+bool journeyShowsStairStatus(JourneyRequestPolicy policy) =>
+    policy.constraintMode == ConstraintMode.requireStepFree ||
+    policy.mobilityProfile == MobilityProfile.noStairs ||
+    policy.mobilityProfile == MobilityProfile.stepFree;
+
+/// 후보 목록(서버 순서)에서 경로 탭을 만든다. 라벨은 소요시간·환승 횟수·계단 없음
 /// 사실에서만 만들고, 순서만으로 라벨을 붙이지 않는다.
 ///
 /// 서버가 여정마다 대표 묶음(`alternativeCategories`, backend #471)을 주면 그
 /// 묶음을 라벨로 쓴다. 묶음을 주지 않는 서버 응답이면 사실에서 라벨을 만든다.
-List<JourneyRouteTab> journeyRouteTabs(List<Journey> journeys) {
+/// [showStairStatus]가 false면 계단 없는 경로 라벨을 붙이지 않는다.
+List<JourneyRouteTab> journeyRouteTabs(
+  List<Journey> journeys, {
+  required bool showStairStatus,
+}) {
   if (journeys.isNotEmpty &&
       journeys.every((journey) => journey.alternativeCategories != null)) {
     return List.unmodifiable([
       for (var index = 0; index < journeys.length; index++)
-        _routeTab(journeys[index], [
-          for (final category in journeys[index].alternativeCategories!)
-            _alternativeCategoryLabel(category),
-          if (journeys[index].alternativeCategories!.isEmpty) '경로 ${index + 1}',
-          if (journeys[index].accessibility.stairFree &&
-              !journeys[index].alternativeCategories!.contains(
-                JourneyAlternativeCategory.stairFree,
-              ))
-            '무단차',
-        ]),
+        _routeTab(journeys[index], () {
+          final categories = [
+            for (final category in journeys[index].alternativeCategories!)
+              if (showStairStatus ||
+                  category != JourneyAlternativeCategory.stairFree)
+                category,
+          ];
+          return [
+            for (final category in categories)
+              _alternativeCategoryLabel(category),
+            if (categories.isEmpty) '경로 ${index + 1}',
+            if (showStairStatus &&
+                journeys[index].accessibility.stairFree &&
+                !categories.contains(JourneyAlternativeCategory.stairFree))
+              journeyStairFreeCategoryLabel,
+          ];
+        }()),
     ]);
   }
   var fastest = 0;
@@ -420,12 +442,13 @@ List<JourneyRouteTab> journeyRouteTabs(List<Journey> journeys) {
     for (var index = 0; index < journeys.length; index++)
       _routeTab(journeys[index], [
         if (index == fastest)
-          '최단시간'
+          _fastestLabel
         else if (index == leastTransfers)
-          '최소환승'
+          _fewestTransfersLabel
         else
           '경로 ${index + 1}',
-        if (journeys[index].accessibility.stairFree) '무단차',
+        if (showStairStatus && journeys[index].accessibility.stairFree)
+          journeyStairFreeCategoryLabel,
       ]),
   ]);
 }
@@ -447,7 +470,7 @@ enum JourneyStairStatusNoticeKind {
   facilityOutageUnobserved,
 }
 
-/// 경로 후보 위에 두는 계단회피 상태 안내 한 줄(#441).
+/// 경로 후보 위에 두는 계단 상태 안내 한 줄(#441).
 class JourneyStairStatusNotice {
   const JourneyStairStatusNotice._(this.kind, this.title, this.body);
 
@@ -460,14 +483,14 @@ class JourneyStairStatusNotice {
 
 const _stairFreeNotFoundNotice = JourneyStairStatusNotice._(
   JourneyStairStatusNoticeKind.stairFreeNotFound,
-  '$journeyStairFreeCategoryLabel 경로가 없어요',
+  '계단 없이 갈 수 있는 경로가 없어요',
   '찾은 경로는 모두 환승할 때 계단을 지나요.',
 );
 
 const _stairInfoUnconfirmedNotice = JourneyStairStatusNotice._(
   JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
-  '계단 없이 갈 수 있는지 확인하지 못했어요',
-  '계단 정보가 없는 환승 통로가 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
+  '계단 정보가 없는 환승이 있어요',
+  '출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
 );
 
 const _facilityOutageUnobservedNotice = JourneyStairStatusNotice._(
@@ -525,7 +548,7 @@ JourneyFailureCopy journeyFailureCopy(JourneyErrorDisposition? disposition) {
       _accessibilityConstraintUnsatisfiedResourceKey) {
     return const JourneyFailureCopy._(
       message: '계단 없이 갈 수 있는 경로를 찾지 못했어요.',
-      detail: '계단 여부를 함께 표시한 일반 경로는 볼 수 있어요.',
+      detail: '일반 경로를 볼까요? 환승할 때 계단이 있는지 함께 알려 드려요.',
       offersStandardRoutes: true,
     );
   }
