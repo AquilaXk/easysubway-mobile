@@ -305,6 +305,7 @@ class JourneyStairStatusNotices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         for (var index = 0; index < notices.length; index++) ...[
@@ -381,6 +382,7 @@ class JourneyStepFreeUnavailablePanel extends StatelessWidget {
   Widget build(BuildContext context) {
     final detail = copy.detail;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Semantics(
