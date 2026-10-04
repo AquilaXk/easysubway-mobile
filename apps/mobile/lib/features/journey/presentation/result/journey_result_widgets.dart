@@ -295,3 +295,151 @@ class JourneySegmentBar extends StatelessWidget {
     );
   }
 }
+
+/// 경로 후보 위의 계단회피 상태 안내(#441). 안내마다 한 덩어리로 읽힌다.
+class JourneyStairStatusNotices extends StatelessWidget {
+  const JourneyStairStatusNotices({required this.notices, super.key});
+
+  final List<JourneyStairStatusNotice> notices;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (var index = 0; index < notices.length; index++) ...[
+          if (index > 0) const SizedBox(height: 8),
+          _notice(notices[index]),
+        ],
+      ],
+    );
+  }
+
+  Widget _notice(JourneyStairStatusNotice notice) {
+    final facility =
+        notice.kind == JourneyStairStatusNoticeKind.facilityOutageUnobserved;
+    final content = facility
+        ? EasySubwayAccessibleColors.statusInfoContent
+        : EasySubwayAccessibleColors.statusWarningContent;
+    return Semantics(
+      container: true,
+      label: notice.semanticsLabel,
+      child: ExcludeSemantics(
+        child: Container(
+          key: Key('journey-stair-status-${notice.kind.name}'),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          decoration: BoxDecoration(
+            color: facility
+                ? EasySubwayAccessibleColors.statusInfoSurface
+                : EasySubwayAccessibleColors.statusWarningSurface,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                notice.title,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: content,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                notice.body,
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: EasySubwayAccessibleColors.contentSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 계단 없는 경로만 요청했는데 그런 경로가 없을 때(422
+/// `ACCESSIBILITY_CONSTRAINT_UNSATISFIED`) 사실과 다음 행동을 보여 준다(#441).
+class JourneyStepFreeUnavailablePanel extends StatelessWidget {
+  const JourneyStepFreeUnavailablePanel({
+    required this.copy,
+    required this.onShowStandardRoutes,
+    required this.onReselectStations,
+    super.key,
+  });
+
+  final JourneyFailureCopy copy;
+
+  /// null이면 누를 수 없다(알림 전환 중).
+  final VoidCallback? onShowStandardRoutes;
+  final VoidCallback onReselectStations;
+
+  @override
+  Widget build(BuildContext context) {
+    final detail = copy.detail;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          container: true,
+          label: [copy.message, ?detail].join(' '),
+          child: ExcludeSemantics(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  copy.message,
+                  key: const Key('journey-failure-message'),
+                  style: const TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w700,
+                    color: EasySubwayAccessibleColors.text,
+                  ),
+                ),
+                if (detail != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    detail,
+                    key: const Key('journey-failure-detail'),
+                    style: const TextStyle(
+                      fontSize: 13,
+                      color: EasySubwayAccessibleColors.contentSecondary,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        FilledButton(
+          key: const Key('journey-show-standard-routes-button'),
+          style: FilledButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            backgroundColor: EasySubwayAccessibleColors.primary,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: onShowStandardRoutes,
+          child: const Text('일반 경로 보기'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton(
+          key: const Key('journey-failure-action-button'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+          onPressed: onReselectStations,
+          child: const Text('출발·도착역 다시 선택'),
+        ),
+      ],
+    );
+  }
+}

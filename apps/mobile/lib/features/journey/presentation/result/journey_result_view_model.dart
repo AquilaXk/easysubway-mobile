@@ -441,6 +441,97 @@ JourneyRouteTab _routeTab(Journey journey, List<String> labels) =>
       ),
     );
 
+enum JourneyStairStatusNoticeKind {
+  stairFreeNotFound,
+  stairInfoUnconfirmed,
+  facilityOutageUnobserved,
+}
+
+/// 경로 후보 위에 두는 계단회피 상태 안내 한 줄(#441).
+class JourneyStairStatusNotice {
+  const JourneyStairStatusNotice._(this.kind, this.title, this.body);
+
+  final JourneyStairStatusNoticeKind kind;
+  final String title;
+  final String body;
+
+  String get semanticsLabel => '$title. $body';
+}
+
+const _stairFreeNotFoundNotice = JourneyStairStatusNotice._(
+  JourneyStairStatusNoticeKind.stairFreeNotFound,
+  '$journeyStairFreeCategoryLabel 경로가 없어요',
+  '찾은 경로는 모두 환승할 때 계단을 지나요.',
+);
+
+const _stairInfoUnconfirmedNotice = JourneyStairStatusNotice._(
+  JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
+  '계단 없이 갈 수 있는지 확인하지 못했어요',
+  '계단 정보가 없는 환승 통로가 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
+);
+
+const _facilityOutageUnobservedNotice = JourneyStairStatusNotice._(
+  JourneyStairStatusNoticeKind.facilityOutageUnobserved,
+  '엘리베이터 고장 정보는 반영하지 못했어요',
+  '계단 없는 경로의 엘리베이터가 지금 운행 중인지 확인되지 않았어요.',
+);
+
+/// 서버의 계단 없는 대안 결과(backend #471 `JourneyStairFreeAlternative`)를
+/// 안내로 바꾼다. 상태 안내(NOT_FOUND·UNDETERMINED)를 먼저 두고, 시설 미반영
+/// 안내는 계약 정의대로 계단 없는 여정이 결과에 있을 때만 둔다.
+/// 서버가 상태를 주지 않은 결과(프로필 검색)는 추정해 안내하지 않는다.
+List<JourneyStairStatusNotice> journeyStairStatusNotices(
+  JourneyStairFreeAlternative? alternative, {
+  required bool hasStairFreeJourney,
+}) {
+  if (alternative == null) return const [];
+  return List.unmodifiable([
+    if (alternative.status == JourneyStairFreeAlternativeStatus.notFound)
+      _stairFreeNotFoundNotice,
+    if (alternative.status == JourneyStairFreeAlternativeStatus.undetermined)
+      _stairInfoUnconfirmedNotice,
+    if (hasStairFreeJourney &&
+        alternative.facilityStatus == JourneyStairFreeFacilityStatus.unobserved)
+      _facilityOutageUnobservedNotice,
+  ]);
+}
+
+/// 실패 화면 문구. 서버 처분의 `canonicalKoreanCopy`를 쓰되, 모바일이 문구를
+/// 갖는 처분(`mobileResourceKey`)은 모바일 문구와 다음 행동을 쓴다.
+class JourneyFailureCopy {
+  const JourneyFailureCopy._({
+    required this.message,
+    this.detail,
+    this.offersStandardRoutes = false,
+  });
+
+  final String message;
+  final String? detail;
+
+  /// 계단 여부를 표시한 일반 경로 검색을 행동으로 줄지.
+  final bool offersStandardRoutes;
+}
+
+/// 계단 없는 경로만 요청했을 때 서버가 주는 422
+/// `ACCESSIBILITY_CONSTRAINT_UNSATISFIED`의 모바일 문구 키.
+const _accessibilityConstraintUnsatisfiedResourceKey =
+    'journeyErrorAccessibilityConstraintUnsatisfied';
+
+JourneyFailureCopy journeyFailureCopy(JourneyErrorDisposition? disposition) {
+  if (disposition == null) {
+    return const JourneyFailureCopy._(message: '경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.');
+  }
+  if (disposition.mobileResourceKey ==
+      _accessibilityConstraintUnsatisfiedResourceKey) {
+    return const JourneyFailureCopy._(
+      message: '계단 없이 갈 수 있는 경로를 찾지 못했어요.',
+      detail: '계단 여부를 함께 표시한 일반 경로는 볼 수 있어요.',
+      offersStandardRoutes: true,
+    );
+  }
+  return JourneyFailureCopy._(message: disposition.canonicalKoreanCopy);
+}
+
 /// 서울 표준시(KST) `HH:mm`.
 String journeyKstTime(DateTime instant) {
   final value = instant.toUtc().add(const Duration(hours: 9));
