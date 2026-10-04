@@ -717,4 +717,152 @@ void main() {
     expect(journeyLineName('korail-gyeongui-jungang'), '경의중앙선');
     expect(journeyLineName('line-private'), 'line-private');
   });
+
+  // #441: 계단 없는 대안 상태(backend #471 JourneyStairFreeAlternative) 안내.
+  group('계단회피 상태 안내', () {
+    JourneyStairFreeAlternative alternative(
+      JourneyStairFreeAlternativeStatus status,
+      JourneyStairFreeFacilityStatus facility,
+    ) => JourneyStairFreeAlternative(status: status, facilityStatus: facility);
+
+    test('NOT_FOUND는 계단회피 경로가 없고 모든 경로가 계단을 지난다고 안내한다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.notFound,
+          JourneyStairFreeFacilityStatus.applied,
+        ),
+        hasStairFreeJourney: false,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairFreeNotFound,
+      ]);
+      expect(notices.single.title, '계단회피 경로가 없어요');
+      expect(notices.single.body, '찾은 경로는 모두 환승할 때 계단을 지나요.');
+      expect(
+        notices.single.semanticsLabel,
+        '계단회피 경로가 없어요. 찾은 경로는 모두 환승할 때 계단을 지나요.',
+      );
+    });
+
+    test('UNDETERMINED는 계단 정보를 확인할 수 없는 환승 통로가 있다고 구분해 안내한다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.undetermined,
+          JourneyStairFreeFacilityStatus.applied,
+        ),
+        hasStairFreeJourney: false,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
+      ]);
+      expect(notices.single.title, '계단 없이 갈 수 있는지 확인하지 못했어요');
+      expect(
+        notices.single.body,
+        '계단 정보가 없는 환승 통로가 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
+      );
+    });
+
+    test('UNOBSERVED는 계단 없는 경로가 있을 때 엘리베이터 고장 정보 미반영을 안내한다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.included,
+          JourneyStairFreeFacilityStatus.unobserved,
+        ),
+        hasStairFreeJourney: true,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.facilityOutageUnobserved,
+      ]);
+      expect(notices.single.title, '엘리베이터 고장 정보는 반영하지 못했어요');
+      expect(notices.single.body, '계단 없는 경로의 엘리베이터가 지금 운행 중인지 확인되지 않았어요.');
+    });
+
+    test('상태 안내와 시설 안내가 함께 필요하면 상태 안내를 먼저 둔다', () {
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.undetermined,
+          JourneyStairFreeFacilityStatus.unobserved,
+        ),
+        hasStairFreeJourney: true,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
+        JourneyStairStatusNoticeKind.facilityOutageUnobserved,
+      ]);
+    });
+
+    test('계단 없는 경로가 결과에 없으면 시설 미반영 안내를 붙이지 않는다', () {
+      // 계약: UNOBSERVED는 계단 없는 여정의 엘리베이터 운행이 확인되지 않았다는 뜻이다.
+      final notices = journeyStairStatusNotices(
+        alternative(
+          JourneyStairFreeAlternativeStatus.notFound,
+          JourneyStairFreeFacilityStatus.unobserved,
+        ),
+        hasStairFreeJourney: false,
+      );
+
+      expect(notices.map((notice) => notice.kind), [
+        JourneyStairStatusNoticeKind.stairFreeNotFound,
+      ]);
+    });
+
+    test('INCLUDED·OMITTED와 APPLIED는 안내가 없다', () {
+      for (final status in [
+        JourneyStairFreeAlternativeStatus.included,
+        JourneyStairFreeAlternativeStatus.omitted,
+      ]) {
+        expect(
+          journeyStairStatusNotices(
+            alternative(status, JourneyStairFreeFacilityStatus.applied),
+            hasStairFreeJourney: true,
+          ),
+          isEmpty,
+          reason: status.wire,
+        );
+      }
+    });
+
+    test('서버가 상태를 주지 않은 결과(프로필 검색)는 추정해 안내하지 않는다', () {
+      expect(
+        journeyStairStatusNotices(null, hasStairFreeJourney: false),
+        isEmpty,
+      );
+    });
+  });
+
+  // #441: 계단 없는 경로만 요청했는데 서버가 422 ACCESSIBILITY_CONSTRAINT_UNSATISFIED를
+  // 주면 사실과 다음 행동을 안내한다. 내부 판정 용어(검증 등)는 쓰지 않는다.
+  test('계단 없는 경로 요청 422는 모바일 문구와 일반 경로 보기 행동을 준다', () {
+    final disposition = JourneyErrorDispositions.lookup(
+      JourneyOperation.searchJourneys,
+      422,
+      JourneyErrorCode.accessibilityConstraintUnsatisfied,
+    );
+
+    final copy = journeyFailureCopy(disposition);
+
+    expect(copy.message, '계단 없이 갈 수 있는 경로를 찾지 못했어요.');
+    expect(copy.detail, '계단 여부를 함께 표시한 일반 경로는 볼 수 있어요.');
+    expect(copy.offersStandardRoutes, isTrue);
+    expect(copy.message, isNot(contains('검증')));
+  });
+
+  test('다른 거절 응답은 서버 문구를 그대로 쓰고 일반 경로 보기를 주지 않는다', () {
+    final disposition = JourneyErrorDispositions.lookup(
+      JourneyOperation.searchJourneys,
+      422,
+      JourneyErrorCode.routeNotFound,
+    );
+
+    final copy = journeyFailureCopy(disposition);
+
+    expect(copy.message, '현재 조건에 맞는 경로가 없어요.');
+    expect(copy.detail, isNull);
+    expect(copy.offersStandardRoutes, isFalse);
+    expect(journeyFailureCopy(null).message, '경로를 찾지 못했어요. 잠시 후 다시 시도해 주세요.');
+  });
 }

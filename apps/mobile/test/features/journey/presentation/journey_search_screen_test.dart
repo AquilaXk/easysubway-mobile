@@ -307,6 +307,146 @@ void main() {
     );
   });
 
+  // #441: 서버 계단 없는 대안 결과(backend #471)를 교통약자에게 구분해 안내한다.
+  testWidgets('계단 정보를 확인할 수 없는 환승이 있으면 경로 후보 위에 안내하고 스크린리더로 읽힌다', (
+    tester,
+  ) async {
+    final semantics = tester.ensureSemantics();
+    final repository = _Repository()
+      ..stairFreeAlternative = const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.undetermined,
+        facilityStatus: JourneyStairFreeFacilityStatus.unobserved,
+      );
+    await _pumpScreen(tester, repository: repository);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('계단 없이 갈 수 있는지 확인하지 못했어요'), findsOneWidget);
+    expect(
+      find.text('계단 정보가 없는 환승 통로가 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.'),
+      findsOneWidget,
+    );
+    // 결과에 계단 없는 여정이 없으므로 시설 미반영 안내는 붙이지 않는다.
+    expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsNothing);
+    expect(
+      find.bySemanticsLabel(
+        '계단 없이 갈 수 있는지 확인하지 못했어요. 계단 정보가 없는 환승 통로가 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      tester
+          .getTopLeft(find.byKey(const Key('journey-stair-status-notices')))
+          .dy,
+      lessThan(
+        tester
+            .getTopLeft(find.byKey(const Key('journey-candidate-journey-2')))
+            .dy,
+      ),
+    );
+    semantics.dispose();
+  });
+
+  testWidgets('계단 없는 경로가 없으면 없다고 알리고, 계단 없는 경로의 엘리베이터 고장 미반영을 알린다', (
+    tester,
+  ) async {
+    final notFound = _Repository()
+      ..stairFreeAlternative = const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.notFound,
+        facilityStatus: JourneyStairFreeFacilityStatus.applied,
+      );
+    await _pumpScreen(tester, repository: notFound);
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.text('계단회피 경로가 없어요'), findsOneWidget);
+    expect(find.text('찾은 경로는 모두 환승할 때 계단을 지나요.'), findsOneWidget);
+
+    final unobserved = _Repository()
+      ..journeyIds = <String>['journey-multileg']
+      ..stairFreeAlternative = const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.included,
+        facilityStatus: JourneyStairFreeFacilityStatus.unobserved,
+      );
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpScreen(tester, repository: unobserved);
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.text('계단회피 경로가 없어요'), findsNothing);
+    expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsOneWidget);
+
+    final applied = _Repository()..journeyIds = <String>['journey-multileg'];
+    await tester.pumpWidget(const SizedBox.shrink());
+    await _pumpScreen(tester, repository: applied);
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('journey-stair-status-notices')), findsNothing);
+  });
+
+  for (final (mobilityType, profile) in [
+    ('LUGGAGE', MobilityProfile.noStairs),
+    ('WHEELCHAIR', MobilityProfile.stepFree),
+  ]) {
+    testWidgets(
+      '$mobilityType 계단 없는 경로 요청이 422면 사실과 일반 경로 보기를 안내하고, 누르면 계단 여부를 표시한 일반 검색을 한다',
+      (tester) async {
+        final repository = _Repository()
+          ..rejectionToThrow = _accessibilityConstraintRejection()
+          ..stairFreeAlternative = const JourneyStairFreeAlternative(
+            status: JourneyStairFreeAlternativeStatus.undetermined,
+            facilityStatus: JourneyStairFreeFacilityStatus.unobserved,
+          );
+        await _pumpScreen(
+          tester,
+          repository: repository,
+          mobilityType: mobilityType,
+        );
+
+        await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+        await tester.pumpAndSettle();
+
+        expect(repository.requests.single.mobilityProfile, profile);
+        expect(
+          repository.requests.single.constraintMode,
+          ConstraintMode.requireStepFree,
+        );
+        expect(find.text('계단 없이 갈 수 있는 경로를 찾지 못했어요.'), findsOneWidget);
+        expect(find.text('계단 여부를 함께 표시한 일반 경로는 볼 수 있어요.'), findsOneWidget);
+        expect(find.textContaining('검증'), findsNothing);
+        final standardRoutes = find.widgetWithText(FilledButton, '일반 경로 보기');
+        expect(standardRoutes, findsOneWidget);
+        expect(tester.getSize(standardRoutes).height, greaterThanOrEqualTo(48));
+        expect(find.widgetWithText(FilledButton, '다시 시도'), findsNothing);
+
+        await tester.tap(standardRoutes);
+        await tester.pumpAndSettle();
+
+        expect(repository.requests, hasLength(2));
+        // NO_STAIRS는 계약상 NONE과 함께 보낼 수 없다. 두 프로필 모두 계단 없는
+        // 경로를 우선 고르는 STEP_FREE + NONE으로 계단 여부를 표시한 일반 경로를 받는다.
+        expect(
+          repository.requests.last.mobilityProfile,
+          MobilityProfile.stepFree,
+        );
+        expect(repository.requests.last.constraintMode, ConstraintMode.none);
+        expect(
+          repository.requests.last.originStationId,
+          repository.requests.first.originStationId,
+        );
+        expect(
+          repository.requests.last.destinationStationId,
+          repository.requests.first.destinationStationId,
+        );
+        expect(find.text('계단 없이 갈 수 있는 경로를 찾지 못했어요.'), findsNothing);
+        expect(
+          find.byKey(const Key('journey-candidate-journey-2')),
+          findsOneWidget,
+        );
+        expect(find.text('계단 없이 갈 수 있는지 확인하지 못했어요'), findsOneWidget);
+      },
+    );
+  }
+
   testWidgets('다른 후보·새 검색은 기존 Journey 알림 취소 성공 뒤에만 전환한다', (tester) async {
     final repository = _Repository();
     final alarm = _AlarmHarness();
@@ -1316,6 +1456,11 @@ class _Repository implements JourneyRepository {
   int sessionRequests = 0;
   int failuresRemaining = 0;
   JourneyRejectedFailure? rejectionToThrow;
+  JourneyStairFreeAlternative stairFreeAlternative =
+      const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.included,
+        facilityStatus: JourneyStairFreeFacilityStatus.applied,
+      );
   Completer<JourneySessionResponse>? sessionCompleter;
   DateTime? responseNow;
   List<String> journeyIds = <String>['journey-2', 'journey-1'];
@@ -1348,7 +1493,12 @@ class _Repository implements JourneyRepository {
         'private transport detail',
       );
     }
-    return _success(request, journeyIds, now: responseNow);
+    return _success(
+      request,
+      journeyIds,
+      now: responseNow,
+      stairFreeAlternative: stairFreeAlternative,
+    );
   }
 
   @override
@@ -1407,6 +1557,24 @@ class _Repository implements JourneyRepository {
   );
 }
 
+JourneyRejectedFailure _accessibilityConstraintRejection() =>
+    JourneyRejectedFailure(
+      JourneyOperation.searchJourneys,
+      statusCode: 422,
+      error: JourneyV3Error(
+        contractVersion: JourneyErrorContractVersion.journeyErrorV1,
+        requestId: '01K1Y000000000000000000000',
+        code: JourneyErrorCode.accessibilityConstraintUnsatisfied,
+        retryable: false,
+        occurredAt: DateTime.utc(2026, 8, 12),
+      ),
+      disposition: JourneyErrorDispositions.lookup(
+        JourneyOperation.searchJourneys,
+        422,
+        JourneyErrorCode.accessibilityConstraintUnsatisfied,
+      ),
+    );
+
 JourneySessionResponse _sessionResponse([DateTime? issuedAt]) {
   final now = issuedAt ?? DateTime.utc(2026, 8, 12);
   return JourneySessionResponse(
@@ -1421,6 +1589,11 @@ JourneySearchSuccess _success(
   JourneySearchRequest request,
   List<String> journeyIds, {
   DateTime? now,
+  JourneyStairFreeAlternative stairFreeAlternative =
+      const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.included,
+        facilityStatus: JourneyStairFreeFacilityStatus.applied,
+      ),
 }) {
   final responseNow = now ?? DateTime.utc(2026, 8, 12);
   return JourneySearchSuccess(
@@ -1433,10 +1606,7 @@ JourneySearchSuccess _success(
     serviceDate: JourneyDate.parse('2026-08-12'),
     serviceTimezone: 'Asia/Seoul',
     serviceDayCutoff: '03:00',
-    stairFreeAlternative: const JourneyStairFreeAlternative(
-      status: JourneyStairFreeAlternativeStatus.included,
-      facilityStatus: JourneyStairFreeFacilityStatus.applied,
-    ),
+    stairFreeAlternative: stairFreeAlternative,
     sourceIdentity: JourneySourceIdentity(
       routeBundleId: 'bundle-1',
       routeBundleSha256: 'a' * 64,
