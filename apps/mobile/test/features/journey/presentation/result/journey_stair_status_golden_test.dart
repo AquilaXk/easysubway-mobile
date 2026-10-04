@@ -8,7 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter_test/flutter_test.dart';
 
-// #441: 계단회피 상태 안내와 계단 없는 경로 요청 422 안내의 화면 고정.
+// #441: 계단 상태 안내, 계단 없는 경로 요청 422 안내, 경로 탭 라벨의 화면 고정.
 const _goldenFontFamily = 'NanumGothicGolden';
 const _boundaryKey = ValueKey('journey-stair-status-golden-boundary');
 const _injectVisualMutation = bool.fromEnvironment(
@@ -33,10 +33,7 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
                   : _goldenBackground,
               child: SizedBox(
                 width: 360,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: child,
-                ),
+                child: Padding(padding: const EdgeInsets.all(16), child: child),
               ),
             ),
           ),
@@ -87,7 +84,7 @@ void main() {
     );
   }, skip: skipReason);
 
-  testWidgets('계단회피 경로 없음', (tester) async {
+  testWidgets('계단 없는 경로 없음', (tester) async {
     await _pump(
       tester,
       JourneyStairStatusNotices(
@@ -101,6 +98,56 @@ void main() {
     await expectLater(
       find.byKey(_boundaryKey),
       matchesGoldenFile('goldens/journey_stair_status_not_found.png'),
+    );
+  }, skip: skipReason);
+
+  testWidgets('계단 없는 경로가 필요한 사용자의 경로 탭', (tester) async {
+    Journey journey(
+      String id,
+      int minutes,
+      int transfers,
+      List<JourneyAlternativeCategory> categories, {
+      bool stairFree = false,
+    }) => Journey(
+      journeyId: id,
+      status: JourneyStatus.found,
+      planSource: JourneyPlanSource.serverTimetableRaptor,
+      plannedDepartureTime: DateTime.utc(2026, 9, 30, 0),
+      plannedArrivalTime: DateTime.utc(2026, 9, 30, 0, minutes),
+      realtimeDepartureTime: null,
+      realtimeArrivalTime: null,
+      durationSeconds: minutes * 60,
+      transferCount: transfers,
+      walkingDistanceMeters: 100,
+      timeSource: JourneyTimeSource.timetable,
+      accessibility: JourneyAccessibility(
+        result: JourneyAccessibilityResult.verified,
+        stairFree: stairFree,
+        reasonCodes: const <String>[],
+      ),
+      legs: const <JourneyLeg>[
+        JourneyEntryLeg(fromStationId: 'origin', durationSeconds: 60),
+      ],
+      fare: const JourneyFare(
+        status: JourneyFareStatus.unavailable,
+        sourceSnapshotIds: <String>[],
+      ),
+      alternativeCategories: categories,
+    );
+    final tabs = journeyRouteTabs(showStairStatus: true, [
+      journey('a', 30, 2, [JourneyAlternativeCategory.fastest]),
+      journey('b', 34, 1, [JourneyAlternativeCategory.fewestTransfers]),
+      journey('c', 41, 0, [
+        JourneyAlternativeCategory.stairFree,
+      ], stairFree: true),
+    ]);
+    await _pump(
+      tester,
+      JourneyRouteTabs(tabs: tabs, selectedJourneyId: 'a', onSelect: (_) {}),
+    );
+    await expectLater(
+      find.byKey(_boundaryKey),
+      matchesGoldenFile('goldens/journey_route_tabs_stair_free.png'),
     );
   }, skip: skipReason);
 
