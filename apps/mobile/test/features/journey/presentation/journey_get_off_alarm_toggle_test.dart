@@ -495,6 +495,10 @@ JourneySelectedSnapshot _snapshot({
       serviceDate: JourneyDate.parse('2026-08-12'),
       serviceTimezone: 'Asia/Seoul',
       serviceDayCutoff: '03:00',
+      stairFreeAlternative: const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.included,
+        facilityStatus: JourneyStairFreeFacilityStatus.applied,
+      ),
       sourceIdentity: JourneySourceIdentity(
         routeBundleId: 'bundle-1',
         routeBundleSha256: 'a' * 64,
