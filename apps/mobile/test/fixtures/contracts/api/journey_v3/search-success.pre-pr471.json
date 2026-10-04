@@ -36,17 +36,8 @@
       "transferCount": 1,
       "walkingDistanceMeters": 75,
       "timeSource": "TIMETABLE",
-      "accessibility": {
-        "result": "VERIFIED",
-        "stairFree": true,
-        "reasonCodes": [
-          "STEP_FREE_PATH"
-        ]
-      },
-      "fare": {
-        "status": "UNAVAILABLE",
-        "sourceSnapshotIds": []
-      },
+      "accessibility": {"result": "VERIFIED", "stairFree": true, "reasonCodes": ["STEP_FREE_PATH"]},
+      "fare": {"status": "UNAVAILABLE", "sourceSnapshotIds": []},
       "legs": [
         {
           "type": "RIDE",
@@ -61,31 +52,14 @@
           "realtimeDepartureTime": null,
           "realtimeArrivalTime": null,
           "stops": [
-            {
-              "stationId": "station-origin",
-              "plannedArrivalTime": null,
-              "plannedDepartureTime": "2026-08-12T00:01:00Z",
-              "realtimeArrivalTime": null,
-              "realtimeDepartureTime": null
-            },
-            {
-              "stationId": "station-transfer-a",
-              "plannedArrivalTime": "2026-08-12T00:04:30Z",
-              "plannedDepartureTime": null,
-              "realtimeArrivalTime": null,
-              "realtimeDepartureTime": null
-            }
+            {"stationId": "station-origin", "plannedArrivalTime": null, "plannedDepartureTime": "2026-08-12T00:01:00Z", "realtimeArrivalTime": null, "realtimeDepartureTime": null},
+            {"stationId": "station-transfer-a", "plannedArrivalTime": "2026-08-12T00:04:30Z", "plannedDepartureTime": null, "realtimeArrivalTime": null, "realtimeDepartureTime": null}
           ],
           "alightingCarDoors": [],
           "boardingPlatformGaps": [],
           "alightingPlatformGaps": []
         },
-        {
-          "type": "TRANSFER",
-          "fromStationId": "station-transfer-a",
-          "toStationId": "station-transfer-b",
-          "durationSeconds": 45
-        },
+        {"type": "TRANSFER", "fromStationId": "station-transfer-a", "toStationId": "station-transfer-b", "durationSeconds": 45},
         {
           "type": "RIDE",
           "lineId": "line-2",
@@ -99,29 +73,13 @@
           "realtimeDepartureTime": null,
           "realtimeArrivalTime": null,
           "stops": [
-            {
-              "stationId": "station-transfer-b",
-              "plannedArrivalTime": null,
-              "plannedDepartureTime": "2026-08-12T00:05:15Z",
-              "realtimeArrivalTime": null,
-              "realtimeDepartureTime": null
-            },
-            {
-              "stationId": "station-destination",
-              "plannedArrivalTime": "2026-08-12T00:06:00Z",
-              "plannedDepartureTime": null,
-              "realtimeArrivalTime": null,
-              "realtimeDepartureTime": null
-            }
+            {"stationId": "station-transfer-b", "plannedArrivalTime": null, "plannedDepartureTime": "2026-08-12T00:05:15Z", "realtimeArrivalTime": null, "realtimeDepartureTime": null},
+            {"stationId": "station-destination", "plannedArrivalTime": "2026-08-12T00:06:00Z", "plannedDepartureTime": null, "realtimeArrivalTime": null, "realtimeDepartureTime": null}
           ],
           "alightingCarDoors": [],
           "boardingPlatformGaps": [],
           "alightingPlatformGaps": []
         }
-      ],
-      "alternativeCategories": [
-        "FASTEST",
-        "STAIR_FREE"
       ]
     },
     {
@@ -136,17 +94,8 @@
       "transferCount": 0,
       "walkingDistanceMeters": 20,
       "timeSource": "TIMETABLE",
-      "accessibility": {
-        "result": "VERIFIED",
-        "stairFree": false,
-        "reasonCodes": [
-          "STAIRS_PRESENT"
-        ]
-      },
-      "fare": {
-        "status": "UNAVAILABLE",
-        "sourceSnapshotIds": []
-      },
+      "accessibility": {"result": "VERIFIED", "stairFree": false, "reasonCodes": ["STAIRS_PRESENT"]},
+      "fare": {"status": "UNAVAILABLE", "sourceSnapshotIds": []},
       "legs": [
         {
           "type": "RIDE",
@@ -161,33 +110,14 @@
           "realtimeDepartureTime": null,
           "realtimeArrivalTime": null,
           "stops": [
-            {
-              "stationId": "station-origin",
-              "plannedArrivalTime": null,
-              "plannedDepartureTime": "2026-08-12T00:02:00Z",
-              "realtimeArrivalTime": null,
-              "realtimeDepartureTime": null
-            },
-            {
-              "stationId": "station-destination",
-              "plannedArrivalTime": "2026-08-12T00:07:00Z",
-              "plannedDepartureTime": null,
-              "realtimeArrivalTime": null,
-              "realtimeDepartureTime": null
-            }
+            {"stationId": "station-origin", "plannedArrivalTime": null, "plannedDepartureTime": "2026-08-12T00:02:00Z", "realtimeArrivalTime": null, "realtimeDepartureTime": null},
+            {"stationId": "station-destination", "plannedArrivalTime": "2026-08-12T00:07:00Z", "plannedDepartureTime": null, "realtimeArrivalTime": null, "realtimeDepartureTime": null}
           ],
           "alightingCarDoors": [],
           "boardingPlatformGaps": [],
           "alightingPlatformGaps": []
         }
-      ],
-      "alternativeCategories": [
-        "FEWEST_TRANSFERS"
       ]
     }
-  ],
-  "stairFreeAlternative": {
-    "status": "INCLUDED",
-    "facilityStatus": "UNOBSERVED"
-  }
+  ]
 }
