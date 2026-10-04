@@ -36,7 +36,7 @@ const expectedErrorTuples = [
 const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 const fail = (message) => { throw new Error(`generate-journey-v3-client: ${message}`); };
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const expectedSchemasProjectionSha256 = '5b6f910bb58bcf8d3c64198653546f5675b37aa78d9f2cda5941280eadf42c71';
+const expectedSchemasProjectionSha256 = 'e8edd81f659bec1a7be6430d6aac34797af0389aad37b3e852009c90d002d1c2';
 
 function canonicalJson(value) {
   if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`;
