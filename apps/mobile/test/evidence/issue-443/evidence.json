@@ -10,24 +10,24 @@
   "files": [
     {
       "path": "attribution-after-1.png",
-      "sha256": "979f52c0c6940588563e7f0a16a9f44b3032aa27b44fafea2b267fcff6f146e5",
-      "description": "변경 후 같은 화면 상단: 자료 안내와 노선도 카드만 쉬운 말로 표시"
+      "sha256": "c0706c031164e277e238c7317f768674039c6122d2dfe1671900db186d731223",
+      "description": "변경 후 같은 화면 상단(코드 커밋 0d60f59f 트리): 자료 안내와 노선도 카드(기준일)만 쉬운 말로 표시"
     },
     {
       "path": "attribution-after-3.png",
-      "sha256": "b1b8b5a6b70edde0649d5e4a07d7dee8754846682c07f57a8dad363d6c7233a1",
-      "description": "변경 후 스크롤 중간: 이용 조건·출처 표기·확인일·안내 페이지만 표시"
+      "sha256": "130ca8d19e2c8a068b6bd739177dd93b88527506444e26dbce6b1daf151a29e1",
+      "description": "변경 후 스크롤 중간(코드 커밋 0d60f59f 트리): 이용 조건·출처 표기·확인일·안내 페이지만 표시"
     },
     {
       "path": "attribution-before-1.png",
       "sha256": "b2222dee20c4cccbfd006774222c08dd9dfeb8dea859e314d1a36adbd5441639",
-      "description": "변경 전 데이터 출처 화면 상단: asset·내부 파일 경로·영문 변경 사항·검토 상태 노출"
+      "description": "변경 전 데이터 출처 화면 상단: asset·내부 파일 경로·영문 변경 사항·검토 상태 노출 (수정 전 트리 80a871b9에서 캡처, 해상도는 변경 후 이미지의 절반)"
     },
     {
       "path": "attribution-before-3.png",
       "sha256": "6906fd972adb7dc4c4418d34222f4d6317cb04cf759c81a4069f432e06479037",
-      "description": "변경 전 스크롤 중간: 변경 사항 영문 원문, 파일 경로 노출"
+      "description": "변경 전 스크롤 중간: 변경 사항 영문 원문, 파일 경로 노출 (수정 전 트리 80a871b9에서 캡처, 해상도는 변경 후 이미지의 절반)"
     }
   ],
-  "captureMethod": "임시 위젯 테스트(커밋 안 함)에서 DataSourceAttributionScreen에 실제 번들 manifest·source-inventory를 주입하고 matchesGoldenFile --update-goldens로 PNG 저장. 변경 전은 수정 전 트리, 변경 후는 수정 후 트리에서 동일 방식으로 수집."
+  "captureMethod": "임시 위젯 테스트(커밋 안 함)에서 DataSourceAttributionScreen에 실제 번들 manifest·source-inventory를 주입하고 matchesGoldenFile --update-goldens로 PNG 저장. 변경 전은 수정 전 트리, 변경 후는 수정 후 트리에서 동일 방식으로 수집. 변경 후 이미지는 리뷰 지적(F6)에 따라 코드 커밋 0d60f59f(이 증거 커밋 직전)에서 다시 캡처했다. 변경 전 이미지는 수정 전 main(80a871b9)에서 캡처했다."
 }
