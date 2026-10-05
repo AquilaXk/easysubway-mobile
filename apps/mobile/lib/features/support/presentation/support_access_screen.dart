@@ -103,11 +103,6 @@ class SupportAccessScreen extends StatelessWidget {
                 title: '내 정보와 개인정보',
                 children: deletionChildren,
               ),
-            _SupportSettingsSection(
-              key: const Key('supportSection-safety'),
-              title: '이동 전 살펴보기',
-              children: const [_SafetyDataNotice()],
-            ),
           ],
         ),
       ),
@@ -163,78 +158,6 @@ class _SupportSettingsSection extends StatelessWidget {
               color: EasySubwayAccessibleColors.line,
             ),
         ],
-      ],
-    );
-  }
-}
-
-class _SafetyDataNotice extends StatelessWidget {
-  const _SafetyDataNotice();
-
-  static const _title = '이동 전 살펴보기';
-  static const _referenceNotice = '경로와 시설 정보는 이동을 돕는 참고 정보입니다.';
-  static const _fieldNotice = '실제 이동 전에는 현장 안내, 역무원 안내, 운영기관 공지를 먼저 확인해 주세요.';
-  static const _limitationNotice = '실시간 상태나 무조건 안전한 경로를 보장하지 않습니다.';
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      key: const Key('safetyDataNotice'),
-      container: true,
-      label: '$_title, $_referenceNotice $_fieldNotice $_limitationNotice',
-      child: ExcludeSemantics(
-        child: ColoredBox(
-          color: EasySubwayAccessibleColors.surface,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 18),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const _SupportNoticeBullet(text: _referenceNotice),
-                const SizedBox(height: 10),
-                const _SupportNoticeBullet(text: _fieldNotice),
-                const SizedBox(height: 10),
-                const _SupportNoticeBullet(text: _limitationNotice),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SupportNoticeBullet extends StatelessWidget {
-  const _SupportNoticeBullet({required this.text});
-
-  final String text;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(top: 9),
-          child: Container(
-            width: 5,
-            height: 5,
-            decoration: const BoxDecoration(
-              color: EasySubwayAccessibleColors.secondaryText,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Text(
-            text,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: EasySubwayAccessibleColors.text,
-              height: 1.35,
-            ),
-          ),
-        ),
       ],
     );
   }

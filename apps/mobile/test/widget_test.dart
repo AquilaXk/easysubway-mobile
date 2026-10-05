@@ -9781,7 +9781,7 @@ void main() {
     }
   });
 
-  testWidgets('도움말은 이동 전 살펴보기 안내를 함께 보여준다', (tester) async {
+  testWidgets('도움말에는 이동 전 책임 고지를 두지 않는다', (tester) async {
     final semanticsHandle = tester.ensureSemantics();
     try {
       await tester.pumpWidget(
@@ -9801,26 +9801,10 @@ void main() {
 
       await _openSupportAccessScreen(tester);
 
-      expect(find.text('이동 전 살펴보기'), findsWidgets);
-      expect(find.text('경로와 시설 정보는 이동을 돕는 참고 정보입니다.'), findsOneWidget);
-      expect(
-        find.text('실제 이동 전에는 현장 안내, 역무원 안내, 운영기관 공지를 먼저 확인해 주세요.'),
-        findsOneWidget,
-      );
-      expect(find.text('실시간 상태나 무조건 안전한 경로를 보장하지 않습니다.'), findsOneWidget);
-
-      final noticeSize = tester.getSize(
-        find.byKey(const Key('safetyDataNotice')),
-      );
-      expect(noticeSize.height, greaterThanOrEqualTo(120));
-
-      final noticeSemantics = tester
-          .getSemantics(find.byKey(const Key('safetyDataNotice')))
-          .getSemanticsData();
-      expect(
-        noticeSemantics.label,
-        '이동 전 살펴보기, 경로와 시설 정보는 이동을 돕는 참고 정보입니다. 실제 이동 전에는 현장 안내, 역무원 안내, 운영기관 공지를 먼저 확인해 주세요. 실시간 상태나 무조건 안전한 경로를 보장하지 않습니다.',
-      );
+      // #443 QA: 책임 고지는 도움말 본문에 두지 않는다(이용약관 쪽에서만 안내).
+      expect(find.text('이동 전 살펴보기'), findsNothing);
+      expect(find.byKey(const Key('safetyDataNotice')), findsNothing);
+      expect(find.textContaining('보장하지 않'), findsNothing);
     } finally {
       semanticsHandle.dispose();
     }
