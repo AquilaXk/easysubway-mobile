@@ -93,62 +93,117 @@ class _Literal {
   final String text;
 }
 
-/// 주석을 건너뛰며 Dart 문자열 리터럴 본문을 뽑는다. `${...}` 보간식 안은 건너뛴다.
+/// 주석을 건너뛰며 Dart 문자열 리터럴 본문을 뽑는다.
+/// - `${...}` 보간식 안의 리터럴은 별도 리터럴로 뽑는다.
+/// - 사이에 쉼표 등 없이 붙어 있는 리터럴(`'계단' '회피'`)은 하나로 잇는다.
 List<_Literal> _extractStringLiterals(String source) {
-  final result = <_Literal>[];
-  var i = 0;
-  var line = 1;
-  final n = source.length;
-  while (i < n) {
-    final c = source[i];
-    if (c == '\n') {
-      line++;
-      i++;
-    } else if (source.startsWith('//', i)) {
-      while (i < n && source[i] != '\n') {
+  final scanner = _Scanner(source);
+  scanner.scanCode(untilCloseBrace: false);
+  return scanner.out;
+}
+
+class _Scanner {
+  _Scanner(this.s);
+
+  final String s;
+  final out = <_Literal>[];
+  int i = 0;
+  int line = 1;
+
+  bool _isQuoteAt(int index) {
+    if (index >= s.length) return false;
+    final c = s[index];
+    if (c == "'" || c == '"') return true;
+    return c == 'r' &&
+        index + 1 < s.length &&
+        (s[index + 1] == "'" || s[index + 1] == '"') &&
+        (index == 0 || !RegExp(r'[A-Za-z0-9_$]').hasMatch(s[index - 1]));
+  }
+
+  void _skipTrivia() {
+    while (i < s.length) {
+      final c = s[i];
+      if (c == '\n') {
+        line++;
         i++;
-      }
-    } else if (source.startsWith('/*', i)) {
-      final end = source.indexOf('*/', i + 2);
-      final stop = end < 0 ? n : end + 2;
-      line += '\n'.allMatches(source.substring(i, stop)).length;
-      i = stop;
-    } else if (c == "'" || c == '"') {
-      final raw = i > 0 && source[i - 1] == 'r';
-      final triple = source.startsWith(c * 3, i);
-      final quote = triple ? c * 3 : c;
-      final startLine = line;
-      i += quote.length;
-      final buffer = StringBuffer();
-      while (i < n && !source.startsWith(quote, i)) {
-        final ch = source[i];
-        if (ch == '\n') {
-          line++;
-        }
-        if (!raw && ch == r'\' && i + 1 < n) {
-          buffer.write(source.substring(i, i + 2));
-          i += 2;
-        } else if (!raw && source.startsWith(r'${', i)) {
-          var depth = 1;
-          i += 2;
-          while (i < n && depth > 0) {
-            if (source[i] == '{') depth++;
-            if (source[i] == '}') depth--;
-            if (source[i] == '\n') line++;
-            i++;
-          }
-        } else {
-          buffer.write(ch);
+      } else if (c == ' ' || c == '\t' || c == '\r') {
+        i++;
+      } else if (s.startsWith('//', i)) {
+        while (i < s.length && s[i] != '\n') {
           i++;
         }
+      } else if (s.startsWith('/*', i)) {
+        final end = s.indexOf('*/', i + 2);
+        final stop = end < 0 ? s.length : end + 2;
+        line += '\n'.allMatches(s.substring(i, stop)).length;
+        i = stop;
+      } else {
+        break;
       }
-      i += quote.length;
-      result.add(_Literal(startLine, buffer.toString()));
-    } else {
-      i++;
     }
   }
-  return result;
+
+  /// 코드 모드로 읽는다. [untilCloseBrace]면 짝이 맞는 `}`에서 멈춘다.
+  void scanCode({required bool untilCloseBrace}) {
+    var depth = 0;
+    while (i < s.length) {
+      _skipTrivia();
+      if (i >= s.length) return;
+      final c = s[i];
+      if (_isQuoteAt(i)) {
+        _scanLiteralRun();
+      } else if (c == '{') {
+        depth++;
+        i++;
+      } else if (c == '}') {
+        if (untilCloseBrace && depth == 0) {
+          i++;
+          return;
+        }
+        depth--;
+        i++;
+      } else {
+        i++;
+      }
+    }
+  }
+
+  /// 붙어 있는 리터럴 묶음을 읽어 하나로 잇는다.
+  void _scanLiteralRun() {
+    final startLine = line;
+    final buffer = StringBuffer();
+    while (_isQuoteAt(i)) {
+      buffer.write(_scanOneLiteral());
+      _skipTrivia();
+    }
+    out.add(_Literal(startLine, buffer.toString()));
+  }
+
+  String _scanOneLiteral() {
+    final raw = s[i] == 'r';
+    if (raw) i++;
+    final c = s[i];
+    final triple = s.startsWith(c * 3, i);
+    final quote = triple ? c * 3 : c;
+    i += quote.length;
+    final buffer = StringBuffer();
+    while (i < s.length && !s.startsWith(quote, i)) {
+      final ch = s[i];
+      if (ch == '\n') line++;
+      if (!raw && ch == r'\' && i + 1 < s.length) {
+        buffer.write(s.substring(i, i + 2));
+        i += 2;
+      } else if (!raw && s.startsWith(r'${', i)) {
+        i += 2;
+        scanCode(untilCloseBrace: true);
+      } else {
+        buffer.write(ch);
+        i++;
+      }
+    }
+    i += quote.length;
+    return buffer.toString();
+  }
 }
 
 final _hangul = RegExp('[가-힣]');
@@ -196,6 +251,30 @@ final b = '일반 문구 \${x.length}개';
       expect(literals.first.line, 2);
       expect(_bannedTermsIn(literals.first.text), ['무단차']);
       expect(_bannedTermsIn(literals.last.text), isEmpty);
+    });
+
+    test('보간식 안의 리터럴도 별도 리터럴로 찾는다', () {
+      const source = r'''
+final a = '${flag ? '무단차 경로' : ''}';
+final b = '$label ${isAvailable ? '있음' : '없음'}';
+''';
+      final texts = _extractStringLiterals(source).map((l) => l.text).toList();
+      expect(texts, containsAll(['무단차 경로', '있음', '없음']));
+      expect(texts.where((t) => _bannedTermsIn(t).isNotEmpty), ['무단차 경로']);
+    });
+
+    test('붙어 있는 리터럴은 하나로 이어 검사한다', () {
+      const source = r'''
+final a = Text('계단' '회피 경로');
+final b = const [
+  '정보를 ' // 줄 끝 주석
+  '반영하지 못했어요',
+];
+''';
+      final texts = _extractStringLiterals(source).map((l) => l.text).toList();
+      expect(texts, ['계단회피 경로', '정보를 반영하지 못했어요']);
+      expect(_bannedTermsIn(texts.first), ['계단회피']);
+      expect(_bannedTermsIn(texts.last), ['반영하지 못']);
     });
 
     test('한글이 없는 식별자 문자열은 검사하지 않는다', () {
