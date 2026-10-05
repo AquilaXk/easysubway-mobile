@@ -835,10 +835,7 @@ void main() {
         find.byKey(const Key('stationTimetableOfflineBanner')),
         findsOneWidget,
       );
-      expect(
-        find.text('오프라인 모드: 기기에 저장된 시간표를 표시하고 있어요. 최신 운행 정보와 다를 수 있어요.'),
-        findsOneWidget,
-      );
+      expect(find.text('기기에 저장된 시간표를 보고 있어요.'), findsOneWidget);
 
       // 2. 온라인 정상 시간표일 때 배너 미노출 확인
       final onlineRepo = _FakeTimetableRepo({
