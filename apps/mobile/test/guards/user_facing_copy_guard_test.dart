@@ -26,64 +26,115 @@ const _bannedTerms = <String>[
   '반영하지 못', '반영되지 않', '정확하지 않', '확인되지 않았', '확인되지 않은', '보장하지 않',
 ];
 
-/// 화면에 보이지 않는 문자열만 예외로 둔다(파일 경로 접미사, 부분 문자열, 사유).
+/// 화면에 보이지 않는 문자열만 예외로 둔다(파일 경로 접미사, 리터럴 전문, 사유).
+/// 리터럴 전문이 정확히 같아야 통과한다. 보간식(`${...}`)은 뺀 형태로 적는다.
 const _allowlist = <_Allowed>[
   _Allowed(
-    'lib/features/account/user_data_deletion.dart',
-    'API 응답',
-    '오류 보고 context. 화면에 표시하지 않는다.',
-  ),
-  _Allowed(
-    'lib/features/notifications/notification_settings.dart',
-    'API 요청',
-    '오류 보고 context. 화면에 표시하지 않는다.',
+    'lib/app/app_endpoints.dart',
+    'production 빌드에 이동 정보 서명 공개키가 주입되지 않아 업데이트를 시작하지 않았습니다.',
+    '업데이트 중단 진단 로그. 화면에 표시하지 않는다.',
   ),
   _Allowed(
     'lib/app/app_endpoints.dart',
-    '서명 공개키',
+    'production 빌드의 이동 정보 서명 공개키 형식이 올바르지 않아 업데이트를 시작하지 않았습니다.',
     '업데이트 중단 진단 로그. 화면에 표시하지 않는다.',
   ),
   _Allowed(
     'lib/core/database/catalog/catalog_schema_diagnostics.dart',
-    '무결성 대조',
+    r'설치 팩 무결성 대조 실패로 재활성화하지 않고 강등함: pack=$artifact expected= actual=',
     '로컬 DB 진단 로그. 화면에 표시하지 않는다.',
   ),
   _Allowed(
     'lib/features/stations/data/composite_station_timetable_repository.dart',
-    '서버',
-    '오류 보고 context와 예외 메시지. 화면에는 별도 쉬운 문구를 쓴다.',
+    '서버 시간표 조회 실패',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/stations/data/composite_station_timetable_repository.dart',
+    r'서버에 연결할 수 없어 로컬 저장 시간표로 전환합니다: $stationId ($lineId)',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/stations/data/composite_station_timetable_repository.dart',
+    '서버 일자별 시간표 조회 실패',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/stations/data/composite_station_timetable_repository.dart',
+    r'서버에 연결할 수 없어 일자별 로컬 저장 시간표로 전환합니다: $stationId ($lineId)',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/stations/data/composite_station_timetable_repository.dart',
+    '서버 다음 열차 시간표 조회 실패',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/stations/data/composite_station_timetable_repository.dart',
+    r'서버에 연결할 수 없어 다음 열차 로컬 저장 시간표로 전환합니다: $stationId ($lineId)',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/stations/data/composite_station_timetable_repository.dart',
+    r'서버 시간표를 불러올 수 없습니다: $stationId ($lineId)',
+    '예외 메시지. 화면은 예외 종류만 보고 별도 쉬운 문구를 쓴다.',
   ),
   _Allowed(
     'lib/features/stations/data/station_api_repository.dart',
-    'API 요청',
+    '역 정보 API 요청 처리 중 예외가 발생했습니다.',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/stations/data/station_api_repository.dart',
+    '즐겨찾기 역 API 요청 처리 중 예외가 발생했습니다.',
     '오류 보고 context. 화면에 표시하지 않는다.',
   ),
   _Allowed(
     'lib/features/favorites/favorite_facility.dart',
-    'API 요청',
+    '즐겨찾기 시설 API 요청 처리 중 예외가 발생했습니다.',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/account/user_data_deletion.dart',
+    '사용자 정보 삭제 API 응답 처리 중 예외가 발생했습니다.',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/notifications/notification_settings.dart',
+    '알림 설정 API 요청 처리 중 예외가 발생했습니다.',
     '오류 보고 context. 화면에 표시하지 않는다.',
   ),
   _Allowed(
     'lib/features/service_notice/data/notice_repository.dart',
-    '캐시',
+    '운행 공지 캐시를 읽는 중 예외가 발생했습니다.',
+    '오류 보고 context. 화면에 표시하지 않는다.',
+  ),
+  _Allowed(
+    'lib/features/service_notice/data/notice_repository.dart',
+    '운행 공지 캐시를 저장하는 중 예외가 발생했습니다.',
     '오류 보고 context. 화면에 표시하지 않는다.',
   ),
   _Allowed(
     'lib/features/stations/presentation/station_detail_body.dart',
-    '게이트',
+    '게이트 안',
+    '시설 원문에서 안/밖을 가려내는 매칭 키. 화면에는 개찰구 안/밖으로 표시한다.',
+  ),
+  _Allowed(
+    'lib/features/stations/presentation/station_detail_body.dart',
+    '게이트 밖',
     '시설 원문에서 안/밖을 가려내는 매칭 키. 화면에는 개찰구 안/밖으로 표시한다.',
   ),
   _Allowed(
     'lib/features/stations/presentation/station_facility_card.dart',
-    '게이트',
+    '게이트 안',
     '시설 원문에서 안/밖을 가려내는 매칭 키. 화면에는 표시하지 않는다.',
   ),
 ];
 
 class _Allowed {
-  const _Allowed(this.file, this.contains, this.reason);
+  const _Allowed(this.file, this.literal, this.reason);
   final String file;
-  final String contains;
+  final String literal;
   final String reason;
 }
 
@@ -220,9 +271,8 @@ List<String> _bannedTermsIn(String text) {
   ];
 }
 
-bool _isAllowed(String file, String text) => _allowlist.any(
-  (allowed) => file.endsWith(allowed.file) && text.contains(allowed.contains),
-);
+bool _matchesAllowed(_Allowed allowed, String file, String text) =>
+    file.endsWith(allowed.file) && text == allowed.literal;
 
 Iterable<File> _libSources() sync* {
   for (final entity in Directory('lib').listSync(recursive: true)) {
@@ -251,6 +301,17 @@ final b = '일반 문구 \${x.length}개';
       expect(literals.first.line, 2);
       expect(_bannedTermsIn(literals.first.text), ['무단차']);
       expect(_bannedTermsIn(literals.last.text), isEmpty);
+    });
+
+    test('허용 목록은 리터럴 전문이 같을 때만 통과시킨다', () {
+      const entry = _Allowed('lib/a/card.dart', '게이트 안', '테스트용 매칭 키');
+      expect(_matchesAllowed(entry, 'lib/a/card.dart', '게이트 안'), isTrue);
+      // 허용 문자열을 일부로 품은 다른 문구(우회 시도)는 통과하지 못한다.
+      expect(
+        _matchesAllowed(entry, 'lib/a/card.dart', '엘리베이터 게이트 안 정보를 반영하지 못했어요'),
+        isFalse,
+      );
+      expect(_matchesAllowed(entry, 'lib/b/other.dart', '게이트 안'), isFalse);
     });
 
     test('보간식 안의 리터럴도 별도 리터럴로 찾는다', () {
@@ -291,8 +352,7 @@ final b = const [
         final terms = _bannedTermsIn(literal.text);
         if (terms.isEmpty) continue;
         final allowed = _allowlist.where(
-          (a) =>
-              file.path.endsWith(a.file) && literal.text.contains(a.contains),
+          (a) => file.path.endsWith(a.file) && literal.text.contains(a.literal),
         );
         if (allowed.isNotEmpty) {
           used.addAll(allowed);
@@ -312,12 +372,11 @@ final b = const [
     );
     final unused = _allowlist.where((a) => !used.contains(a)).toList();
     expect(
-      unused.map((a) => '${a.file} "${a.contains}"'),
+      unused.map((a) => '${a.file} "${a.literal}"'),
       isEmpty,
       reason: '더 이상 쓰이지 않는 허용 목록 항목은 지우세요.',
     );
     // 허용 목록 사유는 반드시 적는다.
     expect(_allowlist.every((a) => a.reason.trim().isNotEmpty), isTrue);
-    expect(_isAllowed('x.dart', 'y'), isFalse);
   });
 }
