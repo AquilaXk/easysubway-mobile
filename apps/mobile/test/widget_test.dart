@@ -8794,8 +8794,9 @@ void main() {
     }
   });
 
-  // #441 QA: 값이 없을 때 내부 판정 용어(미확정) 대신 사실(정보 없음)을 보인다.
-  testWidgets('데이터 출처 화면은 값이 없는 허용 여부를 정보 없음으로 보인다', (tester) async {
+  // #441·#443 QA: 값이 없는 항목은 내부 판정 용어(미확정)나 "정보 없음" 대신
+  // 항목째 숨긴다.
+  testWidgets('데이터 출처 화면은 값이 없는 항목을 숨긴다', (tester) async {
     final manifest =
         jsonDecode(
               File(
@@ -8804,11 +8805,9 @@ void main() {
             )
             as Map<String, Object?>;
     final maps = (manifest['maps'] as List).cast<Map<String, Object?>>();
-    final license =
-        Map<String, Object?>.of(maps.first['license']! as Map<String, Object?>)
-          ..remove('attributionRequired')
-          ..remove('commercialUseAllowed')
-          ..remove('redistributionAllowed');
+    final license = Map<String, Object?>.of(
+      maps.first['license']! as Map<String, Object?>,
+    )..remove('date');
     manifest['maps'] = [
       {...maps.first, 'license': license},
     ];
@@ -8823,11 +8822,27 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    final noValue = find.text('정보 없음 / 정보 없음');
-    await tester.scrollUntilVisible(noValue, 160);
-    expect(noValue, findsOneWidget);
-    expect(find.text('정보 없음'), findsWidgets);
+    expect(find.text('수도권 노선도'), findsOneWidget);
+    expect(find.text('기준일'), findsNothing);
+    expect(find.text('정보 없음'), findsNothing);
+    expect(find.text('미기록'), findsNothing);
     expect(find.textContaining('미확정'), findsNothing);
+  });
+
+  test('자료 표시 이름에서 내부 작업용 꼬리표를 뗀다', () {
+    expect(
+      userFacingSourceName('국토교통부_도시철도 전체노선 대구 1호선 membership admission'),
+      '국토교통부_도시철도 전체노선 대구 1호선',
+    );
+    expect(
+      userFacingSourceName('국가철도공단_GTX-A_역사정보_route_map_positions'),
+      '국가철도공단_GTX-A_역사정보',
+    );
+    expect(
+      userFacingSourceName('국가철도공단_김포골드라인_역사정보(KRIC 1294)'),
+      '국가철도공단_김포골드라인_역사정보',
+    );
+    expect(userFacingSourceName('서울교통공사_빠른하차정보'), '서울교통공사_빠른하차정보');
   });
 
   testWidgets('데이터 및 지도 출처 화면은 manifest와 source inventory를 보여준다', (
@@ -8862,23 +8877,18 @@ void main() {
     );
     expect(find.text('데이터 및 지도 출처'), findsOneWidget);
     expect(find.byType(Scrollable), findsOneWidget);
-    expect(find.text('현재 앱 표시'), findsOneWidget);
+    expect(find.text('자료 안내'), findsOneWidget);
     expect(find.textContaining('공식·공개 자료를 바탕으로'), findsOneWidget);
     // 내부 거버넌스 언어(pilot·"~보장한다고 말하지 않아요")는 사용자 화면에
     // 노출하지 않는다(#1765).
     expect(find.textContaining('pilot'), findsNothing);
     expect(find.textContaining('보장한다고 말하지 않아요'), findsNothing);
-    await tester.scrollUntilVisible(find.text('데이터 품질 Level'), 160);
-    await tester.pumpAndSettle();
-    expect(find.text('데이터 품질 Level'), findsOneWidget);
-    expect(find.text('Level 1-4 품질 기준'), findsOneWidget);
-    expect(
-      find.textContaining('Level 4는 현장 또는 운영기관이 확인한 쉬운 길'),
-      findsOneWidget,
-    );
-    expect(find.text('품질 지표'), findsOneWidget);
-    expect(find.textContaining('필수 시설 근거 비율'), findsOneWidget);
-    expect(find.textContaining('현장 확인 경로 비율'), findsOneWidget);
+    // #443: 내부 품질 기준(Level·근거 비율)은 사용자 화면에 두지 않는다.
+    expect(find.textContaining('Level'), findsNothing);
+    expect(find.text('품질 지표'), findsNothing);
+    expect(find.textContaining('근거'), findsNothing);
+    expect(find.textContaining('상록수'), findsNothing);
+    expect(find.textContaining('asset'), findsNothing);
 
     final maps = (manifest['maps'] as List).cast<Map<String, Object?>>();
     final sources = (inventory['sources'] as List).cast<Map<String, Object?>>();
@@ -8903,8 +8913,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final finder = find.textContaining(displayName);
-      while (finder.evaluate().length < 2) {
+      final finder = find.text(displayName);
+      while (finder.evaluate().isEmpty) {
         final position = sourceScrollState.position;
         if (position.pixels >= position.maxScrollExtent) break;
         final previousOffset = position.pixels;
@@ -8912,7 +8922,7 @@ void main() {
         await tester.pumpAndSettle();
         if (position.pixels <= previousOffset) break;
       }
-      expect(finder, findsNWidgets(2));
+      expect(finder, findsOneWidget);
     }
     sourceScrollState.position.jumpTo(
       sourceScrollState.position.maxScrollExtent,

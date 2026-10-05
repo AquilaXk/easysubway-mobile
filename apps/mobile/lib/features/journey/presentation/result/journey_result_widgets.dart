@@ -323,11 +323,7 @@ class JourneyStairStatusNotices extends StatelessWidget {
   }
 
   Widget _notice(JourneyStairStatusNotice notice) {
-    final facility =
-        notice.kind == JourneyStairStatusNoticeKind.facilityOutageUnobserved;
-    final content = facility
-        ? EasySubwayAccessibleColors.statusInfoContent
-        : EasySubwayAccessibleColors.statusWarningContent;
+    const content = EasySubwayAccessibleColors.statusWarningContent;
     return Semantics(
       container: true,
       label: notice.semanticsLabel,
@@ -336,9 +332,7 @@ class JourneyStairStatusNotices extends StatelessWidget {
           key: Key('journey-stair-status-${notice.kind.name}'),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            color: facility
-                ? EasySubwayAccessibleColors.statusInfoSurface
-                : EasySubwayAccessibleColors.statusWarningSurface,
+            color: EasySubwayAccessibleColors.statusWarningSurface,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Column(

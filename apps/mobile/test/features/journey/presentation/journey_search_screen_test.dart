@@ -331,7 +331,7 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('계단')), findsNothing);
   });
 
-  testWidgets('계단 없는 경로를 요청한 사용자에게는 계단 없는 경로 표시와 엘리베이터 고장 미반영을 알린다', (
+  testWidgets('계단 없는 경로를 요청한 사용자에게는 계단 없는 경로 표시만 하고 면책 안내는 하지 않는다', (
     tester,
   ) async {
     final semantics = tester.ensureSemantics();
@@ -350,26 +350,10 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsOneWidget);
-    expect(
-      find.bySemanticsLabel(
-        '엘리베이터 고장 정보는 반영하지 못했어요. 계단 없는 경로의 엘리베이터가 지금 운행 중인지 확인되지 않았어요.',
-      ),
-      findsOneWidget,
-    );
+    expect(find.textContaining('반영하지 못했어요'), findsNothing);
+    expect(find.textContaining('확인되지 않았어요'), findsNothing);
+    expect(find.byKey(const Key('journey-stair-status-notices')), findsNothing);
     expect(find.text('계단 없는 경로'), findsWidgets);
-    expect(
-      tester
-          .getTopLeft(find.byKey(const Key('journey-stair-status-notices')))
-          .dy,
-      lessThan(
-        tester
-            .getTopLeft(
-              find.byKey(const Key('journey-candidate-journey-multileg')),
-            )
-            .dy,
-      ),
-    );
     semantics.dispose();
   });
 
@@ -436,15 +420,12 @@ void main() {
           find.byKey(const Key('journey-candidate-journey-2')),
           findsOneWidget,
         );
-        expect(find.text('계단 정보가 없는 환승이 있어요'), findsOneWidget);
+        // 확인되지 않은 계단 정보는 면책 문구로 알리지 않는다(#443 QA).
+        expect(find.textContaining('계단 정보가 없는'), findsNothing);
         expect(
-          find.bySemanticsLabel(
-            '계단 정보가 없는 환승이 있어요. 출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
-          ),
-          findsOneWidget,
+          find.byKey(const Key('journey-stair-status-notices')),
+          findsNothing,
         );
-        // 결과에 계단 없는 여정이 없으므로 시설 미반영 안내는 붙이지 않는다.
-        expect(find.text('엘리베이터 고장 정보는 반영하지 못했어요'), findsNothing);
         semantics.dispose();
       },
     );
@@ -1009,50 +990,49 @@ void main() {
     },
   );
 
-  testWidgets(
-    '교통약자 안심 막차 찾기(Last Connection) 선택 시 Profile V1 LAST_CONNECTION 쿼리를 실행한다',
-    (tester) async {
-      final repository = _Repository();
-      await _pumpScreen(tester, repository: repository);
+  testWidgets('교통약자 안심 막차 찾기 선택 시 Profile V1 LAST_CONNECTION 쿼리를 실행한다', (
+    tester,
+  ) async {
+    final repository = _Repository();
+    await _pumpScreen(tester, repository: repository);
 
-      final lastConnChip = find.byKey(
-        const Key('journey-departure-last-connection'),
-      );
-      expect(tester.getSize(lastConnChip).height, greaterThanOrEqualTo(48));
-      await tester.tap(lastConnChip);
-      await tester.pumpAndSettle();
+    final lastConnChip = find.byKey(
+      const Key('journey-departure-last-connection'),
+    );
+    expect(tester.getSize(lastConnChip).height, greaterThanOrEqualTo(48));
+    await tester.tap(lastConnChip);
+    await tester.pumpAndSettle();
 
-      expect(
-        tester.getSemantics(lastConnChip).flagsCollection.isSelected,
-        Tristate.isTrue,
-      );
-      expect(
-        tester
-            .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
-            .onPressed,
-        isNull,
-      );
+    expect(
+      tester.getSemantics(lastConnChip).flagsCollection.isSelected,
+      Tristate.isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
+          .onPressed,
+      isNull,
+    );
 
-      await tester.tap(find.byKey(const Key('journey-last-connection-date')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'OK'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('journey-last-connection-date')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.pumpAndSettle();
 
-      expect(find.textContaining('막차 운행일'), findsOneWidget);
+    expect(find.textContaining('막차 운행일'), findsOneWidget);
 
-      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-      await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
 
-      expect(repository.profileRequests, hasLength(1));
-      final profileReq = repository.profileRequests.single;
-      expect(profileReq.originStationId, 'station-origin');
-      expect(profileReq.destinationStationId, 'station-destination');
-      expect(profileReq.temporalQuery, isA<JourneyLastConnectionQuery>());
-      final temporal = profileReq.temporalQuery as JourneyLastConnectionQuery;
-      expect(temporal.serviceDate, '2026-08-12');
-      expect(find.text('경로 후보 2개'), findsOneWidget);
-    },
-  );
+    expect(repository.profileRequests, hasLength(1));
+    final profileReq = repository.profileRequests.single;
+    expect(profileReq.originStationId, 'station-origin');
+    expect(profileReq.destinationStationId, 'station-destination');
+    expect(profileReq.temporalQuery, isA<JourneyLastConnectionQuery>());
+    final temporal = profileReq.temporalQuery as JourneyLastConnectionQuery;
+    expect(temporal.serviceDate, '2026-08-12');
+    expect(find.text('경로 후보 2개'), findsOneWidget);
+  });
 
   testWidgets('경로 입력 카드는 출발·경유·도착 배지와 출발 기준 칩을 보여 준다', (tester) async {
     final repository = _Repository();
@@ -1394,10 +1374,7 @@ void main() {
     await tester.ensureVisible(shareButton);
     await tester.tap(shareButton);
     await tester.pump();
-    expect(
-      shared.last,
-      '용산역 → 춘천역\n35분 · 환승 1회 · 카드 1,550원 · 09:35 도착 · 계단 정보가 없거나 계단이 있는 경로',
-    );
+    expect(shared.last, '용산역 → 춘천역\n35분 · 환승 1회 · 카드 1,550원 · 09:35 도착');
 
     final expressTab = find.byKey(
       const Key('journey-candidate-journey-spec-express'),

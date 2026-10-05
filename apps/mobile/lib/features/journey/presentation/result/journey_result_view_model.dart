@@ -464,11 +464,7 @@ JourneyRouteTab _routeTab(Journey journey, List<String> labels) =>
       ),
     );
 
-enum JourneyStairStatusNoticeKind {
-  stairFreeNotFound,
-  stairInfoUnconfirmed,
-  facilityOutageUnobserved,
-}
+enum JourneyStairStatusNoticeKind { stairFreeNotFound }
 
 /// 경로 후보 위에 두는 계단 상태 안내 한 줄(#441).
 class JourneyStairStatusNotice {
@@ -487,35 +483,17 @@ const _stairFreeNotFoundNotice = JourneyStairStatusNotice._(
   '찾은 경로는 모두 환승할 때 계단을 지나요.',
 );
 
-const _stairInfoUnconfirmedNotice = JourneyStairStatusNotice._(
-  JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
-  '계단 정보가 없는 환승이 있어요',
-  '출발 전에 환승역 엘리베이터 위치를 확인해 주세요.',
-);
-
-const _facilityOutageUnobservedNotice = JourneyStairStatusNotice._(
-  JourneyStairStatusNoticeKind.facilityOutageUnobserved,
-  '엘리베이터 고장 정보는 반영하지 못했어요',
-  '계단 없는 경로의 엘리베이터가 지금 운행 중인지 확인되지 않았어요.',
-);
-
 /// 서버의 계단 없는 대안 결과(backend #471 `JourneyStairFreeAlternative`)를
-/// 안내로 바꾼다. 상태 안내(NOT_FOUND·UNDETERMINED)를 먼저 두고, 시설 미반영
-/// 안내는 계약 정의대로 계단 없는 여정이 결과에 있을 때만 둔다.
-/// 서버가 상태를 주지 않은 결과(프로필 검색)는 추정해 안내하지 않는다.
+/// 안내로 바꾼다. 계단 없는 경로가 실제로 없다고 확인된 경우(NOT_FOUND)만
+/// 알린다. 확인되지 않은 것(계단 정보 없음, 엘리베이터 운행 여부 미관측)은
+/// 상용 지하철 서비스처럼 아무 말도 하지 않는다(#443 QA).
 List<JourneyStairStatusNotice> journeyStairStatusNotices(
-  JourneyStairFreeAlternative? alternative, {
-  required bool hasStairFreeJourney,
-}) {
+  JourneyStairFreeAlternative? alternative,
+) {
   if (alternative == null) return const [];
   return List.unmodifiable([
     if (alternative.status == JourneyStairFreeAlternativeStatus.notFound)
       _stairFreeNotFoundNotice,
-    if (alternative.status == JourneyStairFreeAlternativeStatus.undetermined)
-      _stairInfoUnconfirmedNotice,
-    if (hasStairFreeJourney &&
-        alternative.facilityStatus == JourneyStairFreeFacilityStatus.unobserved)
-      _facilityOutageUnobservedNotice,
   ]);
 }
 

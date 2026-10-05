@@ -1108,11 +1108,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       stationName: _stationName,
     ).summary;
     // 계단 표시는 계단 없는 경로가 필요한 사용자에게만 넣는다(#441 QA).
-    final stairStatus = !journeyShowsStairStatus(snapshot.requestPolicy)
-        ? null
-        : journey.accessibility.stairFree
+    final stairStatus =
+        journeyShowsStairStatus(snapshot.requestPolicy) &&
+            journey.accessibility.stairFree
         ? journeyStairFreeCategoryLabel
-        : '계단 정보가 없거나 계단이 있는 경로';
+        : null;
     final details = [
       summary.durationLabel,
       summary.transferLabel,
@@ -1687,7 +1687,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           ? EasySubwayAccessibleColors.primary
                           : EasySubwayAccessibleColors.secondaryText,
                     ),
-                    semanticsLabel: '교통약자 안심 막차 찾기(Last Connection)',
+                    semanticsLabel: '교통약자 안심 막차 찾기',
                   ),
                   selected: isLastConnection,
                   labelPadding: const EdgeInsets.symmetric(horizontal: 4),
@@ -2192,9 +2192,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 const SizedBox(height: 8),
                 if (journeyStairStatusNotices(
                       state.response!.stairFreeAlternative,
-                      hasStairFreeJourney: state.response!.journeys.any(
-                        (journey) => journey.accessibility.stairFree,
-                      ),
                     )
                     case final notices
                     when notices.isNotEmpty &&
