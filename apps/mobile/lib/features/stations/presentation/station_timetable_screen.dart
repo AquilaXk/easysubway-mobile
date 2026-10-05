@@ -747,7 +747,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   Widget _buildOfflineFallbackNotice() {
     return Semantics(
       container: true,
-      label: '오프라인 시간표 안내: 기기에 저장된 시간표를 표시하고 있어요. 최신 운행 정보와 다를 수 있어요.',
+      label: '기기에 저장된 시간표를 보고 있어요.',
       child: Container(
         key: const Key('stationTimetableOfflineBanner'),
         width: double.infinity,
@@ -763,7 +763,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             SizedBox(width: 8),
             Expanded(
               child: Text(
-                '오프라인 모드: 기기에 저장된 시간표를 표시하고 있어요. 최신 운행 정보와 다를 수 있어요.',
+                '기기에 저장된 시간표를 보고 있어요.',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,

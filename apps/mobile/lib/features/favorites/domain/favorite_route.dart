@@ -20,8 +20,8 @@ const _routeEtaSourceLabels = <String, String>{
   'MIXED': '일부 실시간 도착정보',
   'PLANNED': '시간표 기준',
   'STATIC_BACKEND_ESTIMATE': '시간표 기준',
-  'STATIC_ESTIMATE': '정적 추정',
-  'UNSUPPORTED': '실시간 미지원',
+  'STATIC_ESTIMATE': '시간표 기준',
+  'UNSUPPORTED': '',
   'STALE': '저장된 데이터 기준',
 };
 

@@ -46,11 +46,9 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 
 List<JourneyStairStatusNotice> _notices(
   JourneyStairFreeAlternativeStatus status,
-  JourneyStairFreeFacilityStatus facility, {
-  required bool hasStairFreeJourney,
-}) => journeyStairStatusNotices(
+  JourneyStairFreeFacilityStatus facility,
+) => journeyStairStatusNotices(
   JourneyStairFreeAlternative(status: status, facilityStatus: facility),
-  hasStairFreeJourney: hasStairFreeJourney,
 );
 
 void main() {
@@ -66,24 +64,6 @@ void main() {
   // golden 비교는 macOS 호스트 래스터라이저에서만 (CI 크로스플랫폼 오탐 방지).
   final skipReason = !Platform.isMacOS;
 
-  testWidgets('기본 상태', (tester) async {
-    // 계단 정보 미확인 + 엘리베이터 고장 정보 미반영이 함께 오는 표준 검색 결과.
-    await _pump(
-      tester,
-      JourneyStairStatusNotices(
-        notices: _notices(
-          JourneyStairFreeAlternativeStatus.undetermined,
-          JourneyStairFreeFacilityStatus.unobserved,
-          hasStairFreeJourney: true,
-        ),
-      ),
-    );
-    await expectLater(
-      find.byKey(_boundaryKey),
-      matchesGoldenFile('goldens/journey_stair_status_undetermined.png'),
-    );
-  }, skip: skipReason);
-
   testWidgets('계단 없는 경로 없음', (tester) async {
     await _pump(
       tester,
@@ -91,7 +71,6 @@ void main() {
         notices: _notices(
           JourneyStairFreeAlternativeStatus.notFound,
           JourneyStairFreeFacilityStatus.applied,
-          hasStairFreeJourney: false,
         ),
       ),
     );

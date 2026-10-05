@@ -21,7 +21,8 @@ void main() {
       tester,
       const RealtimeSnapshot(status: RealtimeSnapshotStatus.unsupported),
     );
-    expect(find.text('실시간 정보 미지원'), findsOneWidget);
+    expect(find.text('시간표 기준'), findsOneWidget);
+    expect(find.textContaining('미지원'), findsNothing);
     expect(find.text('지원 준비 중'), findsNothing);
 
     // loading: 실제 진행 중이라 진행형 title을 유지한다.

@@ -474,7 +474,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
               Positioned.fill(
                 child: Semantics(
                   label: '노선도',
-                  hint: '역을 누르면 출발, 도착, 역 정보 action을 볼 수 있어요',
+                  hint: '역을 누르면 출발, 도착, 역 정보를 볼 수 있어요',
                   child: Listener(
                     onPointerCancel: (_) => _endScaleGesture(),
                     child: GestureDetector(

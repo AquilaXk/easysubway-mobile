@@ -827,7 +827,6 @@ void main() {
           JourneyStairFreeAlternativeStatus.notFound,
           JourneyStairFreeFacilityStatus.applied,
         ),
-        hasStairFreeJourney: false,
       );
 
       expect(notices.map((notice) => notice.kind), [
@@ -841,61 +840,27 @@ void main() {
       );
     });
 
-    test('UNDETERMINED는 계단 정보를 확인할 수 없는 환승 통로가 있다고 구분해 안내한다', () {
-      final notices = journeyStairStatusNotices(
-        alternative(
-          JourneyStairFreeAlternativeStatus.undetermined,
-          JourneyStairFreeFacilityStatus.applied,
-        ),
-        hasStairFreeJourney: false,
-      );
-
-      expect(notices.map((notice) => notice.kind), [
-        JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
-      ]);
-      expect(notices.single.title, '계단 정보가 없는 환승이 있어요');
-      expect(notices.single.body, '출발 전에 환승역 엘리베이터 위치를 확인해 주세요.');
+    test('확인되지 않은 것(UNDETERMINED·UNOBSERVED)은 아무 안내도 하지 않는다', () {
+      // #443 QA: 상용 지하철 서비스처럼 "반영하지 못했어요" 류 면책 문구를 띄우지 않는다.
+      for (final status in JourneyStairFreeAlternativeStatus.values.where(
+        (status) => status != JourneyStairFreeAlternativeStatus.notFound,
+      )) {
+        for (final facility in JourneyStairFreeFacilityStatus.values) {
+          expect(
+            journeyStairStatusNotices(alternative(status, facility)),
+            isEmpty,
+            reason: '${status.wire}/${facility.wire}',
+          );
+        }
+      }
     });
 
-    test('UNOBSERVED는 계단 없는 경로가 있을 때 엘리베이터 고장 정보 미반영을 안내한다', () {
-      final notices = journeyStairStatusNotices(
-        alternative(
-          JourneyStairFreeAlternativeStatus.included,
-          JourneyStairFreeFacilityStatus.unobserved,
-        ),
-        hasStairFreeJourney: true,
-      );
-
-      expect(notices.map((notice) => notice.kind), [
-        JourneyStairStatusNoticeKind.facilityOutageUnobserved,
-      ]);
-      expect(notices.single.title, '엘리베이터 고장 정보는 반영하지 못했어요');
-      expect(notices.single.body, '계단 없는 경로의 엘리베이터가 지금 운행 중인지 확인되지 않았어요.');
-    });
-
-    test('상태 안내와 시설 안내가 함께 필요하면 상태 안내를 먼저 둔다', () {
-      final notices = journeyStairStatusNotices(
-        alternative(
-          JourneyStairFreeAlternativeStatus.undetermined,
-          JourneyStairFreeFacilityStatus.unobserved,
-        ),
-        hasStairFreeJourney: true,
-      );
-
-      expect(notices.map((notice) => notice.kind), [
-        JourneyStairStatusNoticeKind.stairInfoUnconfirmed,
-        JourneyStairStatusNoticeKind.facilityOutageUnobserved,
-      ]);
-    });
-
-    test('계단 없는 경로가 결과에 없으면 시설 미반영 안내를 붙이지 않는다', () {
-      // 계약: UNOBSERVED는 계단 없는 여정의 엘리베이터 운행이 확인되지 않았다는 뜻이다.
+    test('NOT_FOUND는 시설 상태와 무관하게 계단 없는 경로가 없다는 사실만 안내한다', () {
       final notices = journeyStairStatusNotices(
         alternative(
           JourneyStairFreeAlternativeStatus.notFound,
           JourneyStairFreeFacilityStatus.unobserved,
         ),
-        hasStairFreeJourney: false,
       );
 
       expect(notices.map((notice) => notice.kind), [
@@ -903,27 +868,8 @@ void main() {
       ]);
     });
 
-    test('INCLUDED·OMITTED와 APPLIED는 안내가 없다', () {
-      for (final status in [
-        JourneyStairFreeAlternativeStatus.included,
-        JourneyStairFreeAlternativeStatus.omitted,
-      ]) {
-        expect(
-          journeyStairStatusNotices(
-            alternative(status, JourneyStairFreeFacilityStatus.applied),
-            hasStairFreeJourney: true,
-          ),
-          isEmpty,
-          reason: status.wire,
-        );
-      }
-    });
-
     test('서버가 상태를 주지 않은 결과(프로필 검색)는 추정해 안내하지 않는다', () {
-      expect(
-        journeyStairStatusNotices(null, hasStairFreeJourney: false),
-        isEmpty,
-      );
+      expect(journeyStairStatusNotices(null), isEmpty);
     });
   });
 

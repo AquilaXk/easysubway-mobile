@@ -17,6 +17,9 @@ void main() {
     expect(routeEtaSourceLabel('  '), '도착 정보를 확인하고 있어요');
     expect(routeEtaSourceLabel('REALTIME'), '실시간 도착정보');
     expect(routeEtaSourceLabel('UNKNOWN'), '도착 정보를 확인하고 있어요');
+    // #443: 추정·미지원 같은 개발 용어 대신 사실만 보이거나 아무것도 붙이지 않는다.
+    expect(routeEtaSourceLabel('STATIC_ESTIMATE'), '시간표 기준');
+    expect(routeEtaSourceLabel('UNSUPPORTED'), isEmpty);
   });
 
   test('로컬 역 즐겨찾기는 user DB에 저장하고 catalog DB 정보로 목록을 만든다', () async {

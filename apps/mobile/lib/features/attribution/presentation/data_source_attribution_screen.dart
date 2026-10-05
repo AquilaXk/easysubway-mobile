@@ -94,11 +94,7 @@ class _DataSourceAttributionScreenState
                     .cast<Map<String, Object?>>();
                 final sources = (inventory['sources'] as List)
                     .cast<Map<String, Object?>>()
-                    .where(
-                      (source) =>
-                          !source.containsKey('rawSnapshotAdmission') &&
-                          !_isInternalCanarySource(source),
-                    )
+                    .where(isListedDataSource)
                     .toList(growable: false);
                 return ListView(
                   padding: mainPagePadding,
@@ -107,35 +103,13 @@ class _DataSourceAttributionScreenState
                       child: AppInfoRow(
                         icon: Icons.fact_check_outlined,
                         iconColor: EasySubwayAccessibleColors.amber,
-                        title: '현재 앱 표시',
-                        // 내부 거버넌스 언어(pilot·"~보장한다고 말하지 않아요") 대신
-                        // 어떤 자료로 무엇을 확인했는지 사실·metadata로 표현한다(#1765).
-                        subtitle:
-                            '지도와 길·시설 안내는 공식·공개 자료를 바탕으로 해요. 상록수·사당역은 현장 확인까지 마쳤고, 나머지 역은 자료를 바탕으로 안내해요.',
+                        title: '자료 안내',
+                        subtitle: '지도와 길·시설 안내는 공식·공개 자료를 바탕으로 해요.',
                       ),
                     ),
-                    const AppSectionTitle(title: '지도 표시용 asset'),
-                    for (final map in maps) _AttributionCard.map(map, manifest),
-                    const AppSectionTitle(title: '데이터 품질 Level'),
-                    const AppCard(
-                      child: AppInfoRow(
-                        icon: Icons.verified_outlined,
-                        iconColor: EasySubwayAccessibleColors.mintDark,
-                        title: 'Level 1-4 품질 기준',
-                        subtitle:
-                            'Level 1은 역·노선 수, Level 2는 필수 시설 근거, Level 3은 운행상태와 최신 여부, Level 4는 현장 또는 운영기관이 확인한 쉬운 길을 봐요.',
-                      ),
-                    ),
-                    const AppCard(
-                      child: AppInfoRow(
-                        icon: Icons.analytics_outlined,
-                        iconColor: EasySubwayAccessibleColors.amber,
-                        title: '품질 지표',
-                        subtitle:
-                            '필수 시설 근거 비율, 운행상태 확인 비율, 최신 정보 비율, 확인된 쉬운 길 비율, 현장 확인 경로 비율을 함께 확인해요.',
-                      ),
-                    ),
-                    const AppSectionTitle(title: '경로·시설 안내용 데이터'),
+                    const AppSectionTitle(title: '노선도'),
+                    for (final map in maps) _AttributionCard.map(map),
+                    const AppSectionTitle(title: '길·시설 안내에 쓰는 자료'),
                     for (final source in sources)
                       _AttributionCard.source(source),
                   ],
@@ -147,6 +121,12 @@ class _DataSourceAttributionScreenState
   }
 }
 
+/// 사용자 출처 목록에 올리는 자료인지(내부 수집 검사용 자료는 뺀다).
+@visibleForTesting
+bool isListedDataSource(Map<String, Object?> source) =>
+    !source.containsKey('rawSnapshotAdmission') &&
+    !_isInternalCanarySource(source);
+
 /// CI canary 원천은 데이터 수집 검사용 내부 원천이라 사용자 출처 목록에 넣지
 /// 않는다(#444 리뷰 F1). source-inventory에는 canary를 뜻하는 구조 필드가
 /// 없다. requiredForProductionPack·productionUseAllowed·capabilities는 서비스용
@@ -157,6 +137,15 @@ bool _isInternalCanarySource(Map<String, Object?> source) {
   return id is String && id.split('-').last == 'canary';
 }
 
+/// 자료 목록의 표시 이름에서 내부 작업용 꼬리표를 떼어 사용자에게 보일 이름으로
+/// 만든다(#443). 예: `…대구 1호선 membership admission` → `…대구 1호선`.
+@visibleForTesting
+String userFacingSourceName(String displayName) => displayName
+    .replaceAll(RegExp(r'\s*membership admission$'), '')
+    .replaceAll('_route_map_positions', '')
+    .replaceAll(RegExp(r'\s*\(KRIC \d+\)'), '')
+    .trim();
+
 class _AttributionCard extends StatelessWidget {
   const _AttributionCard._({
     required this.title,
@@ -164,59 +153,55 @@ class _AttributionCard extends StatelessWidget {
     required this.rows,
   });
 
-  factory _AttributionCard.map(
-    Map<String, Object?> map,
-    Map<String, Object?> manifest,
-  ) {
+  factory _AttributionCard.map(Map<String, Object?> map) {
     final license = (map['license'] as Map<String, Object?>?) ?? const {};
-    final offline = (map['offline'] as Map<String, Object?>?) ?? const {};
     return _AttributionCard._(
-      title: _text(map['name_ko']),
-      subtitle: '제공·소유: ${_text(map['operator'])}',
+      title: '${_text(map['name_ko'], '지도')} 노선도',
+      subtitle: '쉬운 지하철이 직접 그린 노선도예요.',
       rows: [
-        ('제공 기관', _text(license['source'], _text(map['name_ko']))),
-        ('라이선스', '${_text(license['name'])} (${_text(license['spdx'])})'),
-        ('작성자', _text(license['authors'])),
-        ('라이선스 링크', _text(license['url'])),
-        ('표기 필요', _yesNo(license['attributionRequired'])),
-        ('가져온 날짜', _text(license['date'])),
-        ('확인한 날짜', _text(manifest['generated_at_utc'])),
-        (
-          '상업적 이용 / 재배포',
-          '${_allowed(license['commercialUseAllowed'])} / ${_allowed(license['redistributionAllowed'])}',
-        ),
-        ('검토 상태', _text(license['reviewStatus'])),
-        ('변경 사항', _text(license['changes'])),
-        ('파일 경로', _text(offline['path'])),
+        // 출처 표기가 필요한 자료만 제작자와 이용 조건을 밝힌다.
+        if (license['attributionRequired'] == true)
+          ..._rowIfPresent(
+            '출처 표기',
+            [
+              _text(license['authors']),
+              _text(license['name']),
+            ].where((part) => part.isNotEmpty).join(', '),
+          ),
+        ..._rowIfPresent('기준일', _date(license['date'])),
       ],
     );
   }
 
   factory _AttributionCard.source(Map<String, Object?> source) {
     final license = (source['license'] as Map<String, Object?>?) ?? const {};
+    final provider = _text(source['provider'], '');
+    final owner = _text(source['owner'], '');
     return _AttributionCard._(
-      title: _text(source['displayName']),
-      subtitle:
-          '제공·소유: ${_text(source['provider'])} / ${_text(source['owner'])}',
+      title: userFacingSourceName(_text(source['displayName'], '자료')),
+      subtitle: [
+        provider,
+        if (owner.isNotEmpty && owner != provider) owner,
+      ].where((name) => name.isNotEmpty).join(' / '),
       rows: [
-        ('제공 기관', _text(source['displayName'])),
-        ('라이선스', '${_text(license['name'])} (${_text(license['type'])})'),
-        ('라이선스 링크', _text(license['evidenceUrl'])),
-        ('표기 필요', _text(license['attribution'])),
-        ('가져온 날짜', _text(source['retrievedAt'])),
-        ('확인한 날짜', _text(source['observedDataUpdatedAt'])),
-        (
-          '상업적 이용 / 재배포',
-          '${_allowed(license['commercialUseAllowed'])} / ${_allowed(license['redistributionAllowed'])}',
-        ),
-        (
-          '변경 사항',
-          source.containsKey('changes')
-              ? _text(source['changes'])
-              : '자료 목록에 별도 변경 고지 없음',
-        ),
+        ..._rowIfPresent('이용 조건', _text(license['name'], '')),
+        ..._rowIfPresent('출처 표기', _text(license['attribution'], '')),
+        ..._rowIfPresent('자료 받은 날', _date(source['retrievedAt'])),
+        ..._rowIfPresent('자료 확인일', _date(source['observedDataUpdatedAt'])),
+        ..._rowIfPresent('안내 페이지', _text(license['evidenceUrl'], '')),
       ],
     );
+  }
+
+  /// 값이 없는 항목은 "정보 없음" 같은 말을 띄우지 않고 숨긴다.
+  static List<(String, String)> _rowIfPresent(String label, String value) =>
+      value.isEmpty ? const [] : [(label, value)];
+
+  /// `2026-07-12T00:00:00+00:00` 같은 값을 날짜만 남긴다.
+  static String _date(Object? value) {
+    final text = _text(value, '');
+    final match = RegExp(r'^\d{4}-\d{2}-\d{2}').firstMatch(text);
+    return match?.group(0) ?? text;
   }
 
   final String title;
@@ -265,7 +250,7 @@ class _AttributionCard extends StatelessWidget {
     );
   }
 
-  static String _text(Object? value, [String fallback = '미기록']) {
+  static String _text(Object? value, [String fallback = '']) {
     if (value is List) {
       final joined = value
           .whereType<Object>()
@@ -275,26 +260,6 @@ class _AttributionCard extends StatelessWidget {
     }
     final text = value?.toString().trim() ?? '';
     return text.isEmpty ? fallback : text;
-  }
-
-  static String _yesNo(Object? value) {
-    if (value == true) {
-      return '예';
-    }
-    if (value == false) {
-      return '아니오';
-    }
-    return '정보 없음';
-  }
-
-  static String _allowed(Object? value) {
-    if (value == true) {
-      return '가능';
-    }
-    if (value == false) {
-      return '불가';
-    }
-    return '정보 없음';
   }
 }
 

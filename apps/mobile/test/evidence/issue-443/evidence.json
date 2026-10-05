@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "issue": 443,
+  "capturedAt": "2026-10-05",
+  "platform": "flutter test 호스트 렌더(macOS, NanumGothic 테스트 폰트, 390x850 논리 픽셀). Android 빌드는 로컬 gradle JdkImageTransform 실패로 에뮬레이터 캡처 불가",
+  "assertions": [
+    "데이터 출처 화면에서 asset·Level·근거 비율·상록수·사당역 문구와 내부 파일 경로·영문 변경 사항이 사라진다",
+    "값이 없는 항목은 '미기록' 대신 숨긴다"
+  ],
+  "files": [
+    {
+      "path": "attribution-after-1.png",
+      "sha256": "c0706c031164e277e238c7317f768674039c6122d2dfe1671900db186d731223",
+      "description": "변경 후 같은 화면 상단(코드 커밋 0d60f59f 트리): 자료 안내와 노선도 카드(기준일)만 쉬운 말로 표시"
+    },
+    {
+      "path": "attribution-after-3.png",
+      "sha256": "130ca8d19e2c8a068b6bd739177dd93b88527506444e26dbce6b1daf151a29e1",
+      "description": "변경 후 스크롤 중간(코드 커밋 0d60f59f 트리): 이용 조건·출처 표기·확인일·안내 페이지만 표시"
+    },
+    {
+      "path": "attribution-before-1.png",
+      "sha256": "b2222dee20c4cccbfd006774222c08dd9dfeb8dea859e314d1a36adbd5441639",
+      "description": "변경 전 데이터 출처 화면 상단: asset·내부 파일 경로·영문 변경 사항·검토 상태 노출 (수정 전 트리 80a871b9에서 캡처, 해상도는 변경 후 이미지의 절반)"
+    },
+    {
+      "path": "attribution-before-3.png",
+      "sha256": "6906fd972adb7dc4c4418d34222f4d6317cb04cf759c81a4069f432e06479037",
+      "description": "변경 전 스크롤 중간: 변경 사항 영문 원문, 파일 경로 노출 (수정 전 트리 80a871b9에서 캡처, 해상도는 변경 후 이미지의 절반)"
+    }
+  ],
+  "captureMethod": "임시 위젯 테스트(커밋 안 함)에서 DataSourceAttributionScreen에 실제 번들 manifest·source-inventory를 주입하고 matchesGoldenFile --update-goldens로 PNG 저장. 변경 전은 수정 전 트리, 변경 후는 수정 후 트리에서 동일 방식으로 수집. 변경 후 이미지는 리뷰 지적(F6)에 따라 코드 커밋 0d60f59f(이 증거 커밋 직전)에서 다시 캡처했다. 변경 전 이미지는 수정 전 main(80a871b9)에서 캡처했다."
+}
