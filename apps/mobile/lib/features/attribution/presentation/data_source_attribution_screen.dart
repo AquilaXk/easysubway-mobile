@@ -158,7 +158,18 @@ class _AttributionCard extends StatelessWidget {
     return _AttributionCard._(
       title: '${_text(map['name_ko'], '지도')} 노선도',
       subtitle: '쉬운 지하철이 직접 그린 노선도예요.',
-      rows: [..._rowIfPresent('기준일', _date(license['date']))],
+      rows: [
+        // 출처 표기가 필요한 자료만 제작자와 이용 조건을 밝힌다.
+        if (license['attributionRequired'] == true)
+          ..._rowIfPresent(
+            '출처 표기',
+            [
+              _text(license['authors']),
+              _text(license['name']),
+            ].where((part) => part.isNotEmpty).join(', '),
+          ),
+        ..._rowIfPresent('기준일', _date(license['date'])),
+      ],
     );
   }
 

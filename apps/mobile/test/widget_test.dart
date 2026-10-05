@@ -8829,6 +8829,93 @@ void main() {
     expect(find.textContaining('미확정'), findsNothing);
   });
 
+  testWidgets('데이터 출처 화면은 자료 카드의 이용 조건과 출처 표기를 보여 준다', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 4000);
+    addTearDown(tester.view.reset);
+    final manifest =
+        jsonDecode(
+              File(
+                'assets/datapacks/metro_map_pack/manifest.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final inventory =
+        jsonDecode(
+              File('assets/datapacks/source-inventory.json').readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final source = (inventory['sources']! as List)
+        .cast<Map<String, Object?>>()
+        .firstWhere(
+          (source) => source['id'] == 'busan-transportation-route-topology',
+        );
+    final license = source['license']! as Map<String, Object?>;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: DataSourceAttributionScreen(
+          initialManifest: manifest,
+          initialInventory: {
+            'sources': [source],
+          },
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.scrollUntilVisible(find.text('출처 표기'), 160);
+    expect(find.text('이용 조건'), findsOneWidget);
+    expect(find.text('${license['name']}'), findsOneWidget);
+    expect(find.text('출처 표기'), findsOneWidget);
+    expect(find.text('${license['attribution']}'), findsOneWidget);
+  });
+
+  testWidgets('노선도 카드는 출처 표기가 필요한 자료일 때 출처 표기를 보여 준다', (tester) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(800, 4000);
+    addTearDown(tester.view.reset);
+    final manifest =
+        jsonDecode(
+              File(
+                'assets/datapacks/metro_map_pack/manifest.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final maps = (manifest['maps'] as List).cast<Map<String, Object?>>();
+    Future<void> pumpWith(bool required) async {
+      final license =
+          Map<String, Object?>.of(
+              maps.first['license']! as Map<String, Object?>,
+            )
+            ..['attributionRequired'] = required
+            ..['authors'] = ['홍길동']
+            ..['name'] = '테스트 이용허락';
+      await tester.pumpWidget(
+        MaterialApp(
+          home: DataSourceAttributionScreen(
+            key: ValueKey(required),
+            initialManifest: {
+              ...manifest,
+              'maps': [
+                {...maps.first, 'license': license},
+              ],
+            },
+            initialInventory: const {'sources': <Object?>[]},
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pumpWith(true);
+    expect(find.text('출처 표기'), findsOneWidget);
+    expect(find.text('홍길동, 테스트 이용허락'), findsOneWidget);
+
+    await pumpWith(false);
+    expect(find.text('출처 표기'), findsNothing);
+  });
+
   test('자료 표시 이름에서 내부 작업용 꼬리표를 뗀다', () {
     expect(
       userFacingSourceName('국토교통부_도시철도 전체노선 대구 1호선 membership admission'),
