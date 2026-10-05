@@ -94,11 +94,7 @@ class _DataSourceAttributionScreenState
                     .cast<Map<String, Object?>>();
                 final sources = (inventory['sources'] as List)
                     .cast<Map<String, Object?>>()
-                    .where(
-                      (source) =>
-                          !source.containsKey('rawSnapshotAdmission') &&
-                          !_isInternalCanarySource(source),
-                    )
+                    .where(isListedDataSource)
                     .toList(growable: false);
                 return ListView(
                   padding: mainPagePadding,
@@ -124,6 +120,12 @@ class _DataSourceAttributionScreenState
     );
   }
 }
+
+/// 사용자 출처 목록에 올리는 자료인지(내부 수집 검사용 자료는 뺀다).
+@visibleForTesting
+bool isListedDataSource(Map<String, Object?> source) =>
+    !source.containsKey('rawSnapshotAdmission') &&
+    !_isInternalCanarySource(source);
 
 /// CI canary 원천은 데이터 수집 검사용 내부 원천이라 사용자 출처 목록에 넣지
 /// 않는다(#444 리뷰 F1). source-inventory에는 canary를 뜻하는 구조 필드가

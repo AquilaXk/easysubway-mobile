@@ -8,8 +8,10 @@
 // [_allowlist]에 파일·부분 문자열·사유를 적어 예외로 둔다. 사용자에게 보이는
 // 문구는 여기에 넣지 말고 쉬운 말로 고친다. 예외가 더 이상 쓰이지 않으면 이
 // 테스트가 실패해 목록에서 지우게 한다.
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 금지어. 한글이 포함된 리터럴에서만 찾는다. 영문은 대소문자를 구분하지 않는다.
@@ -139,9 +141,12 @@ class _Allowed {
 }
 
 class _Literal {
-  const _Literal(this.line, this.text);
+  const _Literal(this.line, this.text, [this.context = '']);
   final int line;
   final String text;
+
+  /// 리터럴 바로 앞 코드 조각. 한글 없는 리터럴이 화면에 쓰이는지 가릴 때 쓴다.
+  final String context;
 }
 
 /// 주석을 건너뛰며 Dart 문자열 리터럴 본문을 뽑는다.
@@ -222,12 +227,15 @@ class _Scanner {
   /// 붙어 있는 리터럴 묶음을 읽어 하나로 잇는다.
   void _scanLiteralRun() {
     final startLine = line;
+    final context = s
+        .substring(i < 60 ? 0 : i - 60, i)
+        .replaceAll(RegExp(r'\s+'), ' ');
     final buffer = StringBuffer();
     while (_isQuoteAt(i)) {
       buffer.write(_scanOneLiteral());
       _skipTrivia();
     }
-    out.add(_Literal(startLine, buffer.toString()));
+    out.add(_Literal(startLine, buffer.toString(), context));
   }
 
   String _scanOneLiteral() {
@@ -259,15 +267,38 @@ class _Scanner {
 
 final _hangul = RegExp('[가-힣]');
 
-List<String> _bannedTermsIn(String text) {
-  if (!_hangul.hasMatch(text)) {
+/// 한글 없는 리터럴이 화면에 쓰이는 자리(Text, 스크린리더 라벨, 툴팁 등)인지.
+final _visibleArgContext = RegExp(
+  r'(Text\(|Text\.rich\(|semanticsLabel:|label:|tooltip:|hint:|hintText:|'
+  r'labelText:|title:|subtitle:|message:|content:|value:|helperText:|'
+  r'errorText:)\s*(const\s+)?$',
+);
+final _latin = RegExp('[A-Za-z]');
+
+List<String> _bannedTermsIn(String text, {String context = ''}) {
+  // 보간된 변수 이름(`$actionLabel`)은 화면에 찍히는 글자가 아니므로 뺀다.
+  final stripped = text.replaceAll(RegExp(r'\$\w+'), '');
+  final lower = stripped.toLowerCase();
+  if (_hangul.hasMatch(text)) {
+    return [
+      for (final term in _bannedTerms)
+        if (lower.contains(term.toLowerCase())) term,
+    ];
+  }
+  // 한글이 없는 리터럴은 식별자·경로가 대부분이라, 화면에 쓰이는 인자일 때만
+  // 영문 금지어를 단어 단위로 찾는다.
+  if (!_latin.hasMatch(text) || !_visibleArgContext.hasMatch(context)) {
     return const [];
   }
-  // 보간된 변수 이름(`$actionLabel`)은 화면에 찍히는 글자가 아니므로 뺀다.
-  final lower = text.replaceAll(RegExp(r'\$\w+'), '').toLowerCase();
   return [
     for (final term in _bannedTerms)
-      if (lower.contains(term.toLowerCase())) term,
+      if (_latin.hasMatch(term) &&
+          !_hangul.hasMatch(term) &&
+          RegExp(
+            '(^|[^A-Za-z0-9])${RegExp.escape(term)}(\$|[^A-Za-z0-9])',
+            caseSensitive: false,
+          ).hasMatch(stripped))
+        term,
   ];
 }
 
@@ -338,6 +369,22 @@ final b = const [
       expect(_bannedTermsIn(texts.last), ['반영하지 못']);
     });
 
+    test('한글 없는 리터럴도 화면에 쓰이는 자리면 영문 금지어를 찾는다', () {
+      const source = r'''
+final a = Text('Last Connection');
+final b = Semantics(label: 'Level 2', child: x);
+final c = const Text('payload');
+final d = 'STEP_FREE';
+final e = Text('OK');
+final f = Tooltip(message: 'asset', child: x);
+''';
+      final flagged = <String>[
+        for (final l in _extractStringLiterals(source))
+          if (_bannedTermsIn(l.text, context: l.context).isNotEmpty) l.text,
+      ];
+      expect(flagged, ['Last Connection', 'Level 2', 'payload', 'asset']);
+    });
+
     test('한글이 없는 식별자 문자열은 검사하지 않는다', () {
       expect(_bannedTermsIn('STEP_FREE'), isEmpty);
       expect(_bannedTermsIn('assets/datapacks/source-inventory.json'), isEmpty);
@@ -349,7 +396,7 @@ final b = const [
     final used = <_Allowed>{};
     for (final file in _libSources()) {
       for (final literal in _extractStringLiterals(file.readAsStringSync())) {
-        final terms = _bannedTermsIn(literal.text);
+        final terms = _bannedTermsIn(literal.text, context: literal.context);
         if (terms.isEmpty) continue;
         final allowed = _allowlist.where(
           (a) => file.path.endsWith(a.file) && literal.text.contains(a.literal),
@@ -378,5 +425,30 @@ final b = const [
     );
     // 허용 목록 사유는 반드시 적는다.
     expect(_allowlist.every((a) => a.reason.trim().isNotEmpty), isTrue);
+  });
+
+  test('출처 화면에 보일 자료 이름에 내부 꼬리표나 금지어가 남지 않는다', () {
+    final inventory =
+        jsonDecode(
+              File('assets/datapacks/source-inventory.json').readAsStringSync(),
+            )
+            as Map<String, Object?>;
+    final internalTag = RegExp(
+      r'membership|admission|canary|route_map|_positions|\(KRIC|snapshot|검증',
+      caseSensitive: false,
+    );
+    final problems = <String>[];
+    var checked = 0;
+    for (final source
+        in (inventory['sources']! as List).cast<Map<String, Object?>>()) {
+      if (!isListedDataSource(source)) continue;
+      checked++;
+      final name = userFacingSourceName('${source['displayName']}');
+      if (internalTag.hasMatch(name) || _bannedTermsIn(name).isNotEmpty) {
+        problems.add('${source['id']}: $name');
+      }
+    }
+    expect(checked, greaterThan(50));
+    expect(problems, isEmpty);
   });
 }
