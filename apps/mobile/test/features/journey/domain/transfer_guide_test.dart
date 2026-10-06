@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/features/journey/domain/transfer_guide.dart';
+import 'package:easysubway_mobile/features/journey/domain/transfer_guide_key.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 

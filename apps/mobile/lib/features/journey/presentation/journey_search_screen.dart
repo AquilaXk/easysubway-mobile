@@ -12,6 +12,7 @@ import '../../mobility_profile/mobility_profile_policy.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import '../domain/transfer_guide.dart';
+import '../domain/transfer_guide_key.dart';
 import 'journey_get_off_alarm_toggle.dart';
 import 'result/journey_result_view_model.dart';
 import 'result/journey_result_widgets.dart';
