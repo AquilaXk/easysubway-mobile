@@ -1328,9 +1328,15 @@ void main() {
     });
 
     testWidgets('조회가 실패해도 환승 노드는 그대로이고 추가 문구가 없다', (tester) async {
+      final crashlytics = _RecordingCrashlytics();
+      replaceCrashlyticsGatewayForTest(crashlytics);
+      addTearDown(resetCrashlyticsGateway);
       final guides = _TransferGuideRepository(const {})
         ..failure = StateError('x');
       await search(tester, guides);
+
+      expect(crashlytics.errors, hasLength(1));
+      expect(crashlytics.fatalFlags, <bool>[false]);
 
       expect(find.text('환승 · 도보 3분'), findsOneWidget);
       expect(

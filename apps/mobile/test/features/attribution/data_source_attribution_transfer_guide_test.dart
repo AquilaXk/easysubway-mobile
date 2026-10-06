@@ -1,3 +1,4 @@
+import 'package:easysubway_mobile/core/crashlytics/crashlytics_gateway.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/features/journey/domain/transfer_guide.dart';
 import 'package:flutter/material.dart';
@@ -5,6 +6,34 @@ import 'package:flutter_test/flutter_test.dart';
 
 const _manifest = <String, Object?>{'maps': <Object?>[]};
 const _inventory = <String, Object?>{'sources': <Object?>[]};
+
+class _RecordingCrashlytics implements CrashlyticsGateway {
+  final errors = <Object>[];
+  final fatalFlags = <bool>[];
+
+  @override
+  bool get isCollectionEnabled => false;
+
+  @override
+  Future<void> recordError(
+    Object error,
+    StackTrace stackTrace, {
+    bool fatal = false,
+    String? reason,
+  }) async {
+    errors.add(error);
+    fatalFlags.add(fatal);
+  }
+
+  @override
+  Future<void> recordFlutterFatalError(FlutterErrorDetails details) async {}
+
+  @override
+  Future<void> setCollectionEnabled(bool enabled) async {}
+
+  @override
+  Future<void> setCustomKey(String key, String value) async {}
+}
 
 class _Guides implements TransferGuideRepository {
   _Guides(this.sources, {this.failure});
@@ -61,7 +90,13 @@ void main() {
   });
 
   testWidgets('출처 조회가 실패해도 화면은 열리고 카드는 없다', (tester) async {
+    final crashlytics = _RecordingCrashlytics();
+    replaceCrashlyticsGatewayForTest(crashlytics);
+    addTearDown(resetCrashlyticsGateway);
     await _pump(tester, _Guides(const [], failure: StateError('x')));
+
+    expect(crashlytics.errors, hasLength(1));
+    expect(crashlytics.fatalFlags, <bool>[false]);
 
     expect(
       find.byKey(const Key('dataSourceAttributionScreen')),
