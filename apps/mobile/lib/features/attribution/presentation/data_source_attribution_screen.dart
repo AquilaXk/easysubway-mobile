@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -5,12 +6,15 @@ import 'package:flutter/services.dart';
 
 import '../../../accessible_design.dart';
 import '../../../app/app_components.dart';
+import '../../../core/crashlytics/mobile_crash_reporting.dart';
+import '../../journey/domain/transfer_guide.dart';
 
 class DataSourceAttributionScreen extends StatefulWidget {
   const DataSourceAttributionScreen({
     super.key,
     this.initialManifest,
     this.initialInventory,
+    this.transferGuideRepository,
   }) : assert(
          (initialManifest == null) == (initialInventory == null),
          'initialManifest and initialInventory must be provided together.',
@@ -18,6 +22,9 @@ class DataSourceAttributionScreen extends StatefulWidget {
 
   final Map<String, Object?>? initialManifest;
   final Map<String, Object?>? initialInventory;
+
+  /// 환승 이동 안내 문장의 출처 표기를 읽는다. null이면 그 카드를 더하지 않는다.
+  final TransferGuideRepository? transferGuideRepository;
 
   @override
   State<DataSourceAttributionScreen> createState() =>
@@ -31,16 +38,43 @@ class _DataSourceAttributionScreenState
   static const _sourceInventoryAsset = 'assets/datapacks/source-inventory.json';
 
   late final Future<
-    ({Map<String, Object?> manifest, Map<String, Object?> inventory})
+    ({
+      Map<String, Object?> manifest,
+      Map<String, Object?> inventory,
+      List<TransferGuideSource> transferGuideSources,
+    })
   >
   _future = _load();
 
-  Future<({Map<String, Object?> manifest, Map<String, Object?> inventory})>
+  Future<List<TransferGuideSource>> _loadTransferGuideSources() async {
+    final repository = widget.transferGuideRepository;
+    if (repository == null) return const [];
+    try {
+      return await repository.loadSources();
+    } on Object catch (error, stackTrace) {
+      // 출처 카드 하나를 못 읽어도 나머지 출처 목록은 보여 준다.
+      unawaited(recordNonFatalError(error, stackTrace));
+      return const [];
+    }
+  }
+
+  Future<
+    ({
+      Map<String, Object?> manifest,
+      Map<String, Object?> inventory,
+      List<TransferGuideSource> transferGuideSources,
+    })
+  >
   _load() async {
+    final transferGuideSources = await _loadTransferGuideSources();
     final initialManifest = widget.initialManifest;
     final initialInventory = widget.initialInventory;
     if (initialManifest != null && initialInventory != null) {
-      return (manifest: initialManifest, inventory: initialInventory);
+      return (
+        manifest: initialManifest,
+        inventory: initialInventory,
+        transferGuideSources: transferGuideSources,
+      );
     }
     final [manifestText, inventoryText] = await Future.wait([
       rootBundle.loadString(_mapManifestAsset),
@@ -49,6 +83,7 @@ class _DataSourceAttributionScreenState
     return (
       manifest: jsonDecode(manifestText) as Map<String, Object?>,
       inventory: jsonDecode(inventoryText) as Map<String, Object?>,
+      transferGuideSources: transferGuideSources,
     );
   }
 
@@ -66,7 +101,11 @@ class _DataSourceAttributionScreenState
       body: SafeArea(
         child:
             FutureBuilder<
-              ({Map<String, Object?> manifest, Map<String, Object?> inventory})
+              ({
+                Map<String, Object?> manifest,
+                Map<String, Object?> inventory,
+                List<TransferGuideSource> transferGuideSources,
+              })
             >(
               future: _future,
               builder: (context, snapshot) {
@@ -112,6 +151,8 @@ class _DataSourceAttributionScreenState
                     const AppSectionTitle(title: '길·시설 안내에 쓰는 자료'),
                     for (final source in sources)
                       _AttributionCard.source(source),
+                    for (final source in snapshot.data!.transferGuideSources)
+                      _AttributionCard.transferGuide(source),
                   ],
                 );
               },
@@ -193,6 +234,13 @@ class _AttributionCard extends StatelessWidget {
     );
   }
 
+  factory _AttributionCard.transferGuide(TransferGuideSource source) =>
+      _AttributionCard._(
+        title: source.datasetLabel,
+        subtitle: '',
+        rows: [..._rowIfPresent('출처 표기', source.attribution)],
+      );
+
   /// 값이 없는 항목은 "정보 없음" 같은 말을 띄우지 않고 숨긴다.
   static List<(String, String)> _rowIfPresent(String label, String value) =>
       value.isEmpty ? const [] : [(label, value)];
@@ -212,7 +260,7 @@ class _AttributionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final semanticLabel = [
       title,
-      subtitle,
+      if (subtitle.isNotEmpty) subtitle,
       for (final row in rows) '${row.$1}: ${row.$2}',
     ].join(', ');
     return Padding(
@@ -231,15 +279,17 @@ class _AttributionCard extends StatelessWidget {
                   height: 1.25,
                 ),
               ),
-              const SizedBox(height: 4),
-              Text(
-                subtitle,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                  color: EasySubwayAccessibleColors.mutedText,
-                  fontWeight: FontWeight.w700,
-                  height: 1.3,
+              if (subtitle.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Text(
+                  subtitle,
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    color: EasySubwayAccessibleColors.mutedText,
+                    fontWeight: FontWeight.w700,
+                    height: 1.3,
+                  ),
                 ),
-              ),
+              ],
               const SizedBox(height: 10),
               for (final row in rows)
                 _AttributionRow(label: row.$1, value: row.$2),

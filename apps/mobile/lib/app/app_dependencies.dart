@@ -38,6 +38,8 @@ import '../features/train_search/data/train_search_repository.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/train_search/domain/train_search_scope_policy.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/data/drift_transfer_guide_repository.dart';
+import '../features/journey/domain/transfer_guide.dart';
 import '../features/journey/data/journey_api_repository.dart';
 import '../features/journey/data/journey_method_channel_integrity_attestor.dart';
 import '../features/journey/domain/journey_repository.dart';
@@ -71,6 +73,7 @@ class AppDependencies {
     required this.journeyAttestor,
     required this.journeySessionProvider,
     required this.stationTimetableRepository,
+    this.transferGuideRepository,
   });
 
   factory AppDependencies.resolve({
@@ -204,6 +207,9 @@ class AppDependencies {
       journeyAttestor: resolvedJourneyAttestor,
       journeySessionProvider: resolvedJourneySessionProvider,
       stationTimetableRepository: resolvedStationTimetableRepository,
+      transferGuideRepository: catalogDatabase == null
+          ? null
+          : DriftTransferGuideRepository(database: catalogDatabase),
       favoriteRepository:
           favoriteRepository ??
           (catalogDatabase != null && userDatabase != null
@@ -289,6 +295,7 @@ class AppDependencies {
   final TrainSearchRepository trainSearchRepository;
   final UserDataDeletionRepository? userDataDeletionRepository;
   final GetOffAlarmController? getOffAlarmController;
+  final TransferGuideRepository? transferGuideRepository;
   final NoticeRepository? noticeRepository;
   final AdRepository? adRepository;
   final JourneyRepository Function() journeyRepositoryFactory;
