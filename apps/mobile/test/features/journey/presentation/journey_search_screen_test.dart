@@ -11,6 +11,7 @@ import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_subscript
 import 'package:easysubway_mobile/app/home_screen.dart';
 import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
+import 'package:easysubway_mobile/features/journey/domain/transfer_guide.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
@@ -1222,6 +1223,128 @@ void main() {
     semantics.dispose();
   });
 
+  group('환승 이동 안내 단계(국토교통부 원문)', () {
+    const gyodaeKey = TransferGuideKey(
+      stationId: 'st-gyodae',
+      fromLineId: 'line-2',
+      fromPrevStationId: 'st-sports',
+      toLineId: 'line-3',
+      toNextStationId: 'st-yangjae',
+    );
+    const steps = <String>[
+      '1) 방배 방면 승강장 하차',
+      '2) 3호선 환승 엘리베이터 탑승',
+      '3) 3호선 양재 방면 승강장으로 이동',
+    ];
+
+    Future<void> search(
+      WidgetTester tester,
+      _TransferGuideRepository guides,
+    ) async {
+      final repository = _Repository()..journeyIds = <String>['journey-spec'];
+      await _pumpScreen(
+        tester,
+        repository: repository,
+        stationNameResolver: _specStationName,
+        transferGuideRepository: guides,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('행이 있으면 환승 노드 아래에 접힌 토글이 생기고 펼치면 원문이 나온다', (tester) async {
+      final guides = _TransferGuideRepository({gyodaeKey: steps});
+      await search(tester, guides);
+
+      expect(guides.requested, [gyodaeKey]);
+      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      final toggle = find.byKey(const Key('journey-transfer-guide-toggle-2'));
+      expect(toggle, findsOneWidget);
+      for (final step in steps) {
+        expect(find.text(step), findsNothing);
+      }
+
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      for (final step in steps) {
+        expect(find.text(step), findsOneWidget);
+      }
+      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+      expect(find.text(steps.first), findsNothing);
+    });
+
+    testWidgets('행이 없으면 현재 환승 노드만 있고 추가 문구가 없다', (tester) async {
+      final guides = _TransferGuideRepository(const {});
+      await search(tester, guides);
+
+      expect(guides.requested, [gyodaeKey]);
+      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(
+        find.byKey(const Key('journey-transfer-guide-toggle-2')),
+        findsNothing,
+      );
+      expect(find.textContaining('이동 방법'), findsNothing);
+      expect(find.textContaining('정보 없음'), findsNothing);
+    });
+
+    testWidgets('조회가 실패해도 환승 노드는 그대로이고 추가 문구가 없다', (tester) async {
+      final guides = _TransferGuideRepository(const {})
+        ..failure = StateError('x');
+      await search(tester, guides);
+
+      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(
+        find.byKey(const Key('journey-transfer-guide-toggle-2')),
+        findsNothing,
+      );
+      expect(tester.takeException(), isNull);
+    });
+
+    testWidgets('저장소가 없으면 조회하지 않고 현재 화면 그대로다', (tester) async {
+      final repository = _Repository()..journeyIds = <String>['journey-spec'];
+      await _pumpScreen(
+        tester,
+        repository: repository,
+        stationNameResolver: _specStationName,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(
+        find.byKey(const Key('journey-transfer-guide-toggle-2')),
+        findsNothing,
+      );
+    });
+
+    testWidgets('스크린리더는 환승 노드, 토글, 단계 순서로 읽는다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final guides = _TransferGuideRepository({gyodaeKey: steps});
+      await search(tester, guides);
+      final toggle = find.byKey(const Key('journey-transfer-guide-toggle-2'));
+      await tester.ensureVisible(toggle);
+      await tester.tap(toggle);
+      await tester.pumpAndSettle();
+
+      final labels = [
+        for (final node in tester.semantics.simulatedAccessibilityTraversal())
+          node.label,
+      ];
+      final indexes = [
+        labels.indexOf('교대 환승, 도보 3분'),
+        labels.indexOf('이동 방법 3단계'),
+        for (final step in steps) labels.indexOf(step),
+      ];
+      expect(indexes, everyElement(greaterThanOrEqualTo(0)));
+      expect(indexes, [...indexes]..sort());
+      semantics.dispose();
+    });
+  });
+
   testWidgets('(11)(12) 구간 막대·탭·요약·타임라인 Semantics 라벨이 정확하다', (tester) async {
     final semantics = tester.ensureSemantics();
     final repository = _Repository()
@@ -1452,6 +1575,7 @@ Future<void> _pumpScreen(
   DateTime Function()? getOffAlarmNow,
   DateTime Function()? journeyNow,
   bool hasUnlimitedTransitPass = false,
+  TransferGuideRepository? transferGuideRepository,
 }) {
   return tester.pumpWidget(
     MaterialApp(
@@ -1467,6 +1591,7 @@ Future<void> _pumpScreen(
         getOffAlarmNow: getOffAlarmNow,
         journeyNow: journeyNow ?? () => DateTime.utc(2026, 8, 12),
         hasUnlimitedTransitPass: hasUnlimitedTransitPass,
+        transferGuideRepository: transferGuideRepository,
       ),
     ),
   );
@@ -1481,6 +1606,24 @@ RouteDraft _completeDraft({RouteDraftStation? waypoint}) => RouteDraft(
 
 RouteDraftStation _station(String id, String name) =>
     RouteDraftStation(id: id, nameKo: name);
+
+class _TransferGuideRepository implements TransferGuideRepository {
+  _TransferGuideRepository(this.stepsByKey);
+
+  final Map<TransferGuideKey, List<String>> stepsByKey;
+  final requested = <TransferGuideKey>[];
+  Object? failure;
+
+  @override
+  Future<List<String>> loadSteps(TransferGuideKey key) async {
+    requested.add(key);
+    if (failure case final error?) throw error;
+    return stepsByKey[key] ?? const [];
+  }
+
+  @override
+  Future<List<TransferGuideSource>> loadSources() async => const [];
+}
 
 class _Attestor implements JourneyV3IntegrityAttestor {
   const _Attestor();

@@ -20,6 +20,7 @@ import '../features/favorites/favorite_facility.dart';
 import '../features/favorites/presentation/favorite_home_screen.dart';
 import '../features/get_off_alarm/get_off_alarm_controller.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/domain/transfer_guide.dart';
 import '../features/journey/journey_session_provider.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../features/journey/presentation/journey_search_screen.dart';
@@ -120,6 +121,7 @@ class HomeScreen extends StatefulWidget {
     required this.journeySessionProvider,
     required this.timetableRepository,
     required this.getOffAlarmController,
+    this.transferGuideRepository,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
@@ -157,6 +159,7 @@ class HomeScreen extends StatefulWidget {
   final JourneySessionProvider journeySessionProvider;
   final StationTimetableRepository timetableRepository;
   final GetOffAlarmController? getOffAlarmController;
+  final TransferGuideRepository? transferGuideRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
@@ -405,7 +408,9 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                 unawaited(
                   Navigator.of(serviceInfoContext).push(
                     MaterialPageRoute<void>(
-                      builder: (_) => const DataSourceAttributionScreen(),
+                      builder: (_) => DataSourceAttributionScreen(
+                        transferGuideRepository: widget.transferGuideRepository,
+                      ),
                     ),
                   ),
                 );
@@ -789,6 +794,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onShellBackToHome: closeRouteTab,
           getOffAlarmController: widget.getOffAlarmController,
           stationNameResolver: journeyAlarmStationNameResolver(repository),
+          transferGuideRepository: widget.transferGuideRepository,
         ),
       );
     }

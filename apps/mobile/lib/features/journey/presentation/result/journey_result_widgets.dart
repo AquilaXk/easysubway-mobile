@@ -445,3 +445,86 @@ class JourneyStepFreeUnavailablePanel extends StatelessWidget {
     );
   }
 }
+
+/// 환승 노드 아래의 이동 안내 단계(#451). 단계 문장은 원천 문장 그대로이고,
+/// 토글에는 단계 수만 적는다. 단계가 없으면 아무것도 그리지 않는다.
+class JourneyTransferGuideSteps extends StatelessWidget {
+  const JourneyTransferGuideSteps({
+    required this.legIndex,
+    required this.steps,
+    required this.expanded,
+    required this.onToggle,
+    super.key,
+  });
+
+  final int legIndex;
+  final List<String> steps;
+  final bool expanded;
+  final VoidCallback onToggle;
+
+  @override
+  Widget build(BuildContext context) {
+    if (steps.isEmpty) return const SizedBox.shrink();
+    final label = '이동 방법 ${steps.length}단계';
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Semantics(
+          button: true,
+          expanded: expanded,
+          label: label,
+          onTap: onToggle,
+          excludeSemantics: true,
+          child: InkWell(
+            key: Key('journey-transfer-guide-toggle-$legIndex'),
+            onTap: onToggle,
+            borderRadius: BorderRadius.circular(4),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 48),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Flexible(
+                    child: Text(
+                      label,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: EasySubwayAccessibleColors.secondaryText,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 2),
+                  Icon(
+                    expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 18,
+                    color: EasySubwayAccessibleColors.secondaryText,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (expanded)
+          Column(
+            key: Key('journey-transfer-guide-steps-$legIndex'),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final step in steps)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text(
+                    step,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      height: 1.35,
+                      color: EasySubwayAccessibleColors.text,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+      ],
+    );
+  }
+}

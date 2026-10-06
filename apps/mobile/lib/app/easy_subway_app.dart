@@ -27,6 +27,7 @@ import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
 import '../features/train_search/domain/train_search_models.dart';
 import '../features/journey/application/journey_search_controller.dart';
+import '../features/journey/domain/transfer_guide.dart';
 import '../features/journey/journey_session_provider.dart';
 import '../features/journey/domain/journey_repository.dart';
 import '../legacy_credential_cleanup.dart';
@@ -127,6 +128,7 @@ class EasySubwayApp extends StatelessWidget {
        trainSearchRepository = dependencies.trainSearchRepository,
        userDataDeletionRepository = dependencies.userDataDeletionRepository,
        getOffAlarmController = dependencies.getOffAlarmController,
+       transferGuideRepository = dependencies.transferGuideRepository,
        noticeRepository = dependencies.noticeRepository,
        journeyRepository = dependencies.journeyRepository,
        journeyAttestor = dependencies.journeyAttestor,
@@ -149,6 +151,7 @@ class EasySubwayApp extends StatelessWidget {
   final TrainSearchRepository trainSearchRepository;
   final UserDataDeletionRepository? userDataDeletionRepository;
   final GetOffAlarmController? getOffAlarmController;
+  final TransferGuideRepository? transferGuideRepository;
   final NoticeRepository? noticeRepository;
   final JourneyRepository journeyRepository;
   final JourneyV3IntegrityAttestor journeyAttestor;
@@ -280,6 +283,7 @@ class EasySubwayApp extends StatelessWidget {
           journeySessionProvider: journeySessionProvider,
           stationTimetableRepository: stationTimetableRepository,
           getOffAlarmController: getOffAlarmController,
+          transferGuideRepository: transferGuideRepository,
           favoriteRepository: favoriteRepository,
           favoriteFacilityRepository: favoriteFacilityRepository,
           favoriteRouteRepository: favoriteRouteRepository,
@@ -409,6 +413,7 @@ class _EasySubwayHome extends StatefulWidget {
     required this.journeySessionProvider,
     required this.stationTimetableRepository,
     required this.getOffAlarmController,
+    required this.transferGuideRepository,
     required this.favoriteRepository,
     required this.favoriteFacilityRepository,
     required this.favoriteRouteRepository,
@@ -442,6 +447,7 @@ class _EasySubwayHome extends StatefulWidget {
   final JourneySessionProvider journeySessionProvider;
   final StationTimetableRepository stationTimetableRepository;
   final GetOffAlarmController? getOffAlarmController;
+  final TransferGuideRepository? transferGuideRepository;
   final FavoriteStationRepository? favoriteRepository;
   final FavoriteFacilityRepository? favoriteFacilityRepository;
   final FavoriteRouteRepository? favoriteRouteRepository;
@@ -555,6 +561,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
         journeySessionProvider: widget.journeySessionProvider,
         timetableRepository: widget.stationTimetableRepository,
         getOffAlarmController: widget.getOffAlarmController,
+        transferGuideRepository: widget.transferGuideRepository,
         favoriteRepository: widget.favoriteRepository,
         favoriteFacilityRepository: widget.favoriteFacilityRepository,
         favoriteRouteRepository: widget.favoriteRouteRepository,

@@ -11,6 +11,7 @@ import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
+import '../domain/transfer_guide.dart';
 import 'journey_get_off_alarm_toggle.dart';
 import 'result/journey_result_view_model.dart';
 import 'result/journey_result_widgets.dart';
@@ -43,6 +44,7 @@ class JourneySearchScreen extends StatefulWidget {
     this.getOffAlarmNow,
     this.journeyNow,
     this.hasUnlimitedTransitPass = false,
+    this.transferGuideRepository,
     super.key,
   }) : assert(getOffAlarmController == null || stationNameResolver != null);
 
@@ -59,6 +61,9 @@ class JourneySearchScreen extends StatefulWidget {
   final DateTime Function()? getOffAlarmNow;
   final DateTime Function()? journeyNow;
   final bool hasUnlimitedTransitPass;
+
+  /// 환승 이동 안내 단계(국토교통부 원문)를 읽는다. null이면 단계를 그리지 않는다.
+  final TransferGuideRepository? transferGuideRepository;
 
   @override
   State<JourneySearchScreen> createState() => _JourneySearchScreenState();
@@ -80,6 +85,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   final Map<String, String> _resolvedStationNames = {};
   final Set<String> _expandedRideKeys = {};
+  final Set<String> _expandedTransferGuideKeys = {};
+
+  /// `journeyId:legIndex`별 환승 이동 안내 단계. 조회했는데 행이 없으면 키가 없다.
+  final Map<String, List<String>> _transferGuideSteps = {};
+  final Set<String> _requestedTransferGuideKeys = {};
 
   @override
   void initState() {
@@ -142,6 +152,32 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     }
   }
 
+  void _loadTransferGuides(JourneySearchSuccess response) {
+    final repository = widget.transferGuideRepository;
+    if (repository == null) return;
+    for (final journey in response.journeys) {
+      for (var index = 0; index < journey.legs.length; index++) {
+        final key = transferGuideKeyAt(journey, index);
+        if (key == null) continue;
+        final stepsKey = '${journey.journeyId}:$index';
+        if (!_requestedTransferGuideKeys.add(stepsKey)) continue;
+        unawaited(
+          repository
+              .loadSteps(key)
+              .then((steps) {
+                if (mounted && steps.isNotEmpty) {
+                  setState(() => _transferGuideSteps[stepsKey] = steps);
+                }
+              })
+              .catchError((Object error, StackTrace stackTrace) {
+                // 조회 실패는 안내 단계가 없는 것과 같은 화면이다. 값을 만들어 채우지 않는다.
+                unawaited(recordNonFatalError(error, stackTrace));
+              }),
+        );
+      }
+    }
+  }
+
   String _stationName(String stationId) =>
       _resolvedStationNames[stationId] ?? stationId;
 
@@ -193,6 +229,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final state = _controller.state;
     if (state.response case final response?) {
       _resolveStationNames(response);
+      _loadTransferGuides(response);
     }
     setState(() {});
     if (state.status == _lastAnnouncedStatus) return;
@@ -463,7 +500,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             ),
           ),
         );
-        content = _transferNodeContent(node);
+        content = _transferNodeContent(journeyId, node);
       case JourneyArrivalNode():
         marker = SizedBox.square(
           dimension: 24,
@@ -797,7 +834,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     );
   }
 
-  Widget _transferNodeContent(JourneyTransferNode node) {
+  Widget _transferNodeContent(String journeyId, JourneyTransferNode node) {
+    final guideKey = '$journeyId:${node.legIndex}';
+    final guideSteps = _transferGuideSteps[guideKey];
     final badge = _outOfStationTransferBadge(node.leg);
     final reboarding = _reboardingFareNotice(node.leg);
     return Column(
@@ -833,6 +872,17 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           const SizedBox(height: 4),
           Wrap(spacing: 6, runSpacing: 4, children: [?badge, ?reboarding]),
         ],
+        if (guideSteps != null)
+          JourneyTransferGuideSteps(
+            legIndex: node.legIndex,
+            steps: guideSteps,
+            expanded: _expandedTransferGuideKeys.contains(guideKey),
+            onToggle: () => setState(() {
+              if (!_expandedTransferGuideKeys.remove(guideKey)) {
+                _expandedTransferGuideKeys.add(guideKey);
+              }
+            }),
+          ),
       ],
     );
   }

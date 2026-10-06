@@ -32,6 +32,13 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/441",
       "reason": "Golden comparison is intentionally macOS-rasterizer-owned and all-skipped on Ubuntu; Mobile Golden CI runs it with the parity inventory.",
       "reviewTrigger": "Mobile #441 stair status golden lane"
+    },
+    {
+      "path": "apps/mobile/test/features/journey/presentation/result/journey_transfer_guide_golden_test.dart",
+      "classification": "GOLDEN_OWNED_BY_MOBILE_23",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/451",
+      "reason": "Golden comparison is intentionally macOS-rasterizer-owned and all-skipped on Ubuntu; Mobile Golden CI runs it with the parity inventory.",
+      "reviewTrigger": "Mobile #451 transfer guide golden lane"
     }
   ],
   "deletionDispositions": [
