@@ -1277,6 +1277,42 @@ void main() {
       expect(find.text(steps.first), findsNothing);
     });
 
+    testWidgets('같은 여정 ID로 다른 환승이 오면 이전 검색의 문장을 붙이지 않는다', (tester) async {
+      const otherKey = TransferGuideKey(
+        stationId: 'st-gyodae',
+        fromLineId: 'line-2',
+        fromPrevStationId: 'st-sports',
+        toLineId: 'line-3',
+        toNextStationId: 'st-ogeum',
+      );
+      final guides = _TransferGuideRepository({gyodaeKey: steps});
+      final repository = _Repository()..journeyIds = <String>['journey-spec'];
+      await _pumpScreen(
+        tester,
+        repository: repository,
+        stationNameResolver: _specStationName,
+        transferGuideRepository: guides,
+      );
+      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+      await tester.pumpAndSettle();
+      expect(
+        find.byKey(const Key('journey-transfer-guide-toggle-2')),
+        findsOneWidget,
+      );
+
+      // 같은 journeyId, 같은 leg 위치인데 다음 탑승의 둘째 정차역이 다르다.
+      repository.specLastStop = 'st-ogeum';
+      await tester.tap(find.byKey(const Key('walking-pace-slow')));
+      await tester.pumpAndSettle();
+
+      expect(guides.requested, [gyodaeKey, otherKey]);
+      expect(
+        find.byKey(const Key('journey-transfer-guide-toggle-2')),
+        findsNothing,
+      );
+      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+    });
+
     testWidgets('행이 없으면 현재 환승 노드만 있고 추가 문구가 없다', (tester) async {
       final guides = _TransferGuideRepository(const {});
       await search(tester, guides);
@@ -1644,6 +1680,7 @@ class _Repository implements JourneyRepository {
   Completer<JourneySessionResponse>? sessionCompleter;
   DateTime? responseNow;
   List<String> journeyIds = <String>['journey-2', 'journey-1'];
+  String specLastStop = 'st-yangjae';
   final List<JourneySearchRequest> requests = <JourneySearchRequest>[];
   final List<JourneyProfileRequest> profileRequests = <JourneyProfileRequest>[];
 
@@ -1677,6 +1714,7 @@ class _Repository implements JourneyRepository {
       request,
       journeyIds,
       now: responseNow,
+      specLastStop: specLastStop,
       stairFreeAlternative: stairFreeAlternative,
     );
   }
@@ -1769,6 +1807,7 @@ JourneySearchSuccess _success(
   JourneySearchRequest request,
   List<String> journeyIds, {
   DateTime? now,
+  String specLastStop = 'st-yangjae',
   JourneyStairFreeAlternative stairFreeAlternative =
       const JourneyStairFreeAlternative(
         status: JourneyStairFreeAlternativeStatus.included,
@@ -1803,13 +1842,17 @@ JourneySearchSuccess _success(
       alternativeCount: request.alternativeCount,
     ),
     journeys: journeyIds
-        .map((id) => _journey(id, responseNow))
+        .map((id) => _journey(id, responseNow, specLastStop: specLastStop))
         .toList(growable: false),
   );
 }
 
-Journey _journey(String id, DateTime now) {
-  if (id == 'journey-spec') return _specJourney(now);
+Journey _journey(
+  String id,
+  DateTime now, {
+  String specLastStop = 'st-yangjae',
+}) {
+  if (id == 'journey-spec') return _specJourney(now, lastStop: specLastStop);
   if (id == 'journey-spec-express') return _specExpressJourney(now);
   final JourneyTransferLeg transferLeg;
   if (id == 'journey-oos-green') {
@@ -2022,7 +2065,7 @@ JourneyRideStop _stopAt(
 );
 
 /// 강남 → (2호선 교대 방면, 5개 역) → 교대 환승 → (3호선 오금 방면, 1개 역) → 양재
-Journey _specJourney(DateTime now) {
+Journey _specJourney(DateTime now, {String lastStop = 'st-yangjae'}) {
   DateTime at(int minutes) => now.add(Duration(minutes: minutes));
   return Journey(
     journeyId: 'journey-spec',
@@ -2092,7 +2135,7 @@ Journey _specJourney(DateTime now) {
         tripId: 'trip-3',
         directionStationId: 'st-ogeum',
         fromStationId: 'st-gyodae',
-        toStationId: 'st-yangjae',
+        toStationId: lastStop,
         plannedDepartureTime: at(26),
         plannedArrivalTime: at(34),
         realtimeDepartureTime: null,
@@ -2100,10 +2143,10 @@ Journey _specJourney(DateTime now) {
         servicePattern: JourneyServicePattern.local,
         stops: <JourneyRideStop>[
           _stopAt('st-gyodae', plannedDeparture: at(26)),
-          _stopAt('st-yangjae', plannedArrival: at(34)),
+          _stopAt(lastStop, plannedArrival: at(34)),
         ],
       ),
-      const JourneyExitLeg(fromStationId: 'st-yangjae', durationSeconds: 60),
+      JourneyExitLeg(fromStationId: lastStop, durationSeconds: 60),
     ],
     fare: const JourneyFare(
       status: JourneyFareStatus.available,

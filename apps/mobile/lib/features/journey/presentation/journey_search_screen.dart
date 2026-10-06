@@ -86,11 +86,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   final Map<String, String> _resolvedStationNames = {};
   final Set<String> _expandedRideKeys = {};
-  final Set<String> _expandedTransferGuideKeys = {};
+  final Set<TransferGuideKey> _expandedTransferGuideKeys = {};
 
-  /// `journeyId:legIndex`별 환승 이동 안내 단계. 조회했는데 행이 없으면 키가 없다.
-  final Map<String, List<String>> _transferGuideSteps = {};
-  final Set<String> _requestedTransferGuideKeys = {};
+  /// 조회 키(`TransferGuideKey`)별 환승 이동 안내 단계. 조회했는데 행이 없으면 키가 없다.
+  /// 여정 ID나 leg 위치가 아니라 조회 키로만 묶어, 다른 환승에 다른 문장이 붙지 않게 한다.
+  final Map<TransferGuideKey, List<String>> _transferGuideSteps = {};
+  final Set<TransferGuideKey> _requestedTransferGuideKeys = {};
 
   @override
   void initState() {
@@ -160,14 +161,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       for (var index = 0; index < journey.legs.length; index++) {
         final key = transferGuideKeyAt(journey, index);
         if (key == null) continue;
-        final stepsKey = '${journey.journeyId}:$index';
-        if (!_requestedTransferGuideKeys.add(stepsKey)) continue;
+        if (!_requestedTransferGuideKeys.add(key)) continue;
         unawaited(
           repository
               .loadSteps(key)
               .then((steps) {
                 if (mounted && steps.isNotEmpty) {
-                  setState(() => _transferGuideSteps[stepsKey] = steps);
+                  setState(() => _transferGuideSteps[key] = steps);
                 }
               })
               .catchError((Object error, StackTrace stackTrace) {
@@ -392,6 +392,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           _timelineNode(
             journey.journeyId,
             timeline[index],
+            transferGuideKey: transferGuideKeyAt(
+              journey,
+              timeline[index].legIndex,
+            ),
             isLast: index == timeline.length - 1,
             departureColor:
                 rideColors.firstOrNull ?? EasySubwayAccessibleColors.primary,
@@ -428,6 +432,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   Widget _timelineNode(
     String journeyId,
     JourneyTimelineNode node, {
+    required TransferGuideKey? transferGuideKey,
     required bool isLast,
     required Color departureColor,
     required Color arrivalColor,
@@ -501,7 +506,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             ),
           ),
         );
-        content = _transferNodeContent(journeyId, node);
+        content = _transferNodeContent(node, transferGuideKey);
       case JourneyArrivalNode():
         marker = SizedBox.square(
           dimension: 24,
@@ -835,9 +840,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     );
   }
 
-  Widget _transferNodeContent(String journeyId, JourneyTransferNode node) {
-    final guideKey = '$journeyId:${node.legIndex}';
-    final guideSteps = _transferGuideSteps[guideKey];
+  Widget _transferNodeContent(
+    JourneyTransferNode node,
+    TransferGuideKey? guideKey,
+  ) {
+    final guideSteps = guideKey == null ? null : _transferGuideSteps[guideKey];
     final badge = _outOfStationTransferBadge(node.leg);
     final reboarding = _reboardingFareNotice(node.leg);
     return Column(
@@ -873,7 +880,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           const SizedBox(height: 4),
           Wrap(spacing: 6, runSpacing: 4, children: [?badge, ?reboarding]),
         ],
-        if (guideSteps != null)
+        if (guideKey != null && guideSteps != null)
           JourneyTransferGuideSteps(
             legIndex: node.legIndex,
             steps: guideSteps,
