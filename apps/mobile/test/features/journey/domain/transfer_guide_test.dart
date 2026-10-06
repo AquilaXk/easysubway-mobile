@@ -131,4 +131,19 @@ void main() {
 
     expect(transferGuideKeyAt(journey, 1), isNull);
   });
+
+  test('역 밖 환승(fromStationId와 toStationId가 다름)은 키를 만들지 않는다', () {
+    final journey = _journey([
+      _ride('l-2', ['a', 'b', 'c']),
+      const JourneyTransferLeg(
+        fromStationId: 'c',
+        toStationId: 'x',
+        durationSeconds: 600,
+        transferType: 'OUT_OF_STATION',
+      ),
+      _ride('l-4', ['x', 'y', 'z']),
+    ]);
+
+    expect(transferGuideKeyAt(journey, 1), isNull);
+  });
 }
