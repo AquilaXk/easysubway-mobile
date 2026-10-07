@@ -4,13 +4,15 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { gunzipSync } from "node:zlib";
+import { gunzipSync, gzipSync } from "node:zlib";
 
 const minimumRows = {
   station_exits: 1,
   data_quality_records: 1,
 };
 const bundledAccessibilityTables = ["facilities", "station_facility_evidence"];
+// 번들 gz는 APK와 최초 설치 자산 읽기량을 정한다. Z_RLE 같은 전략은 SQLite에서 약 6배 커진다(#453).
+const maxCompressedRatioVsDefaultLevel9 = 1.05;
 
 const args = parseArgs(process.argv.slice(2));
 const indexPath = path.resolve(requiredArg(args, "index"));
@@ -71,6 +73,12 @@ function auditPack(sqlitePath, pack, compressedBytes, sqliteBytes) {
   }
   if (pack.sqliteSha256 && pack.sqliteSha256 !== sha256(sqliteBytes)) {
     throw new Error(`${id} sqlite checksum mismatch`);
+  }
+  const baselineSize = gzipSync(sqliteBytes, { level: 9, mtime: 0 }).length;
+  if (compressedBytes.length > baselineSize * maxCompressedRatioVsDefaultLevel9) {
+    throw new Error(
+      `${id} compression is inefficient: ${compressedBytes.length} B exceeds ${maxCompressedRatioVsDefaultLevel9}x of default deflate level 9 (${baselineSize} B)`,
+    );
   }
 
   const database = new DatabaseSync(sqlitePath, { readOnly: true });

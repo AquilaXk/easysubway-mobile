@@ -271,6 +271,7 @@ jobs:
       - name: Run owned Node checks
         run: |
           node --test \
+            tools/ci/audit-mobile-datapack-assets.test.mjs \
             tools/ci/check-google-play-api-access.test.mjs \
             tools/ci/filter-mobile-lcov.test.mjs \
             tools/ci/mobile-cross-feature-boundary-ratchet.test.mjs \

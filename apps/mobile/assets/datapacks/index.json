@@ -9,9 +9,9 @@
     {
       "id": "nationwide",
       "asset": "assets/datapacks/nationwide.sqlite.gz",
-      "sha256": "d9609cc035795d8ace41f0f3943b91925a684be3c1d82e734963b240fc69a20a",
+      "sha256": "c6fc26901d54047d49dd81386a3355d0ae6b2c2a26236c6a44a59fa4ada47ef2",
       "sqliteSha256": "f3a797aacfef046eab49b1400562286743e3543ed066e6cb8695c1f36ff1aa23",
-      "byteSize": 39058156
+      "byteSize": 6397564
     }
   ]
 }
