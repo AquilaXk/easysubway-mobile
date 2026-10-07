@@ -73,26 +73,51 @@ function runAudit({ root, indexPath }) {
   return execFileAsync(process.execPath, [script, "--index", indexPath, "--root", root]);
 }
 
-test("감사는 기본 deflate level 9 수준으로 압축된 번들 팩을 통과시킨다", async () => {
-  const staged = await stageAudit((bytes) => gzipSync(bytes, { level: 9, mtime: 0 }));
-  try {
-    const { stdout } = await runAudit(staged);
-    assert.equal(JSON.parse(stdout).packs[0].id, "test");
-  } finally {
-    await rm(staged.root, { recursive: true, force: true });
-  }
-});
+// 허용 상한(1.05)을 양쪽에서 고정한다. fixture 실측 비율: level 6 약 1.013(허용), level 4 약 1.084(거부),
+// level 1 약 1.155(거부), Z_RLE 3배 이상(거부). 상한을 1.5나 3으로 풀거나 1.0으로 조이면 아래 중 하나가 깨진다.
+const acceptedCases = [
+  ["기본 deflate level 9", { level: 9 }],
+  ["level 6(약 1.013배)", { level: 6 }],
+];
+const rejectedCases = [
+  ["level 4(약 1.084배)", { level: 4 }],
+  ["level 1(약 1.155배)", { level: 1 }],
+  ["Z_RLE(3배 이상)", { level: 9, strategy: zlibConstants.Z_RLE }],
+];
 
-test("감사는 내용·해시가 맞아도 Z_RLE처럼 비효율 압축된 번들 팩을 거부한다", async () => {
-  const staged = await stageAudit((bytes) => gzipSync(bytes, { level: 9, mtime: 0, strategy: zlibConstants.Z_RLE }));
-  try {
-    const baseline = gzipSync(staged.sqliteBytes, { level: 9, mtime: 0 });
-    assert.ok(staged.gzipBytes.length > baseline.length * 1.05, "fixture must be inefficiently compressed");
-    await assert.rejects(runAudit(staged), (error) => {
-      assert.match(error.stderr, /compression/);
-      return true;
-    });
-  } finally {
-    await rm(staged.root, { recursive: true, force: true });
-  }
+for (const [name, options] of acceptedCases) {
+  test(`감사는 ${name}로 압축된 번들 팩을 통과시킨다`, async () => {
+    const staged = await stageAudit((bytes) => gzipSync(bytes, { ...options, mtime: 0 }));
+    try {
+      const baseline = gzipSync(staged.sqliteBytes, { level: 9, mtime: 0 });
+      assert.ok(staged.gzipBytes.length <= baseline.length * 1.05, "fixture must be within the tolerance");
+      const { stdout } = await runAudit(staged);
+      assert.equal(JSON.parse(stdout).packs[0].id, "test");
+    } finally {
+      await rm(staged.root, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const [name, options] of rejectedCases) {
+  test(`감사는 내용·해시가 맞아도 ${name}로 비효율 압축된 번들 팩을 거부한다`, async () => {
+    const staged = await stageAudit((bytes) => gzipSync(bytes, { ...options, mtime: 0 }));
+    try {
+      const baseline = gzipSync(staged.sqliteBytes, { level: 9, mtime: 0 });
+      assert.ok(staged.gzipBytes.length > baseline.length * 1.05, "fixture must be inefficiently compressed");
+      await assert.rejects(runAudit(staged), (error) => {
+        assert.match(error.stderr, /compression/);
+        return true;
+      });
+    } finally {
+      await rm(staged.root, { recursive: true, force: true });
+    }
+  });
+}
+
+// 감사는 실행 Node의 zlib로 기준 크기를 다시 계산하므로 CI Node를 .nvmrc 고정과 같게 둔다.
+test("ci.yml은 floating Node 버전 대신 .nvmrc를 쓴다", async () => {
+  const workflow = await readFile(path.resolve(import.meta.dirname, "../../.github/workflows/ci.yml"), "utf8");
+  assert.doesNotMatch(workflow, /^\s*node-version:/mu);
+  assert.match(workflow, /^\s*node-version-file: \.nvmrc$/mu);
 });
