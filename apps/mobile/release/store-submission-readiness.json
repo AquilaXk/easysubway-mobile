@@ -9,13 +9,10 @@
   "appNameLengthLimits": {
     "googlePlay": 30
   },
-  "policyRefreshKo": "스토어 제출 직전 Google Play Console와 App Store Connect 최신 안내를 다시 확인한다.",
+  "policyRefreshKo": "스토어 제출 직전 Google Play Console 최신 안내를 다시 확인한다.",
   "policySources": [
     "Google Play Console App content",
-    "Google Play Console Main store listing",
-    "App Store Connect App Information",
-    "App Store Connect App Privacy",
-    "App Store Connect Review Information"
+    "Google Play Console Main store listing"
   ],
   "latestEvidenceStatus": {
     "issue": 1018,
@@ -163,122 +160,12 @@
       "configurationSources": ["release build screenshots"]
     },
     {
-      "id": "appstore_app_privacy",
-      "store": "app-store",
-      "category": "app-privacy",
-      "titleKo": "App Store 앱 개인정보",
-      "decisionOwnerKo": "개인정보/모바일 담당",
-      "readyWhenKo": "App Privacy 답변이 PrivacyInfo.xcprivacy와 스토어 개인정보 인벤토리의 데이터 유형, 목적, linked to user, tracking 없음 기준과 일치한다.",
-      "evidence": ["app-privacy-preview", "privacy-manifest-review"],
-      "linkedArtifacts": ["apps/mobile/release/store-privacy-inventory.json", "apps/mobile/ios/Runner/PrivacyInfo.xcprivacy"],
-      "configurationSources": ["App Store Connect App Privacy"]
-    },
-    {
-      "id": "appstore_privacy_policy_url",
-      "store": "app-store",
-      "category": "app-information",
-      "titleKo": "App Store 개인정보처리방침 URL",
-      "decisionOwnerKo": "운영/개인정보 담당",
-      "readyWhenKo": "App Store Connect의 개인정보처리방침 URL과 앱 도움말 화면 URL이 같은 HTTPS 주소로 공개된다.",
-      "evidence": ["app-information-url", "app-help-screen-url"],
-      "linkedArtifacts": ["apps/mobile/lib/main.dart", "apps/mobile/release/store-privacy-inventory.json"],
-      "configurationSources": ["EASYSUBWAY_PRIVACY_POLICY_URL"]
-    },
-    {
-      "id": "appstore_support_url",
-      "store": "app-store",
-      "category": "app-information",
-      "titleKo": "App Store 지원 URL",
-      "decisionOwnerKo": "운영 담당",
-      "readyWhenKo": "공개 지원 URL 또는 지원 페이지가 준비되고, 앱 도움말의 고객지원 메일과 같은 운영 채널로 연결된다.",
-      "evidence": ["support-page-check", "support-mailbox-test"],
-      "linkedArtifacts": ["apps/mobile/lib/main.dart", "apps/mobile/release/store-privacy-inventory.json"],
-      "configurationSources": ["EASYSUBWAY_SUPPORT_EMAIL", "public support page"]
-    },
-    {
-      "id": "appstore_age_rating",
-      "store": "app-store",
-      "category": "app-information",
-      "titleKo": "App Store 연령 등급",
-      "decisionOwnerKo": "제품/운영 담당",
-      "readyWhenKo": "대중교통 정보, 사용자 신고 입력, 자체 서빙 비개인화 광고와 사용자가 명시적으로 누를 때만 여는 외부 landing 기준으로 App Store Connect 연령 등급 설문을 완료한다.",
-      "evidence": ["age-rating-result", "questionnaire-review", "ad-request-contract-test"],
-      "linkedArtifacts": ["apps/mobile/lib/facility_report.dart", "apps/mobile/lib/features/ads/active_ad_banner.dart", "apps/mobile/lib/features/ads/ad_repository.dart"],
-      "configurationSources": ["product scope", "facility report moderation policy"]
-    },
-    {
-      "id": "appstore_app_category",
-      "store": "app-store",
-      "category": "app-information",
-      "titleKo": "App Store 카테고리",
-      "decisionOwnerKo": "제품/마케팅 담당",
-      "readyWhenKo": "앱의 주요 목적이 대중교통 이동 보조임을 기준으로 기본 카테고리와 보조 카테고리를 제품 설명과 일치시킨다.",
-      "evidence": ["category-selection", "listing-copy-review"],
-      "linkedArtifacts": ["apps/mobile/lib/main.dart"],
-      "configurationSources": ["public transit accessibility helper"]
-    },
-    {
-      "id": "appstore_review_contact",
-      "store": "app-store",
-      "category": "review-information",
-      "titleKo": "App Store 심사 연락처",
-      "decisionOwnerKo": "운영 담당",
-      "readyWhenKo": "심사 기간에 응답 가능한 이름, 전화번호, 이메일을 App Store Connect Review Information에 입력하고 운영 수신 테스트를 마친다.",
-      "evidence": ["review-contact-test", "review-information-preview"],
-      "linkedArtifacts": ["apps/mobile/lib/main.dart"],
-      "configurationSources": ["release reviewer contact"]
-    },
-    {
-      "id": "appstore_review_notes_or_demo_access",
-      "store": "app-store",
-      "category": "review-information",
-      "titleKo": "App Store 심사 메모와 데모 접근",
-      "decisionOwnerKo": "모바일/운영 담당",
-      "readyWhenKo": "로그인 없음 기준이면 심사 메모에 핵심 흐름과 위치 권한 목적을 설명하고, 제한 접근 기능이 생기면 데모 계정과 재현 절차를 제공한다.",
-      "evidence": ["review-notes", "demo-access-check"],
-      "linkedArtifacts": ["apps/mobile/lib/main.dart", "apps/mobile/lib/app/app_dependencies.dart", "apps/mobile/lib/station_search.dart"],
-      "configurationSources": ["review notes", "demo account only when restricted access exists"]
-    },
-    {
-      "id": "appstore_content_rights",
-      "store": "app-store",
-      "category": "app-information",
-      "titleKo": "App Store 콘텐츠 권리",
-      "decisionOwnerKo": "제품/운영 담당",
-      "readyWhenKo": "지도, 역 정보, 시설 정보, 아이콘, 스크린샷에 대한 사용 권리와 출처를 출시 전 확인하고 App Store Connect의 콘텐츠 권리 답변과 일치시킨다.",
-      "evidence": ["content-rights-review", "asset-source-review"],
-      "linkedArtifacts": ["apps/mobile/ios/Runner/Assets.xcassets/AppIcon.appiconset/Contents.json"],
-      "configurationSources": ["transport data source agreement", "asset source records"]
-    },
-    {
-      "id": "appstore_backend_api_availability",
-      "store": "app-store",
-      "category": "review-information",
-      "titleKo": "App Store 심사 중 API 가용성",
-      "decisionOwnerKo": "백엔드/운영 담당",
-      "readyWhenKo": "심사 기간 동안 역 검색, 경로 검색, 시설 신고 API가 외부 심사 네트워크에서 사용 가능하고 장애 시 쉬운 안내를 보여준다.",
-      "evidence": ["review-window-smoke-test", "api-health-check"],
-      "linkedArtifacts": ["apps/mobile/lib/station_search.dart", "apps/mobile/lib/route_search.dart", "apps/mobile/lib/facility_report.dart"],
-      "configurationSources": ["review environment API endpoint"]
-    },
-    {
-      "id": "appstore_screenshot_truthfulness",
-      "store": "app-store",
-      "category": "product-page",
-      "titleKo": "App Store 스크린샷과 문구",
-      "decisionOwnerKo": "제품/마케팅 담당",
-      "readyWhenKo": "스크린샷과 설명이 실제 앱 동작, 접근성 도움 범위, 안전 고지와 일치하며 보장할 수 없는 실시간 안전 표현을 쓰지 않는다.",
-      "evidence": ["screenshot-review", "copy-review"],
-      "linkedArtifacts": ["apps/mobile/lib/main.dart", "apps/mobile/release/accessibility-release-qa.json"],
-      "configurationSources": ["release build screenshots"]
-    },
-    {
       "id": "cross_store_app_name",
       "store": "cross-store",
       "category": "store-listing",
       "titleKo": "스토어 앱 이름",
       "decisionOwnerKo": "제품/마케팅 담당",
-      "readyWhenKo": "Google Play와 App Store의 앱 이름은 쉬운 지하철로 맞추고, 영문 식별자는 easysubway를 사용하며 Play 이름 길이 제한을 넘지 않는다.",
+      "readyWhenKo": "Google Play의 앱 이름은 쉬운 지하철로 맞추고, 영문 식별자는 easysubway를 사용하며 Play 이름 길이 제한을 넘지 않는다.",
       "evidence": ["store-name-preview", "release-build-name-check"],
       "linkedArtifacts": ["apps/mobile/lib/main.dart"],
       "configurationSources": ["appNameKo", "appNameEn"]
@@ -289,9 +176,9 @@
       "category": "privacy",
       "titleKo": "스토어 개인정보 답변 일관성",
       "decisionOwnerKo": "개인정보/모바일 담당",
-      "readyWhenKo": "Play Data safety, App Privacy, PrivacyInfo.xcprivacy, 앱 도움말 안내가 같은 데이터 수집 범위와 삭제 요청 경로를 설명한다.",
+      "readyWhenKo": "Play Data safety, 개인정보처리방침, 앱 도움말 안내가 같은 데이터 수집 범위와 삭제 요청 경로를 설명한다.",
       "evidence": ["privacy-cross-check", "release-help-screen-review"],
-      "linkedArtifacts": ["apps/mobile/release/store-privacy-inventory.json", "apps/mobile/ios/Runner/PrivacyInfo.xcprivacy", "apps/mobile/lib/main.dart"],
+      "linkedArtifacts": ["apps/mobile/release/store-privacy-inventory.json", "apps/mobile/lib/main.dart"],
       "configurationSources": ["EASYSUBWAY_PRIVACY_POLICY_URL", "EASYSUBWAY_DATA_DELETION_EMAIL"]
     },
     {

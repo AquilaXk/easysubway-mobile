@@ -188,7 +188,7 @@
   "dataSafetyDeclarations": {
     "tracking": false,
     "sharesDataWithThirdParties": true,
-    "thirdPartySharingScopeKo": "출구 정보가 표시되면 공개 역·출구 좌표와 지도 화면 범위로 카카오맵 미리보기를 자동으로 불러오며 현재 위치는 사용하지 않는다. 사용자가 출구 지도 또는 도보 길안내를 누르면 카카오맵 앱/웹 실행을 차례로 시도하고, 모두 사용할 수 없으면 좌표를 복사한다. 도보 길안내 앱에는 현재 위치 시작 좌표와 목적지 좌표를 전달한다. 이 외부 지도 전달 좌표는 자체 서버에 저장하거나 tracking에 사용하지 않는다.",
+    "thirdPartySharingScopeKo": "출구 정보가 표시되면 공개 역·출구 좌표와 지도 화면 범위로 카카오맵 미리보기를 자동으로 불러오며 현재 위치는 사용하지 않는다. 사용자가 출구 지도 또는 도보 길안내를 누르면 카카오맵 앱/웹 실행을 차례로 시도하고, 모두 사용할 수 없으면 좌표를 복사한다. 도보 길안내 앱에는 현재 위치 시작 좌표와 목적지 좌표를 전달한다. 이 외부 지도 전달 좌표는 자체 서버에 저장하거나 tracking에 사용하지 않는다. 앱 충돌 시에는 충돌 스택, 오류 종류 코드, 기기 모델·OS 버전, 앱 버전, 익명 설치 식별자를 충돌 보고를 위해 Google(Firebase Crashlytics)과 공유하며 추적과 광고에는 사용하지 않는다.",
     "dataEncryptedInTransit": true,
     "dataDeletionRequestSupported": true,
     "requiredFieldsPerDataType": [
@@ -206,7 +206,8 @@
       "Personal info",
       "User-generated content",
       "Photos and videos",
-      "Diagnostics",
+      "App info and performance — Crash logs",
+      "App info and performance — Diagnostics",
       "Device or other IDs"
     ],
     "answerMatrix": [
@@ -307,13 +308,36 @@
         "evidenceSummaryFields": ["inventoryDataIds", "consolePreviewEvidence", "networkTraceMatchResult", "localEvidencePath"]
       },
       {
-        "dataType": "Diagnostics",
+        "dataType": "App info and performance — Crash logs",
+        "inventoryDataIds": ["diagnostics_crash_logs"],
+        "containsCollectedData": true,
+        "containsRequiredData": true,
+        "containsOptionalData": false,
+        "containsDeletionUnsupportedData": true,
+        "sharedWith": "Google (Firebase Crashlytics)",
+        "purpose": "App functionality",
+        "usedForTracking": false,
+        "usedForAds": false,
+        "requiredConsoleFields": [
+          "collected",
+          "collectionType",
+          "optional",
+          "required",
+          "purpose",
+          "linkedToUser",
+          "encryptedInTransit",
+          "deletionSupported"
+        ],
+        "evidenceSummaryFields": ["inventoryDataIds", "consolePreviewEvidence", "networkTraceMatchResult", "localEvidencePath"]
+      },
+      {
+        "dataType": "App info and performance — Diagnostics",
         "inventoryDataIds": ["diagnostics_crash_logs", "diagnostics_performance_logs"],
         "containsCollectedData": true,
         "containsRequiredData": true,
         "containsOptionalData": false,
-        "containsDeletionUnsupportedData": false,
-        "containsLocalOnlyDiagnostics": true,
+        "containsDeletionUnsupportedData": true,
+        "containsLocalOnlyDiagnostics": false,
         "requiredConsoleFields": [
           "collected",
           "collectionType",
@@ -328,9 +352,9 @@
       },
       {
         "dataType": "Device or other IDs",
-        "inventoryDataIds": ["facility_report_abuse_rate_limit_state", "train_search_abuse_rate_limit_state"],
+        "inventoryDataIds": ["facility_report_abuse_rate_limit_state", "train_search_abuse_rate_limit_state", "diagnostics_crash_logs"],
         "containsCollectedData": true,
-        "containsRequiredData": false,
+        "containsRequiredData": true,
         "containsOptionalData": true,
         "containsDeletionUnsupportedData": true,
         "requiredConsoleFields": [
@@ -432,7 +456,7 @@
     "crashAnrPrivacySummary": {
       "requiredFields": [
         "separateCrashProvider",
-        "noCrashSdkDependencyScan",
+        "crashlyticsDisclosureMatch",
         "androidVitalsOrPrelaunchEvidence",
         "redactedLogcatOrCrashSummary",
         "forbiddenPayloadAbsent",
@@ -465,7 +489,7 @@
       "외부 지도 길안내 제3자 공유 범위",
       "카카오맵 출구 미리보기 자동 로드 범위",
       "tracking 없음",
-      "SUBWAY 경로 검색은 단말에서만 처리",
+      "Journey V3 서버 경로 검색 요청 항목과 요청·결과를 검색 이력으로 저장하지 않는 경계",
       "선택형 ITX-청춘 Route V2 전송 항목과 논리 만료·5분 purge·물리 파기 경계",
       "Nginx IP·Authorization shared-memory rate-limit 처리와 DB·access log 비저장 경계",
       "사진과 위치는 사용자가 신고, 주변 역 찾기, 출구 도보 길안내 흐름에서 직접 선택할 때만 사용"
@@ -479,21 +503,27 @@
     "contentRatingBasisKo": "대중교통 정보, 사용자 시설 신고 입력, 자체 서빙 비개인화 광고, 출구 정보의 카카오맵 미리보기 자동 로드, 외부 지도 앱/웹은 사용자가 지도 또는 길안내를 명시적으로 누를 때만 열리고, 광고 landing은 사용자가 광고를 명시적으로 누를 때만 외부 브라우저로 열리는 범위와 일치"
   },
   "crashAnrProviderDecision": {
-    "separateCrashProvider": false,
-    "sourceOfTruth": ["Android vitals", "Google Play pre-launch report"],
-    "dependencyEvidenceRequired": "no-crash-sdk-dependency-scan",
+    "separateCrashProvider": true,
+    "provider": "Firebase Crashlytics",
+    "collected": true,
+    "sharedWith": "Google (Firebase Crashlytics)",
+    "usedForTracking": false,
+    "usedForAds": false,
+    "playDataTypes": ["App info and performance — Crash logs", "App info and performance — Diagnostics", "Device or other IDs"],
+    "sourceOfTruth": ["Firebase Crashlytics", "Android vitals", "Google Play pre-launch report"],
+    "dependencyEvidenceRequired": "crashlytics-dependency-scan",
+    "disclosureContract": "contracts/mobile/crash-data-store-disclosure.json",
     "linkedInventory": "apps/mobile/release/store-privacy-inventory.json"
   },
   "koreanListing": {
     "appName": "쉬운 지하철",
-    "shortDescription": "교통약자를 위한 지하철 이동 안내",
-    "fullDescriptionKo": "쉬운 지하철은 고령자, 임산부, 휠체어 이용자 등 이동과 정보 접근에 제약이 있는 사용자가 지하철 역과 시설 정보를 더 쉽게 확인하도록 돕는 앱입니다. 접근성 정보 검증 범위는 상록수·사당 검증 pilot입니다. 경춘선 ITX-청춘 길찾기는 준비 중이며 source, server, mobile 출시 근거가 모두 확인되기 전에는 제공하지 않습니다. 엘리베이터, 에스컬레이터, 출구, 환승 동선, 즐겨찾기, 시설 신고 흐름을 제공하며 일부 기능은 로컬 데이터팩으로 오프라인에서도 확인할 수 있습니다. 정보는 데이터 기준일과 공식 출처를 함께 표시하고, 현장 상황이나 실시간 정보는 운영기관 제공 범위와 갱신 상태에 따라 달라질 수 있음을 안내합니다.",
-    "releaseNotesKo": "접근성 이동 정보, 시설 신고, 도움말과 개인정보 안내를 포함한 Android 출시 후보입니다.",
-    "supportRegionKo": "상록수·사당 검증 pilot",
-    "routingLaunchScopeKo": "경춘선 ITX-청춘 길찾기는 source, server, mobile 출시 근거 확인 뒤 제공",
+    "shortDescription": "계단 없는 길부터 알려 주는 지하철 길찾기",
+    "fullDescriptionKo": "계단 없이 갈 수 있는 길부터 알려 드려요.\n\n보통 걸음, 천천히, 계단 없이, 휠체어·유모차. 내게 맞는 이동 방식을 고르면 거기에 맞는 지하철 경로를 보여 드려요.\n\n■ 계단 없는 길찾기\n환승할 때마다 어디서 어떻게 이동하는지 단계별로 안내해요.\n\n■ 엘리베이터와 시설 정보\n역마다 엘리베이터, 휠체어 리프트, 장애인 화장실, 수유실의 위치와 상태를 확인해요. 출구별 엘리베이터 연결도 볼 수 있어요.\n\n■ 하차 알람\n도착역과 환승역에 도착하기 전에 알려 드려요.\n\n■ 시간표\n역별 열차 시간표를 확인하고, 홈 화면 위젯으로 다음 열차를 바로 볼 수 있어요.\n\n■ 노선도와 역 검색\n수도권, 부산, 대구, 대전, 광주의 노선도와 역 정보는 인터넷이 끊기는 지하에서도 볼 수 있어요.\n\n■ 시설 신고\n고장 난 시설을 가입 없이 바로 알릴 수 있어요.\n\n회원가입 없이 쓸 수 있고, 즐겨찾기와 최근 검색은 내 휴대전화에만 저장돼요.\n\n공식 공공 데이터를 바탕으로 하며 데이터 기준일과 출처를 함께 보여 드려요.",
+    "releaseNotesKo": "계단 없는 길찾기, 엘리베이터 정보, 하차 알람, 시간표를 제공합니다.",
+    "supportRegionKo": "수도권, 부산, 대구, 대전, 광주",
+    "routingLaunchScopeKo": "수도권, 부산, 대구, 대전, 광주 도시철도 길찾기",
     "dataBaselineRequired": true,
-    "realtimeSupportScopeKo": "실시간 도착과 열차 위치는 지원 노선과 제공기관 상태가 확인된 범위에서만 표시",
-    "confirmationCopyKo": "경로와 시설 정보는 현장 상황과 다를 수 있어 이동 전 역무원 또는 운영기관 안내를 함께 봐 주세요."
+    "realtimeSupportScopeKo": "실시간 열차 정보는 운영기관이 제공하는 노선에서만 표시"
   },
   "prohibitedClaims": [
     "100% 안전",
