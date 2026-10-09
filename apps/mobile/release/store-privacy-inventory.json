@@ -100,6 +100,12 @@
     "sharedPurpose": "crash-reporting",
     "usedForTracking": false,
     "usedForAds": false,
+    "playDataTypes": [
+      "App info and performance — Crash logs",
+      "App info and performance — Diagnostics",
+      "Device or other IDs"
+    ],
+    "playDataTypesSourceKo": "Firebase 공식 문서(https://firebase.google.com/docs/android/play-data-disclosure)의 Crashlytics 선언 항목: 스택 트레이스, 기기 메타데이터, Crashlytics 설치 UUID. 보관 90일은 https://firebase.google.com/support/privacy 기준",
     "collectedFields": [
       "crash-stack-trace",
       "error-type-code",
@@ -923,7 +929,33 @@
         "optional": false,
         "required": true,
         "deletionSupported": false
-      }
+      },
+      "additionalGooglePlayDataSafety": [
+        {
+          "dataType": "App info and performance — Diagnostics",
+          "collected": true,
+          "shared": true,
+          "sharedWith": "Google (Firebase Crashlytics)",
+          "collectionType": "diagnostic-event",
+          "purpose": "App functionality",
+          "encryptedInTransit": true,
+          "optional": false,
+          "required": true,
+          "deletionSupported": false
+        },
+        {
+          "dataType": "Device or other IDs",
+          "collected": true,
+          "shared": true,
+          "sharedWith": "Google (Firebase Crashlytics)",
+          "collectionType": "diagnostic-event",
+          "purpose": "App functionality",
+          "encryptedInTransit": true,
+          "optional": false,
+          "required": true,
+          "deletionSupported": false
+        }
+      ]
     },
     {
       "id": "diagnostics_performance_logs",

@@ -206,7 +206,8 @@
       "Personal info",
       "User-generated content",
       "Photos and videos",
-      "Diagnostics",
+      "App info and performance — Crash logs",
+      "App info and performance — Diagnostics",
       "Device or other IDs"
     ],
     "answerMatrix": [
@@ -307,7 +308,30 @@
         "evidenceSummaryFields": ["inventoryDataIds", "consolePreviewEvidence", "networkTraceMatchResult", "localEvidencePath"]
       },
       {
-        "dataType": "Diagnostics",
+        "dataType": "App info and performance — Crash logs",
+        "inventoryDataIds": ["diagnostics_crash_logs"],
+        "containsCollectedData": true,
+        "containsRequiredData": true,
+        "containsOptionalData": false,
+        "containsDeletionUnsupportedData": true,
+        "sharedWith": "Google (Firebase Crashlytics)",
+        "purpose": "App functionality",
+        "usedForTracking": false,
+        "usedForAds": false,
+        "requiredConsoleFields": [
+          "collected",
+          "collectionType",
+          "optional",
+          "required",
+          "purpose",
+          "linkedToUser",
+          "encryptedInTransit",
+          "deletionSupported"
+        ],
+        "evidenceSummaryFields": ["inventoryDataIds", "consolePreviewEvidence", "networkTraceMatchResult", "localEvidencePath"]
+      },
+      {
+        "dataType": "App info and performance — Diagnostics",
         "inventoryDataIds": ["diagnostics_crash_logs", "diagnostics_performance_logs"],
         "containsCollectedData": true,
         "containsRequiredData": true,
@@ -328,7 +352,7 @@
       },
       {
         "dataType": "Device or other IDs",
-        "inventoryDataIds": ["facility_report_abuse_rate_limit_state", "train_search_abuse_rate_limit_state"],
+        "inventoryDataIds": ["facility_report_abuse_rate_limit_state", "train_search_abuse_rate_limit_state", "diagnostics_crash_logs"],
         "containsCollectedData": true,
         "containsRequiredData": false,
         "containsOptionalData": true,
@@ -465,7 +489,7 @@
       "외부 지도 길안내 제3자 공유 범위",
       "카카오맵 출구 미리보기 자동 로드 범위",
       "tracking 없음",
-      "SUBWAY 경로 검색은 단말에서만 처리",
+      "Journey V3 서버 경로 검색 요청 항목과 요청·결과를 검색 이력으로 저장하지 않는 경계",
       "선택형 ITX-청춘 Route V2 전송 항목과 논리 만료·5분 purge·물리 파기 경계",
       "Nginx IP·Authorization shared-memory rate-limit 처리와 DB·access log 비저장 경계",
       "사진과 위치는 사용자가 신고, 주변 역 찾기, 출구 도보 길안내 흐름에서 직접 선택할 때만 사용"
@@ -485,6 +509,7 @@
     "sharedWith": "Google (Firebase Crashlytics)",
     "usedForTracking": false,
     "usedForAds": false,
+    "playDataTypes": ["App info and performance — Crash logs", "App info and performance — Diagnostics", "Device or other IDs"],
     "sourceOfTruth": ["Firebase Crashlytics", "Android vitals", "Google Play pre-launch report"],
     "dependencyEvidenceRequired": "crashlytics-dependency-scan",
     "disclosureContract": "contracts/mobile/crash-data-store-disclosure.json",
@@ -493,13 +518,12 @@
   "koreanListing": {
     "appName": "쉬운 지하철",
     "shortDescription": "계단 없는 길부터 알려 주는 지하철 길찾기",
-    "fullDescriptionKo": "계단 없이 갈 수 있는 길부터 알려 드려요.\n\n보통 걸음, 천천히, 계단 없이, 휠체어·유모차. 내게 맞는 이동 방식을 고르면 거기에 맞는 지하철 경로를 보여 드려요.\n\n■ 계단 없는 길찾기\n환승할 때마다 어디서 어떻게 이동하는지 단계별로 안내해요.\n\n■ 엘리베이터와 시설 정보\n역마다 엘리베이터, 휠체어 리프트, 장애인 화장실, 수유실의 위치와 상태를 확인해요. 출구별 엘리베이터 연결도 볼 수 있어요.\n\n■ 하차 알람\n도착역과 환승역에 도착하기 전에 알려 드려요.\n\n■ 시간표\n역별 열차 시간표를 확인하고, 홈 화면 위젯으로 다음 열차를 바로 볼 수 있어요.\n\n■ 노선도와 역 검색\n수도권, 부산, 대구, 대전, 광주의 노선도와 역 정보는 인터넷이 끊기는 지하에서도 볼 수 있어요.\n\n■ 시설 신고\n고장 난 시설을 가입 없이 바로 알릴 수 있어요.\n\n회원가입 없이 쓸 수 있고, 즐겨찾기와 최근 검색은 내 휴대전화에만 저장돼요.\n\n공식 공공 데이터를 바탕으로 하며 데이터 기준일과 출처를 함께 보여 드려요. 경로와 시설 정보는 현장 상황과 다를 수 있으니 이동 전 역무원 또는 운영기관 안내를 함께 확인해 주세요.",
+    "fullDescriptionKo": "계단 없이 갈 수 있는 길부터 알려 드려요.\n\n보통 걸음, 천천히, 계단 없이, 휠체어·유모차. 내게 맞는 이동 방식을 고르면 거기에 맞는 지하철 경로를 보여 드려요.\n\n■ 계단 없는 길찾기\n환승할 때마다 어디서 어떻게 이동하는지 단계별로 안내해요.\n\n■ 엘리베이터와 시설 정보\n역마다 엘리베이터, 휠체어 리프트, 장애인 화장실, 수유실의 위치와 상태를 확인해요. 출구별 엘리베이터 연결도 볼 수 있어요.\n\n■ 하차 알람\n도착역과 환승역에 도착하기 전에 알려 드려요.\n\n■ 시간표\n역별 열차 시간표를 확인하고, 홈 화면 위젯으로 다음 열차를 바로 볼 수 있어요.\n\n■ 노선도와 역 검색\n수도권, 부산, 대구, 대전, 광주의 노선도와 역 정보는 인터넷이 끊기는 지하에서도 볼 수 있어요.\n\n■ 시설 신고\n고장 난 시설을 가입 없이 바로 알릴 수 있어요.\n\n회원가입 없이 쓸 수 있고, 즐겨찾기와 최근 검색은 내 휴대전화에만 저장돼요.\n\n공식 공공 데이터를 바탕으로 하며 데이터 기준일과 출처를 함께 보여 드려요.",
     "releaseNotesKo": "계단 없는 길찾기, 엘리베이터 정보, 하차 알람, 시간표를 제공합니다.",
     "supportRegionKo": "수도권, 부산, 대구, 대전, 광주",
     "routingLaunchScopeKo": "수도권, 부산, 대구, 대전, 광주 도시철도 길찾기",
     "dataBaselineRequired": true,
-    "realtimeSupportScopeKo": "실시간 열차 정보는 운영기관이 제공하는 노선에서만 표시",
-    "confirmationCopyKo": "경로와 시설 정보는 현장 상황과 다를 수 있어 이동 전 역무원 또는 운영기관 안내를 함께 봐 주세요."
+    "realtimeSupportScopeKo": "실시간 열차 정보는 운영기관이 제공하는 노선에서만 표시"
   },
   "prohibitedClaims": [
     "100% 안전",

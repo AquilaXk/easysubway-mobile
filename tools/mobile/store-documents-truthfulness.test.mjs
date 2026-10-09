@@ -63,10 +63,38 @@ test('충돌 진단 공시는 인벤토리와 계약 문서가 같은 사실을 
   assert.equal(entry.sharedWithThirdParties, true);
   assert.equal(entry.usedForTracking, false);
 
-  const [crashLogs] = disclosure.playDataSafety;
-  assert.equal(crashLogs.collected, entry.googlePlayDataSafety.collected);
-  assert.equal(crashLogs.shared, entry.sharedWithThirdParties);
-  assert.match(crashLogs.sharedWith, /Crashlytics/);
+  const expectedTypes = [
+    'App info and performance — Crash logs',
+    'App info and performance — Diagnostics',
+    'Device or other IDs',
+  ];
+  assert.deepEqual(decision.playDataTypes, expectedTypes);
+  assert.deepEqual(disclosure.playDataSafety.map((item) => item.dataType), expectedTypes);
+  for (const item of disclosure.playDataSafety) {
+    assert.equal(item.collected, true);
+    assert.equal(item.shared, true);
+    assert.match(item.sharedWith, /Crashlytics/);
+    assert.equal(item.purpose, 'App functionality');
+    assert.equal(item.usedForTracking, false);
+    assert.equal(item.usedForAds, false);
+  }
+  const inventoryTypes = [
+    entry.googlePlayDataSafety.dataType,
+    ...entry.additionalGooglePlayDataSafety.map((item) => item.dataType),
+  ];
+  assert.deepEqual(inventoryTypes, expectedTypes);
+  for (const item of [entry.googlePlayDataSafety, ...entry.additionalGooglePlayDataSafety]) {
+    assert.equal(item.collected, true);
+    assert.equal(item.shared, true);
+    assert.equal(item.purpose, 'App functionality');
+  }
+  const submissionGroups = content.dataSafetyDeclarations.answerMatrix;
+  assert.ok(Array.isArray(submissionGroups), 'submission data type declarations');
+  assert.deepEqual(content.crashAnrProviderDecision.playDataTypes, expectedTypes);
+  const crashGroups = submissionGroups.filter((group) => group.inventoryDataIds.includes('diagnostics_crash_logs'));
+  assert.equal(crashGroups.length, 3, 'crash logs are declared in three Play data type groups');
+  assert.ok(crashGroups.some((group) => group.dataType === 'App info and performance — Crash logs'));
+  assert.ok(crashGroups.some((group) => group.dataType === 'Device or other IDs'));
 
   assert.equal(content.crashAnrProviderDecision.separateCrashProvider, true);
   assert.equal(content.crashAnrProviderDecision.linkedInventory, 'apps/mobile/release/store-privacy-inventory.json');
@@ -75,4 +103,13 @@ test('충돌 진단 공시는 인벤토리와 계약 문서가 같은 사실을 
     const source = await readFile(path, 'utf8');
     assert.ok(!/no-crash-sdk|noCrashSdk|crash SDK를 사용하지/.test(source), `${path} must not claim "no crash SDK"`);
   }
+});
+
+test('등록정보에는 면책 문구가 없고 개인정보 요구 항목은 서버 경로 검색을 기준으로 한다', async () => {
+  const content = await readJson('apps/mobile/release/play-store-submission-content.json');
+  const listing = collectStrings(content.koreanListing).join('\n');
+  assert.ok(!/다를 수 있|역무원|운영기관 안내/.test(listing), 'listing has no disclaimer sentence');
+  const required = content.privacyPolicyRequirements.requiredContentKo.join('\n');
+  assert.ok(!/단말에서만 처리/.test(required), 'route search is not on-device only');
+  assert.match(required, /Journey V3 서버 경로 검색/);
 });

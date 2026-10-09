@@ -13,10 +13,34 @@
       "shared": true,
       "sharedWith": "Firebase Crashlytics (Google)",
       "optional": false,
-      "purpose": "App functionality / stability",
+      "purpose": "App functionality",
+      "usedForTracking": false,
+      "usedForAds": false
+    },
+    {
+      "dataType": "App info and performance — Diagnostics",
+      "collected": true,
+      "shared": true,
+      "sharedWith": "Firebase Crashlytics (Google)",
+      "optional": false,
+      "purpose": "App functionality",
+      "usedForTracking": false,
+      "usedForAds": false
+    },
+    {
+      "dataType": "Device or other IDs",
+      "collected": true,
+      "shared": true,
+      "sharedWith": "Firebase Crashlytics (Google)",
+      "optional": false,
+      "purpose": "App functionality",
       "usedForTracking": false,
       "usedForAds": false
     }
+  ],
+  "officialSources": [
+    "https://firebase.google.com/support/privacy",
+    "https://firebase.google.com/docs/android/play-data-disclosure"
   ],
   "inventoryLink": {
     "file": "apps/mobile/release/store-privacy-inventory.json",
