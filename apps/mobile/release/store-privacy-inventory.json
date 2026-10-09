@@ -989,7 +989,7 @@
       "sharedWithThirdParties": false,
       "usedForTracking": false,
       "googlePlayDataSafety": {
-        "dataType": "Diagnostics",
+        "dataType": "App info and performance — Diagnostics",
         "collected": true,
         "collectionType": "diagnostic-event",
         "purpose": "App functionality",

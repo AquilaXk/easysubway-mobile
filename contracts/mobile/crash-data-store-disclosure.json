@@ -13,6 +13,8 @@
       "shared": true,
       "sharedWith": "Firebase Crashlytics (Google)",
       "optional": false,
+      "required": true,
+      "deletionSupported": false,
       "purpose": "App functionality",
       "usedForTracking": false,
       "usedForAds": false
@@ -23,6 +25,8 @@
       "shared": true,
       "sharedWith": "Firebase Crashlytics (Google)",
       "optional": false,
+      "required": true,
+      "deletionSupported": false,
       "purpose": "App functionality",
       "usedForTracking": false,
       "usedForAds": false
@@ -33,6 +37,8 @@
       "shared": true,
       "sharedWith": "Firebase Crashlytics (Google)",
       "optional": false,
+      "required": true,
+      "deletionSupported": false,
       "purpose": "App functionality",
       "usedForTracking": false,
       "usedForAds": false

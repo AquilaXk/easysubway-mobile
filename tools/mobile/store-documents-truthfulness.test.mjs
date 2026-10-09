@@ -34,7 +34,7 @@ test('Play 등록정보는 단문 소개와 현재 제공 기능만 서술한다
   const { koreanListing } = await readJson('apps/mobile/release/play-store-submission-content.json');
   assert.ok(koreanListing.shortDescription.length <= 80, 'Play short description limit is 80 characters');
   assert.ok(koreanListing.fullDescriptionKo.length <= 4000, 'Play full description limit is 4000 characters');
-  for (const keyword of ['계단', '엘리베이터', '하차 알람', '시간표', '수도권', '부산', '대구', '대전', '광주']) {
+  for (const keyword of ['계단', '엘리베이터', '휠체어 리프트', '화장실', '수유실', '하차 알람', '시간표', '위젯', '가입 없이', '수도권', '부산', '대구', '대전', '광주']) {
     assert.ok(koreanListing.fullDescriptionKo.includes(keyword), `listing mentions ${keyword}`);
   }
 });
@@ -112,4 +112,46 @@ test('등록정보에는 면책 문구가 없고 개인정보 요구 항목은 �
   const required = content.privacyPolicyRequirements.requiredContentKo.join('\n');
   assert.ok(!/단말에서만 처리/.test(required), 'route search is not on-device only');
   assert.match(required, /Journey V3 서버 경로 검색/);
+});
+
+function playBlocks(entry) {
+  return [entry.googlePlayDataSafety, ...(entry.additionalGooglePlayDataSafety ?? [])].filter(Boolean);
+}
+
+test('Data safety 필수·선택·삭제 값이 인벤토리, 계약, 제출 문서에서 같다', async () => {
+  const inventory = await readJson('apps/mobile/release/store-privacy-inventory.json');
+  const disclosure = await readJson('contracts/mobile/crash-data-store-disclosure.json');
+  const content = await readJson('apps/mobile/release/play-store-submission-content.json');
+  const matrix = content.dataSafetyDeclarations.answerMatrix;
+  const crash = inventory.dataTypes.find((item) => item.id === 'diagnostics_crash_logs');
+
+  for (const item of disclosure.playDataSafety) {
+    const block = playBlocks(crash).find((candidate) => candidate.dataType === item.dataType);
+    assert.ok(block, `inventory has ${item.dataType}`);
+    assert.equal(item.optional, block.optional, `${item.dataType} optional`);
+    assert.equal(item.required, block.required, `${item.dataType} required`);
+    assert.equal(item.deletionSupported, block.deletionSupported, `${item.dataType} deletionSupported`);
+    assert.equal(item.collected, block.collected, `${item.dataType} collected`);
+    assert.equal(item.shared, block.shared, `${item.dataType} shared`);
+  }
+
+  // 그룹 플래그는 그룹에 속한 인벤토리 항목에서 도출한 값과 같아야 한다.
+  for (const item of disclosure.playDataSafety) {
+    const group = matrix.find((candidate) => candidate.dataType === item.dataType);
+    assert.ok(group, `submission has ${item.dataType}`);
+    const blocks = group.inventoryDataIds.map((id) => {
+      const entry = inventory.dataTypes.find((candidate) => candidate.id === id);
+      assert.ok(entry, `inventory entry ${id}`);
+      const block = playBlocks(entry).find((candidate) => candidate.dataType === item.dataType);
+      assert.ok(block, `${id} declares ${item.dataType}`);
+      return block;
+    });
+    assert.equal(group.containsRequiredData, blocks.some((block) => block.required === true), `${item.dataType} containsRequiredData`);
+    assert.equal(group.containsOptionalData, blocks.some((block) => block.optional === true), `${item.dataType} containsOptionalData`);
+    assert.equal(
+      group.containsDeletionUnsupportedData,
+      blocks.some((block) => block.deletionSupported === false),
+      `${item.dataType} containsDeletionUnsupportedData`,
+    );
+  }
 });

@@ -2,9 +2,9 @@
   "$schema": "https://raw.githubusercontent.com/AquilaXk/easysubway/32ce139789b97ce1f0c9bb059966cfc19f497480/contracts/documentation/documentation-fragment.schema.json",
   "schemaVersion": 1,
   "repository": "AquilaXk/easysubway-mobile",
-  "sourceSha": "a298e14f89cebdc75f02d849c639828809a83e80",
+  "sourceSha": "fe70c5fc6a7ad89320a04969640b14d2d12ade61",
   "status": "ACTIVE",
-  "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
+  "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
   "verificationEvidence": [
     "https://github.com/AquilaXk/easysubway-mobile/issues/225",
     "https://github.com/AquilaXk/easysubway-mobile/issues/250",
@@ -22,7 +22,7 @@
       "documentationFamily": "QUALITY_TEST",
       "kindCandidate": "MOBILE_REQUIRED_CI_WORKFLOW",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:.github/workflows/ci.yml:eb7db6322efa95bbdf14dc9df3501169d15fbf98",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:.github/workflows/ci.yml:eb7db6322efa95bbdf14dc9df3501169d15fbf98",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/72",
@@ -46,8 +46,8 @@
       "reviewTrigger": [
         "event:workflow-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:.github/workflows/ci.yml:eb7db6322efa95bbdf14dc9df3501169d15fbf98",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:.github/workflows/ci.yml:eb7db6322efa95bbdf14dc9df3501169d15fbf98",
       "verificationMethod": "contract-test",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/72"
@@ -72,7 +72,7 @@
       "documentationFamily": "PRODUCT",
       "kindCandidate": "MOBILE_PRODUCT_README",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:README.md:d986637ebf12e16e60d081d356d1f339af9823e3",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:README.md:d986637ebf12e16e60d081d356d1f339af9823e3",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/67",
@@ -99,8 +99,8 @@
       "reviewTrigger": [
         "event:source-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:README.md:d986637ebf12e16e60d081d356d1f339af9823e3",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:README.md:d986637ebf12e16e60d081d356d1f339af9823e3",
       "verificationMethod": "owner-review",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/67"
@@ -125,7 +125,7 @@
       "documentationFamily": "ENGINEERING",
       "kindCandidate": "MOBILE_ANALYSIS_POLICY",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/analysis_options.yaml:ec90b31a89bb1d240865d1a6af31038c1f3b2a63",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/analysis_options.yaml:ec90b31a89bb1d240865d1a6af31038c1f3b2a63",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/24",
@@ -149,8 +149,8 @@
       "reviewTrigger": [
         "event:toolchain-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/analysis_options.yaml:ec90b31a89bb1d240865d1a6af31038c1f3b2a63",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/analysis_options.yaml:ec90b31a89bb1d240865d1a6af31038c1f3b2a63",
       "verificationMethod": "contract-test",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/24"
@@ -175,7 +175,7 @@
       "documentationFamily": "ARCHITECTURE",
       "kindCandidate": "JOURNEY_UX_STATE_IMPLEMENTATION",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/lib/features/journey/application/journey_search_controller.dart:e9fecc3abafc4ebbfdd1b211b9123f4494c166dd",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/lib/features/journey/application/journey_search_controller.dart:e9fecc3abafc4ebbfdd1b211b9123f4494c166dd",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/31",
@@ -199,8 +199,8 @@
       "reviewTrigger": [
         "event:source-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/lib/features/journey/application/journey_search_controller.dart:e9fecc3abafc4ebbfdd1b211b9123f4494c166dd",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/lib/features/journey/application/journey_search_controller.dart:e9fecc3abafc4ebbfdd1b211b9123f4494c166dd",
       "verificationMethod": "contract-test",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/31"
@@ -225,7 +225,7 @@
       "documentationFamily": "GOVERNANCE_EVIDENCE",
       "kindCandidate": "JOURNEY_V3_GENERATION_RECEIPT",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/lib/generated/journey_v3/journey_v3_generation_receipt.json:c077db7501ef9f6b865a0e0ba411af667d25c767",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/lib/generated/journey_v3/journey_v3_generation_receipt.json:c077db7501ef9f6b865a0e0ba411af667d25c767",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/68",
@@ -249,8 +249,8 @@
       "reviewTrigger": [
         "event:contract-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/lib/generated/journey_v3/journey_v3_generation_receipt.json:c077db7501ef9f6b865a0e0ba411af667d25c767",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/lib/generated/journey_v3/journey_v3_generation_receipt.json:c077db7501ef9f6b865a0e0ba411af667d25c767",
       "verificationMethod": "contract-test",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/68"
@@ -275,7 +275,7 @@
       "documentationFamily": "DATA_KNOWLEDGE",
       "kindCandidate": "MOBILE_DATAPACK_ACCEPTANCE_POLICY",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/datapack-manifest-acceptance-policy.json:cda6b517afe57e8ad8e9a101d1f2cdb4c2020111",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/datapack-manifest-acceptance-policy.json:cda6b517afe57e8ad8e9a101d1f2cdb4c2020111",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/45",
@@ -299,8 +299,8 @@
       "reviewTrigger": [
         "event:datapack-publication-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/datapack-manifest-acceptance-policy.json:cda6b517afe57e8ad8e9a101d1f2cdb4c2020111",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/datapack-manifest-acceptance-policy.json:cda6b517afe57e8ad8e9a101d1f2cdb4c2020111",
       "verificationMethod": "owner-review",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/45"
@@ -325,7 +325,7 @@
       "documentationFamily": "OPERATIONS_RELIABILITY",
       "kindCandidate": "GET_OFF_ALARM_LIFECYCLE_POLICY",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/get-off-alarm-policy.json:4290f61e5d58477311122dc524a8938f1def4c6f",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/get-off-alarm-policy.json:4290f61e5d58477311122dc524a8938f1def4c6f",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/31",
@@ -349,8 +349,8 @@
       "reviewTrigger": [
         "event:alarm-policy-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/get-off-alarm-policy.json:4290f61e5d58477311122dc524a8938f1def4c6f",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/get-off-alarm-policy.json:4290f61e5d58477311122dc524a8938f1def4c6f",
       "verificationMethod": "contract-test",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/31"
@@ -375,7 +375,7 @@
       "documentationFamily": "USER_SUPPORT_LEGAL_PUBLIC",
       "kindCandidate": "PLAY_STORE_SUBMISSION_CONTENT",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/play-store-submission-content.json:ac58a3325b3d9a84a00dcbf59cdfbb822bc0fffa",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/play-store-submission-content.json:eb1f6f1e94f252649e14fc7e814f84584cde5f75",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/8",
@@ -399,8 +399,8 @@
       "reviewTrigger": [
         "event:store-content-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/play-store-submission-content.json:ac58a3325b3d9a84a00dcbf59cdfbb822bc0fffa",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/play-store-submission-content.json:eb1f6f1e94f252649e14fc7e814f84584cde5f75",
       "verificationMethod": "owner-review",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/8"
@@ -425,7 +425,7 @@
       "documentationFamily": "RELEASE_CHANGE",
       "kindCandidate": "MOBILE_SIGNED_ARTIFACT_GATE",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/signed-release-artifact-gate.json:70ba3c36ee679ff69918cb89d8d467b267216ad6",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/signed-release-artifact-gate.json:70ba3c36ee679ff69918cb89d8d467b267216ad6",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/8",
@@ -449,8 +449,8 @@
       "reviewTrigger": [
         "event:release-candidate-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/signed-release-artifact-gate.json:70ba3c36ee679ff69918cb89d8d467b267216ad6",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/signed-release-artifact-gate.json:70ba3c36ee679ff69918cb89d8d467b267216ad6",
       "verificationMethod": "release-audit",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/8"
@@ -475,7 +475,7 @@
       "documentationFamily": "SECURITY_PRIVACY",
       "kindCandidate": "MOBILE_STORE_PRIVACY_INVENTORY",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/store-privacy-inventory.json:e4116b037fefc0abbd0d463eab9c4008bdf092c1",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/store-privacy-inventory.json:f1dd1808b8c5ac4d0a7d034ad5780ae23089a32d",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/36",
@@ -499,8 +499,8 @@
       "reviewTrigger": [
         "event:privacy-inventory-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:apps/mobile/release/store-privacy-inventory.json:e4116b037fefc0abbd0d463eab9c4008bdf092c1",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:apps/mobile/release/store-privacy-inventory.json:f1dd1808b8c5ac4d0a7d034ad5780ae23089a32d",
       "verificationMethod": "owner-review",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/36"
@@ -525,7 +525,7 @@
       "documentationFamily": "API_CONTRACT",
       "kindCandidate": "JOURNEY_V3_CLIENT_LOCK",
       "sourceSurface": "TRACKED",
-      "canonicalIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:contracts/mobile/journey-v3-client.lock.json:9dba676443bbe9671350758359300c65c8828e6a",
+      "canonicalIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:contracts/mobile/journey-v3-client.lock.json:9dba676443bbe9671350758359300c65c8828e6a",
       "status": "ACTIVE",
       "ownerRepository": "AquilaXk/easysubway-mobile",
       "ownerIssue": "https://github.com/AquilaXk/easysubway-mobile/issues/68",
@@ -549,8 +549,8 @@
       "reviewTrigger": [
         "event:contract-change"
       ],
-      "lastVerifiedAt": "2026-10-09T08:12:16.718Z",
-      "lastVerifiedIdentity": "git:a298e14f89cebdc75f02d849c639828809a83e80:contracts/mobile/journey-v3-client.lock.json:9dba676443bbe9671350758359300c65c8828e6a",
+      "lastVerifiedAt": "2026-10-09T08:42:51.601Z",
+      "lastVerifiedIdentity": "git:fe70c5fc6a7ad89320a04969640b14d2d12ade61:contracts/mobile/journey-v3-client.lock.json:9dba676443bbe9671350758359300c65c8828e6a",
       "verificationMethod": "contract-test",
       "verificationEvidence": [
         "https://github.com/AquilaXk/easysubway-mobile/issues/68"
