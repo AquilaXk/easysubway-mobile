@@ -93,17 +93,36 @@
     ]
   },
   "crashAnrProviderDecision": {
-    "separateCrashProvider": false,
+    "separateCrashProvider": true,
+    "provider": "Firebase Crashlytics",
+    "collected": true,
+    "sharedWith": "Google (Firebase Crashlytics)",
+    "sharedPurpose": "crash-reporting",
+    "usedForTracking": false,
+    "usedForAds": false,
+    "collectedFields": [
+      "crash-stack-trace",
+      "error-type-code",
+      "device-model",
+      "os-version",
+      "app-version",
+      "firebase-installation-id"
+    ],
+    "userIdentifierSet": false,
+    "collectionBuilds": [
+      "release"
+    ],
     "sourceOfTruth": [
+      "Firebase Crashlytics",
       "Android vitals",
-      "Google Play pre-launch report",
-      "mobile runtime error reporter"
+      "Google Play pre-launch report"
     ],
     "requiredEvidence": [
-      "no-crash-sdk-dependency-scan",
+      "crashlytics-dependency-scan",
       "android-vitals-or-play-pre-launch-report-export"
     ],
-    "privacyAnswerKo": "Android v1은 별도 crash SDK를 사용하지 않고 Android vitals와 Play pre-launch report를 충돌/ANR 기준 증거로 삼는다."
+    "disclosureContract": "contracts/mobile/crash-data-store-disclosure.json",
+    "privacyAnswerKo": "Android는 Firebase Crashlytics로 충돌 진단 정보(충돌 스택, 기기 모델·OS 버전, 앱 버전, 익명 설치 식별자)를 수집하고 충돌 보고를 위해 Google과 공유한다. 이용자 식별자는 설정하지 않으며 추적과 광고에는 사용하지 않는다."
   },
   "dataTypes": [
     {
@@ -324,11 +343,6 @@
         "optional": true,
         "required": false,
         "deletionSupported": false
-      },
-      "appStorePrivacy": {
-        "dataType": "None",
-        "linkedToUser": false,
-        "purpose": "NotCollected"
       }
     },
     {
@@ -366,11 +380,6 @@
         "optional": false,
         "required": true,
         "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypeSearchHistory",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     },
     {
@@ -424,11 +433,6 @@
         "optional": true,
         "required": false,
         "deletionSupported": false
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypeSearchHistory",
-        "linkedToUser": false,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     },
     {
@@ -469,11 +473,6 @@
         "optional": true,
         "required": false,
         "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypeOtherUserContent",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     },
     {
@@ -516,11 +515,6 @@
         "optional": true,
         "required": false,
         "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypeOtherUserContent",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     },
     {
@@ -771,11 +765,6 @@
         "optional": false,
         "required": false,
         "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypeSensitiveInfo",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     },
     {
@@ -819,11 +808,6 @@
         "optional": true,
         "required": false,
         "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypeOtherUserContent",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     },
     {
@@ -868,11 +852,6 @@
         "optional": true,
         "required": false,
         "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypePhotosorVideos",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     },
     {
@@ -904,55 +883,46 @@
         "optional": false,
         "required": false,
         "deletionSupported": false
-      },
-      "appStorePrivacy": {
-        "dataType": "None",
-        "linkedToUser": false,
-        "purpose": "NotCollected"
       }
     },
     {
       "id": "diagnostics_crash_logs",
       "displayNameKo": "앱 충돌 로그",
-      "purposeKo": "앱 충돌 원인을 분석하고 접근성 흐름 회귀를 찾음",
-      "implementationStatus": "local-only",
+      "purposeKo": "앱 충돌 원인을 분석하고 서비스 안정성을 개선",
+      "implementationStatus": "collected",
       "introducedInVersion": "0.1.0",
-      "codeOwner": "mobile/backend",
-      "collectionTrigger": "앱 오류 처리 경로가 사용자 메시지와 내부 리포터를 분리할 때",
+      "codeOwner": "mobile",
+      "collectionTrigger": "정식 배포(release) 빌드에서 앱이 비정상 종료되거나 처리되지 않은 오류가 발생할 때 Firebase Crashlytics로 전송. debug·profile 빌드는 전송하지 않음",
       "backendTableOrService": [
-        "mobile runtime error reporter",
-        "backend sanitized error response"
+        "Firebase Crashlytics (Google)"
       ],
       "storageLocations": [
-        "mobile-runtime",
-        "backend-log"
+        "firebase-crashlytics"
       ],
-      "retentionKo": "운영 장애 분석에 필요한 최소 기간만 보관",
-      "deletionKo": "데이터 삭제 요청 시 사용자 식별자와 연결된 충돌 로그를 삭제 또는 익명화",
-      "deletionImplementation": "모바일 오류 리포터와 백엔드 공통 예외 응답은 사용자 화면과 내부 진단 정보를 분리하고, 사용자 연결 로그는 운영 보관 정책에 따라 삭제 또는 익명화한다.",
+      "retentionKo": "Google(Firebase Crashlytics) 보관 기준에 따라 수집일부터 최대 90일",
+      "deletionKo": "이용자 계정이나 이용자 식별자와 연결하지 않으며 보관 기간이 지나면 Google이 자동 삭제",
+      "deletionImplementation": "전송 전 오류 메시지 원문을 폐기하고 스택은 경로·URI를 정규화해 허용된 형태만 남기며, custom key는 app_build_variant, app_version, crash_error_code, crash_subsystem, device_class, os_class 닫힌 집합만 허용한다. setUserIdentifier는 호출하지 않는다.",
       "evidence": [
-        "apps/mobile/lib/mobile_error_reporter.dart",
-        "release/product-gates/release-security-gate.json",
-        "backend/src/main/java/com/easysubway/common/web/CommonExceptionHandler.java"
+        "apps/mobile/lib/core/crashlytics/mobile_crash_reporting.dart",
+        "apps/mobile/lib/core/crashlytics/crash_report_redaction.dart",
+        "contracts/mobile/crash-data-store-disclosure.json",
+        "contracts/mobile/crashlytics-secret-injection.json"
       ],
-      "lastVerifiedAt": "2026-06-19",
-      "sharedWithThirdParties": false,
+      "lastVerifiedAt": "2026-10-09",
+      "sharedWithThirdParties": true,
+      "thirdPartySharingKo": "충돌 진단 정보를 충돌 보고를 위해 Google(Firebase Crashlytics)과 공유한다. 이용자 식별자는 설정하지 않으며 추적과 광고에는 사용하지 않는다.",
       "usedForTracking": false,
       "googlePlayDataSafety": {
-        "dataType": "Diagnostics",
-        "collected": false,
-        "collectionType": "local-only-diagnostic-event",
+        "dataType": "App info and performance — Crash logs",
+        "collected": true,
+        "shared": true,
+        "collectionType": "diagnostic-event",
         "purpose": "App functionality",
         "linkedToUser": false,
         "encryptedInTransit": true,
         "optional": false,
-        "required": false,
-        "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypeCrashData",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
+        "required": true,
+        "deletionSupported": false
       }
     },
     {
@@ -996,11 +966,6 @@
         "optional": false,
         "required": true,
         "deletionSupported": true
-      },
-      "appStorePrivacy": {
-        "dataType": "NSPrivacyCollectedDataTypePerformanceData",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     }
   ],
@@ -1026,8 +991,6 @@
       "evidence": [
         "apps/mobile/lib/main.dart",
         "apps/mobile/lib/features/notifications/notification_settings.dart",
-        "apps/mobile/ios/Runner/Runner-Release.entitlements",
-        "apps/mobile/ios/Runner/PrivacyInfo.xcprivacy",
         "backend/src/main/java/com/easysubway/user/application/service/UserDataDeletionService.java"
       ],
       "lastVerifiedAt": "2026-06-19",
@@ -1039,12 +1002,6 @@
         "purpose": "App functionality",
         "encryptedInTransit": true,
         "optional": true
-      },
-      "appStorePrivacy": {
-        "includedInRelease": false,
-        "dataType": "NSPrivacyCollectedDataTypeDeviceID",
-        "linkedToUser": true,
-        "purpose": "NSPrivacyCollectedDataTypePurposeAppFunctionality"
       }
     }
   ]

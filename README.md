@@ -23,14 +23,13 @@ EasySubway is an accessibility-first transit companion built with Flutter.
 - **Routes built for your situation**: Wheelchairs, strollers, luggage, or temporary pain. Select what fits you and see step-free paths first.
 - **Accessibility data with dates**: Inspection dates and sources are clearly marked. If a lift status is unconfirmed, we say unconfirmed.
 - **Report broken lifts without signing up**: Let others know about stopped elevators on the spot. Check the fix with just your receipt code.
-- **Your information stays with you**: Bookmarks and recent searches live on your phone alone. No accounts, no advertising identifiers, no tracking.
+- **Your information stays with you**: Bookmarks and recent searches live on your phone alone. No accounts, no advertising identifiers, no tracking. If the app crashes, anonymous crash diagnostics are sent so we can fix it; they carry no personal information.
 
 ## Current scope
 
-- Early accessibility data focuses on Sangnoksu and Sadang stations.
-- Coverage expansions across 5 metropolitan areas (Capital Area, Gwangju, Daejeon, Daegu, and Busan) are in preparation.
+- Subway maps, station information, and step-free routing cover 5 metropolitan areas: Capital Area, Gwangju, Daejeon, Daegu, and Busan.
 - Unverified facility details are marked honestly as unconfirmed.
-- Android releases first; iOS follows.
+- Available on Android.
 
 ## Downloads
 
