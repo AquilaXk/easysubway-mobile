@@ -292,6 +292,91 @@ class JourneyProfileJourneyCandidate {
   };
 }
 
+/// 프로필 성공 응답 최상위 공통 키(계약 `*ProfileSuccess` required 합집합).
+const Set<String> _profileCommonKeys = {
+  'contractVersion',
+  'requestId',
+  'queryId',
+  'calculatedAt',
+  'validUntil',
+  'temporalQuery',
+  'serviceDays',
+  'sourceIdentity',
+  'algorithmIdentity',
+  'frontierPolicyIdentity',
+  'resourcePolicyIdentity',
+  'journeys',
+  'summary',
+};
+
+/// 계약 `JourneyProfileSourceIdentity`. 검색 응답의 `JourneySourceIdentity`와 달리
+/// `routeBundleGeneration`을 가진다.
+class JourneyProfileSourceIdentity {
+  const JourneyProfileSourceIdentity({
+    required this.routeBundleId,
+    required this.routeBundleGeneration,
+    required this.routeBundleSha256,
+    required this.timetableSnapshotId,
+    required this.accessibilitySnapshotId,
+    required this.realtimeSnapshotId,
+  });
+
+  factory JourneyProfileSourceIdentity.fromJson(Map<String, Object?> json) {
+    JourneyV3Validation.exactKeys(json, {
+      'routeBundleId',
+      'routeBundleGeneration',
+      'routeBundleSha256',
+      'timetableSnapshotId',
+      'accessibilitySnapshotId',
+      'realtimeSnapshotId',
+    });
+    return JourneyProfileSourceIdentity(
+      routeBundleId: JourneyV3Validation.nonBlank(
+        json['routeBundleId'],
+        'routeBundleId',
+      ),
+      routeBundleGeneration: JourneyV3Validation.nonBlank(
+        json['routeBundleGeneration'],
+        'routeBundleGeneration',
+      ),
+      routeBundleSha256: JourneyV3Validation.sha256(
+        json['routeBundleSha256'],
+        'routeBundleSha256',
+      ),
+      timetableSnapshotId: JourneyV3Validation.nonBlank(
+        json['timetableSnapshotId'],
+        'timetableSnapshotId',
+      ),
+      accessibilitySnapshotId: JourneyV3Validation.nonBlank(
+        json['accessibilitySnapshotId'],
+        'accessibilitySnapshotId',
+      ),
+      realtimeSnapshotId: JourneyV3Validation.nullable(
+        json,
+        'realtimeSnapshotId',
+        (v) => JourneyV3Validation.nonBlank(v, 'realtimeSnapshotId'),
+      ),
+    );
+  }
+
+  final String routeBundleId;
+  final String routeBundleGeneration;
+  final String routeBundleSha256;
+  final String timetableSnapshotId;
+  final String accessibilitySnapshotId;
+  final String? realtimeSnapshotId;
+
+  /// 검색 결과 화면 모델이 쓰는 식별값. 서버가 준 값을 그대로 옮기고
+  /// 화면 모델에 없는 `routeBundleGeneration`만 제외한다.
+  JourneySourceIdentity toSearchSourceIdentity() => JourneySourceIdentity(
+    routeBundleId: routeBundleId,
+    routeBundleSha256: routeBundleSha256,
+    timetableSnapshotId: timetableSnapshotId,
+    accessibilitySnapshotId: accessibilitySnapshotId,
+    realtimeSnapshotId: realtimeSnapshotId,
+  );
+}
+
 class JourneyProfileSuccess {
   const JourneyProfileSuccess({
     required this.contractVersion,
@@ -302,7 +387,7 @@ class JourneyProfileSuccess {
     required this.temporalQuery,
     required this.journeys,
     required this.serviceDayCutoff,
-    this.sourceIdentity,
+    required this.sourceIdentity,
   });
 
   factory JourneyProfileSuccess.fromJson(Map<String, Object?> json) {
@@ -317,6 +402,12 @@ class JourneyProfileSuccess {
     if (rawTemporal is! Map<String, Object?>) {
       throw const FormatException('temporalQuery must be object');
     }
+    // 계약의 세 성공 응답(Departure/ArriveBy/LastConnection)은 additionalProperties
+    // false다. profileSegments는 DEPART_BETWEEN 응답에만 있다.
+    JourneyV3Validation.exactKeys(json, {
+      ..._profileCommonKeys,
+      if (rawTemporal['kind'] == 'DEPART_BETWEEN') 'profileSegments',
+    });
     final rawJourneys = json['journeys'];
     if (rawJourneys is! List) {
       throw const FormatException('journeys must be array');
@@ -324,9 +415,9 @@ class JourneyProfileSuccess {
 
     final serviceDayCutoff = _serviceDayCutoff(json['serviceDays']);
 
-    JourneySourceIdentity? sourceId;
-    if (json['sourceIdentity'] case final Map<String, Object?> rawSource) {
-      sourceId = JourneySourceIdentity.fromJson(rawSource);
+    final rawSource = json['sourceIdentity'];
+    if (rawSource is! Map<String, Object?>) {
+      throw const FormatException('sourceIdentity must be object');
     }
 
     return JourneyProfileSuccess(
@@ -346,7 +437,7 @@ class JourneyProfileSuccess {
         return JourneyProfileJourneyCandidate.fromJson(c);
       }).toList(),
       serviceDayCutoff: serviceDayCutoff,
-      sourceIdentity: sourceId,
+      sourceIdentity: JourneyProfileSourceIdentity.fromJson(rawSource),
     );
   }
 
@@ -385,7 +476,7 @@ class JourneyProfileSuccess {
   final DateTime validUntil;
   final JourneyTemporalQuery temporalQuery;
   final List<JourneyProfileJourneyCandidate> journeys;
-  final JourneySourceIdentity? sourceIdentity;
+  final JourneyProfileSourceIdentity sourceIdentity;
 
   /// 응답 serviceDays의 서비스일 경계 시각(HH:MM).
   final String serviceDayCutoff;
@@ -423,15 +514,7 @@ class JourneyProfileSuccess {
       // 프로필 계약(JourneyProfileSuccess)에는 계단 없는 대안 결과가 없다.
       // 값을 추정하지 않고 비워 둔다(#441).
       stairFreeAlternative: null,
-      sourceIdentity:
-          sourceIdentity ??
-          JourneySourceIdentity(
-            routeBundleId: 'profile-bundle',
-            routeBundleSha256: '0' * 64,
-            timetableSnapshotId: 'profile-timetable',
-            accessibilitySnapshotId: 'profile-accessibility',
-            realtimeSnapshotId: null,
-          ),
+      sourceIdentity: sourceIdentity.toSearchSourceIdentity(),
       requestPolicy: JourneyRequestPolicy(
         timePolicy: timePolicy,
         walkingPace: walkingPace,
