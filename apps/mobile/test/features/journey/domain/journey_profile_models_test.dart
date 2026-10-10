@@ -432,6 +432,21 @@ void main() {
       );
     });
 
+    test('realtimeSnapshotId가 있으면 그대로 옮기고 빈 값은 거부한다(#442)', () {
+      final withRealtime = _profileSourceIdentityJson()
+        ..['realtimeSnapshotId'] = 'rt-1';
+      final converted = JourneyProfileSourceIdentity.fromJson(
+        withRealtime,
+      ).toSearchSourceIdentity();
+      expect(converted.realtimeSnapshotId, 'rt-1');
+      expect(
+        () => JourneyProfileSourceIdentity.fromJson(
+          _profileSourceIdentityJson()..['realtimeSnapshotId'] = '  ',
+        ),
+        throwsFormatException,
+      );
+    });
+
     test('프로필 응답 최상위 키 집합은 계약과 정확히 같아야 한다(#442)', () {
       final temporalByKind = <String, Map<String, Object?>>{
         'DEPART_BETWEEN': {
