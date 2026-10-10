@@ -1752,6 +1752,15 @@ class _Repository implements JourneyRepository {
       validUntil: responseTime.add(const Duration(minutes: 5)),
       temporalQuery: request.temporalQuery,
       serviceDayCutoff: '03:00',
+      sourceIdentity: const JourneyProfileSourceIdentity(
+        routeBundleId: 'bundle-1',
+        routeBundleGeneration: 'gen-1',
+        routeBundleSha256:
+            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+        timetableSnapshotId: 'timetable-1',
+        accessibilitySnapshotId: 'accessibility-1',
+        realtimeSnapshotId: null,
+      ),
       journeys: journeyIds
           .map(
             (id) => JourneyProfileJourneyCandidate(

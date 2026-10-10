@@ -1045,11 +1045,17 @@ void main() {
         ],
         'sourceIdentity': {
           'routeBundleId': 'rb-1',
+          'routeBundleGeneration': 'gen-1',
           'routeBundleSha256': 'a' * 64,
           'timetableSnapshotId': 'tt-1',
           'accessibilitySnapshotId': 'acc-1',
           'realtimeSnapshotId': null,
         },
+        'algorithmIdentity': <String, Object?>{},
+        'frontierPolicyIdentity': <String, Object?>{},
+        'resourcePolicyIdentity': <String, Object?>{},
+        'profileSegments': <Object?>[],
+        'summary': <String, Object?>{},
       };
       final client = _StubApiClient([
         ApiResponse(statusCode: 200, jsonBody: successMap),

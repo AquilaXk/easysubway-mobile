@@ -31,6 +31,92 @@ Journey _createSampleJourney(String id) {
   );
 }
 
+/// 계약(`journey-v3.openapi.yaml`)의 `JourneyProfileSourceIdentity` 필드 전체.
+const _profileSourceIdentityKeys = <String>{
+  'routeBundleId',
+  'routeBundleGeneration',
+  'routeBundleSha256',
+  'timetableSnapshotId',
+  'accessibilitySnapshotId',
+  'realtimeSnapshotId',
+};
+
+/// 계약의 세 성공 응답(Departure/ArriveBy/LastConnection) 공통 required 키.
+const _profileCommonKeys = <String>{
+  'contractVersion',
+  'requestId',
+  'queryId',
+  'calculatedAt',
+  'validUntil',
+  'temporalQuery',
+  'serviceDays',
+  'sourceIdentity',
+  'algorithmIdentity',
+  'frontierPolicyIdentity',
+  'resourcePolicyIdentity',
+  'journeys',
+  'summary',
+};
+
+/// DEPART_BETWEEN 응답만 추가로 가지는 키(계약 `DepartureProfileSuccess`).
+const _departureOnlyKeys = <String>{'profileSegments'};
+
+Map<String, Object?> _profileSourceIdentityJson() => {
+  'routeBundleId': 'rb-1',
+  'routeBundleGeneration': 'gen-7',
+  'routeBundleSha256': 'a' * 64,
+  'timetableSnapshotId': 'tt-1',
+  'accessibilitySnapshotId': 'acc-1',
+  'realtimeSnapshotId': null,
+};
+
+/// 계약 키를 빠짐없이 가진 프로필 성공 응답. 디코더가 해석하지 않는
+/// 정책·요약 필드는 존재만 검사하므로 빈 객체로 둔다.
+Map<String, Object?> _profileJson({
+  required Map<String, Object?> candidate,
+  Map<String, Object?>? temporalQuery,
+}) {
+  final temporal =
+      temporalQuery ??
+      {
+        'kind': 'DEPART_BETWEEN',
+        'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+        'latestReadyAt': '2026-08-11T10:00:00.000Z',
+      };
+  return {
+    'contractVersion': 'JOURNEY_PROFILE_V1',
+    'requestId': '01J00000000000000000000000',
+    'queryId': 'q-1',
+    'calculatedAt': '2026-08-11T08:50:00.000Z',
+    'validUntil': '2026-08-11T09:50:00.000Z',
+    'temporalQuery': temporal,
+    'serviceDays': [
+      {
+        'serviceDate': '2026-08-11',
+        'serviceTimezone': 'Asia/Seoul',
+        'serviceDayCutoff': '03:00',
+      },
+    ],
+    'sourceIdentity': _profileSourceIdentityJson(),
+    'algorithmIdentity': <String, Object?>{},
+    'frontierPolicyIdentity': <String, Object?>{},
+    'resourcePolicyIdentity': <String, Object?>{},
+    'journeys': [candidate],
+    if (temporal['kind'] == 'DEPART_BETWEEN') 'profileSegments': <Object?>[],
+    'summary': <String, Object?>{},
+  };
+}
+
+JourneySearchSuccess _convert(Map<String, Object?> json) =>
+    JourneyProfileSuccess.fromJson(json).toSearchSuccess(
+      timePolicy: TimePolicy.timetableRequired,
+      walkingPace: WalkingPace.standard,
+      mobilityProfile: MobilityProfile.standard,
+      constraintMode: ConstraintMode.none,
+      maxTransfers: 3,
+      alternativeCount: 3,
+    );
+
 void main() {
   group('JourneyTemporalQuery', () {
     test('JourneyDepartBetweenQuery round-trips and validates', () {
@@ -182,17 +268,7 @@ void main() {
 
     test('검색 결과의 serviceDayCutoff는 프로필 응답 serviceDays에서 가져온다(#438 리뷰 F3)', () {
       Map<String, Object?> profile(Object? serviceDays) => {
-        'contractVersion': 'JOURNEY_PROFILE_V1',
-        'requestId': '01J00000000000000000000000',
-        'queryId': 'q-1',
-        'calculatedAt': '2026-08-11T08:50:00.000Z',
-        'validUntil': '2026-08-11T09:50:00.000Z',
-        'temporalQuery': {
-          'kind': 'DEPART_BETWEEN',
-          'earliestReadyAt': '2026-08-11T09:00:00.000Z',
-          'latestReadyAt': '2026-08-11T10:00:00.000Z',
-        },
-        'journeys': [validCandidateMap],
+        ..._profileJson(candidate: validCandidateMap)..remove('serviceDays'),
         'serviceDays': ?serviceDays,
       };
       Map<String, Object?> day(String date, String cutoff) => {
@@ -200,15 +276,7 @@ void main() {
         'serviceTimezone': 'Asia/Seoul',
         'serviceDayCutoff': cutoff,
       };
-      JourneySearchSuccess convert(Map<String, Object?> json) =>
-          JourneyProfileSuccess.fromJson(json).toSearchSuccess(
-            timePolicy: TimePolicy.timetableRequired,
-            walkingPace: WalkingPace.standard,
-            mobilityProfile: MobilityProfile.standard,
-            constraintMode: ConstraintMode.none,
-            maxTransfers: 3,
-            alternativeCount: 3,
-          );
+      final convert = _convert;
 
       expect(
         convert(
@@ -236,33 +304,7 @@ void main() {
     test(
       'JourneyProfileSuccess round-trips and converts to search success',
       () {
-        final successMap = {
-          'contractVersion': 'JOURNEY_PROFILE_V1',
-          'requestId': '01J00000000000000000000000',
-          'queryId': 'q-1',
-          'calculatedAt': '2026-08-11T08:50:00.000Z',
-          'validUntil': '2026-08-11T09:50:00.000Z',
-          'temporalQuery': {
-            'kind': 'DEPART_BETWEEN',
-            'earliestReadyAt': '2026-08-11T09:00:00.000Z',
-            'latestReadyAt': '2026-08-11T10:00:00.000Z',
-          },
-          'journeys': [validCandidateMap],
-          'serviceDays': [
-            {
-              'serviceDate': '2026-08-11',
-              'serviceTimezone': 'Asia/Seoul',
-              'serviceDayCutoff': '03:00',
-            },
-          ],
-          'sourceIdentity': {
-            'routeBundleId': 'rb-1',
-            'routeBundleSha256': 'a' * 64,
-            'timetableSnapshotId': 'tt-1',
-            'accessibilitySnapshotId': 'acc-1',
-            'realtimeSnapshotId': null,
-          },
-        };
+        final successMap = _profileJson(candidate: validCandidateMap);
 
         final success = JourneyProfileSuccess.fromJson(successMap);
         expect(success.contractVersion, 'JOURNEY_PROFILE_V1');
@@ -270,7 +312,8 @@ void main() {
         expect(success.queryId, 'q-1');
         expect(success.journeys.length, 1);
         expect(success.journeyList.length, 1);
-        expect(success.sourceIdentity?.routeBundleId, 'rb-1');
+        expect(success.sourceIdentity.routeBundleId, 'rb-1');
+        expect(success.sourceIdentity.routeBundleGeneration, 'gen-7');
 
         final searchSuccess = success.toSearchSuccess(
           timePolicy: TimePolicy.timetableRequired,
@@ -287,7 +330,7 @@ void main() {
         );
         expect(searchSuccess.serviceDate.toString(), '2026-08-11');
 
-        // Empty journeys conversion fallback
+        // 후보가 없어도 서버가 준 식별값을 그대로 쓴다
         final emptySuccess = JourneyProfileSuccess(
           contractVersion: 'JOURNEY_PROFILE_V1',
           requestId: '01J00000000000000000000000',
@@ -300,7 +343,9 @@ void main() {
           ),
           journeys: const [],
           serviceDayCutoff: '03:00',
-          sourceIdentity: null,
+          sourceIdentity: JourneyProfileSourceIdentity.fromJson(
+            _profileSourceIdentityJson(),
+          ),
         );
         final emptySearch = emptySuccess.toSearchSuccess(
           timePolicy: TimePolicy.timetableRequired,
@@ -315,7 +360,7 @@ void main() {
           emptySearch.effectiveDepartureTime,
           DateTime.parse('2026-08-11T08:50:00Z'),
         );
-        expect(emptySearch.sourceIdentity.routeBundleId, 'profile-bundle');
+        expect(emptySearch.sourceIdentity.routeBundleId, 'rb-1');
 
         // Error branches in fromJson
         expect(
@@ -345,5 +390,117 @@ void main() {
         );
       },
     );
+
+    test('검색 결과 sourceIdentity는 서버 응답 값 그대로이고 placeholder가 없다(#442)', () {
+      final converted = _convert(_profileJson(candidate: validCandidateMap));
+      final source = converted.sourceIdentity;
+      expect(source.routeBundleId, 'rb-1');
+      expect(source.routeBundleSha256, 'a' * 64);
+      expect(source.timetableSnapshotId, 'tt-1');
+      expect(source.accessibilitySnapshotId, 'acc-1');
+      expect(source.realtimeSnapshotId, isNull);
+      expect(source.routeBundleId, isNot('profile-bundle'));
+      expect(source.routeBundleSha256, isNot('0' * 64));
+      expect(source.timetableSnapshotId, isNot('profile-timetable'));
+      expect(source.accessibilitySnapshotId, isNot('profile-accessibility'));
+    });
+
+    test('sourceIdentity가 없거나 계약 키와 다르면 거부한다(#442)', () {
+      final base = _profileJson(candidate: validCandidateMap);
+      expect(
+        () => JourneyProfileSuccess.fromJson(
+          Map.of(base)..remove('sourceIdentity'),
+        ),
+        throwsFormatException,
+      );
+      for (final key in _profileSourceIdentityKeys) {
+        final missing = _profileSourceIdentityJson()..remove(key);
+        expect(
+          () => JourneyProfileSuccess.fromJson(
+            Map.of(base)..['sourceIdentity'] = missing,
+          ),
+          throwsFormatException,
+          reason: 'missing $key',
+        );
+      }
+      final extra = _profileSourceIdentityJson()..['unknown'] = 'x';
+      expect(
+        () => JourneyProfileSuccess.fromJson(
+          Map.of(base)..['sourceIdentity'] = extra,
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('realtimeSnapshotId가 있으면 그대로 옮기고 빈 값은 거부한다(#442)', () {
+      final withRealtime = _profileSourceIdentityJson()
+        ..['realtimeSnapshotId'] = 'rt-1';
+      final converted = JourneyProfileSourceIdentity.fromJson(
+        withRealtime,
+      ).toSearchSourceIdentity();
+      expect(converted.realtimeSnapshotId, 'rt-1');
+      expect(
+        () => JourneyProfileSourceIdentity.fromJson(
+          _profileSourceIdentityJson()..['realtimeSnapshotId'] = '  ',
+        ),
+        throwsFormatException,
+      );
+    });
+
+    test('프로필 응답 최상위 키 집합은 계약과 정확히 같아야 한다(#442)', () {
+      final temporalByKind = <String, Map<String, Object?>>{
+        'DEPART_BETWEEN': {
+          'kind': 'DEPART_BETWEEN',
+          'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+          'latestReadyAt': '2026-08-11T10:00:00.000Z',
+        },
+        'ARRIVE_BY': {
+          'kind': 'ARRIVE_BY',
+          'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+          'arrivalDeadline': '2026-08-11T10:00:00.000Z',
+        },
+        'LAST_CONNECTION': {
+          'kind': 'LAST_CONNECTION',
+          'serviceDate': '2026-08-11',
+        },
+      };
+      for (final entry in temporalByKind.entries) {
+        final json = _profileJson(
+          candidate: validCandidateMap,
+          temporalQuery: entry.value,
+        );
+        final expected = {
+          ..._profileCommonKeys,
+          if (entry.key == 'DEPART_BETWEEN') ..._departureOnlyKeys,
+        };
+        expect(json.keys.toSet(), expected, reason: entry.key);
+        expect(
+          () => JourneyProfileSuccess.fromJson(json),
+          returnsNormally,
+          reason: entry.key,
+        );
+        for (final key in expected) {
+          expect(
+            () => JourneyProfileSuccess.fromJson(Map.of(json)..remove(key)),
+            throwsFormatException,
+            reason: '${entry.key} missing $key',
+          );
+        }
+        expect(
+          () => JourneyProfileSuccess.fromJson(Map.of(json)..['unknown'] = 1),
+          throwsFormatException,
+          reason: '${entry.key} extra key',
+        );
+      }
+      // 계약상 DEPART_BETWEEN에만 profileSegments가 있다.
+      final arrive = _profileJson(
+        candidate: validCandidateMap,
+        temporalQuery: temporalByKind['ARRIVE_BY'],
+      )..['profileSegments'] = <Object?>[];
+      expect(
+        () => JourneyProfileSuccess.fromJson(arrive),
+        throwsFormatException,
+      );
+    });
   });
 }
