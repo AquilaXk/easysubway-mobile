@@ -8774,8 +8774,9 @@ void main() {
       ))
         ?semantics.properties.label,
     ];
-    expect(rendered, contains('서울교통공사_실시간운임정보'));
+    expect(rendered, contains('서울교통공사 실시간운임정보'));
     expect(rendered, isNot(contains(canary['displayName'])));
+    expect(rendered, isNot(contains(canary['userDisplayName'])));
     const forbidden = <String>[
       'canary',
       '검증',
@@ -8916,20 +8917,34 @@ void main() {
     expect(find.text('출처 표기'), findsNothing);
   });
 
-  test('자료 표시 이름에서 내부 작업용 꼬리표를 뗀다', () {
-    expect(
-      userFacingSourceName('국토교통부_도시철도 전체노선 대구 1호선 membership admission'),
-      '국토교통부_도시철도 전체노선 대구 1호선',
+  testWidgets('데이터 출처 화면은 displayName 대신 userDisplayName을 카드 제목으로 직접 표시한다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: DataSourceAttributionScreen(
+          initialManifest: <String, Object?>{'maps': <Object?>[]},
+          initialInventory: <String, Object?>{
+            'sources': <Object?>[
+              <String, Object?>{
+                'sourceId': 'TEST-SOURCE',
+                'displayName': '국토교통부_도시철도 전체노선 대구 1호선 membership admission',
+                'userDisplayName': '국토교통부 도시철도 전체노선 대구 1호선',
+                'provider': '국토교통부',
+                'license': <String, Object?>{'type': '공공누리 1유형'},
+                'status': 'collected_and_built',
+                'requiredAttribution': '국토교통부 제공 공공데이터',
+              },
+            ],
+          },
+        ),
+      ),
     );
-    expect(
-      userFacingSourceName('국가철도공단_GTX-A_역사정보_route_map_positions'),
-      '국가철도공단_GTX-A_역사정보',
-    );
-    expect(
-      userFacingSourceName('국가철도공단_김포골드라인_역사정보(KRIC 1294)'),
-      '국가철도공단_김포골드라인_역사정보',
-    );
-    expect(userFacingSourceName('서울교통공사_빠른하차정보'), '서울교통공사_빠른하차정보');
+    await tester.pump();
+
+    expect(find.text('국토교통부 도시철도 전체노선 대구 1호선'), findsOneWidget);
+    expect(find.text('국토교통부_도시철도 전체노선 대구 1호선'), findsNothing);
+    expect(find.textContaining('membership admission'), findsNothing);
   });
 
   testWidgets('데이터 및 지도 출처 화면은 manifest와 source inventory를 보여준다', (
@@ -8985,15 +9000,15 @@ void main() {
 
     // #1701: 서울교통공사 환승역거리 소요시간·빠른하차·환승 이동경로 3건 출처가 화면에 표기된다.
     // source-inventory.json에 이미 존재하는 항목이 필터 없이 렌더링됨을 고정한다.
-    // 각 출처 카드는 제목과 '제공 기관' 행에 displayName을 두 번(2개 Text) 렌더링하므로 단일 매치를
-    // 요구하는 scrollUntilVisible 대신 리스트를 직접 드래그해 lazy 항목을 노출시킨 뒤 findsWidgets로
-    // 확인한다. 항목 탐색 전 매번 리스트를 최상단으로 리셋해 렌더 순서에 의존하지 않게 한다.
+    // 각 출처 카드는 제목과 '제공 기관' 행에 userDisplayName/requiredAttribution을 렌더링하므로 단일 매치를
+    // 요구하는 scrollUntilVisible 대신 리스트를 직접 드래그해 lazy 항목을 노출시킨 뒤 확인한다.
+    // 항목 탐색 전 매번 리스트를 최상단으로 리셋해 렌더 순서에 의존하지 않게 한다.
     final sourceScrollable = find.byType(Scrollable);
     final sourceScrollState = tester.state<ScrollableState>(sourceScrollable);
     for (final displayName in const [
       '환승 이동경로',
-      '서울교통공사_빠른하차정보',
-      '서울교통공사_환승역거리 소요시간',
+      '서울교통공사 빠른하차정보',
+      '서울교통공사 환승역거리 소요시간',
     ]) {
       sourceScrollState.position.jumpTo(
         sourceScrollState.position.minScrollExtent,

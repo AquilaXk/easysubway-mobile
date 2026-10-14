@@ -89,16 +89,6 @@ const _allowlist = <_Allowed>[
     '오류 보고 context. 화면에 표시하지 않는다.',
   ),
   _Allowed(
-    'lib/features/stations/data/station_api_repository.dart',
-    '즐겨찾기 역 API 요청 처리 중 예외가 발생했습니다.',
-    '오류 보고 context. 화면에 표시하지 않는다.',
-  ),
-  _Allowed(
-    'lib/features/favorites/favorite_facility.dart',
-    '즐겨찾기 시설 API 요청 처리 중 예외가 발생했습니다.',
-    '오류 보고 context. 화면에 표시하지 않는다.',
-  ),
-  _Allowed(
     'lib/features/account/user_data_deletion.dart',
     '사용자 정보 삭제 API 응답 처리 중 예외가 발생했습니다.',
     '오류 보고 context. 화면에 표시하지 않는다.',
@@ -445,7 +435,14 @@ final f = Tooltip(message: 'asset', child: x);
         in (inventory['sources']! as List).cast<Map<String, Object?>>()) {
       if (!isListedDataSource(source)) continue;
       checked++;
-      final name = userFacingSourceName('${source['displayName']}');
+      final rawUserDisplayName = source['userDisplayName'];
+      expect(
+        rawUserDisplayName,
+        isA<String>(),
+        reason: '${source['id']} missing userDisplayName',
+      );
+      final name = (rawUserDisplayName as String).trim();
+      expect(name, isNotEmpty, reason: '${source['id']} empty userDisplayName');
       if (internalTag.hasMatch(name) || _bannedTermsIn(name).isNotEmpty) {
         problems.add('${source['id']}: $name');
       }
