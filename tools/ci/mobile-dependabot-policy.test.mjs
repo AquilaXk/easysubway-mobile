@@ -104,8 +104,8 @@ test("known incompatible releases are ignored narrowly instead of hiding update 
 
 test("current Flutter and native compatibility pins stay exact and CI-owned", () => {
   assert.match(pubspec, /^  meta: 1\.18\.0$/mu);
-  assert.match(pubspec, /^  workmanager_android: 0\.10\.8$/mu);
-  assert.match(pubspec, /^  workmanager_platform_interface: 0\.10\.4$/mu);
+  assert.match(pubspec, /^  workmanager_android: 0\.10\.9$/mu);
+  assert.match(pubspec, /^  workmanager_platform_interface: 0\.10\.5$/mu);
   assert.match(pubspec, /^  build_runner: 2\.15\.1$/mu);
   assert.match(workflow, /^            tools\/ci\/mobile-dependabot-policy\.test\.mjs \\$/mu);
 });
