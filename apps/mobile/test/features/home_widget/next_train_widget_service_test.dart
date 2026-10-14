@@ -166,41 +166,78 @@ void main() {
     },
   );
 
-  test(
-    'callback dispatcher는 native task channel에 refresh handler를 등록한다',
-    () async {
-      TestWidgetsFlutterBinding.ensureInitialized();
-      var refreshCalls = 0;
-      final messenger =
-          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-      const channelName =
-          'dev.flutter.pigeon.workmanager_platform_interface.WorkmanagerFlutterApi.executeTask';
-
-      nextTrainWidgetCallbackDispatcher(
-        runWidgetRefresh: () async {
-          refreshCalls += 1;
-          return true;
-        },
+  test('callback dispatcher는 native task channel에 refresh handler를 등록한다', () async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    var notifyCalls = 0;
+    var refreshCalls = 0;
+    final reconcileErrors = <FlutterErrorDetails>[];
+    ByteData? refreshReply;
+    ByteData? reconcileReply;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const notifyChannelName =
+        'dev.flutter.pigeon.workmanager_platform_interface.WorkmanagerHostApi.notifyBackgroundChannelInitialized';
+    const executeChannelName =
+        'dev.flutter.pigeon.workmanager_platform_interface.WorkmanagerFlutterApi.executeTask';
+    final notifyChannel = BasicMessageChannel<Object?>(
+      notifyChannelName,
+      WorkmanagerHostApi.pigeonChannelCodec,
+      binaryMessenger: messenger,
+    );
+    messenger.setMockDecodedMessageHandler<Object?>(notifyChannel, (
+      Object? message,
+    ) async {
+      expect(message, isNull);
+      notifyCalls += 1;
+      refreshReply = await messenger.handlePlatformMessage(
+        executeChannelName,
+        WorkmanagerFlutterApi.pigeonChannelCodec.encodeMessage(<Object?>[
+          nextTrainWidgetRefreshTask,
+          null,
+        ]),
+        null,
       );
-      try {
-        final reply = await messenger.handlePlatformMessage(
-          channelName,
+      reconcileReply = await runWithMobileErrorReporter(
+        reconcileErrors.add,
+        () => messenger.handlePlatformMessage(
+          executeChannelName,
           WorkmanagerFlutterApi.pigeonChannelCodec.encodeMessage(<Object?>[
-            nextTrainWidgetRefreshTask,
+            getOffAlarmReconcileTask,
             null,
           ]),
           null,
-        );
-        expect(
-          WorkmanagerFlutterApi.pigeonChannelCodec.decodeMessage(reply),
-          <Object?>[true],
-        );
-        expect(refreshCalls, 1);
-      } finally {
-        WorkmanagerFlutterApi.setUp(null, binaryMessenger: messenger);
-      }
-    },
-  );
+        ),
+      );
+      return <Object?>[null];
+    });
+    addTearDown(
+      () =>
+          messenger.setMockDecodedMessageHandler<Object?>(notifyChannel, null),
+    );
+
+    nextTrainWidgetCallbackDispatcher(
+      runWidgetRefresh: () async {
+        refreshCalls += 1;
+        return true;
+      },
+    );
+    try {
+      await pumpEventQueue();
+      expect(notifyCalls, 1);
+      expect(refreshCalls, 1);
+      expect(
+        WorkmanagerFlutterApi.pigeonChannelCodec.decodeMessage(refreshReply),
+        <Object?>[true],
+      );
+      expect(
+        WorkmanagerFlutterApi.pigeonChannelCodec.decodeMessage(reconcileReply),
+        <Object?>[false],
+      );
+      expect(reconcileErrors, hasLength(1));
+    } finally {
+      WorkmanagerFlutterApi.setUp(null, binaryMessenger: messenger);
+    }
+  });
 
   test(
     'headless refresh는 injected open, create, refresh, close 순서를 보장한다',

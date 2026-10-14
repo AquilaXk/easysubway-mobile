@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui';
 
@@ -344,6 +345,7 @@ void nextTrainWidgetCallbackDispatcher({
   WorkmanagerFlutterApi.setUp(
     NextTrainWidgetWorkmanagerApi(runWidgetRefresh: runWidgetRefresh),
   );
+  unawaited(WorkmanagerHostApi().notifyBackgroundChannelInitialized());
 }
 
 // ponytail: the federated public Android API keeps iOS SwiftPM-only; replace

@@ -5,6 +5,32 @@ import 'package:easysubway_mobile/features/home_widget/next_train_widget_runtime
 import 'package:easysubway_mobile/main.dart' as app;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:workmanager_android/workmanager_android.dart';
+import 'package:workmanager_platform_interface/workmanager_platform_interface.dart';
+
+Future<WorkInfo> _waitForWorkSucceeded(
+  WorkmanagerAndroid workmanager,
+  String uniqueName, {
+  Duration timeout = const Duration(seconds: 60),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  WorkInfo? lastInfo;
+  while (DateTime.now().isBefore(deadline)) {
+    lastInfo = await workmanager.getWorkInfo(uniqueName);
+    if (lastInfo?.state == WorkState.succeeded) {
+      return lastInfo!;
+    }
+    if (lastInfo?.state == WorkState.failed ||
+        lastInfo?.state == WorkState.cancelled) {
+      fail('WorkManager task $uniqueName ended in ${lastInfo?.state}');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  }
+  fail(
+    'Timed out waiting for WorkManager task $uniqueName to succeed '
+    '(last state: ${lastInfo?.state})',
+  );
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -109,6 +135,8 @@ void main() {
     });
 
     testWidgets('3-1. 실제 reconcile task 내부 조립 fail-closed 검증', (tester) async {
+      await cancelNextTrainWidgetRefresh();
+      await cancelGetOffAlarmReconcile();
       final errors = <Object>[];
       final result = await runGetOffAlarmReconcileTask(
         reportError: (error, _) => errors.add(error),
@@ -120,6 +148,46 @@ void main() {
         '[EASYSUBWAY_EVIDENCE] Phase 3-1: Real reconcile task headless assembly executed safely',
       );
     });
+
+    testWidgets(
+      '3-2. WorkManager 0.10.9 BackgroundWorker 준비 신호 핸드셰이크 및 실제 백그라운드 isolate 작업 완료 검증',
+      (tester) async {
+        final workmanager = WorkmanagerAndroid();
+        const widgetOneOffUniqueName = 'oneoff-next-train-widget-refresh-435';
+        const reconcileOneOffUniqueName = 'oneoff-get-off-alarm-reconcile-435';
+
+        await workmanager.registerOneOffTask(
+          reconcileOneOffUniqueName,
+          getOffAlarmReconcileTask,
+          existingWorkPolicy: ExistingWorkPolicy.replace,
+          constraints: Constraints(networkType: NetworkType.notRequired),
+        );
+        final reconcileWorkInfo = await _waitForWorkSucceeded(
+          workmanager,
+          reconcileOneOffUniqueName,
+        );
+        expect(reconcileWorkInfo.state, WorkState.succeeded);
+
+        await workmanager.registerOneOffTask(
+          widgetOneOffUniqueName,
+          nextTrainWidgetRefreshTask,
+          existingWorkPolicy: ExistingWorkPolicy.replace,
+          constraints: Constraints(networkType: NetworkType.notRequired),
+        );
+        final widgetWorkInfo = await _waitForWorkSucceeded(
+          workmanager,
+          widgetOneOffUniqueName,
+        );
+        expect(widgetWorkInfo.state, WorkState.succeeded);
+
+        // ignore: avoid_print
+        print(
+          '[EASYSUBWAY_EVIDENCE] Phase 3-2: BackgroundWorker completed one-off tasks via notifyBackgroundChannelInitialized: '
+          '$widgetOneOffUniqueName=${widgetWorkInfo.state.name}, '
+          '$reconcileOneOffUniqueName=${reconcileWorkInfo.state.name}',
+        );
+      },
+    );
 
     testWidgets('4. 두 unique periodic work 개별 취소', (tester) async {
       // (a) next-train-widget-refresh 개별 취소
