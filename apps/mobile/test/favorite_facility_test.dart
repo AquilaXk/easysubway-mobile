@@ -1,85 +1,33 @@
-import 'dart:convert';
-import 'dart:io';
-
-import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  test('즐겨찾기 시설 API 저장소는 인증 헤더와 함께 목록을 요청하고 결과를 파싱한다', () async {
-    late String? authorizationHeader;
-    late Uri requestedUri;
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(server.close);
+  test('즐겨찾기 시설 모델은 표시 문구와 시맨틱 라벨을 제공한다', () {
+    final favorite = _favoriteFacility(description: '현장 검증 전 1번 출구 앞');
 
-    server.listen((request) async {
-      requestedUri = request.uri;
-      authorizationHeader = request.headers.value(
-        HttpHeaders.authorizationHeader,
-      );
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..headers.contentType = ContentType.json
-        ..write(
-          jsonEncode({
-            'success': true,
-            'data': [
-              {
-                'userId': 'anonymous-user-1',
-                'facilityId': 'facility-sangnoksu-elevator-1',
-                'stationId': 'station-sangnoksu',
-                'stationNameKo': '상록수',
-                'stationNameEn': 'Sangnoksu',
-                'exitId': 'exit-sangnoksu-1',
-                'type': 'ELEVATOR',
-                'name': '1번 출구 엘리베이터',
-                'floorFrom': '1F',
-                'floorTo': 'B1',
-                'description': '현장 검증 전 1번 출구 앞',
-                'status': 'NORMAL',
-                'dataConfidence': 'HIGH',
-                'dataSourceType': 'OFFICIAL_FILE',
-                'lastUpdatedAt': '2026-06-12',
-                'addedAt': '2026-06-14T10:00:00',
-              },
-            ],
-          }),
-        );
-      await request.response.close();
-    });
-
-    final repository = FavoriteFacilityApiRepository(
-      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
-      authProvider: const BasicAuthorizationHeaderProvider(
-        username: 'anonymous-user-1',
-        password: 'user-test-password',
-      ),
-    );
-
-    final favorites = await repository.listFavoriteFacilities();
-
-    expect(requestedUri.path, '/api/v1/me/favorites/facilities');
+    expect(favorite.facilityId, 'facility-sangnoksu-elevator-1');
+    expect(favorite.stationNameKo, '상록수');
+    expect(favorite.stationLabel, '상록수역');
+    expect(favorite.displayName, isNotEmpty);
+    expect(favorite.typeLabel, '엘리베이터');
+    expect(favorite.statusLabel, '정상');
+    expect(favorite.severityLabel, '정상');
+    expect(favorite.nextActionLabel, '시설 제보');
+    expect(favorite.nextActionDescription, isNotEmpty);
+    expect(favorite.statusTitle, '정상 운행');
+    expect(favorite.statusPriority, isNonNegative);
+    expect(favorite.confidenceLabel, '');
+    expect(favorite.dataSourceLabel, '공식 안내');
+    expect(favorite.locationLabel, '1번 출구 앞');
+    expect(favorite.verificationStatusLabel, '');
+    expect(favorite.updatedLabel, '최근 확인 2026-06-12');
     expect(
-      authorizationHeader,
-      'Basic ${base64Encode(utf8.encode('anonymous-user-1:user-test-password'))}',
-    );
-    expect(favorites.single.facilityId, 'facility-sangnoksu-elevator-1');
-    expect(favorites.single.stationNameKo, '상록수');
-    expect(favorites.single.typeLabel, '엘리베이터');
-    expect(favorites.single.statusLabel, '정상');
-    expect(favorites.single.severityLabel, '정상');
-    expect(favorites.single.nextActionLabel, '시설 제보');
-    expect(favorites.single.statusTitle, '정상 운행');
-    expect(favorites.single.confidenceLabel, '');
-    expect(favorites.single.dataSourceLabel, '공식 안내');
-    expect(favorites.single.locationLabel, '1번 출구 앞');
-    expect(favorites.single.verificationStatusLabel, '');
-    expect(
-      favorites.single.semanticLabel,
+      favorite.semanticLabel,
       '즐겨찾기 시설, 1번 출구 엘리베이터, 상록수역, 엘리베이터, 정상 운행, 1번 출구 앞, 최근 확인 2026-06-12, 시설 제보',
     );
-    expect(favorites.single.semanticLabel, isNot(contains('정보 신뢰도')));
-    expect(favorites.single.semanticLabel, isNot(contains('출처')));
+    expect(favorite.semanticLabel, isNot(contains('정보 신뢰도')));
+    expect(favorite.semanticLabel, isNot(contains('출처')));
+    expect(const FavoriteFacilityException('시설 오류').toString(), '시설 오류');
   });
 
   test('즐겨찾기 시설 상태는 안내 수준과 할 일을 구분한다', () {
@@ -113,129 +61,6 @@ void main() {
     expect(verified.verificationStatusLabel, '');
     expect(metadataOnlyDescription.locationLabel, '1F-B1');
   });
-
-  test('즐겨찾기 시설 API 저장소는 인증 실패 시 인증을 지우고 한 번 재시도한다', () async {
-    final authorizationHeaders = <String?>[];
-    var requestCount = 0;
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(server.close);
-
-    server.listen((request) async {
-      requestCount++;
-      authorizationHeaders.add(
-        request.headers.value(HttpHeaders.authorizationHeader),
-      );
-      request.response.headers.contentType = ContentType.json;
-
-      if (requestCount == 1) {
-        request.response
-          ..statusCode = HttpStatus.unauthorized
-          ..write(jsonEncode({'success': false}));
-        await request.response.close();
-        return;
-      }
-
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..write(jsonEncode({'success': true, 'data': <Object?>[]}));
-      await request.response.close();
-    });
-
-    final authProvider = RetryAuthorizationHeaderProvider();
-    final repository = FavoriteFacilityApiRepository(
-      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
-      authProvider: authProvider,
-    );
-
-    final favorites = await repository.listFavoriteFacilities();
-
-    expect(favorites, isEmpty);
-    expect(authorizationHeaders, ['Basic stale-token', 'Basic fresh-token']);
-    expect(authProvider.authorizationCount, 2);
-    expect(authProvider.invalidateCount, 1);
-  });
-
-  test('즐겨찾기 시설 API 저장소는 시설 저장과 해제를 요청한다', () async {
-    final requestedMethods = <String>[];
-    final requestedPaths = <String>[];
-    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
-    addTearDown(server.close);
-
-    server.listen((request) async {
-      requestedMethods.add(request.method);
-      requestedPaths.add(request.uri.path);
-      request.response.headers.contentType = ContentType.json;
-      if (request.method == 'PUT') {
-        request.response
-          ..statusCode = HttpStatus.ok
-          ..write(
-            jsonEncode({
-              'success': true,
-              'data': {
-                'userId': 'anonymous-user-1',
-                'facilityId': 'facility-sangnoksu-elevator-1',
-                'stationId': 'station-sangnoksu',
-                'stationNameKo': '상록수',
-                'stationNameEn': 'Sangnoksu',
-                'exitId': 'exit-sangnoksu-1',
-                'type': 'ELEVATOR',
-                'name': '1번 출구 엘리베이터',
-                'floorFrom': '1F',
-                'floorTo': 'B1',
-                'description': '1번 출구 앞',
-                'status': 'NORMAL',
-                'dataConfidence': 'HIGH',
-                'dataSourceType': 'OFFICIAL_FILE',
-                'lastUpdatedAt': '2026-06-12',
-                'addedAt': '2026-06-14T10:00:00',
-              },
-            }),
-          );
-        await request.response.close();
-        return;
-      }
-
-      request.response
-        ..statusCode = HttpStatus.ok
-        ..write(jsonEncode({'success': true, 'data': null}));
-      await request.response.close();
-    });
-
-    final repository = FavoriteFacilityApiRepository(
-      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
-      authProvider: const NoAuthorizationHeaderProvider(),
-    );
-
-    final saved = await repository.saveFavoriteFacility(
-      'facility-sangnoksu-elevator-1',
-    );
-    await repository.removeFavoriteFacility('facility-sangnoksu-elevator-1');
-
-    expect(saved.facilityId, 'facility-sangnoksu-elevator-1');
-    expect(requestedMethods, ['PUT', 'DELETE']);
-    expect(requestedPaths, [
-      '/api/v1/me/favorites/facilities/facility-sangnoksu-elevator-1',
-      '/api/v1/me/favorites/facilities/facility-sangnoksu-elevator-1',
-    ]);
-  });
-}
-
-class RetryAuthorizationHeaderProvider implements AuthorizationHeaderProvider {
-  var authorizationCount = 0;
-  var invalidateCount = 0;
-  var _invalidated = false;
-
-  @override
-  Future<String?> authorizationHeader() async {
-    authorizationCount++;
-    return _invalidated ? 'Basic fresh-token' : 'Basic stale-token';
-  }
-
-  @override
-  Future<void> invalidateAuthorization() async {
-    invalidateCount++;
-    _invalidated = true;
-  }
 }
 
 class FakeFavoriteFacilityRepository implements FavoriteFacilityRepository {

@@ -178,15 +178,6 @@ bool _isInternalCanarySource(Map<String, Object?> source) {
   return id is String && id.split('-').last == 'canary';
 }
 
-/// 자료 목록의 표시 이름에서 내부 작업용 꼬리표를 떼어 사용자에게 보일 이름으로
-/// 만든다(#443). 예: `…대구 1호선 membership admission` → `…대구 1호선`.
-@visibleForTesting
-String userFacingSourceName(String displayName) => displayName
-    .replaceAll(RegExp(r'\s*membership admission$'), '')
-    .replaceAll('_route_map_positions', '')
-    .replaceAll(RegExp(r'\s*\(KRIC \d+\)'), '')
-    .trim();
-
 class _AttributionCard extends StatelessWidget {
   const _AttributionCard._({
     required this.title,
@@ -219,7 +210,7 @@ class _AttributionCard extends StatelessWidget {
     final provider = _text(source['provider'], '');
     final owner = _text(source['owner'], '');
     return _AttributionCard._(
-      title: userFacingSourceName(_text(source['displayName'], '자료')),
+      title: _text(source['userDisplayName'], '자료'),
       subtitle: [
         provider,
         if (owner.isNotEmpty && owner != provider) owner,

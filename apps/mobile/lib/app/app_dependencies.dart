@@ -217,10 +217,7 @@ class AppDependencies {
                   catalogDatabase: catalogDatabase,
                   userDatabase: userDatabase,
                 )
-              : _defaultFavoriteStationRepository(
-                  baseUri: requireBaseUri,
-                  authProvider: null,
-                )),
+              : null),
       favoriteFacilityRepository:
           favoriteFacilityRepository ??
           (catalogDatabase != null && userDatabase != null
@@ -228,10 +225,7 @@ class AppDependencies {
                   catalogDatabase: catalogDatabase,
                   userDatabase: userDatabase,
                 )
-              : _defaultFavoriteFacilityRepository(
-                  baseUri: requireBaseUri,
-                  authProvider: null,
-                )),
+              : null),
       favoriteRouteRepository:
           favoriteRouteRepository ??
           (catalogDatabase != null && userDatabase != null
@@ -613,32 +607,6 @@ UserDataDeletionRepository? _defaultUserDataDeletionRepository({
     );
   }
   return remoteRepository ?? localRepository;
-}
-
-FavoriteStationRepository? _defaultFavoriteStationRepository({
-  required Uri Function() baseUri,
-  required AuthorizationHeaderProvider? authProvider,
-}) {
-  if (authProvider == null) {
-    return null;
-  }
-  return FavoriteStationApiRepository(
-    baseUri: baseUri(),
-    authProvider: authProvider,
-  );
-}
-
-FavoriteFacilityRepository? _defaultFavoriteFacilityRepository({
-  required Uri Function() baseUri,
-  required AuthorizationHeaderProvider? authProvider,
-}) {
-  if (authProvider == null) {
-    return null;
-  }
-  return FavoriteFacilityApiRepository(
-    baseUri: baseUri(),
-    authProvider: authProvider,
-  );
 }
 
 NotificationSettingsRepository? _defaultNotificationSettingsRepository({

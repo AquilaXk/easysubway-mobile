@@ -220,36 +220,6 @@ class FavoriteStation {
     required this.addedAt,
   });
 
-  factory FavoriteStation.fromJson(Map<String, Object?> json) {
-    final rawLines = json['lines'];
-    if (rawLines is! List<Object?>) {
-      throw const FormatException('Invalid favorite station lines payload');
-    }
-
-    return FavoriteStation(
-      userId: _requiredString(json, 'userId'),
-      stationId: _requiredString(json, 'stationId'),
-      lineId: _stringOrEmpty(json, 'lineId'),
-      nameKo: _requiredString(json, 'nameKo'),
-      nameEn: _requiredString(json, 'nameEn'),
-      region: _requiredString(json, 'region'),
-      dataQualityLevel: _requiredString(json, 'dataQualityLevel'),
-      dataSourceType: _stringOrEmpty(json, 'dataSourceType'),
-      lastVerifiedAt: _requiredString(json, 'lastVerifiedAt'),
-      lines: rawLines
-          .map((item) {
-            if (item is! Map<String, Object?>) {
-              throw const FormatException(
-                'Invalid favorite station line payload',
-              );
-            }
-            return StationSearchLine.fromJson(item);
-          })
-          .toList(growable: false),
-      addedAt: _requiredString(json, 'addedAt'),
-    );
-  }
-
   final String userId;
   final String stationId;
 

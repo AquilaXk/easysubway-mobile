@@ -1,14 +1,4 @@
-import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
-
-import '../../auth_headers.dart';
 import '../stations/domain/facility_status.dart';
-import '../../mobile_error_reporter.dart';
-
-const _favoriteFacilityTimeout = Duration(seconds: 8);
-const _favoriteFacilityLoadErrorMessage = '즐겨찾기 시설을 불러오지 못했어요.';
-const _favoriteFacilityChangeErrorMessage = '즐겨찾기 시설을 바꾸지 못했어요.';
 
 abstract class FavoriteFacilityRepository {
   Future<List<FavoriteFacility>> listFavoriteFacilities();
@@ -16,149 +6,6 @@ abstract class FavoriteFacilityRepository {
   Future<FavoriteFacility> saveFavoriteFacility(String facilityId);
 
   Future<void> removeFavoriteFacility(String facilityId);
-}
-
-class FavoriteFacilityApiRepository implements FavoriteFacilityRepository {
-  FavoriteFacilityApiRepository({
-    required this.baseUri,
-    required this.authProvider,
-    HttpClient? httpClient,
-  }) : _httpClient = httpClient ?? HttpClient();
-
-  final Uri baseUri;
-  final AuthorizationHeaderProvider authProvider;
-  final HttpClient _httpClient;
-
-  @override
-  Future<List<FavoriteFacility>> listFavoriteFacilities() async {
-    final data = await _requestData(
-      'GET',
-      baseUri.resolve('/api/v1/me/favorites/facilities'),
-      errorMessage: _favoriteFacilityLoadErrorMessage,
-    );
-    if (data is! List<Object?>) {
-      throw const FavoriteFacilityException(_favoriteFacilityLoadErrorMessage);
-    }
-
-    try {
-      return data
-          .map((item) {
-            if (item is! Map<String, Object?>) {
-              throw const FormatException('Invalid favorite facility payload');
-            }
-            return FavoriteFacility.fromJson(item);
-          })
-          .toList(growable: false);
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '즐겨찾기 시설 목록 응답 처리 중 예외가 발생했습니다.',
-      );
-      throw const FavoriteFacilityException(_favoriteFacilityLoadErrorMessage);
-    }
-  }
-
-  @override
-  Future<FavoriteFacility> saveFavoriteFacility(String facilityId) async {
-    final data = await _requestData(
-      'PUT',
-      baseUri.resolve(
-        '/api/v1/me/favorites/facilities/${Uri.encodeComponent(facilityId)}',
-      ),
-      errorMessage: _favoriteFacilityChangeErrorMessage,
-    );
-    if (data is! Map<String, Object?>) {
-      throw const FavoriteFacilityException(
-        _favoriteFacilityChangeErrorMessage,
-      );
-    }
-
-    try {
-      return FavoriteFacility.fromJson(data);
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '즐겨찾기 시설 저장 응답 처리 중 예외가 발생했습니다.',
-      );
-      throw const FavoriteFacilityException(
-        _favoriteFacilityChangeErrorMessage,
-      );
-    }
-  }
-
-  @override
-  Future<void> removeFavoriteFacility(String facilityId) async {
-    await _requestData(
-      'DELETE',
-      baseUri.resolve(
-        '/api/v1/me/favorites/facilities/${Uri.encodeComponent(facilityId)}',
-      ),
-      errorMessage: _favoriteFacilityChangeErrorMessage,
-    );
-  }
-
-  Future<Object?> _requestData(
-    String method,
-    Uri uri, {
-    required String errorMessage,
-  }) async {
-    for (var attempt = 0; attempt < 2; attempt++) {
-      try {
-        final request = await _httpClient
-            .openUrl(method, uri)
-            .timeout(_favoriteFacilityTimeout);
-        final authorizationHeader = await authProvider
-            .authorizationHeader()
-            .timeout(_favoriteFacilityTimeout);
-        if (authorizationHeader != null) {
-          request.headers.set(
-            HttpHeaders.authorizationHeader,
-            authorizationHeader,
-          );
-        }
-
-        final response = await request.close().timeout(
-          _favoriteFacilityTimeout,
-        );
-        final body = await utf8
-            .decodeStream(response)
-            .timeout(_favoriteFacilityTimeout);
-
-        if (response.statusCode == HttpStatus.unauthorized &&
-            authorizationHeader != null &&
-            attempt == 0) {
-          // 저장된 인증이 만료된 경우 비우고 한 번만 다시 시도한다.
-          await authProvider.invalidateAuthorization().timeout(
-            _favoriteFacilityTimeout,
-          );
-          continue;
-        }
-
-        if (response.statusCode < HttpStatus.ok ||
-            response.statusCode >= HttpStatus.multipleChoices) {
-          throw FavoriteFacilityException(errorMessage);
-        }
-
-        final decoded = jsonDecode(body);
-        if (decoded is! Map<String, Object?> || decoded['success'] != true) {
-          throw FavoriteFacilityException(errorMessage);
-        }
-        return decoded['data'];
-      } on FavoriteFacilityException {
-        rethrow;
-      } catch (error, stackTrace) {
-        reportMobileError(
-          error,
-          stackTrace,
-          context: '즐겨찾기 시설 API 요청 처리 중 예외가 발생했습니다.',
-        );
-        throw FavoriteFacilityException(errorMessage);
-      }
-    }
-    throw FavoriteFacilityException(errorMessage);
-  }
 }
 
 class FavoriteFacilityException implements Exception {
@@ -190,32 +37,6 @@ class FavoriteFacility {
     required this.lastUpdatedAt,
     required this.addedAt,
   });
-
-  factory FavoriteFacility.fromJson(Map<String, Object?> json) {
-    return FavoriteFacility(
-      userId: _requiredString(json, 'userId'),
-      facilityId: _requiredString(json, 'facilityId'),
-      stationId: _requiredString(json, 'stationId'),
-      stationNameKo: _requiredString(json, 'stationNameKo'),
-      stationNameEn: _requiredString(json, 'stationNameEn'),
-      exitId: _stringOrEmpty(json, 'exitId'),
-      type: _requiredString(json, 'type'),
-      name: _requiredString(json, 'name'),
-      floorFrom: _stringOrEmpty(json, 'floorFrom'),
-      floorTo: _stringOrEmpty(json, 'floorTo'),
-      description: _stringOrEmpty(json, 'description'),
-      status: _requiredString(json, 'status'),
-      dataConfidence: _requiredString(json, 'dataConfidence'),
-      dataSourceType: _stringOrEmpty(json, 'dataSourceType'),
-      fieldValidationStatus: _stringOrDefault(
-        json,
-        'fieldValidationStatus',
-        'UNKNOWN',
-      ),
-      lastUpdatedAt: _requiredString(json, 'lastUpdatedAt'),
-      addedAt: _requiredString(json, 'addedAt'),
-    );
-  }
 
   final String userId;
   final String facilityId;
@@ -315,31 +136,6 @@ class FavoriteFacility {
 
   String get semanticLabel =>
       '즐겨찾기 시설, $name, $stationLabel, $typeLabel, $statusTitle, $locationLabel, $updatedLabel, $nextActionLabel';
-}
-
-String _requiredString(Map<String, Object?> json, String key) {
-  final value = json[key];
-  if (value is String && value.trim().isNotEmpty) {
-    return value;
-  }
-  throw FormatException('Missing required favorite facility field: $key');
-}
-
-String _stringOrEmpty(Map<String, Object?> json, String key) {
-  final value = json[key];
-  return value is String ? value : '';
-}
-
-String _stringOrDefault(
-  Map<String, Object?> json,
-  String key,
-  String defaultValue,
-) {
-  final value = json[key];
-  if (value is String && value.trim().isNotEmpty) {
-    return value;
-  }
-  return defaultValue;
 }
 
 // #1578: 내부 데이터 품질·검증 상태 라벨은 사용자에게 노출하지 않는다(소스 중립화).
