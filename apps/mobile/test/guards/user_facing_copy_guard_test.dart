@@ -442,11 +442,7 @@ final f = Tooltip(message: 'asset', child: x);
         reason: '${source['id']} missing userDisplayName',
       );
       final name = (rawUserDisplayName as String).trim();
-      expect(
-        name,
-        isNotEmpty,
-        reason: '${source['id']} empty userDisplayName',
-      );
+      expect(name, isNotEmpty, reason: '${source['id']} empty userDisplayName');
       if (internalTag.hasMatch(name) || _bannedTermsIn(name).isNotEmpty) {
         problems.add('${source['id']}: $name');
       }
