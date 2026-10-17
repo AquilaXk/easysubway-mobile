@@ -52,13 +52,14 @@ class NetworkMapChrome extends StatefulWidget {
 }
 
 class _NetworkMapChromeState extends State<NetworkMapChrome> {
-  /// 지도 위를 덮는 상단바 + 알림 바 묶음의 측정 높이. 측정 전에는 0이다.
+  /// 지도 위를 덮는 상단바 + 알림 바 묶음의 측정 높이. 측정 전에는 null이다.
   ///
   /// 측정값은 레이아웃이 끝난 뒤 setState로 반영되므로 지도는 한 프레임 늦게 알게
   /// 된다. 같은 프레임에 반영하려면 지도 build가 레이아웃 결과에 의존해야 해서
   /// 지도 전체를 레이아웃 단계로 옮겨야 한다. 핀이 가려지는 프레임은 사용자가 핀을
   /// 지정한 직후(또는 오버레이가 커진 직후)의 한두 프레임뿐이라 이 지연은 받아들인다.
-  double _overlayHeight = 0;
+  /// 첫 측정 전에는 지도가 초기 카메라를 정하지 않고 기다린다(null을 그대로 전달).
+  double? _overlayHeight;
 
   void _onOverlayHeight(double height) {
     if (mounted && height != _overlayHeight) {
@@ -78,7 +79,10 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
         topPadding + easySubwayTopBarContentHeight - mapUnderTopBarPx;
     // 지도는 mapTop에서 시작하지만 오버레이는 측정 높이만큼 그 위를 덮는다. 그 차이가
     // 지도 본문에서 가려지는 높이다.
-    final mapObscuredTop = math.max(0.0, _overlayHeight - mapTop);
+    final overlayHeight = _overlayHeight;
+    final mapObscuredTop = overlayHeight == null
+        ? null
+        : math.max(0.0, overlayHeight - mapTop);
     return Stack(
       clipBehavior: Clip.none,
       children: [

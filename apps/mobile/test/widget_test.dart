@@ -85,6 +85,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'support/easy_subway_app_fixture.dart';
+import 'support/network_map_visible_center.dart';
 
 import 'fake_secure_key_value_storage.dart';
 import 'user_copy_guard.dart';
@@ -7404,7 +7405,7 @@ void main() {
         .widget<RouteMapBasemapView>(find.byType(RouteMapBasemapView))
         .camera;
     expect(focused.scale, initial.scale);
-    expect(focused.center, const Offset(430, 280));
+    expectAtVisibleCenter(tester, focused, const Offset(430, 280));
 
     addTearDown(tester.view.resetPhysicalSize);
     tester.view.physicalSize = const Size(600, 1200);
@@ -7414,7 +7415,7 @@ void main() {
         .camera;
     expect(rotated.scale, focused.scale);
     expect(rotated.initialScale, isNot(focused.initialScale));
-    expect(rotated.center, const Offset(430, 280));
+    expect(rotated.center, focused.center);
   });
 
   testWidgets('GPS 패널을 닫아도 현재 배율은 유지하고 초기 기준은 다시 계산한다', (tester) async {
@@ -7921,7 +7922,7 @@ void main() {
         .widget<RouteMapBasemapView>(find.byType(RouteMapBasemapView))
         .camera;
     expect(camera.scale, camera.initialScale);
-    expect(camera.center, const Offset(430, 280));
+    expectAtVisibleCenter(tester, camera, const Offset(430, 280));
   });
 
   testWidgets('GPS 자동 타 권역 전환은 부모 지역 라벨도 갱신한다', (tester) async {

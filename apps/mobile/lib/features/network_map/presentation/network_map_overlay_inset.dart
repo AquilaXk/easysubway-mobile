@@ -8,6 +8,10 @@ import 'package:flutter/widgets.dart';
 /// 커지고 알림 바까지 붙는다. 이 값은 그 오버레이의 측정 높이에서 나오므로
 /// 카메라가 핀·팬 메뉴를 가려지지 않는 영역에 둘 수 있다. 오버레이가 없는 곳에서
 /// 지도를 열면 가려지는 영역이 없으므로 0이다.
+///
+/// [height]가 null이면 오버레이가 있지만 아직 측정하지 못한 상태다. 이때 [of]는 0을
+/// 돌려주지만, 초기 카메라처럼 높이가 맞아야 하는 계산은 [isMeasured]가 참일 때까지
+/// 미뤄야 한다. 추정값으로 카메라를 정하면 측정 뒤 지도가 점프한다.
 class NetworkMapObscuredTop extends InheritedWidget {
   const NetworkMapObscuredTop({
     required this.height,
@@ -15,13 +19,18 @@ class NetworkMapObscuredTop extends InheritedWidget {
     super.key,
   });
 
-  final double height;
+  final double? height;
 
-  static double of(BuildContext context) =>
-      context
-          .dependOnInheritedWidgetOfExactType<NetworkMapObscuredTop>()
-          ?.height ??
-      0;
+  static NetworkMapObscuredTop? _nearest(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<NetworkMapObscuredTop>();
+
+  static double of(BuildContext context) => _nearest(context)?.height ?? 0;
+
+  /// 오버레이가 없거나 측정이 끝났으면 참이다.
+  static bool isMeasured(BuildContext context) {
+    final inset = _nearest(context);
+    return inset == null || inset.height != null;
+  }
 
   @override
   bool updateShouldNotify(NetworkMapObscuredTop oldWidget) =>

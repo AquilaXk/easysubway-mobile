@@ -24,6 +24,18 @@ const _routeMapGestureMaxScaleRatio = 3.4;
 const _routeMapGestureRendererOverscanFactor = 3.25;
 const _smallRegionStationCountThreshold = 40;
 
+/// 상단 오버레이가 [obscuredTop]만큼 덮을 때, 가려지지 않는 영역의 중앙에
+/// [target]이 오도록 하는 카메라 중심. 카메라 중심은 뷰포트 전체의 중앙이므로
+/// 가시 영역 중앙(전체 중앙보다 [obscuredTop]/2 아래)에 맞추려면 그만큼 위로 둔다.
+Offset networkMapCameraCenterForVisibleCenter(
+  Offset target, {
+  required double scale,
+  required double obscuredTop,
+}) => target - Offset(0, obscuredTop / 2 / scale);
+
+/// [obscuredTop]은 뷰포트 위쪽이 상단 오버레이에 덮이는 높이다. fit과 중심은
+/// 덮이지 않는 영역을 기준으로 계산하고, [MapCameraState.viewportSize]는 뷰포트
+/// 전체로 둔다.
 MapCameraState networkMapCameraForBounds(
   Rect bounds,
   BoxConstraints constraints, {
@@ -32,6 +44,7 @@ MapCameraState networkMapCameraForBounds(
   double minScale = _fallbackMinMapScale,
   int revision = 0,
   double? initialScaleOverride,
+  double obscuredTop = 0,
 }) {
   final viewportWidth = constraints.hasBoundedWidth
       ? constraints.maxWidth
@@ -39,7 +52,8 @@ MapCameraState networkMapCameraForBounds(
   final viewportHeight = constraints.hasBoundedHeight
       ? constraints.maxHeight
       : 0.0;
-  if (viewportWidth <= 0 || viewportHeight <= 0) {
+  final visibleHeight = viewportHeight - obscuredTop;
+  if (viewportWidth <= 0 || visibleHeight <= 0) {
     return MapCameraState(
       sourceBounds: sourceBounds,
       viewportSize: Size.zero,
@@ -52,7 +66,7 @@ MapCameraState networkMapCameraForBounds(
     );
   }
   final widthScale = viewportWidth / bounds.width;
-  final heightScale = viewportHeight / bounds.height;
+  final heightScale = visibleHeight / bounds.height;
   final computedScale = contain
       ? math.min(widthScale, heightScale)
       : math.max(widthScale, heightScale);
@@ -60,13 +74,19 @@ MapCameraState networkMapCameraForBounds(
   return MapCameraState(
     sourceBounds: sourceBounds,
     viewportSize: Size(viewportWidth, viewportHeight),
-    center: bounds.center,
+    center: networkMapCameraCenterForVisibleCenter(
+      bounds.center,
+      scale: fitScale,
+      obscuredTop: obscuredTop,
+    ),
     scale: fitScale,
     minScale: minScale,
     maxScale: _maxMapScale,
     revision: revision,
     initialScale: initialScaleOverride ?? fitScale,
-  ).clamped(viewportMargin: 220);
+  ).clamped(
+    viewportMargin: math.max(kNetworkMapCameraViewportMargin, obscuredTop),
+  );
 }
 
 /// 지역 초기 화면 카메라의 contain-fit과 baseline scale을 함께 고정한다.

@@ -1,5 +1,6 @@
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
+import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
@@ -37,7 +38,9 @@ NetworkMapStation _station(String id, int y) => NetworkMapStation(
 final _topStation = _station('top', 0);
 final _bottomStation = _station('bottom', 600);
 
-final _data = NetworkMapData(
+final _data = _dataWith([_topStation, _bottomStation]);
+
+NetworkMapData _dataWith(List<NetworkMapStation> stations) => NetworkMapData(
   regions: const [NetworkMapRegion(name: '수도권')],
   selectedRegion: '수도권',
   lines: const [
@@ -48,7 +51,7 @@ final _data = NetworkMapData(
       region: '수도권',
     ),
   ],
-  stations: [_topStation, _bottomStation],
+  stations: stations,
   edges: const [],
   positionSources: const [
     NetworkMapPositionSource(
@@ -80,6 +83,10 @@ Widget _home({
   String? selectedStationId,
   double textScale = 1.0,
   double? noticeBarHeight,
+  String? focusedStationId,
+  NetworkMapData? data,
+  Rect? initialViewport,
+  ValueChanged<Rect>? onViewportChanged,
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
@@ -134,9 +141,9 @@ Widget _home({
           nearbyLookupMessage: null,
           onCurrentLocationTap: () {},
           child: NetworkMapCanvas(
-            data: _data,
-            initialViewport: null,
-            focusedStationId: null,
+            data: data ?? _data,
+            initialViewport: initialViewport,
+            focusedStationId: focusedStationId,
             preserveFocusedStationScale: false,
             selectedStationId: selectedStationId,
             selectionClearRevision: 0,
@@ -147,7 +154,7 @@ Widget _home({
             onClearOrigin: () {},
             onClearWaypoint: () {},
             onClearDestination: () {},
-            onViewportChanged: (_) {},
+            onViewportChanged: onViewportChanged ?? (_) {},
             onSelectionDismissed: () {},
             onStationTapped: (_) {},
           ),
@@ -354,6 +361,7 @@ void main() {
 
     testWidgets('핀이 있는 채 처음 열릴 때(저장 위치 복원)는 첫 측정으로 움직이지 않는다', (tester) async {
       await tester.pumpWidget(_home(waypointStationId: _topStation.id));
+      await tester.pump(); // 측정 전 첫 프레임에는 지도를 그리지 않는다.
       final firstFrame = _pinRect(tester);
       await tester.pumpAndSettle();
 
@@ -433,6 +441,219 @@ void main() {
     }
 
     expect(framesUntilVisible, greaterThan(0), reason: '지정한 프레임에는 아직 가려져 있다');
+  });
+
+  group('초기 카메라와 포커스는 오버레이 아래 보이는 영역을 기준으로 한다', () {
+    // 화면보다 큰 지도라 카메라가 경계에 걸리지 않고 가운데 역을 중앙에 둘 수 있다.
+    // 저장 viewport 복원 조건(지도 폭의 2배 이내)을 넘지 않을 만큼만 크다.
+    final middleStation = _station('middle', 700);
+    final tallData = _dataWith([
+      _topStation,
+      middleStation,
+      _station('end', 1400),
+    ]);
+
+    /// 폰 크기(360x640) 화면에서 실행한다. 테스트 기본 화면(800x600)은 지도가 너무
+    /// 작게 그려져 저장 viewport 복원 조건을 넘는다.
+    void testPhone(
+      String name,
+      Future<void> Function(WidgetTester tester) body,
+    ) => testWidgets(name, (tester) async {
+      tester.view.physicalSize = _screen;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await body(tester);
+    });
+
+    /// 지도 본문 중 상단바·알림 바에 가려지지 않는 영역의 세로 중앙(화면 좌표).
+    double visibleCenterY(WidgetTester tester) {
+      final surface = tester.getRect(
+        find.byKey(const Key('networkMapSurface')),
+      );
+      return (_overlayBottom(tester) + surface.bottom) / 2;
+    }
+
+    /// 포커스한 역이 놓인 화면 y. 핀 끝이 역 중심이다.
+    double stationY(WidgetTester tester) => _pinRect(tester).bottom;
+
+    Widget focusMiddle({
+      bool noticeBar = true,
+      bool threeRows = true,
+      double textScale = 1.0,
+      Rect? initialViewport,
+      ValueChanged<Rect>? onViewportChanged,
+    }) => _home(
+      data: tallData,
+      waypointStationId: middleStation.id,
+      focusedStationId: middleStation.id,
+      noticeBar: noticeBar,
+      threeRows: threeRows,
+      textScale: textScale,
+      initialViewport: initialViewport,
+      onViewportChanged: onViewportChanged,
+    );
+
+    for (final textScale in [1.0, 1.5]) {
+      testPhone('포커스 역이 3줄 상단바 + 알림 바 아래 보이는 영역 중앙에 놓인다(글자 $textScale배)', (
+        tester,
+      ) async {
+        await _show(tester, focusMiddle(textScale: textScale));
+
+        expect(stationY(tester), closeTo(visibleCenterY(tester), 1.0));
+      });
+    }
+
+    for (final (name, threeRows, noticeBar) in [
+      ('1줄 상단바, 알림 바 없음', false, false),
+      ('1줄 상단바 + 알림 바', false, true),
+      ('3줄 상단바, 알림 바 없음', true, false),
+    ]) {
+      testPhone('포커스 역이 보이는 영역 중앙에 놓인다($name)', (tester) async {
+        await _show(
+          tester,
+          focusMiddle(threeRows: threeRows, noticeBar: noticeBar),
+        );
+
+        expect(stationY(tester), closeTo(visibleCenterY(tester), 1.0));
+      });
+    }
+
+    testPhone('오버레이가 없는 지도는 지도 본문 전체의 중앙에 놓는다', (tester) async {
+      await _show(
+        tester,
+        MaterialApp(
+          home: SizedBox.fromSize(
+            size: _screen,
+            child: NetworkMapCanvas(
+              data: tallData,
+              initialViewport: null,
+              focusedStationId: middleStation.id,
+              preserveFocusedStationScale: false,
+              selectedStationId: null,
+              selectionClearRevision: 0,
+              waypointStationId: middleStation.id,
+              onSetOrigin: (_) {},
+              onSetWaypoint: (_) {},
+              onSetDestination: (_) {},
+              onClearOrigin: () {},
+              onClearWaypoint: () {},
+              onClearDestination: () {},
+              onViewportChanged: (_) {},
+              onSelectionDismissed: () {},
+              onStationTapped: (_) {},
+            ),
+          ),
+        ),
+      );
+
+      final surface = tester.getRect(
+        find.byKey(const Key('networkMapSurface')),
+      );
+      expect(stationY(tester), closeTo(surface.center.dy, 1.0));
+    });
+
+    testPhone('측정 전 첫 프레임에는 지도를 그리지 않고, 측정 뒤 한 번에 제자리에 그린다', (tester) async {
+      await tester.pumpWidget(focusMiddle());
+      expect(
+        find.byKey(_waypointPin),
+        findsNothing,
+        reason: '측정 전에는 카메라를 확정하지 않는다',
+      );
+
+      await tester.pump();
+      final firstDrawn = stationY(tester);
+      expect(firstDrawn, closeTo(visibleCenterY(tester), 1.0));
+
+      await tester.pumpAndSettle();
+      expect(stationY(tester), firstDrawn, reason: '첫 그림 이후 점프하지 않는다');
+    });
+
+    testPhone('오버레이 높이가 바뀌어도 카메라를 다시 설정하지 않는다', (tester) async {
+      await _show(tester, focusMiddle());
+      final settled = stationY(tester);
+
+      await _show(tester, focusMiddle(noticeBar: false));
+      expect(stationY(tester), settled);
+
+      await _show(tester, focusMiddle(textScale: 1.5));
+      expect(stationY(tester), settled);
+    });
+
+    group('저장 viewport 복원', () {
+      testPhone('마지막으로 본 화면과 같은 지점이 같은 화면 위치에 온다', (tester) async {
+        Rect? saved;
+        await _show(tester, focusMiddle(onViewportChanged: (v) => saved = v));
+        final seen = stationY(tester);
+        await tester.pumpWidget(const SizedBox());
+        expect(saved, isNotNull);
+
+        await _show(
+          tester,
+          _home(
+            data: tallData,
+            waypointStationId: middleStation.id,
+            initialViewport: saved,
+          ),
+        );
+
+        expect(stationY(tester), closeTo(seen, 0.5));
+      });
+
+      testPhone('저장 때와 오버레이 높이가 달라도 마지막 화면 그대로 복원한다', (tester) async {
+        Rect? saved;
+        await _show(tester, focusMiddle(onViewportChanged: (v) => saved = v));
+        final seen = stationY(tester);
+        await tester.pumpWidget(const SizedBox());
+
+        await _show(
+          tester,
+          _home(
+            data: tallData,
+            waypointStationId: middleStation.id,
+            initialViewport: saved,
+            threeRows: false,
+            noticeBar: false,
+          ),
+        );
+
+        expect(stationY(tester), closeTo(seen, 0.5));
+      });
+    });
+  });
+
+  group('networkMapCameraForBounds obscuredTop', () {
+    const source = Rect.fromLTWH(0, 0, 2000, 3000);
+    const bounds = Rect.fromLTWH(500, 1000, 400, 600);
+    const viewport = BoxConstraints.tightFor(width: 360, height: 640);
+
+    MapCameraState camera(double obscuredTop) => networkMapCameraForBounds(
+      bounds,
+      viewport,
+      sourceBounds: source,
+      contain: true,
+      minScale: 0.05,
+      obscuredTop: obscuredTop,
+    );
+
+    test('가리는 높이가 0이면 기존 contain-fit과 같다', () {
+      final base = camera(0);
+
+      expect(base.center, bounds.center);
+      expect(base.scale, closeTo(360 / 400, 1e-9));
+    });
+
+    test('bounds를 가려지지 않는 영역에 contain-fit하고 그 중앙에 둔다', () {
+      final fitted = camera(160);
+
+      expect(fitted.scale, closeTo((640 - 160) / 600, 1e-9));
+      final onScreen = fitted.sourceToViewportPoint(bounds.center);
+      expect(onScreen.dy, closeTo(160 + (640 - 160) / 2, 1e-6));
+      expect(fitted.viewportSize, const Size(360, 640));
+    });
+
+    test('가려지지 않는 영역이 없으면 빈 카메라를 돌려준다', () {
+      expect(camera(640).viewportSize, Size.zero);
+    });
   });
 
   group('networkMapRevealOffsetBelowObscuredTop', () {

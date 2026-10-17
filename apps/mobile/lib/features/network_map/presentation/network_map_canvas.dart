@@ -358,6 +358,12 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          // 상단 오버레이를 아직 측정하지 못했으면 카메라를 정하지 않는다. 추정 높이로
+          // 그리면 측정 뒤 지도가 점프한다. 측정은 첫 프레임 직후에 끝나 바로 다음
+          // 프레임에 올바른 위치로 처음 그린다.
+          if (!NetworkMapObscuredTop.isMeasured(context)) {
+            return const SizedBox.shrink();
+          }
           final data = _alignedData(widget.data);
           final geometry = _geometryFor(data);
           final hitGeometry = NetworkMapStationHitGeometry(geometry: geometry);
@@ -372,12 +378,20 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           // 비동기 로드라 로드 전후로 가독 배율이 바뀌므로 layoutKey에 포함해
           // 로드 완료 시 초기 카메라가 다시 계산되게 한다.
           final readableScale = _readableInitialMapScaleFor(data);
+          // 초기 화면은 오버레이에 덮이지 않는 영역에 맞춘다.
+          final visibleConstraints = constraints.copyWith(
+            maxHeight: constraints.maxHeight - _obscuredTop,
+          );
           final initialCameraBounds = networkMapInitialCameraBounds(
             fullBounds: fullBounds,
             regionInitialBounds: geometry.initialBounds,
             viewport: Size(
-              constraints.hasBoundedWidth ? constraints.maxWidth : 0,
-              constraints.hasBoundedHeight ? constraints.maxHeight : 0,
+              visibleConstraints.hasBoundedWidth
+                  ? visibleConstraints.maxWidth
+                  : 0,
+              visibleConstraints.hasBoundedHeight
+                  ? visibleConstraints.maxHeight
+                  : 0,
             ),
             readableScale: readableScale,
           );
@@ -388,22 +402,25 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
             data.selectedRegion,
             initialFitScale: networkMapContainFitScale(
               initialCameraBounds,
-              constraints,
+              visibleConstraints,
             ),
           );
-          final effectiveInitialViewport =
-              (widget.initialViewport != null &&
-                  widget.initialViewport!.overlaps(fullBounds.inflate(100)) &&
-                  widget.initialViewport!.width <= fullBounds.width * 2 &&
-                  widget.initialViewport!.height <= fullBounds.height * 2)
-              ? widget.initialViewport!
-              : initialCameraBounds;
+          final savedViewport = widget.initialViewport;
+          final restoresSavedViewport =
+              savedViewport != null &&
+              savedViewport.overlaps(fullBounds.inflate(100)) &&
+              savedViewport.width <= fullBounds.width * 2 &&
+              savedViewport.height <= fullBounds.height * 2;
+          // 저장 viewport는 마지막 카메라가 본 뷰포트 전체(오버레이 밑 포함)라
+          // 그대로 복원하면 마지막 화면과 같다. 오버레이 높이를 또 반영하면 한 번
+          // 열 때마다 어긋난다.
           final initialCamera = networkMapCameraForBounds(
-            effectiveInitialViewport,
+            restoresSavedViewport ? savedViewport : initialCameraBounds,
             constraints,
             sourceBounds: fullBounds,
             contain: true,
             minScale: minScale,
+            obscuredTop: restoresSavedViewport ? 0 : _obscuredTop,
           );
           final layoutKey =
               '${data.selectedRegion}:${geometry.width}:${geometry.height}:${constraints.maxWidth}:${constraints.maxHeight}:$readableScale';
@@ -476,13 +493,18 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
               revision: camera.revision + 1,
               // 역 focus 후에도 LOD 기준은 지역 초기 화면 baseline을 유지한다.
               initialScaleOverride: camera.initialScale,
+              obscuredTop: _obscuredTop,
             );
             final focusedCamera = widget.preserveFocusedStationScale
                 ? camera
                       .copyWith(
-                        center: Offset(
-                          geometry.x(focusedStation),
-                          geometry.y(focusedStation),
+                        center: networkMapCameraCenterForVisibleCenter(
+                          Offset(
+                            geometry.x(focusedStation),
+                            geometry.y(focusedStation),
+                          ),
+                          scale: camera.scale,
+                          obscuredTop: _obscuredTop,
                         ),
                         revision: camera.revision + 1,
                       )
@@ -490,6 +512,11 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                 : (camera.scale > focusCamera.scale
                       ? focusCamera
                             .copyWith(
+                              center: networkMapCameraCenterForVisibleCenter(
+                                targetBounds.center,
+                                scale: camera.scale,
+                                obscuredTop: _obscuredTop,
+                              ),
                               scale: camera.scale,
                               revision: camera.revision + 1,
                             )
