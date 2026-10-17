@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import '../accessible_design.dart';
 import '../core/datapack/bundled_data_pack_freshness.dart';
@@ -47,6 +48,8 @@ const defaultDemoHomeDataEnabled = bool.fromEnvironment(
   'EASYSUBWAY_DEMO_HOME_DATA',
   defaultValue: false,
 );
+
+const _appLocale = Locale('ko', 'KR');
 
 class EasySubwayApp extends StatelessWidget {
   EasySubwayApp({
@@ -177,6 +180,11 @@ class EasySubwayApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'EasySubway',
+      // 다국어는 지원하지 않으므로 기기 언어와 무관하게 한국어로 고정해
+      // 기본 위젯의 툴팁·낭독 라벨을 앱 UI 언어와 일치시킨다.
+      locale: _appLocale,
+      supportedLocales: const [_appLocale],
+      localizationsDelegates: GlobalMaterialLocalizations.delegates,
       debugShowCheckedModeBanner: false,
       scrollBehavior: const EasySubwayScrollBehavior(),
       theme: ThemeData(
