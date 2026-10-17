@@ -12,6 +12,10 @@ const _maxMapScale = 4.8;
 const _stationFocusInitialBoundsFraction = 0.72;
 const double _initialCameraReadableLabelScreenPx = kRouteMapDesignLabelFontPx;
 
+/// 카메라 center가 source 경계 밖으로 나갈 수 있는 화면 여유(dp). 제스처와
+/// 프로그램 패닝이 같은 여유를 써야 한쪽이 옮긴 카메라를 다른 쪽이 되돌리지 않는다.
+const kNetworkMapCameraViewportMargin = 220.0;
+
 /// Gesture 중 새 renderer frame을 요청하는 최대 대기 간격.
 const kNetworkMapRendererCommitInterval = Duration(milliseconds: 1100);
 
@@ -379,4 +383,30 @@ Rect _sourceCenteredBounds({
   final left = (center.dx - clampedWidth / 2).clamp(0.0, maxLeft).toDouble();
   final top = (center.dy - clampedHeight / 2).clamp(0.0, maxTop).toDouble();
   return Rect.fromLTWH(left, top, clampedWidth, clampedHeight);
+}
+
+/// 지도 위쪽 [obscuredTop]만큼을 덮는 오버레이(상단바·알림 바) 아래로 [anchorPoints]
+/// 위젯이 모두 들어오도록, 화면 내용을 아래로 밀어야 하는 거리(dp, 0 이상)를 구한다.
+///
+/// 앵커는 뷰포트 좌표이고 위젯은 앵커에서 위로 [extentAboveAnchor]만큼 뻗는다.
+/// 가려진 위젯이 없으면 0이다. 한쪽으로 몰린 위젯이 아래 경계를 넘지 않도록 가장
+/// 아래 앵커가 [viewportHeight]에 닿는 만큼까지만 민다.
+double networkMapRevealOffsetBelowObscuredTop({
+  required Iterable<Offset> anchorPoints,
+  required double extentAboveAnchor,
+  required double viewportHeight,
+  required double obscuredTop,
+}) {
+  if (anchorPoints.isEmpty) {
+    return 0;
+  }
+  final topmostEdge =
+      anchorPoints.map((point) => point.dy).reduce(math.min) -
+      extentAboveAnchor;
+  final needed = obscuredTop - topmostEdge;
+  if (needed <= 0) {
+    return 0;
+  }
+  final lowestAnchor = anchorPoints.map((point) => point.dy).reduce(math.max);
+  return math.min(needed, math.max(0.0, viewportHeight - lowestAnchor));
 }

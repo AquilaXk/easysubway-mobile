@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "issue": 473,
+  "capturedAt": "2026-10-18",
+  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 2배로 캡처, Pretendard 번들 폰트와 Material 아이콘 폰트 로드. 핀 안쪽 라벨은 테스트 환경에서 글자 대신 네모로 보일 수 있으며 레이아웃 확인용이다.",
+  "assertions": [
+    "수정 전 lib에서 network_map_overlay_inset_test.dart의 핀 겹침 단언 4개와 팬 메뉴 겹침 단언 1개, 모두 5개가 실패한다. 예: 경유 핀 Rect.fromLTRB(112.9, 78.0, 190.9, 140.0)이 상단바·알림 바 아래 끝(228.0)보다 위에 있다",
+    "수정 후 같은 테스트가 모두 통과한다. 핀 위 끝이 오버레이 아래 끝 이상이다",
+    "수정 후 글자 1.5배에서도 핀이 오버레이에 가려지지 않는다",
+    "오버레이에 가려지지 않은 핀은 알림 바가 나타나고 사라져도 움직이지 않는다(카메라 초기화 없음)"
+  ],
+  "files": [
+    {
+      "path": "before-top-bar-3rows-notice-bar-text-1.0x.png",
+      "description": "경유 칸을 연 3줄 상단바 + 알림 바, 글자 1.0배. 수정 전: 지도 맨 위 역에 놓은 경유 핀이 상단바·알림 바 밑에 가려져 보이지 않는다",
+      "sha256": "33eebdefc88282b1c41eef859c2575e0304996a4db47cc4f3c67a07165587c04"
+    },
+    {
+      "path": "after-top-bar-3rows-notice-bar-text-1.0x.png",
+      "description": "같은 화면, 글자 1.0배. 수정 후: 지도가 오버레이 아래로 내려와 경유 핀과 ✕ 버튼이 알림 바 바로 아래에 보인다",
+      "sha256": "5c2b40ee2c3517dc985245e2d43bb2343c351fa58e636481e3f3d3f3ff195d2c"
+    },
+    {
+      "path": "before-top-bar-3rows-notice-bar-text-1.5x.png",
+      "description": "같은 화면, 글자 1.5배. 수정 전: 핀이 알림 바 밑에 가려지고 뾰족한 끝만 알림 바 아래로 삐져나온다",
+      "sha256": "e398c5a92fad6afe73093f8d1889092b714d919f59f250402be932b2da811c6a"
+    },
+    {
+      "path": "after-top-bar-3rows-notice-bar-text-1.5x.png",
+      "description": "같은 화면, 글자 1.5배. 수정 후: 핀 전체가 알림 바 아래에 보인다",
+      "sha256": "97faf856b6ace47a3a60f34ecc4a4c070eea488ec545a21fa9fc45829e2601d1"
+    }
+  ],
+  "captureMethod": "network_map_overlay_inset_test.dart의 홈 chrome 구성(실제 NetworkMapTopBar 3줄 + 실제 NewNotificationBar + NetworkMapCanvas)을 쓰는 임시 테스트(커밋 안 함)가 RepaintBoundary.toImage로 PNG를 저장했다. 수정 전 화면은 같은 테스트를 lib 수정 전 상태로 실행했다.",
+  "notes": "골든 파일은 갱신하지 않았다. NetworkMapChrome 전체를 그리는 골든이 없고 팬 메뉴 골든(station_fan_menu_golden_test)은 메뉴 위젯만 그려 이 변경의 영향을 받지 않는다. 실기기·TalkBack 낭독은 하지 않았다."
+}
