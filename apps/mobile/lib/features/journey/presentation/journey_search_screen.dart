@@ -1963,7 +1963,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             children: [
               const _RouteRoleBadge(
                 label: '출발',
-                color: EasySubwayFanMenuColors.pinEdgeDeparture,
+                color: EasySubwayFanMenuColors.departure,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2014,7 +2014,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             children: [
               const _RouteRoleBadge(
                 label: '도착',
-                color: EasySubwayFanMenuColors.pinEdgeArrival,
+                color: EasySubwayFanMenuColors.arrival,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2260,9 +2260,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
 /// 경로 입력 카드의 출발·경유·도착 역할 배지.
 ///
-/// 12pt 일반 텍스트 대비 4.5:1을 넘도록, 출발·도착은 지도 핀 외곽선에 쓰는
-/// 같은 계열의 짙은 역할색 위에 흰 글자를 쓰고, 밝은 경유 엠버는 색을 유지한 채
-/// 어두운 글자를 쓴다.
+/// 출발·도착은 지도 팬 메뉴·핀과 같은 역할색 토큰 위에 흰 글자를 쓴다(대비는
+/// `design_tokens_test`가 고정). 밝은 경유 엠버는 색을 유지한 채 어두운 글자를 쓴다.
 class _RouteRoleBadge extends StatelessWidget {
   const _RouteRoleBadge({
     required this.label,

@@ -15,8 +15,8 @@
     },
     {
       "path": "after-journey-search.png",
-      "sha256": "2106926d74d8e4237889415d25bb25d2b2697f83e08b6d1ed504507e88559ceb",
-      "description": "수정 후: 출발·도착 배지는 짙은 같은 계열 색, 경유 배지는 앰버를 유지하고 어두운 글자, 선택된 칩 글자는 짙은 브랜드색"
+      "sha256": "17811af57ab1751592859a67cb6f6546f315851fb81d2c91fb57154ac3c878db",
+      "description": "수정 후: 출발·도착 배지는 같은 색상(hue)에서 명도만 낮춘 역할색 토큰(0070E0·D92B20, 흰 글자 대비 4.78·4.86), 경유 배지는 앰버를 유지하고 어두운 글자, 선택된 칩 글자는 짙은 브랜드색"
     },
     {
       "path": "before-settings.png",
@@ -37,8 +37,28 @@
       "path": "after-station-detail-text-1.5x.png",
       "sha256": "c10fe9470091d56512108f5de4f2eae8c3c17dcb08dfdaef158d05ae8354a4e0",
       "description": "수정 후: 같은 조건에서 라벨이 두 줄로 줄바꿈되어 버튼 안에 모두 보임"
+    },
+    {
+      "path": "before-fan-menu-origin-selected.png",
+      "description": "수정 전: 지도 역 팬 메뉴(출발 선택 상태) 골든. 출발 역할색 0A84FF",
+      "sha256": "4aa06a1d5983f2db263d85b39d7ab495d844f17ee42df49cf0ac77108d2dfa95"
+    },
+    {
+      "path": "after-fan-menu-origin-selected.png",
+      "description": "수정 후: 같은 골든. 출발 역할색 0070E0(흰 글자 대비 4.78)",
+      "sha256": "1f978b08c3590e6404cee9ff93dc8b1d0ae5c565c3ef74eb71ce85d2a6db999c"
+    },
+    {
+      "path": "before-fan-menu-destination-selected.png",
+      "description": "수정 전: 지도 역 팬 메뉴(도착 선택 상태) 골든. 도착 역할색 FF3B30",
+      "sha256": "b34803c72100afbbc8ce97149f66f4e95d8f797c3b5c9e165c775236ffea5298"
+    },
+    {
+      "path": "after-fan-menu-destination-selected.png",
+      "description": "수정 후: 같은 골든. 도착 역할색 D92B20(흰 글자 대비 4.86)",
+      "sha256": "546ee0d3ea5e8d969559705bcbd8e79f3e7c27b483ea154400df6b8167740b78"
     }
   ],
   "captureMethod": "core_screen_guideline_sweep_test.dart의 화면 열기·앱 구성 코드를 복사한 임시 테스트(커밋 안 함)가 layer.toImage로 PNG를 저장했다. 수정 전 화면은 같은 테스트를 origin/main의 lib 상태에서 실행했다.",
-  "notes": "실기기·TalkBack 낭독은 하지 않았다. 구성 요소별 골든은 기존 골든이 이 화면들을 덮지 않아 추가하지 않았다."
+  "notes": "실기기·TalkBack 낭독은 하지 않았다. 구성 요소별 골든은 기존 골든이 이 화면들을 덮지 않아 추가하지 않았다. 팬 메뉴 PNG는 station_fan_menu_golden_test의 골든 파일이며 역할색 토큰 변경에 맞춰 갱신했다."
 }

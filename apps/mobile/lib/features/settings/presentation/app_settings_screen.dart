@@ -373,6 +373,11 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
   }
 }
 
+/// 섹션 제목과 아래 카드 사이 간격. Flutter `textContrastGuideline`은 글자 경계를
+/// 4dp 넓힌 영역의 색 빈도로 글자색을 추정하므로, 제목 아래 카드 테두리가 그 영역에
+/// 들어오지 않게 4dp보다 넓게 둔다(제목 글자 대비 자체는 `design_tokens_test`가 고정).
+const _sectionHeaderBottomGap = 6.0;
+
 class _AppSettingsSectionHeader extends StatelessWidget {
   const _AppSettingsSectionHeader({required this.title, super.key});
 
@@ -387,7 +392,12 @@ class _AppSettingsSectionHeader extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
+          padding: const EdgeInsets.fromLTRB(
+            20,
+            8,
+            20,
+            _sectionHeaderBottomGap,
+          ),
           child: Semantics(
             header: true,
             child: Text(
