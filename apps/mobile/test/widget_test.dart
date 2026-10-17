@@ -1702,6 +1702,127 @@ void main() {
     });
   });
 
+  group('알림함 부분 조회 실패', () {
+    const reportedAccepted = FacilityReportResult(
+      id: 'report-9',
+      publicReceiptCode: 'ES-1009',
+      stationId: 'station-sangnoksu',
+      facilityId: 'facility-sangnoksu-elevator-1',
+      reportType: 'CLOSED',
+      description: '출입문이 막혀 있습니다.',
+      status: 'ACCEPTED',
+      createdAt: '2026-06-15T09:00:00',
+    );
+    const facilityErrorRow = Key('notificationInboxFacilityErrorRow');
+    const reportErrorRow = Key('notificationInboxReportErrorRow');
+
+    Future<void> openInboxFromMenu(
+      WidgetTester tester, {
+      required FakeFavoriteFacilityRepository facilityRepository,
+      required FakeFacilityReportRepository reportRepository,
+    }) async {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: FakeStationSearchRepository(),
+          reportRepository: reportRepository,
+          favoriteRepository: FakeFavoriteStationRepository(),
+          favoriteFacilityRepository: facilityRepository,
+          notificationRepository: FakeNotificationSettingsRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('networkMapMenuButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('networkMapMenuNotificationsButton')),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('제보만 실패하면 시설 항목은 보이고 제보 구역에 오류 행을 보인다', (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      final facilityRepository = FakeFavoriteFacilityRepository(
+        favorites: [_favoriteFacility(status: 'USER_REPORTED')],
+      );
+      final reportRepository = FakeFacilityReportRepository(
+        reports: const [reportedAccepted],
+      )..error = Exception('network');
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await openInboxFromMenu(
+          tester,
+          facilityRepository: facilityRepository,
+          reportRepository: reportRepository,
+        );
+
+        expect(find.textContaining('1번 출구 엘리베이터'), findsOneWidget);
+        expect(find.byKey(reportErrorRow), findsOneWidget);
+        expect(find.text('제보를 불러오지 못했어요'), findsOneWidget);
+        expect(find.byKey(facilityErrorRow), findsNothing);
+        expect(
+          find.byKey(const Key('notificationInboxErrorState')),
+          findsNothing,
+        );
+
+        final facilityLoads = facilityRepository.listCount;
+        reportRepository.error = null;
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(reportErrorRow),
+            matching: find.widgetWithText(OutlinedButton, '다시 시도'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(reportErrorRow), findsNothing);
+        expect(find.text('제보 번호 ES-1009'), findsOneWidget);
+        expect(find.textContaining('1번 출구 엘리베이터'), findsOneWidget);
+        expect(facilityRepository.listCount, facilityLoads);
+      });
+      expect(reportedErrors, isNotEmpty);
+    });
+
+    testWidgets('시설만 실패하면 제보 항목은 보이고 시설 구역에 오류 행을 보인다', (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      final facilityRepository = FakeFavoriteFacilityRepository(
+        favorites: [_favoriteFacility(status: 'USER_REPORTED')],
+      )..error = Exception('network');
+      final reportRepository = FakeFacilityReportRepository(
+        reports: const [reportedAccepted],
+      );
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await openInboxFromMenu(
+          tester,
+          facilityRepository: facilityRepository,
+          reportRepository: reportRepository,
+        );
+
+        expect(find.text('제보 번호 ES-1009'), findsOneWidget);
+        expect(find.byKey(facilityErrorRow), findsOneWidget);
+        expect(find.text('시설을 불러오지 못했어요'), findsOneWidget);
+        expect(find.byKey(reportErrorRow), findsNothing);
+
+        final reportLoads = reportRepository.listMyReportsCount;
+        facilityRepository.error = null;
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(facilityErrorRow),
+            matching: find.widgetWithText(OutlinedButton, '다시 시도'),
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        expect(find.byKey(facilityErrorRow), findsNothing);
+        expect(find.textContaining('1번 출구 엘리베이터'), findsOneWidget);
+        expect(find.text('제보 번호 ES-1009'), findsOneWidget);
+        expect(reportRepository.listMyReportsCount, reportLoads);
+      });
+      expect(reportedErrors, isNotEmpty);
+    });
+  });
+
   testWidgets('홈 신규 알림 바는 확인할 알림이 있으면 안내 문구와 상태를 알려준다', (tester) async {
     final favoriteFacilityRepository = FakeFavoriteFacilityRepository(
       favorites: [_favoriteFacility(status: 'USER_REPORTED')],

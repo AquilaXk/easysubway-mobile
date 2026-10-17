@@ -74,7 +74,7 @@ void main() {
           }
 
           try {
-            if (screen.inboxLoadFails) {
+            if (screen.inboxLoad != SweepInboxLoad.normal) {
               // 조회 실패는 화면에 오류 상태로 드러나야 하고 오류 보고로도 남아야 한다.
               await runWithMobileErrorReporter(reportedErrors.add, checkScreen);
               expect(reportedErrors, isNotEmpty);
@@ -141,7 +141,7 @@ Future<void> _pumpApp(
       navigatorKey: navigatorKey,
       onboardingState: screen.onboardingState(theme),
       stationResults: screen.stationResults,
-      inboxLoadFails: screen.inboxLoadFails,
+      inboxLoad: screen.inboxLoad,
     ),
   );
   await tester.pumpAndSettle();
