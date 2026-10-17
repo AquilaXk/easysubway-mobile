@@ -6,6 +6,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/network_map_
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_draft_pin.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/network_map_overlay_inset.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_policy.dart';
 import 'package:easysubway_mobile/features/notifications/presentation/new_notification_bar.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
@@ -670,6 +671,15 @@ void main() {
         expect(stationY(tester), closeTo(seen, 0.5));
       });
     });
+  });
+
+  test('측정된 오버레이 상태는 높이가 같으면 같은 값이라 의존 위젯을 다시 build하지 않는다', () {
+    const measured = NetworkMapTopInsetMeasured(120);
+
+    expect(measured, const NetworkMapTopInsetMeasured(120));
+    expect(measured.hashCode, const NetworkMapTopInsetMeasured(120).hashCode);
+    expect(measured, isNot(const NetworkMapTopInsetMeasured(121)));
+    expect(measured, isNot(const NetworkMapTopInsetUnmeasured()));
   });
 
   group('networkMapCameraForBounds obscuredTop', () {
