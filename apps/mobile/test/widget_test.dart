@@ -1306,10 +1306,6 @@ void main() {
       expect(find.widgetWithText(OutlinedButton, '즐겨찾기'), findsNothing);
       expect(find.widgetWithText(OutlinedButton, '내 신고'), findsNothing);
       expect(find.widgetWithText(OutlinedButton, '도움말'), findsNothing);
-      expect(
-        find.byKey(const Key('homeNotificationActionButton')),
-        findsNothing,
-      );
       expect(find.byKey(const Key('networkMapRegionDropdown')), findsOneWidget);
       expect(find.byKey(const Key('homeBottomNavigationBar')), findsNothing);
       expect(find.byKey(const Key('bottomNavHome')), findsNothing);
@@ -1517,7 +1513,7 @@ void main() {
     expect(nearbyButtonRect.right, lessThanOrEqualTo(1280));
   });
 
-  testWidgets('홈 상단 알림 버튼은 깔끔한 아이콘으로 알림함으로 이동한다', (tester) async {
+  testWidgets('홈 상단바에는 알림 아이콘이 없고 신규 알림 바를 탭하면 알림함으로 이동한다', (tester) async {
     final favoriteFacilityRepository = FakeFavoriteFacilityRepository(
       favorites: [_favoriteFacility(status: 'USER_REPORTED')],
     );
@@ -1534,7 +1530,13 @@ void main() {
     await tester.pumpAndSettle();
 
     // 상단바에서 알림 벨 버튼은 영구 제거되고 좌측 지역 선택기·검색창·메뉴로 정돈된다 (#360).
-    expect(find.byKey(const Key('homeNotificationActionButton')), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('networkMapTopBar')),
+        matching: find.byIcon(Icons.notifications_none),
+      ),
+      findsNothing,
+    );
     expect(find.byKey(const Key('networkMapRegionDropdown')), findsOneWidget);
     expect(
       tester.getTopLeft(find.byKey(const Key('networkMapRegionDropdown'))).dx,
@@ -1618,7 +1620,7 @@ void main() {
     expect(reportedErrors, isNotEmpty);
   });
 
-  testWidgets('홈 알림 버튼은 확인할 알림이 있으면 배지와 상태를 알려준다', (tester) async {
+  testWidgets('홈 신규 알림 바는 확인할 알림이 있으면 안내 문구와 상태를 알려준다', (tester) async {
     final favoriteFacilityRepository = FakeFavoriteFacilityRepository(
       favorites: [_favoriteFacility(status: 'USER_REPORTED')],
     );
@@ -1636,7 +1638,6 @@ void main() {
     await tester.pumpAndSettle();
 
     // 상단바 벨 버튼은 제거되고, 통합 신규 알림 안내 바가 배너로 표시된다 (#360).
-    expect(find.byKey(const Key('homeNotificationActionButton')), findsNothing);
     expect(find.byKey(const Key('newNotificationBar')), findsOneWidget);
     expect(find.text('새로운 알림이 있어요'), findsOneWidget);
     expect(find.bySemanticsLabel('새로운 알림이 있어요, 알림 보기'), findsOneWidget);
