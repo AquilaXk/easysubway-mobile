@@ -448,24 +448,60 @@ void main() {
     expect(find.byKey(const Key('nearbyStationButton')), findsNothing);
   });
 
-  testWidgets('disruption banner는 상단바 실제 높이 바로 아래에 놓인다', (tester) async {
-    // 경로 입력 상단바는 1~3줄(60·108·156dp)로 늘어난다. 높이가 달라도 같다.
-    for (final topBarHeight in <double>[
-      easySubwayTopBarContentHeight,
-      108,
-      156,
-    ]) {
+  testWidgets('disruption banner는 실제 상단바의 줄 수와 상관없이 그 바로 아래에 놓인다', (
+    tester,
+  ) async {
+    const statusBarInset = 24.0;
+    const originOnly = RouteDraft(
+      origin: RouteDraftStation(id: 'origin', nameKo: '서울'),
+      destination: null,
+      lastModifiedAt: null,
+    );
+    // 검색 줄은 상단바 기본 높이이고, 경로 입력 줄이 하나 늘 때마다 입력 줄 높이만큼 커진다.
+    double heightOfRows(int rows) =>
+        statusBarInset +
+        easySubwayTopBarContentHeight +
+        (rows - 1) * EasySubwayTouchTarget.iconOnly;
+    final cases = <({String name, int rows, RouteDraft draft, bool waypoint})>[
+      (
+        name: '검색 1줄',
+        rows: 1,
+        draft: const RouteDraft.empty(),
+        waypoint: false,
+      ),
+      (name: '출발·도착 2줄', rows: 2, draft: originOnly, waypoint: false),
+      (name: '출발·경유·도착 3줄', rows: 3, draft: originOnly, waypoint: true),
+    ];
+
+    for (final c in cases) {
       await tester.pumpWidget(
         _host(
           MediaQuery(
-            data: const MediaQueryData(padding: EdgeInsets.only(top: 24)),
+            data: const MediaQueryData(
+              padding: EdgeInsets.only(top: statusBarInset),
+            ),
             child: SizedBox(
               width: 400,
               height: 560,
               child: NetworkMapChrome(
-                topBar: SizedBox(
-                  key: const Key('chromeSizedTopBar'),
-                  height: topBarHeight,
+                topBar: NetworkMapTopBar(
+                  regions: const [NetworkMapRegion(name: '수도권')],
+                  selectedRegion: '수도권',
+                  onMenuTap: _noop,
+                  onSearchTap: _noop,
+                  onRegionSelected: (_) {},
+                  routeDraftListenable: ValueNotifier(0),
+                  routeDraft: () => c.draft,
+                  isWaypointRowVisible: () => c.waypoint,
+                  onClearDraft: _noop,
+                  onOpenWaypointSlot: _noop,
+                  onClearOrigin: _noop,
+                  onClearDestination: _noop,
+                  onClearWaypoint: _noop,
+                  onReorderDraft: (_, _) {},
+                  roleColorForSlot: (_) => Colors.black,
+                  lineBadgeBuilder: (_, size) =>
+                      SizedBox.square(dimension: size),
                 ),
                 disruptionBanner: const SizedBox(
                   key: Key('chromeSizedBanner'),
@@ -485,10 +521,10 @@ void main() {
         ),
       );
 
-      final topBar = tester.getRect(find.byKey(const Key('chromeSizedTopBar')));
+      final topBar = tester.getRect(find.byKey(const Key('networkMapTopBar')));
       final banner = tester.getRect(find.byKey(const Key('chromeSizedBanner')));
-      expect(topBar.height, topBarHeight);
-      expect(banner.top, topBar.bottom, reason: '상단바 높이 $topBarHeight');
+      expect(topBar.height, heightOfRows(c.rows), reason: c.name);
+      expect(banner.top, topBar.bottom, reason: c.name);
     }
   });
 
