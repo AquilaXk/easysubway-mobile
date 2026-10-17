@@ -75,7 +75,6 @@ class NetworkMapScreen extends StatefulWidget {
     this.onOpenTrainSearch,
     this.onOpenSettings,
     this.onOpenServiceNotices,
-    this.notificationAction,
     this.disruptionBanner,
     this.bottomNavigationBar,
     this.focusStationRequest,
@@ -140,7 +139,6 @@ class NetworkMapScreen extends StatefulWidget {
 
   /// 좌측 메뉴 "운행 공지" 목록 화면 열기.
   final VoidCallback? onOpenServiceNotices;
-  final Widget? notificationAction;
 
   /// 상단 disruption 공지 1줄 배너. 표시할 공지가 없으면 스스로 빈 위젯이 된다.
   final Widget? disruptionBanner;
@@ -1644,7 +1642,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       topBar: NetworkMapTopBar(
         regions: regions,
         selectedRegion: selectedRegion,
-        notificationAction: widget.notificationAction,
         onMenuTap: _openMapMenu,
         onSearchTap: _enterSearchMode,
         searchMode: inSearchMode,

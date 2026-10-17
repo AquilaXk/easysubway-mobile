@@ -174,9 +174,6 @@ void main() {
               NetworkMapRegion(name: '부산권'),
             ],
             selectedRegion: '부산권',
-            notificationAction: const SizedBox(
-              key: Key('networkMapNotificationAction'),
-            ),
             onMenuTap: () => menuTapCount += 1,
             onSearchTap: () => searchTapCount += 1,
             onRegionSelected: (region) => selectedRegion = region,
@@ -216,7 +213,6 @@ void main() {
     final menuIcon = tester.widget<Icon>(find.byIcon(Icons.menu));
     expect(menuIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
     expect(find.text('부산'), findsOneWidget);
-    expect(find.byKey(const Key('networkMapNotificationAction')), findsNothing);
     expect(
       tester.getTopLeft(find.byKey(const Key('networkMapRegionDropdown'))).dx,
       lessThan(
