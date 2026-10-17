@@ -394,10 +394,12 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
   });
 
   static const _leadingWidth = EasySubwayTouchTarget.general;
-  static const _rowGap = 6.0;
-  static const _fieldMinHeight = easySubwaySearchFieldVisualHeight;
+
+  /// 입력 칸 한 줄의 높이. 시각 박스(40dp)는 이 줄 안에서 가운데에 그려지고,
+  /// 버튼·입력 영역은 줄 높이만큼 눌려 최소 터치 영역(48dp)을 채운다.
+  static const _rowHeight = EasySubwayTouchTarget.iconOnly;
   static const _chromeVerticalInset =
-      (easySubwayTopBarContentHeight - _fieldMinHeight) / 2;
+      (easySubwayTopBarContentHeight - _rowHeight) / 2;
 
   final RouteDraft draft;
   final bool showWaypointRow;
@@ -502,19 +504,11 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (var i = 0; i < fieldRows.length; i++) ...[
-                  if (i > 0) const SizedBox(height: _rowGap),
-                  fieldRows[i],
-                ],
-              ],
-            ),
+            child: Column(mainAxisSize: MainAxisSize.min, children: fieldRows),
           ),
           const SizedBox(width: 8),
           SizedBox(
-            height: _fieldMinHeight,
+            height: _rowHeight,
             child: Align(
               alignment: Alignment.centerRight,
               child: _draftLockedRegionLabel(regionLabel),
@@ -533,13 +527,13 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
   }) {
     return SizedBox(
       width: _leadingWidth,
-      height: _fieldMinHeight,
+      height: _rowHeight,
       child: IconButton(
         key: key,
         tooltip: tooltip,
         onPressed: onPressed,
         style: IconButton.styleFrom(
-          minimumSize: const Size.square(EasySubwayTouchTarget.general),
+          minimumSize: const Size(_leadingWidth, _rowHeight),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: EdgeInsets.zero,
         ),
@@ -615,6 +609,8 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
   lineBadgeBuilder;
   final VoidCallback? onPick;
   final bool showClearWhenEmpty;
+
+  static const _hitHeight = EasySubwayTouchTarget.iconOnly;
 
   String get _roleLabel => slot.displayLabel;
   String get _valuePlaceholder => '${slot.displayLabel} 입력';
@@ -708,7 +704,7 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
             label: filled ? filledSemanticsCore : _valuePlaceholder,
             child: ExcludeSemantics(
               child: SizedBox(
-                height: easySubwaySearchFieldVisualHeight,
+                height: _hitHeight,
                 child: Center(child: valueRow),
               ),
             ),
@@ -723,82 +719,90 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: onPick,
                 child: SizedBox(
-                  height: easySubwaySearchFieldVisualHeight,
+                  height: _hitHeight,
                   child: Center(child: valueRow),
                 ),
               ),
             ),
           );
 
-    final rowContainer = Container(
-      height: easySubwaySearchFieldVisualHeight,
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.searchFieldSurface,
-        borderRadius: easySubwaySearchFieldRadius,
-        border: Border.all(
-          color: easySubwaySearchFieldBorderColor,
-          width: easySubwaySearchFieldBorderWidth,
-        ),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Align(alignment: Alignment.centerLeft, child: roleLabelWidget),
-            Container(
-              width: easySubwaySearchFieldBorderWidth,
-              color: easySubwaySearchFieldBorderColor,
-            ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(
-                  left: 10,
-                  right: (filled || showClearWhenEmpty) ? 0 : 10,
-                ),
-                child: pickArea,
+    // 시각 박스(40dp)는 배경만 그리고, 그 위 행의 입력·지우기 영역이 줄 높이
+    // (48dp)만큼 눌려 최소 터치 영역을 채운다.
+    final rowContainer = SizedBox(
+      height: _hitHeight,
+      child: Stack(
+        alignment: Alignment.center,
+        children: [
+          Container(
+            height: easySubwaySearchFieldVisualHeight,
+            decoration: BoxDecoration(
+              color: EasySubwayAccessibleColors.searchFieldSurface,
+              borderRadius: easySubwaySearchFieldRadius,
+              border: Border.all(
+                color: easySubwaySearchFieldBorderColor,
+                width: easySubwaySearchFieldBorderWidth,
               ),
             ),
-            if (filled || showClearWhenEmpty)
-              Semantics(
-                button: true,
-                label: filled ? '$roleLabel 지우기' : '$roleLabel 칸 닫기',
-                onTap: onClear,
-                child: ExcludeSemantics(
-                  child: IconButton(
-                    key: Key(_clearKey),
-                    onPressed: onClear,
-                    style: IconButton.styleFrom(
-                      splashFactory: NoSplash.splashFactory,
-                      highlightColor: Colors.transparent,
-                      backgroundColor: Colors.transparent,
-                      elevation: 0,
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    icon: Container(
-                      width: 22,
-                      height: 22,
-                      alignment: Alignment.center,
-                      decoration: const BoxDecoration(
-                        color: EasySubwayAccessibleColors.disclosure,
-                        shape: BoxShape.circle,
+          ),
+          Row(
+            children: [
+              roleLabelWidget,
+              Container(
+                width: easySubwaySearchFieldBorderWidth,
+                height: easySubwaySearchFieldVisualHeight,
+                color: easySubwaySearchFieldBorderColor,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: EdgeInsets.only(
+                    left: 10,
+                    right: (filled || showClearWhenEmpty) ? 0 : 10,
+                  ),
+                  child: pickArea,
+                ),
+              ),
+              if (filled || showClearWhenEmpty)
+                Semantics(
+                  button: true,
+                  label: filled ? '$roleLabel 지우기' : '$roleLabel 칸 닫기',
+                  onTap: onClear,
+                  child: ExcludeSemantics(
+                    child: IconButton(
+                      key: Key(_clearKey),
+                      onPressed: onClear,
+                      style: IconButton.styleFrom(
+                        splashFactory: NoSplash.splashFactory,
+                        highlightColor: Colors.transparent,
+                        backgroundColor: Colors.transparent,
+                        elevation: 0,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
-                      child: const Icon(
-                        Icons.close,
-                        size: 14,
-                        color: EasySubwayAccessibleColors.interactionOnPrimary,
+                      icon: Container(
+                        width: 22,
+                        height: 22,
+                        alignment: Alignment.center,
+                        decoration: const BoxDecoration(
+                          color: EasySubwayAccessibleColors.disclosure,
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(
+                          Icons.close,
+                          size: 14,
+                          color:
+                              EasySubwayAccessibleColors.interactionOnPrimary,
+                        ),
                       ),
+                      constraints: const BoxConstraints(
+                        minWidth: _hitHeight,
+                        minHeight: _hitHeight,
+                      ),
+                      padding: const EdgeInsets.only(right: 4),
                     ),
-                    constraints: const BoxConstraints(
-                      minWidth: 40,
-                      minHeight: 40,
-                    ),
-                    padding: const EdgeInsets.only(right: 4),
                   ),
                 ),
-              ),
-          ],
-        ),
+            ],
+          ),
+        ],
       ),
     );
 

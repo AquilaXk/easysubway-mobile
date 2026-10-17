@@ -212,6 +212,12 @@ class EasySubwayApp extends StatelessWidget {
           ThemeData(useMaterial3: true).textTheme,
         ).apply(fontFamily: 'Pretendard'),
         scaffoldBackgroundColor: EasySubwayAccessibleColors.surfaceScaffold,
+        // 기본 대화상자 배경은 보랏빛 톤이라 그 위 primary 글자 버튼이 대비
+        // 4.5:1에 못 미친다. 앱의 흰 면으로 맞춘다(#469).
+        dialogTheme: const DialogThemeData(
+          backgroundColor: EasySubwayAccessibleColors.surfaceDefault,
+          surfaceTintColor: Colors.transparent,
+        ),
         appBarTheme: const AppBarTheme(
           centerTitle: false,
           toolbarHeight: 60,

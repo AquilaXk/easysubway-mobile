@@ -92,7 +92,7 @@ void main() {
     expect(EasySubwayFanMenuColors.departure, const Color(0xFF0070E0));
     expect(EasySubwayFanMenuColors.departureSurface, const Color(0xFFF2F8FF));
     expect(EasySubwayFanMenuColors.departurePressed, const Color(0xFFE1F0FF));
-    expect(EasySubwayFanMenuColors.waypoint, const Color(0xFFFF9F0A));
+    expect(EasySubwayFanMenuColors.waypoint, const Color(0xFFA86600));
     expect(EasySubwayFanMenuColors.waypointSurface, const Color(0xFFFFF8ED));
     expect(EasySubwayFanMenuColors.waypointPressed, const Color(0xFFFFEFCC));
     expect(EasySubwayFanMenuColors.arrival, const Color(0xFFD92B20));
@@ -100,7 +100,7 @@ void main() {
     expect(EasySubwayFanMenuColors.arrivalPressed, const Color(0xFFFFE8E6));
     expect(EasySubwayFanMenuColors.pinShadow, const Color(0x40000000));
     expect(EasySubwayFanMenuColors.pinEdgeDeparture, const Color(0xFF0654A1));
-    expect(EasySubwayFanMenuColors.pinEdgeWaypoint, const Color(0xFFA16506));
+    expect(EasySubwayFanMenuColors.pinEdgeWaypoint, const Color(0xFF7D4B00));
     expect(EasySubwayFanMenuColors.pinEdgeArrival, const Color(0xFFA1251E));
     expect(EasySubwayFanMenuColors.pinClearBg, const Color(0xFFFFFFFF));
     expect(EasySubwayFanMenuColors.pinClearBorder, const Color(0xFFE5E5E5));
@@ -124,24 +124,36 @@ void main() {
       return (lighter + 0.05) / (darker + 0.05);
     }
 
-    // 상용 지하철 서비스와 같은 계열(파랑·빨강)을 유지하면서 흰 글자 대비만 통과시킨
-    // 출발·도착 역할색. 이전 색(0A84FF·FF3B30)은 흰 글자 대비 3.65·3.55였다.
+    // 상용 지하철 서비스와 같은 계열(파랑·앰버·빨강)을 유지하면서 흰 글자 대비만
+    // 통과시킨 출발·경유·도착 역할색. 이전 색(0A84FF·FF9F0A·FF3B30)은 흰 글자 대비
+    // 3.65·2.05·3.55였다.
     const previousDeparture = Color(0xFF0A84FF);
+    const previousWaypoint = Color(0xFFFF9F0A);
     const previousArrival = Color(0xFFFF3B30);
     const maxHueShiftDegrees = 4.0;
+    const minPinEdgeRatio = 1.5;
 
-    final roles = <String, ({Color role, Color previous, Color surface})>{
-      '출발': (
-        role: EasySubwayFanMenuColors.departure,
-        previous: previousDeparture,
-        surface: EasySubwayFanMenuColors.departureSurface,
-      ),
-      '도착': (
-        role: EasySubwayFanMenuColors.arrival,
-        previous: previousArrival,
-        surface: EasySubwayFanMenuColors.arrivalSurface,
-      ),
-    };
+    final roles =
+        <String, ({Color role, Color previous, Color surface, Color pinEdge})>{
+          '출발': (
+            role: EasySubwayFanMenuColors.departure,
+            previous: previousDeparture,
+            surface: EasySubwayFanMenuColors.departureSurface,
+            pinEdge: EasySubwayFanMenuColors.pinEdgeDeparture,
+          ),
+          '경유': (
+            role: EasySubwayFanMenuColors.waypoint,
+            previous: previousWaypoint,
+            surface: EasySubwayFanMenuColors.waypointSurface,
+            pinEdge: EasySubwayFanMenuColors.pinEdgeWaypoint,
+          ),
+          '도착': (
+            role: EasySubwayFanMenuColors.arrival,
+            previous: previousArrival,
+            surface: EasySubwayFanMenuColors.arrivalSurface,
+            pinEdge: EasySubwayFanMenuColors.pinEdgeArrival,
+          ),
+        };
 
     for (final MapEntry(:key, :value) in roles.entries) {
       test('$key 역할색 위의 흰 글자(경로 카드 배지·팬 메뉴 선택 면)는 4.5:1을 넘는다', () {
@@ -155,10 +167,24 @@ void main() {
         );
       });
 
+      test('$key 역할색 글자(경로 입력 상단바의 15pt 라벨)는 입력 칸 배경 위에서 4.5:1을 넘는다', () {
+        expect(
+          contrast(value.role, EasySubwayAccessibleColors.searchFieldSurface),
+          greaterThanOrEqualTo(normalTextRatio),
+        );
+      });
+
       test('$key 역할색 글자(팬 메뉴 비선택 면의 큰 라벨)는 연한 면 위에서 3:1을 넘는다', () {
         expect(
           contrast(value.role, value.surface),
           greaterThanOrEqualTo(largeTextRatio),
+        );
+      });
+
+      test('$key 핀 외곽선은 역할색보다 $minPinEdgeRatio:1 이상 진해 윤곽이 구분된다', () {
+        expect(
+          contrast(value.role, value.pinEdge),
+          greaterThanOrEqualTo(minPinEdgeRatio),
         );
       });
 

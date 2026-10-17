@@ -1989,7 +1989,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 const _RouteRoleBadge(
                   label: '경유',
                   color: EasySubwayFanMenuColors.waypoint,
-                  textColor: EasySubwayAccessibleColors.text,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2263,15 +2262,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 /// 출발·도착은 지도 팬 메뉴·핀과 같은 역할색 토큰 위에 흰 글자를 쓴다(대비는
 /// `design_tokens_test`가 고정). 밝은 경유 엠버는 색을 유지한 채 어두운 글자를 쓴다.
 class _RouteRoleBadge extends StatelessWidget {
-  const _RouteRoleBadge({
-    required this.label,
-    required this.color,
-    this.textColor = EasySubwayColorPrimitives.neutralWhite,
-  });
+  const _RouteRoleBadge({required this.label, required this.color});
 
   final String label;
   final Color color;
-  final Color textColor;
 
   @override
   Widget build(BuildContext context) {
@@ -2286,7 +2280,7 @@ class _RouteRoleBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: textColor,
+          color: EasySubwayColorPrimitives.neutralWhite,
         ),
       ),
     );

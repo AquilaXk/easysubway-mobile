@@ -92,6 +92,14 @@ void main() {
     );
   }, skip: skipReason);
 
+  testWidgets('경유 selected', (tester) async {
+    await _pumpMenu(tester, selected: const {RouteDraftSlot.waypoint});
+    await expectLater(
+      find.byKey(_menuBoundaryKey),
+      matchesGoldenFile('goldens/station_fan_menu_waypoint_selected.png'),
+    );
+  }, skip: skipReason);
+
   testWidgets('도착 selected', (tester) async {
     await _pumpMenu(tester, selected: const {RouteDraftSlot.destination});
     await expectLater(

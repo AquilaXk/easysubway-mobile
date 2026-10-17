@@ -170,8 +170,9 @@ abstract final class EasySubwayFanMenuColors {
   static const departureSurface = Color(0xFFF2F8FF);
   static const departurePressed = Color(0xFFE1F0FF);
 
-  /// Amber Gold — 갈색 없는 선명한 엠버. 경유 역할이 한눈에 구분되게.
-  static const waypoint = Color(0xFFFF9F0A);
+  /// Amber Gold — 경유 역할이 한눈에 구분되는 엠버 계열. 흰 글자 대비 4.5:1을
+  /// 넘기도록 같은 색상(hue 36)에서 명도만 낮췄다(#469, 이전 `FF9F0A`는 2.05).
+  static const waypoint = Color(0xFFA86600);
   static const waypointSurface = Color(0xFFFFF8ED);
   static const waypointPressed = Color(0xFFFFEFCC);
 
@@ -186,7 +187,7 @@ abstract final class EasySubwayFanMenuColors {
 
   /// 역할색보다 한 톤 진한 외곽(참조: 블루 면 `#2B66F6` → 선 `#1A429F` 대비).
   static const pinEdgeDeparture = Color(0xFF0654A1);
-  static const pinEdgeWaypoint = Color(0xFFA16506);
+  static const pinEdgeWaypoint = Color(0xFF7D4B00);
   static const pinEdgeArrival = Color(0xFFA1251E);
 
   /// ✕ — 흰 원 + 헤어라인 + 차분한 잉크.

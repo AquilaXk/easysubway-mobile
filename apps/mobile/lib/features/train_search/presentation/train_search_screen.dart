@@ -155,8 +155,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                           child: Tooltip(
                             message: '출발역과 도착역 맞바꾸기',
                             child: Container(
-                              width: 40,
-                              height: 40,
+                              width: EasySubwayTouchTarget.iconOnly,
+                              height: EasySubwayTouchTarget.iconOnly,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
                                 border: Border.all(
@@ -229,33 +229,38 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                   });
                                 },
                           borderRadius: BorderRadius.circular(6),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 6,
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(
+                              minHeight: EasySubwayTouchTarget.iconOnly,
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _roundTrip
-                                      ? Icons.check_box
-                                      : Icons.check_box_outline_blank,
-                                  size: 22,
-                                  color: _roundTrip
-                                      ? EasySubwayAccessibleColors.primary
-                                      : EasySubwayAccessibleColors.mutedText,
-                                ),
-                                const SizedBox(width: 4),
-                                const Text(
-                                  '왕복',
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: EasySubwayAccessibleColors
-                                        .secondaryText,
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 8,
+                                vertical: 6,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    _roundTrip
+                                        ? Icons.check_box
+                                        : Icons.check_box_outline_blank,
+                                    size: 22,
+                                    color: _roundTrip
+                                        ? EasySubwayAccessibleColors.primary
+                                        : EasySubwayAccessibleColors.mutedText,
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(width: 4),
+                                  const Text(
+                                    '왕복',
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: EasySubwayAccessibleColors
+                                          .secondaryText,
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ),
                         ),
@@ -417,6 +422,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
               ),
               border: InputBorder.none,
               isDense: true,
+              constraints: const BoxConstraints(
+                minHeight: EasySubwayTouchTarget.iconOnly,
+              ),
               contentPadding: const EdgeInsets.symmetric(vertical: 4),
             ),
             onChanged: (value) {
