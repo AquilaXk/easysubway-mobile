@@ -289,10 +289,17 @@ final sweepScreens = <SweepScreen>[
   for (final role in _fanMenuRoles)
     SweepScreen(
       '지도 역 팬 메뉴(${role.name} 지정됨, 경로 입력 상단바)',
-      (context) => _openFanMenuWithSelected(context, role),
+      (context) async {
+        await _openFanMenuWithSelected(context, role);
+        _expectNoticeBarBelowTopBar(context.tester);
+      },
       // 그 역할 칸이 채워져 지우기 버튼이 있어야 지정이 실제로 일어난 것이다.
       find.byKey(role.clearKey),
     ),
+  SweepScreen('경로 입력 상단바(경유 포함 3줄) + 알림 바', (context) async {
+    await _selectFanMenuRole(context, _waypointRole);
+    _expectNoticeBarBelowTopBar(context.tester);
+  }, find.byKey(_waypointRole.clearKey)),
 ];
 
 /// 팬 메뉴 섹터. 낭독 라벨로 섹터를 눌러 지정 상태를 만든다.
@@ -307,6 +314,13 @@ class _FanMenuRole {
   final Key clearKey;
 }
 
+const _waypointRole = _FanMenuRole(
+  RouteDraftSlot.waypoint,
+  '경유',
+  '경유지로 추가',
+  Key('networkMapRouteDraftClearWaypoint'),
+);
+
 const _fanMenuRoles = <_FanMenuRole>[
   _FanMenuRole(
     RouteDraftSlot.origin,
@@ -314,12 +328,7 @@ const _fanMenuRoles = <_FanMenuRole>[
     '출발역으로 설정',
     Key('networkMapRouteDraftClearOrigin'),
   ),
-  _FanMenuRole(
-    RouteDraftSlot.waypoint,
-    '경유',
-    '경유지로 추가',
-    Key('networkMapRouteDraftClearWaypoint'),
-  ),
+  _waypointRole,
   _FanMenuRole(
     RouteDraftSlot.destination,
     '도착',
@@ -340,15 +349,37 @@ Future<void> _openFanMenu(SweepScreenContext context) async {
   await context.tester.pumpAndSettle();
 }
 
-/// 낭독 기술이 쓰는 접근성 탭으로 [role]에 역을 지정한 뒤 같은 역을 다시 눌러, 지정된 섹터가 채워진 면으로
-/// 그려지는 팬 메뉴를 연다.
-Future<void> _openFanMenuWithSelected(
+/// 알림 바가 보이고, 경로 입력 상단바와 세로로 겹치지 않는지 단언한다.
+void _expectNoticeBarBelowTopBar(WidgetTester tester) {
+  final noticeBar = find.byKey(const Key('newNotificationBar'));
+  expect(noticeBar, findsOneWidget);
+  final topBarRect = tester.getRect(find.byKey(const Key('networkMapTopBar')));
+  final noticeBarRect = tester.getRect(noticeBar);
+  expect(
+    topBarRect.overlaps(noticeBarRect),
+    isFalse,
+    reason: '알림 바 $noticeBarRect가 경로 입력 상단바 $topBarRect를 가립니다.',
+  );
+}
+
+/// 팬 메뉴를 열고 낭독 기술이 쓰는 접근성 탭으로 [role]에 역을 지정한다. 지정하면
+/// 상단바가 경로 입력 칸으로 바뀐다.
+Future<void> _selectFanMenuRole(
   SweepScreenContext context,
   _FanMenuRole role,
 ) async {
   await _openFanMenu(context);
   context.tester.semantics.tap(find.semantics.byLabel(role.semanticsLabel));
   await context.tester.pumpAndSettle();
+}
+
+/// [role]에 역을 지정한 뒤 같은 역을 다시 눌러, 지정된 섹터가 채워진 면으로
+/// 그려지는 팬 메뉴를 연다.
+Future<void> _openFanMenuWithSelected(
+  SweepScreenContext context,
+  _FanMenuRole role,
+) async {
+  await _selectFanMenuRole(context, role);
   await _openFanMenu(context);
   // 다시 연 팬 메뉴가 지정한 역할을 채워진 면으로 그리는지 확인한다.
   expect(

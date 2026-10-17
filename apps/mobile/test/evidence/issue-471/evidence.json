@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "issue": 471,
+  "capturedAt": "2026-10-18",
+  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 2배로 캡처, Pretendard 번들 폰트 로드. 일부 아이콘은 테스트 환경의 폰트 한계로 네모로 보일 수 있으며 레이아웃 확인용이다.",
+  "assertions": [
+    "수정 전 lib에서 접근성 전수 검사의 '상단바 3줄 + 알림 바' 겹침 단언은 6개 조합(테마 3 x 글자 2)이 모두 실패한다. 알림 바 Rect(0, 60, 360, 108)가 상단바 Rect(0, 0, 360, 156)를 가린다",
+    "수정 전 lib에서 출발·경유·도착 지정 행(상단바 2~3줄)의 겹침 단언도 같은 조합에서 실패한다. 실패 조합은 모두 24개다",
+    "수정 후 같은 조합이 모두 통과한다. 알림 바는 상단바 바닥(156dp) 바로 아래에서 시작한다",
+    "수정 후 글자 1.5배에서도 상단바와 알림 바가 겹치지 않는다"
+  ],
+  "files": [
+    {
+      "path": "before-top-bar-3rows-notice-bar-text-1.0x.png",
+      "description": "경유 칸을 연 3줄 상단바 + 알림 바, 글자 1.0배. 수정 전: 알림 바가 경유 입력 칸을 통째로 가린다",
+      "sha256": "21790fbde1cdf5817160cd6dfceabf5a7d78440c238aa50e2c937000f79a578e"
+    },
+    {
+      "path": "after-top-bar-3rows-notice-bar-text-1.0x.png",
+      "description": "경유 칸을 연 3줄 상단바 + 알림 바, 글자 1.0배. 수정 후: 알림 바가 상단바 아래에서 시작하고 출발·경유·도착 입력 칸이 모두 보인다",
+      "sha256": "011650647e04984663e8cfed241a12122a78c9adc57d4d1592c97160c105062a"
+    },
+    {
+      "path": "before-top-bar-3rows-notice-bar-text-1.5x.png",
+      "description": "같은 화면, 글자 1.5배. 수정 전: 알림 바가 경유 입력 칸을 가린다",
+      "sha256": "69c874f60131a9af4b190f149aed0c2032ef4367f353e16053052852753fbec9"
+    },
+    {
+      "path": "after-top-bar-3rows-notice-bar-text-1.5x.png",
+      "description": "같은 화면, 글자 1.5배. 수정 후: 알림 바가 상단바 아래에서 시작하고 입력 칸이 모두 보인다",
+      "sha256": "51ea8f991c040776e80c859b6f61519d92639eb5d9b992ca366963062ef3b660"
+    }
+  ],
+  "captureMethod": "core_screen_sweep_screens.dart의 '경로 입력 상단바(경유 포함 3줄) + 알림 바' 행의 화면 열기·앱 구성 코드를 쓰는 임시 테스트(커밋 안 함)가 RepaintBoundary.toImage로 PNG를 저장했다. 수정 전 화면은 같은 테스트를 lib 수정 전 상태로 실행했다.",
+  "notes": "골든 파일은 갱신하지 않았다. NetworkMapChrome 전체를 그리는 골든이 없고 팬 메뉴 골든(station_fan_menu_golden_test)은 메뉴 위젯만 그려 이 변경의 영향을 받지 않는다. 실기기·TalkBack 낭독은 하지 않았다."
+}
