@@ -448,6 +448,50 @@ void main() {
     expect(find.byKey(const Key('nearbyStationButton')), findsNothing);
   });
 
+  testWidgets('disruption banner는 상단바 실제 높이 바로 아래에 놓인다', (tester) async {
+    // 경로 입력 상단바는 1~3줄(60·108·156dp)로 늘어난다. 높이가 달라도 같다.
+    for (final topBarHeight in <double>[
+      easySubwayTopBarContentHeight,
+      108,
+      156,
+    ]) {
+      await tester.pumpWidget(
+        _host(
+          MediaQuery(
+            data: const MediaQueryData(padding: EdgeInsets.only(top: 24)),
+            child: SizedBox(
+              width: 400,
+              height: 560,
+              child: NetworkMapChrome(
+                topBar: SizedBox(
+                  key: const Key('chromeSizedTopBar'),
+                  height: topBarHeight,
+                ),
+                disruptionBanner: const SizedBox(
+                  key: Key('chromeSizedBanner'),
+                  height: 48,
+                ),
+                searchMode: false,
+                searchBody: null,
+                nearbyPanelVisible: false,
+                nearbyPanelExpanded: false,
+                nearbyPanel: const SizedBox(),
+                nearbyLookupMessage: null,
+                onCurrentLocationTap: _noop,
+                child: const SizedBox(),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      final topBar = tester.getRect(find.byKey(const Key('chromeSizedTopBar')));
+      final banner = tester.getRect(find.byKey(const Key('chromeSizedBanner')));
+      expect(topBar.height, topBarHeight);
+      expect(banner.top, topBar.bottom, reason: '상단바 높이 $topBarHeight');
+    }
+  });
+
   testWidgets('top-bar route draft는 one-sided chrome·callback·잠긴 지역을 보존한다', (
     tester,
   ) async {

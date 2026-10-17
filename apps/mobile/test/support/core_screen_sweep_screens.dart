@@ -293,6 +293,11 @@ final sweepScreens = <SweepScreen>[
       // 그 역할 칸이 채워져 지우기 버튼이 있어야 지정이 실제로 일어난 것이다.
       find.byKey(role.clearKey),
     ),
+  SweepScreen(
+    '경로 입력 상단바(경유 포함 3줄) + 알림 바',
+    _openThreeRowTopBarWithNoticeBar,
+    find.byKey(const Key('networkMapRouteDraftClearWaypoint')),
+  ),
 ];
 
 /// 팬 메뉴 섹터. 낭독 라벨로 섹터를 눌러 지정 상태를 만든다.
@@ -307,6 +312,13 @@ class _FanMenuRole {
   final Key clearKey;
 }
 
+const _waypointRole = _FanMenuRole(
+  RouteDraftSlot.waypoint,
+  '경유',
+  '경유지로 추가',
+  Key('networkMapRouteDraftClearWaypoint'),
+);
+
 const _fanMenuRoles = <_FanMenuRole>[
   _FanMenuRole(
     RouteDraftSlot.origin,
@@ -314,12 +326,7 @@ const _fanMenuRoles = <_FanMenuRole>[
     '출발역으로 설정',
     Key('networkMapRouteDraftClearOrigin'),
   ),
-  _FanMenuRole(
-    RouteDraftSlot.waypoint,
-    '경유',
-    '경유지로 추가',
-    Key('networkMapRouteDraftClearWaypoint'),
-  ),
+  _waypointRole,
   _FanMenuRole(
     RouteDraftSlot.destination,
     '도착',
@@ -340,6 +347,32 @@ Future<void> _openFanMenu(SweepScreenContext context) async {
   await context.tester.pumpAndSettle();
 }
 
+/// 팬 메뉴로 경유지를 지정해 상단바를 3줄로 늘린 채 알림 바와 겹치는지 확인한다.
+/// 알림 바는 상단바 실제 높이 아래에 놓여야 하므로 두 영역의 rect가 겹치면 실패한다.
+Future<void> _openThreeRowTopBarWithNoticeBar(
+  SweepScreenContext context,
+) async {
+  await _openFanMenu(context);
+  context.tester.semantics.tap(
+    find.semantics.byLabel(_waypointRole.semanticsLabel),
+  );
+  await context.tester.pumpAndSettle();
+  _expectNoticeBarBelowTopBar(context.tester);
+}
+
+/// 알림 바가 보이고, 경로 입력 상단바와 세로로 겹치지 않는지 단언한다.
+void _expectNoticeBarBelowTopBar(WidgetTester tester) {
+  final noticeBar = find.byKey(const Key('newNotificationBar'));
+  expect(noticeBar, findsOneWidget);
+  final topBarRect = tester.getRect(find.byKey(const Key('networkMapTopBar')));
+  final noticeBarRect = tester.getRect(noticeBar);
+  expect(
+    topBarRect.overlaps(noticeBarRect),
+    isFalse,
+    reason: '알림 바 $noticeBarRect가 경로 입력 상단바 $topBarRect를 가립니다.',
+  );
+}
+
 /// 낭독 기술이 쓰는 접근성 탭으로 [role]에 역을 지정한 뒤 같은 역을 다시 눌러, 지정된 섹터가 채워진 면으로
 /// 그려지는 팬 메뉴를 연다.
 Future<void> _openFanMenuWithSelected(
@@ -349,6 +382,7 @@ Future<void> _openFanMenuWithSelected(
   await _openFanMenu(context);
   context.tester.semantics.tap(find.semantics.byLabel(role.semanticsLabel));
   await context.tester.pumpAndSettle();
+  _expectNoticeBarBelowTopBar(context.tester);
   await _openFanMenu(context);
   // 다시 연 팬 메뉴가 지정한 역할을 채워진 면으로 그리는지 확인한다.
   expect(

@@ -62,14 +62,21 @@ class NetworkMapChrome extends StatelessWidget {
           // ClipRect를 쓰면 가장자리 draft 핀의 soft drop·✕가 잘린다.
           child: inSearchMode ? searchBody! : child,
         ),
-        Positioned(left: 0, top: 0, right: 0, child: topBar),
-        if (disruptionBanner != null && !inSearchMode)
-          Positioned(
-            left: 0,
-            right: 0,
-            top: topPadding + easySubwayTopBarContentHeight,
-            child: disruptionBanner!,
+        // 상단바는 경로 입력 칸 수에 따라 1~3줄로 높이가 달라진다. 알림 바는 고정
+        // 오프셋 대신 같은 열에서 상단바 실제 높이 바로 아래에 놓아 입력 칸을 가리지 않는다.
+        Positioned(
+          left: 0,
+          top: 0,
+          right: 0,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              topBar,
+              if (disruptionBanner != null && !inSearchMode) disruptionBanner!,
+            ],
           ),
+        ),
         if (nearbyPanelVisible && !inSearchMode)
           Positioned(
             // 확장 시 상단 검색바까지 덮어 반쯤 열린 슬롭 시트를 막는다.
