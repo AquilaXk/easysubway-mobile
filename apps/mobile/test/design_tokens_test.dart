@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/design_tokens.dart';
 import 'package:flutter/material.dart';
@@ -87,13 +89,13 @@ void main() {
   test('부채꼴 메뉴 v2 색상과 opacity를 고정한다', () {
     expect(EasySubwayFanMenuColors.disabledOpacity, 0.40);
     expect(EasySubwayFanMenuColors.pressedOpacity, 0.84);
-    expect(EasySubwayFanMenuColors.departure, const Color(0xFF0A84FF));
+    expect(EasySubwayFanMenuColors.departure, const Color(0xFF0070E0));
     expect(EasySubwayFanMenuColors.departureSurface, const Color(0xFFF2F8FF));
     expect(EasySubwayFanMenuColors.departurePressed, const Color(0xFFE1F0FF));
     expect(EasySubwayFanMenuColors.waypoint, const Color(0xFFFF9F0A));
     expect(EasySubwayFanMenuColors.waypointSurface, const Color(0xFFFFF8ED));
     expect(EasySubwayFanMenuColors.waypointPressed, const Color(0xFFFFEFCC));
-    expect(EasySubwayFanMenuColors.arrival, const Color(0xFFFF3B30));
+    expect(EasySubwayFanMenuColors.arrival, const Color(0xFFD92B20));
     expect(EasySubwayFanMenuColors.arrivalSurface, const Color(0xFFFFF5F4));
     expect(EasySubwayFanMenuColors.arrivalPressed, const Color(0xFFFFE8E6));
     expect(EasySubwayFanMenuColors.pinShadow, const Color(0x40000000));
@@ -109,5 +111,74 @@ void main() {
     expect(EasySubwayFanMenuColors.closeInk, const Color(0xFF475467));
     expect(EasySubwayFanMenuColors.border, const Color(0xE8404445));
     expect(EasySubwayFanMenuColors.outline, const Color(0xE8404445));
+  });
+
+  group('접근성 대비(WCAG 2.1)', () {
+    // 일반 텍스트 4.5:1, 큰 텍스트(18pt 이상) 3:1.
+    const normalTextRatio = 4.5;
+    const largeTextRatio = 3.0;
+
+    double contrast(Color a, Color b) {
+      final lighter = math.max(a.computeLuminance(), b.computeLuminance());
+      final darker = math.min(a.computeLuminance(), b.computeLuminance());
+      return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    // 상용 지하철 서비스와 같은 계열(파랑·빨강)을 유지하면서 흰 글자 대비만 통과시킨
+    // 출발·도착 역할색. 이전 색(0A84FF·FF3B30)은 흰 글자 대비 3.65·3.55였다.
+    const previousDeparture = Color(0xFF0A84FF);
+    const previousArrival = Color(0xFFFF3B30);
+    const maxHueShiftDegrees = 4.0;
+
+    final roles = <String, ({Color role, Color previous, Color surface})>{
+      '출발': (
+        role: EasySubwayFanMenuColors.departure,
+        previous: previousDeparture,
+        surface: EasySubwayFanMenuColors.departureSurface,
+      ),
+      '도착': (
+        role: EasySubwayFanMenuColors.arrival,
+        previous: previousArrival,
+        surface: EasySubwayFanMenuColors.arrivalSurface,
+      ),
+    };
+
+    for (final MapEntry(:key, :value) in roles.entries) {
+      test('$key 역할색 위의 흰 글자(경로 카드 배지·팬 메뉴 선택 면)는 4.5:1을 넘는다', () {
+        expect(
+          contrast(EasySubwayAccessibleColors.interactionOnPrimary, value.role),
+          greaterThanOrEqualTo(normalTextRatio),
+        );
+        expect(
+          contrast(EasySubwayColorPrimitives.neutralWhite, value.role),
+          greaterThanOrEqualTo(normalTextRatio),
+        );
+      });
+
+      test('$key 역할색 글자(팬 메뉴 비선택 면의 큰 라벨)는 연한 면 위에서 3:1을 넘는다', () {
+        expect(
+          contrast(value.role, value.surface),
+          greaterThanOrEqualTo(largeTextRatio),
+        );
+      });
+
+      test('$key 역할색은 이전 색과 색상(hue)이 $maxHueShiftDegrees도 안에서 같다', () {
+        final hueShift =
+            (HSLColor.fromColor(value.role).hue -
+                    HSLColor.fromColor(value.previous).hue)
+                .abs();
+        expect(hueShift, lessThanOrEqualTo(maxHueShiftDegrees));
+      });
+    }
+
+    test('설정 섹션 제목 글자(secondaryText)는 화면 배경 위에서 4.5:1을 넘는다', () {
+      expect(
+        contrast(
+          EasySubwayAccessibleColors.secondaryText,
+          EasySubwayAccessibleColors.scaffoldSurface,
+        ),
+        greaterThanOrEqualTo(normalTextRatio),
+      );
+    });
   });
 }

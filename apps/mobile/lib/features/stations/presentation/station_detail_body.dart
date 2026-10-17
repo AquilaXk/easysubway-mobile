@@ -1311,80 +1311,24 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
             // [📅 전체 시간표]
             Expanded(
               flex: 9,
-              child: Material(
-                color: EasySubwayAccessibleColors.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: EasySubwayAccessibleColors.line),
-                ),
-                child: InkWell(
-                  key: const Key('stationTimetableButton'),
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => _openTimetable(context),
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 48),
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 14,
-                          color: EasySubwayAccessibleColors.text,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          '전체 시간표',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: EasySubwayAccessibleColors.text,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              child: _StationBottomBarOutlinedButton(
+                buttonKey: const Key('stationTimetableButton'),
+                icon: Icons.calendar_today,
+                iconSize: 14,
+                label: '전체 시간표',
+                onTap: () => _openTimetable(context),
               ),
             ),
             const SizedBox(width: 8),
             // [🚆 첫차·막차]
             Expanded(
               flex: 9,
-              child: Material(
-                color: EasySubwayAccessibleColors.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: EasySubwayAccessibleColors.line),
-                ),
-                child: InkWell(
-                  key: const Key('stationDetailBottomFirstLastButton'),
-                  borderRadius: BorderRadius.circular(8),
-                  onTap: () => _openTimetable(context),
-                  child: Container(
-                    constraints: const BoxConstraints(minHeight: 48),
-                    alignment: Alignment.center,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.train_outlined,
-                          size: 15,
-                          color: EasySubwayAccessibleColors.text,
-                        ),
-                        SizedBox(width: 4),
-                        Text(
-                          '첫차·막차',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: EasySubwayAccessibleColors.text,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
+              child: _StationBottomBarOutlinedButton(
+                buttonKey: const Key('stationDetailBottomFirstLastButton'),
+                icon: Icons.train_outlined,
+                iconSize: 15,
+                label: '첫차·막차',
+                onTap: () => _openTimetable(context),
               ),
             ),
           ],
@@ -1404,6 +1348,67 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
             repository: timetableRepository,
             previousStation: previousStation?.nameKo,
             nextStation: nextStation?.nameKo,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 하단 액션바의 흰색 아웃라인 버튼(아이콘 + 라벨).
+///
+/// 큰 글자에서 라벨이 버튼 폭을 넘으면 줄바꿈해 잘리지 않게 한다.
+class _StationBottomBarOutlinedButton extends StatelessWidget {
+  const _StationBottomBarOutlinedButton({
+    required this.buttonKey,
+    required this.icon,
+    required this.iconSize,
+    required this.label,
+    required this.onTap,
+  });
+
+  final Key buttonKey;
+  final IconData icon;
+  final double iconSize;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: EasySubwayAccessibleColors.surface,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+        side: BorderSide(color: EasySubwayAccessibleColors.line),
+      ),
+      child: InkWell(
+        key: buttonKey,
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 48),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                icon,
+                size: iconSize,
+                color: EasySubwayAccessibleColors.text,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: EasySubwayAccessibleColors.text,
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

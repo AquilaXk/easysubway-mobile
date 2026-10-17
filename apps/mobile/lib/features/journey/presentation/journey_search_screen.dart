@@ -1395,7 +1395,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                               ? FontWeight.w700
                               : FontWeight.w500,
                           color: _walkingPace == pace
-                              ? EasySubwayAccessibleColors.primary
+                              ? EasySubwayAccessibleColors.interactionOnBrand
                               : EasySubwayAccessibleColors.secondaryText,
                         ),
                       ),
@@ -1599,7 +1599,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       fontSize: 13,
                       fontWeight: isNow ? FontWeight.w700 : FontWeight.w500,
                       color: isNow
-                          ? EasySubwayAccessibleColors.primary
+                          ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
@@ -1647,7 +1647,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           ? FontWeight.w700
                           : FontWeight.w500,
                       color: isScheduled
-                          ? EasySubwayAccessibleColors.primary
+                          ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
@@ -1693,7 +1693,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       fontSize: 13,
                       fontWeight: isWindow ? FontWeight.w700 : FontWeight.w500,
                       color: isWindow
-                          ? EasySubwayAccessibleColors.primary
+                          ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
                     ),
                     semanticsLabel: '특정 시간대 출발 대안 보기',
@@ -1742,7 +1742,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           ? FontWeight.w700
                           : FontWeight.w500,
                       color: isLastConnection
-                          ? EasySubwayAccessibleColors.primary
+                          ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
                     ),
                     semanticsLabel: '교통약자 안심 막차 찾기',
@@ -1961,20 +1961,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           // 1:1 Kakao/Naver subway styled clean route rows:
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: EasySubwayFanMenuColors.departure,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  '출발',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: EasySubwayColorPrimitives.neutralWhite,
-                  ),
-                ),
+              const _RouteRoleBadge(
+                label: '출발',
+                color: EasySubwayFanMenuColors.departure,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1997,23 +1986,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             ),
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: EasySubwayFanMenuColors.waypoint,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    '경유',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayColorPrimitives.neutralWhite,
-                    ),
-                  ),
+                const _RouteRoleBadge(
+                  label: '경유',
+                  color: EasySubwayFanMenuColors.waypoint,
+                  textColor: EasySubwayAccessibleColors.text,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2036,20 +2012,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           ),
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(
-                  color: EasySubwayFanMenuColors.arrival,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: const Text(
-                  '도착',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    color: EasySubwayColorPrimitives.neutralWhite,
-                  ),
-                ),
+              const _RouteRoleBadge(
+                label: '도착',
+                color: EasySubwayFanMenuColors.arrival,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2287,6 +2252,41 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// 경로 입력 카드의 출발·경유·도착 역할 배지.
+///
+/// 출발·도착은 지도 팬 메뉴·핀과 같은 역할색 토큰 위에 흰 글자를 쓴다(대비는
+/// `design_tokens_test`가 고정). 밝은 경유 엠버는 색을 유지한 채 어두운 글자를 쓴다.
+class _RouteRoleBadge extends StatelessWidget {
+  const _RouteRoleBadge({
+    required this.label,
+    required this.color,
+    this.textColor = EasySubwayColorPrimitives.neutralWhite,
+  });
+
+  final String label;
+  final Color color;
+  final Color textColor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: textColor,
         ),
       ),
     );

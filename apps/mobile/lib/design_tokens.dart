@@ -164,8 +164,9 @@ abstract final class EasySubwayFanMenuColors {
   static const disabledOpacity = 0.40;
   static const pressedOpacity = 0.84;
 
-  /// City Sky — 맑고 살짝 보랏빛 도는 모던 스카이 블루.
-  static const departure = Color(0xFF0A84FF);
+  /// City Sky — 맑고 살짝 보랏빛 도는 모던 스카이 블루. 흰 글자 대비 4.5:1을
+  /// 넘기도록 같은 색상(hue 210)에서 명도만 낮췄다(#464, 이전 `0A84FF`는 3.65).
+  static const departure = Color(0xFF0070E0);
   static const departureSurface = Color(0xFFF2F8FF);
   static const departurePressed = Color(0xFFE1F0FF);
 
@@ -174,8 +175,9 @@ abstract final class EasySubwayFanMenuColors {
   static const waypointSurface = Color(0xFFFFF8ED);
   static const waypointPressed = Color(0xFFFFEFCC);
 
-  /// Coral Burst — 화사한 코랄 레드. 도착 주목도↑·답답함↓.
-  static const arrival = Color(0xFFFF3B30);
+  /// Coral Burst — 화사한 코랄 레드. 도착 주목도↑·답답함↓. 흰 글자 대비 4.5:1을
+  /// 넘기도록 같은 색상(hue 3)에서 명도만 낮췄다(#464, 이전 `FF3B30`은 3.55).
+  static const arrival = Color(0xFFD92B20);
   static const arrivalSurface = Color(0xFFFFF5F4);
   static const arrivalPressed = Color(0xFFFFE8E6);
 
