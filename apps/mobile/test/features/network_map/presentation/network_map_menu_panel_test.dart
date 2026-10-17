@@ -22,6 +22,7 @@ Widget _menuHost({
   VoidCallback? onOpenSavedItems,
   VoidCallback? onOpenTrainSearch,
   VoidCallback? onOpenServiceNotices,
+  VoidCallback? onOpenNotificationInbox,
   VoidCallback? onOpenSettings,
 }) {
   return MaterialApp(
@@ -46,6 +47,7 @@ Widget _menuHost({
                       onOpenSavedItems: onOpenSavedItems,
                       onOpenTrainSearch: onOpenTrainSearch,
                       onOpenServiceNotices: onOpenServiceNotices,
+                      onOpenNotificationInbox: onOpenNotificationInbox,
                       onOpenSettings: onOpenSettings,
                     );
                   },
@@ -76,6 +78,7 @@ void main() {
         onOpenStationSearch: () {},
         onOpenTrainSearch: () {},
         onOpenSavedItems: () {},
+        onOpenNotificationInbox: () {},
         onOpenSettings: () {},
         onOpenServiceNotices: () {},
       ),
@@ -111,6 +114,7 @@ void main() {
       const Key('networkMapMenuStationSearchButton'),
       const Key('networkMapMenuTrainSearchButton'),
       const Key('networkMapMenuSavedButton'),
+      const Key('networkMapMenuNotificationsButton'),
       const Key('networkMapMenuSettingsButton'),
       const Key('networkMapMenuServiceNoticesButton'),
     ];
@@ -123,6 +127,7 @@ void main() {
     expect(find.bySemanticsLabel('역 검색'), findsOneWidget);
     expect(find.bySemanticsLabel('기차 조회'), findsOneWidget);
     expect(find.bySemanticsLabel('즐겨찾기'), findsOneWidget);
+    expect(find.bySemanticsLabel('알림'), findsOneWidget);
     expect(find.bySemanticsLabel('설정'), findsOneWidget);
     expect(find.bySemanticsLabel('공지사항'), findsOneWidget);
     semantics.dispose();
@@ -143,6 +148,10 @@ void main() {
       findsNothing,
     );
     expect(find.byKey(const Key('networkMapMenuSavedButton')), findsNothing);
+    expect(
+      find.byKey(const Key('networkMapMenuNotificationsButton')),
+      findsNothing,
+    );
     expect(find.byKey(const Key('networkMapMenuSettingsButton')), findsNothing);
     expect(
       find.byKey(const Key('networkMapMenuServiceNoticesButton')),
@@ -168,6 +177,7 @@ void main() {
         onOpenStationSearch: () => record('station'),
         onOpenTrainSearch: () => record('train'),
         onOpenSavedItems: () => record('saved'),
+        onOpenNotificationInbox: () => record('notifications'),
         onOpenSettings: () => record('settings'),
         onOpenServiceNotices: () => record('notices'),
       ),
@@ -177,6 +187,7 @@ void main() {
       (const Key('networkMapMenuStationSearchButton'), 'station'),
       (const Key('networkMapMenuTrainSearchButton'), 'train'),
       (const Key('networkMapMenuSavedButton'), 'saved'),
+      (const Key('networkMapMenuNotificationsButton'), 'notifications'),
       (const Key('networkMapMenuSettingsButton'), 'settings'),
       (const Key('networkMapMenuServiceNoticesButton'), 'notices'),
     ];

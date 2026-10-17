@@ -181,6 +181,7 @@ void main() {
                 onOpenSavedItems: () {},
                 onOpenTrainSearch: () {},
                 onOpenServiceNotices: () {},
+                onOpenNotificationInbox: () {},
                 onOpenSettings: () {},
               ),
             ),

@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "issue": 478,
+  "capturedAt": "2026-10-18",
+  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 1배로 캡처, Pretendard 번들 폰트 로드. 일부 글자는 테스트 환경의 폰트 한계로 네모로 보일 수 있으며 레이아웃 확인용이다.",
+  "assertions": [
+    "수정 전 lib에서는 networkMapMenuNotificationsButton이 없어 알림 바가 숨겨지면 알림함을 열 수 없다(RED 테스트 2건 실패)",
+    "수정 후 메뉴 알림 항목으로 알림함이 열리고, 조회 실패는 오류 상태와 다시 시도로 보이며 재시도 성공 시 목록이 보인다"
+  ],
+  "files": [
+    {
+      "path": "before-menu.png",
+      "description": "수정 전 좌측 메뉴. 알림 항목이 없어 알림 바가 숨겨지면 알림함으로 들어갈 길이 없다",
+      "sha256": "69c7927ef5b95aeb569667af6a734ba1f6ac661912c291c643dcce16b4d20968"
+    },
+    {
+      "path": "after-menu.png",
+      "description": "수정 후 좌측 메뉴. 즐겨찾기 아래에 알림 항목이 있고, 알림 바가 없는 상태(제보 조회 실패)에서도 보인다",
+      "sha256": "68b3434e35d39af9dcb03b3273a86f6d7fc73d9d3646b8ad3a533959564e39bc"
+    },
+    {
+      "path": "after-inbox-error-state.png",
+      "description": "수정 후 알림함. 메뉴의 알림 항목으로 열었고, 제보 조회 실패 시 빈 목록 대신 오류 문구와 다시 시도 버튼을 보인다",
+      "sha256": "26c84e7cfa6c8c8c6b20ae796d8eaf15da01c9075feb2f4a22b4cc4a27707b12"
+    }
+  ]
+}

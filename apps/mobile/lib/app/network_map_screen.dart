@@ -75,6 +75,7 @@ class NetworkMapScreen extends StatefulWidget {
     this.onOpenTrainSearch,
     this.onOpenSettings,
     this.onOpenServiceNotices,
+    this.onOpenNotificationInbox,
     this.disruptionBanner,
     this.bottomNavigationBar,
     this.focusStationRequest,
@@ -139,6 +140,9 @@ class NetworkMapScreen extends StatefulWidget {
 
   /// 좌측 메뉴 "운행 공지" 목록 화면 열기.
   final VoidCallback? onOpenServiceNotices;
+
+  /// 좌측 메뉴 "알림" 알림함 열기. 알림 바 노출과 무관한 상시 진입점이다.
+  final VoidCallback? onOpenNotificationInbox;
 
   /// 상단 disruption 공지 1줄 배너. 표시할 공지가 없으면 스스로 빈 위젯이 된다.
   final Widget? disruptionBanner;
@@ -1522,6 +1526,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
           onOpenSavedItems: widget.onOpenSavedItems,
           onOpenTrainSearch: widget.onOpenTrainSearch,
           onOpenServiceNotices: widget.onOpenServiceNotices,
+          onOpenNotificationInbox: widget.onOpenNotificationInbox,
           onOpenSettings: widget.onOpenSettings,
         );
       },

@@ -9,6 +9,7 @@ class NetworkMapMenuPanel extends StatelessWidget {
     required this.onOpenSavedItems,
     required this.onOpenTrainSearch,
     required this.onOpenServiceNotices,
+    required this.onOpenNotificationInbox,
     required this.onOpenSettings,
     super.key,
   });
@@ -18,6 +19,7 @@ class NetworkMapMenuPanel extends StatelessWidget {
   final VoidCallback? onOpenSavedItems;
   final VoidCallback? onOpenTrainSearch;
   final VoidCallback? onOpenServiceNotices;
+  final VoidCallback? onOpenNotificationInbox;
   final VoidCallback? onOpenSettings;
 
   void _runAction(BuildContext context, VoidCallback action) {
@@ -68,6 +70,7 @@ class NetworkMapMenuPanel extends StatelessWidget {
                                   _runAction(context, onOpenTrainSearch!),
                             ),
                           if (onOpenSavedItems != null ||
+                              onOpenNotificationInbox != null ||
                               onOpenSettings != null) ...[
                             const Divider(
                               height: 1,
@@ -80,6 +83,20 @@ class NetworkMapMenuPanel extends StatelessWidget {
                                 label: '즐겨찾기',
                                 onTap: () =>
                                     _runAction(context, onOpenSavedItems!),
+                              ),
+                            // 알림 바는 새 알림이 있을 때만 보이므로, 알림함은 이
+                            // 메뉴 항목으로 언제든 연다.
+                            if (onOpenNotificationInbox != null)
+                              _NetworkMapMenuTile(
+                                key: const Key(
+                                  'networkMapMenuNotificationsButton',
+                                ),
+                                icon: Icons.notifications_none_outlined,
+                                label: '알림',
+                                onTap: () => _runAction(
+                                  context,
+                                  onOpenNotificationInbox!,
+                                ),
                               ),
                             if (onOpenSettings != null)
                               _NetworkMapMenuTile(

@@ -1,5 +1,6 @@
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -55,7 +56,8 @@ void main() {
           tester,
         ) async {
           final semantics = tester.ensureSemantics();
-          try {
+          final reportedErrors = <FlutterErrorDetails>[];
+          Future<void> checkScreen() async {
             final navigatorKey = GlobalKey<NavigatorState>();
             await _pumpApp(tester, screen, navigatorKey, theme, textScale);
             await screen.open(
@@ -69,6 +71,16 @@ void main() {
             expect(screen.shown, findsOneWidget);
             expect(tester.takeException(), isNull);
             expect(await _violations(tester), isEmpty);
+          }
+
+          try {
+            if (screen.inboxLoadFails) {
+              // 조회 실패는 화면에 오류 상태로 드러나야 하고 오류 보고로도 남아야 한다.
+              await runWithMobileErrorReporter(reportedErrors.add, checkScreen);
+              expect(reportedErrors, isNotEmpty);
+            } else {
+              await checkScreen();
+            }
           } finally {
             semantics.dispose();
           }
@@ -129,6 +141,7 @@ Future<void> _pumpApp(
       navigatorKey: navigatorKey,
       onboardingState: screen.onboardingState(theme),
       stationResults: screen.stationResults,
+      inboxLoadFails: screen.inboxLoadFails,
     ),
   );
   await tester.pumpAndSettle();

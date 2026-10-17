@@ -67,6 +67,7 @@ class SweepScreen {
     this.shown, {
     this.stationResults = const [],
     this.onboarded = true,
+    this.inboxLoadFails = false,
   });
 
   final String name;
@@ -82,6 +83,10 @@ class SweepScreen {
 
   /// false면 온보딩을 마치지 않은 첫 실행 상태로 앱을 연다.
   final bool onboarded;
+
+  /// true면 알림함이 읽는 제보 조회가 실패하고 즐겨찾기 시설도 없어, 알림함이
+  /// 오류 상태를 그린다.
+  final bool inboxLoadFails;
 
   OnboardingState onboardingState(SweepTheme theme) => onboarded
       ? OnboardingState.completed(
@@ -167,10 +172,17 @@ final sweepScreens = <SweepScreen>[
         _openSettingsEntry(context, const Key('notificationSettingsButton')),
     find.byType(NotificationSettingsScreen),
   ),
-  SweepScreen('알림함', (context) async {
-    await context.tester.tap(find.byKey(const Key('newNotificationBar')));
-    await context.tester.pumpAndSettle();
-  }, find.byType(NotificationInboxScreen)),
+  SweepScreen(
+    '알림함',
+    (context) => _openMenuEntry(context, 'networkMapMenuNotificationsButton'),
+    find.byType(NotificationInboxScreen),
+  ),
+  SweepScreen(
+    '알림함(조회 실패)',
+    (context) => _openMenuEntry(context, 'networkMapMenuNotificationsButton'),
+    find.byKey(const Key('notificationInboxErrorState')),
+    inboxLoadFails: true,
+  ),
   SweepScreen(
     '내 제보',
     (context) =>

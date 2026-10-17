@@ -49,6 +49,11 @@ const sweepLines = [
 
 /// 내 제보 목록·알림함이 접수된 제보를 그리도록 제보 한 건을 돌려준다.
 class SweepReportRepository implements FacilityReportRepository {
+  const SweepReportRepository({this.listFails = false});
+
+  /// true면 [listMyReports]가 실패해 알림함의 오류 상태를 검사할 수 있다.
+  final bool listFails;
+
   static const _report = FacilityReportResult(
     id: 'report-1',
     stationId: sweepStationId,
@@ -68,7 +73,12 @@ class SweepReportRepository implements FacilityReportRepository {
   Future<FacilityReportResult> getReport(String reportId) async => _report;
 
   @override
-  Future<List<FacilityReportResult>> listMyReports() async => const [_report];
+  Future<List<FacilityReportResult>> listMyReports() async {
+    if (listFails) {
+      throw StateError('sweep report list failure');
+    }
+    return const [_report];
+  }
 }
 
 /// 공지사항 목록과 홈 운행 지장 배너를 그리려고 일반 공지와 운행 지장 공지를 하나씩 둔다.
@@ -346,13 +356,16 @@ EasySubwayApp buildSweepApp({
   required GlobalKey<NavigatorState> navigatorKey,
   required OnboardingState onboardingState,
   List<StationSearchResult> stationResults = const [],
+  bool inboxLoadFails = false,
 }) {
   return buildEasySubwayTestApp(
     repository: SweepRepository(stationResults: stationResults),
-    reportRepository: SweepReportRepository(),
+    reportRepository: SweepReportRepository(listFails: inboxLoadFails),
     searchHistoryRepository: SweepSearchHistoryRepository(),
     favoriteRepository: const DemoFavoriteStationRepository(),
-    favoriteFacilityRepository: const DemoFavoriteFacilityRepository(),
+    favoriteFacilityRepository: inboxLoadFails
+        ? null
+        : const DemoFavoriteFacilityRepository(),
     favoriteRouteRepository: const DemoFavoriteRouteRepository(),
     noticeRepository: SweepNoticeRepository(),
     notificationRepository: SweepNotificationSettingsRepository(),

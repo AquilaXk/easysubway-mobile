@@ -72,6 +72,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/structured_r
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart'
     show kFanMenuDesignSize, kFanMenuTailTip;
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
+import 'package:easysubway_mobile/features/notifications/presentation/notification_inbox_screen.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
@@ -1618,6 +1619,87 @@ void main() {
       expect(find.text('새 알림이 없습니다'), findsOneWidget);
     });
     expect(reportedErrors, isNotEmpty);
+  });
+
+  testWidgets('알림 바가 없어도 좌측 메뉴의 알림 항목으로 알림함을 연다', (tester) async {
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('newNotificationBar')), findsNothing);
+
+    await tester.tap(find.byKey(const Key('networkMapMenuButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('networkMapMenuNotificationsButton')),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.byType(NotificationInboxScreen), findsOneWidget);
+    expect(find.text('새 알림이 없습니다'), findsOneWidget);
+  });
+
+  testWidgets('조회 실패로 알림 바가 숨어도 메뉴에서 알림함을 열어 다시 시도하면 목록이 보인다', (tester) async {
+    final reportedErrors = <FlutterErrorDetails>[];
+    final reportRepository = FakeFacilityReportRepository(
+      reports: const [
+        FacilityReportResult(
+          id: 'report-9',
+          publicReceiptCode: 'ES-1009',
+          stationId: 'station-sangnoksu',
+          facilityId: 'facility-sangnoksu-elevator-1',
+          reportType: 'CLOSED',
+          description: '출입문이 막혀 있습니다.',
+          status: 'ACCEPTED',
+          createdAt: '2026-06-15T09:00:00',
+        ),
+      ],
+    )..error = Exception('network');
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: FakeStationSearchRepository(),
+          reportRepository: reportRepository,
+          favoriteRepository: FakeFavoriteStationRepository(),
+          notificationRepository: FakeNotificationSettingsRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.byKey(const Key('newNotificationBar')), findsNothing);
+      expect(reportedErrors, isNotEmpty);
+
+      await tester.tap(find.byKey(const Key('networkMapMenuButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.byKey(const Key('networkMapMenuNotificationsButton')),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('notificationInboxErrorState')),
+        findsOneWidget,
+      );
+      expect(find.text('새 알림이 없습니다'), findsNothing);
+
+      reportRepository.error = null;
+      await tester.tap(find.widgetWithText(OutlinedButton, '다시 시도'));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byKey(const Key('notificationInboxErrorState')),
+        findsNothing,
+      );
+      expect(find.text('제보 반영됨'), findsOneWidget);
+      expect(find.text('제보 번호 ES-1009'), findsOneWidget);
+    });
   });
 
   testWidgets('홈 신규 알림 바는 확인할 알림이 있으면 안내 문구와 상태를 알려준다', (tester) async {
