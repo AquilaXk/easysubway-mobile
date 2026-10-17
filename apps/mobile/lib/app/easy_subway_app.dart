@@ -177,6 +177,9 @@ class EasySubwayApp extends StatelessWidget {
     return MaterialApp(
       navigatorKey: navigatorKey,
       title: 'EasySubway',
+      locale: appLocale,
+      supportedLocales: appSupportedLocales,
+      localizationsDelegates: appLocalizationsDelegates,
       debugShowCheckedModeBanner: false,
       scrollBehavior: const EasySubwayScrollBehavior(),
       theme: ThemeData(
