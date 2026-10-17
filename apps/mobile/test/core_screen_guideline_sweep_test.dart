@@ -15,13 +15,17 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support/easy_subway_app_fixture.dart';
 import 'support/journey_result_fixture.dart';
-import 'support/pretendard_test_font.dart';
 
 /// 핵심 화면 x 테마 x 글자 크기 x 접근성 가이드라인 전수 검사(#464).
 ///
 /// 화면은 [_screens] 표의 한 줄로 추가한다. 가이드라인 4종은 [_guidelines]
 /// 표 하나로 모든 조합에 같은 방식으로 적용한다. 위반은 예외 목록 없이 그대로
 /// 실패로 드러난다.
+///
+/// 번들 폰트는 일부러 로드하지 않는다. `textContrastGuideline`은 화면 캡처의 색
+/// 빈도로 글자색을 추정하므로, 얇은 실제 글꼴은 플랫폼별 안티앨리어싱 차이로
+/// 같은 코드에서도 macOS와 Linux 결과가 갈린다. 테스트 기본 폰트(Ahem)는 글자가
+/// 단색 사각형이라 색 추정이 플랫폼과 무관하게 같다.
 
 /// 앱에 다크 테마는 없다(`darkTheme` 미정의). 시스템 다크 모드에서도 같은
 /// 테마로 그려지는지 `systemDark` 조합으로 함께 검사해, 다크 테마를 도입하면
@@ -165,8 +169,6 @@ Future<void> _openStationDetail(_ScreenContext context) async {
 }
 
 void main() {
-  setUpAll(loadPretendardTestFont);
-
   for (final screen in _screens) {
     for (final theme in _AppTheme.values) {
       for (final textScale in _textScales) {
@@ -310,8 +312,6 @@ class _SweepRepository
       region: '수도권',
       dataQualityLevel: 'LEVEL_1',
       lastVerifiedAt: '2026-09-27',
-      latitude: 37.4979,
-      longitude: 127.0276,
       lines: [
         StationSearchLine(
           id: 'seoul-2',
