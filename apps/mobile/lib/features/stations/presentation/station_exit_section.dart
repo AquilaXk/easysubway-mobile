@@ -78,8 +78,10 @@ class _StationExitSectionState extends State<StationExitSection> {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(8),
-                child: SizedBox(
-                  height: 180,
+                // 지도 미리보기를 못 여는 안내 패널은 큰 글자에서 내용만큼 자라도록
+                // 높이를 고정하지 않고 최소 높이만 둔다.
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 180),
                   child: Builder(
                     builder: (context) {
                       void openSelected() => _openSelectedExit(context);

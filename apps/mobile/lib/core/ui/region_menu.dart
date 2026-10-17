@@ -67,6 +67,8 @@ Future<void> showEasySubwayRegionMenu({
           Positioned.fill(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
+              // 닫기 낭독 노드는 라벨이 있는 모달 배리어가 맡는다.
+              excludeFromSemantics: true,
               onTap: () => Navigator.of(context).pop(),
               child: const SizedBox.expand(),
             ),

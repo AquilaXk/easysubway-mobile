@@ -521,9 +521,9 @@ void main() {
           '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
       'lib/features/network_map/presentation/nearby_timetable_panel.dart:382':
           '운행 종료 텍스트(15sp)는 2.0배에서도 43dp로 46dp 안에 들어감',
-      'lib/features/train_search/presentation/train_search_screen.dart:326':
+      'lib/features/train_search/presentation/train_search_screen.dart:331':
           '시간표 조회 CTA FilledButton(54dp) — 18sp 텍스트(2.0배 36dp)가 54dp 안에 들어감',
-      'lib/features/train_search/presentation/train_search_screen.dart:1639':
+      'lib/features/train_search/presentation/train_search_screen.dart:1649':
           '코레일+ 예매 CTA FilledButton.icon(52dp) — 17sp 텍스트(2.0배 34dp)가 52dp 안에 들어감',
     };
 

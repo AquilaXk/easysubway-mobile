@@ -171,6 +171,7 @@ abstract final class EasySubwayFanMenuColors {
   static const departurePressed = Color(0xFFE1F0FF);
 
   /// Amber Gold — 갈색 없는 선명한 엠버. 경유 역할이 한눈에 구분되게.
+  /// 밝은 면이라 흰 글자(2.06:1) 대신 어두운 글자를 얹는다([waypointRole]).
   static const waypoint = Color(0xFFFF9F0A);
   static const waypointSurface = Color(0xFFFFF8ED);
   static const waypointPressed = Color(0xFFFFEFCC);
@@ -186,7 +187,14 @@ abstract final class EasySubwayFanMenuColors {
 
   /// 역할색보다 한 톤 진한 외곽(참조: 블루 면 `#2B66F6` → 선 `#1A429F` 대비).
   static const pinEdgeDeparture = Color(0xFF0654A1);
+
+  /// 앰버 면(`FF9F0A`)보다 2.33:1 진해 지도 위에서 핀 윤곽이 구분된다.
   static const pinEdgeWaypoint = Color(0xFFA16506);
+
+  /// 연한 면·흰 면 위에 놓는 경유 글자. 앰버 면과 같은 색상(hue 36)에서 명도만
+  /// 낮췄다(흰 면 4.80:1, 연한 면 4.54:1). 핀 외곽선과 값이 같아도 용도가 달라
+  /// 따로 둔다(한쪽을 바꿔도 다른 쪽이 움직이지 않게).
+  static const waypointInk = Color(0xFFA16506);
   static const pinEdgeArrival = Color(0xFFA1251E);
 
   /// ✕ — 흰 원 + 헤어라인 + 차분한 잉크.
@@ -210,6 +218,62 @@ abstract final class EasySubwayFanMenuColors {
 
   /// 팬 메뉴 앵커 역명 라벨의 텍스트 잉크.
   static const ink = Color(0xFF20262E);
+
+  /// 역할별 면과 글자 쌍. 면 색에 따라 얹는 글자색이 달라지므로(출발·도착은
+  /// 흰 글자, 경유는 어두운 글자) 한 곳에서 묶어 쓴다.
+  static const departureRole = EasySubwayRoleColor(
+    face: departure,
+    onFace: EasySubwayAccessibleColors.interactionOnPrimary,
+    ink: departure,
+    surface: departureSurface,
+    pressedSurface: departurePressed,
+    pinEdge: pinEdgeDeparture,
+  );
+  static const waypointRole = EasySubwayRoleColor(
+    face: waypoint,
+    onFace: ink,
+    ink: waypointInk,
+    surface: waypointSurface,
+    pressedSurface: waypointPressed,
+    pinEdge: pinEdgeWaypoint,
+  );
+  static const arrivalRole = EasySubwayRoleColor(
+    face: arrival,
+    onFace: EasySubwayAccessibleColors.interactionOnPrimary,
+    ink: arrival,
+    surface: arrivalSurface,
+    pressedSurface: arrivalPressed,
+    pinEdge: pinEdgeArrival,
+  );
+}
+
+/// 출발·경유·도착 역할 하나의 색 묶음.
+@immutable
+class EasySubwayRoleColor {
+  const EasySubwayRoleColor({
+    required this.face,
+    required this.onFace,
+    required this.ink,
+    required this.surface,
+    required this.pressedSurface,
+    required this.pinEdge,
+  });
+
+  /// 역할을 채우는 면(선택된 팬 메뉴 면, 배지, 핀).
+  final Color face;
+
+  /// [face] 위에 얹는 글자·아이콘.
+  final Color onFace;
+
+  /// 흰색·연한 면 위에 놓는 역할색 글자.
+  final Color ink;
+
+  /// 선택되지 않은 팬 메뉴 면.
+  final Color surface;
+  final Color pressedSurface;
+
+  /// 지도 핀 외곽선. [face]보다 진해 핀 윤곽이 구분된다.
+  final Color pinEdge;
 }
 
 /// v4 타이포 위계 — 크기·행간·색으로 위계를 만들고 굵기는 보조로만 쓴다.

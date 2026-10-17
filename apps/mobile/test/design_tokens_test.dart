@@ -101,6 +101,7 @@ void main() {
     expect(EasySubwayFanMenuColors.pinShadow, const Color(0x40000000));
     expect(EasySubwayFanMenuColors.pinEdgeDeparture, const Color(0xFF0654A1));
     expect(EasySubwayFanMenuColors.pinEdgeWaypoint, const Color(0xFFA16506));
+    expect(EasySubwayFanMenuColors.waypointInk, const Color(0xFFA16506));
     expect(EasySubwayFanMenuColors.pinEdgeArrival, const Color(0xFFA1251E));
     expect(EasySubwayFanMenuColors.pinClearBg, const Color(0xFFFFFFFF));
     expect(EasySubwayFanMenuColors.pinClearBorder, const Color(0xFFE5E5E5));
@@ -124,52 +125,108 @@ void main() {
       return (lighter + 0.05) / (darker + 0.05);
     }
 
-    // 상용 지하철 서비스와 같은 계열(파랑·빨강)을 유지하면서 흰 글자 대비만 통과시킨
-    // 출발·도착 역할색. 이전 색(0A84FF·FF3B30)은 흰 글자 대비 3.65·3.55였다.
-    const previousDeparture = Color(0xFF0A84FF);
-    const previousArrival = Color(0xFFFF3B30);
+    // 상용 지하철 서비스와 같은 계열(파랑·앰버·빨강)을 유지한다. 출발·도착은 같은
+    // 색상에서 명도만 낮춰 흰 글자 대비를 통과시켰다(이전 0A84FF·FF3B30은 3.65·3.55).
+    // 경유는 밝은 앰버 면을 그대로 두고 어두운 글자를 얹는다(흰 글자는 2.06).
     const maxHueShiftDegrees = 4.0;
+    const minPinEdgeRatio = 1.5;
 
-    final roles = <String, ({Color role, Color previous, Color surface})>{
-      '출발': (
-        role: EasySubwayFanMenuColors.departure,
-        previous: previousDeparture,
-        surface: EasySubwayFanMenuColors.departureSurface,
-      ),
-      '도착': (
-        role: EasySubwayFanMenuColors.arrival,
-        previous: previousArrival,
-        surface: EasySubwayFanMenuColors.arrivalSurface,
-      ),
-    };
+    final roles =
+        <
+          String,
+          ({
+            EasySubwayRoleColor role,
+            Color previousFace,
+            double maxFaceHueShift,
+          })
+        >{
+          '출발': (
+            role: EasySubwayFanMenuColors.departureRole,
+            previousFace: const Color(0xFF0A84FF),
+            maxFaceHueShift: maxHueShiftDegrees,
+          ),
+          '경유': (
+            role: EasySubwayFanMenuColors.waypointRole,
+            previousFace: const Color(0xFFFF9F0A),
+            maxFaceHueShift: 0,
+          ),
+          '도착': (
+            role: EasySubwayFanMenuColors.arrivalRole,
+            previousFace: const Color(0xFFFF3B30),
+            maxFaceHueShift: maxHueShiftDegrees,
+          ),
+        };
+
+    double hueGap(Color a, Color b) =>
+        (HSLColor.fromColor(a).hue - HSLColor.fromColor(b).hue).abs();
 
     for (final MapEntry(:key, :value) in roles.entries) {
-      test('$key 역할색 위의 흰 글자(경로 카드 배지·팬 메뉴 선택 면)는 4.5:1을 넘는다', () {
+      final role = value.role;
+
+      test('$key 면 위의 글자(경로 카드 배지·팬 메뉴 선택 면)는 4.5:1을 넘는다', () {
         expect(
-          contrast(EasySubwayAccessibleColors.interactionOnPrimary, value.role),
+          contrast(role.onFace, role.face),
           greaterThanOrEqualTo(normalTextRatio),
         );
+      });
+
+      test('$key 역할색 글자(경로 입력 상단바의 15pt 라벨)는 입력 칸 배경 위에서 4.5:1을 넘는다', () {
         expect(
-          contrast(EasySubwayColorPrimitives.neutralWhite, value.role),
+          contrast(role.ink, EasySubwayAccessibleColors.searchFieldSurface),
           greaterThanOrEqualTo(normalTextRatio),
         );
       });
 
       test('$key 역할색 글자(팬 메뉴 비선택 면의 큰 라벨)는 연한 면 위에서 3:1을 넘는다', () {
         expect(
-          contrast(value.role, value.surface),
+          contrast(role.ink, role.surface),
           greaterThanOrEqualTo(largeTextRatio),
         );
       });
 
-      test('$key 역할색은 이전 색과 색상(hue)이 $maxHueShiftDegrees도 안에서 같다', () {
-        final hueShift =
-            (HSLColor.fromColor(value.role).hue -
-                    HSLColor.fromColor(value.previous).hue)
-                .abs();
-        expect(hueShift, lessThanOrEqualTo(maxHueShiftDegrees));
+      test('$key 핀 외곽선은 면보다 $minPinEdgeRatio:1 이상 진해 윤곽이 구분된다', () {
+        expect(
+          contrast(role.face, role.pinEdge),
+          greaterThanOrEqualTo(minPinEdgeRatio),
+        );
+      });
+
+      test('$key 면은 이전 색과 색상(hue)이 ${value.maxFaceHueShift}도 안에서 같다', () {
+        expect(
+          hueGap(role.face, value.previousFace),
+          lessThanOrEqualTo(value.maxFaceHueShift),
+        );
+      });
+
+      test('$key 역할색 글자는 면과 색상(hue)이 $maxHueShiftDegrees도 안에서 같다', () {
+        expect(
+          hueGap(role.ink, role.face),
+          lessThanOrEqualTo(maxHueShiftDegrees),
+        );
       });
     }
+
+    test('경유 면은 원래 앰버 값을 그대로 두고 어두운 글자를 얹는다', () {
+      expect(
+        EasySubwayFanMenuColors.waypointRole.face,
+        const Color(0xFFFF9F0A),
+      );
+      expect(
+        contrast(
+          EasySubwayFanMenuColors.waypointRole.onFace,
+          EasySubwayFanMenuColors.waypointRole.face,
+        ),
+        greaterThanOrEqualTo(normalTextRatio),
+      );
+      expect(
+        contrast(
+          EasySubwayAccessibleColors.interactionOnPrimary,
+          EasySubwayFanMenuColors.waypointRole.face,
+        ),
+        lessThan(normalTextRatio),
+        reason: '흰 글자는 앰버 면에서 4.5:1에 못 미쳐 어두운 글자를 쓴다',
+      );
+    });
 
     test('설정 섹션 제목 글자(secondaryText)는 화면 배경 위에서 4.5:1을 넘는다', () {
       expect(

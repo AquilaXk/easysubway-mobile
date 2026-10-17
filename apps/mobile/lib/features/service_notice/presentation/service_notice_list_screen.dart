@@ -194,13 +194,16 @@ class _NoticeItem extends StatelessWidget {
                   letterSpacing: 0.1,
                 ),
               ),
-              const Spacer(),
-              Text(
-                _formatPublishedAt(notice.publishedAt),
-                style: const TextStyle(
-                  color: EasySubwayAccessibleColors.brandSignature,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
+              // 큰 글자에서 발행일이 줄바꿈되도록 남는 폭을 차지한다.
+              Expanded(
+                child: Text(
+                  _formatPublishedAt(notice.publishedAt),
+                  textAlign: TextAlign.end,
+                  style: const TextStyle(
+                    color: EasySubwayAccessibleColors.brandSignature,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],

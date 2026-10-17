@@ -1,24 +1,14 @@
-import 'dart:async' show unawaited;
-
-import 'package:easysubway_mobile/app/accessibility_theme.dart';
-import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
-import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
-import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
-import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
-import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
-import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
-import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
-import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
-import 'package:easysubway_mobile/features/stations/presentation/station_detail_screen.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
+import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'support/easy_subway_app_fixture.dart';
-import 'support/journey_result_fixture.dart';
+import 'support/core_screen_sweep_fixtures.dart';
+import 'support/core_screen_sweep_screens.dart';
 
 /// 핵심 화면 x 테마 x 글자 크기 x 접근성 가이드라인 전수 검사(#464).
 ///
-/// 화면은 [_screens] 표의 한 줄로 추가한다. 가이드라인 4종은 [_guidelines]
+/// 화면은 [sweepScreens] 표의 한 줄로 추가한다. 가이드라인 4종은 [_guidelines]
 /// 표 하나로 모든 조합에 같은 방식으로 적용한다. 위반은 예외 목록 없이 그대로
 /// 실패로 드러난다.
 ///
@@ -27,31 +17,12 @@ import 'support/journey_result_fixture.dart';
 /// 같은 코드에서도 macOS와 Linux 결과가 갈린다. 테스트 기본 폰트(Ahem)는 글자가
 /// 단색 사각형이라 색 추정이 플랫폼과 무관하게 같다.
 ///
+/// 팬 메뉴의 글자는 CustomPaint로 그려져 `textContrastGuideline`이 볼 수 없다.
+/// 팬 메뉴 역할색의 글자 대비는 `design_tokens_test`가 단언한다.
+///
 /// 한계: 이 테스트는 실제 폰트(Pretendard)의 글자 대비와 오버플로를 검증하지
 /// 않는다. Ahem은 글자 폭이 달라 1.5배 줄바꿈과 넘침도 근사치다. 실제 폰트의
 /// 대비·오버플로는 실기기 점검(에픽 #3036 체크리스트 4번 후속 행)이 맡는다.
-
-/// 앱에 다크 테마는 없다(`darkTheme` 미정의). 시스템 다크 모드에서도 같은
-/// 테마로 그려지는지 `systemDark` 조합으로 함께 검사해, 다크 테마를 도입하면
-/// 이 표가 바로 새 테마를 검사하게 한다.
-enum _AppTheme {
-  standard('기본 테마'),
-  highContrast('고대비'),
-  systemDark('시스템 다크 모드');
-
-  const _AppTheme(this.label);
-
-  final String label;
-
-  OnboardingViewPreferences get preferences => OnboardingViewPreferences(
-    largeTextEnabled: false,
-    highContrastEnabled: this == highContrast,
-    simpleViewEnabled: false,
-  );
-
-  Brightness get platformBrightness =>
-      this == systemDark ? Brightness.dark : Brightness.light;
-}
 
 const _textScales = <double>[1.0, 1.5];
 
@@ -66,115 +37,19 @@ final _guidelines = <String, AccessibilityGuideline>{
   '글자 대비': textContrastGuideline,
 };
 
-class _ScreenContext {
-  const _ScreenContext({
-    required this.tester,
-    required this.navigatorKey,
-    required this.theme,
+void main() {
+  // 지도 역 위치가 실행 순서에 따라 달라지지 않도록 오너 노드·라벨 사이드카를 비운다.
+  setUp(() {
+    primeNetworkMapOwnerLabelsCacheForTest(const {});
+    primeNetworkMapOwnerNodesCacheForTest(const {});
+  });
+  tearDown(() {
+    resetNetworkMapOwnerLabelsCacheForTest();
+    resetNetworkMapOwnerNodesCacheForTest();
   });
 
-  final WidgetTester tester;
-  final GlobalKey<NavigatorState> navigatorKey;
-  final _AppTheme theme;
-
-  BuildContext get navigatorContext => navigatorKey.currentContext!;
-}
-
-class _Screen {
-  const _Screen(this.name, this.open, this.shown);
-
-  final String name;
-  final Future<void> Function(_ScreenContext context) open;
-
-  /// 화면이 실제로 열렸음을 보이는 요소. 열리지 않은 화면이 가이드라인을
-  /// 통과하는 일을 막는다.
-  final Finder shown;
-}
-
-final _screens = <_Screen>[
-  _Screen(
-    '홈(노선도)',
-    (context) async {},
-    find.byKey(const Key('networkMapMenuButton')),
-  ),
-  _Screen('좌측 메뉴', _openMenu, find.byKey(const Key('networkMapMenuPanel'))),
-  _Screen(
-    '경로 검색',
-    (context) => _openJourney(context, search: false),
-    find.widgetWithText(FilledButton, '경로 찾기'),
-  ),
-  _Screen(
-    '경로 결과·상세',
-    (context) => _openJourney(context, search: true),
-    find.byKey(const Key('selected-journey-detail')),
-  ),
-  _Screen(
-    '역 상세',
-    _openStationDetail,
-    find.byKey(const Key('stationDetailSheet')),
-  ),
-  _Screen('설정', _openSettings, find.byKey(const Key('settingsScreen'))),
-];
-
-Future<void> _openSettings(_ScreenContext context) async {
-  await _openMenu(context);
-  await context.tester.tap(
-    find.byKey(const Key('networkMapMenuSettingsButton')),
-  );
-  await context.tester.pumpAndSettle();
-}
-
-Future<void> _openMenu(_ScreenContext context) async {
-  await context.tester.tap(find.byKey(const Key('networkMapMenuButton')));
-  await context.tester.pumpAndSettle();
-}
-
-Future<void> _openJourney(
-  _ScreenContext context, {
-  required bool search,
-}) async {
-  final tester = context.tester;
-  unawaited(
-    context.navigatorKey.currentState!.push(
-      MaterialPageRoute<void>(
-        builder: (_) => OnboardingPreferenceScope(
-          preferences: context.theme.preferences,
-          child: JourneySearchScreen(
-            repository: FixtureJourneyRepository(),
-            attestor: const FixtureIntegrityAttestor(),
-            draft: fixtureRouteDraft(),
-            mobilityType: 'WHEELCHAIR',
-            onShellBackToHome: () {},
-            stationNameResolver: fixtureStationName,
-            transferGuideRepository: const FixtureTransferGuideRepository(),
-            journeyNow: () => DateTime.utc(2026, 8, 12),
-          ),
-        ),
-      ),
-    ),
-  );
-  await tester.pumpAndSettle();
-  if (search) {
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-  }
-}
-
-Future<void> _openStationDetail(_ScreenContext context) async {
-  unawaited(
-    showStationDetailSheet<void>(
-      context: context.navigatorContext,
-      repository: _SweepRepository(),
-      reportRepository: const UnavailableFacilityReportRepository(),
-      stationId: _sweepStationId,
-    ),
-  );
-  await context.tester.pumpAndSettle();
-}
-
-void main() {
-  for (final screen in _screens) {
-    for (final theme in _AppTheme.values) {
+  for (final screen in sweepScreens) {
+    for (final theme in SweepTheme.values) {
       for (final textScale in _textScales) {
         testWidgets('${screen.name} - ${theme.label} - 글자 $textScale배', (
           tester,
@@ -182,9 +57,9 @@ void main() {
           final semantics = tester.ensureSemantics();
           try {
             final navigatorKey = GlobalKey<NavigatorState>();
-            await _pumpApp(tester, navigatorKey, theme, textScale);
+            await _pumpApp(tester, screen, navigatorKey, theme, textScale);
             await screen.open(
-              _ScreenContext(
+              SweepScreenContext(
                 tester: tester,
                 navigatorKey: navigatorKey,
                 theme: theme,
@@ -234,8 +109,9 @@ List<String> _violatingNodes(String? reason) {
 
 Future<void> _pumpApp(
   WidgetTester tester,
+  SweepScreen screen,
   GlobalKey<NavigatorState> navigatorKey,
-  _AppTheme theme,
+  SweepTheme theme,
   double textScale,
 ) async {
   tester.view.devicePixelRatio = _devicePixelRatio;
@@ -249,132 +125,11 @@ Future<void> _pumpApp(
     tester.platformDispatcher.clearPlatformBrightnessTestValue();
   });
   await tester.pumpWidget(
-    buildEasySubwayTestApp(
-      repository: _SweepRepository(),
-      reportRepository: const UnavailableFacilityReportRepository(),
+    buildSweepApp(
       navigatorKey: navigatorKey,
-      initialOnboardingState: OnboardingState.completed(
-        result: OnboardingResult(
-          preset: MobilityPreset.standard,
-          preferences: theme.preferences,
-        ),
-      ),
+      onboardingState: screen.onboardingState(theme),
+      stationResults: screen.stationResults,
     ),
   );
   await tester.pumpAndSettle();
-}
-
-const _sweepStationId = 'station-gangnam';
-
-/// 홈 노선도와 역 상세가 쓰는 고정 응답. 역 검색 포트와 노선도 포트를 함께 구현한다.
-class _SweepRepository
-    implements StationSearchRepository, NetworkMapRepository {
-  @override
-  Future<NetworkMapData> getNetworkMap({String? region, String? lineId}) async {
-    return const NetworkMapData(
-      regions: [NetworkMapRegion(name: '수도권')],
-      selectedRegion: '수도권',
-      lines: [
-        NetworkMapLine(
-          id: 'seoul-2',
-          name: '수도권 2호선',
-          color: '#00A84D',
-          region: '수도권',
-        ),
-      ],
-      stations: [
-        NetworkMapStation(
-          id: _sweepStationId,
-          nameKo: '강남',
-          nameEn: 'Gangnam',
-          region: '수도권',
-          lineId: 'seoul-2',
-          stationCode: '222',
-          sequence: 1,
-          position: NetworkMapPosition(
-            x: 100,
-            y: 100,
-            labelDx: 0,
-            labelDy: 0,
-            upPath: '',
-            downPath: '',
-            sourceId: 'sweep-fixture',
-          ),
-        ),
-      ],
-      edges: [],
-      positionSources: [],
-    );
-  }
-
-  @override
-  Future<StationDetail> getStationDetail(String stationId) async {
-    return const StationDetail(
-      id: _sweepStationId,
-      nameKo: '강남',
-      nameEn: 'Gangnam',
-      region: '수도권',
-      dataQualityLevel: 'LEVEL_1',
-      lastVerifiedAt: '2026-09-27',
-      lines: [
-        StationSearchLine(
-          id: 'seoul-2',
-          name: '수도권 2호선',
-          color: '#00A84D',
-          stationCode: '222',
-        ),
-      ],
-    );
-  }
-
-  @override
-  Future<List<StationExitInfo>> listStationExits(String stationId) async {
-    return const [
-      StationExitInfo(
-        id: 'exit-1',
-        stationId: _sweepStationId,
-        exitNumber: '1',
-        name: '1번 출구',
-        description: '강남역 광장',
-        hasElevatorConnection: true,
-        hasStairOnlyPath: StairOnlyPathStatus.absent,
-        dataConfidence: 'HIGH',
-        lastVerifiedAt: '2026-09-27',
-      ),
-    ];
-  }
-
-  @override
-  Future<List<StationFacilityInfo>> listStationFacilities(
-    String stationId,
-  ) async {
-    return const [
-      StationFacilityInfo(
-        id: 'facility-elevator-1',
-        stationId: _sweepStationId,
-        exitId: 'exit-1',
-        type: 'ELEVATOR',
-        name: '1번 출구 엘리베이터',
-        floorFrom: '지상',
-        floorTo: '대합실',
-        description: '1번 출구',
-        status: 'BROKEN',
-        dataConfidence: 'HIGH',
-        lastUpdatedAt: '2026-09-27',
-      ),
-    ];
-  }
-
-  @override
-  Future<List<StationSearchResult>> searchStations(
-    String query, {
-    String? region,
-  }) async => const [];
-
-  @override
-  Future<List<StationSearchResult>> searchNearbyStations(
-    CurrentLocation location, {
-    int radiusMeters = 2000,
-    int limit = 10,
-  }) async => const [];
 }

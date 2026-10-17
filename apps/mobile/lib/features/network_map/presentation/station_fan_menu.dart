@@ -53,6 +53,13 @@ bool _sectorDisabled(Set<RouteDraftSlot> disabledSlots, _FanSector sector) {
   return slot != null && disabledSlots.contains(slot);
 }
 
+/// 역할 색을 갖는 섹터(닫기 제외)의 색 묶음.
+const _roleColors = <_FanSector, EasySubwayRoleColor>{
+  _FanSector.departure: EasySubwayFanMenuColors.departureRole,
+  _FanSector.waypoint: EasySubwayFanMenuColors.waypointRole,
+  _FanSector.arrival: EasySubwayFanMenuColors.arrivalRole,
+};
+
 class StationFanMenu extends StatefulWidget {
   const StationFanMenu({
     super.key,
@@ -258,27 +265,9 @@ class _StationFanMenuPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(scale);
-    _paintSector(
-      canvas,
-      _FanSector.departure,
-      EasySubwayFanMenuColors.departure,
-      EasySubwayFanMenuColors.departureSurface,
-      EasySubwayFanMenuColors.departurePressed,
-    );
-    _paintSector(
-      canvas,
-      _FanSector.waypoint,
-      EasySubwayFanMenuColors.waypoint,
-      EasySubwayFanMenuColors.waypointSurface,
-      EasySubwayFanMenuColors.waypointPressed,
-    );
-    _paintSector(
-      canvas,
-      _FanSector.arrival,
-      EasySubwayFanMenuColors.arrival,
-      EasySubwayFanMenuColors.arrivalSurface,
-      EasySubwayFanMenuColors.arrivalPressed,
-    );
+    for (final sector in _roleColors.keys) {
+      _paintSector(canvas, sector);
+    }
     _paintClose(canvas);
     _paintBorders(canvas);
     _paintIconsAndLabels(canvas);
@@ -294,22 +283,16 @@ class _StationFanMenuPainter extends CustomPainter {
     return slot != null && selectedSlots.contains(slot);
   }
 
-  ({Color fill, Color content, double opacity}) _visualFor(
-    _FanSector sector,
-    Color selected,
-    Color surface,
-    Color pressedSurface,
-  ) {
+  ({Color fill, Color content, double opacity}) _visualFor(_FanSector sector) {
+    final role = _roleColors[sector]!;
     final disabled = _disabled(sector);
     final selectedState = _selected(sector);
     final pressedState = pressed == sector;
     return (
       fill: selectedState
-          ? selected
-          : (pressedState ? pressedSurface : surface),
-      content: selectedState
-          ? EasySubwayAccessibleColors.interactionOnPrimary
-          : selected,
+          ? role.face
+          : (pressedState ? role.pressedSurface : role.surface),
+      content: selectedState ? role.onFace : role.ink,
       opacity: disabled
           ? EasySubwayFanMenuColors.disabledOpacity
           : (pressedState ? EasySubwayFanMenuColors.pressedOpacity : 1),
@@ -327,14 +310,8 @@ class _StationFanMenuPainter extends CustomPainter {
     );
   }
 
-  void _paintSector(
-    Canvas canvas,
-    _FanSector sector,
-    Color selected,
-    Color surface,
-    Color pressedSurface,
-  ) {
-    final visual = _visualFor(sector, selected, surface, pressedSurface);
+  void _paintSector(Canvas canvas, _FanSector sector) {
+    final visual = _visualFor(sector);
     canvas.drawPath(
       _pathFor(sector),
       Paint()
@@ -437,27 +414,9 @@ class _StationFanMenuPainter extends CustomPainter {
   }
 
   Color _contentColor(_FanSector sector) {
-    final visual = switch (sector) {
-      _FanSector.departure => _visualFor(
-        sector,
-        EasySubwayFanMenuColors.departure,
-        EasySubwayFanMenuColors.departureSurface,
-        EasySubwayFanMenuColors.departurePressed,
-      ),
-      _FanSector.waypoint => _visualFor(
-        sector,
-        EasySubwayFanMenuColors.waypoint,
-        EasySubwayFanMenuColors.waypointSurface,
-        EasySubwayFanMenuColors.waypointPressed,
-      ),
-      _FanSector.arrival => _visualFor(
-        sector,
-        EasySubwayFanMenuColors.arrival,
-        EasySubwayFanMenuColors.arrivalSurface,
-        EasySubwayFanMenuColors.arrivalPressed,
-      ),
-      _FanSector.close => _closeVisual(),
-    };
+    final visual = sector == _FanSector.close
+        ? _closeVisual()
+        : _visualFor(sector);
     return visual.content.withValues(alpha: visual.opacity);
   }
 

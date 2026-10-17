@@ -266,20 +266,24 @@ class _RecentSearchItem extends StatelessWidget {
       }
     }
 
-    return ConstrainedBox(
-      constraints: const BoxConstraints(minHeight: 48),
-      child: Row(
-        children: [
-          Expanded(
-            child: Semantics(
-              label: semanticsLabel,
-              button: true,
-              enabled: enabled,
-              onTap: enabled ? onTap : null,
-              child: ExcludeSemantics(
-                child: InkWell(
-                  key: itemKey,
-                  onTap: enabled ? onTap : null,
+    return Row(
+      children: [
+        Expanded(
+          child: Semantics(
+            label: semanticsLabel,
+            button: true,
+            enabled: enabled,
+            onTap: enabled ? onTap : null,
+            child: ExcludeSemantics(
+              child: InkWell(
+                key: itemKey,
+                onTap: enabled ? onTap : null,
+                // 탭 영역(낭독 노드 크기)이 최소 터치 영역을 채우도록 InkWell
+                // 자체에 최소 높이를 둔다.
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minHeight: EasySubwayTouchTarget.iconOnly,
+                  ),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(
                       vertical: EasySubwaySpacing.xs,
@@ -298,14 +302,14 @@ class _RecentSearchItem extends StatelessWidget {
               ),
             ),
           ),
-          IconButton(
-            key: removeKey,
-            tooltip: removeTooltip,
-            onPressed: enabled ? () => onRemove(entry) : null,
-            icon: const Icon(Icons.close),
-          ),
-        ],
-      ),
+        ),
+        IconButton(
+          key: removeKey,
+          tooltip: removeTooltip,
+          onPressed: enabled ? () => onRemove(entry) : null,
+          icon: const Icon(Icons.close),
+        ),
+      ],
     );
   }
 

@@ -957,33 +957,46 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     StationTimetableDayType.sundayHoliday => '공휴일',
   };
 
+  /// 요일 탭과 필터 칩. 큰 글자에서 한 줄에 다 들어가지 않으면 필터 칩이 다음
+  /// 줄로 내려가 잘리지 않는다.
   Widget _buildDayAndFilterBar() {
     return Container(
       color: EasySubwayAccessibleColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Row(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          for (final dayType in StationTimetableDayType.values)
-            _buildDayTab(dayType),
-          const Spacer(),
-          _buildFilterCapsule(
-            label: '첫·막차',
-            isSelected: _filterFirstLast,
-            onTap: () {
-              setState(() {
-                _filterFirstLast = !_filterFirstLast;
-              });
-            },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (final dayType in StationTimetableDayType.values)
+                _buildDayTab(dayType),
+            ],
           ),
-          const SizedBox(width: 6),
-          _buildFilterCapsule(
-            label: '급행',
-            isSelected: _filterExpress,
-            onTap: () {
-              setState(() {
-                _filterExpress = !_filterExpress;
-              });
-            },
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _buildFilterCapsule(
+                label: '첫·막차',
+                isSelected: _filterFirstLast,
+                onTap: () {
+                  setState(() {
+                    _filterFirstLast = !_filterFirstLast;
+                  });
+                },
+              ),
+              const SizedBox(width: 6),
+              _buildFilterCapsule(
+                label: '급행',
+                isSelected: _filterExpress,
+                onTap: () {
+                  setState(() {
+                    _filterExpress = !_filterExpress;
+                  });
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -1003,32 +1016,39 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         });
         unawaited(_load());
       },
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Padding(
-              padding: const EdgeInsets.only(top: 14, bottom: 8),
-              child: Text(
-                label,
-                style: TextStyle(
-                  fontSize: isSelected ? 16 : 15,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  color: isSelected
-                      ? EasySubwayAccessibleColors.text
-                      : EasySubwayAccessibleColors.secondaryText,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minHeight: EasySubwayTouchTarget.iconOnly,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.only(top: 14, bottom: 8),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: isSelected ? 16 : 15,
+                    fontWeight: isSelected
+                        ? FontWeight.bold
+                        : FontWeight.normal,
+                    color: isSelected
+                        ? EasySubwayAccessibleColors.text
+                        : EasySubwayAccessibleColors.secondaryText,
+                  ),
                 ),
               ),
-            ),
-            Container(
-              height: 2.5,
-              width: isSelected ? 32 : 0,
-              color: isSelected
-                  ? EasySubwayAccessibleColors.text
-                  : Colors.transparent,
-            ),
-          ],
+              Container(
+                height: 2.5,
+                width: isSelected ? 32 : 0,
+                color: isSelected
+                    ? EasySubwayAccessibleColors.text
+                    : Colors.transparent,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -1045,29 +1065,38 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       toggled: isSelected,
       label: '$label 필터',
       child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? EasySubwayAccessibleColors.surfaceBrandChrome
-                : EasySubwayAccessibleColors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: isSelected
-                  ? EasySubwayAccessibleColors.primary
-                  : EasySubwayAccessibleColors.line,
-              width: 1,
-            ),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(
+            minWidth: EasySubwayTouchTarget.iconOnly,
+            minHeight: EasySubwayTouchTarget.iconOnly,
           ),
-          child: Text(
-            label,
-            style: TextStyle(
-              color: isSelected
-                  ? EasySubwayAccessibleColors.primary
-                  : EasySubwayAccessibleColors.secondaryText,
-              fontSize: 13,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+          child: Center(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? EasySubwayAccessibleColors.surfaceBrandChrome
+                    : EasySubwayAccessibleColors.surface,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isSelected
+                      ? EasySubwayAccessibleColors.primary
+                      : EasySubwayAccessibleColors.line,
+                  width: 1,
+                ),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  color: isSelected
+                      ? EasySubwayAccessibleColors.primary
+                      : EasySubwayAccessibleColors.secondaryText,
+                  fontSize: 13,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
             ),
           ),
         ),
@@ -1139,6 +1168,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     );
   }
 
+  /// 방면 칩과 종착역 선택은 서로 겹치지 않는 48dp 터치 영역을 각자 가져 두 줄이 96dp이다.
+  /// 이전 시각 높이(72dp)에는 들어가지 않으므로 위아래 여백은 두지 않고 그 높이를 그대로
+  /// 쓴다. 터치 영역이 칩·글자 시각 크기보다 커서 둘 사이 시각 간격도 넓어진다.
   Widget _buildDirectionHeader({
     required List<StationTimetableDirection> directions,
   }) {
@@ -1149,7 +1181,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       final origIndex = _timetable?.directions.indexOf(direction) ?? 0;
       return Container(
         color: EasySubwayAccessibleColors.surfaceSubtle,
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: [
             _buildDirectionTitleChip(direction, origIndex >= 0 ? origIndex : 0),
@@ -1171,14 +1203,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
                     _buildDirectionTitleChip(left, 0),
-                    const SizedBox(height: 2),
                     _buildTerminusFilterDropdown(left),
                   ],
                 ),
@@ -1191,14 +1219,10 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: 10,
-                  horizontal: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
                     _buildDirectionTitleChip(right, 1),
-                    const SizedBox(height: 2),
                     _buildTerminusFilterDropdown(right),
                   ],
                 ),
@@ -1248,7 +1272,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       side: BorderSide.none,
       padding: EdgeInsets.zero,
       labelPadding: EdgeInsets.zero,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       showCheckmark: false,
     );
   }
@@ -1261,25 +1284,31 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         .toSet()
         .toList();
 
-    final dropdownChild = Row(
-      mainAxisSize: MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Text(
-          current,
-          style: TextStyle(
-            color: EasySubwayAccessibleColors.secondaryText,
-            fontSize: 13,
-            fontWeight: FontWeight.normal,
+    final dropdownChild = ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: EasySubwayTouchTarget.iconOnly,
+        minHeight: EasySubwayTouchTarget.iconOnly,
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text(
+            current,
+            style: TextStyle(
+              color: EasySubwayAccessibleColors.secondaryText,
+              fontSize: 13,
+              fontWeight: FontWeight.normal,
+            ),
           ),
-        ),
-        const SizedBox(width: 2),
-        Icon(
-          Icons.keyboard_arrow_down,
-          size: 16,
-          color: EasySubwayAccessibleColors.secondaryText,
-        ),
-      ],
+          const SizedBox(width: 2),
+          Icon(
+            Icons.keyboard_arrow_down,
+            size: 16,
+            color: EasySubwayAccessibleColors.secondaryText,
+          ),
+        ],
+      ),
     );
 
     if (destinations.isEmpty) {

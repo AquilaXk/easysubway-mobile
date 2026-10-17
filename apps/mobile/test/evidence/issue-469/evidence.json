@@ -1,0 +1,106 @@
+{
+  "schemaVersion": 1,
+  "issue": 469,
+  "capturedAt": "2026-10-18",
+  "platform": "flutter test 호스트 렌더링(macOS), 360dp 폭, 팬 메뉴 골든은 NanumGothic 테스트 폰트, 나머지는 Pretendard 번들 폰트 로드(exit-panel은 오버플로 재현을 위해 테스트 기본 폰트). 일부 아이콘과 상단바 문구는 테스트 환경의 폰트 한계로 네모로 보일 수 있으며 레이아웃과 색 확인용이다.",
+  "assertions": [
+    "수정 전 lib에서 확대한 표(216개 조합)는 60개에서 실패한다",
+    "수정 후 216개 조합이 모두 통과한다",
+    "역 시간표의 일반 텍스트 대비를 1.88:1로 낮춰 주입하면 시간표 6개 조합이 모두 실패한다",
+    "경유 면은 원래 앰버 FF9F0A 그대로이고 어두운 글자 대비 4.5:1 이상, 경유 역할색 글자는 같은 색상(hue)의 A16506"
+  ],
+  "files": [
+    {
+      "path": "before-fan-menu-waypoint-selected.png",
+      "description": "경유 선택 면(팬 메뉴 골든). 수정 전: 경유 역할색 FF9F0A 위의 흰 글자 대비 2.06:1",
+      "sha256": "c84b2292b0b7c389e608d0843256244c45e09fa6bd04edf74fa32c196797246b"
+    },
+    {
+      "path": "after-fan-menu-waypoint-selected.png",
+      "description": "경유 선택 면(팬 메뉴 골든). 수정 후: 앰버 면 FF9F0A을 그대로 두고 어두운 글자 20262E를 얹어 대비 7.41:1",
+      "sha256": "1797be2a826fc940c6902d9a70e7e53afde29600187a713774a7c80d097b72dc"
+    },
+    {
+      "path": "before-fan-menu-default.png",
+      "description": "기본 상태(팬 메뉴 골든). 수정 전: 경유 라벨 FF9F0A을 연한 면 FFF8ED 위에 그려 대비 1.95:1",
+      "sha256": "5ca4d4df6ab4cd45c100aac0cd1b89f9d0e5029be34b92b66a957b9eddf4649e"
+    },
+    {
+      "path": "after-fan-menu-default.png",
+      "description": "기본 상태(팬 메뉴 골든). 수정 후: 연한 면 위 경유 라벨·아이콘을 같은 색상의 진한 앰버 A16506으로 바꿔 대비 4.54:1",
+      "sha256": "cb1dbacaeb53421528f55b30a58f12617167d92992fee268b1cc91fe6bff71a2"
+    },
+    {
+      "path": "before-exit-panel-text-1.5x.png",
+      "description": "지도 출구 안내 패널, 글자 1.5배(테스트 기본 폰트). 수정 전: 패널 안 내용이 고정 높이 180dp를 6px 넘쳐 오버플로 표시가 보임",
+      "sha256": "a82a26de47a94cbb43c8b1e3d2cd03387c1dccc1973c0175d8b7b78fd69484e7"
+    },
+    {
+      "path": "after-exit-panel-text-1.5x.png",
+      "description": "지도 출구 안내 패널, 글자 1.5배(테스트 기본 폰트). 수정 후: 최소 높이 180dp만 두어 내용 높이만큼 자라고 넘침이 없음",
+      "sha256": "ecbb7f06f71533eda82249531813681f623a6390d7baeff28d673d5e5ac1e70a"
+    },
+    {
+      "path": "before-timetable-text-1.0x.png",
+      "description": "역 시간표, 글자 1.0배. 수정 전: 방면 머리줄 72dp, 요일 탭 46.5dp·필터 칩 30dp·방면 칩 32dp·종착역 선택 18dp",
+      "sha256": "51d71d22a888239148ca7ad9c0975119c5cbf807fb8d8e053bf57a47723061e4"
+    },
+    {
+      "path": "after-timetable-text-1.0x.png",
+      "description": "역 시간표, 글자 1.0배. 수정 후: 모두 48dp 터치 영역. 방면 칩과 종착역 선택이 겹치지 않는 48dp 두 줄이라 방면 머리줄이 72dp에서 96dp(+24dp)로 커짐",
+      "sha256": "6ebe11550c0a757db09cb0e6ee30031b41ce17fed1c72f197e3175f2dd13721a"
+    },
+    {
+      "path": "before-timetable-text-1.5x.png",
+      "description": "역 시간표, 글자 1.5배. 수정 전: 요일 탭과 필터 칩이 한 줄에 몰려 급행 칩이 잘리고 오버플로 표시가 보임, 필터 칩 30dp",
+      "sha256": "14f0ee68da983739e6a90db50d7c71fc8fe538d7cf9031615f57c8f2739ab71d"
+    },
+    {
+      "path": "after-timetable-text-1.5x.png",
+      "description": "역 시간표, 글자 1.5배. 수정 후: 필터 칩이 다음 줄로 내려가 모두 보이고, 요일 탭·필터 칩·방면 칩·종착역 선택이 48dp 터치 영역. 방면 머리줄은 겹치지 않는 48dp 두 줄이라 81dp에서 96dp",
+      "sha256": "fdbf2fb2313be2db4537778cde06068c200ca5cf26796e1f95bc63ce6085b46a"
+    },
+    {
+      "path": "before-fan-menu-waypoint-with-top-bar.png",
+      "description": "지도 팬 메뉴(경유 지정됨)와 경로 입력 상단바. 수정 전: 경유 면 FF9F0A, 입력 칸 높이 38dp(터치 영역 부족)",
+      "sha256": "841591c9a07ab3de85aef25348b7f6b6d3318040a17b0361cf47afb74566b088"
+    },
+    {
+      "path": "after-fan-menu-waypoint-with-top-bar.png",
+      "description": "지도 팬 메뉴(경유 지정됨)와 경로 입력 상단바. 수정 후: 경유 면 FF9F0A에 어두운 글자, 입력 칸 시각 박스 40dp를 유지하면서 터치 영역 48dp",
+      "sha256": "1c9c6070264d01f9b3f3d0bb63d19a5220258460bdc86bdd742153a39721b713"
+    },
+    {
+      "path": "before-deletion-confirm-dialog.png",
+      "description": "사용자 정보 삭제 확인 창. 수정 전: 대화상자 배경이 보랏빛 톤이라 취소 버튼 글자 대비 3.97:1",
+      "sha256": "d0c720805d3d41c15da86807c13f9e204b51f3509b92200492e9a55746c9e663"
+    },
+    {
+      "path": "after-deletion-confirm-dialog.png",
+      "description": "사용자 정보 삭제 확인 창. 수정 후: 앱 흰 면 배경, 같은 글자 대비 4.5:1 이상",
+      "sha256": "a286fa541e8f1b72e0128383b6f076d6dc79b3481e1626b912b15ab54b0ff16b"
+    },
+    {
+      "path": "before-train-search.png",
+      "description": "기차 조회. 수정 전: 출발·도착 입력 36dp, 맞바꾸기 버튼 40dp, 왕복 선택 34dp",
+      "sha256": "ee8361825c1a81c55f552692571a1745ac4c44cef31b3921e29275d56d357a7d"
+    },
+    {
+      "path": "after-train-search.png",
+      "description": "기차 조회. 수정 후: 세 곳 모두 48dp 터치 영역, 힌트·라벨·아이콘이 같은 가운데 줄(입력 칸 위아래 여백으로 48dp를 채움)",
+      "sha256": "32c0339ca4e6ce4ce33397a97d3f9122b07972df2f8e657172d0c0eb0194d1d3"
+    },
+    {
+      "path": "before-notice-list-text-1.5x.png",
+      "description": "공지사항 목록, 글자 1.5배. 수정 전: 안내 라벨과 발행일이 한 줄을 13px 넘쳐 오버플로",
+      "sha256": "acb6aaccffeedc3ab77099006e229d937675d8191c6affd68f51cf3e8ac0df07"
+    },
+    {
+      "path": "after-notice-list-text-1.5x.png",
+      "description": "공지사항 목록, 글자 1.5배. 수정 후: 발행일이 남는 폭 안에서 줄바꿈",
+      "sha256": "cc4e02fdeb79340b1831e006eefc6c3f2788b3937d84cbd2baee4514869b6186"
+    }
+  ],
+  "captureMethod": "core_screen_sweep_screens.dart의 화면 열기·앱 구성 코드를 쓰는 임시 테스트(커밋 안 함)가 RepaintBoundary.toImage로 PNG를 저장했다. 수정 전 화면은 같은 테스트를 origin/main의 lib 상태로 되돌려 실행했다. 팬 메뉴 골든 PNG는 station_fan_menu_golden_test의 골든 파일이며 역할색 토큰 변경에 맞춰 갱신했고 경유 선택 골든을 새로 추가했다.",
+  "notes": "실기기·TalkBack 낭독은 하지 않았다. 팬 메뉴 글자는 CustomPaint로 그려져 textContrastGuideline이 읽지 못하므로 역할색 대비는 design_tokens_test가 단언한다. journey 결과 골든 6개는 origin/main에서도 이 호스트에서 실패해 갱신하지 않았다."
+}
