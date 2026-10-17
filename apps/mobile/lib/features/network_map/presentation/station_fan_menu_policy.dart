@@ -39,8 +39,16 @@ class FanMenuPlacement {
 
 /// 팬 메뉴의 이상적 배치가 viewport를 벗어났을 때 화면 안으로 옮길 최소 offset.
 /// Canvas camera는 이 값을 반대 방향의 source 이동으로 변환한다.
-Offset fanMenuRevealOffset({required Rect menuRect, required Size viewport}) {
-  final viewportRect = Offset.zero & viewport;
+///
+/// [topInset]은 viewport 위쪽에서 상단 오버레이에 가려지는 높이다. 메뉴는 그 아래로
+/// 들어와야 한다.
+Offset fanMenuRevealOffset({
+  required Rect menuRect,
+  required Size viewport,
+  double topInset = 0,
+}) {
+  final viewportRect =
+      Offset(0, topInset) & Size(viewport.width, viewport.height - topInset);
   const margin = kFanMenuViewportMargin;
   var dx = 0.0;
   var dy = 0.0;
@@ -67,6 +75,8 @@ Offset fanMenuRevealOffset({required Rect menuRect, required Size viewport}) {
 /// 렌더와 카메라 패닝이 같은 viewport 기반 메뉴 크기를 사용한다. 렌더 경로는
 /// [clampPosition]을 켜 극단 경계에서도 메뉴를 화면 안에 두고, 카메라 경로는
 /// 끈 이상적 배치의 [FanMenuPlacement.revealBounds]를 노출 대상으로 사용한다.
+/// [FanMenuPlacement]을 계산하는 [fanMenuPlacement]의 `topInset`은 viewport 위쪽에서
+/// 상단 오버레이에 가려지는 높이이며, 클램프된 메뉴도 그 아래에 둔다.
 @visibleForTesting
 double fanMenuWidthForViewport(double viewportWidth) => math.min(
   220.0,
@@ -77,6 +87,7 @@ FanMenuPlacement fanMenuPlacement({
   required Offset stationPoint,
   required Size viewport,
   required bool clampPosition,
+  double topInset = 0,
 }) {
   final menuWidth = fanMenuWidthForViewport(viewport.width);
   final menuHeight =
@@ -95,9 +106,10 @@ FanMenuPlacement fanMenuPlacement({
     if (maxLeft >= margin) {
       left = left.clamp(margin, maxLeft).toDouble();
     }
+    final minTop = topInset + margin;
     final maxTop = viewport.height - margin - menuHeight;
-    if (maxTop >= margin) {
-      top = top.clamp(margin, maxTop).toDouble();
+    if (maxTop >= minTop) {
+      top = top.clamp(minTop, maxTop).toDouble();
     }
   }
   return FanMenuPlacement(

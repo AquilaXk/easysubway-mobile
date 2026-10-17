@@ -32,6 +32,16 @@ class NetworkMapDraftPin extends StatelessWidget {
   static const _pinHeight = 52.0;
   static const _clearSize = 18.0;
 
+  // 핀 머리 우상단 ✕ 터치 타깃을 위한 핀 기준 여유.
+  static const _hitPadLeft = 8.0;
+  static const _hitPadRight = 18.0;
+  static const _hitPadTop = 10.0;
+  static const _hitPadBottom = 0.0;
+
+  /// 앵커(뾰족한 끝)에서 위로 핀 위젯이 차지하는 높이. 이만큼이 상단 오버레이
+  /// 아래에 들어와야 핀이 가려지지 않는다.
+  static const extentAboveAnchor = _pinHeight + _hitPadTop;
+
   /// 역할색 외곽 ≈1.5px 고정 두께(양옆 합 3px / 핀 폭).
   static const _edgeStrokePx = 1.5;
   static const _edgeScale = 1 + (2 * _edgeStrokePx) / _pinWidth;
@@ -66,20 +76,16 @@ class NetworkMapDraftPin extends StatelessWidget {
   Widget build(BuildContext context) {
     final anchorPoint = camera.sourceToViewportPoint(anchorSource);
     // ✕는 핀 머리 우상단에 붙이므로, 핀 기준으로 여유를 둔다.
-    const hitPadLeft = 8.0;
-    const hitPadRight = 18.0;
-    const hitPadTop = 10.0;
-    const hitPadBottom = 0.0;
-    const hitWidth = _pinWidth + hitPadLeft + hitPadRight;
-    const hitHeight = _pinHeight + hitPadTop + hitPadBottom;
+    const hitWidth = _pinWidth + _hitPadLeft + _hitPadRight;
+    const hitHeight = _pinHeight + _hitPadTop + _hitPadBottom;
     final viewportWidth = camera.viewportSize.width;
     // 핀 이미지 하단 중앙(뾰족한 끝)이 앵커에 오도록 배치.
     final pinLeft = anchorPoint.dx - _pinWidth / 2;
     final pinTop = anchorPoint.dy - _pinHeight;
-    final hitLeft = (pinLeft - hitPadLeft)
+    final hitLeft = (pinLeft - _hitPadLeft)
         .clamp(4.0, math.max(4.0, viewportWidth - hitWidth - 4))
         .toDouble();
-    final hitTop = math.max(4.0, pinTop - hitPadTop);
+    final hitTop = math.max(4.0, pinTop - _hitPadTop);
     final pinOffsetInHit = Offset(pinLeft - hitLeft, pinTop - hitTop);
     // ✕는 카카오처럼 핀 머리 안쪽·약간 위에 붙인다. 터치 타깃은 그 중심 기준 56.
     final clearVisualLeft = pinOffsetInHit.dx + _pinWidth - (_clearSize * 0.92);

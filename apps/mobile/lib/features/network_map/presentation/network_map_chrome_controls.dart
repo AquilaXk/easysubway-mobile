@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
@@ -8,6 +10,7 @@ import '../../route_draft/domain/route_draft.dart';
 import '../domain/network_map_models.dart';
 import '../domain/route_map_min_scale.dart';
 import '../../../core/ui/region_menu.dart';
+import 'network_map_overlay_inset.dart';
 
 /// 테스트 전용: [NetworkMapChrome]가 build될 때마다 증가한다. 검색 중 키
 /// 입력이 지도 chrome 전체를 재빌드하지 않는지 검증할 때만 읽는다.
@@ -18,7 +21,7 @@ int debugNetworkMapChromeBuildCount = 0;
 /// 버튼·입력 영역은 줄 높이만큼 눌려 최소 터치 영역(48dp)을 채운다.
 const _draftRowHeight = EasySubwayTouchTarget.iconOnly;
 
-class NetworkMapChrome extends StatelessWidget {
+class NetworkMapChrome extends StatefulWidget {
   const NetworkMapChrome({
     required this.topBar,
     required this.disruptionBanner,
@@ -45,22 +48,49 @@ class NetworkMapChrome extends StatelessWidget {
   final Widget child;
 
   @override
+  State<NetworkMapChrome> createState() => _NetworkMapChromeState();
+}
+
+class _NetworkMapChromeState extends State<NetworkMapChrome> {
+  /// 지도 위를 덮는 상단바 + 알림 바 묶음의 측정 높이. 측정 전에는 0이다.
+  ///
+  /// 측정값은 레이아웃이 끝난 뒤 setState로 반영되므로 지도는 한 프레임 늦게 알게
+  /// 된다. 같은 프레임에 반영하려면 지도 build가 레이아웃 결과에 의존해야 해서
+  /// 지도 전체를 레이아웃 단계로 옮겨야 한다. 핀이 가려지는 프레임은 사용자가 핀을
+  /// 지정한 직후(또는 오버레이가 커진 직후)의 한두 프레임뿐이라 이 지연은 받아들인다.
+  double _overlayHeight = 0;
+
+  void _onOverlayHeight(double height) {
+    if (mounted && height != _overlayHeight) {
+      setState(() => _overlayHeight = height);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     debugNetworkMapChromeBuildCount++;
     final topPadding = MediaQuery.paddingOf(context).top;
-    final inSearchMode = searchMode && searchBody != null;
+    final inSearchMode = widget.searchMode && widget.searchBody != null;
     // 지도를 상단바 아래로 약간 겹쳐 그리면, 구분선·짧은 드롭이 흰 배경이 아니라
     // 노선 색 위에 앉아 카카오처럼 닿는 부위가 하얗게 끊기지 않는다.
     const mapUnderTopBarPx = 10.0;
     final mapTop =
         topPadding + easySubwayTopBarContentHeight - mapUnderTopBarPx;
+    // 지도는 mapTop에서 시작하지만 오버레이는 측정 높이만큼 그 위를 덮는다. 그 차이가
+    // 지도 본문에서 가려지는 높이다.
+    final mapObscuredTop = math.max(0.0, _overlayHeight - mapTop);
     return Stack(
       clipBehavior: Clip.none,
       children: [
         Positioned.fill(
           top: mapTop,
           // ClipRect를 쓰면 가장자리 draft 핀의 soft drop·✕가 잘린다.
-          child: inSearchMode ? searchBody! : child,
+          child: inSearchMode
+              ? widget.searchBody!
+              : NetworkMapObscuredTop(
+                  height: mapObscuredTop,
+                  child: widget.child,
+                ),
         ),
         // 상단바는 경로 입력 칸 수에 따라 1~3줄로 높이가 달라진다. 알림 바는 고정
         // 오프셋 대신 같은 열에서 상단바 실제 높이 바로 아래에 놓아 입력 칸을 가리지 않는다.
@@ -68,38 +98,44 @@ class NetworkMapChrome extends StatelessWidget {
           left: 0,
           top: 0,
           right: 0,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              topBar,
-              if (disruptionBanner != null && !inSearchMode) disruptionBanner!,
-            ],
+          child: NetworkMapMeasuredHeight(
+            onHeight: _onOverlayHeight,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                widget.topBar,
+                if (widget.disruptionBanner != null && !inSearchMode)
+                  widget.disruptionBanner!,
+              ],
+            ),
           ),
         ),
-        if (nearbyPanelVisible && !inSearchMode)
+        if (widget.nearbyPanelVisible && !inSearchMode)
           Positioned(
             // 확장 시 상단 검색바까지 덮어 반쯤 열린 슬롭 시트를 막는다.
             left: 0,
             right: 0,
-            top: nearbyPanelExpanded ? 0 : null,
+            top: widget.nearbyPanelExpanded ? 0 : null,
             bottom: 0,
-            child: nearbyPanel,
+            child: widget.nearbyPanel,
           ),
-        if (nearbyLookupMessage != null &&
+        if (widget.nearbyLookupMessage != null &&
             !inSearchMode &&
-            !nearbyPanelExpanded)
+            !widget.nearbyPanelExpanded)
           Positioned(
             left: 24,
             right: 24,
-            bottom: nearbyPanelVisible ? 318 : 132,
-            child: NetworkMapLookupToast(message: nearbyLookupMessage!),
+            bottom: widget.nearbyPanelVisible ? 318 : 132,
+            child: NetworkMapLookupToast(message: widget.nearbyLookupMessage!),
           ),
-        if (!inSearchMode && !nearbyPanelExpanded)
+        if (!inSearchMode && !widget.nearbyPanelExpanded)
           Positioned(
             right: 20,
-            bottom: nearbyPanelVisible ? 280 : 32,
-            child: NetworkMapCurrentLocationButton(onTap: onCurrentLocationTap),
+            bottom: widget.nearbyPanelVisible ? 280 : 32,
+            child: NetworkMapCurrentLocationButton(
+              onTap: widget.onCurrentLocationTap,
+            ),
           ),
       ],
     );

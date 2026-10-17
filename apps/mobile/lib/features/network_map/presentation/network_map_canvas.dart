@@ -24,6 +24,7 @@ import '../domain/structured_route_map.dart';
 import 'network_map_camera_policy.dart';
 import 'network_map_draft_pin.dart';
 import 'network_map_geometry.dart';
+import 'network_map_overlay_inset.dart';
 import 'network_map_unavailable_states.dart';
 import 'route_map_basemap_view.dart';
 import 'route_map_owner_label_bounds.dart';
@@ -123,6 +124,13 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   (String, bool)? _cameraFocusedStationKey;
   MapCameraState? _gestureStartCamera;
   Offset? _gestureStartFocalPoint;
+  // 상단 오버레이(상단바·알림 바)에 가려지는 지도 위쪽 높이. 핀과 팬 메뉴는 이 아래에
+  // 둔다. 측정 전에는 0이다.
+  double _obscuredTop = 0;
+  // 사용자가 마지막으로 지정한 핀의 역 id. 오버레이가 커질 때 이 핀만 기준으로 패닝한다.
+  List<String> _designatedPinStationIds = const [];
+  // 마지막 핀 지정 뒤 사용자가 지도를 직접 움직였는지. 움직였다면 그 위치를 존중한다.
+  bool _cameraMovedSinceDesignation = false;
   String? _geometryCacheKey;
   NetworkMapGeometry? _geometryCache;
   // 구조화 canvas 렌더러(#1641) 파생 데이터 캐시 — region 단위로 재계산.
@@ -277,6 +285,37 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     super.dispose();
   }
 
+  /// 카메라가 source 경계 밖으로 나갈 수 있는 여유. 제스처 clamp와 핀 reveal이 같은
+  /// 값을 써야 reveal이 옮긴 카메라를 다음 제스처가 되돌려 핀을 다시 가리지 않는다.
+  double get _cameraViewportMargin => math.max(
+    kNetworkMapCameraViewportMargin,
+    _obscuredTop + NetworkMapDraftPin.extentAboveAnchor,
+  );
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final previous = _obscuredTop;
+    final next = NetworkMapObscuredTop.of(context);
+    _obscuredTop = next;
+    // 자동 패닝은 사용자가 방금 지정한 대상에만 한다.
+    // - 줄어드는 변화는 되돌리지 않는다(패닝이 한쪽으로 쌓이지 않는다).
+    // - 커지는 변화는 마지막 지정 뒤 사용자가 지도를 움직이지 않았을 때만, 마지막 지정
+    //   핀과 열린 팬 메뉴를 기준으로 패닝한다. 팬 메뉴는 제스처가 시작되면 닫히므로
+    //   열려 있다면 사용자가 움직이지 않은 것이다.
+    // - 저장된 viewport를 복원해 처음 열릴 때는 지정한 대상이 없고(핀은 didUpdateWidget의
+    //   변화로만 지정으로 친다) 첫 측정(0에서 늘어남)도 움직일 대상이 없어 패닝하지 않는다.
+    if (next <= previous) {
+      return;
+    }
+    _scheduleReveal(
+      pinStationIds: _cameraMovedSinceDesignation
+          ? const []
+          : _designatedPinStationIds,
+      menu: true,
+    );
+  }
+
   /// #2109 Fix: 검색 채널(인플레이스 `_focusStationFromSearch` + 풀페이지
   /// `focusStationRequestId` 소비)로 팬 메뉴가 [selectedStationId] prop을 통해
   /// 열릴 때도, 지도 탭(`_selectStation`)과 동일하게 화면 경계에서 메뉴가 잘리면
@@ -287,6 +326,13 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     super.didUpdateWidget(oldWidget);
     if (widget.selectionClearRevision != oldWidget.selectionClearRevision) {
       _selectedStation = null;
+    }
+    final designated = _newlyDesignatedPinStationIds(oldWidget);
+    if (designated.isNotEmpty) {
+      _designatedPinStationIds = designated;
+      // 제스처 중에 지정됐다면 사용자는 이미 지도를 움직이고 있다.
+      _cameraMovedSinceDesignation = _gestureActive;
+      _scheduleReveal(pinStationIds: designated);
     }
     final selectedId = widget.selectedStationId;
     if (selectedId != null && selectedId != oldWidget.selectedStationId) {
@@ -389,14 +435,12 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                         initialScale: initialCamera.initialScale,
                         revision: previousCamera.revision + 1,
                       )
-                      .clamped(viewportMargin: 220)
+                      .clamped(viewportMargin: kNetworkMapCameraViewportMargin)
                 : initialCamera;
           }
           // 같은 build에서 새 layoutKey의 카메라를 항상 초기화한다.
           var camera = _camera!;
-          final selectedStation =
-              networkMapStationByIdentity(data.stations, _selectedStation) ??
-              networkMapStationById(data.stations, widget.selectedStationId);
+          final selectedStation = _selectedStationIn(data);
           final originStation = networkMapStationById(
             data.stations,
             widget.originStationId,
@@ -442,14 +486,16 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                         ),
                         revision: camera.revision + 1,
                       )
-                      .clamped(viewportMargin: 220)
+                      .clamped(viewportMargin: kNetworkMapCameraViewportMargin)
                 : (camera.scale > focusCamera.scale
                       ? focusCamera
                             .copyWith(
                               scale: camera.scale,
                               revision: camera.revision + 1,
                             )
-                            .clamped(viewportMargin: 220)
+                            .clamped(
+                              viewportMargin: kNetworkMapCameraViewportMargin,
+                            )
                       : focusCamera);
             _cameraFocusedStationKey = focusedStationKey;
             _pendingCamera = null;
@@ -480,6 +526,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                     child: GestureDetector(
                       behavior: HitTestBehavior.translucent,
                       onScaleStart: (details) {
+                        _cameraMovedSinceDesignation = true;
                         if (!_gestureActive) {
                           setState(() {
                             _gestureActive = true;
@@ -588,6 +635,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                         constraints.maxHeight,
                       ),
                       clampPosition: true,
+                      topInset: _obscuredTop,
                     );
                     final left = placement.left;
                     final menuWidth = placement.menuWidth;
@@ -646,6 +694,11 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       ),
     );
   }
+
+  /// 팬 메뉴가 열려 있는 역. 지도에서 직접 고른 역이 부모가 지정한 역보다 우선한다.
+  NetworkMapStation? _selectedStationIn(NetworkMapData data) =>
+      networkMapStationByIdentity(data.stations, _selectedStation) ??
+      networkMapStationById(data.stations, widget.selectedStationId);
 
   NetworkMapGeometry _geometryFor(NetworkMapData data) {
     // basemap 오너 라벨 sidecar(로드는 async)를 geometry bounds에 반영한다(#2068).
@@ -741,7 +794,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
             scale: nextScale,
             revision: startCamera.revision + 1,
           )
-          .clamped(viewportMargin: 220),
+          .clamped(viewportMargin: _cameraViewportMargin),
     );
   }
 
@@ -869,11 +922,13 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       stationPoint: stationPoint,
       viewport: camera.viewportSize,
       clampPosition: false,
+      topInset: _obscuredTop,
     );
     final menuRect = placement.revealBounds;
     final revealOffset = fanMenuRevealOffset(
       menuRect: menuRect,
       viewport: camera.viewportSize,
+      topInset: _obscuredTop,
     );
     if (revealOffset == Offset.zero) {
       return;
@@ -885,11 +940,87 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     // 경계를 메뉴 높이만큼 넘겨 패닝할 수 있어야 한다. clamped 헤드룸을 메뉴
     // 높이+여백으로 열어 상단 여유를 준다(reveal offset은 필요한 방향으로만 이동하므로
     // 다른 역 배치에는 영향 없음). 잔여는 build 경로의 viewport 클램프가 처리한다.
-    final headroom = placement.menuHeight + margin;
+    final headroom = placement.menuHeight + margin + _obscuredTop;
     _setCamera(
       camera
           .copyWith(center: nextCenter, revision: camera.revision + 1)
           .clamped(viewportMargin: headroom),
+    );
+  }
+
+  /// 이전 위젯 대비 새로 지정된(바뀌어서 비어 있지 않은) 핀의 역 id.
+  List<String> _newlyDesignatedPinStationIds(NetworkMapCanvas oldWidget) => [
+    for (final (current, previous) in [
+      (widget.originStationId, oldWidget.originStationId),
+      (widget.waypointStationId, oldWidget.waypointStationId),
+      (widget.destinationStationId, oldWidget.destinationStationId),
+    ])
+      if (current != null && current != previous) current,
+  ];
+
+  /// 다음 프레임(레이아웃 확정 후)에 [pinStationIds] 핀과, [menu]가 참이면 열린 팬
+  /// 메뉴를 오버레이 아래로 옮긴다. 가려지지 않았으면 카메라를 건드리지 않는다.
+  ///
+  /// 제스처 중에는 옮기지 않고 제스처가 끝난 뒤에도 다시 시도하지 않는다. 제스처 중에
+  /// 바뀐 오버레이 높이는 사용자가 조작한 지도 위치를 우선하고, 가려진 핀은 사용자가
+  /// 직접 끌어 내릴 수 있다.
+  void _scheduleReveal({
+    List<String> pinStationIds = const [],
+    bool menu = false,
+  }) {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || _gestureActive) {
+        return;
+      }
+      _panCameraToRevealPins(pinStationIds);
+      final menuStation = menu
+          ? _selectedStationIn(_alignedData(widget.data))
+          : null;
+      if (menuStation != null) {
+        _panCameraToRevealFanMenu(menuStation);
+      }
+    });
+  }
+
+  void _panCameraToRevealPins(List<String> stationIds) {
+    final camera = _pendingCamera ?? _camera;
+    if (camera == null || stationIds.isEmpty) {
+      return;
+    }
+    final data = _alignedData(widget.data);
+    final geometry = _geometryFor(data);
+    final currentPinIds = {
+      widget.originStationId,
+      widget.waypointStationId,
+      widget.destinationStationId,
+    };
+    final anchors = [
+      for (final id in stationIds)
+        // 지정 뒤 지워진 핀은 그릴 대상이 아니다.
+        if (currentPinIds.contains(id))
+          if (networkMapStationById(data.stations, id) case final station?)
+            camera.sourceToViewportPoint(
+              _fanMenuAnchorSource(station, geometry),
+            ),
+    ];
+    final revealDy = networkMapRevealOffsetBelowObscuredTop(
+      anchorPoints: anchors,
+      extentAboveAnchor: NetworkMapDraftPin.extentAboveAnchor,
+      viewportHeight: camera.viewportSize.height,
+      obscuredTop: _obscuredTop,
+    );
+    if (revealDy == 0) {
+      return;
+    }
+    // 화면 내용을 아래로 밀면 source center는 위로 움직인다. 지도 최상단 역도
+    // 오버레이 아래로 내릴 수 있도록 source 경계를 넘는 여유를 연다.
+    _setCamera(
+      camera
+          .copyWith(
+            center: camera.center - Offset(0, revealDy / camera.scale),
+            revision: camera.revision + 1,
+          )
+          .clamped(viewportMargin: _cameraViewportMargin),
     );
   }
 
