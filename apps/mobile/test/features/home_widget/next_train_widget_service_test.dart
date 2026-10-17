@@ -1,6 +1,7 @@
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_reconcile_worker.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart';
+import 'package:easysubway_mobile/core/ui/app_localization_config.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_repository.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_configuration_screen.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_runtime.dart';
@@ -303,6 +304,22 @@ void main() {
       expect(closed, 1);
     },
   );
+
+  test('widget configuration 루트는 ko_KR 단일 locale과 전역 delegate를 선언한다', () async {
+    Widget? capturedApp;
+
+    await configureMain(
+      createTimetableRepository: (_) => _NoopTimetableRepository(),
+      initializeAndRegisterRefresh: () async {},
+      readWidgetId: () async => '42',
+      runWidgetApp: (widget) => capturedApp = widget,
+    );
+
+    final app = capturedApp! as MaterialApp;
+    expect(app.locale, appLocale);
+    expect(app.supportedLocales, [appLocale]);
+    expect(app.localizationsDelegates, appLocalizationsDelegates);
+  });
 
   test(
     'widget configuration은 injected catalog open/close와 registration을 실행한다',
