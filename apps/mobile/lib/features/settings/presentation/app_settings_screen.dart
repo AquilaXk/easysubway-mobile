@@ -387,7 +387,7 @@ class _AppSettingsSectionHeader extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 2),
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 6),
           child: Semantics(
             header: true,
             child: Text(
@@ -453,8 +453,10 @@ class _MobilityHeroBlock extends StatelessWidget {
                     borderRadius: BorderRadius.circular(
                       EasySubwayRadius.control,
                     ),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 0),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(
+                        minHeight: EasySubwayTouchTarget.iconOnly,
+                      ),
                       child: Row(
                         children: [
                           Container(

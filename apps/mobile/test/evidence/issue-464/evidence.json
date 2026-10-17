@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "issue": 464,
+  "capturedAt": "2026-10-17",
+  "platform": "flutter test 호스트 렌더링(macOS), 360x800dp·3x, Pretendard 번들 폰트 로드. 상단바 문구와 일부 아이콘은 테스트 환경의 폰트 한계로 네모로 보이며 레이아웃과 색 확인용이다.",
+  "assertions": [
+    "수정 전 표 기반 가이드라인 검사는 36개 조합 중 18개에서 실패한다",
+    "수정 후 36개 조합이 모두 통과한다"
+  ],
+  "files": [
+    {
+      "path": "before-journey-search.png",
+      "sha256": "9749aa01e14dd896a11ba77d1b075c0e3798fca487968de06b9f8e80e6ca4608",
+      "description": "수정 전: 경로 입력 카드. 출발(파랑)·경유(앰버)·도착(빨강) 배지의 흰 글자 대비 3.65·2.05·3.55, 선택된 칩 글자 4.36"
+    },
+    {
+      "path": "after-journey-search.png",
+      "sha256": "2106926d74d8e4237889415d25bb25d2b2697f83e08b6d1ed504507e88559ceb",
+      "description": "수정 후: 출발·도착 배지는 짙은 같은 계열 색, 경유 배지는 앰버를 유지하고 어두운 글자, 선택된 칩 글자는 짙은 브랜드색"
+    },
+    {
+      "path": "before-settings.png",
+      "sha256": "b4ab9aa5b58d5fc4c2c2384584eb2ebb35c761a61678d3c3a76c3136eca06489",
+      "description": "수정 전: 설정 이동 조건 요약 행 높이 32dp, 섹션 제목과 카드 간격 2dp"
+    },
+    {
+      "path": "after-settings.png",
+      "sha256": "9b61f4570b243a20be5bf89e1445591833d77c5003ba99247c682d7485b8d8dd",
+      "description": "수정 후: 요약 행 48dp 터치 영역, 섹션 제목과 카드 간격 6dp"
+    },
+    {
+      "path": "before-station-detail-text-1.5x.png",
+      "sha256": "1d13d1a3c6acf12601f4c6a7c11148843fc08ed40bcbdf246c7dc22f6512fefc",
+      "description": "수정 전: 글자 1.5배에서 역 상세 하단 '전체 시간표' 버튼이 11px 넘쳐 잘림(빨간 오버플로 표시)"
+    },
+    {
+      "path": "after-station-detail-text-1.5x.png",
+      "sha256": "c10fe9470091d56512108f5de4f2eae8c3c17dcb08dfdaef158d05ae8354a4e0",
+      "description": "수정 후: 같은 조건에서 라벨이 두 줄로 줄바꿈되어 버튼 안에 모두 보임"
+    }
+  ],
+  "captureMethod": "core_screen_guideline_sweep_test.dart의 화면 열기·앱 구성 코드를 복사한 임시 테스트(커밋 안 함)가 layer.toImage로 PNG를 저장했다. 수정 전 화면은 같은 테스트를 origin/main의 lib 상태에서 실행했다.",
+  "notes": "실기기·TalkBack 낭독은 하지 않았다. 구성 요소별 골든은 기존 골든이 이 화면들을 덮지 않아 추가하지 않았다."
+}
