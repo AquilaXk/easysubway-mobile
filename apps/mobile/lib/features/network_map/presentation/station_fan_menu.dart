@@ -53,18 +53,11 @@ bool _sectorDisabled(Set<RouteDraftSlot> disabledSlots, _FanSector sector) {
   return slot != null && disabledSlots.contains(slot);
 }
 
-/// 역할 색을 갖는 섹터(닫기 제외).
-const _roleSectors = [
-  _FanSector.departure,
-  _FanSector.waypoint,
-  _FanSector.arrival,
-];
-
-EasySubwayRoleColor _roleFor(_FanSector sector) => switch (sector) {
-  _FanSector.departure => EasySubwayFanMenuColors.departureRole,
-  _FanSector.waypoint => EasySubwayFanMenuColors.waypointRole,
-  _FanSector.arrival => EasySubwayFanMenuColors.arrivalRole,
-  _FanSector.close => throw ArgumentError.value(sector, 'sector', '역할 색 없음'),
+/// 역할 색을 갖는 섹터(닫기 제외)의 색 묶음.
+const _roleColors = <_FanSector, EasySubwayRoleColor>{
+  _FanSector.departure: EasySubwayFanMenuColors.departureRole,
+  _FanSector.waypoint: EasySubwayFanMenuColors.waypointRole,
+  _FanSector.arrival: EasySubwayFanMenuColors.arrivalRole,
 };
 
 class StationFanMenu extends StatefulWidget {
@@ -272,7 +265,7 @@ class _StationFanMenuPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(scale);
-    for (final sector in _roleSectors) {
+    for (final sector in _roleColors.keys) {
       _paintSector(canvas, sector);
     }
     _paintClose(canvas);
@@ -291,7 +284,7 @@ class _StationFanMenuPainter extends CustomPainter {
   }
 
   ({Color fill, Color content, double opacity}) _visualFor(_FanSector sector) {
-    final role = _roleFor(sector);
+    final role = _roleColors[sector]!;
     final disabled = _disabled(sector);
     final selectedState = _selected(sector);
     final pressedState = pressed == sector;
