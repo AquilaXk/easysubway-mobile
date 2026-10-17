@@ -1,7 +1,7 @@
 import 'package:easysubway_mobile/features/get_off_alarm/get_off_alarm_reconcile_worker.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart';
-import 'package:easysubway_mobile/core/ui/app_localization_config.dart';
+import 'package:easysubway_mobile/app/app_components.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_repository.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_configuration_screen.dart';
 import 'package:easysubway_mobile/features/home_widget/next_train_widget_runtime.dart';

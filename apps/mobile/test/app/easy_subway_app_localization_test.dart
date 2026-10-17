@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:easysubway_mobile/core/ui/app_localization_config.dart';
+import 'package:easysubway_mobile/app/app_components.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
 import 'package:flutter/material.dart';

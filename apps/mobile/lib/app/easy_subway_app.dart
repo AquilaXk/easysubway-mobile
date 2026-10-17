@@ -8,7 +8,6 @@ import '../core/datapack/bundled_data_pack_freshness.dart';
 import '../core/error/error_feedback.dart';
 import '../core/datapack/data_pack_metered_consent_gate.dart';
 import '../core/datapack/data_pack_update_state.dart';
-import '../core/ui/app_localization_config.dart';
 import '../design_tokens.dart';
 import '../features/facility_report/presentation/facility_report_screen.dart';
 import '../features/favorites/favorite_facility.dart';

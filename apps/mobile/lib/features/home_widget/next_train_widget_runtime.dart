@@ -15,7 +15,7 @@ import '../../core/database/catalog/catalog_database_opener.dart';
 import '../../core/database/user/user_database.dart';
 import '../../core/database/user/user_database_opener.dart';
 import '../../core/datapack/emergency_override_repository.dart';
-import '../../core/ui/app_localization_config.dart';
+import '../../app/app_components.dart';
 import '../../mobile_error_reporter.dart';
 import '../get_off_alarm/get_off_alarm_reconcile_worker.dart';
 import '../stations/domain/station_repositories.dart';
