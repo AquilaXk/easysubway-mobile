@@ -1821,6 +1821,64 @@ void main() {
       });
       expect(reportedErrors, isNotEmpty);
     });
+
+    testWidgets('둘 다 실패하면 전체 오류 상태의 다시 시도가 두 구역을 모두 다시 조회한다', (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      final facilityRepository = FakeFavoriteFacilityRepository(
+        favorites: [_favoriteFacility(status: 'USER_REPORTED')],
+      )..error = Exception('network');
+      final reportRepository = FakeFacilityReportRepository(
+        reports: const [reportedAccepted],
+      )..error = Exception('network');
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await openInboxFromMenu(
+          tester,
+          facilityRepository: facilityRepository,
+          reportRepository: reportRepository,
+        );
+        expect(
+          find.byKey(const Key('notificationInboxErrorState')),
+          findsOneWidget,
+        );
+        expect(find.byKey(facilityErrorRow), findsNothing);
+        expect(find.byKey(reportErrorRow), findsNothing);
+
+        facilityRepository.error = null;
+        reportRepository.error = null;
+        await tester.tap(find.widgetWithText(OutlinedButton, '다시 시도'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('notificationInboxErrorState')),
+          findsNothing,
+        );
+        expect(find.textContaining('1번 출구 엘리베이터'), findsOneWidget);
+        expect(find.text('제보 번호 ES-1009'), findsOneWidget);
+      });
+    });
+
+    testWidgets('아래로 당겨 새로고침하면 두 구역을 모두 다시 조회한다', (tester) async {
+      final facilityRepository = FakeFavoriteFacilityRepository(
+        favorites: [_favoriteFacility(status: 'USER_REPORTED')],
+      );
+      final reportRepository = FakeFacilityReportRepository(
+        reports: const [reportedAccepted],
+      );
+      await openInboxFromMenu(
+        tester,
+        facilityRepository: facilityRepository,
+        reportRepository: reportRepository,
+      );
+      final facilityLoads = facilityRepository.listCount;
+      final reportLoads = reportRepository.listMyReportsCount;
+
+      await tester.drag(find.byType(ListView).last, const Offset(0, 300));
+      await tester.pumpAndSettle();
+
+      expect(facilityRepository.listCount, facilityLoads + 1);
+      expect(reportRepository.listMyReportsCount, reportLoads + 1);
+    });
   });
 
   testWidgets('홈 신규 알림 바는 확인할 알림이 있으면 안내 문구와 상태를 알려준다', (tester) async {
