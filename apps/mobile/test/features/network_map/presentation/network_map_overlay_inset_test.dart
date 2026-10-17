@@ -12,6 +12,8 @@ import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/network_map_visible_center.dart';
+
 const _statusBarInset = 24.0;
 const _screen = Size(360, 640);
 
@@ -62,6 +64,15 @@ NetworkMapData _dataWith(List<NetworkMapStation> stations) => NetworkMapData(
   ],
 );
 
+/// 화면보다 큰 지도라 카메라가 경계에 걸리지 않고 가운데 역을 중앙에 둘 수 있다.
+/// 저장 viewport 복원 조건(지도 폭의 2배 이내)을 넘지 않을 만큼만 크다.
+final _middleStation = _station('middle', 700);
+final _tallData = _dataWith([
+  _topStation,
+  _middleStation,
+  _station('end', 1400),
+]);
+
 /// 경유 칸이 열려 상단바가 3줄이 되는 경로 입력.
 RouteDraft _threeRowDraft(String? waypointStationId) => RouteDraft(
   origin: const RouteDraftStation(id: 'origin', nameKo: '출발역'),
@@ -84,6 +95,7 @@ Widget _home({
   double textScale = 1.0,
   double? noticeBarHeight,
   String? focusedStationId,
+  bool preserveFocusedStationScale = false,
   NetworkMapData? data,
   Rect? initialViewport,
   ValueChanged<Rect>? onViewportChanged,
@@ -144,7 +156,7 @@ Widget _home({
             data: data ?? _data,
             initialViewport: initialViewport,
             focusedStationId: focusedStationId,
-            preserveFocusedStationScale: false,
+            preserveFocusedStationScale: preserveFocusedStationScale,
             selectedStationId: selectedStationId,
             selectionClearRevision: 0,
             waypointStationId: waypointStationId,
@@ -174,20 +186,11 @@ Future<void> _show(WidgetTester tester, Widget home) async {
 
 Rect _pinRect(WidgetTester tester) => tester.getRect(find.byKey(_waypointPin));
 
-/// 상단바와 알림 바가 지도 위를 덮는 영역의 아래 끝(화면 좌표).
-double _overlayBottom(WidgetTester tester) {
-  final topBar = tester.getRect(find.byKey(const Key('networkMapTopBar')));
-  final noticeBar = find.byKey(const Key('newNotificationBar'));
-  return noticeBar.evaluate().isEmpty
-      ? topBar.bottom
-      : tester.getRect(noticeBar).bottom;
-}
-
 void _expectPinBelowOverlay(WidgetTester tester) {
   final pin = _pinRect(tester);
   expect(
     pin.top,
-    greaterThanOrEqualTo(_overlayBottom(tester)),
+    greaterThanOrEqualTo(networkMapOverlayBottomOf(tester)),
     reason: '경유 핀 $pin이 상단바·알림 바 밑에 가려집니다.',
   );
 }
@@ -235,7 +238,7 @@ void main() {
       final menu = tester.getRect(
         find.byKey(const Key('networkMapStationSheet')),
       );
-      expect(menu.top, greaterThanOrEqualTo(_overlayBottom(tester)));
+      expect(menu.top, greaterThanOrEqualTo(networkMapOverlayBottomOf(tester)));
     });
 
     testWidgets('가려지지 않는 핀은 지정해도 카메라가 움직이지 않는다', (tester) async {
@@ -306,7 +309,7 @@ void main() {
       expect(_pinRect(tester), moved);
       expect(
         moved.top,
-        lessThan(_overlayBottom(tester)),
+        lessThan(networkMapOverlayBottomOf(tester)),
         reason: '움직인 핀은 가려진 채 둔다',
       );
     });
@@ -379,14 +382,14 @@ void main() {
 
       expect(
         _pinRect(tester).top,
-        lessThan(_overlayBottom(tester)),
+        lessThan(networkMapOverlayBottomOf(tester)),
         reason: '제스처 중에는 사용자가 조작한 위치를 우선한다',
       );
       await gesture.up();
       await tester.pumpAndSettle();
       expect(
         _pinRect(tester).top,
-        lessThan(_overlayBottom(tester)),
+        lessThan(networkMapOverlayBottomOf(tester)),
         reason: '제스처가 끝나도 다시 시도하지 않는다',
       );
     });
@@ -406,7 +409,7 @@ void main() {
 
       await _show(tester, _home(waypointStationId: _topStation.id));
 
-      expect(_pinRect(tester).top, lessThan(_overlayBottom(tester)));
+      expect(_pinRect(tester).top, lessThan(networkMapOverlayBottomOf(tester)));
     });
 
     testWidgets('reveal이 옮긴 카메라를 이어지는 드래그가 되돌려 핀을 다시 가리지 않는다', (tester) async {
@@ -434,7 +437,7 @@ void main() {
 
     await tester.pumpWidget(_home(waypointStationId: _topStation.id));
     var framesUntilVisible = 0;
-    while (_pinRect(tester).top < _overlayBottom(tester)) {
+    while (_pinRect(tester).top < networkMapOverlayBottomOf(tester)) {
       await tester.pump();
       framesUntilVisible++;
       expect(framesUntilVisible, lessThan(4), reason: '핀이 계속 가려져 있습니다');
@@ -444,15 +447,6 @@ void main() {
   });
 
   group('초기 카메라와 포커스는 오버레이 아래 보이는 영역을 기준으로 한다', () {
-    // 화면보다 큰 지도라 카메라가 경계에 걸리지 않고 가운데 역을 중앙에 둘 수 있다.
-    // 저장 viewport 복원 조건(지도 폭의 2배 이내)을 넘지 않을 만큼만 크다.
-    final middleStation = _station('middle', 700);
-    final tallData = _dataWith([
-      _topStation,
-      middleStation,
-      _station('end', 1400),
-    ]);
-
     /// 폰 크기(360x640) 화면에서 실행한다. 테스트 기본 화면(800x600)은 지도가 너무
     /// 작게 그려져 저장 viewport 복원 조건을 넘는다.
     void testPhone(
@@ -465,14 +459,6 @@ void main() {
       await body(tester);
     });
 
-    /// 지도 본문 중 상단바·알림 바에 가려지지 않는 영역의 세로 중앙(화면 좌표).
-    double visibleCenterY(WidgetTester tester) {
-      final surface = tester.getRect(
-        find.byKey(const Key('networkMapSurface')),
-      );
-      return (_overlayBottom(tester) + surface.bottom) / 2;
-    }
-
     /// 포커스한 역이 놓인 화면 y. 핀 끝이 역 중심이다.
     double stationY(WidgetTester tester) => _pinRect(tester).bottom;
 
@@ -483,9 +469,9 @@ void main() {
       Rect? initialViewport,
       ValueChanged<Rect>? onViewportChanged,
     }) => _home(
-      data: tallData,
-      waypointStationId: middleStation.id,
-      focusedStationId: middleStation.id,
+      data: _tallData,
+      waypointStationId: _middleStation.id,
+      focusedStationId: _middleStation.id,
       noticeBar: noticeBar,
       threeRows: threeRows,
       textScale: textScale,
@@ -499,7 +485,10 @@ void main() {
       ) async {
         await _show(tester, focusMiddle(textScale: textScale));
 
-        expect(stationY(tester), closeTo(visibleCenterY(tester), 1.0));
+        expect(
+          stationY(tester),
+          closeTo(networkMapVisibleCenterYOf(tester), 1.0),
+        );
       });
     }
 
@@ -514,7 +503,10 @@ void main() {
           focusMiddle(threeRows: threeRows, noticeBar: noticeBar),
         );
 
-        expect(stationY(tester), closeTo(visibleCenterY(tester), 1.0));
+        expect(
+          stationY(tester),
+          closeTo(networkMapVisibleCenterYOf(tester), 1.0),
+        );
       });
     }
 
@@ -525,13 +517,13 @@ void main() {
           home: SizedBox.fromSize(
             size: _screen,
             child: NetworkMapCanvas(
-              data: tallData,
+              data: _tallData,
               initialViewport: null,
-              focusedStationId: middleStation.id,
+              focusedStationId: _middleStation.id,
               preserveFocusedStationScale: false,
               selectedStationId: null,
               selectionClearRevision: 0,
-              waypointStationId: middleStation.id,
+              waypointStationId: _middleStation.id,
               onSetOrigin: (_) {},
               onSetWaypoint: (_) {},
               onSetDestination: (_) {},
@@ -562,7 +554,7 @@ void main() {
 
       await tester.pump();
       final firstDrawn = stationY(tester);
-      expect(firstDrawn, closeTo(visibleCenterY(tester), 1.0));
+      expect(firstDrawn, closeTo(networkMapVisibleCenterYOf(tester), 1.0));
 
       await tester.pumpAndSettle();
       expect(stationY(tester), firstDrawn, reason: '첫 그림 이후 점프하지 않는다');
@@ -579,6 +571,65 @@ void main() {
       expect(stationY(tester), settled);
     });
 
+    testPhone('배율을 유지하며 포커스한 맨 위 역이 큰 알림 바 아래에 남고 드래그가 되돌리지 않는다', (
+      tester,
+    ) async {
+      // 큰 글자에서 알림 바가 커진 상황. 중심을 올리는 거리가 기본 여유(220dp)를 넘는다.
+      await _show(
+        tester,
+        _home(
+          data: _tallData,
+          waypointStationId: _topStation.id,
+          focusedStationId: _topStation.id,
+          preserveFocusedStationScale: true,
+          noticeBarHeight: 130,
+        ),
+      );
+      _expectPinBelowOverlay(tester);
+
+      final gesture = await _startMapDrag(tester, const Offset(0, 60));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      _expectPinBelowOverlay(tester);
+    });
+
+    testWidgets('오버레이가 지도 높이 이상이어도 지도를 비우지 않고 이후에도 복구된다', (tester) async {
+      tester.view.physicalSize = const Size(640, 160);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      Widget home({required bool noticeBar}) => _home(
+        data: _tallData,
+        waypointStationId: _middleStation.id,
+        focusedStationId: _middleStation.id,
+        textScale: 1.5,
+        noticeBar: noticeBar,
+      );
+
+      // 빈 카메라는 핀을 왼쪽 위 모서리(x≈43)에 붙인다. 제대로 그린 핀은 가운데 열에 온다.
+      void expectPinInMapCenterColumn(WidgetTester tester, Rect surface) {
+        expect(find.byKey(_waypointPin), findsOneWidget);
+        expect(
+          (_pinRect(tester).center.dx - surface.center.dx).abs(),
+          lessThan(surface.width / 4),
+        );
+      }
+
+      await _show(tester, home(noticeBar: true));
+      final surface = tester.getRect(
+        find.byKey(const Key('networkMapSurface')),
+      );
+      expect(
+        networkMapOverlayBottomOf(tester) - surface.top,
+        greaterThanOrEqualTo(surface.height),
+        reason: '전제: 오버레이가 지도 본문 전체를 덮는다',
+      );
+      expectPinInMapCenterColumn(tester, surface);
+
+      await _show(tester, home(noticeBar: false));
+      expectPinInMapCenterColumn(tester, surface);
+    });
+
     group('저장 viewport 복원', () {
       testPhone('마지막으로 본 화면과 같은 지점이 같은 화면 위치에 온다', (tester) async {
         Rect? saved;
@@ -590,8 +641,8 @@ void main() {
         await _show(
           tester,
           _home(
-            data: tallData,
-            waypointStationId: middleStation.id,
+            data: _tallData,
+            waypointStationId: _middleStation.id,
             initialViewport: saved,
           ),
         );
@@ -608,8 +659,8 @@ void main() {
         await _show(
           tester,
           _home(
-            data: tallData,
-            waypointStationId: middleStation.id,
+            data: _tallData,
+            waypointStationId: _middleStation.id,
             initialViewport: saved,
             threeRows: false,
             noticeBar: false,
@@ -651,8 +702,14 @@ void main() {
       expect(fitted.viewportSize, const Size(360, 640));
     });
 
-    test('가려지지 않는 영역이 없으면 빈 카메라를 돌려준다', () {
-      expect(camera(640).viewportSize, Size.zero);
+    test('가려지지 않는 영역이 없으면 뷰포트 전체 기준으로 fit하고 빈 카메라를 만들지 않는다', () {
+      for (final covered in [640.0, 900.0]) {
+        final fitted = camera(covered);
+
+        expect(fitted.viewportSize, const Size(360, 640));
+        expect(fitted.scale, camera(0).scale);
+        expect(fitted.center, camera(0).center);
+      }
     });
   });
 

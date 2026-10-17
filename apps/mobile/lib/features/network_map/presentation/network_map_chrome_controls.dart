@@ -58,7 +58,7 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
   /// 된다. 같은 프레임에 반영하려면 지도 build가 레이아웃 결과에 의존해야 해서
   /// 지도 전체를 레이아웃 단계로 옮겨야 한다. 핀이 가려지는 프레임은 사용자가 핀을
   /// 지정한 직후(또는 오버레이가 커진 직후)의 한두 프레임뿐이라 이 지연은 받아들인다.
-  /// 첫 측정 전에는 지도가 초기 카메라를 정하지 않고 기다린다(null을 그대로 전달).
+  /// 첫 측정 전에는 지도가 초기 카메라를 정하지 않고 기다린다(측정 전 상태를 그대로 전달).
   double? _overlayHeight;
 
   void _onOverlayHeight(double height) {
@@ -80,9 +80,9 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
     // 지도는 mapTop에서 시작하지만 오버레이는 측정 높이만큼 그 위를 덮는다. 그 차이가
     // 지도 본문에서 가려지는 높이다.
     final overlayHeight = _overlayHeight;
-    final mapObscuredTop = overlayHeight == null
-        ? null
-        : math.max(0.0, overlayHeight - mapTop);
+    final mapInset = overlayHeight == null
+        ? const NetworkMapTopInsetUnmeasured()
+        : NetworkMapTopInsetMeasured(math.max(0.0, overlayHeight - mapTop));
     return Stack(
       clipBehavior: Clip.none,
       children: [
@@ -91,10 +91,7 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
           // ClipRect를 쓰면 가장자리 draft 핀의 soft drop·✕가 잘린다.
           child: inSearchMode
               ? widget.searchBody!
-              : NetworkMapObscuredTop(
-                  height: mapObscuredTop,
-                  child: widget.child,
-                ),
+              : NetworkMapObscuredTop(inset: mapInset, child: widget.child),
         ),
         // 상단바는 경로 입력 칸 수에 따라 1~3줄로 높이가 달라진다. 알림 바는 고정
         // 오프셋 대신 같은 열에서 상단바 실제 높이 바로 아래에 놓아 입력 칸을 가리지 않는다.
