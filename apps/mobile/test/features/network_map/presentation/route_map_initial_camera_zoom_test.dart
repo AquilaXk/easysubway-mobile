@@ -16,6 +16,8 @@ import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../support/network_map_visible_center.dart';
 import 'package:sqlite3/sqlite3.dart';
 
 // #2068 트랙 QA 후속: 노선도 초기 카메라를 "전체-fit 과축소"에서 "노선도 콘텐츠
@@ -303,23 +305,10 @@ void main() {
 
         final camera = await _mountAndReadCamera(tester, fixture);
 
-        // ① 중심 = 노선도 콘텐츠 bounding box 중앙. geometry는 콘텐츠 extents에
-        //    대칭 54px 여백을 더한 것이라 sourceBounds.center가 곧 콘텐츠 중앙이다
-        //    (viewBox 캔버스 중앙·헤더·여백이 아님).
-        expect(
-          camera.center.dx,
-          closeTo(camera.sourceBounds.center.dx, 0.5),
-          reason:
-              '$storedRegion 초기 카메라 중심 x=${camera.center.dx}가 '
-              '콘텐츠 중앙 ${camera.sourceBounds.center.dx}과 다르다',
-        );
-        expect(
-          camera.center.dy,
-          closeTo(camera.sourceBounds.center.dy, 0.5),
-          reason:
-              '$storedRegion 초기 카메라 중심 y=${camera.center.dy}가 '
-              '콘텐츠 중앙 ${camera.sourceBounds.center.dy}과 다르다',
-        );
+        // ① 콘텐츠 중앙이 상단 오버레이에 가려지지 않는 영역의 중앙에 온다. geometry는
+        //    콘텐츠 extents에 대칭 54px 여백을 더한 것이라 sourceBounds.center가 곧
+        //    콘텐츠 중앙이다(viewBox 캔버스 중앙·헤더·여백이 아님).
+        expectAtVisibleCenter(tester, camera, camera.sourceBounds.center);
 
         // ② 배율: 오너 라벨 중앙값의 화면 글자 크기가 가독 기준 이상.
         //    화면 글자 크기 = fontSizePx(source) × camera.scale (파일 상단 근거).

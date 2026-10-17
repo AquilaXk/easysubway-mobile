@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "issue": 475,
+  "capturedAt": "2026-10-18",
+  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 2배로 캡처, Pretendard 번들 폰트와 Material 아이콘 폰트 로드. 핀 안쪽 라벨은 테스트 환경에서 글자 대신 네모로 보일 수 있으며 레이아웃 확인용이다.",
+  "assertions": [
+    "수정 전 lib에서 network_map_overlay_inset_test.dart의 '포커스 역이 보이는 영역 중앙에 놓인다' 단언과 '측정 전 첫 프레임에는 지도를 그리지 않는다' 단언이 실패한다. 3줄 상단바 + 알림 바에서 포커스 역의 화면 y가 337.0이고 보이는 영역 중앙은 414.0이다",
+    "수정 후 같은 테스트가 통과한다. 포커스 역 y가 가려지지 않는 영역의 세로 중앙과 1dp 이내다(글자 1.0배·1.5배, 1줄 상단바·알림 바 유무 조합)",
+    "저장 viewport 복원은 수정 전후 모두 마지막으로 본 화면과 같은 위치다. 저장 형식은 카메라 중심 기준 뷰포트 전체 사각형이라 그대로 복원하면 같은 화면이고, 오버레이 높이를 다시 반영하지 않는다",
+    "첫 측정 전 프레임에는 지도를 그리지 않고, 측정 뒤 첫 그림이 최종 위치다. 이후 오버레이 높이가 바뀌어도 카메라를 다시 설정하지 않는다"
+  ],
+  "files": [
+    {
+      "path": "before-top-bar-3rows-notice-bar-text-1.0x.png",
+      "description": "3줄 상단바 + 알림 바, 글자 1.0배. 수정 전: 포커스한 경유 핀이 지도 본문 전체의 중앙에 있어 알림 바 쪽으로 77dp 치우친다",
+      "sha256": "14bdb1362c6029c51bc49a8f80c4bafd7f40d98c15d5e028331c6a4f5ef9d28b"
+    },
+    {
+      "path": "after-top-bar-3rows-notice-bar-text-1.0x.png",
+      "description": "같은 화면, 글자 1.0배. 수정 후: 지도 구성이 알림 바 아래 보이는 영역 중앙을 기준으로 놓이고 핀이 그 중앙에 있다",
+      "sha256": "6202f6052dc01a844fb75cb7383eac22d2524957da6958a09bb1ff89843f14d2"
+    },
+    {
+      "path": "before-top-bar-3rows-notice-bar-text-1.5x.png",
+      "description": "같은 화면, 글자 1.5배. 수정 전: 오버레이가 더 높아 핀이 더 위로 치우친다",
+      "sha256": "4426b8070f6245e7e2febb26716feffd89fee84491b5f3a5428be7b2db6bf10b"
+    },
+    {
+      "path": "after-top-bar-3rows-notice-bar-text-1.5x.png",
+      "description": "같은 화면, 글자 1.5배. 수정 후: 핀이 알림 바 아래 보이는 영역 중앙에 있다",
+      "sha256": "7a18807dbeba5f3afa38a71002d116aa461c15cae2eb525317e1cecc1bb316fd"
+    }
+  ],
+  "captureMethod": "network_map_overlay_inset_test.dart의 홈 chrome 구성(실제 NetworkMapTopBar 3줄 + 실제 NewNotificationBar + NetworkMapCanvas, 수도권 노선도)을 쓰는 임시 테스트(커밋 안 함)가 RepaintBoundary.toImage로 PNG를 저장했다. 수정 전 화면은 같은 테스트를 lib 수정 전 상태로 실행했다.",
+  "notes": "골든 파일은 갱신하지 않았다. 실기기·TalkBack 낭독은 하지 않았다."
+}

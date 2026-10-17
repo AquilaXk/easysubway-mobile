@@ -6,6 +6,7 @@ import '../domain/map_camera.dart';
 import '../domain/route_map_design_space.dart';
 import '../domain/route_map_min_scale.dart';
 import '../domain/route_map_owner_labels.dart';
+import 'network_map_draft_pin.dart';
 
 const _fallbackMinMapScale = 0.08;
 const _maxMapScale = 4.8;
@@ -24,6 +25,37 @@ const _routeMapGestureMaxScaleRatio = 3.4;
 const _routeMapGestureRendererOverscanFactor = 3.25;
 const _smallRegionStationCountThreshold = 40;
 
+/// 카메라 center가 source 경계 밖으로 나갈 수 있는 여유(dp)의 유일한 출처.
+/// 초기·포커스·제스처·reveal이 모두 이 값을 써야 한 경로가 옮긴 카메라를 다른 경로의
+/// clamp가 되돌려 핀과 대상을 다시 가리지 않는다. 오버레이가 높을수록 중심을 위로
+/// 올리거나 핀을 내려야 하므로 가려진 높이와 핀 높이만큼 여유를 더 준다.
+double networkMapCameraClampMargin(double obscuredTop) => math.max(
+  kNetworkMapCameraViewportMargin,
+  obscuredTop + NetworkMapDraftPin.extentAboveAnchor,
+);
+
+/// 카메라 계산에 쓸 수 있는 가려진 높이.
+///
+/// 오버레이가 뷰포트 전체 이상을 덮으면(낮은 가로 화면 + 3줄 상단바 + 알림 바)
+/// 가시 영역이 없어 가림 보정이 의미가 없다. 이때는 보정을 생략하고 전체 뷰포트를
+/// 기준으로 fit한다. 지도가 보여야 한다는 것이 불변식이고, 높이를 추정해 덮는 값이
+/// 아니라 "보정하지 않음"이다. 빈 카메라를 만들면 layoutKey가 높이를 담지 않아 오버레이가
+/// 줄어든 뒤에도 지도가 계속 빈다.
+double networkMapUsableObscuredTop(double obscuredTop, double viewportHeight) =>
+    obscuredTop < viewportHeight ? obscuredTop : 0;
+
+/// 상단 오버레이가 [obscuredTop]만큼 덮을 때, 가려지지 않는 영역의 중앙에
+/// [target]이 오도록 하는 카메라 중심. 카메라 중심은 뷰포트 전체의 중앙이므로
+/// 가시 영역 중앙(전체 중앙보다 [obscuredTop]/2 아래)에 맞추려면 그만큼 위로 둔다.
+Offset networkMapCameraCenterForVisibleCenter(
+  Offset target, {
+  required double scale,
+  required double obscuredTop,
+}) => target - Offset(0, obscuredTop / 2 / scale);
+
+/// [obscuredTop]은 뷰포트 위쪽이 상단 오버레이에 덮이는 높이다([networkMapUsableObscuredTop]
+/// 규칙 적용). fit과 중심은 덮이지 않는 영역을 기준으로 계산하고, [MapCameraState.viewportSize]는 뷰포트
+/// 전체로 둔다.
 MapCameraState networkMapCameraForBounds(
   Rect bounds,
   BoxConstraints constraints, {
@@ -32,6 +64,7 @@ MapCameraState networkMapCameraForBounds(
   double minScale = _fallbackMinMapScale,
   int revision = 0,
   double? initialScaleOverride,
+  double obscuredTop = 0,
 }) {
   final viewportWidth = constraints.hasBoundedWidth
       ? constraints.maxWidth
@@ -39,6 +72,11 @@ MapCameraState networkMapCameraForBounds(
   final viewportHeight = constraints.hasBoundedHeight
       ? constraints.maxHeight
       : 0.0;
+  final usableObscuredTop = networkMapUsableObscuredTop(
+    obscuredTop,
+    viewportHeight,
+  );
+  final visibleHeight = viewportHeight - usableObscuredTop;
   if (viewportWidth <= 0 || viewportHeight <= 0) {
     return MapCameraState(
       sourceBounds: sourceBounds,
@@ -52,7 +90,7 @@ MapCameraState networkMapCameraForBounds(
     );
   }
   final widthScale = viewportWidth / bounds.width;
-  final heightScale = viewportHeight / bounds.height;
+  final heightScale = visibleHeight / bounds.height;
   final computedScale = contain
       ? math.min(widthScale, heightScale)
       : math.max(widthScale, heightScale);
@@ -60,13 +98,17 @@ MapCameraState networkMapCameraForBounds(
   return MapCameraState(
     sourceBounds: sourceBounds,
     viewportSize: Size(viewportWidth, viewportHeight),
-    center: bounds.center,
+    center: networkMapCameraCenterForVisibleCenter(
+      bounds.center,
+      scale: fitScale,
+      obscuredTop: usableObscuredTop,
+    ),
     scale: fitScale,
     minScale: minScale,
     maxScale: _maxMapScale,
     revision: revision,
     initialScale: initialScaleOverride ?? fitScale,
-  ).clamped(viewportMargin: 220);
+  ).clamped(viewportMargin: networkMapCameraClampMargin(usableObscuredTop));
 }
 
 /// 지역 초기 화면 카메라의 contain-fit과 baseline scale을 함께 고정한다.
