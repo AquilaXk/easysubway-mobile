@@ -41,14 +41,24 @@
       "sha256": "ecbb7f06f71533eda82249531813681f623a6390d7baeff28d673d5e5ac1e70a"
     },
     {
+      "path": "before-timetable-text-1.0x.png",
+      "description": "역 시간표, 글자 1.0배. 수정 전: 방면 머리줄 72dp, 요일 탭 46.5dp·필터 칩 30dp·방면 칩 32dp·종착역 선택 18dp",
+      "sha256": "51d71d22a888239148ca7ad9c0975119c5cbf807fb8d8e053bf57a47723061e4"
+    },
+    {
+      "path": "after-timetable-text-1.0x.png",
+      "description": "역 시간표, 글자 1.0배. 수정 후: 모두 48dp 터치 영역. 방면 칩과 종착역 선택이 겹치지 않는 48dp 두 줄이라 방면 머리줄이 72dp에서 96dp(+24dp)로 커짐",
+      "sha256": "6ebe11550c0a757db09cb0e6ee30031b41ce17fed1c72f197e3175f2dd13721a"
+    },
+    {
       "path": "before-timetable-text-1.5x.png",
       "description": "역 시간표, 글자 1.5배. 수정 전: 요일 탭과 필터 칩이 한 줄에 몰려 급행 칩이 잘리고 오버플로 표시가 보임, 필터 칩 30dp",
       "sha256": "14f0ee68da983739e6a90db50d7c71fc8fe538d7cf9031615f57c8f2739ab71d"
     },
     {
       "path": "after-timetable-text-1.5x.png",
-      "description": "역 시간표, 글자 1.5배. 수정 후: 필터 칩이 다음 줄로 내려가 모두 보이고, 요일 탭·필터 칩·방면 칩·종착역 선택이 48dp 터치 영역",
-      "sha256": "56d191870ff78951843a6a17edb290e7652e8671cdb771fc023f1f8a64833f9f"
+      "description": "역 시간표, 글자 1.5배. 수정 후: 필터 칩이 다음 줄로 내려가 모두 보이고, 요일 탭·필터 칩·방면 칩·종착역 선택이 48dp 터치 영역. 방면 머리줄은 겹치지 않는 48dp 두 줄이라 81dp에서 96dp",
+      "sha256": "fdbf2fb2313be2db4537778cde06068c200ca5cf26796e1f95bc63ce6085b46a"
     },
     {
       "path": "before-fan-menu-waypoint-with-top-bar.png",
@@ -77,8 +87,8 @@
     },
     {
       "path": "after-train-search.png",
-      "description": "기차 조회. 수정 후: 세 곳 모두 48dp 터치 영역",
-      "sha256": "c130ebf93717f1b7b59e886a601d49b509f4a2862e5efb4c4608de16943bc824"
+      "description": "기차 조회. 수정 후: 세 곳 모두 48dp 터치 영역, 힌트·라벨·아이콘이 같은 가운데 줄(입력 칸 위아래 여백으로 48dp를 채움)",
+      "sha256": "32c0339ca4e6ce4ce33397a97d3f9122b07972df2f8e657172d0c0eb0194d1d3"
     },
     {
       "path": "before-notice-list-text-1.5x.png",

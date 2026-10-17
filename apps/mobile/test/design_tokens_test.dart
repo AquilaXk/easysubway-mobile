@@ -101,6 +101,7 @@ void main() {
     expect(EasySubwayFanMenuColors.pinShadow, const Color(0x40000000));
     expect(EasySubwayFanMenuColors.pinEdgeDeparture, const Color(0xFF0654A1));
     expect(EasySubwayFanMenuColors.pinEdgeWaypoint, const Color(0xFFA16506));
+    expect(EasySubwayFanMenuColors.waypointInk, const Color(0xFFA16506));
     expect(EasySubwayFanMenuColors.pinEdgeArrival, const Color(0xFFA1251E));
     expect(EasySubwayFanMenuColors.pinClearBg, const Color(0xFFFFFFFF));
     expect(EasySubwayFanMenuColors.pinClearBorder, const Color(0xFFE5E5E5));
@@ -137,26 +138,22 @@ void main() {
             EasySubwayRoleColor role,
             Color previousFace,
             double maxFaceHueShift,
-            Color pinEdge,
           })
         >{
           '출발': (
             role: EasySubwayFanMenuColors.departureRole,
             previousFace: const Color(0xFF0A84FF),
             maxFaceHueShift: maxHueShiftDegrees,
-            pinEdge: EasySubwayFanMenuColors.pinEdgeDeparture,
           ),
           '경유': (
             role: EasySubwayFanMenuColors.waypointRole,
             previousFace: const Color(0xFFFF9F0A),
             maxFaceHueShift: 0,
-            pinEdge: EasySubwayFanMenuColors.pinEdgeWaypoint,
           ),
           '도착': (
             role: EasySubwayFanMenuColors.arrivalRole,
             previousFace: const Color(0xFFFF3B30),
             maxFaceHueShift: maxHueShiftDegrees,
-            pinEdge: EasySubwayFanMenuColors.pinEdgeArrival,
           ),
         };
 
@@ -189,7 +186,7 @@ void main() {
 
       test('$key 핀 외곽선은 면보다 $minPinEdgeRatio:1 이상 진해 윤곽이 구분된다', () {
         expect(
-          contrast(role.face, value.pinEdge),
+          contrast(role.face, role.pinEdge),
           greaterThanOrEqualTo(minPinEdgeRatio),
         );
       });

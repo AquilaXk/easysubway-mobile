@@ -19,7 +19,7 @@ class NetworkMapDraftPin extends StatelessWidget {
     required this.anchorSource,
     required this.camera,
     required this.label,
-    required this.surfaceColor,
+    required this.role,
     required this.semanticSuffix,
     required this.clearButtonKey,
     required this.onClear,
@@ -46,23 +46,15 @@ class NetworkMapDraftPin extends StatelessWidget {
   static const _labelFontSize = 13.0;
   static const _labelStrokeWidth = 3.0;
 
-  static Color _pinEdgeFor(Color fill) {
-    if (fill == EasySubwayFanMenuColors.departure) {
-      return EasySubwayFanMenuColors.pinEdgeDeparture;
-    }
-    if (fill == EasySubwayFanMenuColors.waypoint) {
-      return EasySubwayFanMenuColors.pinEdgeWaypoint;
-    }
-    return EasySubwayFanMenuColors.pinEdgeArrival;
-  }
-
   final NetworkMapStation station;
 
   /// geometry 원점 보정된 source 좌표. 환승이면 캡슐 중심.
   final Offset anchorSource;
   final MapCameraState camera;
   final String label;
-  final Color surfaceColor;
+
+  /// 핀 면·외곽선·라벨 글자 색.
+  final EasySubwayRoleColor role;
   final String semanticSuffix;
   final Key clearButtonKey;
   final VoidCallback onClear;
@@ -96,7 +88,7 @@ class NetworkMapDraftPin extends StatelessWidget {
         clearVisualLeft + _clearSize / 2 - EasySubwayTouchTarget.general / 2;
     final clearHitTop =
         clearVisualTop + _clearSize / 2 - EasySubwayTouchTarget.general / 2;
-    final edgeColor = _pinEdgeFor(surfaceColor);
+    final edgeColor = role.pinEdge;
     return Positioned(
       left: hitLeft,
       top: hitTop,
@@ -162,7 +154,7 @@ class NetworkMapDraftPin extends StatelessWidget {
                       ),
                       ColorFiltered(
                         colorFilter: ColorFilter.mode(
-                          surfaceColor,
+                          role.face,
                           BlendMode.srcIn,
                         ),
                         child: Image.asset(
@@ -173,7 +165,7 @@ class NetworkMapDraftPin extends StatelessWidget {
                           filterQuality: FilterQuality.high,
                         ),
                       ),
-                      // 라벨: 흰 글자 + 핀색 외곽선.
+                      // 라벨: 면 위 글자 + 핀색 외곽선.
                       Align(
                         alignment: const Alignment(0, -0.28),
                         child: Padding(
@@ -195,16 +187,15 @@ class NetworkMapDraftPin extends StatelessWidget {
                                       ..style = PaintingStyle.stroke
                                       ..strokeWidth = _labelStrokeWidth
                                       ..strokeJoin = StrokeJoin.round
-                                      ..color = surfaceColor,
+                                      ..color = role.face,
                                   ),
                                 ),
                                 Text(
                                   label,
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
-                                  style: const TextStyle(
-                                    color: EasySubwayAccessibleColors
-                                        .interactionOnPrimary,
+                                  style: TextStyle(
+                                    color: role.onFace,
                                     fontWeight: FontWeight.w700,
                                     fontSize: _labelFontSize,
                                     height: 1.0,

@@ -59,7 +59,7 @@ Future<void> _pumpPin(
                   anchorSource: anchorSource,
                   camera: camera,
                   label: '출발',
-                  surfaceColor: EasySubwayFanMenuColors.departure,
+                  role: EasySubwayFanMenuColors.departureRole,
                   semanticSuffix: '출발 지정됨',
                   clearButtonKey: const Key('draftPinClear'),
                   ignorePointers: ignorePointers,

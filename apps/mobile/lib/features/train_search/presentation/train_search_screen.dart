@@ -425,7 +425,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
               constraints: const BoxConstraints(
                 minHeight: EasySubwayTouchTarget.iconOnly,
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 4),
+              // 줄 높이(20sp 글자 28dp)에 위아래 10dp를 더해 48dp를 채우므로 힌트·입력
+              // 글자가 라벨·아이콘과 같은 가운데 줄에 온다.
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
             onChanged: (value) {
               _stationDebounce?.cancel();

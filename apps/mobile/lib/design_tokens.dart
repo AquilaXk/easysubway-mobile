@@ -188,9 +188,13 @@ abstract final class EasySubwayFanMenuColors {
   /// 역할색보다 한 톤 진한 외곽(참조: 블루 면 `#2B66F6` → 선 `#1A429F` 대비).
   static const pinEdgeDeparture = Color(0xFF0654A1);
 
-  /// 앰버 면(`FF9F0A`)보다 2.33:1 진해 지도 위에서 핀 윤곽이 구분된다. 같은
-  /// 색상이라 [EasySubwayRoleColor.ink]로도 쓴다.
+  /// 앰버 면(`FF9F0A`)보다 2.33:1 진해 지도 위에서 핀 윤곽이 구분된다.
   static const pinEdgeWaypoint = Color(0xFFA16506);
+
+  /// 연한 면·흰 면 위에 놓는 경유 글자. 앰버 면과 같은 색상(hue 36)에서 명도만
+  /// 낮췄다(흰 면 4.80:1, 연한 면 4.54:1). 핀 외곽선과 값이 같아도 용도가 달라
+  /// 따로 둔다(한쪽을 바꿔도 다른 쪽이 움직이지 않게).
+  static const waypointInk = Color(0xFFA16506);
   static const pinEdgeArrival = Color(0xFFA1251E);
 
   /// ✕ — 흰 원 + 헤어라인 + 차분한 잉크.
@@ -223,13 +227,15 @@ abstract final class EasySubwayFanMenuColors {
     ink: departure,
     surface: departureSurface,
     pressedSurface: departurePressed,
+    pinEdge: pinEdgeDeparture,
   );
   static const waypointRole = EasySubwayRoleColor(
     face: waypoint,
     onFace: ink,
-    ink: pinEdgeWaypoint,
+    ink: waypointInk,
     surface: waypointSurface,
     pressedSurface: waypointPressed,
+    pinEdge: pinEdgeWaypoint,
   );
   static const arrivalRole = EasySubwayRoleColor(
     face: arrival,
@@ -237,6 +243,7 @@ abstract final class EasySubwayFanMenuColors {
     ink: arrival,
     surface: arrivalSurface,
     pressedSurface: arrivalPressed,
+    pinEdge: pinEdgeArrival,
   );
 }
 
@@ -249,6 +256,7 @@ class EasySubwayRoleColor {
     required this.ink,
     required this.surface,
     required this.pressedSurface,
+    required this.pinEdge,
   });
 
   /// 역할을 채우는 면(선택된 팬 메뉴 면, 배지, 핀).
@@ -263,6 +271,9 @@ class EasySubwayRoleColor {
   /// 선택되지 않은 팬 메뉴 면.
   final Color surface;
   final Color pressedSurface;
+
+  /// 지도 핀 외곽선. [face]보다 진해 핀 윤곽이 구분된다.
+  final Color pinEdge;
 }
 
 /// v4 타이포 위계 — 크기·행간·색으로 위계를 만들고 굵기는 보조로만 쓴다.

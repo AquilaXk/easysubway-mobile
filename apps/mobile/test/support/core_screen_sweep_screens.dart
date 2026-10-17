@@ -15,6 +15,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/station_fan_
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:easysubway_mobile/features/notifications/presentation/notification_inbox_screen.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
+import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_screen.dart';
 import 'package:flutter/material.dart';
@@ -289,22 +290,42 @@ final sweepScreens = <SweepScreen>[
     SweepScreen(
       '지도 역 팬 메뉴(${role.name} 지정됨, 경로 입력 상단바)',
       (context) => _openFanMenuWithSelected(context, role),
-      find.byType(StationFanMenu),
+      // 그 역할 칸이 채워져 지우기 버튼이 있어야 지정이 실제로 일어난 것이다.
+      find.byKey(role.clearKey),
     ),
 ];
 
 /// 팬 메뉴 섹터. 낭독 라벨로 섹터를 눌러 지정 상태를 만든다.
 class _FanMenuRole {
-  const _FanMenuRole(this.name, this.semanticsLabel);
+  const _FanMenuRole(this.slot, this.name, this.semanticsLabel, this.clearKey);
 
+  final RouteDraftSlot slot;
   final String name;
   final String semanticsLabel;
+
+  /// 경로 입력 상단바에서 이 역할 칸의 지우기 버튼.
+  final Key clearKey;
 }
 
 const _fanMenuRoles = <_FanMenuRole>[
-  _FanMenuRole('출발', '출발역으로 설정'),
-  _FanMenuRole('경유', '경유지로 추가'),
-  _FanMenuRole('도착', '도착역으로 설정'),
+  _FanMenuRole(
+    RouteDraftSlot.origin,
+    '출발',
+    '출발역으로 설정',
+    Key('networkMapRouteDraftClearOrigin'),
+  ),
+  _FanMenuRole(
+    RouteDraftSlot.waypoint,
+    '경유',
+    '경유지로 추가',
+    Key('networkMapRouteDraftClearWaypoint'),
+  ),
+  _FanMenuRole(
+    RouteDraftSlot.destination,
+    '도착',
+    '도착역으로 설정',
+    Key('networkMapRouteDraftClearDestination'),
+  ),
 ];
 
 const _sweepMapStationKey = Key('networkMapStation-gangnam-seoul-2');
@@ -329,6 +350,13 @@ Future<void> _openFanMenuWithSelected(
   context.tester.semantics.tap(find.semantics.byLabel(role.semanticsLabel));
   await context.tester.pumpAndSettle();
   await _openFanMenu(context);
+  // 다시 연 팬 메뉴가 지정한 역할을 채워진 면으로 그리는지 확인한다.
+  expect(
+    context.tester
+        .widget<StationFanMenu>(find.byType(StationFanMenu))
+        .selectedSlots,
+    contains(role.slot),
+  );
 }
 
 /// 출처 화면은 번들 자산을 비동기로 읽어 테스트 시계가 끝나지 않으므로, 같은 자산

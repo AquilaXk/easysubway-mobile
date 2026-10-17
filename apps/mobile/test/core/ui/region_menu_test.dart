@@ -367,6 +367,50 @@ void main() {
       },
     );
   });
+
+  testWidgets('지역 메뉴 닫기는 낭독에서 라벨이 있는 배리어 노드 하나가 맡고 탭으로 닫힌다', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Builder(
+            builder: (ctx) => TextButton(
+              key: const Key('openRegionMenuButton'),
+              onPressed: () {
+                unawaited(
+                  showEasySubwayRegionMenu(
+                    triggerContext: ctx,
+                    regions: const [
+                      EasySubwayRegionMenuItem(id: '수도권', label: '수도권'),
+                      EasySubwayRegionMenuItem(id: '부산', label: '부산'),
+                    ],
+                    selectedRegion: '수도권',
+                    onRegionSelected: (_) {},
+                  ),
+                );
+              },
+              child: const Text('수도권 ⌵'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.byKey(const Key('openRegionMenuButton')));
+    await tester.pumpAndSettle();
+
+    final dismiss = find.semantics.byLabel('지역 메뉴 닫기');
+    final dismissNodes = dismiss.evaluate();
+    expect(dismissNodes, hasLength(1));
+    expect(
+      dismissNodes.single.getSemanticsData().hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+
+    tester.semantics.tap(dismiss);
+    await tester.pumpAndSettle();
+    expect(find.byType(EasySubwayRegionMenuPanel), findsNothing);
+    semantics.dispose();
+  });
 }
 
 /// 세로 방향 기준 휴대폰 화면(dp).

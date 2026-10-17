@@ -14,6 +14,10 @@ import '../../../core/ui/region_menu.dart';
 @visibleForTesting
 int debugNetworkMapChromeBuildCount = 0;
 
+/// 경로 입력 칸 한 줄의 높이. 시각 박스(40dp)는 이 줄 안에서 가운데에 그려지고,
+/// 버튼·입력 영역은 줄 높이만큼 눌려 최소 터치 영역(48dp)을 채운다.
+const _draftRowHeight = EasySubwayTouchTarget.iconOnly;
+
 class NetworkMapChrome extends StatelessWidget {
   const NetworkMapChrome({
     required this.topBar,
@@ -395,11 +399,8 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
 
   static const _leadingWidth = EasySubwayTouchTarget.general;
 
-  /// 입력 칸 한 줄의 높이. 시각 박스(40dp)는 이 줄 안에서 가운데에 그려지고,
-  /// 버튼·입력 영역은 줄 높이만큼 눌려 최소 터치 영역(48dp)을 채운다.
-  static const _rowHeight = EasySubwayTouchTarget.iconOnly;
   static const _chromeVerticalInset =
-      (easySubwayTopBarContentHeight - _rowHeight) / 2;
+      (easySubwayTopBarContentHeight - _draftRowHeight) / 2;
 
   final RouteDraft draft;
   final bool showWaypointRow;
@@ -508,7 +509,7 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            height: _rowHeight,
+            height: _draftRowHeight,
             child: Align(
               alignment: Alignment.centerRight,
               child: _draftLockedRegionLabel(regionLabel),
@@ -527,13 +528,13 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
   }) {
     return SizedBox(
       width: _leadingWidth,
-      height: _rowHeight,
+      height: _draftRowHeight,
       child: IconButton(
         key: key,
         tooltip: tooltip,
         onPressed: onPressed,
         style: IconButton.styleFrom(
-          minimumSize: const Size(_leadingWidth, _rowHeight),
+          minimumSize: const Size(_leadingWidth, _draftRowHeight),
           tapTargetSize: MaterialTapTargetSize.shrinkWrap,
           padding: EdgeInsets.zero,
         ),
@@ -609,8 +610,6 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
   lineBadgeBuilder;
   final VoidCallback? onPick;
   final bool showClearWhenEmpty;
-
-  static const _hitHeight = EasySubwayTouchTarget.iconOnly;
 
   String get _roleLabel => slot.displayLabel;
   String get _valuePlaceholder => '${slot.displayLabel} 입력';
@@ -704,7 +703,7 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
             label: filled ? filledSemanticsCore : _valuePlaceholder,
             child: ExcludeSemantics(
               child: SizedBox(
-                height: _hitHeight,
+                height: _draftRowHeight,
                 child: Center(child: valueRow),
               ),
             ),
@@ -719,7 +718,7 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
                 behavior: HitTestBehavior.opaque,
                 onTap: onPick,
                 child: SizedBox(
-                  height: _hitHeight,
+                  height: _draftRowHeight,
                   child: Center(child: valueRow),
                 ),
               ),
@@ -729,7 +728,7 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
     // 시각 박스(40dp)는 배경만 그리고, 그 위 행의 입력·지우기 영역이 줄 높이
     // (48dp)만큼 눌려 최소 터치 영역을 채운다.
     final rowContainer = SizedBox(
-      height: _hitHeight,
+      height: _draftRowHeight,
       child: Stack(
         alignment: Alignment.center,
         children: [
@@ -793,8 +792,8 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
                         ),
                       ),
                       constraints: const BoxConstraints(
-                        minWidth: _hitHeight,
-                        minHeight: _hitHeight,
+                        minWidth: _draftRowHeight,
+                        minHeight: _draftRowHeight,
                       ),
                       padding: const EdgeInsets.only(right: 4),
                     ),

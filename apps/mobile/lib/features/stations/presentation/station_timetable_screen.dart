@@ -1168,10 +1168,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     );
   }
 
-  /// 방면 칩과 종착역 선택이 각자 48dp 터치 영역을 가지므로, 시각 간격은 위아래
-  /// 여백을 줄여 이전 높이에 가깝게 유지한다.
-  static const _directionHeaderVerticalPadding = 4.0;
-
+  /// 방면 칩과 종착역 선택은 서로 겹치지 않는 48dp 터치 영역을 각자 가져 두 줄이 96dp이다.
+  /// 이전 시각 높이(72dp)에는 들어가지 않으므로 위아래 여백은 두지 않고 그 높이를 그대로
+  /// 쓴다. 터치 영역이 칩·글자 시각 크기보다 커서 둘 사이 시각 간격도 넓어진다.
   Widget _buildDirectionHeader({
     required List<StationTimetableDirection> directions,
   }) {
@@ -1182,10 +1181,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       final origIndex = _timetable?.directions.indexOf(direction) ?? 0;
       return Container(
         color: EasySubwayAccessibleColors.surfaceSubtle,
-        padding: const EdgeInsets.symmetric(
-          vertical: _directionHeaderVerticalPadding,
-          horizontal: 16,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: 16),
         child: Column(
           children: [
             _buildDirectionTitleChip(direction, origIndex >= 0 ? origIndex : 0),
@@ -1207,10 +1203,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
           children: [
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: _directionHeaderVerticalPadding,
-                  horizontal: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
                     _buildDirectionTitleChip(left, 0),
@@ -1226,10 +1219,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             ),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: _directionHeaderVerticalPadding,
-                  horizontal: 8,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Column(
                   children: [
                     _buildDirectionTitleChip(right, 1),
