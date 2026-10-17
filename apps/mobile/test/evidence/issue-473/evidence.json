@@ -4,10 +4,10 @@
   "capturedAt": "2026-10-18",
   "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 2배로 캡처, Pretendard 번들 폰트와 Material 아이콘 폰트 로드. 핀 안쪽 라벨은 테스트 환경에서 글자 대신 네모로 보일 수 있으며 레이아웃 확인용이다.",
   "assertions": [
-    "수정 전 lib에서 network_map_overlay_inset_test.dart의 핀 겹침 단언 4개와 팬 메뉴 겹침 단언 1개, 모두 5개가 실패한다. 예: 경유 핀 Rect.fromLTRB(112.9, 78.0, 190.9, 140.0)이 상단바·알림 바 아래 끝(228.0)보다 위에 있다",
-    "수정 후 같은 테스트가 모두 통과한다. 핀 위 끝이 오버레이 아래 끝 이상이다",
-    "수정 후 글자 1.5배에서도 핀이 오버레이에 가려지지 않는다",
-    "오버레이에 가려지지 않은 핀은 알림 바가 나타나고 사라져도 움직이지 않는다(카메라 초기화 없음)"
+    "수정 전 lib에서 network_map_overlay_inset_test.dart의 '핀을 지정하면 오버레이 아래로 내려온다'·팬 메뉴 단언이 실패한다. 예: 경유 핀 Rect.fromLTRB(112.9, 78.0, 190.9, 140.0)의 위 끝 78.0이 상단바·알림 바 아래 끝 228.0보다 위에 있다",
+    "수정 후 같은 테스트가 통과한다. 핀 위 끝이 오버레이 아래 끝 이상이다(글자 1.0배·1.5배)",
+    "자동 패닝은 사용자가 방금 지정한 핀과 열린 팬 메뉴에만 한다. 오버레이가 커질 때는 마지막 지정 뒤 사용자가 지도를 움직이지 않았을 때만 마지막 지정 핀을 따라 내려오고, 줄어들 때와 사용자가 움직인 뒤에는 카메라가 그대로다",
+    "제스처 중에는 패닝하지 않는다(변이 `||`→`&&`로 테스트가 실패한다). reveal이 옮긴 카메라를 이어지는 드래그가 되돌리지 않는다(제스처 clamp 여유 변이로 테스트가 실패한다)"
   ],
   "files": [
     {
@@ -31,6 +31,6 @@
       "sha256": "97faf856b6ace47a3a60f34ecc4a4c070eea488ec545a21fa9fc45829e2601d1"
     }
   ],
-  "captureMethod": "network_map_overlay_inset_test.dart의 홈 chrome 구성(실제 NetworkMapTopBar 3줄 + 실제 NewNotificationBar + NetworkMapCanvas)을 쓰는 임시 테스트(커밋 안 함)가 RepaintBoundary.toImage로 PNG를 저장했다. 수정 전 화면은 같은 테스트를 lib 수정 전 상태로 실행했다.",
+  "captureMethod": "network_map_overlay_inset_test.dart의 홈 chrome 구성(실제 NetworkMapTopBar 3줄 + 실제 NewNotificationBar + NetworkMapCanvas)을 쓰는 임시 테스트(커밋 안 함)가 RepaintBoundary.toImage로 PNG를 저장했다. 수정 후 화면은 핀이 없는 화면에서 경유 핀을 지정한 흐름이고, 수정 전 화면은 같은 구성을 lib 수정 전 상태로 실행했다.",
   "notes": "골든 파일은 갱신하지 않았다. NetworkMapChrome 전체를 그리는 골든이 없고 팬 메뉴 골든(station_fan_menu_golden_test)은 메뉴 위젯만 그려 이 변경의 영향을 받지 않는다. 실기기·TalkBack 낭독은 하지 않았다."
 }

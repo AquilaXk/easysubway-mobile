@@ -69,14 +69,21 @@ RouteDraft _threeRowDraft(String? waypointStationId) => RouteDraft(
   lastModifiedAt: null,
 );
 
-/// 지도 위에 [NetworkMapTopBar](경유 포함 3줄)와 실제 알림 바를 올린 홈 chrome.
+/// 지도 위에 [NetworkMapTopBar]와 알림 바를 올린 홈 chrome.
+///
+/// [threeRows]가 거짓이면 상단바는 검색 1줄이다. [noticeBarHeight]를 주면 실제 알림
+/// 바 대신 그 높이의 막대를 쓴다(큰 글자에서 알림 바가 커지는 경우를 흉내 낸다).
 Widget _home({
-  required String? waypointStationId,
-  required bool noticeBar,
+  String? waypointStationId,
+  bool noticeBar = true,
+  bool threeRows = true,
   String? selectedStationId,
   double textScale = 1.0,
+  double? noticeBarHeight,
 }) {
   return MaterialApp(
+    debugShowCheckedModeBanner: false,
+    theme: ThemeData(fontFamily: 'Pretendard'),
     home: MediaQuery(
       data: MediaQueryData(
         size: _screen,
@@ -93,8 +100,10 @@ Widget _home({
             onSearchTap: () {},
             onRegionSelected: (_) {},
             routeDraftListenable: ValueNotifier(0),
-            routeDraft: () => _threeRowDraft(waypointStationId),
-            isWaypointRowVisible: () => true,
+            routeDraft: () => threeRows
+                ? _threeRowDraft(waypointStationId)
+                : const RouteDraft.empty(),
+            isWaypointRowVisible: () => threeRows,
             onClearDraft: () {},
             onOpenWaypointSlot: () {},
             onClearOrigin: () {},
@@ -104,14 +113,19 @@ Widget _home({
             roleColorForSlot: (_) => Colors.black,
             lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
           ),
-          disruptionBanner: noticeBar
-              ? NewNotificationBar(
+          disruptionBanner: !noticeBar
+              ? null
+              : noticeBarHeight != null
+              ? SizedBox(
+                  key: const Key('newNotificationBar'),
+                  height: noticeBarHeight,
+                )
+              : NewNotificationBar(
                   disruptionChanges: null,
                   hasDisruption: null,
                   hasNotificationItems: true,
                   onOpenInbox: () {},
-                )
-              : null,
+                ),
           searchMode: false,
           searchBody: null,
           nearbyPanelVisible: false,
@@ -143,6 +157,16 @@ Widget _home({
   );
 }
 
+const _waypointPin = Key('networkMapDraftPin-waypoint');
+
+/// [home]을 그리고 모든 프레임이 끝날 때까지 기다린다.
+Future<void> _show(WidgetTester tester, Widget home) async {
+  await tester.pumpWidget(home);
+  await tester.pumpAndSettle();
+}
+
+Rect _pinRect(WidgetTester tester) => tester.getRect(find.byKey(_waypointPin));
+
 /// 상단바와 알림 바가 지도 위를 덮는 영역의 아래 끝(화면 좌표).
 double _overlayBottom(WidgetTester tester) {
   final topBar = tester.getRect(find.byKey(const Key('networkMapTopBar')));
@@ -150,6 +174,24 @@ double _overlayBottom(WidgetTester tester) {
   return noticeBar.evaluate().isEmpty
       ? topBar.bottom
       : tester.getRect(noticeBar).bottom;
+}
+
+void _expectPinBelowOverlay(WidgetTester tester) {
+  final pin = _pinRect(tester);
+  expect(
+    pin.top,
+    greaterThanOrEqualTo(_overlayBottom(tester)),
+    reason: '경유 핀 $pin이 상단바·알림 바 밑에 가려집니다.',
+  );
+}
+
+/// 지도 위쪽(핀이 없는 빈 곳)에서 손가락을 대고 [by]만큼 끌어 제스처를 시작한다.
+/// 반환된 제스처를 놓기 전까지 지도는 제스처 중이다.
+Future<TestGesture> _startMapDrag(WidgetTester tester, Offset by) async {
+  final gesture = await tester.startGesture(const Offset(300, 400));
+  await gesture.moveBy(by);
+  await tester.pump();
+  return gesture;
 }
 
 void main() {
@@ -163,109 +205,234 @@ void main() {
     resetNetworkMapOwnerNodesCacheForTest();
   });
 
-  for (final textScale in [1.0, 1.5]) {
-    testWidgets('3줄 상단바 + 알림 바 아래에서 경유 핀이 오버레이에 가려지지 않는다(글자 $textScale배)', (
-      tester,
-    ) async {
+  group('지정한 대상은 오버레이 아래에 놓인다', () {
+    for (final textScale in [1.0, 1.5]) {
+      testWidgets('경유 핀을 지정하면 3줄 상단바 + 알림 바 아래로 내려온다(글자 $textScale배)', (
+        tester,
+      ) async {
+        await _show(tester, _home(textScale: textScale));
+        expect(find.byKey(_waypointPin), findsNothing);
+
+        await _show(
+          tester,
+          _home(waypointStationId: _topStation.id, textScale: textScale),
+        );
+
+        _expectPinBelowOverlay(tester);
+      });
+    }
+
+    testWidgets('팬 메뉴를 열면 3줄 상단바 + 알림 바 아래로 내려온다', (tester) async {
+      await _show(tester, _home(selectedStationId: _topStation.id));
+
+      final menu = tester.getRect(
+        find.byKey(const Key('networkMapStationSheet')),
+      );
+      expect(menu.top, greaterThanOrEqualTo(_overlayBottom(tester)));
+    });
+
+    testWidgets('가려지지 않는 핀은 지정해도 카메라가 움직이지 않는다', (tester) async {
+      await _show(tester, _home());
+      await _show(tester, _home(waypointStationId: _bottomStation.id));
+      final pin = _pinRect(tester);
+
+      await _show(tester, _home(waypointStationId: _bottomStation.id));
+
+      expect(_pinRect(tester), pin);
+      _expectPinBelowOverlay(tester);
+    });
+  });
+
+  group('오버레이가 커지면 마지막 지정 핀을 따라 내려온다', () {
+    /// 1줄 상단바(알림 바 없음)에서 경유 핀을 지정한 상태.
+    Future<void> designateUnderOneRowBar(WidgetTester tester) async {
+      await _show(tester, _home(threeRows: false, noticeBar: false));
+      await _show(
+        tester,
+        _home(
+          waypointStationId: _topStation.id,
+          threeRows: false,
+          noticeBar: false,
+        ),
+      );
+    }
+
+    testWidgets('알림 바가 나타나면 사용자가 지도를 움직이지 않은 핀이 내려온다', (tester) async {
+      await designateUnderOneRowBar(tester);
+      final before = _pinRect(tester);
+
+      await _show(
+        tester,
+        _home(
+          waypointStationId: _topStation.id,
+          threeRows: false,
+          noticeBar: true,
+        ),
+      );
+
+      expect(_pinRect(tester).top, greaterThan(before.top));
+      _expectPinBelowOverlay(tester);
+    });
+
+    testWidgets('상단바가 1줄에서 3줄로 늘어도 같은 규칙으로 내려온다', (tester) async {
+      await designateUnderOneRowBar(tester);
+      final before = _pinRect(tester);
+
+      await _show(
+        tester,
+        _home(waypointStationId: _topStation.id, noticeBar: false),
+      );
+
+      expect(_pinRect(tester).top, greaterThan(before.top));
+      _expectPinBelowOverlay(tester);
+    });
+
+    testWidgets('사용자가 지도를 움직인 뒤에는 오버레이가 커져도 그 위치를 존중한다', (tester) async {
+      await designateUnderOneRowBar(tester);
+      final gesture = await _startMapDrag(tester, const Offset(0, 40));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      final moved = _pinRect(tester);
+
+      await _show(tester, _home(waypointStationId: _topStation.id));
+
+      expect(_pinRect(tester), moved);
+      expect(
+        moved.top,
+        lessThan(_overlayBottom(tester)),
+        reason: '움직인 핀은 가려진 채 둔다',
+      );
+    });
+
+    testWidgets('알림 바가 깜빡여도 카메라가 한쪽으로 쌓이지 않는다', (tester) async {
+      await designateUnderOneRowBar(tester);
+      await _show(tester, _home(waypointStationId: _topStation.id));
+      final settled = _pinRect(tester);
+
+      for (var i = 0; i < 2; i++) {
+        await _show(
+          tester,
+          _home(waypointStationId: _topStation.id, noticeBar: false),
+        );
+        await _show(tester, _home(waypointStationId: _topStation.id));
+      }
+
+      expect(_pinRect(tester).top, closeTo(settled.top, 0.01));
+    });
+  });
+
+  group('오버레이가 줄어들거나 처음 측정될 때는 움직이지 않는다', () {
+    testWidgets('알림 바가 사라져도 카메라가 그대로다', (tester) async {
+      await _show(tester, _home());
+      await _show(tester, _home(waypointStationId: _topStation.id));
+      final pin = _pinRect(tester);
+
+      await _show(
+        tester,
+        _home(waypointStationId: _topStation.id, noticeBar: false),
+      );
+
+      expect(_pinRect(tester), pin);
+    });
+
+    testWidgets('상단바가 3줄에서 1줄로 줄어도 카메라가 그대로다', (tester) async {
+      await _show(tester, _home());
+      await _show(tester, _home(waypointStationId: _topStation.id));
+      final pin = _pinRect(tester);
+
+      await _show(
+        tester,
+        _home(
+          waypointStationId: _topStation.id,
+          threeRows: false,
+          noticeBar: false,
+        ),
+      );
+
+      expect(_pinRect(tester), pin);
+    });
+
+    testWidgets('핀이 있는 채 처음 열릴 때(저장 위치 복원)는 첫 측정으로 움직이지 않는다', (tester) async {
+      await tester.pumpWidget(_home(waypointStationId: _topStation.id));
+      final firstFrame = _pinRect(tester);
+      await tester.pumpAndSettle();
+
+      expect(_pinRect(tester), firstFrame);
+    });
+  });
+
+  group('제스처와 클램프', () {
+    testWidgets('제스처 중에 핀을 지정해도 카메라를 움직이지 않는다', (tester) async {
+      await _show(tester, _home());
+      final gesture = await _startMapDrag(tester, const Offset(0, 40));
+
+      await tester.pumpWidget(_home(waypointStationId: _topStation.id));
+      await tester.pumpAndSettle();
+
+      expect(
+        _pinRect(tester).top,
+        lessThan(_overlayBottom(tester)),
+        reason: '제스처 중에는 사용자가 조작한 위치를 우선한다',
+      );
+      await gesture.up();
+      await tester.pumpAndSettle();
+      expect(
+        _pinRect(tester).top,
+        lessThan(_overlayBottom(tester)),
+        reason: '제스처가 끝나도 다시 시도하지 않는다',
+      );
+    });
+
+    testWidgets('제스처 중에 지정한 핀은 제스처가 끝난 뒤 오버레이가 커져도 움직이지 않는다', (tester) async {
+      await _show(tester, _home(threeRows: false, noticeBar: false));
+      final gesture = await _startMapDrag(tester, const Offset(0, 40));
       await tester.pumpWidget(
         _home(
           waypointStationId: _topStation.id,
-          noticeBar: true,
-          textScale: textScale,
+          threeRows: false,
+          noticeBar: false,
         ),
       );
+      await gesture.up();
       await tester.pumpAndSettle();
 
-      final pin = tester.getRect(
-        find.byKey(const Key('networkMapDraftPin-waypoint')),
-      );
-      expect(
-        pin.top,
-        greaterThanOrEqualTo(_overlayBottom(tester)),
-        reason: '경유 핀 $pin이 상단바·알림 바 밑에 가려집니다.',
-      );
+      await _show(tester, _home(waypointStationId: _topStation.id));
+
+      expect(_pinRect(tester).top, lessThan(_overlayBottom(tester)));
     });
-  }
 
-  testWidgets('경유 핀이 나중에 놓여도 이미 측정된 오버레이 아래에 놓인다', (tester) async {
-    await tester.pumpWidget(_home(waypointStationId: null, noticeBar: true));
-    await tester.pumpAndSettle();
-    expect(find.byKey(const Key('networkMapDraftPin-waypoint')), findsNothing);
+    testWidgets('reveal이 옮긴 카메라를 이어지는 드래그가 되돌려 핀을 다시 가리지 않는다', (tester) async {
+      // 큰 글자에서 알림 바가 커진 상황. 핀을 내리는 거리가 기본 여유(220dp)를 넘는다.
+      const tallNoticeBar = 300.0;
+      await _show(tester, _home(noticeBarHeight: tallNoticeBar));
+      await _show(
+        tester,
+        _home(
+          waypointStationId: _topStation.id,
+          noticeBarHeight: tallNoticeBar,
+        ),
+      );
+      _expectPinBelowOverlay(tester);
 
-    await tester.pumpWidget(
-      _home(waypointStationId: _topStation.id, noticeBar: true),
-    );
-    await tester.pumpAndSettle();
-
-    final pin = tester.getRect(
-      find.byKey(const Key('networkMapDraftPin-waypoint')),
-    );
-    expect(pin.top, greaterThanOrEqualTo(_overlayBottom(tester)));
+      final gesture = await _startMapDrag(tester, const Offset(0, 60));
+      await gesture.up();
+      await tester.pumpAndSettle();
+      _expectPinBelowOverlay(tester);
+    });
   });
 
-  testWidgets('알림 바가 나중에 나타나면 핀이 늘어난 오버레이 아래로 다시 내려온다', (tester) async {
-    await tester.pumpWidget(
-      _home(waypointStationId: _topStation.id, noticeBar: false),
-    );
-    await tester.pumpAndSettle();
-    final withoutNotice = _overlayBottom(tester);
-    final pinWithoutNotice = tester.getRect(
-      find.byKey(const Key('networkMapDraftPin-waypoint')),
-    );
-    expect(pinWithoutNotice.top, greaterThanOrEqualTo(withoutNotice));
+  testWidgets('측정이 한 프레임 늦어도 몇 프레임 안에 핀이 오버레이 아래로 내려온다', (tester) async {
+    await _show(tester, _home());
 
-    await tester.pumpWidget(
-      _home(waypointStationId: _topStation.id, noticeBar: true),
-    );
-    await tester.pumpAndSettle();
+    await tester.pumpWidget(_home(waypointStationId: _topStation.id));
+    var framesUntilVisible = 0;
+    while (_pinRect(tester).top < _overlayBottom(tester)) {
+      await tester.pump();
+      framesUntilVisible++;
+      expect(framesUntilVisible, lessThan(4), reason: '핀이 계속 가려져 있습니다');
+    }
 
-    final withNotice = _overlayBottom(tester);
-    expect(withNotice, greaterThan(withoutNotice));
-    final pin = tester.getRect(
-      find.byKey(const Key('networkMapDraftPin-waypoint')),
-    );
-    expect(pin.top, greaterThanOrEqualTo(withNotice));
-  });
-
-  testWidgets('오버레이에 가려지지 않은 핀은 알림 바가 오가도 움직이지 않는다', (tester) async {
-    await tester.pumpWidget(
-      _home(waypointStationId: _bottomStation.id, noticeBar: false),
-    );
-    await tester.pumpAndSettle();
-    final pinBefore = tester.getRect(
-      find.byKey(const Key('networkMapDraftPin-waypoint')),
-    );
-
-    await tester.pumpWidget(
-      _home(waypointStationId: _bottomStation.id, noticeBar: true),
-    );
-    await tester.pumpAndSettle();
-
-    final pinAfter = tester.getRect(
-      find.byKey(const Key('networkMapDraftPin-waypoint')),
-    );
-    expect(pinAfter, pinBefore);
-    expect(pinAfter.top, greaterThanOrEqualTo(_overlayBottom(tester)));
-  });
-
-  testWidgets('3줄 상단바 + 알림 바 아래에서 팬 메뉴가 오버레이에 가려지지 않는다', (tester) async {
-    await tester.pumpWidget(
-      _home(
-        waypointStationId: null,
-        noticeBar: true,
-        selectedStationId: _topStation.id,
-      ),
-    );
-    await tester.pumpAndSettle();
-
-    final menu = tester.getRect(
-      find.byKey(const Key('networkMapStationSheet')),
-    );
-    expect(
-      menu.top,
-      greaterThanOrEqualTo(_overlayBottom(tester)),
-      reason: '팬 메뉴 $menu가 상단바·알림 바 밑에 가려집니다.',
-    );
+    expect(framesUntilVisible, greaterThan(0), reason: '지정한 프레임에는 아직 가려져 있다');
   });
 
   group('networkMapRevealOffsetBelowObscuredTop', () {
