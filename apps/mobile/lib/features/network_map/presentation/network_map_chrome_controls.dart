@@ -147,7 +147,6 @@ class NetworkMapTopBar extends StatelessWidget {
   const NetworkMapTopBar({
     required this.regions,
     required this.selectedRegion,
-    this.notificationAction,
     required this.onMenuTap,
     required this.onSearchTap,
     this.searchMode = false,
@@ -176,7 +175,6 @@ class NetworkMapTopBar extends StatelessWidget {
 
   final List<NetworkMapRegion> regions;
   final String selectedRegion;
-  final Widget? notificationAction;
   final VoidCallback onMenuTap;
   final VoidCallback onSearchTap;
   final bool searchMode;
