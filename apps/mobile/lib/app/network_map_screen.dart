@@ -1674,9 +1674,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             ? null
             : _pickWaypointStation,
         roleColorForSlot: (slot) => switch (slot) {
-          RouteDraftSlot.origin => EasySubwayFanMenuColors.departure,
-          RouteDraftSlot.waypoint => EasySubwayFanMenuColors.waypoint,
-          RouteDraftSlot.destination => EasySubwayFanMenuColors.arrival,
+          RouteDraftSlot.origin => EasySubwayFanMenuColors.departureRole.ink,
+          RouteDraftSlot.waypoint => EasySubwayFanMenuColors.waypointRole.ink,
+          RouteDraftSlot.destination => EasySubwayFanMenuColors.arrivalRole.ink,
         },
         lineBadgeBuilder: (station, size) => StationLineBadge(
           line: StationSearchLine(

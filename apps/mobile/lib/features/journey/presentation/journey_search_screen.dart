@@ -1963,7 +1963,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             children: [
               const _RouteRoleBadge(
                 label: '출발',
-                color: EasySubwayFanMenuColors.departure,
+                role: EasySubwayFanMenuColors.departureRole,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -1988,7 +1988,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               children: [
                 const _RouteRoleBadge(
                   label: '경유',
-                  color: EasySubwayFanMenuColors.waypoint,
+                  role: EasySubwayFanMenuColors.waypointRole,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -2013,7 +2013,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             children: [
               const _RouteRoleBadge(
                 label: '도착',
-                color: EasySubwayFanMenuColors.arrival,
+                role: EasySubwayFanMenuColors.arrivalRole,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -2262,17 +2262,17 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 /// 출발·도착은 지도 팬 메뉴·핀과 같은 역할색 토큰 위에 흰 글자를 쓴다(대비는
 /// `design_tokens_test`가 고정). 밝은 경유 엠버는 색을 유지한 채 어두운 글자를 쓴다.
 class _RouteRoleBadge extends StatelessWidget {
-  const _RouteRoleBadge({required this.label, required this.color});
+  const _RouteRoleBadge({required this.label, required this.role});
 
   final String label;
-  final Color color;
+  final EasySubwayRoleColor role;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color,
+        color: role.face,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -2280,7 +2280,7 @@ class _RouteRoleBadge extends StatelessWidget {
         style: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w700,
-          color: EasySubwayColorPrimitives.neutralWhite,
+          color: role.onFace,
         ),
       ),
     );
