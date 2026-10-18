@@ -1,3 +1,4 @@
+import '../../../core/format/date_time_labels.dart';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -86,7 +87,7 @@ class ServiceNoticeListScreen extends StatelessWidget {
                       color: EasySubwayAccessibleColors.line,
                     ),
                     itemBuilder: (context, index) =>
-                        _NoticeItem(notice: notices[index]),
+                        _NoticeItem(notice: notices[index], now: now),
                   ),
                 ),
               ],
@@ -159,9 +160,10 @@ class _StaleBar extends StatelessWidget {
 }
 
 class _NoticeItem extends StatelessWidget {
-  const _NoticeItem({required this.notice});
+  const _NoticeItem({required this.notice, required this.now});
 
   final ServiceNotice notice;
+  final DateTime Function() now;
 
   @override
   Widget build(BuildContext context) {
@@ -197,7 +199,11 @@ class _NoticeItem extends StatelessWidget {
               // 큰 글자에서 발행일이 줄바꿈되도록 남는 폭을 차지한다.
               Expanded(
                 child: Text(
-                  _formatPublishedAt(notice.publishedAt),
+                  formatListDateTime(
+                    notice.publishedAt,
+                    now: now(),
+                    alwaysShowTime: true,
+                  ),
                   textAlign: TextAlign.end,
                   style: const TextStyle(
                     color: EasySubwayAccessibleColors.brandSignature,
@@ -283,13 +289,4 @@ class _EmptyNotices extends StatelessWidget {
       ],
     );
   }
-}
-
-String _formatPublishedAt(DateTime publishedAt) {
-  final local = publishedAt.toLocal();
-  final month = local.month;
-  final day = local.day;
-  final hour = local.hour.toString().padLeft(2, '0');
-  final minute = local.minute.toString().padLeft(2, '0');
-  return '$month월 $day일 $hour:$minute';
 }

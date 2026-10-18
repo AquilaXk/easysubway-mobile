@@ -7,6 +7,7 @@ import '../../../app/app_components.dart';
 import '../../stations/domain/facility_status.dart';
 import '../../favorites/favorite_facility.dart';
 import '../../../mobile_error_reporter.dart';
+import '../../../core/format/date_time_labels.dart';
 import '../notification_settings.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_result.dart';
@@ -20,6 +21,7 @@ class NotificationInboxScreen extends StatefulWidget {
     required this.notificationRepository,
     required this.notificationPermissionProvider,
     required this.onOpenReport,
+    this.now = DateTime.now,
     super.key,
   });
 
@@ -28,6 +30,7 @@ class NotificationInboxScreen extends StatefulWidget {
   final NotificationSettingsRepository? notificationRepository;
   final NotificationPermissionProvider? notificationPermissionProvider;
   final OpenFacilityReport onOpenReport;
+  final DateTime Function() now;
 
   @override
   State<NotificationInboxScreen> createState() =>
@@ -182,7 +185,7 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
       errorContext: '알림함 제보 상태를 불러오는 중 예외가 발생했습니다.',
       fetch: () async => [
         for (final report in await widget.reportRepository.listMyReports())
-          _NotificationInboxItem.report(report),
+          _NotificationInboxItem.report(report, now: widget.now()),
       ],
     );
   }
@@ -340,7 +343,10 @@ class _NotificationInboxItem {
     );
   }
 
-  factory _NotificationInboxItem.report(FacilityReportResult report) {
+  factory _NotificationInboxItem.report(
+    FacilityReportResult report, {
+    required DateTime now,
+  }) {
     final statusLabel = _reportStatusLabel(report.status);
     final receiptCode = _reportReceiptCode(report.publicReceiptCode);
     return _NotificationInboxItem(
@@ -351,7 +357,7 @@ class _NotificationInboxItem {
       semanticLabel: [
         '제보 $statusLabel',
         '제보 번호 $receiptCode',
-        ?_reportReceivedLabel(report.createdAt),
+        ?_reportReceivedLabel(report.createdAt, now),
       ].join(', '),
       kind: '제보',
       report: report,
@@ -514,14 +520,9 @@ String _reportStatusLabel(String status) {
 }
 
 /// 접수 시각을 "10월 1일 09:00 접수"로 읽는다. 시각을 해석할 수 없으면 생략한다.
-String? _reportReceivedLabel(String createdAt) {
-  final parsed = DateTime.tryParse(createdAt);
-  if (parsed == null) {
-    return null;
-  }
-  final hour = parsed.hour.toString().padLeft(2, '0');
-  final minute = parsed.minute.toString().padLeft(2, '0');
-  return '${parsed.month}월 ${parsed.day}일 $hour:$minute 접수';
+String? _reportReceivedLabel(String createdAt, DateTime now) {
+  final label = tryFormatServerDateTime(createdAt, now: now);
+  return label == null ? null : '$label 접수';
 }
 
 String _reportReceiptCode(String? publicReceiptCode) {

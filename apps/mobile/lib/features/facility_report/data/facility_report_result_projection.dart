@@ -1,3 +1,5 @@
+import '../../../core/format/date_time_labels.dart';
+import '../../../mobile_error_reporter.dart';
 import '../domain/facility_report_exception.dart';
 import '../domain/facility_report_receipt.dart';
 import '../domain/facility_report_result.dart';
@@ -15,7 +17,16 @@ FacilityReportResult facilityReportResultFromJsonEnvelope(
     throw FacilityReportException(errorMessage);
   }
 
-  return FacilityReportResult.fromJson(data);
+  final result = FacilityReportResult.fromJson(data);
+  if (parseServerDateTime(result.createdAt) == null) {
+    // 화면은 접수 시각만 생략한다. 서버 형식이 바뀌면 모니터링에서 보이게 한다.
+    reportMobileError(
+      const FormatException('Unparseable report field: createdAt'),
+      StackTrace.current,
+      context: '시설 제보 접수 시각을 해석하지 못했습니다.',
+    );
+  }
+  return result;
 }
 
 FacilityReportResult facilityReportResultFromReceipt(
@@ -28,7 +39,7 @@ FacilityReportResult facilityReportResultFromReceipt(
     reportType: '',
     description: '',
     status: receipt.status,
-    createdAt: receipt.createdAt.toIso8601String(),
+    createdAt: receipt.createdAt.toUtc().toIso8601String(),
     receiptToken: receipt.receiptToken,
     publicReceiptCode: receipt.publicReceiptCode,
   );

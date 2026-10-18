@@ -448,14 +448,14 @@ void main() {
   });
 
   test('시설 신고 결과 접수일 표시 정책을 보존한다', () {
-    const valid = FacilityReportResult(
+    final valid = FacilityReportResult(
       id: 'report-valid-date',
       stationId: 'station-sangnoksu',
       facilityId: 'facility-sangnoksu-elevator-1',
       reportType: 'BROKEN',
       description: '문이 열리지 않습니다.',
       status: 'SUBMITTED',
-      createdAt: '2026-06-13T10:00:00',
+      createdAt: DateTime(2026, 6, 13, 10).toUtc().toIso8601String(),
     );
     const invalid = FacilityReportResult(
       id: 'report-invalid-date',
@@ -467,8 +467,9 @@ void main() {
       createdAt: '__CREATED_AT__',
     );
 
-    expect(valid.createdDateLabel, '2026.06.13');
-    expect(invalid.createdDateLabel, '__CREATED_AT__');
+    final now = DateTime(2026, 10, 18, 14, 30);
+    expect(valid.createdAtLabel(now: now), '6월 13일 10:00');
+    expect(invalid.createdAtLabel(now: now), isNull);
   });
 
   test('시설 신고 application state는 상태와 결과 참조를 보존한다', () {

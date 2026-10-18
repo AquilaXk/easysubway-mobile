@@ -12,6 +12,7 @@ ServiceNotice _notice(
   String id, {
   NoticeSeverity severity = NoticeSeverity.disruption,
   String? title,
+  DateTime? publishedAt,
 }) {
   return ServiceNotice(
     id: id,
@@ -19,7 +20,7 @@ ServiceNotice _notice(
     title: title ?? '제목 $id',
     body: '본문 $id',
     severity: severity,
-    publishedAt: DateTime(2026, 7, 6, 9, 0, 0),
+    publishedAt: publishedAt ?? DateTime(2026, 7, 6, 9, 0, 0),
   );
 }
 
@@ -63,16 +64,52 @@ Future<NoticeController> _seed(ActiveNoticesResult result) async {
   return controller;
 }
 
-Widget _host(NoticeController controller) {
+Widget _host(NoticeController controller, {DateTime? now}) {
   return MaterialApp(
     home: ServiceNoticeListScreen(
       controller: controller,
-      now: () => DateTime(2026, 7, 6, 12, 0, 0),
+      now: () => now ?? DateTime(2026, 7, 6, 12, 0, 0),
     ),
   );
 }
 
 void main() {
+  testWidgets('발행 시각은 올해와 다른 해 모두 시각을 보여준다', (tester) async {
+    final controller = await _seed(
+      ActiveNoticesResult(
+        notices: [
+          _notice('this-year'),
+          _notice('last-year', publishedAt: DateTime(2025, 7, 6, 9, 5)),
+        ],
+        stale: false,
+      ),
+    );
+
+    await tester.pumpWidget(_host(controller));
+    await tester.pumpAndSettle();
+
+    expect(find.text('7월 6일 09:00'), findsOneWidget);
+    expect(find.text('2025년 7월 6일 09:05'), findsOneWidget);
+  });
+
+  testWidgets('UTC 발행 시각과 UTC 기준 시각은 기기 로컬 해로 비교한다', (tester) async {
+    final controller = await _seed(
+      ActiveNoticesResult(
+        notices: [
+          _notice('boundary', publishedAt: DateTime.utc(2025, 12, 31, 20)),
+        ],
+        stale: false,
+      ),
+    );
+
+    await tester.pumpWidget(
+      _host(controller, now: DateTime.utc(2025, 12, 31, 20, 30)),
+    );
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('년'), findsNothing);
+  });
+
   testWidgets('제목·본문·심각도를 목록으로 노출한다', (tester) async {
     final controller = await _seed(
       ActiveNoticesResult(
