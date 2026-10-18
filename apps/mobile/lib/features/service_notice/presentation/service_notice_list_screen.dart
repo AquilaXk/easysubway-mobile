@@ -200,11 +200,7 @@ class _NoticeItem extends StatelessWidget {
               // 큰 글자에서 발행일이 줄바꿈되도록 남는 폭을 차지한다.
               Expanded(
                 child: Text(
-                  formatListDateTime(
-                    notice.publishedAt,
-                    now: now(),
-                    alwaysShowTime: true,
-                  ),
+                  formatListDateTime(notice.publishedAt, now: now()),
                   textAlign: TextAlign.end,
                   style: const TextStyle(
                     color: EasySubwayAccessibleColors.mutedText,
