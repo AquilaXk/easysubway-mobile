@@ -11,6 +11,11 @@ const nativeTest = readFileSync(
   "utf8",
 );
 
+const a11ySmokeTest = readFileSync(
+  new URL("../../apps/mobile/integration_test/core_screen_a11y_smoke_test.dart", import.meta.url),
+  "utf8",
+);
+
 test("native workflow runs one bounded Android and iOS simulator Journey smoke", () => {
   assert.match(workflow, /^name: Mobile Native Integration$/m);
   assert.match(workflow, /^  pull_request:\n    branches: \[main\]\n    paths:/m);
@@ -41,8 +46,22 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   );
   assert.match(
     workflow,
-    /timeout 12m flutter drive --driver=test_driver\/integration_test\.dart --target=integration_test\/native_test\.dart -d emulator-5554 --no-dds > "\$\{RUNNER_TEMP\}\/mobile-native-android\/flutter-drive\.log" 2>&1/u,
+    /for target in native_test core_screen_a11y_smoke_test; do if ! timeout 12m flutter drive --driver=test_driver\/integration_test\.dart --target=integration_test\/\$\{target\}\.dart -d emulator-5554 --no-dds > "\$\{RUNNER_TEMP\}\/mobile-native-android\/flutter-drive-\$\{target\}\.log" 2>&1; then/u,
   );
+  assert.match(
+    workflow,
+    /dart format --output=none --set-exit-if-changed integration_test\/native_test\.dart integration_test\/core_screen_a11y_smoke_test\.dart\n\s+flutter analyze integration_test\/native_test\.dart integration_test\/core_screen_a11y_smoke_test\.dart/u,
+  );
+  // PASS 영수증은 두 대상이 모두 끝난 뒤에만 쓴다.
+  assert.ok(
+    workflow.indexOf("done\n            printf '%s\\n' '{\"schemaVersion\":1,\"lane\":\"android-native\",\"status\":\"PASS\"}'") > 0,
+  );
+  for (const target of ["native_test", "core_screen_a11y_smoke_test"]) {
+    assert.equal(
+      (workflow.match(new RegExp(`mobile-native-android/flutter-drive-${target}\\.log`, "gu")) ?? []).length,
+      2,
+    );
+  }
   assert.doesNotMatch(
     workflow,
     /\bflutter test\b/u,
@@ -76,6 +95,22 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   assert.equal((workflow.match(/^          if-no-files-found: error$/gmu) ?? []).length, 2);
   assert.equal((workflow.match(/^          retention-days: 5$/gmu) ?? []).length, 2);
   assert.doesNotMatch(workflow, /secrets\.|EASYSUBWAY_API_BASE_URL|release|store/iu);
+});
+
+test("core screen accessibility smoke reuses the sweep screen table and checks only tap targets", () => {
+  assert.equal(
+    (workflow.match(/"apps\/mobile\/integration_test\/core_screen_a11y_smoke_test\.dart"/gu) ?? []).length,
+    2,
+  );
+  assert.equal(
+    (workflow.match(/"apps\/mobile\/test\/support\/core_screen_sweep_\*\.dart"/gu) ?? []).length,
+    2,
+  );
+  assert.match(a11ySmokeTest, /IntegrationTestWidgetsFlutterBinding\.ensureInitialized\(\)/u);
+  assert.match(a11ySmokeTest, /import '\.\.\/test\/support\/core_screen_sweep_screens\.dart'/u);
+  assert.match(a11ySmokeTest, /meetsGuideline\(androidTapTargetGuideline\)/u);
+  assert.match(a11ySmokeTest, /meetsGuideline\(labeledTapTargetGuideline\)/u);
+  assert.doesNotMatch(a11ySmokeTest, /textContrastGuideline/u);
 });
 
 test("native Journey smoke stays server-only and bounded to success, failure, and restart", () => {
