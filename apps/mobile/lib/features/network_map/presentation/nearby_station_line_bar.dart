@@ -96,14 +96,19 @@ class NearbyStationLineBar extends StatelessWidget {
         final capsuleWidth = centerWidth;
         final baseCenterWidth = barWidth * 0.37069;
         final capsuleHeight = baseCenterWidth * 41 / 129;
+        final hitHeight = capsuleHeight < 48.0 ? 48.0 : capsuleHeight;
         final badgeDiameter = (capsuleHeight * 0.62).clamp(24.0, 28.0);
         final stationNameSize = (capsuleHeight * 0.42).clamp(16.0, 20.0);
+        final openDetail = onStationNameTap;
+        final currentLabel = badgeText.isEmpty
+            ? '현재역 $stationName'
+            : '현재역 $badgeText $stationName';
         final bar = Padding(
           padding: const EdgeInsets.only(top: 18),
           child: Center(
             child: SizedBox(
               width: barWidth,
-              height: capsuleHeight,
+              height: hitHeight,
               child: Stack(
                 alignment: Alignment.center,
                 children: [
@@ -117,6 +122,10 @@ class NearbyStationLineBar extends StatelessWidget {
                         Radius.circular(endRadius),
                       ),
                     ),
+                  ),
+                  SizedBox(
+                    width: barWidth,
+                    height: hitHeight,
                     child: Row(
                       children: [
                         Expanded(
@@ -137,46 +146,59 @@ class NearbyStationLineBar extends StatelessWidget {
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: onStationNameTap,
-                    child: Container(
-                      key: const Key('nearbyStationLineBarCapsule'),
-                      constraints: BoxConstraints(
-                        minWidth: capsuleWidth,
-                        maxWidth: barWidth * 0.55,
-                      ),
-                      height: capsuleHeight,
-                      alignment: Alignment.center,
-                      padding: EdgeInsets.symmetric(
-                        horizontal: (capsuleWidth * 0.08).clamp(8.0, 14.0),
-                      ),
-                      decoration: BoxDecoration(
-                        color: EasySubwayAccessibleColors.surfaceDefault,
-                        borderRadius: BorderRadius.circular(24),
-                        border: Border.all(color: lineColor, width: 3),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          if (badgeText.isNotEmpty || badgeBuilder != null) ...[
-                            _LineBadge(
-                              diameter: badgeDiameter,
-                              color: lineColor,
-                              text: badgeText,
-                              badgeBuilder: badgeBuilder,
-                            ),
-                            const SizedBox(width: 7),
-                          ],
-                          Flexible(
-                            child: _StationNameLabel(
-                              stationName: stationName,
-                              fontSize: stationNameSize,
-                              onTap: onStationNameTap,
-                            ),
+                  Semantics(
+                    button: openDetail != null,
+                    label: openDetail == null
+                        ? currentLabel
+                        : '$currentLabel, 상세 보기',
+                    onTap: openDetail,
+                    excludeSemantics: openDetail != null,
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: openDetail,
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(
+                          vertical: (hitHeight - capsuleHeight) / 2,
+                        ),
+                        child: Container(
+                          key: const Key('nearbyStationLineBarCapsule'),
+                          constraints: BoxConstraints(
+                            minWidth: capsuleWidth,
+                            maxWidth: barWidth * 0.55,
                           ),
-                        ],
+                          height: capsuleHeight,
+                          alignment: Alignment.center,
+                          padding: EdgeInsets.symmetric(
+                            horizontal: (capsuleWidth * 0.08).clamp(8.0, 14.0),
+                          ),
+                          decoration: BoxDecoration(
+                            color: EasySubwayAccessibleColors.surfaceDefault,
+                            borderRadius: BorderRadius.circular(24),
+                            border: Border.all(color: lineColor, width: 3),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              if (badgeText.isNotEmpty ||
+                                  badgeBuilder != null) ...[
+                                _LineBadge(
+                                  diameter: badgeDiameter,
+                                  color: lineColor,
+                                  text: badgeText,
+                                  badgeBuilder: badgeBuilder,
+                                ),
+                                const SizedBox(width: 7),
+                              ],
+                              Flexible(
+                                child: _StationNameLabel(
+                                  stationName: stationName,
+                                  fontSize: stationNameSize,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -192,15 +214,10 @@ class NearbyStationLineBar extends StatelessWidget {
 }
 
 class _StationNameLabel extends StatelessWidget {
-  const _StationNameLabel({
-    required this.stationName,
-    required this.fontSize,
-    this.onTap,
-  });
+  const _StationNameLabel({required this.stationName, required this.fontSize});
 
   final String stationName;
   final double fontSize;
-  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -219,18 +236,8 @@ class _StationNameLabel extends StatelessWidget {
         ),
       ),
     );
-    final tap = onTap;
-    if (tap == null) {
-      return KeyedSubtree(
-        key: const Key('nearbyStationLineBarStationName'),
-        child: text,
-      );
-    }
-    // TalkBack 라벨·동작은 상위 NearbyStationLineBar Semantics가 담당한다.
-    return InkWell(
+    return KeyedSubtree(
       key: const Key('nearbyStationLineBarStationName'),
-      onTap: tap,
-      borderRadius: BorderRadius.circular(8),
       child: text,
     );
   }

@@ -10,7 +10,7 @@ import 'facility_report_result_labels.dart';
 import 'facility_report_type_options.dart';
 
 const facilityReportCardRadius = BorderRadius.all(
-  Radius.circular(EasySubwayRadius.sheet),
+  Radius.circular(EasySubwayRadius.control),
 );
 
 const _facilityReportFailureNextAction = '내용을 확인한 뒤 네트워크 상태를 보고 다시 보내 주세요.';

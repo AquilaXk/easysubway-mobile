@@ -161,6 +161,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                   ),
               ],
               const FacilityReportSectionTitle(title: '내용'),
+              const SizedBox(height: 14),
               Padding(
                 padding: _facilityReportContentPadding,
                 child: TextField(
@@ -170,35 +171,89 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                   minLines: 3,
                   maxLines: 5,
                   textInputAction: TextInputAction.newline,
-                  style: const TextStyle(fontSize: 18, height: 1.35),
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: EasySubwayAccessibleColors.text,
+                    height: 1.4,
+                  ),
                   decoration: const InputDecoration(
-                    hintText: '상황을 짧게 적어 주세요',
+                    hintText: '상황을 짧게 적어 주세요 (선택)',
+                    hintStyle: TextStyle(
+                      color: EasySubwayAccessibleColors.mutedText,
+                      fontSize: 16,
+                    ),
+                    filled: true,
+                    fillColor: EasySubwayAccessibleColors.surface,
+                    contentPadding: EdgeInsets.all(14),
                     border: OutlineInputBorder(
                       borderRadius: facilityReportCardRadius,
+                      borderSide: BorderSide(
+                        color: EasySubwayAccessibleColors.line,
+                      ),
+                    ),
+                    enabledBorder: OutlineInputBorder(
+                      borderRadius: facilityReportCardRadius,
+                      borderSide: BorderSide(
+                        color: EasySubwayAccessibleColors.line,
+                      ),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: facilityReportCardRadius,
+                      borderSide: BorderSide(
+                        color: EasySubwayAccessibleColors.primary,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Padding(
                 padding: _facilityReportContentPadding,
-                child: OutlinedButton.icon(
-                  key: const Key('facilityReportAddPhotoButton'),
-                  onPressed:
-                      isLoading ||
-                          hasSubmittedReport ||
-                          _isConfirmingPhotoUse ||
-                          _isPickingPhoto
-                      ? null
-                      : _pickPhoto,
-                  icon: _isPickingPhoto
-                      ? const SizedBox(
-                          width: 22,
-                          height: 22,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        )
-                      : const Icon(Icons.add_a_photo),
-                  label: Text(_photoAttachment == null ? '사진 추가' : '사진 바꾸기'),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: OutlinedButton.icon(
+                    key: const Key('facilityReportAddPhotoButton'),
+                    onPressed:
+                        isLoading ||
+                            hasSubmittedReport ||
+                            _isConfirmingPhotoUse ||
+                            _isPickingPhoto
+                        ? null
+                        : _pickPhoto,
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: EasySubwayAccessibleColors.text,
+                      side: const BorderSide(
+                        color: EasySubwayAccessibleColors.line,
+                      ),
+                      minimumSize: const Size(0, 48),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 12,
+                      ),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: facilityReportCardRadius,
+                      ),
+                    ),
+                    icon: _isPickingPhoto
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          )
+                        : const Icon(
+                            Icons.add_a_photo_outlined,
+                            size: 20,
+                            color: EasySubwayAccessibleColors.secondaryText,
+                          ),
+                    label: Text(
+                      _photoAttachment == null ? '사진 추가' : '사진 바꾸기',
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
                 ),
               ),
               if (_photoMessage.isNotEmpty) ...[
@@ -212,7 +267,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                 ),
               ],
               if (widget.locationLoader != null) ...[
-                const SizedBox(height: 16),
+                const SizedBox(height: 12),
                 Padding(
                   padding: _facilityReportContentPadding,
                   child: _attachedLocation != null
@@ -250,26 +305,54 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                             ),
                           ],
                         )
-                      : OutlinedButton.icon(
-                          key: const Key('facilityReportAttachLocationButton'),
-                          onPressed:
-                              isLoading ||
-                                  hasSubmittedReport ||
-                                  isLocationBusy ||
-                                  _isOpeningLocationSettings
-                              ? null
-                              : _requestCurrentLocation,
-                          icon: _isLoadingLocation
-                              ? const SizedBox(
-                                  width: 22,
-                                  height: 22,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2.5,
+                      : Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            key: const Key(
+                              'facilityReportAttachLocationButton',
+                            ),
+                            onPressed:
+                                isLoading ||
+                                    hasSubmittedReport ||
+                                    isLocationBusy ||
+                                    _isOpeningLocationSettings
+                                ? null
+                                : _requestCurrentLocation,
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: EasySubwayAccessibleColors.text,
+                              side: const BorderSide(
+                                color: EasySubwayAccessibleColors.line,
+                              ),
+                              minimumSize: const Size(0, 48),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 12,
+                              ),
+                              shape: const RoundedRectangleBorder(
+                                borderRadius: facilityReportCardRadius,
+                              ),
+                            ),
+                            icon: _isLoadingLocation
+                                ? const SizedBox(
+                                    width: 20,
+                                    height: 20,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2.5,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.my_location,
+                                    size: 20,
+                                    color: EasySubwayAccessibleColors
+                                        .secondaryText,
                                   ),
-                                )
-                              : const Icon(Icons.my_location),
-                          label: Text(
-                            _isLocationFailure ? '위치 다시 찾기' : '현재 위치 첨부 (선택)',
+                            label: Text(
+                              _isLocationFailure ? '위치 다시 찾기' : '현재 위치 첨부 (선택)',
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 15,
+                              ),
+                            ),
                           ),
                         ),
                 ),
@@ -333,7 +416,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                   ),
                 ),
               ],
-              const SizedBox(height: 16),
+              const SizedBox(height: 24),
               Padding(
                 padding: _facilityReportContentPadding,
                 child: SizedBox(
@@ -346,6 +429,14 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                       minimumSize: const Size.fromHeight(
                         EasySubwayTouchTarget.primary,
                       ),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: facilityReportCardRadius,
+                      ),
+                      textStyle: const TextStyle(
+                        fontFamily: 'Pretendard',
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
+                      ),
                     ),
                     icon: isLoading
                         ? const SizedBox(
@@ -353,7 +444,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                             height: 22,
                             child: CircularProgressIndicator(strokeWidth: 2.5),
                           )
-                        : const Icon(Icons.send),
+                        : const Icon(Icons.send_rounded, size: 20),
                     label: Text(hasSubmittedReport ? '제보 완료' : '보내기'),
                   ),
                 ),
@@ -415,14 +506,23 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            key: const Key('facilityReportUploadConfirmButton'),
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('보내기'),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('취소'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  key: const Key('facilityReportUploadConfirmButton'),
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('보내기'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -445,13 +545,22 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
           ],
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('계속'),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('취소'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  child: const Text('계속'),
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -520,13 +629,22 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
               ],
             ),
             actions: [
-              TextButton(
-                onPressed: () => Navigator.of(context).pop(false),
-                child: const Text('취소'),
-              ),
-              FilledButton(
-                onPressed: () => Navigator.of(context).pop(true),
-                child: const Text('계속'),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.of(context).pop(false),
+                      child: const Text('취소'),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: FilledButton(
+                      onPressed: () => Navigator.of(context).pop(true),
+                      child: const Text('계속'),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),

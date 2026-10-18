@@ -17,6 +17,7 @@ import 'package:easysubway_mobile/features/notifications/presentation/notificati
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_detail_body.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -288,6 +289,8 @@ final sweepScreens = <SweepScreen>[
           )
           .first,
     );
+    await context.tester.ensureVisible(card);
+    await context.tester.pumpAndSettle();
     await context.tester.tap(card);
     await context.tester.pumpAndSettle();
   }, find.byKey(const Key('facilityDetailAppBar'))),
@@ -475,7 +478,18 @@ Future<void> _openStationSearchResults(SweepScreenContext context) async {
 /// 역 상세의 하단 `전체 시간표` 버튼으로 시간표 화면을 연다.
 Future<void> _openStationTimetable(SweepScreenContext context) async {
   await _openStationDetail(context);
-  await context.tester.tap(find.byKey(const Key('stationTimetableButton')));
+  final button = find.byKey(const Key('stationTimetableButton'));
+  await context.tester.scrollUntilVisible(
+    button,
+    250,
+    scrollable: find
+        .descendant(
+          of: find.byKey(const Key('stationDetailSheet')),
+          matching: find.byType(Scrollable),
+        )
+        .first,
+  );
+  await context.tester.tap(button);
   await context.tester.pumpAndSettle();
 }
 
@@ -555,8 +569,18 @@ Future<void> _openStationDetail(SweepScreenContext context) async {
       context: context.navigatorContext,
       repository: SweepRepository(),
       reportRepository: SweepReportRepository(),
+      realtimeRepository: SweepRealtimeRepository(),
+      enableRealtimePolling: false,
       timetableRepository: SweepRepository(),
       stationId: sweepStationId,
+      previousStation: const StationDetailNeighbor(
+        stationId: 'station-gyodae',
+        nameKo: '교대',
+      ),
+      nextStation: const StationDetailNeighbor(
+        stationId: 'station-yeoksam',
+        nameKo: '역삼',
+      ),
     ),
   );
   await context.tester.pumpAndSettle();

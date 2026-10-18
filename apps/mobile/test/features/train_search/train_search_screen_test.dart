@@ -841,16 +841,20 @@ void main() {
     expect(goingValue.style?.fontSize, 16);
     expect(goingValue.style?.fontWeight, FontWeight.w700);
 
-    // 시간표 조회 버튼 높이 54 확인
-    final submitBox = tester.widget<SizedBox>(
+    // 시간표 조회 버튼 최소 높이 54 확인
+    final submitBox = tester.widget<ConstrainedBox>(
       find
           .ancestor(
             of: find.byKey(const Key('trainSearchSubmitButton')),
-            matching: find.byType(SizedBox),
+            matching: find.byType(ConstrainedBox),
           )
           .first,
     );
-    expect(submitBox.height, 54);
+    expect(submitBox.constraints.minHeight, 54);
+    expect(
+      tester.getSize(find.byKey(const Key('trainSearchSubmitButton'))).height,
+      greaterThanOrEqualTo(54),
+    );
   });
 
   testWidgets('열차종류 탭 시 바텀시트가 열리고 열차종을 선택하면 조건에 반영된다', (tester) async {

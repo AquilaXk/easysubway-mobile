@@ -778,6 +778,8 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           attestor: widget.journeyAttestor,
           sessionProvider: widget.journeySessionProvider,
           draft: _routeDraftController.draft,
+          onSwapOriginDestination: _routeDraftController.swapOriginDestination,
+          onClearWaypoint: _routeDraftController.clearWaypoint,
           mobilityType: _routeTabMobilityType ?? initialMobilityType,
           initialWalkingPace: _walkingPace,
           onShellBackToHome: closeRouteTab,

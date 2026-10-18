@@ -19,7 +19,7 @@ abstract final class EasySubwayColorPrimitives {
   static const neutralSubtle = Color(0xFFF0F2F7);
   static const neutralBorder = Color(0xFFE1E4EE);
   static const inkSecondary = Color(0xFF4D536B);
-  static const inkMuted = Color(0xFF697089);
+  static const inkMuted = Color(0xFF5E6478);
   static const statusSuccess = Color(0xFF0A705A);
   static const statusWarning = Color(0xFF9A5600);
   static const statusDanger = Color(0xFFB42318);
@@ -344,7 +344,11 @@ class AccessibleShortcutButton extends StatelessWidget {
         foregroundColor: EasySubwayAccessibleColors.primary,
         minimumSize: const Size.fromHeight(EasySubwayTouchTarget.general),
         side: BorderSide(color: colorScheme.outlineVariant),
-        textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(
+          fontFamily: 'Pretendard',
+          fontSize: 16,
+          fontWeight: FontWeight.w700,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       ),
       icon: IconTheme.merge(data: const IconThemeData(size: 22), child: icon),

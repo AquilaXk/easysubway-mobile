@@ -76,29 +76,35 @@ class _StationExitSectionState extends State<StationExitSection> {
         if (showPreview) ...[
           Stack(
             children: [
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8),
-                // 지도 미리보기를 못 여는 안내 패널은 큰 글자에서 내용만큼 자라도록
-                // 높이를 고정하지 않고 최소 높이만 둔다.
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 180),
-                  child: Builder(
-                    builder: (context) {
-                      void openSelected() => _openSelectedExit(context);
-                      return previewBuilder != null
-                          ? previewBuilder(
-                              station: widget.station,
-                              exits: widget.exits,
-                              selectedExitId: selectedExit.id,
-                              onOpenSelected: openSelected,
-                            )
-                          : StationExitMapPreview(
-                              station: widget.station,
-                              exits: widget.exits,
-                              selectedExitId: selectedExit.id,
-                              onOpenSelected: openSelected,
-                            );
-                    },
+              SizedBox(
+                width: double.infinity,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  // 지도 미리보기를 못 여는 안내 패널은 큰 글자에서 내용만큼 자라도록
+                  // 높이를 고정하지 않고 최소 높이만 둔다.
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: double.infinity,
+                      minHeight: 180,
+                    ),
+                    child: Builder(
+                      builder: (context) {
+                        void openSelected() => _openSelectedExit(context);
+                        return previewBuilder != null
+                            ? previewBuilder(
+                                station: widget.station,
+                                exits: widget.exits,
+                                selectedExitId: selectedExit.id,
+                                onOpenSelected: openSelected,
+                              )
+                            : StationExitMapPreview(
+                                station: widget.station,
+                                exits: widget.exits,
+                                selectedExitId: selectedExit.id,
+                                onOpenSelected: openSelected,
+                              );
+                      },
+                    ),
                   ),
                 ),
               ),
@@ -107,14 +113,16 @@ class _StationExitSectionState extends State<StationExitSection> {
                 right: 8,
                 child: Material(
                   color: EasySubwayAccessibleColors.surface,
-                  shape: const CircleBorder(),
-                  elevation: 2,
+                  shape: const CircleBorder(
+                    side: BorderSide(color: EasySubwayAccessibleColors.line),
+                  ),
+                  elevation: 1,
                   child: InkWell(
                     key: const Key('stationExitMapExpandButton'),
                     customBorder: const CircleBorder(),
                     onTap: () => _openSelectedExit(context),
                     child: const Padding(
-                      padding: EdgeInsets.all(6),
+                      padding: EdgeInsets.all(8),
                       child: Icon(
                         Icons.open_in_full,
                         size: 16,
@@ -210,12 +218,15 @@ class _ExitPillTab extends StatelessWidget {
       child: Material(
         color: isSelected
             ? EasySubwayAccessibleColors.surface
-            : EasySubwayAccessibleColors.surfaceScaffold,
+            : EasySubwayAccessibleColors.surfaceSubtle,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: isSelected
-              ? BorderSide(color: EasySubwayAccessibleColors.text, width: 1.5)
-              : BorderSide.none,
+          side: BorderSide(
+            color: isSelected
+                ? EasySubwayAccessibleColors.text
+                : EasySubwayAccessibleColors.line,
+            width: isSelected ? 1.5 : 1.0,
+          ),
         ),
         child: InkWell(
           borderRadius: BorderRadius.circular(8),
@@ -232,24 +243,27 @@ class _ExitPillTab extends StatelessWidget {
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: isSelected
-                        ? EasySubwayAccessibleColors.amber
-                        : EasySubwayAccessibleColors.line,
+                        ? EasySubwayAccessibleColors.primary
+                        : EasySubwayAccessibleColors.surface,
+                    border: Border.all(
+                      color: isSelected
+                          ? EasySubwayAccessibleColors.primary
+                          : EasySubwayAccessibleColors.line,
+                    ),
                   ),
                   alignment: Alignment.center,
                   child: Text(
                     exit.exitNumber,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: isSelected
-                          ? FontWeight.w700
-                          : FontWeight.w700,
+                      fontWeight: FontWeight.w700,
                       color: isSelected
-                          ? EasySubwayAccessibleColors.text
-                          : EasySubwayAccessibleColors.mutedText,
+                          ? EasySubwayAccessibleColors.onPrimary
+                          : EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
                 ),
-                const SizedBox(width: 4),
+                const SizedBox(width: 6),
                 Text(
                   '번',
                   style: TextStyle(
@@ -257,7 +271,7 @@ class _ExitPillTab extends StatelessWidget {
                     fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                     color: isSelected
                         ? EasySubwayAccessibleColors.text
-                        : EasySubwayAccessibleColors.mutedText,
+                        : EasySubwayAccessibleColors.secondaryText,
                   ),
                 ),
               ],

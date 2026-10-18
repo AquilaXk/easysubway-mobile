@@ -300,7 +300,7 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
                           icon: const Icon(
                             Icons.arrow_back,
                             size: 26,
-                            color: EasySubwayAccessibleColors.contentPrimary,
+                            color: EasySubwayAccessibleColors.onPrimary,
                           ),
                         ),
                         const SizedBox(width: 4),

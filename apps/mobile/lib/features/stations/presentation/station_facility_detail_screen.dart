@@ -8,7 +8,13 @@ import '../domain/station_models.dart';
 import 'station_detail_info_row.dart';
 import 'station_info_basis_disclosure.dart';
 
-const _stationFacilityDetailPagePadding = EdgeInsets.fromLTRB(20, 12, 20, 32);
+const _stationFacilityDetailPagePadding = EdgeInsets.only(bottom: 32);
+const _stationFacilityDetailSectionPadding = EdgeInsets.fromLTRB(
+  20,
+  14,
+  20,
+  16,
+);
 
 class FacilityDetailScreen extends StatelessWidget {
   const FacilityDetailScreen({
@@ -57,14 +63,13 @@ class FacilityDetailScreen extends StatelessWidget {
         child: ListView(
           padding: _stationFacilityDetailPagePadding,
           children: [
-            _FacilityDetailSectionTitle(title: '상태'),
-            const SizedBox(height: 12),
+            const _FacilityDetailSectionTitle(title: '상태'),
             Semantics(
               label: semanticsLabel,
               child: ExcludeSemantics(
                 child: Padding(
                   key: Key('facilityDetailStatusNotice-${facility.id}'),
-                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  padding: _stationFacilityDetailSectionPadding,
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -101,7 +106,7 @@ class FacilityDetailScreen extends StatelessWidget {
                                     ?.copyWith(
                                       color:
                                           EasySubwayAccessibleColors.mutedText,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: FontWeight.w600,
                                       height: 1.3,
                                     ),
                               ),
@@ -112,7 +117,7 @@ class FacilityDetailScreen extends StatelessWidget {
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: EasySubwayAccessibleColors.mutedText,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: FontWeight.w600,
                                     height: 1.3,
                                   ),
                             ),
@@ -124,74 +129,93 @@ class FacilityDetailScreen extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
             const _FacilityDetailSectionTitle(title: '위치'),
-            const SizedBox(height: 8),
-            StationDetailInfoRow(
-              icon: Icons.train_outlined,
-              text: '${station.nameKo}역',
-            ),
-            const SizedBox(height: 10),
-            StationDetailInfoRow(
-              icon: Icons.stairs_outlined,
-              text: _facilityFloorLabel(facility),
-            ),
-            const SizedBox(height: 10),
-            StationDetailInfoRow(
-              icon: Icons.place_outlined,
-              text: facility.locationLabel,
-            ),
-            const SizedBox(height: 10),
-            StationDetailInfoRow(
-              icon: Icons.event_available,
-              text: facility.updatedLabel,
-            ),
-            const SizedBox(height: 20),
-            const _FacilityDetailSectionTitle(title: '이용 안내'),
-            const SizedBox(height: 8),
-            Text(
-              facility.nextActionDescription,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w600,
-                height: 1.35,
+            Padding(
+              padding: _stationFacilityDetailSectionPadding,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  StationDetailInfoRow(
+                    icon: Icons.train_outlined,
+                    text: '${station.nameKo}역',
+                  ),
+                  const SizedBox(height: 10),
+                  StationDetailInfoRow(
+                    icon: Icons.stairs_outlined,
+                    text: _facilityFloorLabel(facility),
+                  ),
+                  const SizedBox(height: 10),
+                  StationDetailInfoRow(
+                    icon: Icons.place_outlined,
+                    text: facility.locationLabel,
+                  ),
+                  const SizedBox(height: 10),
+                  StationDetailInfoRow(
+                    icon: Icons.event_available,
+                    text: facility.updatedLabel,
+                  ),
+                ],
               ),
             ),
-            const SizedBox(height: 24),
-            SizedBox(
-              height: EasySubwayTouchTarget.primary,
-              width: double.infinity,
-              child: FilledButton.icon(
-                key: Key('facilityDetailReportButton-${facility.id}'),
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  onReportTap();
-                },
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(
-                    EasySubwayTouchTarget.primary,
-                  ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      EasySubwayRadius.control,
+            const _FacilityDetailSectionTitle(title: '이용 안내'),
+            Padding(
+              padding: _stationFacilityDetailSectionPadding,
+              child: Text(
+                facility.nextActionDescription,
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: EasySubwayAccessibleColors.secondaryText,
+                  fontWeight: FontWeight.w600,
+                  height: 1.35,
+                ),
+              ),
+            ),
+            const Divider(
+              height: 1,
+              thickness: 1,
+              color: EasySubwayAccessibleColors.line,
+            ),
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: SizedBox(
+                height: EasySubwayTouchTarget.primary,
+                width: double.infinity,
+                child: FilledButton.icon(
+                  key: Key('facilityDetailReportButton-${facility.id}'),
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    onReportTap();
+                  },
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(
+                      EasySubwayTouchTarget.primary,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(
+                        EasySubwayRadius.control,
+                      ),
+                    ),
+                    textStyle: const TextStyle(
+                      fontFamily: 'Pretendard',
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
-                  textStyle: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  icon: const Icon(Icons.report_outlined),
+                  label: const Text('시설 제보'),
                 ),
-                icon: const Icon(Icons.report_outlined),
-                label: const Text('시설 제보'),
               ),
             ),
             const SizedBox(height: 16),
-            StationInfoBasisDisclosure(
-              labels: [
-                facility.fieldValidationLabel,
-                facility.confidenceLabel,
-                facility.dataSourceLabel,
-              ],
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: StationInfoBasisDisclosure(
+                labels: [
+                  facility.fieldValidationLabel,
+                  facility.confidenceLabel,
+                  facility.dataSourceLabel,
+                ],
+              ),
             ),
           ],
         ),
@@ -245,7 +269,7 @@ class _FacilityDetailSectionTitle extends StatelessWidget {
       child: SizedBox(
         width: double.infinity,
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 10),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
           child: Semantics(
             header: true,
             child: Text(

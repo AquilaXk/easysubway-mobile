@@ -8,7 +8,7 @@ const mainPagePadding = EdgeInsets.fromLTRB(20, 20, 20, 32);
 const mainListPagePadding = EdgeInsets.fromLTRB(17, 18, 17, 32);
 const _appSectionTitlePadding = EdgeInsets.fromLTRB(1, 22, 1, 11);
 
-const mainThemeControlRadius = BorderRadius.all(Radius.circular(12));
+const mainThemeControlRadius = BorderRadius.all(Radius.circular(8));
 
 class AppSectionTitle extends StatelessWidget {
   // ignore: use_key_in_widget_constructors
@@ -109,7 +109,7 @@ class AppCard extends StatelessWidget {
       shadowColor: EasySubwayAccessibleColors.cardShadow,
       shape: RoundedRectangleBorder(
         side: showBorder ? BorderSide(color: borderColor) : BorderSide.none,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(8),
       ),
       clipBehavior: Clip.antiAlias,
       child: Padding(padding: const EdgeInsets.all(16), child: child),

@@ -24,6 +24,7 @@ Future<T?> showStationDetailSheet<T>({
   FavoriteStationRepository? favoriteRepository,
   WidgetBuilder? bottomAdBuilder,
   RealtimeRepository? realtimeRepository,
+  bool enableRealtimePolling = true,
   StationTimetableRepository? timetableRepository,
   CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
@@ -31,6 +32,8 @@ Future<T?> showStationDetailSheet<T>({
   RouteDraftPort? routeDraftController,
   Future<void> Function(FacilityReportTarget target)? onOpenFacilityReport,
   KakaoMapLauncher mapLauncher = const UrlLauncherKakaoMapLauncher(),
+  StationDetailNeighbor? previousStation,
+  StationDetailNeighbor? nextStation,
 }) {
   return showModalBottomSheet<T>(
     context: context,
@@ -48,6 +51,7 @@ Future<T?> showStationDetailSheet<T>({
           favoriteRepository: favoriteRepository,
           bottomAdBuilder: bottomAdBuilder,
           realtimeRepository: realtimeRepository,
+          enableRealtimePolling: enableRealtimePolling,
           timetableRepository: timetableRepository,
           locationProvider: locationProvider,
           stationId: stationId,
@@ -56,6 +60,8 @@ Future<T?> showStationDetailSheet<T>({
           routeDraftController: routeDraftController,
           onOpenFacilityReport: onOpenFacilityReport,
           mapLauncher: mapLauncher,
+          previousStation: previousStation,
+          nextStation: nextStation,
         ),
       );
     },
@@ -70,6 +76,7 @@ class StationDetailScreen extends StatefulWidget {
     this.favoriteRepository,
     this.bottomAdBuilder,
     this.realtimeRepository,
+    this.enableRealtimePolling = true,
     this.timetableRepository,
     this.locationProvider,
     this.initiallyFavorite,
@@ -77,6 +84,8 @@ class StationDetailScreen extends StatefulWidget {
     this.routeDraftController,
     this.onOpenFacilityReport,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
+    this.previousStation,
+    this.nextStation,
     super.key,
   });
 
@@ -85,6 +94,7 @@ class StationDetailScreen extends StatefulWidget {
   final FavoriteStationRepository? favoriteRepository;
   final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
+  final bool enableRealtimePolling;
   final StationTimetableRepository? timetableRepository;
   final CurrentLocationProvider? locationProvider;
   final String stationId;
@@ -94,6 +104,8 @@ class StationDetailScreen extends StatefulWidget {
   final Future<void> Function(FacilityReportTarget target)?
   onOpenFacilityReport;
   final KakaoMapLauncher mapLauncher;
+  final StationDetailNeighbor? previousStation;
+  final StationDetailNeighbor? nextStation;
 
   @override
   State<StationDetailScreen> createState() => _StationDetailScreenState();
@@ -111,6 +123,7 @@ class _StationDetailScreenState extends State<StationDetailScreen>
     _controller = StationDetailController(
       repository: widget.repository,
       realtimeRepository: widget.realtimeRepository,
+      enableRealtimePolling: widget.enableRealtimePolling,
     );
     final favoriteRepository = widget.favoriteRepository;
     if (favoriteRepository != null) {
@@ -131,7 +144,8 @@ class _StationDetailScreenState extends State<StationDetailScreen>
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
-      if (_controller.state.status == StationDetailStatus.success) {
+      if (_controller.state.status == StationDetailStatus.success &&
+          widget.enableRealtimePolling) {
         _controller.startRealtimePolling();
       }
     } else if (state == AppLifecycleState.paused ||
@@ -177,6 +191,8 @@ class _StationDetailScreenState extends State<StationDetailScreen>
                 locationProvider: widget.locationProvider,
                 mapLauncher: widget.mapLauncher,
                 timetableRepository: widget.timetableRepository,
+                previousStation: widget.previousStation,
+                nextStation: widget.nextStation,
                 // AppBar가 호선·역명을 담당. 이전/다음역 chrome은 노선도 확장(PR-B)에서.
                 showContextChrome: false,
               ),
@@ -200,8 +216,6 @@ class _StationDetailAppBarTitle extends StatelessWidget {
       return const Text('역 상세');
     }
 
-    final primaryLine = detail.lines.isEmpty ? null : detail.lines.first;
-
     return Semantics(
       // 본문 헤더를 없애므로 상세 요약 시맨틱을 AppBar 타이틀에 둔다.
       label: detail.semanticLabel,
@@ -209,17 +223,18 @@ class _StationDetailAppBarTitle extends StatelessWidget {
       child: ExcludeSemantics(
         child: Row(
           children: [
-            if (primaryLine != null) ...[
-              StationLineBadge(line: primaryLine, size: 28),
-              const SizedBox(width: 8),
+            for (final line in detail.lines.take(3)) ...[
+              StationLineBadge(line: line, size: 28),
+              const SizedBox(width: 6),
             ],
+            if (detail.lines.isNotEmpty) const SizedBox(width: 2),
             Expanded(
               child: Text(
                 '${detail.nameKo}역',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: EasySubwayAccessibleColors.text,
+                  color: EasySubwayAccessibleColors.onPrimary,
                   fontWeight: FontWeight.w700,
                   height: 1.2,
                 ),

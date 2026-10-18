@@ -10464,6 +10464,13 @@ void main() {
     expect(find.textContaining('인증 정보'), findsNothing);
     expect(find.text('이 기기의 즐겨찾기·최근 검색·설정이 지워지고 되돌릴 수 없어요.'), findsOneWidget);
 
+    await tester.tap(find.widgetWithText(OutlinedButton, '취소'));
+    await tester.pumpAndSettle();
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(deletionRepository.deleteCount, 0);
+
+    await tester.tap(find.byKey(const Key('dataDeletionStartButton')));
+    await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('dataDeletionConfirmButton')));
     await tester.pumpAndSettle();
 
@@ -15972,6 +15979,16 @@ void main() {
       findsOneWidget,
     );
 
+    await tester.tap(find.widgetWithText(OutlinedButton, '취소'));
+    await tester.pumpAndSettle();
+    expect(find.text('현재 위치 사용'), findsNothing);
+    expect(requestCount, 0);
+
+    await tester.tap(
+      find.byKey(const Key('facilityReportAttachLocationButton')),
+    );
+    await tester.pumpAndSettle();
+    expect(permissionCheckCount, 2);
     await tester.tap(find.text('계속'));
     await tester.pumpAndSettle();
 

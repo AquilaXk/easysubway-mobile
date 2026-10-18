@@ -626,7 +626,8 @@ void main() {
         repository: waypoint,
         draft: _completeDraft(waypoint: _station('station-waypoint', '서울')),
       );
-      expect(find.text('경유 서울역'), findsOneWidget);
+      expect(find.text('서울역'), findsOneWidget);
+      expect(find.bySemanticsLabel('경유 서울역'), findsOneWidget);
       expect(find.text('출발역과 도착역을 다시 확인해 주세요.'), findsNothing);
       expect(
         tester.widget<FilledButton>(find.byType(FilledButton)).onPressed,
@@ -1037,18 +1038,27 @@ void main() {
 
   testWidgets('경로 입력 카드는 출발·경유·도착 배지와 출발 기준 칩을 보여 준다', (tester) async {
     final repository = _Repository();
+    var swapCount = 0;
+    var clearWaypointCount = 0;
     await _pumpScreen(
       tester,
       repository: repository,
       draft: _completeDraft(waypoint: _station('station-waypoint', '가평')),
+      onSwapOriginDestination: () => swapCount++,
+      onClearWaypoint: () => clearWaypointCount++,
     );
 
     expect(find.text('출발'), findsOneWidget);
     expect(find.text('경유'), findsOneWidget);
     expect(find.text('도착'), findsOneWidget);
-    expect(find.text('출발 용산역'), findsOneWidget);
-    expect(find.text('경유 가평역'), findsOneWidget);
-    expect(find.text('도착 춘천역'), findsOneWidget);
+    expect(find.text('용산역'), findsOneWidget);
+    expect(find.text('가평역'), findsOneWidget);
+    expect(find.text('춘천역'), findsOneWidget);
+    expect(find.bySemanticsLabel('출발 용산역'), findsOneWidget);
+    expect(find.bySemanticsLabel('경유 가평역'), findsOneWidget);
+    expect(find.bySemanticsLabel('도착 춘천역'), findsOneWidget);
+    expect(find.byKey(const Key('journeyRouteSwapButton')), findsOneWidget);
+    expect(find.byKey(const Key('journeyWaypointClearButton')), findsOneWidget);
     expect(find.byKey(const Key('journey-departure-now')), findsOneWidget);
     expect(
       find.byKey(const Key('journey-departure-scheduled')),
@@ -1059,6 +1069,44 @@ void main() {
       find.byKey(const Key('journey-departure-last-connection')),
       findsOneWidget,
     );
+
+    await tester.tap(find.byKey(const Key('journeyRouteSwapButton')));
+    await tester.pumpAndSettle();
+    expect(find.bySemanticsLabel('출발 춘천역'), findsOneWidget);
+    expect(find.bySemanticsLabel('도착 용산역'), findsOneWidget);
+    expect(swapCount, 1);
+
+    await tester.tap(find.byKey(const Key('journeyWaypointClearButton')));
+    await tester.pumpAndSettle();
+    expect(find.text('경유'), findsNothing);
+    expect(find.byKey(const Key('journeyWaypointClearButton')), findsNothing);
+    expect(clearWaypointCount, 1);
+
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      draft: _completeDraft(waypoint: _station('station-waypoint', '가평')),
+      onSwapOriginDestination: () => swapCount++,
+      onClearWaypoint: () => clearWaypointCount++,
+    );
+    expect(find.bySemanticsLabel('경유 가평역'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(repository.requests, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('journeyRouteSwapButton')));
+    await tester.pumpAndSettle();
+    expect(swapCount, 2);
+    expect(repository.requests, hasLength(2));
+    expect(repository.requests.last.originStationId, 'station-destination');
+    expect(repository.requests.last.destinationStationId, 'station-origin');
+
+    await tester.tap(find.byKey(const Key('journeyWaypointClearButton')));
+    await tester.pumpAndSettle();
+    expect(clearWaypointCount, 2);
+    expect(repository.requests, hasLength(3));
+    expect(find.text('경유'), findsNothing);
   });
 
   testWidgets('journey search는 다중 구간 환승 경로에서 계단 없는 경로 표시, 경강선 노선명을 지원한다', (
@@ -1611,6 +1659,8 @@ Future<void> _pumpScreen(
   required _Repository repository,
   RouteDraft? draft,
   String mobilityType = 'STANDARD',
+  VoidCallback? onSwapOriginDestination,
+  VoidCallback? onClearWaypoint,
   JourneyShareInvoker? shareInvoker,
   GetOffAlarmController? getOffAlarmController,
   Future<String> Function(String stationId)? stationNameResolver,
@@ -1627,6 +1677,8 @@ Future<void> _pumpScreen(
         draft: draft ?? _completeDraft(),
         mobilityType: mobilityType,
         onShellBackToHome: () {},
+        onSwapOriginDestination: onSwapOriginDestination,
+        onClearWaypoint: onClearWaypoint,
         shareInvoker: shareInvoker,
         getOffAlarmController: getOffAlarmController,
         stationNameResolver: stationNameResolver,
