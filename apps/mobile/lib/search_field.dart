@@ -219,7 +219,10 @@ class EasySubwaySearchField extends StatelessWidget {
                               // floatingLabelBehavior는 각각 탭 타깃·부유 라벨 회귀
                               // (#1933)를 유발해 쓰지 않는다.
                               decoration: InputDecoration(
-                                hintText: hintText,
+                                hintText: semanticsLabel == null
+                                    ? hintText
+                                    : null,
+                                hint: _semanticsExcludedHint(),
                                 hintStyle: easySubwaySearchFieldHintStyle,
                                 isDense: true,
                                 contentPadding: EdgeInsets.zero,
@@ -274,6 +277,18 @@ class EasySubwaySearchField extends StatelessWidget {
       ),
     );
     return field;
+  }
+
+  /// [semanticsLabel]이 있으면 라벨 노드가 같은 문구를 이미 낭독하므로, hint가 TextField
+  /// 라벨로 한 번 더 병합돼 "문구\n문구"로 두 번 읽히지 않게 hint를 semantics에서 뺀다.
+  /// 화면에 보이는 placeholder는 그대로다. 라벨이 없으면(홈 검색) hint 자체가 라벨이다.
+  Widget? _semanticsExcludedHint() {
+    if (semanticsLabel == null) {
+      return null;
+    }
+    return ExcludeSemantics(
+      child: Text(hintText, style: easySubwaySearchFieldHintStyle),
+    );
   }
 
   /// [semanticsLabel]이 주어지면 입력 필드 서브트리를 슬롯 맥락 라벨로 감싼다.

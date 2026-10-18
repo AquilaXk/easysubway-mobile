@@ -11314,7 +11314,8 @@ void main() {
         },
       );
 
-      final deleteAction = find.bySemanticsLabel('즐겨찾기 경로 삭제');
+      const deleteLabel = '상록수역에서 사당역까지 즐겨찾기 경로 삭제';
+      final deleteAction = find.bySemanticsLabel(deleteLabel);
       expect(deleteAction, findsOneWidget);
       expect(
         tester
@@ -11324,7 +11325,7 @@ void main() {
         isTrue,
       );
 
-      tester.semantics.tap(find.semantics.byLabel('즐겨찾기 경로 삭제'));
+      tester.semantics.tap(find.semantics.byLabel(deleteLabel));
       await tester.pumpAndSettle();
 
       expect(favoriteRouteRepository.removedFavoriteRouteIds, ['route-1']);

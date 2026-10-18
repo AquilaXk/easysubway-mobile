@@ -606,7 +606,7 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
               Semantics(
                 button: true,
                 enabled: true,
-                label: '즐겨찾기 경로 삭제',
+                label: '$originName에서 $destinationName까지 즐겨찾기 경로 삭제',
                 onTap: onRemove,
                 child: ExcludeSemantics(
                   child: IconButton(
