@@ -118,8 +118,17 @@ void main() {
       try {
         if (screen.inboxLoad != SweepInboxLoad.normal) {
           // 조회 실패는 화면에 오류 상태로 드러나고 오류 보고로도 남아야 한다(호스트 전수 검사와 같다).
-          await runWithMobileErrorReporter(reportedErrors.add, checkScreen);
+          // 주입한 실패가 프레임워크 예외로 새어 나오므로 가로채 모으고, 그 안에 overflow가 없는지 본다.
+          await _collectingFlutterErrors(reportedErrors, () {
+            return runWithMobileErrorReporter(reportedErrors.add, checkScreen);
+          });
           expect(reportedErrors, isNotEmpty);
+          expect(
+            reportedErrors.where(
+              (details) => details.exceptionAsString().contains('overflowed'),
+            ),
+            isEmpty,
+          );
         } else {
           await checkScreen();
         }
@@ -127,5 +136,19 @@ void main() {
         semantics.dispose();
       }
     });
+  }
+}
+
+/// [body]가 도는 동안 프레임워크가 보고하는 예외를 [sink]에 모은다. 끝나면 원래 핸들러를 되돌린다.
+Future<void> _collectingFlutterErrors(
+  List<FlutterErrorDetails> sink,
+  Future<void> Function() body,
+) async {
+  final original = FlutterError.onError;
+  FlutterError.onError = sink.add;
+  try {
+    await body();
+  } finally {
+    FlutterError.onError = original;
   }
 }
