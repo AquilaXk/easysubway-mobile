@@ -10,7 +10,6 @@ import '../../../mobile_error_reporter.dart';
 import '../notification_settings.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_result.dart';
-import '../../facility_report/presentation/facility_report_result_labels.dart';
 
 typedef OpenFacilityReport = void Function(FacilityReportResult report);
 
@@ -348,9 +347,12 @@ class _NotificationInboxItem {
       icon: Icons.report_outlined,
       title: '제보 $statusLabel',
       subtitle: '제보 번호 $receiptCode',
-      // 제보 번호가 아직 없는 제보끼리 구분되도록 제출일을 스크린리더 라벨에만 더한다.
-      semanticLabel:
-          '제보 $statusLabel, 제보 번호 $receiptCode, ${report.createdDateLabel} 제출',
+      // 제보 번호가 아직 없는 제보끼리 구분되도록 제보 내용을 스크린리더 라벨에만 더한다.
+      semanticLabel: [
+        '제보 $statusLabel',
+        '제보 번호 $receiptCode',
+        report.description.trim(),
+      ].where((part) => part.isNotEmpty).join(', '),
       kind: '제보',
       report: report,
     );
