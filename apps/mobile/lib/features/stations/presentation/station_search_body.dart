@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show OrdinalSortKey;
 
 import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
@@ -10,8 +11,8 @@ import 'station_line_badges.dart';
 /// 검색어 일치 구간 하이라이트는 primary interaction 역할색을 쓴다.
 const _searchMatchHighlight = EasySubwayAccessibleColors.interactionPrimary;
 
-/// 즐겨찾기 버튼이 없을 때 이름 앞에 두는 여백.
-const _rowLeadingGap = 8.0;
+/// 결과 행의 안쪽 여백이자, 즐겨찾기 토글이 행 시작에서 떨어진 거리.
+const _rowInset = 8.0;
 
 /// 즐겨찾기 채움 별빛.
 const _favoriteStarFilled = EasySubwayAccessibleColors.interactionPrimary;
@@ -285,10 +286,10 @@ class _StationSearchResultLineRow extends StatelessWidget {
   final VoidCallback? onToggleFavorite;
   final Key? favoriteButtonKey;
 
-  /// 역·호선과 현재 상태를 담아 같은 역의 다른 호선 행과 구분한다.
+  /// 역·호선만 담아 같은 역의 다른 호선 행과 구분한다. 상태는 toggled로 전달한다.
   String get _favoriteSemanticLabel {
     final target = line == null ? stationName : '$stationName, ${line!.name}';
-    return '$target 즐겨찾기 ${isFavorite ? '해제' : '추가'}';
+    return '$target 즐겨찾기';
   }
 
   @override
@@ -314,70 +315,85 @@ class _StationSearchResultLineRow extends StatelessWidget {
         ),
       ),
       // 즐겨찾기 토글은 행 위에 얹은 형제 노드라, 행 노드는 역 선택만 맡고 토글은 따로 읽힌다.
-      child: Stack(
-        children: [
-          Semantics(
-            label: semanticLabel,
-            button: true,
-            onTap: onTap,
-            child: ExcludeSemantics(
-              child: InkWell(
-                onTap: onTap,
-                splashColor: Colors.transparent,
-                highlightColor: Colors.transparent,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(minHeight: 56),
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      children: [
-                        SizedBox.square(
-                          dimension: showFavorite
-                              ? EasySubwayTouchTarget.general
-                              : _rowLeadingGap,
-                        ),
-                        Expanded(
-                          child: Text.rich(
-                            TextSpan(
-                              children: _highlightedNameSpans(
-                                stationName,
-                                query,
-                                nameStyle,
-                                highlightStyle,
+      child: Semantics(
+        container: true,
+        explicitChildNodes: true,
+        child: Stack(
+          children: [
+            Semantics(
+              label: semanticLabel,
+              button: true,
+              // 읽는 순서는 행(역 선택) 다음에 토글이다.
+              sortKey: const OrdinalSortKey(0),
+              onTap: onTap,
+              child: ExcludeSemantics(
+                child: InkWell(
+                  onTap: onTap,
+                  splashColor: Colors.transparent,
+                  highlightColor: Colors.transparent,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 56),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(
+                        _rowInset,
+                        _rowInset,
+                        16,
+                        _rowInset,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          SizedBox.square(
+                            dimension: showFavorite
+                                ? EasySubwayTouchTarget.general
+                                : _rowInset,
+                          ),
+                          Expanded(
+                            child: Text.rich(
+                              TextSpan(
+                                children: _highlightedNameSpans(
+                                  stationName,
+                                  query,
+                                  nameStyle,
+                                  highlightStyle,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        if (line != null) ...[
-                          const SizedBox(width: 12),
-                          StationLineBadge(line: line, size: 32),
+                          if (line != null) ...[
+                            const SizedBox(width: 12),
+                            StationLineBadge(line: line, size: 32),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
-          if (showFavorite)
-            Positioned(
-              left: 8,
-              top: 8,
-              child: _FavoriteToggleButton(
-                buttonKey: favoriteButtonKey,
-                semanticLabel: _favoriteSemanticLabel,
-                isFavorite: isFavorite,
-                onPressed: onToggleFavorite,
+            if (showFavorite)
+              PositionedDirectional(
+                start: _rowInset,
+                top: 0,
+                bottom: 0,
+                child: Center(
+                  widthFactor: 1,
+                  child: _FavoriteToggleButton(
+                    buttonKey: favoriteButtonKey,
+                    semanticLabel: _favoriteSemanticLabel,
+                    isFavorite: isFavorite,
+                    onPressed: onToggleFavorite,
+                  ),
+                ),
               ),
-            ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
-/// 행 탭과 따로 스크린리더가 짚을 수 있는 즐겨찾기 토글. 라벨에 역·호선과 현재 상태를 담는다.
+/// 행 탭과 따로 스크린리더가 짚을 수 있는 즐겨찾기 토글. 라벨은 역·호선이고 상태는 toggled로 전한다.
 class _FavoriteToggleButton extends StatelessWidget {
   const _FavoriteToggleButton({
     required this.buttonKey,
@@ -397,6 +413,7 @@ class _FavoriteToggleButton extends StatelessWidget {
       label: semanticLabel,
       button: true,
       toggled: isFavorite,
+      sortKey: const OrdinalSortKey(1),
       onTap: onPressed,
       excludeSemantics: true,
       child: IconButton(

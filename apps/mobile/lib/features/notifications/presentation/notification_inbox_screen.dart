@@ -347,12 +347,12 @@ class _NotificationInboxItem {
       icon: Icons.report_outlined,
       title: '제보 $statusLabel',
       subtitle: '제보 번호 $receiptCode',
-      // 제보 번호가 아직 없는 제보끼리 구분되도록 제보 내용을 스크린리더 라벨에만 더한다.
+      // 제보 번호가 아직 없는 제보끼리 구분되도록 접수 시각을 스크린리더 라벨에만 더한다.
       semanticLabel: [
         '제보 $statusLabel',
         '제보 번호 $receiptCode',
-        report.description.trim(),
-      ].where((part) => part.isNotEmpty).join(', '),
+        ?_reportReceivedLabel(report.createdAt),
+      ].join(', '),
       kind: '제보',
       report: report,
     );
@@ -511,6 +511,17 @@ String _reportStatusLabel(String status) {
     'RESOLVED' => '확인 완료',
     _ => '접수 상태를 불러오지 못했어요',
   };
+}
+
+/// 접수 시각을 "10월 1일 09:00 접수"로 읽는다. 시각을 해석할 수 없으면 생략한다.
+String? _reportReceivedLabel(String createdAt) {
+  final parsed = DateTime.tryParse(createdAt);
+  if (parsed == null) {
+    return null;
+  }
+  final hour = parsed.hour.toString().padLeft(2, '0');
+  final minute = parsed.minute.toString().padLeft(2, '0');
+  return '${parsed.month}월 ${parsed.day}일 $hour:$minute 접수';
 }
 
 String _reportReceiptCode(String? publicReceiptCode) {
