@@ -33,6 +33,24 @@ final sweepSearchResult = StationSearchResult(
   lines: sweepLines,
 );
 
+/// 검색 결과 행이 반복되도록 두는 두 번째 역. 첫 역과 호선이 겹치지 않는다.
+final sweepSecondSearchResult = StationSearchResult(
+  id: 'station-seolleung',
+  nameKo: '선릉',
+  nameEn: 'Seolleung',
+  region: '수도권',
+  dataQualityLevel: 'LEVEL_1',
+  lastVerifiedAt: '2026-09-27',
+  lines: const [
+    StationSearchLine(
+      id: 'seoul-9',
+      name: '수도권 9호선',
+      color: '#BDB092',
+      stationCode: '926',
+    ),
+  ],
+);
+
 /// 환승역으로 두어 역 시간표의 호선 선택 칩까지 그려지게 한다.
 const sweepLines = [
   StationSearchLine(
@@ -61,7 +79,7 @@ enum SweepInboxLoad {
   reportsFailed,
 }
 
-/// 내 제보 목록·알림함이 접수된 제보를 그리도록 제보 한 건을 돌려준다.
+/// 내 제보 목록·알림함이 접수된 제보를 반복해 그리도록 제보 두 건을 돌려준다.
 class SweepReportRepository implements FacilityReportRepository {
   const SweepReportRepository({this.listFails = false});
 
@@ -78,6 +96,16 @@ class SweepReportRepository implements FacilityReportRepository {
     createdAt: '2026-10-01T09:00:00',
   );
 
+  static const _secondReport = FacilityReportResult(
+    id: 'report-2',
+    stationId: sweepStationId,
+    facilityId: 'facility-elevator-2',
+    reportType: 'BROKEN',
+    description: '3번 출구 엘리베이터 문이 열리지 않아요.',
+    status: 'SUBMITTED',
+    createdAt: '2026-10-02T09:00:00',
+  );
+
   @override
   Future<FacilityReportResult> createReport(
     FacilityReportRequest request,
@@ -91,11 +119,11 @@ class SweepReportRepository implements FacilityReportRepository {
     if (listFails) {
       throw StateError('sweep report list failure');
     }
-    return const [_report];
+    return const [_report, _secondReport];
   }
 }
 
-/// 알림함이 시설 항목을 그리도록 확인이 필요한 즐겨찾기 시설 한 건을 돌려준다.
+/// 알림함이 시설 항목을 반복해 그리도록 확인이 필요한 즐겨찾기 시설 두 건을 돌려준다.
 class SweepFavoriteFacilityRepository implements FavoriteFacilityRepository {
   const SweepFavoriteFacilityRepository();
 
@@ -118,9 +146,29 @@ class SweepFavoriteFacilityRepository implements FavoriteFacilityRepository {
     addedAt: '2026-10-01T09:00:00',
   );
 
+  static const _secondFacility = FavoriteFacility(
+    userId: 'sweep-user',
+    facilityId: 'facility-gangnam-elevator-2',
+    stationId: sweepStationId,
+    stationNameKo: '강남',
+    stationNameEn: 'Gangnam',
+    exitId: 'exit-gangnam-3',
+    type: 'ELEVATOR',
+    name: '3번 출구 엘리베이터',
+    floorFrom: '1F',
+    floorTo: 'B1',
+    description: '3번 출구 앞',
+    status: 'USER_REPORTED',
+    dataConfidence: 'HIGH',
+    dataSourceType: 'OFFICIAL_FILE',
+    lastUpdatedAt: '2026-10-01',
+    addedAt: '2026-10-01T09:30:00',
+  );
+
   @override
   Future<List<FavoriteFacility>> listFavoriteFacilities() async => const [
     _facility,
+    _secondFacility,
   ];
 
   @override
@@ -129,6 +177,60 @@ class SweepFavoriteFacilityRepository implements FavoriteFacilityRepository {
 
   @override
   Future<void> removeFavoriteFacility(String facilityId) async {}
+}
+
+/// 즐겨찾기 화면의 역 행이 반복되도록 서로 다른 역·호선 즐겨찾기 두 건을 돌려준다.
+class SweepFavoriteStationRepository implements FavoriteStationRepository {
+  const SweepFavoriteStationRepository();
+
+  static const _stations = [
+    FavoriteStation(
+      userId: 'sweep-user',
+      stationId: 'station-sangnoksu',
+      lineId: 'seoul-4',
+      nameKo: '상록수',
+      nameEn: 'Sangnoksu',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      lastVerifiedAt: '2026-06-13',
+      lines: [
+        StationSearchLine(
+          id: 'seoul-4',
+          name: '수도권 4호선',
+          color: '#00A5DE',
+          stationCode: '448',
+        ),
+      ],
+      addedAt: '2026-06-13T10:00:00',
+    ),
+    FavoriteStation(
+      userId: 'sweep-user',
+      stationId: sweepStationId,
+      lineId: 'seoul-2',
+      nameKo: '강남',
+      nameEn: 'Gangnam',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      lastVerifiedAt: '2026-09-27',
+      lines: sweepLines,
+      addedAt: '2026-06-13T11:00:00',
+    ),
+  ];
+
+  @override
+  Future<List<FavoriteStation>> listFavoriteStations() async => _stations;
+
+  @override
+  Future<FavoriteStation> saveFavoriteStation(
+    String stationId, {
+    String? lineId,
+  }) async => _stations.first;
+
+  @override
+  Future<void> removeFavoriteStation(
+    String stationId, {
+    String? lineId,
+  }) async {}
 }
 
 /// 같은 삭제 버튼이 경로마다 반복되는 즐겨찾기 화면을 그리려고 경로 세 건을 돌려준다.
@@ -267,7 +369,7 @@ class SweepNotificationPermissionProvider
       NotificationPermissionStatus.granted;
 }
 
-/// 역 검색 화면의 최근 검색 칩을 그리려고 검색어 하나를 가진 고정 기록.
+/// 역 검색 화면의 최근 검색 칩이 반복되도록 검색어 둘을 가진 고정 기록.
 class SweepSearchHistoryRepository extends SearchHistoryRepository {
   @override
   Future<void> recordSearch(
@@ -278,7 +380,7 @@ class SweepSearchHistoryRepository extends SearchHistoryRepository {
   }) async {}
 
   @override
-  Future<List<String>> listRecentQueries() async => const ['강남'];
+  Future<List<String>> listRecentQueries() async => const ['강남', '선릉'];
 
   @override
   Future<void> removeSearch(String query, {String? region}) async {}
@@ -477,7 +579,7 @@ EasySubwayApp buildSweepApp({
       listFails: inboxLoad != SweepInboxLoad.normal,
     ),
     searchHistoryRepository: SweepSearchHistoryRepository(),
-    favoriteRepository: const DemoFavoriteStationRepository(),
+    favoriteRepository: const SweepFavoriteStationRepository(),
     favoriteFacilityRepository: switch (inboxLoad) {
       SweepInboxLoad.normal => const DemoFavoriteFacilityRepository(),
       SweepInboxLoad.failedNoItems => null,

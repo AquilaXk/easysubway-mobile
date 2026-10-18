@@ -130,7 +130,7 @@ final sweepScreens = <SweepScreen>[
     '역 검색 결과',
     _openStationSearchResults,
     find.byKey(Key('stationSearchResult-$sweepStationId-seoul-2')),
-    stationResults: [sweepSearchResult],
+    stationResults: [sweepSearchResult, sweepSecondSearchResult],
   ),
   SweepScreen(
     '역 시간표',

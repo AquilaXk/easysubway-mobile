@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show Tristate;
 
 import 'package:clock/clock.dart';
 import 'package:easysubway_mobile/accessible_design.dart';
@@ -12422,6 +12423,128 @@ void main() {
     }
   });
 
+  group('역 검색 결과의 즐겨찾기 토글 접근성', () {
+    const rowKey = Key('stationSearchResult-station-sangnoksu-seoul-2');
+    const toggleKey = Key('stationSearchFavorite-station-sangnoksu-seoul-2');
+    const toggleLabel = '상록수역, 수도권 2호선 즐겨찾기';
+
+    Future<FakeFavoriteStationRepository> pumpSearchResults(
+      WidgetTester tester,
+      String stationName,
+    ) async {
+      final favoriteRepository = FakeFavoriteStationRepository();
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: FakeStationSearchRepository(
+            nextResults: [
+              _stationResult(id: 'station-sangnoksu', name: stationName),
+            ],
+            networkMapRegionNames: const ['수도권'],
+          ),
+          reportRepository: FakeFacilityReportRepository(),
+          favoriteRepository: favoriteRepository,
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+      await _openStationSearchScreenViaMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('stationSearchInput')),
+        stationName,
+      );
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      return favoriteRepository;
+    }
+
+    testWidgets('토글은 행과 별개 노드이고 상태는 toggled로 알린다', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      try {
+        await pumpSearchResults(tester, '상록수');
+
+        final toggleFinder = find.bySemanticsLabel(toggleLabel);
+        expect(toggleFinder, findsOneWidget);
+        final toggleNode = tester.getSemantics(toggleFinder);
+        expect(
+          toggleNode.getSemanticsData().hasAction(SemanticsAction.tap),
+          isTrue,
+        );
+        expect(toggleNode.flagsCollection.isToggled, Tristate.isFalse);
+        expect(find.bySemanticsLabel('상록수역, 수도권 2호선, 선택'), findsOneWidget);
+
+        tester.semantics.tap(find.semantics.byLabel(toggleLabel));
+        await tester.pumpAndSettle();
+
+        // 라벨은 그대로이고 toggled만 바뀐다.
+        expect(
+          tester
+              .getSemantics(find.bySemanticsLabel(toggleLabel))
+              .flagsCollection
+              .isToggled,
+          Tristate.isTrue,
+        );
+
+        tester.semantics.tap(find.semantics.byLabel(toggleLabel));
+        await tester.pumpAndSettle();
+
+        expect(
+          tester
+              .getSemantics(find.bySemanticsLabel(toggleLabel))
+              .flagsCollection
+              .isToggled,
+          Tristate.isFalse,
+        );
+      } finally {
+        semanticsHandle.dispose();
+      }
+    });
+
+    testWidgets('스크린리더 순회는 행 다음에 토글이다', (tester) async {
+      final semanticsHandle = tester.ensureSemantics();
+      try {
+        await pumpSearchResults(tester, '상록수');
+
+        final traversedLabels = <String>[];
+        void visit(SemanticsNode node) {
+          final label = node.getSemanticsData().label;
+          if (label == toggleLabel || label == '상록수역, 수도권 2호선, 선택') {
+            traversedLabels.add(label);
+          }
+          node
+              .debugListChildrenInOrder(DebugSemanticsDumpOrder.traversalOrder)
+              .forEach(visit);
+        }
+
+        visit(tester.getSemantics(find.byType(MaterialApp)));
+
+        expect(traversedLabels, ['상록수역, 수도권 2호선, 선택', toggleLabel]);
+      } finally {
+        semanticsHandle.dispose();
+      }
+    });
+
+    testWidgets('역명이 줄바꿈된 행에서도 토글은 행 세로 중앙에 있다', (tester) async {
+      await pumpSearchResults(tester, '매우긴역이름' * 30);
+
+      final rowRect = tester.getRect(find.byKey(rowKey));
+      final toggleRect = tester.getRect(find.byKey(toggleKey));
+      expect(rowRect.height, greaterThan(72));
+      expect(toggleRect.center.dy, closeTo(rowRect.center.dy, 1));
+      expect(toggleRect.left, rowRect.left + 8);
+    });
+
+    testWidgets('포인터로 토글을 탭하면 즐겨찾기만 바뀌고 역은 선택되지 않는다', (tester) async {
+      final favoriteRepository = await pumpSearchResults(tester, '상록수');
+
+      await tester.tap(find.byKey(toggleKey));
+      await tester.pumpAndSettle();
+
+      expect(favoriteRepository.savedStationIds, ['station-sangnoksu']);
+      expect(find.byKey(const Key('stationSearchInput')), findsOneWidget);
+      expect(find.byKey(const Key('networkMapScreen')), findsNothing);
+    });
+  });
+
   testWidgets('역 검색 결과는 쿼리 하이라이트와 즐겨찾기 우선 정렬을 제공한다', (tester) async {
     final favoriteRepository = FakeFavoriteStationRepository(
       favorites: [_favoriteStation(id: 'station-seoul-forest', name: '서울숲')],
@@ -12450,17 +12573,18 @@ void main() {
     await tester.pumpAndSettle();
 
     // 즐겨찾기 역이 결과 목록 상단에 온다.
-    final firstResult = tester.widget<Semantics>(
-      find
-          .descendant(
+    final firstResultLabel = tester
+        .widgetList<Semantics>(
+          find.descendant(
             of: find.byKey(
               const Key('stationSearchResult-station-seoul-forest-seoul-2'),
             ),
             matching: find.byType(Semantics),
-          )
-          .first,
-    );
-    expect(firstResult.properties.label, contains('서울숲역'));
+          ),
+        )
+        .map((semantics) => semantics.properties.label)
+        .firstWhere((label) => label != null);
+    expect(firstResultLabel, contains('서울숲역'));
 
     final resultOrder = [
       for (final id in [
