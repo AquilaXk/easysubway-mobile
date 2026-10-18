@@ -48,7 +48,6 @@ const sweepLines = [
   ),
 ];
 
-/// 내 제보 목록·알림함이 접수된 제보를 그리도록 제보 한 건을 돌려준다.
 /// 알림함이 읽는 시설·제보 조회의 성공·실패 조합.
 enum SweepInboxLoad {
   /// 시설과 제보가 모두 성공한다.
@@ -61,6 +60,7 @@ enum SweepInboxLoad {
   reportsFailed,
 }
 
+/// 내 제보 목록·알림함이 접수된 제보를 그리도록 제보 한 건을 돌려준다.
 class SweepReportRepository implements FacilityReportRepository {
   const SweepReportRepository({this.listFails = false});
 

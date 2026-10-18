@@ -2,6 +2,7 @@ import 'package:easysubway_mobile/features/network_map/data/network_map_owner_la
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/core_screen_sweep_fixtures.dart';
@@ -71,6 +72,9 @@ void main() {
             expect(screen.shown, findsOneWidget);
             expect(tester.takeException(), isNull);
             expect(await _violations(tester), isEmpty);
+            if (screen.distinctActionLabels) {
+              expect(_duplicateTapLabels(tester), isEmpty);
+            }
           }
 
           try {
@@ -102,6 +106,30 @@ Future<List<String>> _violations(WidgetTester tester) async {
     }
   }
   return violations;
+}
+
+/// 한 화면에서 탭할 수 있는 요소가 같은 라벨을 나눠 쓰면 스크린리더 사용자가
+/// 둘을 구분하지 못한다. 라벨이 겹친 요소의 라벨을 모아 돌려준다.
+List<String> _duplicateTapLabels(WidgetTester tester) {
+  final counts = <String, int>{};
+  void visit(SemanticsNode node) {
+    final data = node.getSemanticsData();
+    if (!node.isInvisible &&
+        data.hasAction(SemanticsAction.tap) &&
+        data.label.isNotEmpty) {
+      counts.update(data.label, (count) => count + 1, ifAbsent: () => 1);
+    }
+    node.visitChildren((SemanticsNode child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  visit(tester.getSemantics(find.byType(MaterialApp)));
+  return [
+    for (final MapEntry(:key, :value) in counts.entries)
+      if (value > 1) '$key x$value',
+  ];
 }
 
 final _nodeLabelPattern = RegExp(r'label: "([^"]*)"');

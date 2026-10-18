@@ -1703,23 +1703,14 @@ void main() {
   });
 
   group('알림함 부분 조회 실패', () {
-    const reportedAccepted = FacilityReportResult(
-      id: 'report-9',
-      publicReceiptCode: 'ES-1009',
-      stationId: 'station-sangnoksu',
-      facilityId: 'facility-sangnoksu-elevator-1',
-      reportType: 'CLOSED',
-      description: '출입문이 막혀 있습니다.',
-      status: 'ACCEPTED',
-      createdAt: '2026-06-15T09:00:00',
-    );
+    const reportedAccepted = _inboxAcceptedReport;
     const facilityErrorRow = Key('notificationInboxFacilityErrorRow');
     const reportErrorRow = Key('notificationInboxReportErrorRow');
 
     Future<void> openInboxFromMenu(
       WidgetTester tester, {
-      required FakeFavoriteFacilityRepository facilityRepository,
-      required FakeFacilityReportRepository reportRepository,
+      required FavoriteFacilityRepository facilityRepository,
+      required FacilityReportRepository reportRepository,
     }) async {
       await tester.pumpWidget(
         buildEasySubwayTestApp(
@@ -1878,6 +1869,138 @@ void main() {
 
       expect(facilityRepository.listCount, facilityLoads + 1);
       expect(reportRepository.listMyReportsCount, reportLoads + 1);
+    });
+
+    for (final section in _InboxSectionCase.values) {
+      testWidgets('${section.label} 오래된 성공이 새 실패보다 늦게 도착해도 실패로 남는다', (
+        tester,
+      ) async {
+        final reportedErrors = <FlutterErrorDetails>[];
+        await runWithMobileErrorReporter(reportedErrors.add, () async {
+          final scripted = await section.openWithScriptedLoads(tester);
+          final staleLoad = scripted.calls.last;
+          await scripted.pullToRefresh(tester);
+          final newerLoad = scripted.calls.last;
+
+          newerLoad.completeError(Exception('network'));
+          await tester.pumpAndSettle();
+          expect(find.byKey(section.errorRowKey), findsOneWidget);
+
+          staleLoad.complete(section.items);
+          await tester.pumpAndSettle();
+
+          expect(find.byKey(section.errorRowKey), findsOneWidget);
+          expect(find.textContaining(section.itemText), findsNothing);
+        });
+      });
+
+      testWidgets('${section.label} 오래된 실패가 새 성공보다 늦게 도착해도 목록을 유지한다', (
+        tester,
+      ) async {
+        final reportedErrors = <FlutterErrorDetails>[];
+        await runWithMobileErrorReporter(reportedErrors.add, () async {
+          final scripted = await section.openWithScriptedLoads(tester);
+          final staleLoad = scripted.calls.last;
+          await scripted.pullToRefresh(tester);
+          final newerLoad = scripted.calls.last;
+
+          newerLoad.complete(section.items);
+          await tester.pumpAndSettle();
+          expect(find.textContaining(section.itemText), findsOneWidget);
+
+          staleLoad.completeError(Exception('network'));
+          await tester.pumpAndSettle();
+
+          expect(find.byKey(section.errorRowKey), findsNothing);
+          expect(find.textContaining(section.itemText), findsOneWidget);
+        });
+      });
+    }
+
+    for (final failed in _InboxSectionCase.values) {
+      testWidgets('${failed.label}만 실패하고 다른 구역이 0건이면 실패한 구역의 오류 행만 보인다', (
+        tester,
+      ) async {
+        final reportedErrors = <FlutterErrorDetails>[];
+        final facilityRepository = FakeFavoriteFacilityRepository();
+        final reportRepository = FakeFacilityReportRepository();
+        failed.failOn(facilityRepository, reportRepository);
+
+        await runWithMobileErrorReporter(reportedErrors.add, () async {
+          await openInboxFromMenu(
+            tester,
+            facilityRepository: facilityRepository,
+            reportRepository: reportRepository,
+          );
+
+          expect(find.byKey(failed.errorRowKey), findsOneWidget);
+          expect(find.text(failed.errorTitle), findsOneWidget);
+          expect(find.byKey(failed.other.errorRowKey), findsNothing);
+          expect(
+            find.byKey(const Key('notificationInboxErrorState')),
+            findsNothing,
+          );
+          expect(find.text('새 알림이 없습니다'), findsNothing);
+        });
+      });
+    }
+
+    testWidgets('둘 다 실패한 뒤 한쪽만 다시 성공하면 부분 실패 화면으로 바뀐다', (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      final facilityRepository = FakeFavoriteFacilityRepository(
+        favorites: [_favoriteFacility(status: 'USER_REPORTED')],
+      )..error = Exception('network');
+      final reportRepository = FakeFacilityReportRepository(
+        reports: const [reportedAccepted],
+      )..error = Exception('network');
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        await openInboxFromMenu(
+          tester,
+          facilityRepository: facilityRepository,
+          reportRepository: reportRepository,
+        );
+        expect(
+          find.byKey(const Key('notificationInboxErrorState')),
+          findsOneWidget,
+        );
+
+        reportRepository.error = null;
+        await tester.tap(find.widgetWithText(OutlinedButton, '다시 시도'));
+        await tester.pumpAndSettle();
+
+        expect(
+          find.byKey(const Key('notificationInboxErrorState')),
+          findsNothing,
+        );
+        expect(find.byKey(facilityErrorRow), findsOneWidget);
+        expect(find.text('제보 번호 ES-1009'), findsOneWidget);
+      });
+    });
+
+    testWidgets('구역 오류 행의 다시 시도 버튼은 구역명을 포함한 접근성 라벨을 가진다', (tester) async {
+      final reportedErrors = <FlutterErrorDetails>[];
+      final facilityRepository = FakeFavoriteFacilityRepository(
+        favorites: [_favoriteFacility(status: 'USER_REPORTED')],
+      )..error = Exception('network');
+      final reportRepository = FakeFacilityReportRepository(
+        reports: const [reportedAccepted],
+      )..error = Exception('network');
+
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        final semantics = tester.ensureSemantics();
+        await openInboxFromMenu(
+          tester,
+          facilityRepository: facilityRepository,
+          reportRepository: reportRepository,
+        );
+        reportRepository.error = null;
+        await tester.tap(find.widgetWithText(OutlinedButton, '다시 시도'));
+        await tester.pumpAndSettle();
+
+        expect(find.bySemanticsLabel('시설 다시 시도'), findsOneWidget);
+        semantics.dispose();
+      });
     });
   });
 
@@ -18159,4 +18282,145 @@ StationTimetable _stationTimetable(
     dayType: dayType,
     directions: directions,
   );
+}
+
+const _inboxAcceptedReport = FacilityReportResult(
+  id: 'report-9',
+  publicReceiptCode: 'ES-1009',
+  stationId: 'station-sangnoksu',
+  facilityId: 'facility-sangnoksu-elevator-1',
+  reportType: 'CLOSED',
+  description: '출입문이 막혀 있습니다.',
+  status: 'ACCEPTED',
+  createdAt: '2026-06-15T09:00:00',
+);
+
+/// 알림함 조회 구역(시설·제보) 하나를 가리키는 테스트 표.
+enum _InboxSectionCase {
+  facility('시설', Key('notificationInboxFacilityErrorRow'), '시설을 불러오지 못했어요'),
+  report('제보', Key('notificationInboxReportErrorRow'), '제보를 불러오지 못했어요');
+
+  const _InboxSectionCase(this.label, this.errorRowKey, this.errorTitle);
+
+  final String label;
+  final Key errorRowKey;
+  final String errorTitle;
+
+  _InboxSectionCase get other => this == facility ? report : facility;
+
+  List<Object> get items => this == facility
+      ? [_favoriteFacility(status: 'USER_REPORTED')]
+      : const [_inboxAcceptedReport];
+
+  String get itemText => this == facility ? '1번 출구 엘리베이터' : '제보 번호 ES-1009';
+
+  void failOn(
+    FakeFavoriteFacilityRepository facilityRepository,
+    FakeFacilityReportRepository reportRepository,
+  ) {
+    if (this == facility) {
+      facilityRepository.error = Exception('network');
+    } else {
+      reportRepository.error = Exception('network');
+    }
+  }
+
+  /// 이 구역의 조회만 completer로 직접 끝내도록 하고 알림함을 연다.
+  /// 다른 구역은 즉시 항목을 돌려준다.
+  Future<_ScriptedLoads> openWithScriptedLoads(WidgetTester tester) async {
+    final scripted = _ScriptedLoads();
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: FakeStationSearchRepository(),
+        reportRepository: this == report
+            ? _ScriptedReportRepository(scripted)
+            : FakeFacilityReportRepository(
+                reports: const [_inboxAcceptedReport],
+              ),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        favoriteFacilityRepository: this == facility
+            ? _ScriptedFacilityRepository(scripted)
+            : FakeFavoriteFacilityRepository(
+                favorites: [_favoriteFacility(status: 'USER_REPORTED')],
+              ),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    // 홈 알림 바 판정의 조회는 먼저 끝내 두고, 알림함의 조회만 남긴다.
+    scripted.completeAll(const <Object>[]);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('networkMapMenuButton')));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const Key('networkMapMenuNotificationsButton')),
+    );
+    // 이 구역이 로딩 중이라 진행 표시줄이 계속 움직이므로 settle하지 않는다.
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
+    return scripted;
+  }
+}
+
+class _ScriptedLoads {
+  final calls = <Completer<List<Object>>>[];
+
+  Future<List<Object>> next() {
+    final call = Completer<List<Object>>();
+    calls.add(call);
+    return call.future;
+  }
+
+  void completeAll(List<Object> items) {
+    for (final call in calls.where((call) => !call.isCompleted)) {
+      call.complete(items);
+    }
+  }
+
+  Future<void> pullToRefresh(WidgetTester tester) async {
+    unawaited(
+      tester.state<RefreshIndicatorState>(find.byType(RefreshIndicator)).show(),
+    );
+    // 새로고침 표시 애니메이션이 끝나야 onRefresh가 호출된다.
+    for (var frame = 0; frame < 4; frame++) {
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+  }
+}
+
+class _ScriptedFacilityRepository implements FavoriteFacilityRepository {
+  _ScriptedFacilityRepository(this._loads);
+
+  final _ScriptedLoads _loads;
+
+  @override
+  Future<List<FavoriteFacility>> listFavoriteFacilities() async =>
+      List<FavoriteFacility>.from(await _loads.next());
+
+  @override
+  Future<FavoriteFacility> saveFavoriteFacility(String facilityId) =>
+      throw UnimplementedError();
+
+  @override
+  Future<void> removeFavoriteFacility(String facilityId) =>
+      throw UnimplementedError();
+}
+
+class _ScriptedReportRepository implements FacilityReportRepository {
+  _ScriptedReportRepository(this._loads);
+
+  final _ScriptedLoads _loads;
+
+  @override
+  Future<List<FacilityReportResult>> listMyReports() async =>
+      List<FacilityReportResult>.from(await _loads.next());
+
+  @override
+  Future<FacilityReportResult> createReport(FacilityReportRequest request) =>
+      throw UnimplementedError();
+
+  @override
+  Future<FacilityReportResult> getReport(String reportId) =>
+      throw UnimplementedError();
 }

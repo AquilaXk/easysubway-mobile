@@ -68,6 +68,7 @@ class SweepScreen {
     this.stationResults = const [],
     this.onboarded = true,
     this.inboxLoad = SweepInboxLoad.normal,
+    this.distinctActionLabels = false,
   });
 
   final String name;
@@ -86,6 +87,10 @@ class SweepScreen {
 
   /// 알림함이 읽는 시설·제보 조회의 성공·실패 조합.
   final SweepInboxLoad inboxLoad;
+
+  /// true면 탭할 수 있는 요소의 라벨이 화면 안에서 서로 달라야 한다. 같은 버튼이
+  /// 여러 번 나오는 화면(구역별 다시 시도)을 스크린리더가 구분하는지 본다.
+  final bool distinctActionLabels;
 
   OnboardingState onboardingState(SweepTheme theme) => onboarded
       ? OnboardingState.completed(
@@ -175,18 +180,21 @@ final sweepScreens = <SweepScreen>[
     '알림함',
     (context) => _openMenuEntry(context, 'networkMapMenuNotificationsButton'),
     find.byType(NotificationInboxScreen),
+    distinctActionLabels: true,
   ),
   SweepScreen(
     '알림함(조회 실패)',
     (context) => _openMenuEntry(context, 'networkMapMenuNotificationsButton'),
     find.byKey(const Key('notificationInboxErrorState')),
     inboxLoad: SweepInboxLoad.failedNoItems,
+    distinctActionLabels: true,
   ),
   SweepScreen(
     '알림함(부분 조회 실패)',
     (context) => _openMenuEntry(context, 'networkMapMenuNotificationsButton'),
     find.byKey(const Key('notificationInboxReportErrorRow')),
     inboxLoad: SweepInboxLoad.reportsFailed,
+    distinctActionLabels: true,
   ),
   SweepScreen(
     '내 제보',

@@ -35,25 +35,35 @@ class NotificationInboxScreen extends StatefulWidget {
 }
 
 class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
-  late _InboxSection _facilities;
-  var _reports = const _InboxSection.loading();
+  late final _InboxSlot _facilities;
+  final _InboxSlot _reports = _InboxSlot();
+
+  /// 조회 대상이 있는 구역. 즐겨찾기 시설 저장소가 없으면 시설 구역은 없다.
+  List<_InboxSlot> get _activeSlots => [
+    if (widget.favoriteFacilityRepository != null) _facilities,
+    _reports,
+  ];
 
   @override
   void initState() {
     super.initState();
-    _facilities = widget.favoriteFacilityRepository == null
-        ? const _InboxSection.loaded([])
-        : const _InboxSection.loading();
+    _facilities = _InboxSlot(
+      widget.favoriteFacilityRepository == null
+          ? const _SectionLoaded([])
+          : const _SectionLoading(),
+    );
     unawaited(_loadFacilities());
     unawaited(_loadReports());
   }
 
   @override
   Widget build(BuildContext context) {
-    final sections = [_facilities, _reports];
-    final loading = sections.any((section) => section.loading);
-    final items = [for (final section in sections) ...section.items];
-    final anyFailed = sections.any((section) => section.failed);
+    final slots = _activeSlots;
+    final states = [for (final slot in slots) slot.state];
+    final items = [
+      for (final state in states)
+        if (state case _SectionLoaded(:final items)) ...items,
+    ];
     return Scaffold(
       appBar: AppBar(
         title: const Text('알림'),
@@ -77,17 +87,19 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
             physics: const AlwaysScrollableScrollPhysics(),
             padding: mainListPagePadding,
             children: [
-              if (loading) const LinearProgressIndicator(minHeight: 3),
-              if (!loading && items.isEmpty && anyFailed)
+              if (states.any((state) => state is _SectionLoading))
+                const LinearProgressIndicator(minHeight: 3),
+              if (states.every((state) => state is _SectionFailed))
                 HomeStateCard(
                   key: const Key('notificationInboxErrorState'),
                   icon: Icons.error_outline,
                   title: '알림을 불러오지 못했어요',
                   subtitle: '잠시 후 다시 시도해 주세요.',
                   actionLabel: '다시 시도',
-                  onAction: _retryFailed,
+                  onAction: _retryAll,
                 )
-              else if (!loading && items.isEmpty)
+              else if (states.every((state) => state is _SectionLoaded) &&
+                  items.isEmpty)
                 const _NotificationInboxEmptyState()
               else ...[
                 if (items.isNotEmpty) _NotificationInboxChips(items: items),
@@ -95,12 +107,14 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                   _facilities,
                   errorKey: const Key('notificationInboxFacilityErrorRow'),
                   errorTitle: '시설을 불러오지 못했어요',
+                  retryLabel: '시설 다시 시도',
                   onRetry: _loadFacilities,
                 ),
                 ..._sectionRows(
                   _reports,
                   errorKey: const Key('notificationInboxReportErrorRow'),
                   errorTitle: '제보를 불러오지 못했어요',
+                  retryLabel: '제보 다시 시도',
                   onRetry: _loadReports,
                 ),
               ],
@@ -112,88 +126,92 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
   }
 
   List<Widget> _sectionRows(
-    _InboxSection section, {
+    _InboxSlot slot, {
     required Key errorKey,
     required String errorTitle,
+    required String retryLabel,
     required Future<void> Function() onRetry,
   }) {
-    return [
-      for (final item in section.items)
-        _NotificationInboxRow(item: item, onOpenReport: widget.onOpenReport),
-      if (section.failed)
+    return switch (slot.state) {
+      _SectionLoading() => const [],
+      _SectionLoaded(:final items) => [
+        for (final item in items)
+          _NotificationInboxRow(item: item, onOpenReport: widget.onOpenReport),
+      ],
+      _SectionFailed() => [
         HomeStateCard(
           key: errorKey,
           icon: Icons.error_outline,
           title: errorTitle,
           subtitle: '잠시 후 다시 시도해 주세요.',
           actionLabel: '다시 시도',
+          actionSemanticsLabel: retryLabel,
           onAction: () => unawaited(onRetry()),
         ),
-    ];
+      ],
+    };
   }
 
-  /// 실패한 구역만 다시 조회한다.
-  void _retryFailed() {
-    if (_facilities.failed) {
-      unawaited(_loadFacilities());
-    }
-    if (_reports.failed) {
-      unawaited(_loadReports());
-    }
+  /// 전체 오류 상태의 다시 시도. 모든 구역이 실패한 상태이므로 모두 다시 조회한다.
+  void _retryAll() {
+    unawaited(_loadFacilities());
+    unawaited(_loadReports());
   }
 
-  Future<void> _loadFacilities() async {
+  Future<void> _loadFacilities() {
     final repository = widget.favoriteFacilityRepository;
     if (repository == null) {
-      return;
+      return Future.value();
     }
-    _setFacilities(const _InboxSection.loading());
+    return _loadSection(
+      _facilities,
+      errorContext: '알림함 즐겨찾기 시설 상태를 불러오는 중 예외가 발생했습니다.',
+      fetch: () async => [
+        for (final facility
+            in (await repository.listFavoriteFacilities()).where(
+              isFacilityAlert,
+            ))
+          _NotificationInboxItem.facility(facility),
+      ],
+    );
+  }
+
+  Future<void> _loadReports() {
+    return _loadSection(
+      _reports,
+      errorContext: '알림함 제보 상태를 불러오는 중 예외가 발생했습니다.',
+      fetch: () async => [
+        for (final report in await widget.reportRepository.listMyReports())
+          _NotificationInboxItem.report(report),
+      ],
+    );
+  }
+
+  /// 구역 하나를 조회한다. 겹친 조회는 가장 최근 요청의 응답만 상태에 반영하고,
+  /// 오래된 응답은 버려 새 실패나 새 성공을 덮어쓰지 않게 한다.
+  Future<void> _loadSection(
+    _InboxSlot slot, {
+    required String errorContext,
+    required Future<List<_NotificationInboxItem>> Function() fetch,
+  }) async {
+    final request = ++slot.latestRequest;
+    _setSlot(slot, const _SectionLoading());
     try {
-      final facilities = await repository.listFavoriteFacilities();
-      _setFacilities(
-        _InboxSection.loaded([
-          for (final facility in facilities.where(isFacilityAlert))
-            _NotificationInboxItem.facility(facility),
-        ]),
-      );
+      final items = await fetch();
+      if (request == slot.latestRequest) {
+        _setSlot(slot, _SectionLoaded(items));
+      }
     } catch (error, stackTrace) {
-      _setFacilities(const _InboxSection.failed());
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '알림함 즐겨찾기 시설 상태를 불러오는 중 예외가 발생했습니다.',
-      );
+      reportMobileError(error, stackTrace, context: errorContext);
+      if (request == slot.latestRequest) {
+        _setSlot(slot, const _SectionFailed());
+      }
     }
   }
 
-  Future<void> _loadReports() async {
-    _setReports(const _InboxSection.loading());
-    try {
-      final reports = await widget.reportRepository.listMyReports();
-      _setReports(
-        _InboxSection.loaded([
-          for (final report in reports) _NotificationInboxItem.report(report),
-        ]),
-      );
-    } catch (error, stackTrace) {
-      _setReports(const _InboxSection.failed());
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '알림함 제보 상태를 불러오는 중 예외가 발생했습니다.',
-      );
-    }
-  }
-
-  void _setFacilities(_InboxSection section) {
+  void _setSlot(_InboxSlot slot, _InboxSectionState state) {
     if (mounted) {
-      setState(() => _facilities = section);
-    }
-  }
-
-  void _setReports(_InboxSection section) {
-    if (mounted) {
-      setState(() => _reports = section);
+      setState(() => slot.state = state);
     }
   }
 
@@ -216,23 +234,31 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
   }
 }
 
-/// 알림함의 조회 구역(시설·제보) 하나의 상태. 구역마다 따로 실패하고 다시 조회한다.
-class _InboxSection {
-  const _InboxSection.loading()
-    : items = const [],
-      loading = true,
-      failed = false;
+/// 알림함 조회 구역(시설·제보) 하나의 상태. 구역마다 따로 실패하고 다시 조회한다.
+sealed class _InboxSectionState {
+  const _InboxSectionState();
+}
 
-  const _InboxSection.loaded(this.items) : loading = false, failed = false;
+final class _SectionLoading extends _InboxSectionState {
+  const _SectionLoading();
+}
 
-  const _InboxSection.failed()
-    : items = const [],
-      loading = false,
-      failed = true;
+final class _SectionLoaded extends _InboxSectionState {
+  const _SectionLoaded(this.items);
 
   final List<_NotificationInboxItem> items;
-  final bool loading;
-  final bool failed;
+}
+
+final class _SectionFailed extends _InboxSectionState {
+  const _SectionFailed();
+}
+
+/// 구역 하나의 현재 상태와 가장 최근 조회 요청 번호.
+class _InboxSlot {
+  _InboxSlot([this.state = const _SectionLoading()]);
+
+  _InboxSectionState state;
+  int latestRequest = 0;
 }
 
 class _NotificationInboxEmptyState extends StatelessWidget {
