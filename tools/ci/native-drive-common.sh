@@ -3,7 +3,7 @@
 # source해서 쓰며, NATIVE_TARGETS의 integration test를 차례로 실행하고 영수증을 쓴다.
 # NATIVE_TARGETS 항목은 `<대상>` 또는 `<대상>:<글꼴 배율>`이다. 배율이 있으면 drive 전에 시스템 글꼴 배율을
 # 어댑터가 기기에 설정하고 테스트에 A11Y_FONT_SCALE로 넘기며, 배율이 없는 항목은 1.0으로 되돌려 실행한다.
-# 어느 단계든 실패하면 FAIL 영수증에 실패한 대상과 단계(boot/format/analyze/build/drive)를 남기고
+# 어느 단계든 실패하면 FAIL 영수증에 실패한 대상과 단계(boot/format/analyze/drive)를 남기고
 # 즉시 끝내므로, 뒤에 오는 PASS 영수증이 FAIL을 덮어쓸 수 없다.
 #
 # 재시도(fail-closed): drive가 테스트 실행 전에 인프라 오류로 끝났다는 긍정 증거(어댑터의
@@ -18,7 +18,7 @@
 #   platform_drive <대상> <배율>              flutter drive를 시간 제한 안에서 실행한다.
 #   platform_collect_failure_log              FAIL 영수증 직전에 기기 쪽 크래시·시스템 로그를 증거 디렉터리에 남긴다.
 #   platform_infra_reason <로그>              인프라 오류의 긍정 증거가 있으면 사유 하나를 출력한다.
-# 어댑터가 필요하면 덮어쓸 함수(기본은 아무것도 안 함): platform_build, platform_recover.
+# 어댑터가 필요하면 덮어쓸 함수(기본은 아무것도 안 함): platform_recover.
 # shellcheck disable=SC2154 # lane·evidence 등 어댑터가 정하는 변수를 참조한다.
 set -uo pipefail
 
@@ -33,7 +33,6 @@ default_font_scale="1.0"
 test_result_signal='[0-9]{2}:[0-9]{2} \+[0-9]+|All tests passed|Failure Details:|Some tests failed|EXCEPTION CAUGHT|Test failed'
 retried=()
 
-platform_build() { :; }
 platform_recover() { :; }
 
 retried_json() {
@@ -123,10 +122,11 @@ run_native_drive() {
   ensure_device "${NATIVE_TARGETS}"
   dart format --output=none --set-exit-if-changed "${sources[@]}" || fail "${NATIVE_TARGETS}" format
   flutter analyze "${sources[@]}" || fail "${NATIVE_TARGETS}" analyze
-  platform_build || fail "${NATIVE_TARGETS}" build
 
   for target in ${NATIVE_TARGETS}; do
+    local started="${SECONDS}"
     drive_target "${target}"
+    echo "::notice::${target} drive ${SECONDS}s 시점 종료, 소요 $((SECONDS - started))초"
   done
 
   write_receipt PASS

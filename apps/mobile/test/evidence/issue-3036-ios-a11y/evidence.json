@@ -1,0 +1,53 @@
+{
+  "schemaVersion": 1,
+  "issue": 3036,
+  "capturedAt": "2026-10-19",
+  "platform": "iOS 시뮬레이터 실제 캡처(iPhone 17, iOS 27.0, 402x874pt @3x, flutter drive의 takeScreenshot). 전체 화면은 역 상세 시트이며 글꼴은 simctl content_size large(기본)와 accessibility-extra-extra-extra-large(AX5, 배율 3.1176)",
+  "assertions": [
+    "기본 글자에서 방면·첫차막차 행과 실시간 도착 행은 변경 전과 후가 바이트 단위로 같다(sha256 동일)",
+    "AX5에서 변경 전 방면 행은 첫차·막차가 오른쪽으로 45px 넘치고 방면 이름이 글자 단위로 세로로 깨진다. 변경 후 방면 이름 아래 줄로 첫차·막차가 내려가 넘치지 않는다",
+    "AX5에서 변경 전 실시간 도착 행은 목적지가 글자 단위로 깨지고, 변경 후 목적지와 도착 문구가 남는 너비를 절반씩 나눠 쓰며 도착 문구 전체가 보인다"
+  ],
+  "files": [
+    {
+      "path": "before-timetable-1.0.png",
+      "sha256": "2bc6e2fb7998184f34cf9b88c329f6dc8185c6ed264b78df12a6af1564ca0cd7",
+      "description": "변경 전(origin/main bef929ab) 기본 글자: 방면 이름 왼쪽, 첫차·막차 오른쪽 끝 한 줄"
+    },
+    {
+      "path": "after-timetable-1.0.png",
+      "sha256": "2bc6e2fb7998184f34cf9b88c329f6dc8185c6ed264b78df12a6af1564ca0cd7",
+      "description": "변경 후 기본 글자: 위 이미지와 같은 파일(배치 불변)"
+    },
+    {
+      "path": "before-timetable-3.12.png",
+      "sha256": "67ce50c850fcf810acaca243be11ff5a06d8d6c3355755662c2757b3788d4b38",
+      "description": "변경 전 AX5: RIGHT OVERFLOWED BY 45 PIXELS 표시와 방면 이름의 세로 깨짐"
+    },
+    {
+      "path": "after-timetable-3.12.png",
+      "sha256": "731f359b396d54dec2a82cd97036a3703b14dbeccba627e1e3170cf8de972369",
+      "description": "변경 후 AX5: 방면 이름, 첫차, 막차가 줄을 나눠 모두 보임"
+    },
+    {
+      "path": "before-realtime-1.0.png",
+      "sha256": "2881f8a955f4ba68d285715d054d6a999c38005fbd28a78a4111cdc167b26ddb",
+      "description": "변경 전 기본 글자: 목적지 왼쪽, 도착 배지 오른쪽 끝"
+    },
+    {
+      "path": "after-realtime-1.0.png",
+      "sha256": "2881f8a955f4ba68d285715d054d6a999c38005fbd28a78a4111cdc167b26ddb",
+      "description": "변경 후 기본 글자: 위 이미지와 같은 파일(배치 불변)"
+    },
+    {
+      "path": "before-realtime-3.12.png",
+      "sha256": "ba8bd44054b79535cb6ae5daf3bbdf41aea91b6398eb869bdd893973ca2d73bf",
+      "description": "변경 전 AX5: 배지가 줄을 차지해 목적지 '성수행'이 글자 단위로 깨짐"
+    },
+    {
+      "path": "after-realtime-3.12.png",
+      "sha256": "b02e6533c872355ad660b08d83fbd5a2084653d702ea3fc04c03167684d1c175",
+      "description": "변경 후 AX5: 목적지와 '2분 뒤 도착' 배지가 너비를 나눠 쓰고 문구가 모두 보임"
+    }
+  ]
+}

@@ -183,7 +183,6 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
   stub(
     "flutter",
     [
-      `[ "$1" = build ] && { echo build >> "${root}/calls"; exit "$BUILD_EXIT"; }`,
       '[ "$1" = drive ] || exit 0',
       `echo drive >> "${root}/calls"`,
       `echo "define $4" >> "${root}/calls"`,
@@ -201,7 +200,6 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
       FONT_SCALE_FAILS: "0",
       FONT_SCALE_FAIL_LOG: "",
       CONTENT_SIZE_STUCK: "0",
-      BUILD_EXIT: "0",
       ...env,
     },
     encoding: "utf8",
@@ -219,7 +217,6 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
     contentSizes: calls.filter((line) => line.startsWith("content_size ")).map((line) => line.slice("content_size ".length)),
     shutdowns: calls.filter((line) => line === "shutdown").length,
     bootstatuses: calls.filter((line) => line === "bootstatus").length,
-    builds: calls.filter((line) => line === "build").length,
     read,
     exists: (name) => existsSync(path.join(evidence, name)),
   };
@@ -431,16 +428,16 @@ test("failing to set the font scale fails the target at drive without running th
 const iosFailedReceipt = (extra) => ({ schemaVersion: 1, lane: "ios-native", status: "FAIL", ...extra });
 const iosAx5 = "accessibility-extra-extra-extra-large";
 const runIos = (options) => runDriveScript({ platform: "ios", ...options });
+// 합성 로그: 실제 CoreSimulatorService 오류 로그를 채집하기 전까지의 가정이다. 패턴이 맞지 않으면 재시도 없이 FAIL이라 안전하다.
 const simulatorUnavailableLog = "CoreSimulatorService connection became invalid\nSimulator services will no longer be available.\n";
 
-test("iOS clean drive builds once, sets the content size per target, and passes it to the test", () => {
+test("iOS clean drive sets the content size per target and passes it to the test", () => {
   const run = runIos({
     targets: "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:3.12",
     drives: [passLog, passLog, passLog],
   });
   assert.equal(run.status, 0);
   assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "ios-native", status: "PASS" });
-  assert.equal(run.builds, 1);
   assert.deepEqual(run.contentSizes, ["large", "large", iosAx5]);
   assert.deepEqual(run.driveDefines, ["A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=3.12"]);
   for (const log of ["native_test", "core_screen_a11y_smoke_test", "core_screen_a11y_smoke_test-3.12"]) {
@@ -499,18 +496,42 @@ test("iOS drive log without positive infra evidence is not retried, and perl ala
   assert.equal(timeout.shutdowns, 0);
 });
 
-test("iOS build failure and simulator boot failure are recorded by step and keep the simulator log", () => {
-  const build = runIos({ env: { BUILD_EXIT: "1" }, drives: [passLog] });
-  assert.equal(build.status, 1);
-  assert.deepEqual(build.receipt, iosFailedReceipt({ target: "native_test", step: "build" }));
-  assert.equal(build.driveCalls, 0);
-  assert.equal(build.read("simulator.log"), "SIMULATOR LOG\n");
-
+test("iOS simulator boot failure is recorded by step and keeps the simulator log", () => {
   const boot = runIos({ boot: ["0"], drives: [passLog] });
   assert.equal(boot.status, 1);
   assert.deepEqual(boot.receipt, iosFailedReceipt({ target: "native_test", step: "boot" }));
-  assert.equal(boot.builds, 0);
   assert.equal(boot.driveCalls, 0);
+  assert.equal(boot.read("simulator.log"), "SIMULATOR LOG\n");
+});
+
+// 실제 CI에서 native_test drive가 빌드 뒤 12분 동안 멈춰 perl alarm(142)으로 끝난 로그다(PR #490 RED 확인 run).
+// 시뮬레이터 인프라 오류 문구가 전혀 없다. 실제 CoreSimulatorService 오류 로그는 아직 채집하지 못했다.
+const realHangLog = readFileSync(path.join(fileURLToPath(new URL("./fixtures/ios-drive/", import.meta.url)), "real-hang-after-build-timeout.txt"), "utf8");
+
+test("real iOS hang log is a timeout, never retried, and carries no simulator infra evidence", () => {
+  const timeout = runIos({ drives: [{ log: realHangLog, exit: 142 }, passLog] });
+  assert.equal(timeout.status, 1);
+  assert.deepEqual(timeout.receipt, iosFailedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
+  assert.equal(timeout.driveCalls, 1);
+  assert.equal(timeout.shutdowns, 0);
+
+  const unknown = runIos({ drives: [{ log: realHangLog, exit: 1 }, passLog] });
+  assert.equal(unknown.status, 1);
+  assert.deepEqual(unknown.receipt, iosFailedReceipt({ target: "native_test", step: "drive" }));
+  assert.equal(unknown.driveCalls, 1);
+});
+
+test("iOS AX5 scale is defined once in the Dart constant and the lane values stay within the smoke test tolerance", () => {
+  const constant = readFileSync(new URL("../../apps/mobile/test/support/ios_text_scale.dart", import.meta.url), "utf8");
+  const [, numerator, denominator] = constant.match(/const iosAx5TextScale = (\d+) \/ (\d+);/u) ?? [];
+  const ax5 = Number(numerator) / Number(denominator);
+  const tolerance = Number(a11ySmokeTest.match(/closeTo\(_fontScale, ([\d.]+)\)/u)?.[1]);
+  assert.ok(tolerance > 0);
+  const laneScale = jobTargets(iosJob).find((target) => target.endsWith(":3.12"))?.split(":")[1];
+  const tableScale = iosDriveScript.match(/^\s+([\d.]+)\) echo "accessibility-extra-extra-extra-large" ;;$/mu)?.[1];
+  assert.equal(laneScale, "3.12");
+  assert.equal(tableScale, laneScale);
+  assert.ok(Math.abs(Number(laneScale) - ax5) <= tolerance, `${laneScale} vs ${ax5}`);
 });
 
 test("core screen accessibility smoke reuses the sweep screen table and checks tap targets, labels, render exceptions, and the applied font scale", () => {
@@ -537,10 +558,10 @@ test("core screen accessibility smoke reuses the sweep screen table and checks t
   }
   assert.match(a11ySmokeTest, /IntegrationTestWidgetsFlutterBinding\.ensureInitialized\(\)/u);
   assert.match(a11ySmokeTest, /import '\.\.\/test\/support\/core_screen_sweep_screens\.dart'/u);
-  assert.match(a11ySmokeTest, /TargetPlatform\.android => androidTapTargetGuideline/u);
-  assert.match(a11ySmokeTest, /TargetPlatform\.iOS => iOSTapTargetGuideline/u);
+  assert.match(a11ySmokeTest, /TargetPlatform\.android => \(\s*guideline: androidTapTargetGuideline/u);
+  assert.match(a11ySmokeTest, /TargetPlatform\.iOS => \(guideline: iOSTapTargetGuideline/u);
   assert.match(a11ySmokeTest, /throw StateError\('탭 영역 기준이 없는 플랫폼/u);
-  assert.match(a11ySmokeTest, /meetsGuideline\(_tapTargetGuideline\)/u);
+  assert.match(a11ySmokeTest, /meetsGuideline\(_tapTarget\.guideline\)/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(labeledTapTargetGuideline\)/u);
   assert.match(a11ySmokeTest, /String\.fromEnvironment\('A11Y_FONT_SCALE'/u);
   assert.match(a11ySmokeTest, /platformDispatcher\.textScaleFactor,\s*closeTo\(_fontScale/u);

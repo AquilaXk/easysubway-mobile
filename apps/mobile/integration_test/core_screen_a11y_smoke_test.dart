@@ -45,16 +45,17 @@ final _fontScale = double.parse(
   const String.fromEnvironment('A11Y_FONT_SCALE', defaultValue: '1.0'),
 );
 
-/// 실행 중인 플랫폼의 최소 탭 영역 기준. 모르는 플랫폼은 검사를 건너뛰지 않고 실패한다.
-final _tapTargetGuideline = switch (defaultTargetPlatform) {
-  TargetPlatform.android => androidTapTargetGuideline,
-  TargetPlatform.iOS => iOSTapTargetGuideline,
-  final platform => throw StateError('탭 영역 기준이 없는 플랫폼: $platform'),
-};
-
-final _tapTargetSize = defaultTargetPlatform == TargetPlatform.iOS
-    ? '44pt'
-    : '48dp';
+/// 실행 중인 플랫폼의 최소 탭 영역 기준과 그 크기 표기. 플랫폼 분기는 여기 한 곳이며,
+/// 모르는 플랫폼은 검사를 건너뛰지 않고 실패한다.
+final ({AccessibilityGuideline guideline, String size}) _tapTarget =
+    switch (defaultTargetPlatform) {
+      TargetPlatform.android => (
+        guideline: androidTapTargetGuideline,
+        size: '48dp',
+      ),
+      TargetPlatform.iOS => (guideline: iOSTapTargetGuideline, size: '44pt'),
+      final platform => throw StateError('탭 영역 기준이 없는 플랫폼: $platform'),
+    };
 
 final _runMode = _fontScale > 1.0 ? _FontMode.largeText : _FontMode.normal;
 
@@ -99,7 +100,7 @@ void main() {
 
   for (final screen in screens) {
     testWidgets(
-      '${screen.name} - 글자 $_fontScale배 탭 영역 $_tapTargetSize와 탭 요소 라벨',
+      '${screen.name} - 글자 $_fontScale배 탭 영역 ${_tapTarget.size}와 탭 요소 라벨',
       (tester) async {
         final semantics = tester.ensureSemantics();
         final reportedErrors = <FlutterErrorDetails>[];
@@ -127,7 +128,7 @@ void main() {
 
           await _revealShownOnDevice[screen.name]?.call(tester, screen.shown);
           expect(screen.shown, findsOneWidget);
-          await expectLater(tester, meetsGuideline(_tapTargetGuideline));
+          await expectLater(tester, meetsGuideline(_tapTarget.guideline));
           await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
           expect(tester.takeException(), isNull);
         }

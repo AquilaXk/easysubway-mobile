@@ -5,10 +5,6 @@ import '../../realtime/realtime_repository.dart';
 
 const _stationRealtimeSummaryRadius = BorderRadius.all(Radius.circular(8));
 
-/// 도착 시각 배지가 줄 너비에서 차지할 수 있는 최대 비율. 큰 글자에서 배지가 목적지를
-/// 밀어내 줄이 넘치지 않도록, 이 비율을 넘으면 배지 안에서 줄바꿈한다.
-const _etaBadgeMaxWidthFraction = 0.5;
-
 class StationRealtimeSummary extends StatelessWidget {
   const StationRealtimeSummary({
     required this.snapshot,
@@ -307,57 +303,57 @@ class _StationRealtimeRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: EasySubwayAccessibleColors.line),
       ),
-      child: LayoutBuilder(
-        builder: (context, constraints) => Row(
-          children: [
-            Icon(
-              Icons.subway_rounded,
-              size: 18,
-              color: isSoon
-                  ? EasySubwayColorPrimitives.statusDanger
-                  : (isWarning
-                        ? EasySubwayAccessibleColors.amber
-                        : EasySubwayAccessibleColors.primary),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: () {
-                final statusSubtext = pos.isNotEmpty
-                    ? (msg.isNotEmpty && msg != pos && !msg.contains('도착')
-                          ? '$pos ($msg)'
-                          : pos)
-                    : (msg.isNotEmpty && msg != etaText ? msg : '');
-                return Wrap(
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: [
+      child: Row(
+        children: [
+          Icon(
+            Icons.subway_rounded,
+            size: 18,
+            color: isSoon
+                ? EasySubwayColorPrimitives.statusDanger
+                : (isWarning
+                      ? EasySubwayAccessibleColors.amber
+                      : EasySubwayAccessibleColors.primary),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: () {
+              final statusSubtext = pos.isNotEmpty
+                  ? (msg.isNotEmpty && msg != pos && !msg.contains('도착')
+                        ? '$pos ($msg)'
+                        : pos)
+                  : (msg.isNotEmpty && msg != etaText ? msg : '');
+              return Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 2,
+                children: [
+                  Text(
+                    destination,
+                    style: const TextStyle(
+                      color: EasySubwayAccessibleColors.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  if (statusSubtext.isNotEmpty)
                     Text(
-                      destination,
+                      statusSubtext,
                       style: const TextStyle(
-                        color: EasySubwayAccessibleColors.text,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        color: EasySubwayAccessibleColors.secondaryText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
-                    if (statusSubtext.isNotEmpty)
-                      Text(
-                        statusSubtext,
-                        style: const TextStyle(
-                          color: EasySubwayAccessibleColors.secondaryText,
-                          fontSize: 13,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                  ],
-                );
-              }(),
-            ),
-            const SizedBox(width: 8),
-            ConstrainedBox(
-              constraints: BoxConstraints(
-                maxWidth: constraints.maxWidth * _etaBadgeMaxWidthFraction,
-              ),
+                ],
+              );
+            }(),
+          ),
+          const SizedBox(width: 8),
+          // 목적지와 배지가 남는 너비를 절반씩 나눠 쓰고, 배지는 넘치면 배지 안에서 줄바꿈한다.
+          // 큰 글자에서 배지가 목적지를 밀어내 줄이 넘치지 않게 하면서 도착 문구는 잘라내지 않는다.
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
@@ -375,8 +371,8 @@ class _StationRealtimeRow extends StatelessWidget {
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

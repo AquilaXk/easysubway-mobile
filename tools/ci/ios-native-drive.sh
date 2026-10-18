@@ -19,6 +19,8 @@ reason_simulator_unavailable="simulator_unavailable"
 with_timeout() { perl -e 'alarm shift; exec @ARGV' "$@"; }
 
 # 배율 → iOS 동적 글꼴 크기 범주. 표에 없는 배율은 설정하지 않고 실패한다.
+# 3.12는 AX5 배율 53/17=3.1176을 소수 둘째 자리로 줄인 값이며 스모크 테스트의 허용 오차(0.01) 안이다.
+# 정본은 apps/mobile/test/support/ios_text_scale.dart의 iosAx5TextScale이고, 계약 테스트가 둘의 일치를 확인한다.
 content_size_for_scale() {
   case "$1" in
     1.0) echo "large" ;;
@@ -40,10 +42,6 @@ platform_set_font_scale() {
   fi
   xcrun simctl ui "${simulator}" content_size "${category}" || return 1
   [ "$(xcrun simctl ui "${simulator}" content_size)" = "${category}" ]
-}
-
-platform_build() {
-  flutter build ios --simulator --debug 2>&1 | tee "${evidence}/flutter-build-ios.log"
 }
 
 platform_drive() {
