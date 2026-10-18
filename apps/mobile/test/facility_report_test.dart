@@ -467,8 +467,9 @@ void main() {
       createdAt: '__CREATED_AT__',
     );
 
-    expect(valid.createdDateLabel, '2026.06.13');
-    expect(invalid.createdDateLabel, '__CREATED_AT__');
+    final now = DateTime(2026, 10, 18, 14, 30);
+    expect(valid.createdAtLabel(now: now), '6월 13일 10:00');
+    expect(invalid.createdAtLabel(now: now), isNull);
   });
 
   test('시설 신고 application state는 상태와 결과 참조를 보존한다', () {

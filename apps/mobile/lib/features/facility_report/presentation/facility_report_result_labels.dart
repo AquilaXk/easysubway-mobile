@@ -1,15 +1,10 @@
+import '../../../core/format/date_time_labels.dart';
 import '../domain/facility_report_result.dart';
 
 extension FacilityReportResultLabels on FacilityReportResult {
-  String get createdDateLabel {
-    final parsed = DateTime.tryParse(createdAt);
-    if (parsed == null) {
-      return createdAt;
-    }
-    final month = parsed.month.toString().padLeft(2, '0');
-    final day = parsed.day.toString().padLeft(2, '0');
-    return '${parsed.year}.$month.$day';
-  }
+  /// 접수 시각 표현. 시각을 해석할 수 없으면 null이라 호출자가 그 부분만 생략한다.
+  String? createdAtLabel({required DateTime now}) =>
+      tryFormatListDateTime(createdAt, now: now);
 
   String get displayReceiptCode {
     final code = publicReceiptCode?.trim();

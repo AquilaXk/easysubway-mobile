@@ -634,7 +634,9 @@ void main() {
     expect(find.text('출입문이 막혀 있습니다.'), findsOneWidget);
     expect(
       find.bySemanticsLabel(
-        '내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다., 접수일 2026.06.15',
+        RegExp(
+          r'^내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다\., .*6월 15일.* 접수$',
+        ),
       ),
       findsOneWidget,
     );
@@ -671,7 +673,9 @@ void main() {
     await _openMyReportsScreen(tester);
     final reportSemantics = tester.getSemantics(
       find.bySemanticsLabel(
-        '내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다., 접수일 2026.06.15',
+        RegExp(
+          r'^내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다\., .*6월 15일.* 접수$',
+        ),
       ),
     );
     expect(
@@ -688,8 +692,8 @@ void main() {
     expect(find.text('제보 번호'), findsOneWidget);
     expect(find.text('ES-1002'), findsOneWidget);
     expect(find.text('report-2'), findsNothing);
-    expect(find.text('접수일'), findsOneWidget);
-    expect(find.text('2026.06.15'), findsOneWidget);
+    expect(find.text('접수'), findsOneWidget);
+    expect(find.textContaining('6월 15일'), findsOneWidget);
     expect(find.text('출입문이 막혀 있습니다.'), findsOneWidget);
     expect(
       find.bySemanticsLabel('내 제보 상세, 폐쇄, 현재 상태 반영됨, 제보 번호 ES-1002'),

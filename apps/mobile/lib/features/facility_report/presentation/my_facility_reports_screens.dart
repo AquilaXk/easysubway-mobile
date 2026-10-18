@@ -11,9 +11,14 @@ import 'facility_report_form_components.dart';
 import 'facility_report_result_labels.dart';
 
 class MyFacilityReportListScreen extends StatefulWidget {
-  const MyFacilityReportListScreen({required this.repository, super.key});
+  const MyFacilityReportListScreen({
+    required this.repository,
+    this.now = DateTime.now,
+    super.key,
+  });
 
   final FacilityReportRepository repository;
+  final DateTime Function() now;
 
   @override
   State<MyFacilityReportListScreen> createState() =>
@@ -116,7 +121,7 @@ class _MyFacilityReportListScreenState
                   ),
                 ),
                 for (var index = 0; index < reports.length; index++) ...[
-                  _MyReportListItem(report: reports[index]),
+                  _MyReportListItem(report: reports[index], now: widget.now),
                   if (index < reports.length - 1)
                     const Divider(
                       height: 1,
@@ -230,9 +235,10 @@ class _MyReportError extends StatelessWidget {
 }
 
 class _MyReportListItem extends StatelessWidget {
-  const _MyReportListItem({required this.report});
+  const _MyReportListItem({required this.report, required this.now});
 
   final FacilityReportResult report;
+  final DateTime Function() now;
 
   @override
   Widget build(BuildContext context) {
@@ -240,20 +246,28 @@ class _MyReportListItem extends StatelessWidget {
     final description = report.description.isEmpty
         ? report.reportTypeLabel
         : report.description;
-    final createdAtLabel = report.createdDateLabel;
+    final createdAtLabel = report.createdAtLabel(now: now());
+    final receivedAt = createdAtLabel == null ? null : '$createdAtLabel 접수';
     void openReportDetail() {
       unawaited(
         Navigator.of(context).push(
           MaterialPageRoute<void>(
-            builder: (_) => MyFacilityReportDetailScreen(report: report),
+            builder: (_) =>
+                MyFacilityReportDetailScreen(report: report, now: now),
           ),
         ),
       );
     }
 
     return Semantics(
-      label:
-          '내 제보, ${report.reportTypeLabel}, 제보 번호 ${report.displayReceiptCode}, ${report.statusLabel}, $description, 접수일 $createdAtLabel',
+      label: [
+        '내 제보',
+        report.reportTypeLabel,
+        '제보 번호 ${report.displayReceiptCode}',
+        report.statusLabel,
+        description,
+        ?receivedAt,
+      ].join(', '),
       button: true,
       container: true,
       onTap: openReportDetail,
@@ -287,7 +301,10 @@ class _MyReportListItem extends StatelessWidget {
                 ),
                 const SizedBox(height: 6),
                 Text(
-                  '제보 번호 ${report.displayReceiptCode} · 접수일 $createdAtLabel',
+                  [
+                    '제보 번호 ${report.displayReceiptCode}',
+                    ?receivedAt,
+                  ].join('\n'),
                   style: textTheme.bodyMedium?.copyWith(
                     color: EasySubwayAccessibleColors.mutedText,
                     height: 1.3,
@@ -317,16 +334,21 @@ class _MyReportListItem extends StatelessWidget {
 }
 
 class MyFacilityReportDetailScreen extends StatelessWidget {
-  const MyFacilityReportDetailScreen({required this.report, super.key});
+  const MyFacilityReportDetailScreen({
+    required this.report,
+    this.now = DateTime.now,
+    super.key,
+  });
 
   final FacilityReportResult report;
+  final DateTime Function() now;
 
   @override
   Widget build(BuildContext context) {
     final description = report.description.isEmpty
         ? report.reportTypeLabel
         : report.description;
-    final createdAtLabel = report.createdDateLabel;
+    final createdAtLabel = report.createdAtLabel(now: now());
     final textTheme = Theme.of(context).textTheme;
 
     return Scaffold(
@@ -453,7 +475,8 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
                 endIndent: 20,
                 color: EasySubwayAccessibleColors.line,
               ),
-              _MyReportDetailRow(label: '접수일', value: createdAtLabel),
+              if (createdAtLabel != null)
+                _MyReportDetailRow(label: '접수', value: createdAtLabel),
               const Divider(
                 height: 1,
                 thickness: 1,
