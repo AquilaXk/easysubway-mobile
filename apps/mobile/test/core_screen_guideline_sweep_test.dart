@@ -72,9 +72,7 @@ void main() {
             expect(screen.shown, findsOneWidget);
             expect(tester.takeException(), isNull);
             expect(await _violations(tester), isEmpty);
-            if (screen.distinctActionLabels) {
-              expect(_duplicateTapLabels(tester), isEmpty);
-            }
+            expect(_ambiguousTapLabels(tester), isEmpty);
           }
 
           try {
@@ -108,16 +106,23 @@ Future<List<String>> _violations(WidgetTester tester) async {
   return violations;
 }
 
-/// 한 화면에서 탭할 수 있는 요소가 같은 라벨을 나눠 쓰면 스크린리더 사용자가
-/// 둘을 구분하지 못한다. 라벨이 겹친 요소의 라벨을 모아 돌려준다.
-List<String> _duplicateTapLabels(WidgetTester tester) {
+/// 한 화면에서 탭할 수 있는 요소가 같은 라벨을 나눠 쓰거나, 한 요소의 라벨이 같은
+/// 문구를 되풀이하면 스크린리더 사용자가 요소를 구분하지 못하거나 같은 말을 두 번
+/// 듣는다. 둘 중 하나에 걸린 라벨을 사유와 함께 모아 돌려준다.
+///
+/// 부모에 병합된 노드는 스크린리더에 따로 노출되지 않으므로 세지 않는다.
+List<String> _ambiguousTapLabels(WidgetTester tester) {
   final counts = <String, int>{};
   void visit(SemanticsNode node) {
     final data = node.getSemanticsData();
     if (!node.isInvisible &&
-        data.hasAction(SemanticsAction.tap) &&
-        data.label.isNotEmpty) {
-      counts.update(data.label, (count) => count + 1, ifAbsent: () => 1);
+        !node.isMergedIntoParent &&
+        data.hasAction(SemanticsAction.tap)) {
+      // 아이콘 버튼은 라벨 없이 tooltip만으로 이름을 얻는다.
+      final name = data.label.isNotEmpty ? data.label : data.tooltip;
+      if (name.isNotEmpty) {
+        counts.update(name, (count) => count + 1, ifAbsent: () => 1);
+      }
     }
     node.visitChildren((SemanticsNode child) {
       visit(child);
@@ -127,9 +132,25 @@ List<String> _duplicateTapLabels(WidgetTester tester) {
 
   visit(tester.getSemantics(find.byType(MaterialApp)));
   return [
-    for (final MapEntry(:key, :value) in counts.entries)
-      if (value > 1) '$key x$value',
+    for (final MapEntry(:key, :value) in counts.entries) ...[
+      if (value > 1) '$key | 같은 라벨 x$value',
+      if (_hasRepeatedLine(key)) '$key | 라벨 문구 반복',
+    ],
   ];
+}
+
+/// 병합된 라벨에 같은 문구가 이웃한 줄로 되풀이되는 경우(예: "A\nA")다. 병합이 같은
+/// 문구를 두 번 더하면 이렇게 붙어 나온다. 한 글자짜리 줄("-" 같은 빈 값 표시)은
+/// 서로 다른 항목에서 우연히 이웃할 수 있어 제외한다. 떨어진 곳의 같은 줄은 서로 다른
+/// 항목의 같은 값일 수 있어 보지 않는다.
+bool _hasRepeatedLine(String label) {
+  final lines = label.split('\n');
+  for (var i = 1; i < lines.length; i++) {
+    if (lines[i].length > 1 && lines[i] == lines[i - 1]) {
+      return true;
+    }
+  }
+  return false;
 }
 
 final _nodeLabelPattern = RegExp(r'label: "([^"]*)"');

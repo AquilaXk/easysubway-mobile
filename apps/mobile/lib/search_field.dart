@@ -74,7 +74,10 @@ class EasySubwaySearchField extends StatelessWidget {
     this.onClear,
     this.semanticsLabel,
     super.key,
-  });
+  }) : assert(
+         semanticsLabel == null || semanticsLabel == hintText,
+         'semanticsLabel은 hint가 semantics에서 빠지므로 hintText와 같아야 한다',
+       );
 
   final TextEditingController? controller;
   final FocusNode? focusNode;
@@ -86,9 +89,10 @@ class EasySubwaySearchField extends StatelessWidget {
   /// 입력 후에도 스크린리더에 유지돼야 하는 슬롯 맥락 라벨. hint는 입력이 있으면
   /// InputDecorator가 지우므로 "출발역/경유역/도착역 이름을 입력해 주세요" 같은
   /// 맥락이 입력 후 소실된다(#2090). 이 값이 주어지면 필드 서브트리를
-  /// [Semantics](label)로 감싸 입력 유무와 무관하게 맥락이 낭독되게 한다. 홈
-  /// 노선도 검색은 hint 자체가 라벨 역할을 해 이 파라미터를 쓰지 않는다(라벨
-  /// 이중 낭독 방지).
+  /// [Semantics](label)로 감싸 입력 유무와 무관하게 맥락이 낭독되게 한다. 이때
+  /// hint는 semantics에서 빠지므로(같은 문구가 두 번 읽히는 것을 막는다) 이 값은
+  /// [hintText]와 같아야 한다. 홈 노선도 검색은 hint 자체가 라벨 역할을 해 이
+  /// 파라미터를 쓰지 않는다.
   final String? semanticsLabel;
   final bool autofocus;
   final ValueChanged<String>? onSubmitted;
@@ -178,9 +182,10 @@ class EasySubwaySearchField extends StatelessWidget {
                     // 서브트리(지우기 버튼 제외)를 MergeSemantics + Semantics(label)
                     // 로 감싼다. hint는 입력이 있으면 사라지지만 라벨은 유지돼
                     // "출발/도착/경유역 이름을 입력해 주세요" 슬롯 맥락이 입력 후에도
-                    // 낭독된다. MergeSemantics로 hint 노드를 라벨 노드에 병합해 입력
-                    // 전 라벨 이중 낭독을 막는다. 지우기 버튼은 형제라 별도 탭
-                    // 타깃/semantics를 유지한다.
+                    // 낭독된다. MergeSemantics는 라벨 노드와 TextField 노드를 하나의
+                    // 입력 필드로 합치고, 입력 전 hint가 같은 문구를 한 번 더 더하지
+                    // 않도록 hint는 semantics에서 뺀다(_buildSemanticsExcludedHint).
+                    // 지우기 버튼은 형제라 별도 탭 타깃/semantics를 유지한다.
                     child: MergeSemantics(
                       child: _maybeWrapSemantics(
                         // 터치타겟(56·배율확대) 안에서 단일 줄 필드를 세로 중앙에
@@ -219,7 +224,10 @@ class EasySubwaySearchField extends StatelessWidget {
                               // floatingLabelBehavior는 각각 탭 타깃·부유 라벨 회귀
                               // (#1933)를 유발해 쓰지 않는다.
                               decoration: InputDecoration(
-                                hintText: hintText,
+                                hintText: semanticsLabel == null
+                                    ? hintText
+                                    : null,
+                                hint: _buildSemanticsExcludedHint(context),
                                 hintStyle: easySubwaySearchFieldHintStyle,
                                 isDense: true,
                                 contentPadding: EdgeInsets.zero,
@@ -276,12 +284,34 @@ class EasySubwaySearchField extends StatelessWidget {
     return field;
   }
 
+  /// [semanticsLabel]이 있으면 라벨 노드가 같은 문구를 이미 낭독하므로, hint가 TextField
+  /// 라벨로 한 번 더 병합돼 "문구\n문구"로 두 번 읽히지 않게 hint를 semantics에서 뺀다.
+  /// 보이는 placeholder는 InputDecorator가 hintText를 그리는 방식(bodyLarge에 입력
+  /// 스타일과 hint 스타일을 차례로 병합)을 그대로 따라 기본 경로와 같게 유지한다.
+  /// 라벨이 없으면(홈 검색) hint 자체가 라벨이므로 hintText를 그대로 쓴다.
+  Widget? _buildSemanticsExcludedHint(BuildContext context) {
+    if (semanticsLabel == null) {
+      return null;
+    }
+    final style = Theme.of(context).textTheme.bodyLarge!
+        .merge(easySubwaySearchFieldInputStyle)
+        .merge(easySubwaySearchFieldHintStyle);
+    return ExcludeSemantics(
+      child: Text(
+        hintText,
+        style: style,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+
   /// [semanticsLabel]이 주어지면 입력 필드 서브트리를 슬롯 맥락 라벨로 감싼다.
   /// hint는 입력이 있으면 InputDecorator가 지워 "출발역/경유역/도착역 이름을
   /// 입력해 주세요" 맥락이 입력 후 소실되지만(#2090 Finding 3), 이 라벨은 입력
-  /// 유무와 무관하게 유지된다. [MergeSemantics]로 hint 노드를 라벨 노드에 병합해
-  /// 입력 전 라벨 이중 낭독을 막는다. 지우기 버튼은 이 서브트리 밖 형제라 자체
-  /// 탭 타깃·semantics를 유지한다. 라벨이 없으면(홈 검색) 원본을 그대로 둔다.
+  /// 유무와 무관하게 유지된다. [MergeSemantics]로 라벨 노드와 TextField 노드를 하나의
+  /// 입력 필드로 합친다(hint는 [_buildSemanticsExcludedHint]가 뺀다). 지우기 버튼은 이
+  /// 서브트리 밖 형제라 자체 탭 타깃·semantics를 유지한다. 라벨이 없으면(홈 검색) 원본을 그대로 둔다.
   Widget _maybeWrapSemantics(Widget child) {
     final label = semanticsLabel;
     if (label == null) {

@@ -548,24 +548,25 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
     final destinationName = _stationNameWithSuffix(
       route.destinationStationName,
     );
-    final subtitle = [
+    final detailParts = [
       if (route.lineLabel.trim().isNotEmpty) route.lineLabel.trim(),
       if (route.mobilityLabel.trim().isNotEmpty) route.mobilityLabel.trim(),
       if (route.needsResearch) route.statusLabel,
-    ].join(' · ');
+    ];
+    final subtitle = detailParts.join(' · ');
+    // 행 라벨과 삭제 버튼 라벨이 같은 정보량을 쓰도록 한 곳에서 만든다. 같은 역 쌍이라도
+    // 노선이나 이동 유형이 다르면 삭제 버튼을 구분할 수 있다.
+    final routeDescriptionParts = [
+      '$originName에서 $destinationName까지',
+      ...detailParts,
+    ];
     final textTheme = Theme.of(context).textTheme;
     return Semantics(
       container: true,
       explicitChildNodes: true,
       button: true,
       enabled: onTap != null,
-      label: [
-        '즐겨찾기 경로',
-        '$originName에서 $destinationName까지',
-        if (route.lineLabel.trim().isNotEmpty) route.lineLabel.trim(),
-        if (route.mobilityLabel.trim().isNotEmpty) route.mobilityLabel.trim(),
-        if (route.needsResearch) route.statusLabel,
-      ].join(', '),
+      label: ['즐겨찾기 경로', ...routeDescriptionParts].join(', '),
       onTap: onTap,
       child: ColoredBox(
         color: EasySubwayAccessibleColors.surface,
@@ -606,7 +607,7 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
               Semantics(
                 button: true,
                 enabled: true,
-                label: '즐겨찾기 경로 삭제',
+                label: [...routeDescriptionParts, '즐겨찾기 경로 삭제'].join(', '),
                 onTap: onRemove,
                 child: ExcludeSemantics(
                   child: IconButton(

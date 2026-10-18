@@ -6,6 +6,7 @@ import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
 import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
@@ -128,6 +129,69 @@ class SweepFavoriteFacilityRepository implements FavoriteFacilityRepository {
 
   @override
   Future<void> removeFavoriteFacility(String facilityId) async {}
+}
+
+/// 같은 삭제 버튼이 경로마다 반복되는 즐겨찾기 화면을 그리려고 경로 세 건을 돌려준다.
+/// 세 번째는 첫 번째와 역 쌍이 같고 이동 유형만 달라, 역 이름만으로는 삭제 버튼을 구분할 수 없다.
+class SweepFavoriteRouteRepository implements FavoriteRouteRepository {
+  const SweepFavoriteRouteRepository();
+
+  static const _routes = [
+    FavoriteRoute(
+      userId: 'sweep-user',
+      favoriteRouteId: 'route-1',
+      routeSearchId: 'route-1',
+      originStationId: 'station-sangnoksu',
+      originStationName: '상록수',
+      destinationStationId: 'station-sadang',
+      destinationStationName: '사당',
+      mobilityType: 'SENIOR',
+      status: 'FOUND',
+      lineId: 'seoul-4',
+      lineName: '수도권 4호선',
+      score: 92,
+      routeCreatedAt: '2026-06-13T09:00:00',
+      addedAt: '2026-06-14T10:00:00',
+    ),
+    FavoriteRoute(
+      userId: 'sweep-user',
+      favoriteRouteId: 'route-2',
+      routeSearchId: 'route-2',
+      originStationId: sweepStationId,
+      originStationName: '강남',
+      destinationStationId: 'station-sadang',
+      destinationStationName: '사당',
+      mobilityType: 'SENIOR',
+      status: 'FOUND',
+      lineId: 'seoul-2',
+      lineName: '수도권 2호선',
+      score: 88,
+      routeCreatedAt: '2026-06-13T09:30:00',
+      addedAt: '2026-06-14T10:30:00',
+    ),
+    FavoriteRoute(
+      userId: 'sweep-user',
+      favoriteRouteId: 'route-3',
+      routeSearchId: 'route-3',
+      originStationId: 'station-sangnoksu',
+      originStationName: '상록수',
+      destinationStationId: 'station-sadang',
+      destinationStationName: '사당',
+      mobilityType: 'WHEELCHAIR',
+      status: 'FOUND',
+      lineId: 'seoul-4',
+      lineName: '수도권 4호선',
+      score: 90,
+      routeCreatedAt: '2026-06-13T09:45:00',
+      addedAt: '2026-06-14T10:45:00',
+    ),
+  ];
+
+  @override
+  Future<List<FavoriteRoute>> listFavoriteRoutes() async => _routes;
+
+  @override
+  Future<void> removeFavoriteRoute(String favoriteRouteId) async {}
 }
 
 /// 공지사항 목록과 홈 운행 지장 배너를 그리려고 일반 공지와 운행 지장 공지를 하나씩 둔다.
@@ -419,7 +483,7 @@ EasySubwayApp buildSweepApp({
       SweepInboxLoad.failedNoItems => null,
       SweepInboxLoad.reportsFailed => const SweepFavoriteFacilityRepository(),
     },
-    favoriteRouteRepository: const DemoFavoriteRouteRepository(),
+    favoriteRouteRepository: const SweepFavoriteRouteRepository(),
     noticeRepository: SweepNoticeRepository(),
     notificationRepository: SweepNotificationSettingsRepository(),
     userDataDeletionRepository: SweepUserDataDeletionRepository(),
