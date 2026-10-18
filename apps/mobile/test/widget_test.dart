@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
+import 'dart:ui' show Tristate;
 
 import 'package:clock/clock.dart';
 import 'package:easysubway_mobile/accessible_design.dart';
@@ -12417,6 +12418,57 @@ void main() {
         ),
         findsOneWidget,
       );
+    } finally {
+      semanticsHandle.dispose();
+    }
+  });
+
+  testWidgets('역 검색 결과의 즐겨찾기 토글은 행과 별개로 스크린리더에 노출되고 상태를 알린다', (tester) async {
+    final semanticsHandle = tester.ensureSemantics();
+    final repository = FakeStationSearchRepository(
+      nextResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+      networkMapRegionNames: const ['수도권'],
+    );
+    try {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: repository,
+          reportRepository: FakeFacilityReportRepository(),
+          favoriteRepository: FakeFavoriteStationRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+      await _openStationSearchScreenViaMenu(tester);
+      await tester.enterText(
+        find.byKey(const Key('stationSearchInput')),
+        '상록수',
+      );
+      await tester.pumpAndSettle();
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+
+      final addFinder = find.bySemanticsLabel('상록수역, 수도권 2호선 즐겨찾기 추가');
+      expect(addFinder, findsOneWidget);
+      final addData = tester.getSemantics(addFinder).getSemanticsData();
+      expect(addData.hasAction(SemanticsAction.tap), isTrue);
+      expect(addData.flagsCollection.isToggled, Tristate.isFalse);
+      expect(find.bySemanticsLabel('상록수역, 수도권 2호선, 선택'), findsOneWidget);
+
+      tester.semantics.tap(find.semantics.byLabel('상록수역, 수도권 2호선 즐겨찾기 추가'));
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('상록수역, 수도권 2호선 즐겨찾기 추가'), findsNothing);
+      final removeFinder = find.bySemanticsLabel('상록수역, 수도권 2호선 즐겨찾기 해제');
+      expect(removeFinder, findsOneWidget);
+      expect(
+        tester.getSemantics(removeFinder).flagsCollection.isToggled,
+        Tristate.isTrue,
+      );
+
+      tester.semantics.tap(find.semantics.byLabel('상록수역, 수도권 2호선 즐겨찾기 해제'));
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('상록수역, 수도권 2호선 즐겨찾기 추가'), findsOneWidget);
     } finally {
       semanticsHandle.dispose();
     }

@@ -10,6 +10,9 @@ import 'station_line_badges.dart';
 /// 검색어 일치 구간 하이라이트는 primary interaction 역할색을 쓴다.
 const _searchMatchHighlight = EasySubwayAccessibleColors.interactionPrimary;
 
+/// 즐겨찾기 버튼이 없을 때 이름 앞에 두는 여백.
+const _rowLeadingGap = 8.0;
+
 /// 즐겨찾기 채움 별빛.
 const _favoriteStarFilled = EasySubwayAccessibleColors.interactionPrimary;
 
@@ -282,6 +285,12 @@ class _StationSearchResultLineRow extends StatelessWidget {
   final VoidCallback? onToggleFavorite;
   final Key? favoriteButtonKey;
 
+  /// 역·호선과 현재 상태를 담아 같은 역의 다른 호선 행과 구분한다.
+  String get _favoriteSemanticLabel {
+    final target = line == null ? stationName : '$stationName, ${line!.name}';
+    return '$target 즐겨찾기 ${isFavorite ? '해제' : '추가'}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final line = this.line;
@@ -304,67 +313,107 @@ class _StationSearchResultLineRow extends StatelessWidget {
           bottom: BorderSide(color: EasySubwayAccessibleColors.line),
         ),
       ),
-      child: MergeSemantics(
-        child: Semantics(
-          label: semanticLabel,
-          button: true,
-          onTap: onTap,
-          child: ExcludeSemantics(
-            child: InkWell(
-              onTap: onTap,
-              splashColor: Colors.transparent,
-              highlightColor: Colors.transparent,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 56),
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      if (showFavorite)
-                        IconButton(
-                          key: favoriteButtonKey,
-                          onPressed: onToggleFavorite,
-                          tooltip: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size.square(
-                              EasySubwayTouchTarget.general,
-                            ),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            padding: EdgeInsets.zero,
-                          ),
-                          icon: Icon(
-                            isFavorite ? Icons.star : Icons.star_border,
-                            size: 26,
-                            color: isFavorite
-                                ? _favoriteStarFilled
-                                : EasySubwayAccessibleColors.disclosure,
-                          ),
-                        )
-                      else
-                        const SizedBox(width: 8),
-                      Expanded(
-                        child: Text.rich(
-                          TextSpan(
-                            children: _highlightedNameSpans(
-                              stationName,
-                              query,
-                              nameStyle,
-                              highlightStyle,
+      // 즐겨찾기 토글은 행 위에 얹은 형제 노드라, 행 노드는 역 선택만 맡고 토글은 따로 읽힌다.
+      child: Stack(
+        children: [
+          Semantics(
+            label: semanticLabel,
+            button: true,
+            onTap: onTap,
+            child: ExcludeSemantics(
+              child: InkWell(
+                onTap: onTap,
+                splashColor: Colors.transparent,
+                highlightColor: Colors.transparent,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 56),
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 8, 16, 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        SizedBox.square(
+                          dimension: showFavorite
+                              ? EasySubwayTouchTarget.general
+                              : _rowLeadingGap,
+                        ),
+                        Expanded(
+                          child: Text.rich(
+                            TextSpan(
+                              children: _highlightedNameSpans(
+                                stationName,
+                                query,
+                                nameStyle,
+                                highlightStyle,
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                      if (line != null) ...[
-                        const SizedBox(width: 12),
-                        StationLineBadge(line: line, size: 32),
+                        if (line != null) ...[
+                          const SizedBox(width: 12),
+                          StationLineBadge(line: line, size: 32),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                 ),
               ),
             ),
           ),
+          if (showFavorite)
+            Positioned(
+              left: 8,
+              top: 8,
+              child: _FavoriteToggleButton(
+                buttonKey: favoriteButtonKey,
+                semanticLabel: _favoriteSemanticLabel,
+                isFavorite: isFavorite,
+                onPressed: onToggleFavorite,
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 행 탭과 따로 스크린리더가 짚을 수 있는 즐겨찾기 토글. 라벨에 역·호선과 현재 상태를 담는다.
+class _FavoriteToggleButton extends StatelessWidget {
+  const _FavoriteToggleButton({
+    required this.buttonKey,
+    required this.semanticLabel,
+    required this.isFavorite,
+    required this.onPressed,
+  });
+
+  final Key? buttonKey;
+  final String semanticLabel;
+  final bool isFavorite;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semanticLabel,
+      button: true,
+      toggled: isFavorite,
+      onTap: onPressed,
+      excludeSemantics: true,
+      child: IconButton(
+        key: buttonKey,
+        onPressed: onPressed,
+        tooltip: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
+        style: IconButton.styleFrom(
+          minimumSize: const Size.square(EasySubwayTouchTarget.general),
+          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          padding: EdgeInsets.zero,
+        ),
+        icon: Icon(
+          isFavorite ? Icons.star : Icons.star_border,
+          size: 26,
+          color: isFavorite
+              ? _favoriteStarFilled
+              : EasySubwayAccessibleColors.disclosure,
         ),
       ),
     );
