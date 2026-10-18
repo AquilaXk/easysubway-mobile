@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 const workflow = readFileSync(
   new URL("../../.github/workflows/mobile-native-integration.yml", import.meta.url),
@@ -44,6 +48,12 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   assert.match(workflow, /^          target: google_apis$/m);
   assert.match(workflow, /^          arch: x86_64$/m);
   assert.match(workflow, /^          emulator-port: 5554$/m);
+  assert.match(workflow, /^          disable-animations: true$/m);
+  assert.match(workflow, /^          emulator-boot-timeout: 600$/m);
+  assert.match(
+    workflow,
+    /^          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim$/m,
+  );
   assert.ok(
     workflow.indexOf("      - name: Prepare Android native evidence") <
       workflow.indexOf("      - name: Enable KVM"),
@@ -80,7 +90,7 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   assert.doesNotMatch(workflow, /secrets\.|EASYSUBWAY_API_BASE_URL|release|store/iu);
 });
 
-test("Android drive script fails the job on any failed step and never lets PASS overwrite FAIL", () => {
+test("Android drive script wiring: targets exist, PASS is written once at the end, nothing swallows failures", () => {
   const targets = workflow.match(/^      NATIVE_TARGETS: (.+)$/mu)?.[1].split(" ") ?? [];
   assert.deepEqual(targets, ["native_test", "core_screen_a11y_smoke_test"]);
   for (const target of targets) {
@@ -89,26 +99,246 @@ test("Android drive script fails the job on any failed step and never lets PASS 
   assert.doesNotMatch(driveScript, /native_test|core_screen_a11y_smoke_test/u);
   assert.match(workflow, /^          script: bash \.\.\/\.\.\/tools\/ci\/android-native-drive\.sh$/m);
 
-  // 실패 분기: 크래시 로그와 FAIL 영수증(대상·단계 포함)을 남긴 뒤 반드시 종료한다.
-  assert.match(
-    driveScript,
-    /^fail\(\) \{\n  adb logcat -d -b crash > "\$\{evidence\}\/adb-crash\.log" 2>&1 \|\| true\n  write_receipt FAIL ",\\"target\\":\\"\$1\\",\\"step\\":\\"\$2\\""\n  exit 1\n\}$/mu,
-  );
-  assert.match(driveScript, /"\$\{evidence\}\/flutter-drive-\$\{target\}\.log" 2>&1 \|\| fail "\$\{target\}" drive$/mu);
-  assert.match(driveScript, /^dart format --output=none --set-exit-if-changed "\$\{sources\[@\]\}" \|\| fail "\$\{NATIVE_TARGETS\}" format$/mu);
-  assert.match(driveScript, /^flutter analyze "\$\{sources\[@\]\}" \|\| fail "\$\{NATIVE_TARGETS\}" analyze$/mu);
-  assert.match(driveScript, /timeout 12m flutter drive --driver=test_driver\/integration_test\.dart "--target=integration_test\/\$\{target\}\.dart" -d emulator-5554 --no-dds/u);
-
-  // PASS 영수증은 모든 대상이 끝난 뒤 마지막 줄에서 한 번만 쓰고, 실패를 삼키는 구문은 없다.
   const lines = driveScript.trimEnd().split("\n");
   assert.equal(lines.at(-1), "write_receipt PASS");
-  assert.equal(lines.at(-2), "");
-  assert.equal(lines.at(-3), "done");
   assert.equal((driveScript.match(/write_receipt PASS/gu) ?? []).length, 1);
-  assert.equal((driveScript.match(/\|\| true/gu) ?? []).length, 1);
-  assert.doesNotMatch(driveScript, /set -e|continue-on-error|\bbreak\b|\bcontinue\b/u);
+  assert.doesNotMatch(driveScript, /set -e|continue-on-error/u);
   assert.doesNotMatch(workflow, /continue-on-error/u);
   assert.doesNotMatch(workflow.slice(0, workflow.indexOf("  ios-native:")), /\|\| true/u);
+});
+
+test("emulator boot failure that never reaches the drive script is recorded in the receipt", () => {
+  const androidJob = workflow.slice(0, workflow.indexOf("  ios-native:"));
+  assert.match(androidJob, /^        id: smoke$/m);
+  assert.match(androidJob, /^        if: failure\(\) && steps\.smoke\.conclusion == 'failure'$/m);
+  assert.match(androidJob, /"status":"FAIL","target":"emulator","step":"boot"/u);
+  assert.ok(
+    androidJob.indexOf("Record Android boot failure") < androidJob.indexOf("Upload Android native evidence"),
+  );
+});
+
+const fixtureDir = fileURLToPath(new URL("./fixtures/android-drive/", import.meta.url));
+const fixture = (name) => readFileSync(path.join(fixtureDir, name), "utf8");
+
+// 스텁 adb/flutter/dart로 실제 스크립트를 실행한다.
+// drives: drive 호출 순서별 { log, exit } (log는 재생할 로그 본문, exit 기본 1).
+// boot: adb getprop sys.boot_completed 호출 순서별 "1"/"0" (마지막 값을 반복). 호출은 await_device 한 번에 1회(BOOT_POLL_LIMIT=1).
+function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets = "native_test", env = {} }) {
+  const root = mkdtempSync(path.join(tmpdir(), "android-drive-"));
+  const bin = path.join(root, "bin");
+  const evidence = path.join(root, "mobile-native-android");
+  mkdirSync(bin);
+  mkdirSync(evidence);
+  const stub = (name, body) => {
+    writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
+    chmodSync(path.join(bin, name), 0o755);
+  };
+  writeFileSync(path.join(root, "boot"), `${boot.join("\n")}\n`);
+  drives.forEach((drive, index) => {
+    writeFileSync(path.join(root, `drive-${index + 1}.log`), drive.log);
+    writeFileSync(path.join(root, `drive-${index + 1}.exit`), String(drive.exit ?? 1));
+  });
+  stub(
+    "adb",
+    [
+      `echo "adb $*" >> "${root}/calls"`,
+      `[ "$3" = wait-for-device ] && ${waitFails ? "exit 1" : "exit 0"}`,
+      '[ "$3" = shell ] || exit 0',
+      `n=$(grep -c '^getprop$' "${root}/calls" 2>/dev/null)`,
+      `echo getprop >> "${root}/calls"`,
+      `n=$((n + 1)); line=$(sed -n "\${n}p" "${root}/boot"); [ -n "$line" ] || line=$(tail -n 1 "${root}/boot")`,
+      'echo "$line"',
+    ].join("\n"),
+  );
+  stub("dart", "exit 0");
+  stub("sleep", "exit 0");
+  stub("timeout", 'shift\nexec "$@"');
+  stub(
+    "flutter",
+    [
+      '[ "$1" = drive ] || exit 0',
+      `echo drive >> "${root}/calls"`,
+      `n=$(grep -c '^drive$' "${root}/calls")`,
+      `cat "${root}/drive-$n.log"`,
+      `exit "$(cat "${root}/drive-$n.exit")"`,
+    ].join("\n"),
+  );
+  const result = spawnSync("bash", [fileURLToPath(new URL("./android-native-drive.sh", import.meta.url))], {
+    env: {
+      PATH: `${bin}:${process.env.PATH}`,
+      RUNNER_TEMP: root,
+      NATIVE_TARGETS: targets,
+      BOOT_POLL_LIMIT: "1",
+      ...env,
+    },
+    encoding: "utf8",
+  });
+  const calls = existsSync(path.join(root, "calls")) ? readFileSync(path.join(root, "calls"), "utf8").split("\n") : [];
+  const read = (name) => readFileSync(path.join(evidence, name), "utf8");
+  return {
+    status: result.status,
+    stdout: result.stdout,
+    receipt: JSON.parse(read("receipt.json")),
+    driveCalls: calls.filter((line) => line === "drive").length,
+    reconnects: calls.filter((line) => line === "adb reconnect offline").length,
+    read,
+    exists: (name) => existsSync(path.join(evidence, name)),
+  };
+}
+
+const passLog = { log: fixture("pass-with-uninstall-noise.txt"), exit: 0 };
+const failedReceipt = (extra) => ({ schemaVersion: 1, lane: "android-native", status: "FAIL", ...extra });
+
+test("real offline-before-tests log retries once, keeps the first log, and reports the retry", () => {
+  const offline = fixture("offline-before-tests.txt");
+  const summary = path.join(mkdtempSync(path.join(tmpdir(), "summary-")), "summary.md");
+  const run = runDriveScript({
+    drives: [{ log: offline }, passLog],
+    env: { GITHUB_STEP_SUMMARY: summary },
+  });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, {
+    schemaVersion: 1,
+    lane: "android-native",
+    status: "PASS",
+    retried: ["drive:adb_offline"],
+  });
+  assert.equal(run.driveCalls, 2);
+  assert.equal(run.reconnects, 1);
+  assert.equal(run.read("flutter-drive-native_test.attempt1.log"), offline);
+  assert.match(run.stdout, /^::warning::native_test drive가 adb_offline 때문에 1회 재시도 후 통과했습니다\./mu);
+  assert.match(readFileSync(summary, "utf8"), /native_test: drive 재시도 후 통과 \(adb_offline\)/u);
+});
+
+test("second target offline-before-tests log retries only that target", () => {
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test",
+    drives: [passLog, { log: fixture("offline-before-tests-second-target.txt") }, passLog],
+  });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt.retried, ["drive:adb_offline"]);
+  assert.equal(run.driveCalls, 3);
+  assert.ok(run.exists("flutter-drive-core_screen_a11y_smoke_test.attempt1.log"));
+  assert.equal(run.exists("flutter-drive-native_test.attempt1.log"), false);
+});
+
+for (const [name, reason] of [
+  ["synthetic-device-not-found.txt", "device_not_found"],
+  ["synthetic-install-failed.txt", "install_failed"],
+]) {
+  test(`${reason} infra error before tests retries once`, () => {
+    const run = runDriveScript({ drives: [{ log: fixture(name) }, passLog] });
+    assert.equal(run.status, 0);
+    assert.deepEqual(run.receipt.retried, [`drive:${reason}`]);
+    assert.equal(run.driveCalls, 2);
+  });
+}
+
+for (const line of ["error: no devices/emulators found", "error: device not found"]) {
+  test(`"${line}" before tests retries once`, () => {
+    const run = runDriveScript({ drives: [{ log: `${line}\n` }, passLog] });
+    assert.equal(run.status, 0);
+    assert.deepEqual(run.receipt.retried, ["drive:device_not_found"]);
+  });
+}
+
+test("real assertion failure never retries, even with offline lines mixed in", () => {
+  const mixed = `${fixture("assertion-failure.txt")}\nadb: device offline\nadb uninstall failed: ProcessException\n`;
+  for (const log of [fixture("assertion-failure.txt"), mixed]) {
+    const run = runDriveScript({ drives: [{ log }, passLog] });
+    assert.equal(run.status, 1);
+    assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
+    assert.equal(run.driveCalls, 1);
+    assert.equal(run.reconnects, 0);
+  }
+});
+
+// 결과 신호가 하나라도 있으면(실제 offline 로그에 섞어도) 재시도하지 않는다. 신호마다 하나씩 단독으로 확인한다.
+for (const signal of [
+  "I/flutter ( 4098): 00:03 +1: 어떤 테스트",
+  "All tests passed.",
+  "Failure Details:",
+  "Some tests failed.",
+  "EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK",
+  "Test failed. See exception logs above.",
+]) {
+  test(`result signal "${signal}" blocks the retry`, () => {
+    const log = `${fixture("offline-before-tests.txt")}\n${signal}\n`;
+    const run = runDriveScript({ drives: [{ log }, passLog] });
+    assert.equal(run.status, 1);
+    assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
+    assert.equal(run.driveCalls, 1);
+  });
+}
+
+test("drive log without positive infra evidence is not retried", () => {
+  const run = runDriveScript({ drives: [{ log: "Launching integration_test/native_test.dart\nsomething unknown\n" }, passLog] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
+  assert.equal(run.driveCalls, 1);
+});
+
+test("timeout exit 124 is a hang: no retry even with an offline line, receipt records timeout", () => {
+  const run = runDriveScript({ drives: [{ log: fixture("offline-before-tests.txt"), exit: 124 }, passLog] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
+  assert.equal(run.driveCalls, 1);
+  assert.equal(run.reconnects, 0);
+});
+
+test("each target is retried at most once and a failed retry stays FAIL with retried recorded", () => {
+  const offline = { log: fixture("offline-before-tests.txt") };
+  const run = runDriveScript({ drives: [offline, offline, passLog] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", retried: ["drive:adb_offline"] }));
+  assert.equal(run.driveCalls, 2);
+});
+
+test("device never ready before the format step writes a boot FAIL receipt without running anything", () => {
+  const run = runDriveScript({ boot: ["0"], targets: "native_test core_screen_a11y_smoke_test", drives: [passLog] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test core_screen_a11y_smoke_test", step: "boot" }));
+  assert.equal(run.driveCalls, 0);
+});
+
+test("adb wait-for-device failure is a boot FAIL even when getprop says ready", () => {
+  const run = runDriveScript({ waitFails: true, drives: [passLog] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "boot" }));
+  assert.equal(run.driveCalls, 0);
+});
+
+test("device lost before a target's drive fails that target at boot, not drive", () => {
+  const first = runDriveScript({ boot: ["1", "0"], drives: [passLog] });
+  assert.equal(first.status, 1);
+  assert.deepEqual(first.receipt, failedReceipt({ target: "native_test", step: "boot" }));
+  assert.equal(first.driveCalls, 0);
+
+  const second = runDriveScript({
+    boot: ["1", "1", "0"],
+    targets: "native_test core_screen_a11y_smoke_test",
+    drives: [passLog, passLog],
+  });
+  assert.equal(second.status, 1);
+  assert.deepEqual(second.receipt, failedReceipt({ target: "core_screen_a11y_smoke_test", step: "boot" }));
+  assert.equal(second.driveCalls, 1);
+});
+
+test("device that does not come back after adb reconnect fails at boot and keeps the retried record", () => {
+  const run = runDriveScript({ boot: ["1", "1", "0"], drives: [{ log: fixture("offline-before-tests.txt") }, passLog] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "boot", retried: ["drive:adb_offline"] }));
+  assert.equal(run.driveCalls, 1);
+  assert.equal(run.reconnects, 1);
+});
+
+test("clean drive passes without a retried entry", () => {
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test",
+    drives: [passLog, passLog],
+  });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "android-native", status: "PASS" });
 });
 
 test("core screen accessibility smoke reuses the sweep screen table and checks only tap targets", () => {
