@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'support/fixed_height_text_scan.dart';
+
 /// #1915 시각 언어 v4 재발 방지 ratchet 가드.
 ///
 /// 규칙: 상한은 내리기만 한다. 이 테스트가 빨간불이면 상한을 올리지 말고
@@ -512,61 +514,34 @@ void main() {
   });
 
   test('고정 높이 텍스트 컨테이너(≥ 24dp) 방지 가드 (#409)', () {
-    // 키는 `파일 | 공백을 접은 박스 표현식 | #같은 표현식이 텍스트를 담고 나온 파일 내 순번`이다.
+    // 키는 `파일 | 둘러싼 클래스.함수 | 박스 표현식 전체`다(fixed_height_text_scan.dart).
     // 줄 번호를 쓰지 않아 무관한 수정으로 줄이 밀려도 키가 바뀌지 않는다. 높이나
     // 표현식을 바꾸면 키가 달라져 다시 근거를 적어야 한다.
     const fixedHeightTextAllowlist = <String, String>{
-      'lib/app/app_components.dart | SizedBox(width: 32, height: 32 | #1':
+      'lib/app/app_components.dart | AppInfoRow.build | SizedBox(width: 32, height: 32':
           'Icon 전용 32dp 리딩 박스로 Text를 포함하지 않음 (후속 Column 텍스트 정적 스캔 오탐)',
-      'lib/features/network_map/presentation/nearby_direction_columns.dart | SizedBox(height: 46 | #1':
+      'lib/features/network_map/presentation/nearby_direction_columns.dart | NearbyPanelColumns._buildColumn | SizedBox(height: 46':
           '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
-      'lib/features/network_map/presentation/nearby_direction_columns.dart | SizedBox(height: 46 | #2':
+      'lib/features/network_map/presentation/nearby_direction_columns.dart | NearbyDataUnavailable.build | SizedBox(height: 46':
           '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
-      'lib/features/network_map/presentation/nearby_timetable_panel.dart | SizedBox(height: 46 | #1':
+      'lib/features/network_map/presentation/nearby_timetable_panel.dart | _NearbyTimetableDepartureView.build | SizedBox(height: 46':
           '운행 종료 텍스트(15sp)는 2.0배에서도 43dp로 46dp 안에 들어감',
-      'lib/features/train_search/presentation/train_search_screen.dart | SizedBox(width: double.infinity, height: 54 | #1':
+      'lib/features/train_search/presentation/train_search_screen.dart | _TrainSearchScreenState.build | SizedBox(width: double.infinity, height: 54':
           '시간표 조회 CTA FilledButton(54dp) — 18sp 텍스트(2.0배 36dp)가 54dp 안에 들어감',
-      'lib/features/train_search/presentation/train_search_screen.dart | SizedBox(width: double.infinity, height: 52 | #1':
+      'lib/features/train_search/presentation/train_search_screen.dart | _TrainTimetableModalContentState.build | SizedBox(width: double.infinity, height: 52':
           '코레일+ 예매 CTA FilledButton.icon(52dp) — 17sp 텍스트(2.0배 34dp)가 52dp 안에 들어감',
     };
 
-    final boxPattern = RegExp(
-      r'(SizedBox|Container)\(\s*(?:[^()]*?)height:\s*(\d+)',
+    final scan = scanFixedHeightTextBoxes(sources);
+    final violations = [
+      for (final box in scan.boxes)
+        if (!fixedHeightTextAllowlist.containsKey(box.key))
+          '${box.key}: ${box.widget}(height: ${box.height})',
+    ];
+    final found = {for (final box in scan.boxes) box.key};
+    final staleEntries = fixedHeightTextAllowlist.keys.where(
+      (key) => !found.contains(key),
     );
-    final nextBoxPattern = RegExp(r'\b(?:SizedBox|Container)\(');
-    final whitespacePattern = RegExp(r'\s+');
-    final violations = <String>[];
-
-    sources.forEach((path, source) {
-      final occurrences = <String, int>{};
-      for (final match in boxPattern.allMatches(source)) {
-        final height = int.tryParse(match.group(2)!) ?? 0;
-        if (height < 24) continue;
-        final matchEnd = match.end;
-        final remaining = source.substring(
-          matchEnd,
-          (matchEnd + 700).clamp(0, source.length),
-        );
-        final nextBoxMatch = nextBoxPattern.firstMatch(remaining);
-        final scope = nextBoxMatch != null
-            ? remaining.substring(0, nextBoxMatch.start)
-            : remaining;
-        if (!scope.contains('Text(')) continue;
-        final expression = match
-            .group(0)!
-            .replaceAll(whitespacePattern, ' ')
-            .replaceAll('( ', '(');
-        final occurrence = occurrences.update(
-          expression,
-          (count) => count + 1,
-          ifAbsent: () => 1,
-        );
-        final key = '$path | $expression | #$occurrence';
-        if (!fixedHeightTextAllowlist.containsKey(key)) {
-          violations.add('$key: ${match.group(1)}(height: $height)');
-        }
-      }
-    });
 
     expect(
       violations,
@@ -576,6 +551,18 @@ void main() {
           'SizedBox(height: H) -> ConstrainedBox(constraints: BoxConstraints(minHeight: H)),\n'
           'Container(height: H) -> constraints: BoxConstraints(minHeight: H) 로 수정하라.\n'
           '${violations.join('\n')}',
+    );
+    expect(
+      scan.ambiguousKeys,
+      isEmpty,
+      reason:
+          '같은 함수 안에 같은 박스 표현식이 둘 이상이라 허용 목록 키가 모호하다. '
+          '박스를 이름 있는 위젯으로 분리하거나 표현식을 다르게 하라.',
+    );
+    expect(
+      staleEntries,
+      isEmpty,
+      reason: '허용 목록에 있지만 더 이상 존재하지 않는 박스다. 항목을 지워라.',
     );
   });
 }

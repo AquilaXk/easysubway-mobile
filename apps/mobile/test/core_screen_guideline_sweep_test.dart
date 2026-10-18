@@ -117,9 +117,12 @@ List<String> _ambiguousTapLabels(WidgetTester tester) {
     final data = node.getSemanticsData();
     if (!node.isInvisible &&
         !node.isMergedIntoParent &&
-        data.hasAction(SemanticsAction.tap) &&
-        data.label.isNotEmpty) {
-      counts.update(data.label, (count) => count + 1, ifAbsent: () => 1);
+        data.hasAction(SemanticsAction.tap)) {
+      // 아이콘 버튼은 라벨 없이 tooltip만으로 이름을 얻는다.
+      final name = data.label.isNotEmpty ? data.label : data.tooltip;
+      if (name.isNotEmpty) {
+        counts.update(name, (count) => count + 1, ifAbsent: () => 1);
+      }
     }
     node.visitChildren((SemanticsNode child) {
       visit(child);
@@ -136,11 +139,18 @@ List<String> _ambiguousTapLabels(WidgetTester tester) {
   ];
 }
 
-/// 병합된 라벨이 같은 문구 하나로만 이뤄져 되풀이되는 경우(예: "A\nA")다. 값이
-/// 같은 서로 다른 항목 줄("-")이 섞인 긴 라벨은 되풀이로 보지 않는다.
+/// 병합된 라벨에 같은 문구가 이웃한 줄로 되풀이되는 경우(예: "A\nA")다. 병합이 같은
+/// 문구를 두 번 더하면 이렇게 붙어 나온다. 한 글자짜리 줄("-" 같은 빈 값 표시)은
+/// 서로 다른 항목에서 우연히 이웃할 수 있어 제외한다. 떨어진 곳의 같은 줄은 서로 다른
+/// 항목의 같은 값일 수 있어 보지 않는다.
 bool _hasRepeatedLine(String label) {
   final lines = label.split('\n');
-  return lines.length > 1 && lines.toSet().length == 1;
+  for (var i = 1; i < lines.length; i++) {
+    if (lines[i].length > 1 && lines[i] == lines[i - 1]) {
+      return true;
+    }
+  }
+  return false;
 }
 
 final _nodeLabelPattern = RegExp(r'label: "([^"]*)"');

@@ -11314,7 +11314,8 @@ void main() {
         },
       );
 
-      const deleteLabel = '상록수역에서 사당역까지 즐겨찾기 경로 삭제';
+      const deleteLabel =
+          '상록수역에서 사당역까지, 수도권 4호선, 이동 조건을 다시 선택해 주세요, 즐겨찾기 경로 삭제';
       final deleteAction = find.bySemanticsLabel(deleteLabel);
       expect(deleteAction, findsOneWidget);
       expect(

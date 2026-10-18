@@ -131,7 +131,8 @@ class SweepFavoriteFacilityRepository implements FavoriteFacilityRepository {
   Future<void> removeFavoriteFacility(String facilityId) async {}
 }
 
-/// 같은 삭제 버튼이 경로마다 반복되는 즐겨찾기 화면을 그리려고 경로 두 건을 돌려준다.
+/// 같은 삭제 버튼이 경로마다 반복되는 즐겨찾기 화면을 그리려고 경로 세 건을 돌려준다.
+/// 세 번째는 첫 번째와 역 쌍이 같고 이동 유형만 달라, 역 이름만으로는 삭제 버튼을 구분할 수 없다.
 class SweepFavoriteRouteRepository implements FavoriteRouteRepository {
   const SweepFavoriteRouteRepository();
 
@@ -167,6 +168,22 @@ class SweepFavoriteRouteRepository implements FavoriteRouteRepository {
       score: 88,
       routeCreatedAt: '2026-06-13T09:30:00',
       addedAt: '2026-06-14T10:30:00',
+    ),
+    FavoriteRoute(
+      userId: 'sweep-user',
+      favoriteRouteId: 'route-3',
+      routeSearchId: 'route-3',
+      originStationId: 'station-sangnoksu',
+      originStationName: '상록수',
+      destinationStationId: 'station-sadang',
+      destinationStationName: '사당',
+      mobilityType: 'WHEELCHAIR',
+      status: 'FOUND',
+      lineId: 'seoul-4',
+      lineName: '수도권 4호선',
+      score: 90,
+      routeCreatedAt: '2026-06-13T09:45:00',
+      addedAt: '2026-06-14T10:45:00',
     ),
   ];
 
