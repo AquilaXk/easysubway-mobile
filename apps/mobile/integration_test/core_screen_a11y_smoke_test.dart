@@ -1,6 +1,8 @@
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
+import 'package:flutter/foundation.dart'
+    show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -8,17 +10,21 @@ import 'package:integration_test/integration_test.dart';
 import '../test/support/core_screen_sweep_fixtures.dart';
 import '../test/support/core_screen_sweep_screens.dart';
 
-/// 화면 표 접근성 스모크(에픽 #3036 4-1, 4-24).
+/// 화면 표 접근성 스모크(에픽 #3036 4-1, 4-24, 4-25).
 ///
 /// 호스트 전수 검사(`core_screen_guideline_sweep_test.dart`)와 같은 화면 표를
-/// 에뮬레이터의 실제 화면 크기·밀도로 열어 탭 영역 48dp, 탭 요소 라벨, 렌더 예외(overflow)만
-/// 검사한다. 글자 대비는 실제 폰트의 안티앨리어싱으로 오탐이 나므로 호스트 전수 검사가 맡는다.
+/// 에뮬레이터·시뮬레이터의 실제 화면 크기·밀도로 열어 플랫폼별 탭 영역(Android 48dp, iOS 44pt),
+/// 탭 요소 라벨, 렌더 예외(overflow)만 검사한다. 글자 대비는 실제 폰트의 안티앨리어싱으로
+/// 오탐이 나므로 호스트 전수 검사가 맡는다.
 ///
 /// 시스템 글꼴 배율은 `--dart-define=A11Y_FONT_SCALE`로 받는다. 값은 드라이브 스크립트가
-/// `adb shell settings put system font_scale`로 기기에 설정한 배율과 같아야 하며, 테스트는 앱이
-/// 실제로 읽은 배율이 이 값과 같은지 먼저 확인한다. 배율이 1.0보다 크면 핵심 화면만 검사한다.
-/// 배율 최대치(2.0)는 Android 14 이상이 지원하는 최대 글꼴 크기 200%다.
+/// 기기에 설정한 배율(Android `settings put system font_scale`, iOS `simctl ui content_size`)과
+/// 같아야 하며, 테스트는 앱이 실제로 읽은 배율이 이 값과 같은지 먼저 확인한다.
+/// 배율이 1.0보다 크면 핵심 화면만 검사한다.
+/// Android 배율 최대치(2.0)는 Android 14 이상이 지원하는 최대 글꼴 크기 200%다.
 /// https://developer.android.com/about/versions/14/features#non-linear-font-scaling
+/// iOS 최소 탭 영역은 44x44pt다(Apple HIG Accessibility의 Controls 항목).
+/// https://developer.apple.com/design/human-interface-guidelines/accessibility
 enum _FontMode { normal, largeText }
 
 const _bothModes = {_FontMode.normal, _FontMode.largeText};
@@ -38,6 +44,17 @@ const _modesByScreen = <String, Set<_FontMode>>{
 final _fontScale = double.parse(
   const String.fromEnvironment('A11Y_FONT_SCALE', defaultValue: '1.0'),
 );
+
+/// 실행 중인 플랫폼의 최소 탭 영역 기준. 모르는 플랫폼은 검사를 건너뛰지 않고 실패한다.
+final _tapTargetGuideline = switch (defaultTargetPlatform) {
+  TargetPlatform.android => androidTapTargetGuideline,
+  TargetPlatform.iOS => iOSTapTargetGuideline,
+  final platform => throw StateError('탭 영역 기준이 없는 플랫폼: $platform'),
+};
+
+final _tapTargetSize = defaultTargetPlatform == TargetPlatform.iOS
+    ? '44pt'
+    : '48dp';
 
 final _runMode = _fontScale > 1.0 ? _FontMode.largeText : _FontMode.normal;
 
@@ -81,61 +98,65 @@ void main() {
   });
 
   for (final screen in screens) {
-    testWidgets('${screen.name} - 글자 $_fontScale배 탭 영역 48dp와 탭 요소 라벨', (
-      tester,
-    ) async {
-      final semantics = tester.ensureSemantics();
-      final reportedErrors = <FlutterErrorDetails>[];
-      Future<void> checkScreen() async {
-        final navigatorKey = GlobalKey<NavigatorState>();
-        const theme = SweepTheme.standard;
-        await tester.pumpWidget(
-          buildSweepApp(
-            navigatorKey: navigatorKey,
-            onboardingState: screen.onboardingState(theme),
-            stationResults: screen.stationResults,
-            inboxLoad: screen.inboxLoad,
-            realtimeRepository: SweepRealtimeRepository(),
-          ),
-        );
-        await tester.pumpAndSettle();
-        await screen.open(
-          SweepScreenContext(
-            tester: tester,
-            navigatorKey: navigatorKey,
-            theme: theme,
-            onDevice: true,
-          ),
-        );
-
-        await _revealShownOnDevice[screen.name]?.call(tester, screen.shown);
-        expect(screen.shown, findsOneWidget);
-        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
-        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
-        expect(tester.takeException(), isNull);
-      }
-
-      try {
-        if (screen.inboxLoad != SweepInboxLoad.normal) {
-          // 조회 실패는 화면에 오류 상태로 드러나고 오류 보고로도 남아야 한다(호스트 전수 검사와 같다).
-          // 주입한 실패가 프레임워크 예외로 새어 나오므로 가로채 모으고, 그 안에 overflow가 없는지 본다.
-          await _collectingFlutterErrors(reportedErrors, () {
-            return runWithMobileErrorReporter(reportedErrors.add, checkScreen);
-          });
-          expect(reportedErrors, isNotEmpty);
-          expect(
-            reportedErrors.where(
-              (details) => details.exceptionAsString().contains('overflowed'),
+    testWidgets(
+      '${screen.name} - 글자 $_fontScale배 탭 영역 $_tapTargetSize와 탭 요소 라벨',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        final reportedErrors = <FlutterErrorDetails>[];
+        Future<void> checkScreen() async {
+          final navigatorKey = GlobalKey<NavigatorState>();
+          const theme = SweepTheme.standard;
+          await tester.pumpWidget(
+            buildSweepApp(
+              navigatorKey: navigatorKey,
+              onboardingState: screen.onboardingState(theme),
+              stationResults: screen.stationResults,
+              inboxLoad: screen.inboxLoad,
+              realtimeRepository: SweepRealtimeRepository(),
             ),
-            isEmpty,
           );
-        } else {
-          await checkScreen();
+          await tester.pumpAndSettle();
+          await screen.open(
+            SweepScreenContext(
+              tester: tester,
+              navigatorKey: navigatorKey,
+              theme: theme,
+              onDevice: true,
+            ),
+          );
+
+          await _revealShownOnDevice[screen.name]?.call(tester, screen.shown);
+          expect(screen.shown, findsOneWidget);
+          await expectLater(tester, meetsGuideline(_tapTargetGuideline));
+          await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+          expect(tester.takeException(), isNull);
         }
-      } finally {
-        semantics.dispose();
-      }
-    });
+
+        try {
+          if (screen.inboxLoad != SweepInboxLoad.normal) {
+            // 조회 실패는 화면에 오류 상태로 드러나고 오류 보고로도 남아야 한다(호스트 전수 검사와 같다).
+            // 주입한 실패가 프레임워크 예외로 새어 나오므로 가로채 모으고, 그 안에 overflow가 없는지 본다.
+            await _collectingFlutterErrors(reportedErrors, () {
+              return runWithMobileErrorReporter(
+                reportedErrors.add,
+                checkScreen,
+              );
+            });
+            expect(reportedErrors, isNotEmpty);
+            expect(
+              reportedErrors.where(
+                (details) => details.exceptionAsString().contains('overflowed'),
+              ),
+              isEmpty,
+            );
+          } else {
+            await checkScreen();
+          }
+        } finally {
+          semantics.dispose();
+        }
+      },
+    );
   }
 }
 

@@ -354,12 +354,16 @@ const _fanMenuRoles = <_FanMenuRole>[
 
 const _sweepMapStationKey = Key('networkMapStation-gangnam-seoul-2');
 
+/// 지정된 역의 핀은 역 중심 바로 위에서 끝난다. 중심을 누르면 핀 가장자리와 부동소수 오차로
+/// 겹쳐 화면 밀도에 따라 탭이 핀에 먹히므로, 핀 아래 역 노드 안쪽을 누른다.
+const _fanMenuTapOffset = Offset(0, 8);
+
 /// 지도의 역을 눌러 팬 메뉴를 연다. 지도는 탭 좌표를 캔버스 제스처에서 역으로
 /// 해석하므로 히트 타깃 위젯이 직접 맞지 않아도 정상이다.
 Future<void> _openFanMenu(SweepScreenContext context) async {
-  await context.tester.tap(
-    find.byKey(_sweepMapStationKey),
-    warnIfMissed: false,
+  await context.tester.tapAt(
+    context.tester.getCenter(find.byKey(_sweepMapStationKey)) +
+        _fanMenuTapOffset,
   );
   await context.tester.pumpAndSettle();
 }
@@ -531,8 +535,15 @@ const _settingsServiceInfoKey = Key('settingsServiceInfoButton');
 /// 설정 화면의 항목 하나를 눌러 그 화면을 연다.
 Future<void> _openSettingsEntry(SweepScreenContext context, Key entry) async {
   await _openSettings(context);
-  await context.tester.tap(find.byKey(entry));
-  await context.tester.pumpAndSettle();
+  await _tapEntry(context.tester, find.byKey(entry));
+}
+
+/// 목록 항목을 화면 안으로 스크롤한 뒤 누른다. 실기의 짧은 화면에서는 항목이 접힌 곳에 있다.
+Future<void> _tapEntry(WidgetTester tester, Finder entry) async {
+  await tester.ensureVisible(entry);
+  await tester.pumpAndSettle();
+  await tester.tap(entry);
+  await tester.pumpAndSettle();
 }
 
 /// 서비스 정보 화면의 항목 하나를 눌러 그 화면을 연다.
@@ -541,15 +552,13 @@ Future<void> _openServiceInfoEntry(
   Key entry,
 ) async {
   await _openSettingsEntry(context, _settingsServiceInfoKey);
-  await context.tester.tap(find.byKey(entry));
-  await context.tester.pumpAndSettle();
+  await _tapEntry(context.tester, find.byKey(entry));
 }
 
 /// 좌측 메뉴의 항목 하나를 눌러 그 화면을 연다.
 Future<void> _openMenuEntry(SweepScreenContext context, String entryKey) async {
   await _openMenu(context);
-  await context.tester.tap(find.byKey(Key(entryKey)));
-  await context.tester.pumpAndSettle();
+  await _tapEntry(context.tester, find.byKey(Key(entryKey)));
 }
 
 Future<void> _openMenu(SweepScreenContext context) async {
