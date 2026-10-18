@@ -1081,6 +1081,32 @@ void main() {
     expect(find.text('경유'), findsNothing);
     expect(find.byKey(const Key('journeyWaypointClearButton')), findsNothing);
     expect(clearWaypointCount, 1);
+
+    await _pumpScreen(
+      tester,
+      repository: repository,
+      draft: _completeDraft(waypoint: _station('station-waypoint', '가평')),
+      onSwapOriginDestination: () => swapCount++,
+      onClearWaypoint: () => clearWaypointCount++,
+    );
+    expect(find.bySemanticsLabel('경유 가평역'), findsOneWidget);
+
+    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    await tester.pumpAndSettle();
+    expect(repository.requests, hasLength(1));
+
+    await tester.tap(find.byKey(const Key('journeyRouteSwapButton')));
+    await tester.pumpAndSettle();
+    expect(swapCount, 2);
+    expect(repository.requests, hasLength(2));
+    expect(repository.requests.last.originStationId, 'station-destination');
+    expect(repository.requests.last.destinationStationId, 'station-origin');
+
+    await tester.tap(find.byKey(const Key('journeyWaypointClearButton')));
+    await tester.pumpAndSettle();
+    expect(clearWaypointCount, 2);
+    expect(repository.requests, hasLength(3));
+    expect(find.text('경유'), findsNothing);
   });
 
   testWidgets('journey search는 다중 구간 환승 경로에서 계단 없는 경로 표시, 경강선 노선명을 지원한다', (
