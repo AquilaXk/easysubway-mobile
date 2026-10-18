@@ -10,14 +10,20 @@ class OnboardingPreferenceScope extends StatelessWidget {
   const OnboardingPreferenceScope({
     required this.preferences,
     required this.child,
+    this.applyPlatformBoldText = true,
   });
 
   final OnboardingViewPreferences preferences;
   final Widget child;
+  final bool applyPlatformBoldText;
 
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    final preferenceTheme = _themeForPreferences(
+      Theme.of(context),
+      preferences,
+    );
 
     return MediaQuery(
       data: mediaQuery.copyWith(
@@ -25,10 +31,9 @@ class OnboardingPreferenceScope extends StatelessWidget {
             preferences.highContrastEnabled || mediaQuery.highContrast,
       ),
       child: Theme(
-        data: _themeForPlatformAccessibility(
-          _themeForPreferences(Theme.of(context), preferences),
-          mediaQuery,
-        ),
+        data: applyPlatformBoldText
+            ? _themeForPlatformAccessibility(preferenceTheme, mediaQuery)
+            : preferenceTheme,
         child: child,
       ),
     );

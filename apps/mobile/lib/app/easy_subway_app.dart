@@ -299,6 +299,7 @@ class EasySubwayApp extends StatelessWidget {
             }
             return OnboardingPreferenceScope(
               preferences: livePreferences,
+              applyPlatformBoldText: false,
               child: child ?? const SizedBox.shrink(),
             );
           },
