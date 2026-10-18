@@ -549,6 +549,15 @@ Future<void> _openInquiryScreen(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// 올해 6월 15일 09:00(기기 로컬)을 서버 UTC 형식으로 만든다. 연도와 시간대에 관계없이
+/// 화면이 "6월 15일 09:00"로 읽는다.
+final _juneFifteenthNineIso = DateTime(
+  DateTime.now().year,
+  6,
+  15,
+  9,
+).toUtc().toIso8601String();
+
 void main() {
   testWidgets('앱 Theme는 시그니처 ColorScheme 역할색을 사용한다', (tester) async {
     await tester.pumpWidget(
@@ -590,7 +599,7 @@ void main() {
   testWidgets('홈에서 내 신고 화면으로 이동한다', (tester) async {
     final reportRepository = FakeFacilityReportRepository(
       reports: [
-        const FacilityReportResult(
+        FacilityReportResult(
           id: 'report-2',
           publicReceiptCode: 'ES-1002',
           stationId: 'station-sangnoksu',
@@ -598,7 +607,7 @@ void main() {
           reportType: 'CLOSED',
           description: '출입문이 막혀 있습니다.',
           status: 'ACCEPTED',
-          createdAt: '2026-06-15T09:00:00',
+          createdAt: _juneFifteenthNineIso,
         ),
         const FacilityReportResult(
           id: 'report-3',
@@ -634,9 +643,7 @@ void main() {
     expect(find.text('출입문이 막혀 있습니다.'), findsOneWidget);
     expect(
       find.bySemanticsLabel(
-        RegExp(
-          r'^내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다\., .*6월 15일.* 접수$',
-        ),
+        '내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다., 6월 15일 09:00 접수',
       ),
       findsOneWidget,
     );
@@ -646,7 +653,7 @@ void main() {
   testWidgets('내 신고 항목을 누르면 상세 상태 화면으로 이동한다', (tester) async {
     final reportRepository = FakeFacilityReportRepository(
       reports: [
-        const FacilityReportResult(
+        FacilityReportResult(
           id: 'report-2',
           publicReceiptCode: 'ES-1002',
           stationId: 'station-sangnoksu',
@@ -654,7 +661,7 @@ void main() {
           reportType: 'CLOSED',
           description: '출입문이 막혀 있습니다.',
           status: 'ACCEPTED',
-          createdAt: '2026-06-15T09:00:00',
+          createdAt: _juneFifteenthNineIso,
         ),
       ],
     );
@@ -673,9 +680,7 @@ void main() {
     await _openMyReportsScreen(tester);
     final reportSemantics = tester.getSemantics(
       find.bySemanticsLabel(
-        RegExp(
-          r'^내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다\., .*6월 15일.* 접수$',
-        ),
+        '내 제보, 폐쇄, 제보 번호 ES-1002, 반영됨, 출입문이 막혀 있습니다., 6월 15일 09:00 접수',
       ),
     );
     expect(
@@ -692,8 +697,8 @@ void main() {
     expect(find.text('제보 번호'), findsOneWidget);
     expect(find.text('ES-1002'), findsOneWidget);
     expect(find.text('report-2'), findsNothing);
-    expect(find.text('접수'), findsOneWidget);
-    expect(find.textContaining('6월 15일'), findsOneWidget);
+    expect(find.text('접수 시각'), findsOneWidget);
+    expect(find.text('6월 15일 09:00'), findsOneWidget);
     expect(find.text('출입문이 막혀 있습니다.'), findsOneWidget);
     expect(
       find.bySemanticsLabel('내 제보 상세, 폐쇄, 현재 상태 반영됨, 제보 번호 ES-1002'),

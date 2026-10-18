@@ -36,6 +36,9 @@ class _Repository implements FacilityReportRepository {
 
 final _now = DateTime(2026, 10, 18, 14, 30);
 
+/// 기기 로컬 시각을 서버 UTC 형식으로 만든다. 시간대와 관계없이 같은 표현이 나온다.
+String _serverTime(DateTime local) => local.toUtc().toIso8601String();
+
 Future<void> _pumpInbox(WidgetTester tester, FacilityReportResult report) =>
     tester.pumpWidget(
       MaterialApp(
@@ -64,16 +67,24 @@ String _semanticsLabelOf(WidgetTester tester, Finder finder) =>
     tester.getSemantics(finder).label;
 
 void main() {
-  const cases = <({String name, String createdAt, String shown})>[
-    (name: '올해', createdAt: '2026-10-18T14:05:00', shown: '10월 18일 14:05'),
-    (name: '다른 해', createdAt: '2025-10-18T14:05:00', shown: '2025년 10월 18일'),
+  final cases = <({String name, DateTime createdAt, String shown})>[
+    (
+      name: '올해',
+      createdAt: DateTime(2026, 10, 18, 14, 5),
+      shown: '10월 18일 14:05',
+    ),
+    (
+      name: '다른 해',
+      createdAt: DateTime(2025, 10, 18, 14, 5),
+      shown: '2025년 10월 18일',
+    ),
   ];
 
   for (final c in cases) {
     group('접수 시각 표현 (${c.name})', () {
       testWidgets('알림함은 접수 시각을 semantics 라벨에 쓴다', (tester) async {
         final handle = tester.ensureSemantics();
-        await _pumpInbox(tester, _report(c.createdAt));
+        await _pumpInbox(tester, _report(_serverTime(c.createdAt)));
         await tester.pumpAndSettle();
 
         expect(
@@ -85,10 +96,10 @@ void main() {
 
       testWidgets('내 제보는 목록 글자와 semantics 라벨에 같은 표현을 쓴다', (tester) async {
         final handle = tester.ensureSemantics();
-        await _pumpMyReports(tester, _report(c.createdAt));
+        await _pumpMyReports(tester, _report(_serverTime(c.createdAt)));
         await tester.pumpAndSettle();
 
-        expect(find.text('제보 번호 ES-1001\n${c.shown} 접수'), findsOneWidget);
+        expect(find.text('${c.shown} 접수'), findsOneWidget);
         expect(
           _semanticsLabelOf(tester, find.byKey(const Key('myReport-report-1'))),
           contains('${c.shown} 접수'),
@@ -100,13 +111,13 @@ void main() {
         await tester.pumpWidget(
           MaterialApp(
             home: MyFacilityReportDetailScreen(
-              report: _report(c.createdAt),
+              report: _report(_serverTime(c.createdAt)),
               now: () => _now,
             ),
           ),
         );
 
-        expect(find.text('접수'), findsOneWidget);
+        expect(find.text('접수 시각'), findsOneWidget);
         expect(find.text(c.shown), findsOneWidget);
       });
     });

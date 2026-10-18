@@ -4,7 +4,7 @@ import '../domain/facility_report_result.dart';
 extension FacilityReportResultLabels on FacilityReportResult {
   /// 접수 시각 표현. 시각을 해석할 수 없으면 null이라 호출자가 그 부분만 생략한다.
   String? createdAtLabel({required DateTime now}) =>
-      tryFormatListDateTime(createdAt, now: now);
+      tryFormatServerDateTime(createdAt, now: now);
 
   String get displayReceiptCode {
     final code = publicReceiptCode?.trim();

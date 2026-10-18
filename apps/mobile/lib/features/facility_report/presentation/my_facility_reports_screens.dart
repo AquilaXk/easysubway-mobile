@@ -248,6 +248,10 @@ class _MyReportListItem extends StatelessWidget {
         : report.description;
     final createdAtLabel = report.createdAtLabel(now: now());
     final receivedAt = createdAtLabel == null ? null : '$createdAtLabel 접수';
+    final metaStyle = textTheme.bodyMedium?.copyWith(
+      color: EasySubwayAccessibleColors.mutedText,
+      height: 1.3,
+    );
     void openReportDetail() {
       unawaited(
         Navigator.of(context).push(
@@ -300,16 +304,8 @@ class _MyReportListItem extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  [
-                    '제보 번호 ${report.displayReceiptCode}',
-                    ?receivedAt,
-                  ].join('\n'),
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: EasySubwayAccessibleColors.mutedText,
-                    height: 1.3,
-                  ),
-                ),
+                Text('제보 번호 ${report.displayReceiptCode}', style: metaStyle),
+                if (receivedAt != null) Text(receivedAt, style: metaStyle),
               ],
             ),
           ),
@@ -476,7 +472,7 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
                 color: EasySubwayAccessibleColors.line,
               ),
               if (createdAtLabel != null)
-                _MyReportDetailRow(label: '접수', value: createdAtLabel),
+                _MyReportDetailRow(label: '접수 시각', value: createdAtLabel),
               const Divider(
                 height: 1,
                 thickness: 1,

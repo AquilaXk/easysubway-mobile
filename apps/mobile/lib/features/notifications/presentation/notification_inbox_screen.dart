@@ -521,7 +521,7 @@ String _reportStatusLabel(String status) {
 
 /// 접수 시각을 "10월 1일 09:00 접수"로 읽는다. 시각을 해석할 수 없으면 생략한다.
 String? _reportReceivedLabel(String createdAt, DateTime now) {
-  final label = tryFormatListDateTime(createdAt, now: now);
+  final label = tryFormatServerDateTime(createdAt, now: now);
   return label == null ? null : '$label 접수';
 }
 
