@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
-      NATIVE_TARGETS: native_test core_screen_a11y_smoke_test
+      NATIVE_TARGETS: native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -103,7 +103,7 @@ jobs:
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/mobile-native-android"
           printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"
-          for target in ${NATIVE_TARGETS}; do : > "${RUNNER_TEMP}/mobile-native-android/flutter-drive-${target}.log"; done
+          for target in ${NATIVE_TARGETS}; do : > "${RUNNER_TEMP}/mobile-native-android/flutter-drive-${target//:/-}.log"; done
           : > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log"
       - name: Enable KVM
         shell: bash
