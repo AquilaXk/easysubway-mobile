@@ -74,7 +74,7 @@ Widget _host(NoticeController controller, {DateTime? now}) {
 }
 
 void main() {
-  testWidgets('발행 시각은 올해와 다른 해 모두 시각을 보여준다', (tester) async {
+  testWidgets('발행 시각은 올해는 시각까지, 다른 해는 날짜만 보여준다', (tester) async {
     final controller = await _seed(
       ActiveNoticesResult(
         notices: [
@@ -89,7 +89,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('7월 6일 09:00'), findsOneWidget);
-    expect(find.text('2025년 7월 6일 09:05'), findsOneWidget);
+    expect(find.text('2025년 7월 6일'), findsOneWidget);
+    expect(find.text('2025년 7월 6일 09:05'), findsNothing);
   });
 
   testWidgets('UTC 발행 시각과 UTC 기준 시각은 기기 로컬 해로 비교한다', (tester) async {

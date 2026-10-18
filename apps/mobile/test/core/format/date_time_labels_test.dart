@@ -4,64 +4,41 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   group('formatListDateTime', () {
     final now = DateTime(2026, 10, 18, 14, 30);
-    final cases =
-        <({String name, DateTime value, DateTime now, bool time, String want})>[
-          (
-            name: '올해 날짜는 월일과 시각',
-            value: DateTime(2026, 10, 18, 14, 5),
-            now: now,
-            time: false,
-            want: '10월 18일 14:05',
-          ),
-          (
-            name: '올해 한 자리 월일',
-            value: DateTime(2026, 1, 3, 9, 0),
-            now: now,
-            time: false,
-            want: '1월 3일 09:00',
-          ),
-          (
-            name: '다른 해 날짜는 연월일만',
-            value: DateTime(2025, 10, 18, 14, 5),
-            now: now,
-            time: false,
-            want: '2025년 10월 18일',
-          ),
-          (
-            name: '다른 해여도 시각 포함을 요청하면 연월일 시각',
-            value: DateTime(2025, 10, 18, 14, 5),
-            now: now,
-            time: true,
-            want: '2025년 10월 18일 14:05',
-          ),
-          (
-            name: '올해는 시각 포함 요청과 무관',
-            value: DateTime(2026, 10, 18, 14, 5),
-            now: now,
-            time: true,
-            want: '10월 18일 14:05',
-          ),
-          (
-            name: '자정 직후 올해 첫 순간은 올해 표현',
-            value: DateTime(2026, 1, 1, 0, 0),
-            now: DateTime(2026, 1, 1, 0, 1),
-            time: false,
-            want: '1월 1일 00:00',
-          ),
-          (
-            name: '자정 직전 작년 마지막 순간은 연도 표현',
-            value: DateTime(2025, 12, 31, 23, 59),
-            now: DateTime(2026, 1, 1, 0, 0),
-            time: false,
-            want: '2025년 12월 31일',
-          ),
-        ];
+    final cases = <({String name, DateTime value, DateTime now, String want})>[
+      (
+        name: '올해 날짜는 월일과 시각',
+        value: DateTime(2026, 10, 18, 14, 5),
+        now: now,
+        want: '10월 18일 14:05',
+      ),
+      (
+        name: '올해 한 자리 월일',
+        value: DateTime(2026, 1, 3, 9, 0),
+        now: now,
+        want: '1월 3일 09:00',
+      ),
+      (
+        name: '다른 해 날짜는 연월일만',
+        value: DateTime(2025, 10, 18, 14, 5),
+        now: now,
+        want: '2025년 10월 18일',
+      ),
+      (
+        name: '자정 직후 올해 첫 순간은 올해 표현',
+        value: DateTime(2026, 1, 1, 0, 0),
+        now: DateTime(2026, 1, 1, 0, 1),
+        want: '1월 1일 00:00',
+      ),
+      (
+        name: '자정 직전 작년 마지막 순간은 연도 표현',
+        value: DateTime(2025, 12, 31, 23, 59),
+        now: DateTime(2026, 1, 1, 0, 0),
+        want: '2025년 12월 31일',
+      ),
+    ];
     for (final c in cases) {
       test(c.name, () {
-        expect(
-          formatListDateTime(c.value, now: c.now, alwaysShowTime: c.time),
-          c.want,
-        );
+        expect(formatListDateTime(c.value, now: c.now), c.want);
       });
     }
 
