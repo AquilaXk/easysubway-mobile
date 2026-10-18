@@ -1,5 +1,6 @@
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
@@ -18,29 +19,27 @@ import '../test/support/core_screen_sweep_screens.dart';
 /// 실제로 읽은 배율이 이 값과 같은지 먼저 확인한다. 배율이 1.0보다 크면 핵심 화면만 검사한다.
 /// 배율 최대치(2.0)는 Android 14 이상이 지원하는 최대 글꼴 크기 200%다.
 /// https://developer.android.com/about/versions/14/features#non-linear-font-scaling
-const _smokeScreenNames = <String>{
-  '홈(노선도)',
-  '좌측 메뉴',
-  '역 검색',
-  '역 상세(출구 지도 안내)',
-  '경로 결과·상세',
-  '알림함',
+enum _FontMode { normal, largeText }
+
+const _bothModes = {_FontMode.normal, _FontMode.largeText};
+const _normalOnly = {_FontMode.normal};
+
+/// 화면별로 검사할 글꼴 모드. 핵심 6화면은 두 모드 모두, 표에 있으나 여기 없는 화면은
+/// 기본 배율만 검사한다.
+const _modesByScreen = <String, Set<_FontMode>>{
+  '홈(노선도)': _bothModes,
+  '좌측 메뉴': _bothModes,
+  '역 검색': _bothModes,
+  '역 상세(출구 지도 안내)': _bothModes,
+  '경로 결과·상세': _bothModes,
+  '알림함': _bothModes,
 };
 
 final _fontScale = double.parse(
   const String.fromEnvironment('A11Y_FONT_SCALE', defaultValue: '1.0'),
 );
 
-/// 호스트 표에는 있으나 에뮬레이터 스모크가 열지 않는 화면과 근거. 새 화면은 표에 추가하면
-/// 자동으로 검사 대상이 되고, 제외하려면 여기에 근거와 함께 적어야 한다.
-const _excludedScreens = <String, String>{
-  '오류 참조 번호 시트': '앱 진입 흐름이 아니라 시트 함수를 직접 호출해 연다',
-  '데이터 출처': '화면 표의 열기 함수가 호스트 파일 시스템의 asset을 읽어 기기에서는 열리지 않는다',
-  '지도 역 정보 패널': '실시간 도착 API를 가짜로 대체하지 않아 에뮬레이터에서 실제 네트워크를 호출한다',
-  '지도 역 정보 패널(상세 펼침)': '실시간 도착 API를 가짜로 대체하지 않아 에뮬레이터에서 실제 네트워크를 호출한다',
-  '알림함(조회 실패)': '저장소 실패를 주입한 가짜 상태이며 앱 진입 흐름으로 만들 수 없다',
-  '알림함(부분 조회 실패)': '저장소 실패를 주입한 가짜 상태이며 앱 진입 흐름으로 만들 수 없다',
-};
+final _runMode = _fontScale > 1.0 ? _FontMode.largeText : _FontMode.normal;
 
 /// 실제 기기의 짧은 화면에서는 지연 생성 목록 아래에 있어 열린 직후 만들어지지 않는
 /// `shown` 요소를 스크롤로 올리는 화면. 호스트 전수 검사는 세로 2000dp라 필요 없다.
@@ -52,18 +51,16 @@ final _revealShownOnDevice =
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  final isLargeText = _fontScale > 1.0;
   final screens = sweepScreens
       .where(
-        (screen) => isLargeText
-            ? _smokeScreenNames.contains(screen.name)
-            : !_excludedScreens.containsKey(screen.name),
+        (screen) =>
+            (_modesByScreen[screen.name] ?? _normalOnly).contains(_runMode),
       )
       .toList();
-  test('스모크 대상과 제외 화면이 모두 화면 표에 있다', () {
+  test('모드 표의 화면이 모두 화면 표에 있고 선택이 비지 않는다', () {
     final tableNames = sweepScreens.map((screen) => screen.name).toSet();
-    expect(tableNames.containsAll(_smokeScreenNames), isTrue);
-    expect(tableNames.containsAll(_excludedScreens.keys), isTrue);
+    expect(tableNames.containsAll(_modesByScreen.keys), isTrue);
+    expect(screens, isNotEmpty);
   });
 
   testWidgets('앱이 읽은 시스템 글꼴 배율이 요청한 배율과 같다', (tester) async {
@@ -88,7 +85,8 @@ void main() {
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
-      try {
+      final reportedErrors = <FlutterErrorDetails>[];
+      Future<void> checkScreen() async {
         final navigatorKey = GlobalKey<NavigatorState>();
         const theme = SweepTheme.standard;
         await tester.pumpWidget(
@@ -97,6 +95,7 @@ void main() {
             onboardingState: screen.onboardingState(theme),
             stationResults: screen.stationResults,
             inboxLoad: screen.inboxLoad,
+            realtimeRepository: SweepRealtimeRepository(),
           ),
         );
         await tester.pumpAndSettle();
@@ -105,6 +104,7 @@ void main() {
             tester: tester,
             navigatorKey: navigatorKey,
             theme: theme,
+            onDevice: true,
           ),
         );
 
@@ -113,6 +113,16 @@ void main() {
         await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
         expect(tester.takeException(), isNull);
+      }
+
+      try {
+        if (screen.inboxLoad != SweepInboxLoad.normal) {
+          // 조회 실패는 화면에 오류 상태로 드러나고 오류 보고로도 남아야 한다(호스트 전수 검사와 같다).
+          await runWithMobileErrorReporter(reportedErrors.add, checkScreen);
+          expect(reportedErrors, isNotEmpty);
+        } else {
+          await checkScreen();
+        }
       } finally {
         semantics.dispose();
       }

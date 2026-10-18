@@ -81,12 +81,14 @@ spec_target() { echo "${1%%:*}"; }
 spec_scale() { [[ "$1" == *:* ]] && echo "${1#*:}" || echo "${default_font_scale}"; }
 spec_log_name() { echo "${1//:/-}"; }
 
+# 배율 설정 출력도 대상 로그에 남겨, 설정 중 adb가 offline이어도 retry_reason이 증거를 본다.
 run_drive() {
-  local target scale
+  local target scale log
   target="$(spec_target "$1")"
   scale="$(spec_scale "$1")"
-  adb -s "${device}" shell settings put system font_scale "${scale}" || return 1
-  timeout "${drive_timeout}" flutter drive --driver=test_driver/integration_test.dart "--target=integration_test/${target}.dart" "--dart-define=A11Y_FONT_SCALE=${scale}" -d "${device}" --no-dds > "${evidence}/flutter-drive-$(spec_log_name "$1").log" 2>&1
+  log="${evidence}/flutter-drive-$(spec_log_name "$1").log"
+  adb -s "${device}" shell settings put system font_scale "${scale}" > "${log}" 2>&1 || return 1
+  timeout "${drive_timeout}" flutter drive --driver=test_driver/integration_test.dart "--target=integration_test/${target}.dart" "--dart-define=A11Y_FONT_SCALE=${scale}" -d "${device}" --no-dds >> "${log}" 2>&1
 }
 
 report_retry_pass() {

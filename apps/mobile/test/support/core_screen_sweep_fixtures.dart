@@ -814,9 +814,11 @@ EasySubwayApp buildSweepApp({
   required OnboardingState onboardingState,
   List<StationSearchResult> stationResults = const [],
   SweepInboxLoad inboxLoad = SweepInboxLoad.normal,
+  RealtimeRepository? realtimeRepository,
 }) {
   return buildEasySubwayTestApp(
     repository: SweepRepository(stationResults: stationResults),
+    realtimeRepository: realtimeRepository,
     reportRepository: SweepReportRepository(
       listFails: inboxLoad != SweepInboxLoad.normal,
     ),

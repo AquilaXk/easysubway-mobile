@@ -52,11 +52,15 @@ class SweepScreenContext {
     required this.tester,
     required this.navigatorKey,
     required this.theme,
+    this.onDevice = false,
   });
 
   final WidgetTester tester;
   final GlobalKey<NavigatorState> navigatorKey;
   final SweepTheme theme;
+
+  /// 에뮬레이터 실기에서 열면 true. 호스트와 달리 번들 asset을 비동기로 읽어도 테스트 시계가 끝난다.
+  final bool onDevice;
 
   BuildContext get navigatorContext => navigatorKey.currentContext!;
 }
@@ -401,25 +405,48 @@ Future<void> _openFanMenuWithSelected(
   );
 }
 
-/// 출처 화면은 번들 자산을 비동기로 읽어 테스트 시계가 끝나지 않으므로, 같은 자산
-/// 파일을 동기로 읽어 넘기고 직접 연다.
+/// 출처 화면은 번들 자산을 비동기로 읽는다. 호스트에서는 테스트 시계가 끝나지 않으므로 같은 자산
+/// 파일을 동기로 읽어 넘기고, 실기에서는 화면이 자산을 직접 읽도록 하고 읽기가 끝나길 기다린다.
 Future<void> _openDataSourceAttribution(SweepScreenContext context) async {
   Map<String, Object?> readAsset(String path) =>
       jsonDecode(File(path).readAsStringSync()) as Map<String, Object?>;
+  final onDevice = context.onDevice;
   unawaited(
     context.navigatorKey.currentState!.push(
       MaterialPageRoute<void>(
         builder: (_) => DataSourceAttributionScreen(
-          initialManifest: readAsset(
-            'assets/datapacks/metro_map_pack/manifest.json',
-          ),
-          initialInventory: readAsset('assets/datapacks/source-inventory.json'),
+          initialManifest: onDevice
+              ? null
+              : readAsset('assets/datapacks/metro_map_pack/manifest.json'),
+          initialInventory: onDevice
+              ? null
+              : readAsset('assets/datapacks/source-inventory.json'),
           transferGuideRepository: const FixtureTransferGuideRepository(),
         ),
       ),
     ),
   );
-  await context.tester.pumpAndSettle();
+  if (onDevice) {
+    // 읽는 동안 진행 표시가 계속 그려지므로 pumpAndSettle은 끝나지 않는다.
+    await _pumpUntilGone(
+      context.tester,
+      find.byType(CircularProgressIndicator),
+    );
+  } else {
+    await context.tester.pumpAndSettle();
+  }
+}
+
+/// 비동기 읽기가 끝나 [finder]가 사라질 때까지 화면을 다시 그린다.
+Future<void> _pumpUntilGone(WidgetTester tester, Finder finder) async {
+  const step = Duration(milliseconds: 100);
+  const limit = 100;
+  await tester.pump(step);
+  for (var i = 0; i < limit && finder.evaluate().isNotEmpty; i++) {
+    await tester.pump(step);
+  }
+  expect(finder, findsNothing);
+  await tester.pumpAndSettle();
 }
 
 Future<void> _openUserDataDeletion(SweepScreenContext context) async {
