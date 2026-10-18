@@ -129,7 +129,7 @@ test("core screen accessibility smoke reuses the sweep screen table and checks o
     "apps/mobile/lib/features/stations/**",
     "tools/ci/android-native-drive.sh",
   ]) {
-    assert.equal((workflow.match(new RegExp(`^      - "${glob.replace(/[*.]/gu, "\\$&")}"$`, "gmu")) ?? []).length, 2, glob);
+    assert.equal(workflow.split("\n").filter((line) => line === `      - "${glob}"`).length, 2, glob);
   }
   assert.match(a11ySmokeTest, /IntegrationTestWidgetsFlutterBinding\.ensureInitialized\(\)/u);
   assert.match(a11ySmokeTest, /import '\.\.\/test\/support\/core_screen_sweep_screens\.dart'/u);
