@@ -110,6 +110,7 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
       - name: Run Journey native smoke
+        id: smoke
         uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
         with:
           api-level: 35
@@ -118,8 +119,18 @@ jobs:
           profile: pixel_7
           emulator-port: 5554
           disable-animations: true
+          emulator-boot-timeout: 600
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           working-directory: apps/mobile
           script: bash ../../tools/ci/android-native-drive.sh
+      - name: Record Android boot failure
+        if: failure() && steps.smoke.conclusion == 'failure'
+        shell: bash
+        run: |
+          receipt="${RUNNER_TEMP}/mobile-native-android/receipt.json"
+          if grep -q '"status":"PENDING"' "${receipt}"; then
+            printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"FAIL","target":"emulator","step":"boot"}' > "${receipt}"
+          fi
       - name: Upload Android native evidence
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
