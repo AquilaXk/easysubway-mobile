@@ -279,16 +279,7 @@ final sweepScreens = <SweepScreen>[
     final card = find.byKey(
       const Key('stationFacilityCard-facility-elevator-1'),
     );
-    await context.tester.scrollUntilVisible(
-      card,
-      300,
-      scrollable: find
-          .descendant(
-            of: find.byKey(const Key('stationDetailSheet')),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
+    await scrollStationDetailTo(context.tester, card);
     await context.tester.ensureVisible(card);
     await context.tester.pumpAndSettle();
     await context.tester.tap(card);
@@ -475,20 +466,27 @@ Future<void> _openStationSearchResults(SweepScreenContext context) async {
   await context.tester.pumpAndSettle(const Duration(seconds: 1));
 }
 
+/// 역 상세 시트의 지연 생성 목록을 스크롤해 [target]을 화면에 올린다.
+Future<void> scrollStationDetailTo(
+  WidgetTester tester,
+  Finder target, {
+  double delta = 300,
+}) => tester.scrollUntilVisible(
+  target,
+  delta,
+  scrollable: find
+      .descendant(
+        of: find.byKey(const Key('stationDetailSheet')),
+        matching: find.byType(Scrollable),
+      )
+      .first,
+);
+
 /// 역 상세의 하단 `전체 시간표` 버튼으로 시간표 화면을 연다.
 Future<void> _openStationTimetable(SweepScreenContext context) async {
   await _openStationDetail(context);
   final button = find.byKey(const Key('stationTimetableButton'));
-  await context.tester.scrollUntilVisible(
-    button,
-    250,
-    scrollable: find
-        .descendant(
-          of: find.byKey(const Key('stationDetailSheet')),
-          matching: find.byType(Scrollable),
-        )
-        .first,
-  );
+  await scrollStationDetailTo(context.tester, button, delta: 250);
   await context.tester.tap(button);
   await context.tester.pumpAndSettle();
 }

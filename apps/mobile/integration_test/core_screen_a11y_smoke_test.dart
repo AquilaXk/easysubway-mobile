@@ -21,11 +21,12 @@ const _smokeScreenNames = <String>{
   '알림함',
 };
 
-/// 화면 표의 `shown` 요소가 실제 기기의 짧은 화면에서는 접힌 목록 아래에 있어 지연
-/// 생성되지 않는 화면의 열림 확인 요소. 호스트 전수 검사는 세로 2000dp라 영향이 없다.
-final _shownOnDevice = <String, Finder>{
-  '역 상세(출구 지도 안내)': find.byKey(const Key('stationDetailSheet')),
-};
+/// 실제 기기의 짧은 화면에서는 지연 생성 목록 아래에 있어 열린 직후 만들어지지 않는
+/// `shown` 요소를 스크롤로 올리는 화면. 호스트 전수 검사는 세로 2000dp라 필요 없다.
+final _revealShownOnDevice =
+    <String, Future<void> Function(WidgetTester tester, Finder shown)>{
+      '역 상세(출구 지도 안내)': scrollStationDetailTo,
+    };
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -70,7 +71,8 @@ void main() {
           ),
         );
 
-        expect(_shownOnDevice[screen.name] ?? screen.shown, findsOneWidget);
+        await _revealShownOnDevice[screen.name]?.call(tester, screen.shown);
+        expect(screen.shown, findsOneWidget);
         await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       } finally {

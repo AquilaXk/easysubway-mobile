@@ -10,6 +10,18 @@ on:
       - "apps/mobile/integration_test/native_test.dart"
       - "apps/mobile/integration_test/core_screen_a11y_smoke_test.dart"
       - "apps/mobile/test/support/core_screen_sweep_*.dart"
+      - "apps/mobile/lib/accessible_design.dart"
+      - "apps/mobile/lib/search_field.dart"
+      - "apps/mobile/lib/app/**"
+      - "apps/mobile/lib/core/ui/**"
+      - "apps/mobile/lib/features/facility_report/**"
+      - "apps/mobile/lib/features/favorites/**"
+      - "apps/mobile/lib/features/network_map/**"
+      - "apps/mobile/lib/features/notifications/**"
+      - "apps/mobile/lib/features/service_notice/**"
+      - "apps/mobile/lib/features/settings/**"
+      - "apps/mobile/lib/features/stations/**"
+      - "tools/ci/android-native-drive.sh"
       - "apps/mobile/lib/features/journey/**"
       - "apps/mobile/lib/features/route_draft/**"
       - "apps/mobile/lib/features/routes/**"
@@ -26,6 +38,18 @@ on:
       - "apps/mobile/integration_test/native_test.dart"
       - "apps/mobile/integration_test/core_screen_a11y_smoke_test.dart"
       - "apps/mobile/test/support/core_screen_sweep_*.dart"
+      - "apps/mobile/lib/accessible_design.dart"
+      - "apps/mobile/lib/search_field.dart"
+      - "apps/mobile/lib/app/**"
+      - "apps/mobile/lib/core/ui/**"
+      - "apps/mobile/lib/features/facility_report/**"
+      - "apps/mobile/lib/features/favorites/**"
+      - "apps/mobile/lib/features/network_map/**"
+      - "apps/mobile/lib/features/notifications/**"
+      - "apps/mobile/lib/features/service_notice/**"
+      - "apps/mobile/lib/features/settings/**"
+      - "apps/mobile/lib/features/stations/**"
+      - "tools/ci/android-native-drive.sh"
       - "apps/mobile/lib/features/journey/**"
       - "apps/mobile/lib/features/route_draft/**"
       - "apps/mobile/lib/features/routes/**"
@@ -47,6 +71,8 @@ jobs:
     name: Android Journey native smoke
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      NATIVE_TARGETS: native_test core_screen_a11y_smoke_test
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
@@ -75,8 +101,7 @@ jobs:
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/mobile-native-android"
           printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"
-          : > "${RUNNER_TEMP}/mobile-native-android/flutter-drive-native_test.log"
-          : > "${RUNNER_TEMP}/mobile-native-android/flutter-drive-core_screen_a11y_smoke_test.log"
+          for target in ${NATIVE_TARGETS}; do : > "${RUNNER_TEMP}/mobile-native-android/flutter-drive-${target}.log"; done
           : > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log"
       - name: Enable KVM
         shell: bash
@@ -94,11 +119,7 @@ jobs:
           emulator-port: 5554
           disable-animations: true
           working-directory: apps/mobile
-          script: |
-            dart format --output=none --set-exit-if-changed integration_test/native_test.dart integration_test/core_screen_a11y_smoke_test.dart
-            flutter analyze integration_test/native_test.dart integration_test/core_screen_a11y_smoke_test.dart
-            for target in native_test core_screen_a11y_smoke_test; do if ! timeout 12m flutter drive --driver=test_driver/integration_test.dart --target=integration_test/${target}.dart -d emulator-5554 --no-dds > "${RUNNER_TEMP}/mobile-native-android/flutter-drive-${target}.log" 2>&1; then adb logcat -d -b crash > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log" 2>&1 || true; printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"FAIL"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"; exit 1; fi; done
-            printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PASS"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"
+          script: bash ../../tools/ci/android-native-drive.sh
       - name: Upload Android native evidence
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
@@ -106,8 +127,7 @@ jobs:
           name: mobile-native-android-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             ${{ runner.temp }}/mobile-native-android/receipt.json
-            ${{ runner.temp }}/mobile-native-android/flutter-drive-native_test.log
-            ${{ runner.temp }}/mobile-native-android/flutter-drive-core_screen_a11y_smoke_test.log
+            ${{ runner.temp }}/mobile-native-android/flutter-drive-*.log
             ${{ runner.temp }}/mobile-native-android/adb-crash.log
           if-no-files-found: error
           retention-days: 5
