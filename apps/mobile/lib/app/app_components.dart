@@ -42,6 +42,7 @@ class HomeStateCard extends StatelessWidget {
     required this.title,
     required this.subtitle,
     this.actionLabel,
+    this.actionSemanticsLabel,
     this.onAction,
     super.key,
   });
@@ -50,11 +51,15 @@ class HomeStateCard extends StatelessWidget {
   final String title;
   final String subtitle;
   final String? actionLabel;
+
+  /// 같은 화면에 다시 시도 버튼이 여럿일 때 스크린리더가 구분하도록 버튼에 붙이는 라벨.
+  final String? actionSemanticsLabel;
   final VoidCallback? onAction;
 
   @override
   Widget build(BuildContext context) {
     final actionLabel = this.actionLabel;
+    final actionSemanticsLabel = this.actionSemanticsLabel;
     return AppCard(
       showBorder: true,
       child: AccessibleStateCard(
@@ -66,7 +71,13 @@ class HomeStateCard extends StatelessWidget {
             OutlinedButton.icon(
               onPressed: onAction,
               icon: const Icon(Icons.refresh),
-              label: Text(actionLabel),
+              label: actionSemanticsLabel == null
+                  ? Text(actionLabel)
+                  : Semantics(
+                      label: actionSemanticsLabel,
+                      excludeSemantics: true,
+                      child: Text(actionLabel),
+                    ),
             ),
         ],
       ),

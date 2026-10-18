@@ -6,6 +6,7 @@ import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_result.dart';
+import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
@@ -47,8 +48,25 @@ const sweepLines = [
   ),
 ];
 
+/// 알림함이 읽는 시설·제보 조회의 성공·실패 조합.
+enum SweepInboxLoad {
+  /// 시설과 제보가 모두 성공한다.
+  normal,
+
+  /// 제보 조회가 실패하고 시설 항목이 없어, 알림함 전체가 오류 상태가 된다.
+  failedNoItems,
+
+  /// 제보 조회만 실패하고 시설 항목은 보여, 제보 구역에 오류 행이 뜬다.
+  reportsFailed,
+}
+
 /// 내 제보 목록·알림함이 접수된 제보를 그리도록 제보 한 건을 돌려준다.
 class SweepReportRepository implements FacilityReportRepository {
+  const SweepReportRepository({this.listFails = false});
+
+  /// true면 [listMyReports]가 실패해 알림함의 오류 상태를 검사할 수 있다.
+  final bool listFails;
+
   static const _report = FacilityReportResult(
     id: 'report-1',
     stationId: sweepStationId,
@@ -68,7 +86,48 @@ class SweepReportRepository implements FacilityReportRepository {
   Future<FacilityReportResult> getReport(String reportId) async => _report;
 
   @override
-  Future<List<FacilityReportResult>> listMyReports() async => const [_report];
+  Future<List<FacilityReportResult>> listMyReports() async {
+    if (listFails) {
+      throw StateError('sweep report list failure');
+    }
+    return const [_report];
+  }
+}
+
+/// 알림함이 시설 항목을 그리도록 확인이 필요한 즐겨찾기 시설 한 건을 돌려준다.
+class SweepFavoriteFacilityRepository implements FavoriteFacilityRepository {
+  const SweepFavoriteFacilityRepository();
+
+  static const _facility = FavoriteFacility(
+    userId: 'sweep-user',
+    facilityId: 'facility-gangnam-elevator-1',
+    stationId: sweepStationId,
+    stationNameKo: '강남',
+    stationNameEn: 'Gangnam',
+    exitId: 'exit-gangnam-1',
+    type: 'ELEVATOR',
+    name: '1번 출구 엘리베이터',
+    floorFrom: '1F',
+    floorTo: 'B1',
+    description: '1번 출구 앞',
+    status: 'USER_REPORTED',
+    dataConfidence: 'HIGH',
+    dataSourceType: 'OFFICIAL_FILE',
+    lastUpdatedAt: '2026-10-01',
+    addedAt: '2026-10-01T09:00:00',
+  );
+
+  @override
+  Future<List<FavoriteFacility>> listFavoriteFacilities() async => const [
+    _facility,
+  ];
+
+  @override
+  Future<FavoriteFacility> saveFavoriteFacility(String facilityId) async =>
+      _facility;
+
+  @override
+  Future<void> removeFavoriteFacility(String facilityId) async {}
 }
 
 /// 공지사항 목록과 홈 운행 지장 배너를 그리려고 일반 공지와 운행 지장 공지를 하나씩 둔다.
@@ -346,13 +405,20 @@ EasySubwayApp buildSweepApp({
   required GlobalKey<NavigatorState> navigatorKey,
   required OnboardingState onboardingState,
   List<StationSearchResult> stationResults = const [],
+  SweepInboxLoad inboxLoad = SweepInboxLoad.normal,
 }) {
   return buildEasySubwayTestApp(
     repository: SweepRepository(stationResults: stationResults),
-    reportRepository: SweepReportRepository(),
+    reportRepository: SweepReportRepository(
+      listFails: inboxLoad != SweepInboxLoad.normal,
+    ),
     searchHistoryRepository: SweepSearchHistoryRepository(),
     favoriteRepository: const DemoFavoriteStationRepository(),
-    favoriteFacilityRepository: const DemoFavoriteFacilityRepository(),
+    favoriteFacilityRepository: switch (inboxLoad) {
+      SweepInboxLoad.normal => const DemoFavoriteFacilityRepository(),
+      SweepInboxLoad.failedNoItems => null,
+      SweepInboxLoad.reportsFailed => const SweepFavoriteFacilityRepository(),
+    },
     favoriteRouteRepository: const DemoFavoriteRouteRepository(),
     noticeRepository: SweepNoticeRepository(),
     notificationRepository: SweepNotificationSettingsRepository(),

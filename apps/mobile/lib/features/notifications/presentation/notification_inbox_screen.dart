@@ -35,16 +35,35 @@ class NotificationInboxScreen extends StatefulWidget {
 }
 
 class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
-  late Future<List<_NotificationInboxItem>> _itemsFuture;
+  late final _InboxSlot _facilities;
+  final _InboxSlot _reports = _InboxSlot();
+
+  /// 조회 대상이 있는 구역. 즐겨찾기 시설 저장소가 없으면 시설 구역은 없다.
+  List<_InboxSlot> get _activeSlots => [
+    if (widget.favoriteFacilityRepository != null) _facilities,
+    _reports,
+  ];
 
   @override
   void initState() {
     super.initState();
-    _itemsFuture = _loadItemsForDisplay();
+    _facilities = _InboxSlot(
+      widget.favoriteFacilityRepository == null
+          ? const _SectionLoaded([])
+          : const _SectionLoading(),
+    );
+    unawaited(_loadFacilities());
+    unawaited(_loadReports());
   }
 
   @override
   Widget build(BuildContext context) {
+    final slots = _activeSlots;
+    final states = [for (final slot in slots) slot.state];
+    final items = [
+      for (final state in states)
+        if (state case _SectionLoaded(:final items)) ...items,
+    ];
     return Scaffold(
       appBar: AppBar(
         title: const Text('알림'),
@@ -62,144 +81,138 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
         ],
       ),
       body: SafeArea(
-        child: FutureBuilder<List<_NotificationInboxItem>>(
-          future: _itemsFuture,
-          builder: (context, snapshot) {
-            final items = snapshot.data ?? const <_NotificationInboxItem>[];
-            return RefreshIndicator(
-              onRefresh: () async {
-                final next = _loadItemsForDisplay();
-                setState(() {
-                  _itemsFuture = next;
-                });
-                try {
-                  await next;
-                } catch (error, stackTrace) {
-                  reportMobileError(
-                    error,
-                    stackTrace,
-                    context: '알림함 새로고침 중 예외가 발생했습니다.',
-                  );
-                }
-              },
-              child: ListView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: mainListPagePadding,
-                children: [
-                  if (snapshot.connectionState != ConnectionState.done)
-                    const LinearProgressIndicator(minHeight: 3),
-                  if (snapshot.hasError)
-                    HomeStateCard(
-                      key: const Key('notificationInboxErrorState'),
-                      icon: Icons.error_outline,
-                      title: '알림을 불러오지 못했어요',
-                      subtitle: '잠시 후 다시 시도해 주세요.',
-                      actionLabel: '다시 시도',
-                      onAction: () {
-                        setState(() {
-                          _itemsFuture = _loadItemsForDisplay();
-                        });
-                      },
-                    )
-                  else if (items.isEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 80),
-                      child: Column(
-                        children: [
-                          const Icon(
-                            Icons.notifications_none,
-                            size: 44,
-                            color: EasySubwayAccessibleColors.mutedText,
-                          ),
-                          const SizedBox(height: 12),
-                          Text(
-                            '새 알림이 없습니다',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: EasySubwayAccessibleColors.text,
-                              fontSize: 16,
-                              fontWeight: FontWeight.w700,
-                            ),
-                          ),
-                          const SizedBox(height: 6),
-                          Text(
-                            '즐겨찾기 시설과 제보 상태가 바뀌면 여기에서 볼 수 있어요.',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              color: EasySubwayAccessibleColors.mutedText,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                              height: 1.4,
-                            ),
-                          ),
-                        ],
-                      ),
-                    )
-                  else ...[
-                    _NotificationInboxChips(items: items),
-                    for (final item in items)
-                      _NotificationInboxRow(
-                        item: item,
-                        onOpenReport: widget.onOpenReport,
-                      ),
-                  ],
-                ],
-              ),
-            );
-          },
+        child: RefreshIndicator(
+          onRefresh: () => Future.wait([_loadFacilities(), _loadReports()]),
+          child: ListView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: mainListPagePadding,
+            children: [
+              if (states.any((state) => state is _SectionLoading))
+                const LinearProgressIndicator(minHeight: 3),
+              if (states.every((state) => state is _SectionFailed))
+                HomeStateCard(
+                  key: const Key('notificationInboxErrorState'),
+                  icon: Icons.error_outline,
+                  title: '알림을 불러오지 못했어요',
+                  subtitle: '잠시 후 다시 시도해 주세요.',
+                  actionLabel: '다시 시도',
+                  onAction: _retryAll,
+                )
+              else if (states.every((state) => state is _SectionLoaded) &&
+                  items.isEmpty)
+                const _NotificationInboxEmptyState()
+              else ...[
+                if (items.isNotEmpty) _NotificationInboxChips(items: items),
+                ..._sectionRows(
+                  _facilities,
+                  errorKey: const Key('notificationInboxFacilityErrorRow'),
+                  errorTitle: '시설을 불러오지 못했어요',
+                  retryLabel: '시설 다시 시도',
+                  onRetry: _loadFacilities,
+                ),
+                ..._sectionRows(
+                  _reports,
+                  errorKey: const Key('notificationInboxReportErrorRow'),
+                  errorTitle: '제보를 불러오지 못했어요',
+                  retryLabel: '제보 다시 시도',
+                  onRetry: _loadReports,
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
   }
 
-  Future<List<_NotificationInboxItem>> _loadItemsForDisplay() {
-    final next = _loadItems();
-    unawaited(
-      next.catchError((Object error, StackTrace stackTrace) {
-        return const <_NotificationInboxItem>[];
-      }),
-    );
-    return next;
+  List<Widget> _sectionRows(
+    _InboxSlot slot, {
+    required Key errorKey,
+    required String errorTitle,
+    required String retryLabel,
+    required Future<void> Function() onRetry,
+  }) {
+    return switch (slot.state) {
+      _SectionLoading() => const [],
+      _SectionLoaded(:final items) => [
+        for (final item in items)
+          _NotificationInboxRow(item: item, onOpenReport: widget.onOpenReport),
+      ],
+      _SectionFailed() => [
+        HomeStateCard(
+          key: errorKey,
+          icon: Icons.error_outline,
+          title: errorTitle,
+          subtitle: '잠시 후 다시 시도해 주세요.',
+          actionLabel: '다시 시도',
+          actionSemanticsLabel: retryLabel,
+          onAction: () => unawaited(onRetry()),
+        ),
+      ],
+    };
   }
 
-  Future<List<_NotificationInboxItem>> _loadItems() async {
-    final items = <_NotificationInboxItem>[];
-    var loadFailed = false;
-    final favoriteFacilityRepository = widget.favoriteFacilityRepository;
-    if (favoriteFacilityRepository != null) {
-      try {
-        final facilities = await favoriteFacilityRepository
-            .listFavoriteFacilities();
-        for (final facility in facilities.where(isFacilityAlert)) {
-          items.add(_NotificationInboxItem.facility(facility));
-        }
-      } catch (error, stackTrace) {
-        loadFailed = true;
-        reportMobileError(
-          error,
-          stackTrace,
-          context: '알림함 즐겨찾기 시설 상태를 불러오는 중 예외가 발생했습니다.',
-        );
-      }
-    }
+  /// 전체 오류 상태의 다시 시도. 모든 구역이 실패한 상태이므로 모두 다시 조회한다.
+  void _retryAll() {
+    unawaited(_loadFacilities());
+    unawaited(_loadReports());
+  }
 
+  Future<void> _loadFacilities() {
+    final repository = widget.favoriteFacilityRepository;
+    if (repository == null) {
+      return Future.value();
+    }
+    return _loadSection(
+      _facilities,
+      errorContext: '알림함 즐겨찾기 시설 상태를 불러오는 중 예외가 발생했습니다.',
+      fetch: () async => [
+        for (final facility
+            in (await repository.listFavoriteFacilities()).where(
+              isFacilityAlert,
+            ))
+          _NotificationInboxItem.facility(facility),
+      ],
+    );
+  }
+
+  Future<void> _loadReports() {
+    return _loadSection(
+      _reports,
+      errorContext: '알림함 제보 상태를 불러오는 중 예외가 발생했습니다.',
+      fetch: () async => [
+        for (final report in await widget.reportRepository.listMyReports())
+          _NotificationInboxItem.report(report),
+      ],
+    );
+  }
+
+  /// 구역 하나를 조회한다. 겹친 조회는 가장 최근 요청의 응답만 상태에 반영하고,
+  /// 오래된 응답은 버려 새 실패나 새 성공을 덮어쓰지 않게 한다.
+  Future<void> _loadSection(
+    _InboxSlot slot, {
+    required String errorContext,
+    required Future<List<_NotificationInboxItem>> Function() fetch,
+  }) async {
+    final request = ++slot.latestRequest;
+    _setSlot(slot, const _SectionLoading());
     try {
-      final reports = await widget.reportRepository.listMyReports();
-      for (final report in reports) {
-        items.add(_NotificationInboxItem.report(report));
+      final items = await fetch();
+      if (request == slot.latestRequest) {
+        _setSlot(slot, _SectionLoaded(items));
       }
     } catch (error, stackTrace) {
-      loadFailed = true;
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '알림함 제보 상태를 불러오는 중 예외가 발생했습니다.',
-      );
+      reportMobileError(error, stackTrace, context: errorContext);
+      if (request == slot.latestRequest) {
+        _setSlot(slot, const _SectionFailed());
+      }
     }
-    if (items.isEmpty && loadFailed) {
-      throw StateError('notification inbox load failed');
+  }
+
+  void _setSlot(_InboxSlot slot, _InboxSectionState state) {
+    if (mounted) {
+      setState(() => slot.state = state);
     }
-    return items;
   }
 
   void _openSettings() {
@@ -216,6 +229,74 @@ class _NotificationInboxScreenState extends State<NotificationInboxScreen> {
                 widget.notificationPermissionProvider,
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// 알림함 조회 구역(시설·제보) 하나의 상태. 구역마다 따로 실패하고 다시 조회한다.
+sealed class _InboxSectionState {
+  const _InboxSectionState();
+}
+
+final class _SectionLoading extends _InboxSectionState {
+  const _SectionLoading();
+}
+
+final class _SectionLoaded extends _InboxSectionState {
+  const _SectionLoaded(this.items);
+
+  final List<_NotificationInboxItem> items;
+}
+
+final class _SectionFailed extends _InboxSectionState {
+  const _SectionFailed();
+}
+
+/// 구역 하나의 현재 상태와 가장 최근 조회 요청 번호.
+class _InboxSlot {
+  _InboxSlot([this.state = const _SectionLoading()]);
+
+  _InboxSectionState state;
+  int latestRequest = 0;
+}
+
+class _NotificationInboxEmptyState extends StatelessWidget {
+  const _NotificationInboxEmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 80),
+      child: Column(
+        children: [
+          const Icon(
+            Icons.notifications_none,
+            size: 44,
+            color: EasySubwayAccessibleColors.mutedText,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            '새 알림이 없습니다',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: EasySubwayAccessibleColors.text,
+              fontSize: 16,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            '즐겨찾기 시설과 제보 상태가 바뀌면 여기에서 볼 수 있어요.',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: EasySubwayAccessibleColors.mutedText,
+              fontSize: 13,
+              fontWeight: FontWeight.w500,
+              height: 1.4,
+            ),
+          ),
+        ],
       ),
     );
   }

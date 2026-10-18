@@ -738,6 +738,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           onOpenSavedItems: openSavedTab,
           onOpenTrainSearch: openTrainSearch,
           onOpenSettings: openMoreTab,
+          onOpenNotificationInbox: openNotificationInbox,
           onOpenServiceNotices: noticeController == null
               ? null
               : openServiceNotices,
