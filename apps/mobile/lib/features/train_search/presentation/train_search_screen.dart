@@ -91,13 +91,6 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                 color: EasySubwayAccessibleColors.surface,
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(color: EasySubwayAccessibleColors.line),
-                boxShadow: [
-                  BoxShadow(
-                    color: EasySubwayAccessibleColors.cardShadow,
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
               ),
               child: Stack(
                 alignment: Alignment.centerRight,
@@ -328,9 +321,11 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                   const SizedBox(height: 18),
 
                   // Wide Blue Submit CTA Button
-                  SizedBox(
-                    width: double.infinity,
-                    height: 54,
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: double.infinity,
+                      minHeight: 54,
+                    ),
                     child: FilledButton(
                       key: const Key('trainSearchSubmitButton'),
                       onPressed: _loading ? null : _submit,
@@ -1646,9 +1641,11 @@ class _TrainTimetableModalContentState
               ),
               if (widget.onOpenKorailTalk != null) ...[
                 const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  height: 52,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    minWidth: double.infinity,
+                    minHeight: 52,
+                  ),
                   child: FilledButton.icon(
                     key: const Key('trainModalKorailTalkButton'),
                     onPressed: () => widget.onOpenKorailTalk!(journey),

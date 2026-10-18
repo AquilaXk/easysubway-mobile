@@ -45,9 +45,6 @@ class JourneyRouteTabs extends StatelessWidget {
     final selected = tab.journeyId == selectedJourneyId;
     final select = onSelect;
     final onTap = select == null ? null : () => select(tab.journeyId);
-    final foreground = selected
-        ? EasySubwayAccessibleColors.onPrimary
-        : EasySubwayAccessibleColors.text;
     return Semantics(
       button: true,
       selected: selected,
@@ -64,9 +61,15 @@ class JourneyRouteTabs extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             color: selected
-                ? EasySubwayAccessibleColors.primary
+                ? EasySubwayAccessibleColors.surface
                 : EasySubwayAccessibleColors.surfaceSubtle,
             borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: selected
+                  ? EasySubwayAccessibleColors.primary
+                  : EasySubwayAccessibleColors.line,
+              width: selected ? 1.5 : 1.0,
+            ),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,12 +85,10 @@ class JourneyRouteTabs extends StatelessWidget {
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w700,
-                        color: selected
-                            ? EasySubwayAccessibleColors.onPrimary
-                            : (tab.labels[index] ==
-                                      journeyStairFreeCategoryLabel
-                                  ? EasySubwayAccessibleColors.mint
-                                  : EasySubwayAccessibleColors.primary),
+                        color:
+                            tab.labels[index] == journeyStairFreeCategoryLabel
+                            ? EasySubwayAccessibleColors.mint
+                            : EasySubwayAccessibleColors.primary,
                       ),
                     ),
                   ],
@@ -96,15 +97,19 @@ class JourneyRouteTabs extends StatelessWidget {
               const SizedBox(height: 2),
               Text(
                 tab.durationLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
-                  color: foreground,
+                  color: EasySubwayAccessibleColors.text,
                 ),
               ),
               Text(
                 tab.transferLabel,
-                style: TextStyle(fontSize: 12, color: foreground),
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  color: EasySubwayAccessibleColors.secondaryText,
+                ),
               ),
             ],
           ),

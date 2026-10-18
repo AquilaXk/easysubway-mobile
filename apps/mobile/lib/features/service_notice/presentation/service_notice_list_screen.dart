@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
 import '../../../app/app_components.dart';
+import '../../../design_tokens.dart';
 import '../data/notice_repository.dart';
 import '../domain/service_notice.dart';
 import 'notice_controller.dart';
@@ -133,7 +134,7 @@ class _StaleBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: EasySubwayAccessibleColors.scaffoldSurface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(EasySubwayRadius.control),
       ),
       child: Row(
         children: [
@@ -206,7 +207,7 @@ class _NoticeItem extends StatelessWidget {
                   ),
                   textAlign: TextAlign.end,
                   style: const TextStyle(
-                    color: EasySubwayAccessibleColors.brandSignature,
+                    color: EasySubwayAccessibleColors.mutedText,
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
                   ),

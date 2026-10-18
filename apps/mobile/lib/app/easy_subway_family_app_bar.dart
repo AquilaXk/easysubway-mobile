@@ -35,6 +35,15 @@ class EasySubwayFamilyAppBar extends StatelessWidget
       toolbarHeight: 60,
       backgroundColor: EasySubwayAccessibleColors.primary,
       foregroundColor: EasySubwayAccessibleColors.onPrimary,
+      iconTheme: const IconThemeData(
+        color: EasySubwayAccessibleColors.onPrimary,
+      ),
+      actionsIconTheme: const IconThemeData(
+        color: EasySubwayAccessibleColors.onPrimary,
+      ),
+      titleTextStyle: Theme.of(context).appBarTheme.titleTextStyle?.copyWith(
+        color: EasySubwayAccessibleColors.onPrimary,
+      ),
       surfaceTintColor: Colors.transparent,
       elevation: 0,
       automaticallyImplyLeading: false,

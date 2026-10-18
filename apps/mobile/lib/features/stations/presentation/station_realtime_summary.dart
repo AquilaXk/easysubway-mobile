@@ -316,39 +316,39 @@ class _StationRealtimeRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              destination,
-              style: const TextStyle(
-                color: EasySubwayAccessibleColors.text,
-                fontSize: 15,
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-          ),
-          () {
-            final statusSubtext = pos.isNotEmpty
-                ? (msg.isNotEmpty && msg != pos && !msg.contains('도착')
-                      ? '$pos ($msg)'
-                      : pos)
-                : (msg.isNotEmpty && msg != etaText ? msg : '');
-            if (statusSubtext.isEmpty) {
-              return const SizedBox.shrink();
-            }
-            return Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  statusSubtext,
-                  style: const TextStyle(
-                    color: EasySubwayAccessibleColors.secondaryText,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
+            child: () {
+              final statusSubtext = pos.isNotEmpty
+                  ? (msg.isNotEmpty && msg != pos && !msg.contains('도착')
+                        ? '$pos ($msg)'
+                        : pos)
+                  : (msg.isNotEmpty && msg != etaText ? msg : '');
+              return Wrap(
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 2,
+                children: [
+                  Text(
+                    destination,
+                    style: const TextStyle(
+                      color: EasySubwayAccessibleColors.text,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-              ],
-            );
-          }(),
+                  if (statusSubtext.isNotEmpty)
+                    Text(
+                      statusSubtext,
+                      style: const TextStyle(
+                        color: EasySubwayAccessibleColors.secondaryText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                ],
+              );
+            }(),
+          ),
+          const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(

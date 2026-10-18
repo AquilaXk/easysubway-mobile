@@ -301,7 +301,8 @@ class _StartScreenState extends State<StartScreen>
                                       EasySubwayAccessibleColors.secondaryText,
                                   fontSize: 40,
                                   fontWeight: FontWeight.w800,
-                                  height: 1.18,
+                                  letterSpacing: -0.8,
+                                  height: 1.20,
                                 ),
                               ),
                             ),
@@ -323,8 +324,10 @@ class _StartScreenState extends State<StartScreen>
                                     EasySubwayAccessibleColors.surface,
                                 minimumSize: const Size.fromHeight(58),
                                 textStyle: const TextStyle(
+                                  fontFamily: 'Pretendard',
                                   fontSize: 22,
                                   fontWeight: FontWeight.w700,
+                                  letterSpacing: -0.3,
                                 ),
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(
@@ -616,6 +619,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   foregroundColor: EasySubwayAccessibleColors.surface,
                   minimumSize: const Size.fromHeight(58),
                   textStyle: const TextStyle(
+                    fontFamily: 'Pretendard',
                     fontSize: 22,
                     fontWeight: FontWeight.w700,
                   ),
@@ -799,6 +803,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           EasySubwayAccessibleColors.surface,
                                       minimumSize: const Size.fromHeight(58),
                                       textStyle: const TextStyle(
+                                        fontFamily: 'Pretendard',
                                         fontSize: 22,
                                         fontWeight: FontWeight.w700,
                                       ),
@@ -821,6 +826,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           EasySubwayAccessibleColors.text,
                                       minimumSize: const Size.fromHeight(48),
                                       textStyle: const TextStyle(
+                                        fontFamily: 'Pretendard',
                                         fontSize: 18,
                                         fontWeight: FontWeight.w700,
                                       ),

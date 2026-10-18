@@ -59,6 +59,14 @@ ThemeData _themeForPreferences(
     appBarTheme: baseTheme.appBarTheme.copyWith(
       backgroundColor: Colors.white,
       foregroundColor: EasySubwayAccessibleColors.highContrastText,
+      iconTheme: const IconThemeData(
+        color: EasySubwayAccessibleColors.highContrastText,
+        size: 26,
+      ),
+      actionsIconTheme: const IconThemeData(
+        color: EasySubwayAccessibleColors.highContrastText,
+        size: 26,
+      ),
       titleTextStyle: baseTheme.appBarTheme.titleTextStyle?.copyWith(
         color: EasySubwayAccessibleColors.highContrastText,
       ),

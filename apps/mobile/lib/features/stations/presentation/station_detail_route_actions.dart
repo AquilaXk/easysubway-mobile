@@ -67,6 +67,9 @@ class StationDetailRouteActions extends StatelessWidget {
     if (buttons.isEmpty) {
       return const SizedBox.shrink();
     }
+    if (buttons.length == 1) {
+      return Align(alignment: Alignment.centerLeft, child: buttons.first);
+    }
     return Row(
       children: [
         for (var i = 0; i < buttons.length; i++) ...[
@@ -182,7 +185,8 @@ class _StationPointButton extends StatelessWidget {
     return OutlinedButton.icon(
       onPressed: onPressed,
       style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(EasySubwayTouchTarget.general),
+        minimumSize: const Size(96, EasySubwayTouchTarget.general),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         backgroundColor:
             backgroundColor ?? EasySubwayAccessibleColors.surfaceDefault,
         foregroundColor: fg,
@@ -193,7 +197,11 @@ class _StationPointButton extends StatelessWidget {
         shape: const RoundedRectangleBorder(
           borderRadius: _stationDetailActionButtonRadius,
         ),
-        textStyle: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(
+          fontFamily: 'Pretendard',
+          fontSize: 15,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       icon: Icon(icon, size: 20, color: iconColor ?? fg),
       label: Text(label),

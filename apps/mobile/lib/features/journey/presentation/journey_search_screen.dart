@@ -46,6 +46,8 @@ class JourneySearchScreen extends StatefulWidget {
     this.journeyNow,
     this.hasUnlimitedTransitPass = false,
     this.transferGuideRepository,
+    this.onSwapOriginDestination,
+    this.onClearWaypoint,
     super.key,
   }) : assert(getOffAlarmController == null || stationNameResolver != null);
 
@@ -56,6 +58,8 @@ class JourneySearchScreen extends StatefulWidget {
   final String mobilityType;
   final WalkingPace? initialWalkingPace;
   final VoidCallback onShellBackToHome;
+  final VoidCallback? onSwapOriginDestination;
+  final VoidCallback? onClearWaypoint;
   final JourneyShareInvoker? shareInvoker;
   final GetOffAlarmPort? getOffAlarmController;
   final JourneyStationNameResolver? stationNameResolver;
@@ -73,6 +77,7 @@ class JourneySearchScreen extends StatefulWidget {
 class _JourneySearchScreenState extends State<JourneySearchScreen>
     with WidgetsBindingObserver {
   late final JourneySearchController _controller;
+  late RouteDraft _draft;
   JourneySearchStatus _lastAnnouncedStatus = JourneySearchStatus.idle;
   bool _isSharing = false;
   bool _isAlarmTransitioning = false;
@@ -96,6 +101,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   @override
   void initState() {
     super.initState();
+    _draft = widget.draft;
     if (widget.initialWalkingPace != null) {
       _walkingPace = widget.initialWalkingPace!;
     }
@@ -109,6 +115,14 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       },
     )..addListener(_changed);
     WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void didUpdateWidget(covariant JourneySearchScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.draft != widget.draft) {
+      _draft = widget.draft;
+    }
   }
 
   void _resolveStationNames(JourneySearchSuccess response) {
@@ -1178,7 +1192,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       '${summary.arrivalTime} 도착',
       ?stairStatus,
     ];
-    return '${widget.draft.origin!.displayName} → ${widget.draft.destination!.displayName}\n'
+    return '${_draft.origin!.displayName} → ${_draft.destination!.displayName}\n'
         '${details.join(' · ')}';
   }
 
@@ -1212,9 +1226,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   }
 
   JourneySearchCommand? _searchCommand() {
-    final origin = widget.draft.origin;
-    final destination = widget.draft.destination;
-    final waypoint = widget.draft.waypoint;
+    final origin = _draft.origin;
+    final destination = _draft.destination;
+    final waypoint = _draft.waypoint;
     if (origin == null ||
         destination == null ||
         origin.id == destination.id ||
@@ -1578,7 +1592,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           child: Row(
             children: [
               ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
+                constraints: const BoxConstraints(minHeight: 48),
                 child: ChoiceChip(
                   key: const Key('journey-departure-now'),
                   showCheckmark: false,
@@ -1624,7 +1638,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               ),
               const SizedBox(width: 6),
               ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
+                constraints: const BoxConstraints(minHeight: 48),
                 child: ChoiceChip(
                   key: const Key('journey-departure-scheduled'),
                   showCheckmark: false,
@@ -1672,7 +1686,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               ),
               const SizedBox(width: 6),
               ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
+                constraints: const BoxConstraints(minHeight: 48),
                 child: ChoiceChip(
                   key: const Key('journey-departure-window'),
                   showCheckmark: false,
@@ -1719,7 +1733,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               ),
               const SizedBox(width: 6),
               ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 44),
+                constraints: const BoxConstraints(minHeight: 48),
                 child: ChoiceChip(
                   key: const Key('journey-departure-last-connection'),
                   showCheckmark: false,
@@ -1906,14 +1920,58 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     }
   }
 
+  Future<void> _swapOriginAndDestination() async {
+    final origin = _draft.origin;
+    final destination = _draft.destination;
+    if (origin == null || destination == null || _isAlarmTransitioning) return;
+    if (!await _prepareForTemporalChange() || !mounted) return;
+    final wasSuccess = _controller.state.status == JourneySearchStatus.success;
+    setState(() {
+      _draft = RouteDraft(
+        origin: destination,
+        waypoint: _draft.waypoint,
+        destination: origin,
+        lastModifiedAt: (widget.journeyNow ?? DateTime.now)(),
+      );
+    });
+    widget.onSwapOriginDestination?.call();
+    if (wasSuccess) {
+      await _search();
+    } else {
+      _controller.reset();
+    }
+  }
+
+  Future<void> _clearWaypoint() async {
+    if (_draft.waypoint == null || _isAlarmTransitioning) return;
+    if (!await _prepareForTemporalChange() || !mounted) return;
+    final wasSuccess = _controller.state.status == JourneySearchStatus.success;
+    setState(() {
+      _draft = RouteDraft(
+        origin: _draft.origin,
+        destination: _draft.destination,
+        lastModifiedAt: (widget.journeyNow ?? DateTime.now)(),
+      );
+    });
+    widget.onClearWaypoint?.call();
+    if (wasSuccess) {
+      await _search();
+    } else {
+      _controller.reset();
+    }
+  }
+
   Widget _routeInputCard(
     BuildContext context,
     bool valid,
-    RouteDraftStation? waypoint,
-  ) {
-    final originName = widget.draft.origin?.displayName ?? '출발역 선택';
-    final destinationName = widget.draft.destination?.displayName ?? '도착역 선택';
+    RouteDraftStation? waypoint, {
+    required bool controlsEnabled,
+  }) {
+    final originName = _draft.origin?.displayName ?? '출발역 선택';
+    final destinationName = _draft.destination?.displayName ?? '도착역 선택';
     final waypointName = waypoint?.displayName ?? '경유역 선택';
+    final canSwap =
+        controlsEnabled && _draft.origin != null && _draft.destination != null;
 
     return Container(
       decoration: BoxDecoration(
@@ -1925,105 +1983,144 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // For test finder backwards compatibility (find.text('출발 용산역'), etc.) without visual duplication:
-          SizedBox(
-            width: 0,
-            height: 0,
-            child: OverflowBox(
-              child: Column(
-                children: [
-                  Text(
-                    widget.draft.originLabel,
-                    style: const TextStyle(
-                      fontSize: 0.001,
-                      color: Colors.transparent,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Row(
+                      children: [
+                        const ExcludeSemantics(
+                          child: _RouteRoleBadge(
+                            label: '출발',
+                            role: EasySubwayFanMenuColors.departureRole,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            originName,
+                            semanticsLabel: _draft.originLabel,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: EasySubwayAccessibleColors.text,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                  if (waypoint != null)
-                    Text(
-                      widget.draft.waypointLabel,
-                      style: const TextStyle(
-                        fontSize: 0.001,
-                        color: Colors.transparent,
+                    if (waypoint != null) ...[
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 6),
+                        child: Divider(height: 1, thickness: 0.5),
                       ),
+                      Row(
+                        children: [
+                          const ExcludeSemantics(
+                            child: _RouteRoleBadge(
+                              label: '경유',
+                              role: EasySubwayFanMenuColors.waypointRole,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(
+                              waypointName,
+                              semanticsLabel: _draft.waypointLabel,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.w700,
+                                color: EasySubwayAccessibleColors.text,
+                                letterSpacing: -0.3,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            key: const Key('journeyWaypointClearButton'),
+                            tooltip: '경유역 지우기',
+                            constraints: const BoxConstraints(
+                              minWidth: 48,
+                              minHeight: 48,
+                            ),
+                            style: IconButton.styleFrom(
+                              minimumSize: const Size(48, 48),
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              padding: EdgeInsets.zero,
+                            ),
+                            padding: EdgeInsets.zero,
+                            onPressed: controlsEnabled
+                                ? () => unawaited(_clearWaypoint())
+                                : null,
+                            icon: const Icon(
+                              Icons.close_rounded,
+                              size: 20,
+                              color: EasySubwayAccessibleColors.secondaryText,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 6),
+                      child: Divider(height: 1, thickness: 0.5),
                     ),
-                  Text(
-                    widget.draft.destinationLabel,
-                    style: const TextStyle(
-                      fontSize: 0.001,
-                      color: Colors.transparent,
+                    Row(
+                      children: [
+                        const ExcludeSemantics(
+                          child: _RouteRoleBadge(
+                            label: '도착',
+                            role: EasySubwayFanMenuColors.arrivalRole,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Text(
+                            destinationName,
+                            semanticsLabel: _draft.destinationLabel,
+                            style: const TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.w700,
+                              color: EasySubwayAccessibleColors.text,
+                              letterSpacing: -0.3,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // 1:1 Kakao/Naver subway styled clean route rows:
-          Row(
-            children: [
-              const _RouteRoleBadge(
-                label: '출발',
-                role: EasySubwayFanMenuColors.departureRole,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  originName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: EasySubwayAccessibleColors.text,
-                    letterSpacing: -0.3,
-                  ),
+                  ],
                 ),
               ),
-            ],
-          ),
-          if (waypoint != null) ...[
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 8),
-              child: Divider(height: 1, thickness: 0.5),
-            ),
-            Row(
-              children: [
-                const _RouteRoleBadge(
-                  label: '경유',
-                  role: EasySubwayFanMenuColors.waypointRole,
+              const SizedBox(width: 8),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  color: EasySubwayAccessibleColors.surfaceSubtle,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: EasySubwayAccessibleColors.line),
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    waypointName,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                      letterSpacing: -0.3,
-                    ),
+                child: IconButton(
+                  key: const Key('journeyRouteSwapButton'),
+                  tooltip: '출발·도착역 바꾸기',
+                  constraints: const BoxConstraints(
+                    minWidth: 48,
+                    minHeight: 48,
                   ),
-                ),
-              ],
-            ),
-          ],
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 8),
-            child: Divider(height: 1, thickness: 0.5),
-          ),
-          Row(
-            children: [
-              const _RouteRoleBadge(
-                label: '도착',
-                role: EasySubwayFanMenuColors.arrivalRole,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  destinationName,
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                    color: EasySubwayAccessibleColors.text,
-                    letterSpacing: -0.3,
+                  style: IconButton.styleFrom(
+                    minimumSize: const Size(48, 48),
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    padding: EdgeInsets.zero,
+                  ),
+                  padding: EdgeInsets.zero,
+                  onPressed: canSwap
+                      ? () => unawaited(_swapOriginAndDestination())
+                      : null,
+                  icon: const Icon(
+                    Icons.swap_vert_rounded,
+                    size: 22,
+                    color: EasySubwayAccessibleColors.primary,
                   ),
                 ),
               ),
@@ -2048,9 +2145,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   @override
   Widget build(BuildContext context) {
     final state = _controller.state;
-    final origin = widget.draft.origin;
-    final destination = widget.draft.destination;
-    final waypoint = widget.draft.waypoint;
+    final origin = _draft.origin;
+    final destination = _draft.destination;
+    final waypoint = _draft.waypoint;
     final valid =
         origin != null &&
         destination != null &&
@@ -2072,7 +2169,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _routeInputCard(context, valid, waypoint),
+              _routeInputCard(
+                context,
+                valid,
+                waypoint,
+                controlsEnabled: controlsEnabled,
+              ),
               const SizedBox(height: 8),
               _departureControl(controlsEnabled),
               const SizedBox(height: 8),
@@ -2081,7 +2183,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               FilledButton.icon(
                 key: const Key('journey-search-submit-button'),
                 style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(50),
+                  minimumSize: const Size.fromHeight(48),
                   backgroundColor: EasySubwayAccessibleColors.primary,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(8),
@@ -2176,39 +2278,13 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               if (state.status == JourneySearchStatus.success) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      const Text(
-                        '경로 후보',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: EasySubwayAccessibleColors.text,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        '${state.response!.journeys.length}개',
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: EasySubwayAccessibleColors.primary,
-                        ),
-                      ),
-                      SizedBox(
-                        width: 0,
-                        height: 0,
-                        child: OverflowBox(
-                          child: Text(
-                            '경로 후보 ${state.response!.journeys.length}개',
-                            style: const TextStyle(
-                              fontSize: 0.001,
-                              color: Colors.transparent,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  child: Text(
+                    '경로 후보 ${state.response!.journeys.length}개',
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: EasySubwayAccessibleColors.text,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 8),

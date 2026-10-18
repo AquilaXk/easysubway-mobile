@@ -20,6 +20,7 @@ class StationTimetableScreen extends StatefulWidget {
     this.previousStation,
     this.nextStation,
     this.now,
+    this.initialFilterFirstLast = false,
     super.key,
   });
 
@@ -30,6 +31,7 @@ class StationTimetableScreen extends StatefulWidget {
   final String? previousStation;
   final String? nextStation;
   final DateTime? now;
+  final bool initialFilterFirstLast;
 
   @override
   State<StationTimetableScreen> createState() => _StationTimetableScreenState();
@@ -68,6 +70,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _filterFirstLast = widget.initialFilterFirstLast;
     _lineId = widget.lines.firstOrNull?.id;
     final now = widget.now ?? clock.now();
     _initClockNow = now;
@@ -625,6 +628,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                           padding: const EdgeInsets.only(right: 8),
                           child: ChoiceChip(
                             key: Key('stationTimetableLine-${line.id}'),
+                            showCheckmark: false,
                             label: Text(
                               _formatLineName(line.name),
                               style: TextStyle(
@@ -1250,12 +1254,22 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 
     return ChoiceChip(
       key: Key('stationTimetableDirection-${direction.name}'),
-      label: Text(
-        displayName,
-        style: TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.bold,
-          color: EasySubwayAccessibleColors.text,
+      label: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 36),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          widthFactor: 1.0,
+          child: Padding(
+            padding: const EdgeInsets.only(bottom: 1),
+            child: Text(
+              displayName,
+              style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.bold,
+                color: EasySubwayAccessibleColors.text,
+              ),
+            ),
+          ),
         ),
       ),
       selected: isSelected,
@@ -1289,25 +1303,32 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         minWidth: EasySubwayTouchTarget.iconOnly,
         minHeight: EasySubwayTouchTarget.iconOnly,
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Text(
-            current,
-            style: TextStyle(
-              color: EasySubwayAccessibleColors.secondaryText,
-              fontSize: 13,
-              fontWeight: FontWeight.normal,
-            ),
+      child: Align(
+        alignment: Alignment.topCenter,
+        widthFactor: 1.0,
+        child: Padding(
+          padding: const EdgeInsets.only(top: 1),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                current,
+                style: const TextStyle(
+                  color: EasySubwayAccessibleColors.secondaryText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.normal,
+                ),
+              ),
+              const SizedBox(width: 2),
+              const Icon(
+                Icons.keyboard_arrow_down,
+                size: 16,
+                color: EasySubwayAccessibleColors.secondaryText,
+              ),
+            ],
           ),
-          const SizedBox(width: 2),
-          Icon(
-            Icons.keyboard_arrow_down,
-            size: 16,
-            color: EasySubwayAccessibleColors.secondaryText,
-          ),
-        ],
+        ),
       ),
     );
 

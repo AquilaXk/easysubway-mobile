@@ -162,7 +162,25 @@ class _InquiryScreenState extends State<InquiryScreen> {
                           color: EasySubwayAccessibleColors.mutedText,
                           height: 1.35,
                         ),
-                        border: const OutlineInputBorder(),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: EasySubwayAccessibleColors.line,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: EasySubwayAccessibleColors.line,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: EasySubwayAccessibleColors.primary,
+                            width: 1.5,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -193,7 +211,25 @@ class _InquiryScreenState extends State<InquiryScreen> {
                           height: 1.35,
                         ),
                         alignLabelWithHint: true,
-                        border: const OutlineInputBorder(),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: EasySubwayAccessibleColors.line,
+                          ),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: EasySubwayAccessibleColors.line,
+                          ),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: const BorderSide(
+                            color: EasySubwayAccessibleColors.primary,
+                            width: 1.5,
+                          ),
+                        ),
                       ),
                     ),
                   ),

@@ -2,7 +2,6 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 import '../../../accessible_design.dart';
 import '../../../app/accessibility_theme.dart';
@@ -437,226 +436,186 @@ class _MobilityHeroBlock extends StatelessWidget {
     final textTheme = Theme.of(context).textTheme;
     final summaryName = _summaryTitle(preset, walkingPace, facilityConstraint);
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Container(
-        key: const Key('settingsHeroBlock-mobility'),
-        decoration: BoxDecoration(
-          color: EasySubwayAccessibleColors.surface,
-          borderRadius: BorderRadius.circular(EasySubwayRadius.card),
-          border: Border.all(color: EasySubwayAccessibleColors.line),
+    return Container(
+      key: const Key('settingsHeroBlock-mobility'),
+      decoration: const BoxDecoration(
+        color: EasySubwayAccessibleColors.surface,
+        border: Border(
+          top: BorderSide(color: EasySubwayAccessibleColors.line),
+          bottom: BorderSide(color: EasySubwayAccessibleColors.line),
         ),
-        padding: const EdgeInsets.fromLTRB(12, 6, 12, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Semantics(
-              button: true,
-              label: summaryName,
-              onTap: onOpenMobilityProfile,
-              child: ExcludeSemantics(
-                child: Material(
-                  type: MaterialType.transparency,
-                  child: InkWell(
-                    key: const Key('mobilityProfileButton'),
-                    onTap: onOpenMobilityProfile,
-                    borderRadius: BorderRadius.circular(
-                      EasySubwayRadius.control,
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 8, 20, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Semantics(
+            button: true,
+            label: summaryName,
+            onTap: onOpenMobilityProfile,
+            child: ExcludeSemantics(
+              child: Material(
+                type: MaterialType.transparency,
+                child: InkWell(
+                  key: const Key('mobilityProfileButton'),
+                  onTap: onOpenMobilityProfile,
+                  borderRadius: BorderRadius.circular(EasySubwayRadius.control),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minHeight: EasySubwayTouchTarget.iconOnly,
                     ),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minHeight: EasySubwayTouchTarget.iconOnly,
-                      ),
-                      child: Row(
-                        children: [
-                          Container(
-                            width: 32,
-                            height: 32,
-                            decoration: BoxDecoration(
-                              color:
-                                  EasySubwayAccessibleColors.surfaceBrandChrome,
-                              borderRadius: BorderRadius.circular(
-                                EasySubwayRadius.control,
-                              ),
-                            ),
-                            alignment: Alignment.center,
-                            child: Icon(
-                              _heroIcon(
-                                preset,
-                                walkingPace,
-                                facilityConstraint,
-                              ),
-                              size: 18,
-                              color: EasySubwayAccessibleColors.primary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  summaryName,
-                                  style: textTheme.titleMedium?.copyWith(
-                                    color: EasySubwayAccessibleColors.text,
-                                    fontWeight: FontWeight.w700,
-                                    fontSize: 15,
-                                    height: 1.2,
-                                  ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          _heroIcon(preset, walkingPace, facilityConstraint),
+                          size: 22,
+                          color: EasySubwayAccessibleColors.primary,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                summaryName,
+                                style: textTheme.titleMedium?.copyWith(
+                                  color: EasySubwayAccessibleColors.text,
+                                  fontWeight: FontWeight.w700,
+                                  fontSize: 16,
+                                  height: 1.2,
                                 ),
-                                const SizedBox(height: 1),
-                                Text(
-                                  _summarySubtitle(
-                                    walkingPace,
-                                    facilityConstraint,
-                                  ),
-                                  style: textTheme.bodySmall?.copyWith(
-                                    color: EasySubwayAccessibleColors.mutedText,
-                                    fontWeight: FontWeight.w500,
-                                    fontSize: 11,
-                                    height: 1.15,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            width: 28,
-                            height: 28,
-                            decoration: BoxDecoration(
-                              color: EasySubwayAccessibleColors.surfaceSubtle,
-                              borderRadius: BorderRadius.circular(
-                                EasySubwayRadius.control,
                               ),
-                            ),
-                            alignment: Alignment.center,
-                            child: const Icon(
-                              Icons.tune_rounded,
-                              size: 16,
-                              color: EasySubwayAccessibleColors.secondaryText,
-                            ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _summarySubtitle(
+                                  walkingPace,
+                                  facilityConstraint,
+                                ),
+                                style: textTheme.bodySmall?.copyWith(
+                                  color: EasySubwayAccessibleColors.mutedText,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 12,
+                                  height: 1.2,
+                                ),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        ),
+                        const SizedBox(width: 8),
+                        const Icon(
+                          Icons.chevron_right,
+                          size: 22,
+                          color: EasySubwayAccessibleColors.disclosure,
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-            const Divider(
-              height: 10,
-              thickness: 1,
-              color: EasySubwayAccessibleColors.line,
+          ),
+          const Divider(
+            height: 14,
+            thickness: 1,
+            color: EasySubwayAccessibleColors.line,
+          ),
+          Text(
+            '보행 속도',
+            style: textTheme.labelLarge?.copyWith(
+              color: EasySubwayAccessibleColors.secondaryText,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
             ),
-            Text(
-              '보행 속도',
-              style: textTheme.labelLarge?.copyWith(
-                color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
-                fontSize: 11.5,
+          ),
+          const SizedBox(height: 3),
+          Row(
+            children: [
+              Expanded(
+                child: _SegmentButton(
+                  buttonKey: const Key('walkingSpeedSegment-slow'),
+                  title: '느린 걸음',
+                  subtitle: '3.5km/h',
+                  selected: walkingPace == WalkingPace.slow,
+                  onTap: () => onWalkingPaceSelected(WalkingPace.slow),
+                ),
               ),
-            ),
-            const SizedBox(height: 3),
-            Row(
-              children: [
-                Expanded(
-                  child: _SegmentButton(
-                    buttonKey: const Key('walkingSpeedSegment-slow'),
-                    icon: Icons.nordic_walking_rounded,
-                    svgAsset: 'assets/icons/slow.svg',
-                    title: '느린 걸음',
-                    subtitle: '3.5km/h',
-                    selected: walkingPace == WalkingPace.slow,
-                    onTap: () => onWalkingPaceSelected(WalkingPace.slow),
-                  ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _SegmentButton(
+                  buttonKey: const Key('walkingSpeedSegment-standard'),
+                  title: '보통 걸음',
+                  subtitle: '4.5km/h',
+                  selected: walkingPace == WalkingPace.standard,
+                  onTap: () => onWalkingPaceSelected(WalkingPace.standard),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _SegmentButton(
-                    buttonKey: const Key('walkingSpeedSegment-standard'),
-                    icon: Icons.directions_walk_rounded,
-                    svgAsset: 'assets/icons/normal.svg',
-                    title: '보통 걸음',
-                    subtitle: '4.5km/h',
-                    selected: walkingPace == WalkingPace.standard,
-                    onTap: () => onWalkingPaceSelected(WalkingPace.standard),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _SegmentButton(
-                    buttonKey: const Key('walkingSpeedSegment-fast'),
-                    icon: Icons.directions_run_rounded,
-                    svgAsset: 'assets/icons/fast.svg',
-                    title: '빠른 걸음',
-                    subtitle: '6.0km/h',
-                    selected: walkingPace == WalkingPace.fast,
-                    onTap: () => onWalkingPaceSelected(WalkingPace.fast),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            const Divider(
-              height: 10,
-              thickness: 1,
-              color: EasySubwayAccessibleColors.line,
-            ),
-            const SizedBox(height: 2),
-            Text(
-              '이동 편의 (시설 제약)',
-              style: textTheme.labelLarge?.copyWith(
-                color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
-                fontSize: 11.5,
               ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _SegmentButton(
+                  buttonKey: const Key('walkingSpeedSegment-fast'),
+                  title: '빠른 걸음',
+                  subtitle: '6.0km/h',
+                  selected: walkingPace == WalkingPace.fast,
+                  onTap: () => onWalkingPaceSelected(WalkingPace.fast),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          const Divider(
+            height: 12,
+            thickness: 1,
+            color: EasySubwayAccessibleColors.line,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '이동 편의 (시설 제약)',
+            style: textTheme.labelLarge?.copyWith(
+              color: EasySubwayAccessibleColors.secondaryText,
+              fontWeight: FontWeight.w700,
+              fontSize: 11.5,
             ),
-            const SizedBox(height: 4),
-            Row(
-              children: [
-                Expanded(
-                  child: _SegmentButton(
-                    buttonKey: const Key('facilitySegment-standard'),
-                    icon: Icons.directions_walk_rounded,
-                    title: '일반',
-                    subtitle: '계단 포함',
-                    selected: facilityConstraint == FacilityConstraint.none,
-                    onTap: () =>
-                        onFacilityConstraintSelected(FacilityConstraint.none),
+          ),
+          const SizedBox(height: 4),
+          Row(
+            children: [
+              Expanded(
+                child: _SegmentButton(
+                  buttonKey: const Key('facilitySegment-standard'),
+                  title: '일반',
+                  subtitle: '계단 포함',
+                  selected: facilityConstraint == FacilityConstraint.none,
+                  onTap: () =>
+                      onFacilityConstraintSelected(FacilityConstraint.none),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _SegmentButton(
+                  buttonKey: const Key('facilitySegment-noStairs'),
+                  title: '계단 없이',
+                  subtitle: '에스컬레이터·승강기',
+                  selected: facilityConstraint == FacilityConstraint.noStairs,
+                  onTap: () =>
+                      onFacilityConstraintSelected(FacilityConstraint.noStairs),
+                ),
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: _SegmentButton(
+                  buttonKey: const Key('facilitySegment-stepFree'),
+                  title: '휠체어·유모차',
+                  subtitle: '승강기 전용',
+                  selected:
+                      facilityConstraint == FacilityConstraint.elevatorOnly,
+                  onTap: () => onFacilityConstraintSelected(
+                    FacilityConstraint.elevatorOnly,
                   ),
                 ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _SegmentButton(
-                    buttonKey: const Key('facilitySegment-noStairs'),
-                    icon: Icons.elevator_rounded,
-                    title: '계단 없이',
-                    subtitle: '에스컬레이터·승강기',
-                    selected: facilityConstraint == FacilityConstraint.noStairs,
-                    onTap: () => onFacilityConstraintSelected(
-                      FacilityConstraint.noStairs,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: _SegmentButton(
-                    buttonKey: const Key('facilitySegment-stepFree'),
-                    icon: Icons.accessible_forward_rounded,
-                    title: '휠체어·유모차',
-                    subtitle: '승강기 전용',
-                    selected:
-                        facilityConstraint == FacilityConstraint.elevatorOnly,
-                    onTap: () => onFacilityConstraintSelected(
-                      FacilityConstraint.elevatorOnly,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -702,17 +661,13 @@ class _MobilityHeroBlock extends StatelessWidget {
 class _SegmentButton extends StatelessWidget {
   const _SegmentButton({
     required this.buttonKey,
-    this.icon,
-    this.svgAsset,
     required this.title,
     required this.subtitle,
     required this.selected,
     required this.onTap,
-  }) : assert(icon != null || svgAsset != null);
+  });
 
   final Key buttonKey;
-  final IconData? icon;
-  final String? svgAsset;
   final String title;
   final String subtitle;
   final bool selected;
@@ -726,8 +681,8 @@ class _SegmentButton extends StatelessWidget {
         ? primaryColor
         : EasySubwayAccessibleColors.line;
     final backgroundColor = selected
-        ? EasySubwayAccessibleColors.surfaceBrandChrome
-        : EasySubwayAccessibleColors.surface;
+        ? EasySubwayAccessibleColors.surface
+        : EasySubwayAccessibleColors.surfaceSubtle;
 
     final semanticLabel = '$title, $subtitle';
     return Semantics(
@@ -748,7 +703,8 @@ class _SegmentButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(EasySubwayRadius.control),
             child: Container(
               constraints: const BoxConstraints(minHeight: 48),
-              padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 3),
+              alignment: Alignment.center,
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(EasySubwayRadius.control),
                 border: Border.all(
@@ -756,70 +712,22 @@ class _SegmentButton extends StatelessWidget {
                   width: selected ? 1.5 : 1.0,
                 ),
               ),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  if (svgAsset != null)
-                    SvgPicture.asset(
-                      svgAsset!,
-                      width: 18,
-                      height: 18,
-                      colorFilter: ColorFilter.mode(
-                        selected
-                            ? primaryColor
-                            : EasySubwayAccessibleColors.contentSecondary,
-                        BlendMode.srcIn,
-                      ),
-                    )
-                  else
-                    Icon(
-                      icon,
-                      size: 18,
-                      color: selected
-                          ? primaryColor
-                          : EasySubwayAccessibleColors.contentSecondary,
-                    ),
-                  const SizedBox(height: 2),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      title,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.bodyMedium?.copyWith(
-                        color: selected
-                            ? primaryColor
-                            : EasySubwayAccessibleColors.text,
-                        fontWeight: selected
-                            ? FontWeight.w700
-                            : FontWeight.w600,
-                        fontSize: 12,
-                        height: 1.15,
-                      ),
-                    ),
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: selected
+                        ? primaryColor
+                        : EasySubwayAccessibleColors.text,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    fontSize: 13.5,
+                    height: 1.2,
                   ),
-                  const SizedBox(height: 1),
-                  FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      subtitle,
-                      textAlign: TextAlign.center,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: textTheme.labelSmall?.copyWith(
-                        color: selected
-                            ? primaryColor
-                            : EasySubwayAccessibleColors.mutedText,
-                        fontSize: 9.5,
-                        fontWeight: selected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        height: 1.1,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
@@ -845,17 +753,31 @@ class _AppSettingsSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _AppSettingsSectionHeader(title: title),
-        for (var index = 0; index < children.length; index++) ...[
-          children[index],
-          if (index < children.length - 1)
-            const Divider(
-              height: 1,
-              thickness: 1,
-              indent: 20,
-              endIndent: 20,
-              color: EasySubwayAccessibleColors.line,
+        DecoratedBox(
+          decoration: const BoxDecoration(
+            color: EasySubwayAccessibleColors.surface,
+            border: Border(
+              top: BorderSide(color: EasySubwayAccessibleColors.line),
+              bottom: BorderSide(color: EasySubwayAccessibleColors.line),
             ),
-        ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              for (var index = 0; index < children.length; index++) ...[
+                children[index],
+                if (index < children.length - 1)
+                  const Divider(
+                    height: 1,
+                    thickness: 1,
+                    indent: 20,
+                    endIndent: 20,
+                    color: EasySubwayAccessibleColors.line,
+                  ),
+              ],
+            ],
+          ),
+        ),
       ],
     );
   }

@@ -136,7 +136,7 @@ void main() {
         '0xFFF0F2F7',
         '0xFFE1E4EE',
         '0xFF4D536B',
-        '0xFF697089',
+        '0xFF5E6478',
         '0xFF0A705A',
         '0xFF9A5600',
         '0xFFB42318',
@@ -455,9 +455,6 @@ void main() {
       exclude: {'accessible_design.dart', 'design_tokens.dart'},
     );
     expectRatchet(actual, {
-      // 의도 잔존: 역 상세 정보/도움/시설 카드·액션 버튼 radius (16/12) — 무박스 전환 진행 중
-      // 의도 잔존: AppCard(20)·공용 control radius(12) — v4 정리 대상
-      'lib/app/app_components.dart': 2,
       // 의도 잔존: 앱 shell 입력 필드(12) — v4 정리 대상
       'lib/app/easy_subway_app.dart': 1,
       // 의도 잔존: 홈 알림 control radius(12) — v4 정리 대상
@@ -468,14 +465,6 @@ void main() {
       'lib/features/network_map/presentation/nearby_station_line_bar.dart': 1,
       // 주변역 패널 실시간/시간표 토글 세그먼트(16). — 오너 결정 2026-07-16, #2200
       'lib/features/network_map/presentation/nearby_data_source_toggle.dart': 1,
-      // 의도 잔존: 시설 신고 카드 radius(16) — 무박스 전환 대상
-      'lib/features/facility_report/presentation/facility_report_screen.dart':
-          1,
-      // 의도 잔존: 알림 설정 카드 radius(16) — 무박스 전환 대상
-      'lib/features/notifications/notification_settings.dart': 1,
-      // 의도 잔존: 운행 공지 리스트 카드 radius(12) — 무박스 전환 대상
-      'lib/features/service_notice/presentation/service_notice_list_screen.dart':
-          1,
       // 홈 풍선형 운행 공지 배너(radius 14) 제거로 예외 삭제.
       // — 오너 결정 2026-07-16, #2200
     }, rule: '과한 라운딩(radius > 8)');
@@ -526,10 +515,6 @@ void main() {
           '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
       'lib/features/network_map/presentation/nearby_timetable_panel.dart | _NearbyTimetableDepartureView.build | SizedBox(height: 46':
           '운행 종료 텍스트(15sp)는 2.0배에서도 43dp로 46dp 안에 들어감',
-      'lib/features/train_search/presentation/train_search_screen.dart | _TrainSearchScreenState.build | SizedBox(width: double.infinity, height: 54':
-          '시간표 조회 CTA FilledButton(54dp) — 18sp 텍스트(2.0배 36dp)가 54dp 안에 들어감',
-      'lib/features/train_search/presentation/train_search_screen.dart | _TrainTimetableModalContentState.build | SizedBox(width: double.infinity, height: 52':
-          '코레일+ 예매 CTA FilledButton.icon(52dp) — 17sp 텍스트(2.0배 34dp)가 52dp 안에 들어감',
     };
 
     final scan = scanFixedHeightTextBoxes(sources);

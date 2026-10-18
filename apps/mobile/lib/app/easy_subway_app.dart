@@ -133,7 +133,11 @@ class EasySubwayApp extends StatelessWidget {
        journeyRepository = dependencies.journeyRepository,
        journeyAttestor = dependencies.journeyAttestor,
        journeySessionProvider = dependencies.journeySessionProvider,
-       stationTimetableRepository = dependencies.stationTimetableRepository;
+       stationTimetableRepository = dependencies.stationTimetableRepository,
+       _viewPreferencesNotifier = ValueNotifier<OnboardingViewPreferences>(
+         initialOnboardingState.result?.preferences ??
+             const OnboardingViewPreferences.defaults(),
+       );
 
   final StationSearchRepository repository;
   final FacilityReportRepository reportRepository;
@@ -158,6 +162,7 @@ class EasySubwayApp extends StatelessWidget {
   final JourneySessionProvider journeySessionProvider;
   final StationTimetableRepository stationTimetableRepository;
   final OnboardingState initialOnboardingState;
+  final ValueNotifier<OnboardingViewPreferences> _viewPreferencesNotifier;
   final OnboardingResultStore? onboardingStore;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final FacilityReportLostPhotoRestorer? facilityReportLostPhotoRestorer;
@@ -217,6 +222,7 @@ class EasySubwayApp extends StatelessWidget {
         dialogTheme: const DialogThemeData(
           backgroundColor: EasySubwayAccessibleColors.surfaceDefault,
           surfaceTintColor: Colors.transparent,
+          shape: RoundedRectangleBorder(borderRadius: mainThemeControlRadius),
         ),
         appBarTheme: const AppBarTheme(
           centerTitle: false,
@@ -231,6 +237,7 @@ class EasySubwayApp extends StatelessWidget {
             size: 26,
           ),
           titleTextStyle: TextStyle(
+            fontFamily: 'Pretendard',
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
             fontWeight: FontWeight.w700,
@@ -248,6 +255,7 @@ class EasySubwayApp extends StatelessWidget {
                   borderRadius: mainThemeControlRadius,
                 ),
                 textStyle: const TextStyle(
+                  fontFamily: 'Pretendard',
                   fontSize: 18,
                   fontWeight: FontWeight.w700,
                 ),
@@ -273,6 +281,7 @@ class EasySubwayApp extends StatelessWidget {
               borderRadius: mainThemeControlRadius,
             ),
             textStyle: const TextStyle(
+              fontFamily: 'Pretendard',
               fontSize: 16,
               fontWeight: FontWeight.w700,
             ),
@@ -280,6 +289,21 @@ class EasySubwayApp extends StatelessWidget {
         ),
         useMaterial3: true,
       ),
+      builder: (context, child) {
+        return ValueListenableBuilder<OnboardingViewPreferences>(
+          valueListenable: _viewPreferencesNotifier,
+          builder: (context, livePreferences, _) {
+            if (!livePreferences.highContrastEnabled &&
+                !livePreferences.largeTextEnabled) {
+              return child ?? const SizedBox.shrink();
+            }
+            return OnboardingPreferenceScope(
+              preferences: livePreferences,
+              child: child ?? const SizedBox.shrink(),
+            );
+          },
+        );
+      },
       home: DataPackMeteredConsentGate(
         stateRepository: dataPackUpdateStateRepository,
         onAccept: onDataPackMeteredConsent,
@@ -306,6 +330,7 @@ class EasySubwayApp extends StatelessWidget {
           locationProvider: locationProvider,
           trainSearchRepository: trainSearchRepository,
           initialOnboardingState: initialOnboardingState,
+          viewPreferencesNotifier: _viewPreferencesNotifier,
           onboardingStore: onboardingStore,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
           facilityReportLostPhotoRestorer: facilityReportLostPhotoRestorer,
@@ -436,6 +461,7 @@ class _EasySubwayHome extends StatefulWidget {
     required this.locationProvider,
     required this.trainSearchRepository,
     required this.initialOnboardingState,
+    required this.viewPreferencesNotifier,
     required this.onboardingStore,
     required this.facilityReportDraftTargetStore,
     required this.facilityReportLostPhotoRestorer,
@@ -470,6 +496,7 @@ class _EasySubwayHome extends StatefulWidget {
   final CurrentLocationProvider locationProvider;
   final TrainSearchRepository trainSearchRepository;
   final OnboardingState initialOnboardingState;
+  final ValueNotifier<OnboardingViewPreferences> viewPreferencesNotifier;
   final OnboardingResultStore? onboardingStore;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final FacilityReportLostPhotoRestorer? facilityReportLostPhotoRestorer;
@@ -691,6 +718,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
       _startScreenDismissed = false;
       _dataDeletionResult = result;
     });
+    _syncLiveViewPreferences();
   }
 
   Future<void> _clearLegacyCredentialsOnStartup() async {
@@ -728,6 +756,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
       _lastPersistedOnboardingResult = storedResult;
       _loadingOnboardingState = false;
     });
+    _syncLiveViewPreferences();
     _schedulePendingFacilityReportPhotoRecovery();
   }
 
@@ -763,6 +792,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
           _onboardingState = previousOnboardingState;
           _startScreenDismissed = previousStartScreenDismissed;
         });
+        _syncLiveViewPreferences();
       }
       showAnnouncedErrorSnackBar(context, '설정을 저장하지 못했어요. 다시 시도해 주세요.');
       return;
@@ -773,6 +803,7 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
     setState(() {
       _onboardingState = OnboardingState.completed(result: result);
     });
+    _syncLiveViewPreferences();
     _schedulePendingFacilityReportPhotoRecovery();
   }
 
@@ -876,6 +907,13 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
     setState(() {
       _onboardingState = OnboardingState.completed(result: result);
     });
+    _syncLiveViewPreferences();
+  }
+
+  void _syncLiveViewPreferences() {
+    widget.viewPreferencesNotifier.value =
+        _onboardingState.result?.preferences ??
+        const OnboardingViewPreferences.defaults();
   }
 
   void _restoreLastPersistedOnboardingResult() {

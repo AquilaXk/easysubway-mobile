@@ -288,18 +288,27 @@ class _UserDataDeletionScreenState extends State<UserDataDeletionScreen> {
           _UserDataDeletionCopy.forScope(widget.deletionScope).confirmText,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('취소'),
-          ),
-          FilledButton(
-            key: const Key('dataDeletionConfirmButton'),
-            onPressed: () => Navigator.of(context).pop(true),
-            style: FilledButton.styleFrom(
-              backgroundColor: EasySubwayAccessibleColors.red,
-              foregroundColor: EasySubwayAccessibleColors.surface,
-            ),
-            child: const Text('삭제'),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: const Text('취소'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  key: const Key('dataDeletionConfirmButton'),
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: FilledButton.styleFrom(
+                    backgroundColor: EasySubwayAccessibleColors.red,
+                    foregroundColor: EasySubwayAccessibleColors.surface,
+                  ),
+                  child: const Text('삭제'),
+                ),
+              ),
+            ],
           ),
         ],
       ),

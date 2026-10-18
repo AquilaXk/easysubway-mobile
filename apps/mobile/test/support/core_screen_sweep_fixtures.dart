@@ -11,6 +11,7 @@ import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
+import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/domain/service_notice.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
@@ -418,13 +419,31 @@ class SweepRepository
       ],
       stations: [
         NetworkMapStation(
+          id: 'station-gyodae',
+          nameKo: '교대',
+          nameEn: 'Gyodae',
+          region: '수도권',
+          lineId: 'seoul-2',
+          stationCode: '223',
+          sequence: 1,
+          position: NetworkMapPosition(
+            x: 40,
+            y: 100,
+            labelDx: 0,
+            labelDy: 0,
+            upPath: '',
+            downPath: '',
+            sourceId: 'sweep-fixture',
+          ),
+        ),
+        NetworkMapStation(
           id: sweepStationId,
           nameKo: '강남',
           nameEn: 'Gangnam',
           region: '수도권',
           lineId: 'seoul-2',
           stationCode: '222',
-          sequence: 1,
+          sequence: 2,
           position: NetworkMapPosition(
             x: 100,
             y: 100,
@@ -435,8 +454,43 @@ class SweepRepository
             sourceId: 'sweep-fixture',
           ),
         ),
+        NetworkMapStation(
+          id: 'station-yeoksam',
+          nameKo: '역삼',
+          nameEn: 'Yeoksam',
+          region: '수도권',
+          lineId: 'seoul-2',
+          stationCode: '221',
+          sequence: 3,
+          position: NetworkMapPosition(
+            x: 160,
+            y: 100,
+            labelDx: 0,
+            labelDy: 0,
+            upPath: '',
+            downPath: '',
+            sourceId: 'sweep-fixture',
+          ),
+        ),
       ],
-      edges: [],
+      edges: [
+        NetworkMapEdge(
+          id: 'edge-gyodae-gangnam',
+          fromStationId: 'station-gyodae',
+          toStationId: sweepStationId,
+          lineId: 'seoul-2',
+          accessibilityStatus: 'OK',
+          reliabilityScore: 100,
+        ),
+        NetworkMapEdge(
+          id: 'edge-gangnam-yeoksam',
+          fromStationId: sweepStationId,
+          toStationId: 'station-yeoksam',
+          lineId: 'seoul-2',
+          accessibilityStatus: 'OK',
+          reliabilityScore: 100,
+        ),
+      ],
       positionSources: [],
     );
   }
@@ -464,9 +518,22 @@ class SweepRepository
         stationId: sweepStationId,
         exitNumber: '1',
         name: '1번 출구',
-        description: '강남역 광장',
+        description: '강남역 광장·역삼세무서 방면',
+        nearbyDoorHint: '교대 방면 1-1, 역삼 방면 10-4',
         hasElevatorConnection: true,
         hasStairOnlyPath: StairOnlyPathStatus.absent,
+        dataConfidence: 'HIGH',
+        lastVerifiedAt: '2026-09-27',
+      ),
+      StationExitInfo(
+        id: 'exit-2',
+        stationId: sweepStationId,
+        exitNumber: '2',
+        name: '2번 출구',
+        description: '강남대로·양재역 방면',
+        nearbyDoorHint: '교대 방면 2-2, 역삼 방면 9-3',
+        hasElevatorConnection: false,
+        hasStairOnlyPath: StairOnlyPathStatus.present,
         dataConfidence: 'HIGH',
         lastVerifiedAt: '2026-09-27',
       ),
@@ -486,8 +553,60 @@ class SweepRepository
         name: '1번 출구 엘리베이터',
         floorFrom: '지상',
         floorTo: '대합실',
-        description: '1번 출구',
+        description: '1번 출구 옆 보도 및 상대식 승강장(오른쪽 내리는 문, 반대편 횡단가능) 연결',
         status: 'BROKEN',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-toilet-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'TOILET',
+        name: '대합실 화장실',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '개찰구 안/밖 1·12번 출구 방면',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-accessible-toilet-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'ACCESSIBLE_TOILET',
+        name: '장애인 화장실',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '개찰구 안/밖 남녀 분리 설치',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-nursing-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'NURSING_ROOM',
+        name: '수유실',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '역무실 옆 고객안전실 인근',
+        status: 'NORMAL',
+        dataConfidence: 'HIGH',
+        lastUpdatedAt: '2026-09-27',
+      ),
+      StationFacilityInfo(
+        id: 'facility-locker-1',
+        stationId: sweepStationId,
+        exitId: '',
+        type: 'LOCKER',
+        name: '물품보관함',
+        floorFrom: '대합실',
+        floorTo: '대합실',
+        description: '1·11번 출구 통로',
+        status: 'NORMAL',
         dataConfidence: 'HIGH',
         lastUpdatedAt: '2026-09-27',
       ),
@@ -518,7 +637,22 @@ class SweepRepository
             departures: [
               StationTimetableDeparture(
                 directionName: '역삼 방면',
+                seconds: 5 * 3600 + 30 * 60,
+                destination: '성수',
+              ),
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
                 seconds: 9 * 3600,
+                destination: '성수',
+              ),
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
+                seconds: 9 * 3600 + 8 * 60,
+                destination: '성수',
+              ),
+              StationTimetableDeparture(
+                directionName: '역삼 방면',
+                seconds: 23 * 3600 + 52 * 60,
                 destination: '성수',
               ),
             ],
@@ -528,8 +662,23 @@ class SweepRepository
             departures: [
               StationTimetableDeparture(
                 directionName: '교대 방면',
+                seconds: 5 * 3600 + 32 * 60,
+                destination: '신도림',
+              ),
+              StationTimetableDeparture(
+                directionName: '교대 방면',
                 seconds: 9 * 3600 + 300,
                 destination: '신도림',
+              ),
+              StationTimetableDeparture(
+                directionName: '교대 방면',
+                seconds: 9 * 3600 + 12 * 60,
+                destination: '신도림',
+              ),
+              StationTimetableDeparture(
+                directionName: '교대 방면',
+                seconds: 23 * 3600 + 54 * 60,
+                destination: '서울대입구',
               ),
             ],
           ),
@@ -549,7 +698,11 @@ class SweepRepository
     required String stationId,
     required String lineId,
     required DateTime date,
-  }) async => _timetable(StationTimetableDayType.weekday);
+  }) => loadNextStationTimetable(
+    stationId: stationId,
+    lineId: lineId,
+    asOf: date,
+  );
 
   @override
   Future<StationTimetable> loadNextStationTimetable({
@@ -557,11 +710,100 @@ class SweepRepository
     required String lineId,
     required DateTime asOf,
     int horizonDays = 1,
-  }) => loadStationTimetableForDate(
-    stationId: stationId,
-    lineId: lineId,
-    date: asOf,
-  );
+  }) async {
+    final baseSeconds = (asOf.hour * 3600 + asOf.minute * 60).clamp(
+      6 * 3600,
+      23 * 3600,
+    );
+    return StationTimetable(
+      stationId: sweepStationId,
+      lineId: 'seoul-2',
+      dayType: StationTimetableDayType.weekday,
+      directions: [
+        StationTimetableDirection(
+          name: '역삼 방면',
+          departures: [
+            const StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: 5 * 3600 + 30 * 60,
+              destination: '성수',
+            ),
+            StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: baseSeconds + 2 * 60,
+              destination: '성수',
+            ),
+            StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: baseSeconds + 8 * 60,
+              destination: '성수',
+            ),
+            const StationTimetableDeparture(
+              directionName: '역삼 방면',
+              seconds: 23 * 3600 + 52 * 60,
+              destination: '성수',
+            ),
+          ],
+        ),
+        StationTimetableDirection(
+          name: '교대 방면',
+          departures: [
+            const StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: 5 * 3600 + 32 * 60,
+              destination: '신도림',
+            ),
+            StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: baseSeconds + 4 * 60,
+              destination: '신도림',
+            ),
+            StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: baseSeconds + 10 * 60,
+              destination: '신도림',
+            ),
+            const StationTimetableDeparture(
+              directionName: '교대 방면',
+              seconds: 23 * 3600 + 54 * 60,
+              destination: '서울대입구',
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class SweepRealtimeRepository implements RealtimeRepository {
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) async =>
+      const RealtimeSnapshot(
+        status: RealtimeSnapshotStatus.fresh,
+        receivedAt: '09:00',
+        arrivals: [
+          RealtimeArrival(
+            lineId: 'seoul-2',
+            stationName: '강남',
+            destination: '성수행',
+            direction: '역삼 방면',
+            trainNo: '2104',
+            etaSeconds: 120,
+            message: '2분 후 도착',
+            positionMessage: '교대 출발',
+          ),
+          RealtimeArrival(
+            lineId: 'seoul-2',
+            stationName: '강남',
+            destination: '신도림행',
+            direction: '교대 방면',
+            trainNo: '2107',
+            etaSeconds: 240,
+            message: '4분 후 도착',
+            positionMessage: '역삼 출발',
+          ),
+        ],
+      );
 }
 
 /// 전수 검사용으로 구성한 앱. 저장소는 모두 고정 응답이라 네트워크·DB에 닿지 않는다.

@@ -21,8 +21,7 @@ const _deviceRegistrationErrorMessage = '알림을 켜지 못했어요.';
 const _notificationPermissionErrorMessage = '알림을 켤 수 있는지 확인하지 못했어요.';
 const _notificationRegistrationFailureNextAction =
     '휴대전화 알림 설정과 인터넷 연결을 확인한 뒤 다시 시도해 주세요.';
-const _notificationSwitchTileRadius = BorderRadius.all(Radius.circular(16));
-const _notificationSettingsContentPadding = EdgeInsets.fromLTRB(16, 12, 16, 20);
+const _notificationSettingsContentPadding = EdgeInsets.only(bottom: 24);
 const _notificationSettingsFailurePadding = EdgeInsets.fromLTRB(20, 32, 20, 32);
 
 abstract class NotificationSettingsRepository {
@@ -748,6 +747,7 @@ class _NotificationSettingsScreenState
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: AppBar(
         title: const Text('알림 설정'),
         flexibleSpace: const Align(
@@ -907,36 +907,60 @@ class _NotificationSettingsContent extends StatelessWidget {
       padding: _notificationSettingsContentPadding,
       children: [
         if (notificationPermissionProvider != null) ...[
-          Semantics(
-            label: isRequestingNotificationPermission ? '알림 확인 중' : '알림 켜기',
-            child: OutlinedButton.icon(
-              key: const Key('notificationPermissionButton'),
-              onPressed: isRequestingNotificationPermission
-                  ? null
-                  : onRequestNotificationPermission,
-              icon: isRequestingNotificationPermission
-                  ? const SizedBox(
-                      width: 22,
-                      height: 22,
-                      child: CircularProgressIndicator(strokeWidth: 3),
-                    )
-                  : const Icon(Icons.notifications_active_outlined),
-              label: Text(
-                isRequestingNotificationPermission ? '확인 중' : '알림 켜기',
-              ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Semantics(
+                  label: isRequestingNotificationPermission
+                      ? '알림 확인 중'
+                      : '알림 켜기',
+                  child: OutlinedButton.icon(
+                    key: const Key('notificationPermissionButton'),
+                    onPressed: isRequestingNotificationPermission
+                        ? null
+                        : onRequestNotificationPermission,
+                    icon: isRequestingNotificationPermission
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2.5),
+                          )
+                        : const Icon(
+                            Icons.notifications_active_outlined,
+                            size: 20,
+                          ),
+                    label: Text(
+                      isRequestingNotificationPermission ? '확인 중' : '알림 켜기',
+                    ),
+                  ),
+                ),
+                if (notificationPermissionMessage.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _NotificationSettingsMessage(
+                    message: notificationPermissionMessage,
+                  ),
+                ],
+              ],
             ),
           ),
-          if (notificationPermissionMessage.isNotEmpty) ...[
-            const SizedBox(height: 12),
-            _NotificationSettingsMessage(
-              message: notificationPermissionMessage,
-            ),
-          ],
-          const SizedBox(height: 12),
+          const Divider(
+            height: 1,
+            thickness: 1,
+            color: EasySubwayAccessibleColors.line,
+          ),
         ],
         if (state.message.isNotEmpty) ...[
-          _NotificationSettingsMessage(message: state.message),
-          const SizedBox(height: 12),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
+            child: _NotificationSettingsMessage(message: state.message),
+          ),
+          const Divider(
+            height: 1,
+            thickness: 1,
+            color: EasySubwayAccessibleColors.line,
+          ),
         ],
         _NotificationSwitchGroup(
           tiles: [
@@ -986,7 +1010,12 @@ class _NotificationSettingsContent extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: 12),
+        const Divider(
+          height: 1,
+          thickness: 1,
+          color: EasySubwayAccessibleColors.line,
+        ),
+        const SizedBox(height: 8),
         Semantics(
           label: isSaving ? '알림 설정 저장 중' : '알림 설정 저장',
           button: true,
@@ -997,45 +1026,43 @@ class _NotificationSettingsContent extends StatelessWidget {
             onTap: isSaving ? null : onSave,
             child: ConstrainedBox(
               constraints: const BoxConstraints(minHeight: 48),
-              child: Center(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      if (isSaving) ...[
-                        const SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    if (isSaving) ...[
+                      const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '저장 중...',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: EasySubwayAccessibleColors.mutedText,
+                          fontWeight: FontWeight.w600,
                         ),
-                        const SizedBox(width: 8),
-                        Text(
-                          '저장 중...',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: EasySubwayAccessibleColors.secondaryText,
-                                fontWeight: FontWeight.w600,
-                              ),
+                      ),
+                    ] else ...[
+                      const Icon(
+                        Icons.check_circle_outline,
+                        size: 16,
+                        color: EasySubwayAccessibleColors.mutedText,
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '변경 시 자동으로 저장됩니다',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: EasySubwayAccessibleColors.mutedText,
+                          fontWeight: FontWeight.w600,
                         ),
-                      ] else ...[
-                        const Icon(
-                          Icons.check_circle_outline,
-                          size: 16,
-                          color: EasySubwayAccessibleColors.secondaryText,
-                        ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '변경 시 자동으로 저장됩니다',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: EasySubwayAccessibleColors.secondaryText,
-                                fontWeight: FontWeight.w600,
-                              ),
-                        ),
-                      ],
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
@@ -1053,16 +1080,22 @@ class _NotificationSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(left: 4, top: 12, bottom: 4),
-      child: Semantics(
-        header: true,
-        child: Text(
-          title,
-          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-            color: EasySubwayAccessibleColors.secondaryText,
-            fontWeight: FontWeight.w700,
-            fontSize: 14,
+    return ColoredBox(
+      color: EasySubwayAccessibleColors.scaffoldSurface,
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 10),
+          child: Semantics(
+            header: true,
+            child: Text(
+              title,
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: EasySubwayAccessibleColors.secondaryText,
+                fontWeight: FontWeight.w700,
+                height: 1.25,
+              ),
+            ),
           ),
         ),
       ),
@@ -1144,8 +1177,6 @@ class _NotificationSwitchTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return Semantics(
       container: true,
       excludeSemantics: true,
@@ -1155,8 +1186,11 @@ class _NotificationSwitchTile extends StatelessWidget {
       enabled: enabled,
       onTap: enabled ? () => onChanged(!value) : null,
       child: SwitchListTile.adaptive(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
-        activeThumbColor: colorScheme.primary,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+        activeThumbColor: EasySubwayAccessibleColors.interactionOnPrimary,
+        activeTrackColor: EasySubwayAccessibleColors.brandSignature,
+        inactiveThumbColor: EasySubwayAccessibleColors.interactionOnPrimary,
+        inactiveTrackColor: EasySubwayAccessibleColors.switchInactiveTrack,
         title: Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -1164,7 +1198,7 @@ class _NotificationSwitchTile extends StatelessWidget {
                 ? EasySubwayAccessibleColors.text
                 : EasySubwayAccessibleColors.mutedText,
             fontWeight: FontWeight.w700,
-            height: 1.35,
+            height: 1.3,
           ),
         ),
         subtitle: subtitle == null
@@ -1188,7 +1222,7 @@ class _NotificationSwitchTile extends StatelessWidget {
   }
 }
 
-/// 알림 스위치들을 개별 박스 대신 하나의 카드에 묶고 구분선으로 나눈다.
+/// 알림 스위치들을 무박스 행 + 1px 구분선으로 나눈다 (#1915).
 class _NotificationSwitchGroup extends StatelessWidget {
   const _NotificationSwitchGroup({required this.tiles});
 
@@ -1198,19 +1232,15 @@ class _NotificationSwitchGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: EasySubwayAccessibleColors.surfaceDefault,
-      clipBehavior: Clip.antiAlias,
-      shape: const RoundedRectangleBorder(
-        borderRadius: _notificationSwitchTileRadius,
-        side: BorderSide(color: EasySubwayAccessibleColors.line),
-      ),
       child: Column(
         children: [
           for (var i = 0; i < tiles.length; i++) ...[
             if (i > 0)
               const Divider(
                 height: 1,
-                indent: 16,
-                endIndent: 16,
+                thickness: 1,
+                indent: 20,
+                endIndent: 20,
                 color: EasySubwayAccessibleColors.line,
               ),
             tiles[i],

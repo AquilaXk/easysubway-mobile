@@ -68,7 +68,8 @@ class StationFanMenu extends StatefulWidget {
     required this.disabledSlots,
     required this.onAction,
     required this.onClose,
-    this.fontFamily,
+    this.fontFamily = 'Pretendard',
+    this.stationName,
   });
 
   final double width;
@@ -77,6 +78,7 @@ class StationFanMenu extends StatefulWidget {
   final ValueChanged<RouteDraftSlot> onAction;
   final VoidCallback onClose;
   final String? fontFamily;
+  final String? stationName;
 
   @override
   State<StationFanMenu> createState() => _StationFanMenuState();
@@ -180,6 +182,7 @@ class _StationFanMenuState extends State<StationFanMenu> {
                 disabledSlots: widget.disabledSlots,
                 pressed: _pressed,
                 fontFamily: widget.fontFamily,
+                stationName: widget.stationName,
               ),
             ),
           ),
@@ -224,6 +227,7 @@ class _StationFanMenuPainter extends CustomPainter {
     required this.disabledSlots,
     required this.pressed,
     required this.fontFamily,
+    this.stationName,
   }) {
     _labelPainters = {
       _FanSector.departure: _buildLabelPainter(
@@ -251,6 +255,15 @@ class _StationFanMenuPainter extends CustomPainter {
         letterSpacing: -0.6,
       ),
     };
+    final trimmedName = stationName?.trim();
+    _stationNamePainter = (trimmedName == null || trimmedName.isEmpty)
+        ? null
+        : _buildLabelPainter(
+            trimmedName,
+            EasySubwayAccessibleColors.onPrimary,
+            fontSize: 25,
+            letterSpacing: -0.5,
+          );
   }
 
   final StationFanMenuGeometry geometry;
@@ -259,7 +272,9 @@ class _StationFanMenuPainter extends CustomPainter {
   final Set<RouteDraftSlot> disabledSlots;
   final _FanSector? pressed;
   final String? fontFamily;
+  final String? stationName;
   late final Map<_FanSector, TextPainter> _labelPainters;
+  late final TextPainter? _stationNamePainter;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -271,6 +286,7 @@ class _StationFanMenuPainter extends CustomPainter {
     _paintClose(canvas);
     _paintBorders(canvas);
     _paintIconsAndLabels(canvas);
+    _paintStationNameBadge(canvas);
     canvas.restore();
   }
 
@@ -312,6 +328,14 @@ class _StationFanMenuPainter extends CustomPainter {
 
   void _paintSector(Canvas canvas, _FanSector sector) {
     final visual = _visualFor(sector);
+    if (_disabled(sector)) {
+      canvas.drawPath(
+        _pathFor(sector),
+        Paint()
+          ..style = PaintingStyle.fill
+          ..color = EasySubwayAccessibleColors.surfaceDefault,
+      );
+    }
     canvas.drawPath(
       _pathFor(sector),
       Paint()
@@ -561,11 +585,45 @@ class _StationFanMenuPainter extends CustomPainter {
     );
   }
 
+  void _paintStationNameBadge(Canvas canvas) {
+    final tp = _stationNamePainter;
+    if (tp == null) {
+      return;
+    }
+    const center = Offset(350, 200);
+    final badgeWidth = (tp.width + 36).clamp(112.0, 220.0);
+    const badgeHeight = 38.0;
+    final rect = Rect.fromCenter(
+      center: center,
+      width: badgeWidth,
+      height: badgeHeight,
+    );
+    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..style = PaintingStyle.fill
+        ..color = EasySubwayAccessibleColors.primary,
+    );
+    canvas.drawRRect(
+      rrect,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.4 / scale
+        ..color = EasySubwayAccessibleColors.onPrimary,
+    );
+    tp.paint(
+      canvas,
+      Offset(center.dx - tp.width / 2, center.dy - tp.height / 2),
+    );
+  }
+
   @override
   bool shouldRepaint(_StationFanMenuPainter old) =>
       old.scale != scale ||
       old.pressed != pressed ||
       old.fontFamily != fontFamily ||
+      old.stationName != stationName ||
       !setEquals(old.selectedSlots, selectedSlots) ||
       !setEquals(old.disabledSlots, disabledSlots);
 }
