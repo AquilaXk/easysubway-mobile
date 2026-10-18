@@ -92,9 +92,9 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
 
 test("Android drive script wiring: targets exist, PASS is written once at the end, nothing swallows failures", () => {
   const targets = workflow.match(/^      NATIVE_TARGETS: (.+)$/mu)?.[1].split(" ") ?? [];
-  assert.deepEqual(targets, ["native_test", "core_screen_a11y_smoke_test"]);
+  assert.deepEqual(targets, ["native_test", "core_screen_a11y_smoke_test", "core_screen_a11y_smoke_test:2.0"]);
   for (const target of targets) {
-    assert.ok(existsSync(new URL(`../../apps/mobile/integration_test/${target}.dart`, import.meta.url)));
+    assert.ok(existsSync(new URL(`../../apps/mobile/integration_test/${target.split(":")[0]}.dart`, import.meta.url)));
   }
   assert.doesNotMatch(driveScript, /native_test|core_screen_a11y_smoke_test/u);
   assert.match(workflow, /^          script: bash \.\.\/\.\.\/tools\/ci\/android-native-drive\.sh$/m);
@@ -143,7 +143,8 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
     [
       `echo "adb $*" >> "${root}/calls"`,
       `[ "$3" = wait-for-device ] && ${waitFails ? "exit 1" : "exit 0"}`,
-      '[ "$3" = shell ] || exit 0',
+      `[ "$3" = shell ] && [ "$4" = settings ] && { echo "font_scale $8" >> "${root}/calls"; [ -z "$FAIL_FONT_SCALE" ] || exit 1; exit 0; }`,
+      '[ "$3" = shell ] && [ "$4" = getprop ] || exit 0',
       `n=$(grep -c '^getprop$' "${root}/calls" 2>/dev/null)`,
       `echo getprop >> "${root}/calls"`,
       `n=$((n + 1)); line=$(sed -n "\${n}p" "${root}/boot"); [ -n "$line" ] || line=$(tail -n 1 "${root}/boot")`,
@@ -158,6 +159,7 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
     [
       '[ "$1" = drive ] || exit 0',
       `echo drive >> "${root}/calls"`,
+      `echo "define $4" >> "${root}/calls"`,
       `n=$(grep -c '^drive$' "${root}/calls")`,
       `cat "${root}/drive-$n.log"`,
       `exit "$(cat "${root}/drive-$n.exit")"`,
@@ -179,6 +181,8 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
     status: result.status,
     stdout: result.stdout,
     receipt: JSON.parse(read("receipt.json")),
+    fontScales: calls.filter((line) => line.startsWith("font_scale ")).map((line) => line.slice("font_scale ".length)),
+    driveDefines: calls.filter((line) => line.startsWith("define --dart-define=")).map((line) => line.slice("define --dart-define=".length)),
     driveCalls: calls.filter((line) => line === "drive").length,
     reconnects: calls.filter((line) => line === "adb reconnect offline").length,
     read,
@@ -339,6 +343,30 @@ test("clean drive passes without a retried entry", () => {
   });
   assert.equal(run.status, 0);
   assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "android-native", status: "PASS" });
+});
+
+test("font scale spec sets the system scale before each drive and passes it to the test", () => {
+  const run = runDriveScript({
+    targets: "core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0",
+    drives: [passLog, passLog],
+  });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "android-native", status: "PASS" });
+  assert.deepEqual(run.fontScales, ["1.0", "2.0"]);
+  assert.deepEqual(run.driveDefines, ["A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=2.0"]);
+  assert.ok(run.exists("flutter-drive-core_screen_a11y_smoke_test.log"));
+  assert.ok(run.exists("flutter-drive-core_screen_a11y_smoke_test-2.0.log"));
+});
+
+test("failing to set the font scale fails the target at drive without running the test", () => {
+  const run = runDriveScript({
+    targets: "core_screen_a11y_smoke_test:2.0",
+    drives: [passLog],
+    env: { FAIL_FONT_SCALE: "1" },
+  });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "core_screen_a11y_smoke_test:2.0", step: "drive" }));
+  assert.equal(run.driveCalls, 0);
 });
 
 test("core screen accessibility smoke reuses the sweep screen table and checks only tap targets", () => {

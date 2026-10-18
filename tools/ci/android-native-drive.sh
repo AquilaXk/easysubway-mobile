@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Android 에뮬레이터에서 NATIVE_TARGETS의 integration test를 차례로 실행하고 영수증을 쓴다.
+# NATIVE_TARGETS 항목은 `<대상>` 또는 `<대상>:<글꼴 배율>`이다. 배율이 있으면 drive 전에 시스템 글꼴 배율을
+# adb로 설정하고 테스트에 A11Y_FONT_SCALE로 넘기며, 배율이 없는 항목은 1.0으로 되돌려 실행한다.
 # apps/mobile을 작업 디렉터리로 호출한다. 어느 단계든 실패하면 FAIL 영수증에 실패한 대상과
 # 단계(boot/format/analyze/drive)를 남기고 즉시 끝내므로, 뒤에 오는 PASS 영수증이 FAIL을 덮어쓸 수 없다.
 #
@@ -21,6 +23,7 @@ reason_adb_offline="adb_offline"
 reason_device_not_found="device_not_found"
 reason_install_failed="install_failed"
 reason_timeout="timeout"
+default_font_scale="1.0"
 
 # 테스트가 실행되었거나 결과가 나왔다는 신호: 진행 줄(00:03 +1), 통과/실패 요약, integrationDriver 실패 상세.
 test_result_signal='[0-9]{2}:[0-9]{2} \+[0-9]+|All tests passed|Failure Details:|Some tests failed|EXCEPTION CAUGHT|Test failed'
@@ -73,18 +76,28 @@ retry_reason() {
   fi
 }
 
+# 항목 `<대상>[:<배율>]`에서 대상 이름, 배율, 로그 이름(콜론 대신 하이픈)을 뽑는다.
+spec_target() { echo "${1%%:*}"; }
+spec_scale() { [[ "$1" == *:* ]] && echo "${1#*:}" || echo "${default_font_scale}"; }
+spec_log_name() { echo "${1//:/-}"; }
+
 run_drive() {
-  timeout "${drive_timeout}" flutter drive --driver=test_driver/integration_test.dart "--target=integration_test/$1.dart" -d "${device}" --no-dds > "${evidence}/flutter-drive-$1.log" 2>&1
+  local target scale
+  target="$(spec_target "$1")"
+  scale="$(spec_scale "$1")"
+  adb -s "${device}" shell settings put system font_scale "${scale}" || return 1
+  timeout "${drive_timeout}" flutter drive --driver=test_driver/integration_test.dart "--target=integration_test/${target}.dart" "--dart-define=A11Y_FONT_SCALE=${scale}" -d "${device}" --no-dds > "${evidence}/flutter-drive-$(spec_log_name "$1").log" 2>&1
 }
 
 report_retry_pass() {
-  echo "::warning::${1} drive가 ${2} 때문에 1회 재시도 후 통과했습니다. 1차 로그: flutter-drive-${1}.attempt1.log"
+  echo "::warning::${1} drive가 ${2} 때문에 1회 재시도 후 통과했습니다. 1차 로그: flutter-drive-$(spec_log_name "$1").attempt1.log"
   [ -n "${GITHUB_STEP_SUMMARY:-}" ] && echo "- ${1}: drive 재시도 후 통과 (${2})" >> "${GITHUB_STEP_SUMMARY}"
   return 0
 }
 
 drive_target() {
-  local target="$1" log="${evidence}/flutter-drive-$1.log" exit_code reason
+  local target="$1" log exit_code reason
+  log="${evidence}/flutter-drive-$(spec_log_name "${target}").log"
   ensure_device "${target}"
   run_drive "${target}" && return
   exit_code=$?
@@ -93,7 +106,7 @@ drive_target() {
     [ "${exit_code}" -eq "${timeout_exit_code}" ] && fail "${target}" drive "${reason_timeout}"
     fail "${target}" drive
   fi
-  cp "${log}" "${evidence}/flutter-drive-${target}.attempt1.log"
+  cp "${log}" "${evidence}/flutter-drive-$(spec_log_name "${target}").attempt1.log"
   retried+=("drive:${reason}")
   adb reconnect offline || true
   ensure_device "${target}"
@@ -103,7 +116,7 @@ drive_target() {
 
 sources=()
 for target in ${NATIVE_TARGETS}; do
-  sources+=("integration_test/${target}.dart")
+  sources+=("integration_test/$(spec_target "${target}").dart")
 done
 
 ensure_device "${NATIVE_TARGETS}"
