@@ -382,6 +382,7 @@ class NetworkMapTopBar extends StatelessWidget {
               const SizedBox(width: 4),
               IconButton(
                 key: const Key('networkMapMenuButton'),
+                tooltip: '메뉴',
                 onPressed: onMenuTap,
                 style: IconButton.styleFrom(
                   minimumSize: const Size.square(EasySubwayTouchTarget.general),
