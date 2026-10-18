@@ -186,11 +186,11 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
   };
 }
 
-const passLog = { log: fixture("pass-with-uninstall-noise.log"), exit: 0 };
+const passLog = { log: fixture("pass-with-uninstall-noise.txt"), exit: 0 };
 const failedReceipt = (extra) => ({ schemaVersion: 1, lane: "android-native", status: "FAIL", ...extra });
 
 test("real offline-before-tests log retries once, keeps the first log, and reports the retry", () => {
-  const offline = fixture("offline-before-tests.log");
+  const offline = fixture("offline-before-tests.txt");
   const summary = path.join(mkdtempSync(path.join(tmpdir(), "summary-")), "summary.md");
   const run = runDriveScript({
     drives: [{ log: offline }, passLog],
@@ -213,7 +213,7 @@ test("real offline-before-tests log retries once, keeps the first log, and repor
 test("second target offline-before-tests log retries only that target", () => {
   const run = runDriveScript({
     targets: "native_test core_screen_a11y_smoke_test",
-    drives: [passLog, { log: fixture("offline-before-tests-second-target.log") }, passLog],
+    drives: [passLog, { log: fixture("offline-before-tests-second-target.txt") }, passLog],
   });
   assert.equal(run.status, 0);
   assert.deepEqual(run.receipt.retried, ["drive:adb_offline"]);
@@ -223,8 +223,8 @@ test("second target offline-before-tests log retries only that target", () => {
 });
 
 for (const [name, reason] of [
-  ["synthetic-device-not-found.log", "device_not_found"],
-  ["synthetic-install-failed.log", "install_failed"],
+  ["synthetic-device-not-found.txt", "device_not_found"],
+  ["synthetic-install-failed.txt", "install_failed"],
 ]) {
   test(`${reason} infra error before tests retries once`, () => {
     const run = runDriveScript({ drives: [{ log: fixture(name) }, passLog] });
@@ -243,8 +243,8 @@ for (const line of ["error: no devices/emulators found", "error: device not foun
 }
 
 test("real assertion failure never retries, even with offline lines mixed in", () => {
-  const mixed = `${fixture("assertion-failure.log")}\nadb: device offline\nadb uninstall failed: ProcessException\n`;
-  for (const log of [fixture("assertion-failure.log"), mixed]) {
+  const mixed = `${fixture("assertion-failure.txt")}\nadb: device offline\nadb uninstall failed: ProcessException\n`;
+  for (const log of [fixture("assertion-failure.txt"), mixed]) {
     const run = runDriveScript({ drives: [{ log }, passLog] });
     assert.equal(run.status, 1);
     assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
@@ -263,7 +263,7 @@ for (const signal of [
   "Test failed. See exception logs above.",
 ]) {
   test(`result signal "${signal}" blocks the retry`, () => {
-    const log = `${fixture("offline-before-tests.log")}\n${signal}\n`;
+    const log = `${fixture("offline-before-tests.txt")}\n${signal}\n`;
     const run = runDriveScript({ drives: [{ log }, passLog] });
     assert.equal(run.status, 1);
     assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
@@ -279,7 +279,7 @@ test("drive log without positive infra evidence is not retried", () => {
 });
 
 test("timeout exit 124 is a hang: no retry even with an offline line, receipt records timeout", () => {
-  const run = runDriveScript({ drives: [{ log: fixture("offline-before-tests.log"), exit: 124 }, passLog] });
+  const run = runDriveScript({ drives: [{ log: fixture("offline-before-tests.txt"), exit: 124 }, passLog] });
   assert.equal(run.status, 1);
   assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
   assert.equal(run.driveCalls, 1);
@@ -287,7 +287,7 @@ test("timeout exit 124 is a hang: no retry even with an offline line, receipt re
 });
 
 test("each target is retried at most once and a failed retry stays FAIL with retried recorded", () => {
-  const offline = { log: fixture("offline-before-tests.log") };
+  const offline = { log: fixture("offline-before-tests.txt") };
   const run = runDriveScript({ drives: [offline, offline, passLog] });
   assert.equal(run.status, 1);
   assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", retried: ["drive:adb_offline"] }));
@@ -325,7 +325,7 @@ test("device lost before a target's drive fails that target at boot, not drive",
 });
 
 test("device that does not come back after adb reconnect fails at boot and keeps the retried record", () => {
-  const run = runDriveScript({ boot: ["1", "1", "0"], drives: [{ log: fixture("offline-before-tests.log") }, passLog] });
+  const run = runDriveScript({ boot: ["1", "1", "0"], drives: [{ log: fixture("offline-before-tests.txt") }, passLog] });
   assert.equal(run.status, 1);
   assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "boot", retried: ["drive:adb_offline"] }));
   assert.equal(run.driveCalls, 1);
