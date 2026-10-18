@@ -47,18 +47,6 @@ class NetworkMapMenuPanel extends StatelessWidget {
                     const EasySubwayHeaderDivider.mapChrome(
                       key: Key('networkMapMenuHeaderDivider'),
                     ),
-                    // RED 검증용 임시 요소: 30x30pt 탭 요소(스크롤 밖).
-                    Padding(
-                      padding: const EdgeInsets.all(8),
-                      child: Semantics(
-                        label: 'RED 탐침',
-                        child: GestureDetector(
-                          key: const Key('redProbe'),
-                          onTap: () {},
-                          child: const SizedBox(width: 30, height: 30),
-                        ),
-                      ),
-                    ),
                     Expanded(
                       child: ListView(
                         padding: EdgeInsets.zero,
