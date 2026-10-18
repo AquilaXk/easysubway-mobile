@@ -267,10 +267,14 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
     final topPadding = MediaQuery.paddingOf(context).top;
     return Scaffold(
       key: const Key('stationSearchScreen'),
-      bottomNavigationBar: const SizedBox(
-        height: 28,
-        child: Column(children: [Text('RED', style: TextStyle(fontSize: 18))]),
-      ),
+      persistentFooterButtons: const [
+        SizedBox(
+          height: 28,
+          child: Column(
+            children: [Text('RED', style: TextStyle(fontSize: 18))],
+          ),
+        ),
+      ],
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: PreferredSize(
         preferredSize: Size.fromHeight(topPadding + topBarHeight),
