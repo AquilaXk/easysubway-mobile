@@ -168,15 +168,11 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       NATIVE_TARGETS: native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:3.12
-      IOS_SIMULATOR: iPhone 17 Pro
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # 시뮬레이터 부팅은 몇 분 걸리고 아래 준비 단계와 독립이다. 먼저 시작해 두면 drive 스크립트는 남은 부팅만 기다린다.
-      - name: Start iOS simulator boot
-        run: xcrun simctl boot "${IOS_SIMULATOR}"
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
@@ -228,9 +224,6 @@ jobs:
           if grep -q '"status":"PENDING"' "${receipt}"; then
             printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"FAIL","target":"simulator","step":"boot"}' > "${receipt}"
           fi
-      - name: Check booted simulators (temporary)
-        if: ${{ !cancelled() }}
-        run: xcrun simctl list devices booted
       - name: Report Xcode build cache
         if: ${{ !cancelled() }}
         shell: bash

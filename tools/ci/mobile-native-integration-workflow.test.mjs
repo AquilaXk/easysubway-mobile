@@ -1133,15 +1133,6 @@ test("iOS job records whether the Xcode build cache was used and how large it is
   assert.ok(stepNames(iosJob).indexOf("Run iOS simulator native smoke") < stepNames(iosJob).indexOf("Report Xcode build cache"));
 });
 
-test("iOS job starts the simulator boot first, on the same simulator the drive script uses", () => {
-  const steps = stepNames(iosJob);
-  const adapterDefault = iosDriveScript.match(/^simulator="\$\{IOS_SIMULATOR:-(.+)\}"$/mu)?.[1];
-  assert.equal(iosJob.match(/^      IOS_SIMULATOR: (.+)$/mu)?.[1], adapterDefault);
-  assert.match(stepBlock(iosJob, "Start iOS simulator boot"), /^        run: xcrun simctl boot "\$\{IOS_SIMULATOR\}"$/mu);
-  assert.equal(steps.indexOf("Start iOS simulator boot"), steps.indexOf("Checkout") + 1);
-  assert.doesNotMatch(androidSteps, /simctl/u);
-});
-
 // 가짜 Flutter SDK(git 저장소)에 패치를 적용하는 스크립트를 실제로 실행한다.
 // flutter 스텁은 stamp가 없으면 tool을 다시 빌드한 것으로 치고, 소스에 패치 줄이 있을 때만 스냅샷에 표지를 쓴다.
 const patchedLine = "wait for the log stream";
