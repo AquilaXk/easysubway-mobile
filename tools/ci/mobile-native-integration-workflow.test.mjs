@@ -1127,7 +1127,8 @@ test("iOS job records whether the Xcode build cache was used and how large it is
   const reportStep = stepBlock(iosJob, "Report Xcode build cache");
   assert.match(reportStep, /^        if: \$\{\{ !cancelled\(\) \}\}$/mu);
   assert.match(reportStep, /CACHE_HIT: \$\{\{ steps\.xcode-cache\.outputs\.cache-hit \}\}/u);
-  assert.match(reportStep, /MATCHED_KEY: \$\{\{ steps\.xcode-cache\.outputs\.cache-matched-key \}\}/u);
+  assert.match(reportStep, /true\) restored="exact hit"/u);
+  assert.match(reportStep, /false\) restored="partial restore from restore-keys"/u);
   assert.match(reportStep, /GITHUB_STEP_SUMMARY/u);
   assert.ok(stepNames(iosJob).indexOf("Run iOS simulator native smoke") < stepNames(iosJob).indexOf("Report Xcode build cache"));
 });

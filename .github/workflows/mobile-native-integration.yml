@@ -179,8 +179,12 @@ jobs:
           channel: stable
           flutter-version: "3.44.0"
           cache: true
+      # Flutter 3.44.0 tool은 시뮬레이터 log stream이 준비되기 전에 앱과 테스트를 시작해 VM service 주소나 테스트 첫 줄을 놓친다.
+      # 상류 수정(flutter/flutter#193142)과 확장을 적용한다. 자세한 내용은 패치 파일 머리말에 있다.
       - name: Apply Flutter iOS simulator log stream fix
         run: bash "${GITHUB_WORKSPACE}/tools/ci/apply-flutter-patch.sh" "${GITHUB_WORKSPACE}/tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch" "The iOS simulator log stream did not start"
+      # DerivedData(컴파일 산출물)와 SwiftPM SourcePackages(내려받은 의존성)를 run 사이에 재사용한다. 키에 Xcode·Flutter 버전을 넣어
+      # 다른 toolchain의 산출물은 복원하지 않는다. restore-keys는 같은 toolchain 안에서만 이전 캐시를 쓰며, 바뀐 소스는 Xcode가 다시 컴파일한다.
       - name: Resolve Xcode build cache key
         id: toolchain
         shell: bash
@@ -220,25 +224,18 @@ jobs:
           if grep -q '"status":"PENDING"' "${receipt}"; then
             printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"FAIL","target":"simulator","step":"boot"}' > "${receipt}"
           fi
-      - name: Probe cache correctness (temporary)
-        if: ${{ !cancelled() }}
-        shell: bash
-        run: |
-          echo "cache-hit=${{ steps.xcode-cache.outputs.cache-hit }} matched=${{ steps.xcode-cache.outputs.cache-matched-key }}"
-          for probe in CACHE_PROBE_NATIVE_v1 CACHE_PROBE_NATIVE_v2; do
-            echo "native ${probe}: $(grep -rl "${probe}" apps/mobile/build/ios/iphonesimulator/Runner.app 2>/dev/null | wc -l | tr -d ' ') file(s)"
-          done
-          for probe in CACHE_PROBE_DART_v1 CACHE_PROBE_DART_v2; do
-            echo "dart ${probe}: $(grep -c "${probe}" "${RUNNER_TEMP}/mobile-native-ios/flutter-drive-scale-1.0.log" || true) log line(s)"
-          done
       - name: Report Xcode build cache
         if: ${{ !cancelled() }}
         shell: bash
         env:
           CACHE_HIT: ${{ steps.xcode-cache.outputs.cache-hit }}
-          MATCHED_KEY: ${{ steps.xcode-cache.outputs.cache-matched-key }}
         run: |
-          echo "- Xcode build cache: ${MATCHED_KEY:-miss} (exact hit: ${CACHE_HIT:-false})" >> "${GITHUB_STEP_SUMMARY}"
+          case "${CACHE_HIT}" in
+            true) restored="exact hit" ;;
+            false) restored="partial restore from restore-keys" ;;
+            *) restored="miss" ;;
+          esac
+          echo "- Xcode build cache: ${restored}" >> "${GITHUB_STEP_SUMMARY}"
           for dir in "${HOME}/Library/Developer/Xcode/DerivedData" apps/mobile/build/ios/SourcePackages; do
             if [ -d "${dir}" ]; then du -sh "${dir}" | sed 's/^/- /' >> "${GITHUB_STEP_SUMMARY}"; fi
           done
