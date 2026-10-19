@@ -7,10 +7,11 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'support/core_screen_sweep_fixtures.dart';
 import 'support/core_screen_sweep_screens.dart';
+import 'support/full_tap_target_guideline.dart';
 
 /// 핵심 화면 x 테마 x 글자 크기 x 접근성 가이드라인 전수 검사(#464).
 ///
-/// 화면은 [sweepScreens] 표의 한 줄로 추가한다. 가이드라인 4종은 [_guidelines]
+/// 화면은 [sweepScreens] 표의 한 줄로 추가한다. 가이드라인 6종은 [_guidelines]
 /// 표 하나로 모든 조합에 같은 방식으로 적용한다. 위반은 예외 목록 없이 그대로
 /// 실패로 드러난다.
 ///
@@ -35,6 +36,8 @@ const _devicePixelRatio = 3.0;
 final _guidelines = <String, AccessibilityGuideline>{
   'Android 탭 영역 48dp': androidTapTargetGuideline,
   'iOS 탭 영역 44pt': iOSTapTargetGuideline,
+  '스크롤 안 포함 Android 탭 영역 48dp': FullTapTargetGuideline(androidMinTapTarget),
+  '스크롤 안 포함 iOS 탭 영역 44pt': FullTapTargetGuideline(iosMinTapTarget),
   '탭 가능한 요소의 라벨': labeledTapTargetGuideline,
   '글자 대비': textContrastGuideline,
 };

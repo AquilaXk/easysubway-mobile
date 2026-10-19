@@ -1111,7 +1111,6 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   Widget _buildHourSelector(List<int> availableHours, List<int> renderedHours) {
     return Container(
       color: EasySubwayAccessibleColors.surface,
-      padding: const EdgeInsets.symmetric(vertical: 8),
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1142,30 +1141,38 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     final isSelected = _selectedHour == hour;
     final label = hour == 24 ? '24시' : '$hour시';
     return GestureDetector(
+      behavior: HitTestBehavior.opaque,
       onTap: () => _scrollToHour(hour, sortedDepHours),
-      child: Container(
-        margin: const EdgeInsets.only(right: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? EasySubwayAccessibleColors.surfaceBrandChrome
-              : EasySubwayAccessibleColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected
-                ? EasySubwayAccessibleColors.primary
-                : EasySubwayAccessibleColors.line,
-            width: isSelected ? 1.2 : 1.0,
-          ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(
+          minHeight: EasySubwayTouchTarget.iconOnly,
         ),
-        child: Text(
-          label,
-          style: TextStyle(
-            color: isSelected
-                ? EasySubwayAccessibleColors.primary
-                : EasySubwayAccessibleColors.secondaryText,
-            fontSize: 14,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+            decoration: BoxDecoration(
+              color: isSelected
+                  ? EasySubwayAccessibleColors.surfaceBrandChrome
+                  : EasySubwayAccessibleColors.surface,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: isSelected
+                    ? EasySubwayAccessibleColors.primary
+                    : EasySubwayAccessibleColors.line,
+                width: isSelected ? 1.2 : 1.0,
+              ),
+            ),
+            child: Text(
+              label,
+              style: TextStyle(
+                color: isSelected
+                    ? EasySubwayAccessibleColors.primary
+                    : EasySubwayAccessibleColors.secondaryText,
+                fontSize: 14,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              ),
+            ),
           ),
         ),
       ),

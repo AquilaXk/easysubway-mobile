@@ -9,11 +9,13 @@ import 'package:integration_test/integration_test.dart';
 
 import '../test/support/core_screen_sweep_fixtures.dart';
 import '../test/support/core_screen_sweep_screens.dart';
+import '../test/support/full_tap_target_guideline.dart';
 
 /// 화면 표 접근성 스모크(에픽 #3036 4-1, 4-24, 4-25).
 ///
 /// 호스트 전수 검사(`core_screen_guideline_sweep_test.dart`)와 같은 화면 표를
-/// 에뮬레이터·시뮬레이터의 실제 화면 크기·밀도로 열어 플랫폼별 탭 영역(Android 48dp, iOS 44pt),
+/// 에뮬레이터·시뮬레이터의 실제 화면 크기·밀도로 열어 플랫폼별 탭 영역(Android 48dp, iOS 44pt,
+/// 스크롤 목록 안의 보이는 요소 포함),
 /// 탭 요소 라벨, 렌더 예외(overflow)만 검사한다. 글자 대비는 실제 폰트의 안티앨리어싱으로
 /// 오탐이 나므로 호스트 전수 검사가 맡는다.
 ///
@@ -47,15 +49,24 @@ final _fontScale = double.parse(
 
 /// 실행 중인 플랫폼의 최소 탭 영역 기준과 그 크기 표기. 플랫폼 분기는 여기 한 곳이며,
 /// 모르는 플랫폼은 검사를 건너뛰지 않고 실패한다.
-final ({AccessibilityGuideline guideline, String size}) _tapTarget =
-    switch (defaultTargetPlatform) {
-      TargetPlatform.android => (
-        guideline: androidTapTargetGuideline,
-        size: '48dp',
-      ),
-      TargetPlatform.iOS => (guideline: iOSTapTargetGuideline, size: '44pt'),
-      final platform => throw StateError('탭 영역 기준이 없는 플랫폼: $platform'),
-    };
+final ({
+  AccessibilityGuideline guideline,
+  AccessibilityGuideline fullGuideline,
+  String size,
+})
+_tapTarget = switch (defaultTargetPlatform) {
+  TargetPlatform.android => (
+    guideline: androidTapTargetGuideline,
+    fullGuideline: FullTapTargetGuideline(androidMinTapTarget),
+    size: '48dp',
+  ),
+  TargetPlatform.iOS => (
+    guideline: iOSTapTargetGuideline,
+    fullGuideline: FullTapTargetGuideline(iosMinTapTarget),
+    size: '44pt',
+  ),
+  final platform => throw StateError('탭 영역 기준이 없는 플랫폼: $platform'),
+};
 
 final _runMode = _fontScale > 1.0 ? _FontMode.largeText : _FontMode.normal;
 
@@ -129,6 +140,8 @@ void main() {
           await _revealShownOnDevice[screen.name]?.call(tester, screen.shown);
           expect(screen.shown, findsOneWidget);
           await expectLater(tester, meetsGuideline(_tapTarget.guideline));
+          // 기본 가이드라인이 건너뛰는 스크롤 목록 안의 요소를 보이는 부분만 검사한다.
+          await expectLater(tester, meetsGuideline(_tapTarget.fullGuideline));
           await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
           expect(tester.takeException(), isNull);
         }
