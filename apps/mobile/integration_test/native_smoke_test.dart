@@ -30,7 +30,7 @@ const _resultsKey = 'nativeGroups';
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
   // ignore: avoid_print
-  print('CACHE_PROBE_DART_v1');
+  print('CACHE_PROBE_DART_v2');
   final recordedDescriptions = <String>{};
 
   // 배율 줄은 대상과 무관한 진입점 공통 위치에서 한 번만 남긴다. 어느 대상 조합으로 돌아도 스크립트가 읽을 수 있다.
