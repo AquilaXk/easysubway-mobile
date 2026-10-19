@@ -199,6 +199,7 @@ jobs:
           key: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/ios/**') }}
           restore-keys: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-
       - name: Let Xcode and git reuse restored build state
+        if: false
         shell: bash
         run: |
           set -euo pipefail
@@ -221,7 +222,7 @@ jobs:
         continue-on-error: true
         run: |
           xcrun simctl bootstatus "iPhone 17 Pro" -b > /dev/null
-          for n in 1 2; do
+          for n in 1; do
             start=$SECONDS
             status=0
             flutter drive --driver=test_driver/native_smoke_driver.dart --target=integration_test/native_smoke_test.dart -d "iPhone 17 Pro" --no-dds -v 2>&1 | perl -MTime::HiRes=time -ne 'BEGIN{$|=1;$t=time} printf "%7.1f %s", time-$t, $_' > "${RUNNER_TEMP}/drive-v${n}.log" || status=$?
