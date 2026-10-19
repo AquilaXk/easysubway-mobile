@@ -543,6 +543,10 @@ test("core screen accessibility smoke reuses the sweep screen table and checks t
     (workflow.match(/"apps\/mobile\/test\/support\/core_screen_sweep_\*\.dart"/gu) ?? []).length,
     2,
   );
+  assert.equal(
+    (workflow.match(/"apps\/mobile\/test\/support\/full_tap_target_guideline\.dart"/gu) ?? []).length,
+    2,
+  );
   for (const glob of [
     "apps/mobile/lib/accessible_design.dart",
     "apps/mobile/lib/app/**",
@@ -559,9 +563,12 @@ test("core screen accessibility smoke reuses the sweep screen table and checks t
   assert.match(a11ySmokeTest, /IntegrationTestWidgetsFlutterBinding\.ensureInitialized\(\)/u);
   assert.match(a11ySmokeTest, /import '\.\.\/test\/support\/core_screen_sweep_screens\.dart'/u);
   assert.match(a11ySmokeTest, /TargetPlatform\.android => \(\s*guideline: androidTapTargetGuideline/u);
-  assert.match(a11ySmokeTest, /TargetPlatform\.iOS => \(guideline: iOSTapTargetGuideline/u);
+  assert.match(a11ySmokeTest, /TargetPlatform\.iOS => \(\s*guideline: iOSTapTargetGuideline/u);
   assert.match(a11ySmokeTest, /throw StateError\('탭 영역 기준이 없는 플랫폼/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(_tapTarget\.guideline\)/u);
+  assert.match(a11ySmokeTest, /meetsGuideline\(_tapTarget\.fullGuideline\)/u);
+  assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(Size\(48, 48\)\)/u);
+  assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(Size\(44, 44\)\)/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(labeledTapTargetGuideline\)/u);
   assert.match(a11ySmokeTest, /String\.fromEnvironment\('A11Y_FONT_SCALE'/u);
   assert.match(a11ySmokeTest, /platformDispatcher\.textScaleFactor,\s*closeTo\(_fontScale/u);
