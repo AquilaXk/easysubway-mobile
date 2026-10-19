@@ -1093,6 +1093,10 @@ test("iOS job applies the pinned Flutter tool fix before anything runs flutter, 
   assert.deepEqual([...flutterPatch.matchAll(/^diff --git a\/(\S+) /gmu)].map((match) => match[1]), ["packages/flutter_tools/lib/src/ios/simulators.dart"]);
   assert.ok(flutterPatch.split("\n").some((line) => line.startsWith("+") && line.includes(applyPatchMarker)));
   assert.match(flutterPatch, /flutter\/flutter\/pull\/193142/u);
+  // 드라이버가 앱 시작 뒤에 붙이는 두 번째 log stream도 테스트가 시작되기 전에 준비되도록 기다린다.
+  assert.ok(flutterPatch.includes("+  Future<void> provideVmService(FlutterVmService connectedVmService) => waitUntilReady();"));
+  assert.ok(flutterPatch.includes("-  Future<void> provideVmService(FlutterVmService connectedVmService) async {}"));
+  assert.ok(flutterPatch.includes("+      await logReader.waitUntilReady();"));
   for (const trigger of ["tools/ci/apply-flutter-patch.sh", `tools/ci/flutter-patches/${flutterPatchFile}`]) {
     assert.equal(workflow.split("\n").filter((line) => line === `      - "${trigger}"`).length, 2, trigger);
   }
