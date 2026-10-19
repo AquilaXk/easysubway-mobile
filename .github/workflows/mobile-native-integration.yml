@@ -168,11 +168,16 @@ jobs:
     env:
       DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       NATIVE_TARGETS: native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:3.12
+      IOS_SIMULATOR: iPhone 17 Pro
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      # 시뮬레이터 부팅은 몇 분 걸리고 아래 준비 단계와 독립이다. 백그라운드로 먼저 시작해 두면 drive 스크립트는 남은 부팅만 기다린다.
+      # 부팅 성공 여부는 여기서 판정하지 않는다. 스크립트가 bootstatus로 부팅을 확인하고 못 쓰면 boot 실패 영수증을 남긴다.
+      - name: Start iOS simulator boot in background
+        run: nohup xcrun simctl boot "${IOS_SIMULATOR}" > "${RUNNER_TEMP}/simulator-boot.log" 2>&1 &
       - name: Set up Flutter
         uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
         with:
