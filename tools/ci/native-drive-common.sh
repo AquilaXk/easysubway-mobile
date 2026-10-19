@@ -169,10 +169,10 @@ unconfirmed_specs_at_scale() {
 
 scale_log() { echo "${evidence}/flutter-drive-scale-$1.log"; }
 
-# 로그의 group별 결과를 verdicts에 반영한다. group 안의 실패는 integrationDriver 실패 상세
-# `Failure in method: <group> <테스트 이름>`이나 실패한 테스트 줄(`[E]`)로, 실행 여부는 테스트 시작 줄로 가른다.
-# 실패 줄도 보는 이유: testWidgets가 아닌 test()의 실패는 integrationDriver가 알지 못해 drive가 종료 코드 0과
-# "All tests passed."로 끝나므로(CI에서 확인), 실패 상세만 믿으면 실패한 group을 PASS로 읽는다.
+# 로그의 group별 결과를 verdicts에 반영한다. 실패는 실패한 테스트 줄(`[E]`)의 group 이름으로 가르고, 실행 여부는
+# 테스트 시작 줄로 가른다. integrationDriver의 실패 상세(`Failure in method:`)는 group 이름 없이 테스트 이름만
+# 적으므로(CI에서 확인) group을 가르는 데 쓰지 않는다. 또 testWidgets가 아닌 test()의 실패는 integrationDriver가
+# 알지 못해 drive가 종료 코드 0과 "All tests passed."로 끝나므로(CI에서 확인), 종료 코드만 믿지 않고 이 줄을 읽는다.
 # 모든 테스트가 끝난 로그(test_run_complete)에서만 실패 없는 group을 PASS로 확정하고, 그 밖에는
 # 실패가 확인된 group만 FAIL로 두어 중간에 끊긴 drive의 결과를 PASS로 읽지 않는다.
 record_group_verdicts() {
@@ -180,7 +180,7 @@ record_group_verdicts() {
   grep -Eq "${test_run_complete}" "${log}" || completed=0
   for index in $(indexes_at_scale "${scale}"); do
     group="$(spec_target "${specs[index]}")"
-    if grep -Eq "^Failure in method: ${group} |${progress_line_prefix}${group} .*${failed_line_suffix}" "${log}"; then
+    if grep -Eq "${progress_line_prefix}${group} .*${failed_line_suffix}" "${log}"; then
       verdicts[index]=FAIL
     elif [ "${completed}" -eq 1 ]; then
       if grep -Eq "${progress_line_prefix}${group} " "${log}"; then

@@ -228,20 +228,18 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
   };
 }
 
-// flutter drive가 남기는 로그: 대상 group마다 테스트 시작 줄, 앱이 읽은 배율 줄, 요약 줄(과 실패 상세).
-// failing: 실패 상세에 올릴 group. complete=false는 요약 없이 끊긴 로그.
+// flutter drive가 남기는 로그: 대상 group마다 테스트 시작 줄, 앱이 읽은 배율 줄, 요약 줄(과 실패 줄·실패 상세).
+// failing: 실패한 테스트 줄([E])을 남길 group. integrationDriver의 실패 상세는 실제 로그처럼 group 이름 없이 테스트 이름만 적는다.
+// complete=false는 요약 없이 끊긴 로그.
 const linePrefix = { android: "I/flutter ( 4098): ", ios: "flutter: " };
 function driveLog({ platform = "android", groups = ["native_test"], observed = "1.0", failing = [], complete = true, noise = "" }) {
   const prefix = linePrefix[platform];
   const lines = groups.map((group, index) => `${prefix}00:0${index} +${index}: ${group} 첫 테스트`);
   if (observed) lines.push(`${prefix}${markerName}${observed}`);
+  lines.push(...failing.map((group, index) => `${prefix}00:0${index} +1 -${index + 1}: ${group} 첫 테스트 [E]`));
   if (complete) {
     lines.push(`${prefix}00:09 +9: ${failing.length ? "Some tests failed." : "All tests passed!"}`);
-    if (failing.length) {
-      lines.push("Failure Details:", ...failing.map((group) => `Failure in method: ${group} 첫 테스트`), "end of failure 1");
-    } else {
-      lines.push("All tests passed.");
-    }
+    lines.push(...(failing.length ? ["Failure Details:", "Failure in method: 첫 테스트", "end of failure 1"] : ["All tests passed."]));
   }
   return `${lines.join("\n")}\n${noise}`;
 }
@@ -519,6 +517,26 @@ test("real log where a failing test() leaves the driver green still fails that g
     run.receipt,
     failedReceipt({ target: "core_screen_a11y_smoke_test:2.0", step: "drive" }, { "core_screen_a11y_smoke_test:2.0": "FAIL" }),
   );
+});
+
+// 실제 CI(RED 확인 run)의 iOS 큰 글자 실행: test()와 testWidgets 실패가 함께 있고, 실패 상세에는 group 이름이 없다.
+test("real iOS RED log fails only the large-text target while the other targets keep their own verdicts", () => {
+  const log = readFileSync(new URL("./fixtures/ios-drive/real-red-large-text-failures.txt", import.meta.url), "utf8");
+  assert.match(log, /Failure in method: RED 확인용 testWidgets/u);
+  const run = runIos({
+    targets: iosAllTargets,
+    drives: [iosPass({ groups: bothGroups }), { log, exit: 1 }],
+  });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    iosReceipt(
+      "FAIL",
+      { native_test: "PASS", core_screen_a11y_smoke_test: "PASS", "core_screen_a11y_smoke_test:3.12": "FAIL" },
+      { target: "core_screen_a11y_smoke_test:3.12", step: "drive" },
+    ),
+  );
+  assert.equal(run.driveCalls, 2);
 });
 
 test("a green exit with a failed test line fails only the group that owns it, and a summary-only failure fails the whole drive", () => {
