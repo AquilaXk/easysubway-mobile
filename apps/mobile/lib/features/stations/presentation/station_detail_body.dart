@@ -1597,31 +1597,39 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
                   Builder(
                     builder: (context) {
                       final direction = timetable.directions[i];
-                      return Row(
+                      // 큰 글자에서 방면 이름과 첫차·막차가 한 줄에 들어가지 않으면 줄을 나눈다.
+                      return Wrap(
+                        alignment: WrapAlignment.spaceBetween,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
-                          Expanded(
-                            child: Text(
-                              formatStationDirectionName(
-                                direction.name,
-                                previousStation: widget.previousStation,
-                                nextStation: widget.nextStation,
-                                directionIndex: i,
-                              ),
-                              style: TextStyle(
-                                color: EasySubwayAccessibleColors.text,
-                                fontSize: 14,
-                                fontWeight: FontWeight.w700,
-                              ),
+                          Text(
+                            formatStationDirectionName(
+                              direction.name,
+                              previousStation: widget.previousStation,
+                              nextStation: widget.nextStation,
+                              directionIndex: i,
+                            ),
+                            style: TextStyle(
+                              color: EasySubwayAccessibleColors.text,
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
-                          _StationDetailFirstLastBadge(
-                            label: '첫차',
-                            time: direction.firstDeparture.timeLabel,
-                          ),
-                          const SizedBox(width: 8),
-                          _StationDetailFirstLastBadge(
-                            label: '막차',
-                            time: direction.lastDeparture.timeLabel,
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 4,
+                            children: [
+                              _StationDetailFirstLastBadge(
+                                label: '첫차',
+                                time: direction.firstDeparture.timeLabel,
+                              ),
+                              _StationDetailFirstLastBadge(
+                                label: '막차',
+                                time: direction.lastDeparture.timeLabel,
+                              ),
+                            ],
                           ),
                         ],
                       );

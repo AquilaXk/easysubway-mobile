@@ -10,10 +10,10 @@ const workflow = readFileSync(
   new URL("../../.github/workflows/mobile-native-integration.yml", import.meta.url),
   "utf8",
 );
-const driveScript = readFileSync(
-  new URL("./android-native-drive.sh", import.meta.url),
-  "utf8",
-);
+const readScript = (name) => readFileSync(new URL(`./${name}`, import.meta.url), "utf8");
+const androidDriveScript = readScript("android-native-drive.sh");
+const iosDriveScript = readScript("ios-native-drive.sh");
+const commonDriveScript = readScript("native-drive-common.sh");
 const nativeTest = readFileSync(
   new URL("../../apps/mobile/integration_test/native_test.dart", import.meta.url),
   "utf8",
@@ -65,21 +65,13 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   assert.match(workflow, /\{"schemaVersion":1,"lane":"android-native","status":"PENDING"\}/u);
   assert.match(workflow, /^          name: mobile-native-android-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}$/m);
 
-  assert.match(workflow, /^  ios-native:\n    name: iOS Journey native smoke\n    runs-on: macos-15\n    timeout-minutes: 35$/m);
+  assert.match(workflow, /^  ios-native:\n    name: iOS Journey native smoke\n    runs-on: macos-15\n    timeout-minutes: 35\n    env:\n      DEVELOPER_DIR: \/Applications\/Xcode_26\.3\.app\/Contents\/Developer\n      NATIVE_TARGETS: /m);
   assert.equal((workflow.match(/flutter-version: "3\.44\.0"/gu) ?? []).length, 2);
-  assert.match(
-    workflow,
-    /^        env:\n          DEVELOPER_DIR: \/Applications\/Xcode_26\.3\.app\/Contents\/Developer\n        run: \|$/m,
-  );
-  assert.match(workflow, /flutter build ios --simulator --debug 2>&1 \| tee "\$\{RUNNER_TEMP\}\/mobile-native-ios\/flutter-build-ios\.log"/u);
-  assert.match(workflow, /xcrun simctl boot "\$simulator" \|\| xcrun simctl bootstatus "\$simulator" -b/u);
-  assert.match(workflow, /xcrun simctl bootstatus "\$simulator" -b/u);
-  assert.match(workflow, /perl -e 'alarm shift; exec @ARGV' 720 flutter drive --driver=test_driver\/integration_test\.dart --target=integration_test\/native_test\.dart -d "\$simulator" --no-dds > "\$\{RUNNER_TEMP\}\/mobile-native-ios\/flutter-drive\.log" 2>&1/u);
-  assert.match(workflow, /xcrun simctl spawn "\$simulator" log show --last 5m --style compact > "\$\{RUNNER_TEMP\}\/mobile-native-ios\/simulator\.log" 2>&1 \|\| true/u);
+  assert.match(workflow, /^        run: bash \.\.\/\.\.\/tools\/ci\/ios-native-drive\.sh$/m);
   assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-native","status":"PENDING"\}/u);
-  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-native","status":"PASS"\}/u);
-  assert.match(workflow, /\{"schemaVersion":1,"lane":"ios-native","status":"FAIL"\}/u);
+  assert.match(workflow, /"lane":"ios-native","status":"FAIL","target":"simulator","step":"boot"/u);
   assert.match(workflow, /^          name: mobile-native-ios-\$\{\{ github\.run_id \}\}-\$\{\{ github\.run_attempt \}\}$/m);
+  assert.match(workflow, /^            \$\{\{ runner\.temp \}\}\/mobile-native-ios\/flutter-drive-\*\.log$/m);
   assert.equal(
     (workflow.match(/uses: actions\/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808/gu) ?? []).length,
     2,
@@ -90,25 +82,40 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   assert.doesNotMatch(workflow, /secrets\.|EASYSUBWAY_API_BASE_URL|release|store/iu);
 });
 
-test("Android drive script wiring: targets exist, PASS is written once at the end, nothing swallows failures", () => {
-  const targets = workflow.match(/^      NATIVE_TARGETS: (.+)$/mu)?.[1].split(" ") ?? [];
-  assert.deepEqual(targets, ["native_test", "core_screen_a11y_smoke_test", "core_screen_a11y_smoke_test:2.0"]);
-  for (const target of targets) {
-    assert.ok(existsSync(new URL(`../../apps/mobile/integration_test/${target.split(":")[0]}.dart`, import.meta.url)));
-  }
-  assert.doesNotMatch(driveScript, /native_test|core_screen_a11y_smoke_test/u);
-  assert.match(workflow, /^          script: bash \.\.\/\.\.\/tools\/ci\/android-native-drive\.sh$/m);
+const androidJob = workflow.slice(0, workflow.indexOf("  ios-native:"));
+const iosJob = workflow.slice(workflow.indexOf("  ios-native:"));
+const jobTargets = (job) => job.match(/^      NATIVE_TARGETS: (.+)$/mu)?.[1].split(" ") ?? [];
 
-  const lines = driveScript.trimEnd().split("\n");
-  assert.equal(lines.at(-1), "write_receipt PASS");
-  assert.equal((driveScript.match(/write_receipt PASS/gu) ?? []).length, 1);
-  assert.doesNotMatch(driveScript, /set -e|continue-on-error/u);
+for (const [lane, job, adapter, script, expectedTargets] of [
+  ["Android", androidJob, androidDriveScript, "android-native-drive.sh", ["native_test", "core_screen_a11y_smoke_test", "core_screen_a11y_smoke_test:2.0"]],
+  ["iOS", iosJob, iosDriveScript, "ios-native-drive.sh", ["native_test", "core_screen_a11y_smoke_test", "core_screen_a11y_smoke_test:3.12"]],
+]) {
+  test(`${lane} drive script wiring: targets exist, the adapter only calls the shared flow, nothing swallows failures`, () => {
+    const targets = jobTargets(job);
+    assert.deepEqual(targets, expectedTargets);
+    for (const target of targets) {
+      assert.ok(existsSync(new URL(`../../apps/mobile/integration_test/${target.split(":")[0]}.dart`, import.meta.url)));
+    }
+    assert.doesNotMatch(adapter, /native_test|core_screen_a11y_smoke_test|write_receipt/u);
+    assert.equal(adapter.trimEnd().split("\n").at(-1), "run_native_drive");
+    assert.match(adapter, /^source "\$\(dirname "\$\{BASH_SOURCE\[0\]\}"\)\/native-drive-common\.sh"$/mu);
+    assert.ok(job.includes(`bash ../../tools/ci/${script}`) || job.includes(`script: bash ../../tools/ci/${script}`));
+    assert.doesNotMatch(adapter, /set -e|continue-on-error/u);
+  });
+}
+
+test("shared drive flow writes PASS once at the end and nothing swallows failures", () => {
+  const lines = commonDriveScript.trimEnd().split("\n");
+  assert.equal(lines.at(-2), "  write_receipt PASS");
+  assert.equal(lines.at(-1), "}");
+  assert.equal((commonDriveScript.match(/write_receipt PASS/gu) ?? []).length, 1);
+  assert.doesNotMatch(commonDriveScript, /set -e|continue-on-error/u);
   assert.doesNotMatch(workflow, /continue-on-error/u);
-  assert.doesNotMatch(workflow.slice(0, workflow.indexOf("  ios-native:")), /\|\| true/u);
+  assert.doesNotMatch(androidJob, /\|\| true/u);
+  assert.doesNotMatch(iosJob, /\|\| true/u);
 });
 
 test("emulator boot failure that never reaches the drive script is recorded in the receipt", () => {
-  const androidJob = workflow.slice(0, workflow.indexOf("  ios-native:"));
   assert.match(androidJob, /^        id: smoke$/m);
   assert.match(androidJob, /^        if: failure\(\) && steps\.smoke\.conclusion == 'failure'$/m);
   assert.match(androidJob, /"status":"FAIL","target":"emulator","step":"boot"/u);
@@ -120,13 +127,14 @@ test("emulator boot failure that never reaches the drive script is recorded in t
 const fixtureDir = fileURLToPath(new URL("./fixtures/android-drive/", import.meta.url));
 const fixture = (name) => readFileSync(path.join(fixtureDir, name), "utf8");
 
-// 스텁 adb/flutter/dart로 실제 스크립트를 실행한다.
+// 스텁 기기 도구(android: adb, ios: xcrun)와 flutter/dart로 실제 스크립트를 실행한다.
 // drives: drive 호출 순서별 { log, exit } (log는 재생할 로그 본문, exit 기본 1).
-// boot: adb getprop sys.boot_completed 호출 순서별 "1"/"0" (마지막 값을 반복). 호출은 await_device 한 번에 1회(BOOT_POLL_LIMIT=1).
-function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets = "native_test", env = {} }) {
-  const root = mkdtempSync(path.join(tmpdir(), "android-drive-"));
+// boot: android는 adb getprop sys.boot_completed, ios는 simctl bootstatus 호출 순서별 "1"/"0" (마지막 값을 반복).
+//   android는 await_device 한 번에 1회 호출한다(BOOT_POLL_LIMIT=1).
+function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitFails = false, targets = "native_test", env = {} }) {
+  const root = mkdtempSync(path.join(tmpdir(), `${platform}-drive-`));
   const bin = path.join(root, "bin");
-  const evidence = path.join(root, "mobile-native-android");
+  const evidence = path.join(root, `mobile-native-${platform}`);
   mkdirSync(bin);
   mkdirSync(evidence);
   const stub = (name, body) => {
@@ -138,19 +146,37 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
     writeFileSync(path.join(root, `drive-${index + 1}.log`), drive.log);
     writeFileSync(path.join(root, `drive-${index + 1}.exit`), String(drive.exit ?? 1));
   });
-  stub(
-    "adb",
-    [
-      `echo "adb $*" >> "${root}/calls"`,
-      `[ "$3" = wait-for-device ] && ${waitFails ? "exit 1" : "exit 0"}`,
-      `[ "$3" = shell ] && [ "$4" = settings ] && { n=$(grep -c '^font_scale ' "${root}/calls"); echo "font_scale $8" >> "${root}/calls"; if [ "$n" -lt "$FONT_SCALE_FAILS" ]; then echo "$FONT_SCALE_FAIL_LOG" >&2; exit 1; fi; exit 0; }`,
-      '[ "$3" = shell ] && [ "$4" = getprop ] || exit 0',
-      `n=$(grep -c '^getprop$' "${root}/calls" 2>/dev/null)`,
-      `echo getprop >> "${root}/calls"`,
-      `n=$((n + 1)); line=$(sed -n "\${n}p" "${root}/boot"); [ -n "$line" ] || line=$(tail -n 1 "${root}/boot")`,
-      'echo "$line"',
-    ].join("\n"),
-  );
+  const deviceStubs = {
+    android: () =>
+      stub(
+        "adb",
+        [
+          `echo "adb $*" >> "${root}/calls"`,
+          `[ "$3" = wait-for-device ] && ${waitFails ? "exit 1" : "exit 0"}`,
+          `[ "$3" = shell ] && [ "$4" = settings ] && { n=$(grep -c '^font_scale ' "${root}/calls"); echo "font_scale $8" >> "${root}/calls"; if [ "$n" -lt "$FONT_SCALE_FAILS" ]; then echo "$FONT_SCALE_FAIL_LOG" >&2; exit 1; fi; exit 0; }`,
+          '[ "$3" = shell ] && [ "$4" = getprop ] || exit 0',
+          `n=$(grep -c '^getprop$' "${root}/calls" 2>/dev/null)`,
+          `echo getprop >> "${root}/calls"`,
+          `n=$((n + 1)); line=$(sed -n "\${n}p" "${root}/boot"); [ -n "$line" ] || line=$(tail -n 1 "${root}/boot")`,
+          'echo "$line"',
+        ].join("\n"),
+      ),
+    // xcrun simctl <하위 명령> <기기> ... 형태로 호출된다. content_size는 설정값을 state 파일에 저장해 되읽기를 흉내 낸다.
+    ios: () =>
+      stub(
+        "xcrun",
+        [
+          `echo "xcrun $*" >> "${root}/calls"`,
+          'case "$2" in',
+          `  bootstatus) n=$(grep -c '^bootstatus$' "${root}/calls" 2>/dev/null); echo bootstatus >> "${root}/calls"; n=$((n + 1)); line=$(sed -n "\${n}p" "${root}/boot"); [ -n "$line" ] || line=$(tail -n 1 "${root}/boot"); [ "$line" = 1 ] ;;`,
+          `  ui) if [ -n "$5" ]; then echo "content_size $5" >> "${root}/calls"; [ "$CONTENT_SIZE_STUCK" = 1 ] || echo "$5" > "${root}/content-size"; else cat "${root}/content-size" 2>/dev/null; fi ;;`,
+          `  shutdown) echo shutdown >> "${root}/calls" ;;`,
+          '  spawn) echo "SIMULATOR LOG" ;;',
+          "esac",
+        ].join("\n"),
+      ),
+  };
+  deviceStubs[platform]();
   stub("dart", "exit 0");
   stub("sleep", "exit 0");
   stub("timeout", 'shift\nexec "$@"');
@@ -165,7 +191,7 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
       `exit "$(cat "${root}/drive-$n.exit")"`,
     ].join("\n"),
   );
-  const result = spawnSync("bash", [fileURLToPath(new URL("./android-native-drive.sh", import.meta.url))], {
+  const result = spawnSync("bash", [fileURLToPath(new URL(`./${platform}-native-drive.sh`, import.meta.url))], {
     env: {
       PATH: `${bin}:${process.env.PATH}`,
       RUNNER_TEMP: root,
@@ -173,6 +199,7 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
       BOOT_POLL_LIMIT: "1",
       FONT_SCALE_FAILS: "0",
       FONT_SCALE_FAIL_LOG: "",
+      CONTENT_SIZE_STUCK: "0",
       ...env,
     },
     encoding: "utf8",
@@ -187,6 +214,9 @@ function runDriveScript({ drives = [], boot = ["1"], waitFails = false, targets 
     driveDefines: calls.filter((line) => line.startsWith("define --dart-define=")).map((line) => line.slice("define --dart-define=".length)),
     driveCalls: calls.filter((line) => line === "drive").length,
     reconnects: calls.filter((line) => line === "adb reconnect offline").length,
+    contentSizes: calls.filter((line) => line.startsWith("content_size ")).map((line) => line.slice("content_size ".length)),
+    shutdowns: calls.filter((line) => line === "shutdown").length,
+    bootstatuses: calls.filter((line) => line === "bootstatus").length,
     read,
     exists: (name) => existsSync(path.join(evidence, name)),
   };
@@ -395,6 +425,115 @@ test("failing to set the font scale fails the target at drive without running th
   assert.equal(run.fontScales.length, 1);
 });
 
+const iosFailedReceipt = (extra) => ({ schemaVersion: 1, lane: "ios-native", status: "FAIL", ...extra });
+const iosAx5 = "accessibility-extra-extra-extra-large";
+const runIos = (options) => runDriveScript({ platform: "ios", ...options });
+// 합성 로그: 실제 CoreSimulatorService 오류 로그를 채집하기 전까지의 가정이다. 패턴이 맞지 않으면 재시도 없이 FAIL이라 안전하다.
+const simulatorUnavailableLog = "CoreSimulatorService connection became invalid\nSimulator services will no longer be available.\n";
+
+test("iOS clean drive sets the content size per target and passes it to the test", () => {
+  const run = runIos({
+    targets: "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:3.12",
+    drives: [passLog, passLog, passLog],
+  });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "ios-native", status: "PASS" });
+  assert.deepEqual(run.contentSizes, ["large", "large", iosAx5]);
+  assert.deepEqual(run.driveDefines, ["A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=3.12"]);
+  for (const log of ["native_test", "core_screen_a11y_smoke_test", "core_screen_a11y_smoke_test-3.12"]) {
+    assert.ok(run.exists(`flutter-drive-${log}.log`), log);
+  }
+});
+
+test("iOS font scale outside the content size table fails the target at drive without running the test", () => {
+  const run = runIos({ targets: "core_screen_a11y_smoke_test:2.5", drives: [passLog] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, iosFailedReceipt({ target: "core_screen_a11y_smoke_test:2.5", step: "drive" }));
+  assert.equal(run.driveCalls, 0);
+  assert.deepEqual(run.contentSizes, []);
+  assert.match(run.read("flutter-drive-core_screen_a11y_smoke_test-2.5.log"), /지원하지 않는 iOS 글꼴 배율: 2\.5/u);
+});
+
+test("iOS content size that reads back differently fails the target at drive", () => {
+  const run = runIos({ targets: "core_screen_a11y_smoke_test:3.12", drives: [passLog], env: { CONTENT_SIZE_STUCK: "1" } });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, iosFailedReceipt({ target: "core_screen_a11y_smoke_test:3.12", step: "drive" }));
+  assert.equal(run.driveCalls, 0);
+});
+
+test("iOS simulator infra error before tests retries once after shutting the simulator down", () => {
+  const run = runIos({ drives: [{ log: simulatorUnavailableLog }, passLog] });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "ios-native", status: "PASS", retried: ["drive:simulator_unavailable"] });
+  assert.equal(run.driveCalls, 2);
+  assert.equal(run.shutdowns, 1);
+  assert.equal(run.read("flutter-drive-native_test.attempt1.log"), simulatorUnavailableLog);
+  assert.match(run.stdout, /^::warning::native_test drive가 simulator_unavailable 때문에 1회 재시도 후 통과했습니다\./mu);
+});
+
+test("iOS result signal blocks the retry, and a failed retry stays FAIL with retried recorded", () => {
+  const blocked = runIos({ drives: [{ log: `${simulatorUnavailableLog}00:03 +1: 어떤 테스트\n` }, passLog] });
+  assert.equal(blocked.status, 1);
+  assert.deepEqual(blocked.receipt, iosFailedReceipt({ target: "native_test", step: "drive" }));
+  assert.equal(blocked.driveCalls, 1);
+
+  const twice = runIos({ drives: [{ log: simulatorUnavailableLog }, { log: simulatorUnavailableLog }, passLog] });
+  assert.equal(twice.status, 1);
+  assert.deepEqual(twice.receipt, iosFailedReceipt({ target: "native_test", step: "drive", retried: ["drive:simulator_unavailable"] }));
+  assert.equal(twice.driveCalls, 2);
+});
+
+test("iOS drive log without positive infra evidence is not retried, and perl alarm exit 142 is a timeout", () => {
+  const unknown = runIos({ drives: [{ log: "something unknown\n" }, passLog] });
+  assert.equal(unknown.status, 1);
+  assert.deepEqual(unknown.receipt, iosFailedReceipt({ target: "native_test", step: "drive" }));
+  assert.equal(unknown.driveCalls, 1);
+
+  const timeout = runIos({ drives: [{ log: simulatorUnavailableLog, exit: 142 }, passLog] });
+  assert.equal(timeout.status, 1);
+  assert.deepEqual(timeout.receipt, iosFailedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
+  assert.equal(timeout.driveCalls, 1);
+  assert.equal(timeout.shutdowns, 0);
+});
+
+test("iOS simulator boot failure is recorded by step and keeps the simulator log", () => {
+  const boot = runIos({ boot: ["0"], drives: [passLog] });
+  assert.equal(boot.status, 1);
+  assert.deepEqual(boot.receipt, iosFailedReceipt({ target: "native_test", step: "boot" }));
+  assert.equal(boot.driveCalls, 0);
+  assert.equal(boot.read("simulator.log"), "SIMULATOR LOG\n");
+});
+
+// 실제 CI에서 native_test drive가 빌드 뒤 12분 동안 멈춰 perl alarm(142)으로 끝난 로그다(PR #490 RED 확인 run).
+// 시뮬레이터 인프라 오류 문구가 전혀 없다. 실제 CoreSimulatorService 오류 로그는 아직 채집하지 못했다.
+const realHangLog = readFileSync(path.join(fileURLToPath(new URL("./fixtures/ios-drive/", import.meta.url)), "real-hang-after-build-timeout.txt"), "utf8");
+
+test("real iOS hang log is a timeout, never retried, and carries no simulator infra evidence", () => {
+  const timeout = runIos({ drives: [{ log: realHangLog, exit: 142 }, passLog] });
+  assert.equal(timeout.status, 1);
+  assert.deepEqual(timeout.receipt, iosFailedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
+  assert.equal(timeout.driveCalls, 1);
+  assert.equal(timeout.shutdowns, 0);
+
+  const unknown = runIos({ drives: [{ log: realHangLog, exit: 1 }, passLog] });
+  assert.equal(unknown.status, 1);
+  assert.deepEqual(unknown.receipt, iosFailedReceipt({ target: "native_test", step: "drive" }));
+  assert.equal(unknown.driveCalls, 1);
+});
+
+test("iOS AX5 scale is defined once in the Dart constant and the lane values stay within the smoke test tolerance", () => {
+  const constant = readFileSync(new URL("../../apps/mobile/test/support/ios_text_scale.dart", import.meta.url), "utf8");
+  const [, numerator, denominator] = constant.match(/const iosAx5TextScale = (\d+) \/ (\d+);/u) ?? [];
+  const ax5 = Number(numerator) / Number(denominator);
+  const tolerance = Number(a11ySmokeTest.match(/closeTo\(_fontScale, ([\d.]+)\)/u)?.[1]);
+  assert.ok(tolerance > 0);
+  const laneScale = jobTargets(iosJob).find((target) => target.endsWith(":3.12"))?.split(":")[1];
+  const tableScale = iosDriveScript.match(/^\s+([\d.]+)\) echo "accessibility-extra-extra-extra-large" ;;$/mu)?.[1];
+  assert.equal(laneScale, "3.12");
+  assert.equal(tableScale, laneScale);
+  assert.ok(Math.abs(Number(laneScale) - ax5) <= tolerance, `${laneScale} vs ${ax5}`);
+});
+
 test("core screen accessibility smoke reuses the sweep screen table and checks tap targets, labels, render exceptions, and the applied font scale", () => {
   assert.equal(
     (workflow.match(/"apps\/mobile\/integration_test\/core_screen_a11y_smoke_test\.dart"/gu) ?? []).length,
@@ -412,12 +551,17 @@ test("core screen accessibility smoke reuses the sweep screen table and checks t
     "apps/mobile/lib/features/settings/**",
     "apps/mobile/lib/features/stations/**",
     "tools/ci/android-native-drive.sh",
+    "tools/ci/ios-native-drive.sh",
+    "tools/ci/native-drive-common.sh",
   ]) {
     assert.equal(workflow.split("\n").filter((line) => line === `      - "${glob}"`).length, 2, glob);
   }
   assert.match(a11ySmokeTest, /IntegrationTestWidgetsFlutterBinding\.ensureInitialized\(\)/u);
   assert.match(a11ySmokeTest, /import '\.\.\/test\/support\/core_screen_sweep_screens\.dart'/u);
-  assert.match(a11ySmokeTest, /meetsGuideline\(androidTapTargetGuideline\)/u);
+  assert.match(a11ySmokeTest, /TargetPlatform\.android => \(\s*guideline: androidTapTargetGuideline/u);
+  assert.match(a11ySmokeTest, /TargetPlatform\.iOS => \(guideline: iOSTapTargetGuideline/u);
+  assert.match(a11ySmokeTest, /throw StateError\('탭 영역 기준이 없는 플랫폼/u);
+  assert.match(a11ySmokeTest, /meetsGuideline\(_tapTarget\.guideline\)/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(labeledTapTargetGuideline\)/u);
   assert.match(a11ySmokeTest, /String\.fromEnvironment\('A11Y_FONT_SCALE'/u);
   assert.match(a11ySmokeTest, /platformDispatcher\.textScaleFactor,\s*closeTo\(_fontScale/u);

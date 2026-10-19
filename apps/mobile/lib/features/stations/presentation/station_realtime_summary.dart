@@ -349,19 +349,26 @@ class _StationRealtimeRow extends StatelessWidget {
             }(),
           ),
           const SizedBox(width: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: badgeBg,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: badgeBorder),
-            ),
-            child: Text(
-              etaText,
-              style: TextStyle(
-                color: badgeText,
-                fontSize: 13,
-                fontWeight: FontWeight.w700,
+          // 목적지와 배지가 남는 너비를 절반씩 나눠 쓰고, 배지는 넘치면 배지 안에서 줄바꿈한다.
+          // 큰 글자에서 배지가 목적지를 밀어내 줄이 넘치지 않게 하면서 도착 문구는 잘라내지 않는다.
+          Flexible(
+            child: Align(
+              alignment: Alignment.centerRight,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: badgeBg,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: badgeBorder),
+                ),
+                child: Text(
+                  etaText,
+                  style: TextStyle(
+                    color: badgeText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ),
             ),
           ),
