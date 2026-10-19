@@ -16,6 +16,7 @@ import WebKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     locationManager.delegate = self
+    NSLog("CACHE_PROBE_NATIVE_v1")
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }
 

@@ -220,6 +220,17 @@ jobs:
           if grep -q '"status":"PENDING"' "${receipt}"; then
             printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"FAIL","target":"simulator","step":"boot"}' > "${receipt}"
           fi
+      - name: Probe cache correctness (temporary)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: |
+          echo "cache-hit=${{ steps.xcode-cache.outputs.cache-hit }} matched=${{ steps.xcode-cache.outputs.cache-matched-key }}"
+          for probe in CACHE_PROBE_NATIVE_v1 CACHE_PROBE_NATIVE_v2; do
+            echo "native ${probe}: $(grep -rl "${probe}" apps/mobile/build/ios/iphonesimulator/Runner.app 2>/dev/null | wc -l | tr -d ' ') file(s)"
+          done
+          for probe in CACHE_PROBE_DART_v1 CACHE_PROBE_DART_v2; do
+            echo "dart ${probe}: $(grep -c "${probe}" "${RUNNER_TEMP}/mobile-native-ios/flutter-drive-scale-1.0.log" || true) log line(s)"
+          done
       - name: Report Xcode build cache
         if: ${{ !cancelled() }}
         shell: bash
