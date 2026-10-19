@@ -36,8 +36,8 @@ const _devicePixelRatio = 3.0;
 final _guidelines = <String, AccessibilityGuideline>{
   'Android 탭 영역 48dp': androidTapTargetGuideline,
   'iOS 탭 영역 44pt': iOSTapTargetGuideline,
-  '스크롤 안 포함 Android 탭 영역 48dp': FullTapTargetGuideline(Size(48, 48)),
-  '스크롤 안 포함 iOS 탭 영역 44pt': FullTapTargetGuideline(Size(44, 44)),
+  '스크롤 안 포함 Android 탭 영역 48dp': FullTapTargetGuideline(androidMinTapTarget),
+  '스크롤 안 포함 iOS 탭 영역 44pt': FullTapTargetGuideline(iosMinTapTarget),
   '탭 가능한 요소의 라벨': labeledTapTargetGuideline,
   '글자 대비': textContrastGuideline,
 };

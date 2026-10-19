@@ -567,8 +567,8 @@ test("core screen accessibility smoke reuses the sweep screen table and checks t
   assert.match(a11ySmokeTest, /throw StateError\('탭 영역 기준이 없는 플랫폼/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(_tapTarget\.guideline\)/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(_tapTarget\.fullGuideline\)/u);
-  assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(Size\(48, 48\)\)/u);
-  assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(Size\(44, 44\)\)/u);
+  assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(androidMinTapTarget\)/u);
+  assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(iosMinTapTarget\)/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(labeledTapTargetGuideline\)/u);
   assert.match(a11ySmokeTest, /String\.fromEnvironment\('A11Y_FONT_SCALE'/u);
   assert.match(a11ySmokeTest, /platformDispatcher\.textScaleFactor,\s*closeTo\(_fontScale/u);

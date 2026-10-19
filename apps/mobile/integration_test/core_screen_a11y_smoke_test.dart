@@ -57,12 +57,12 @@ final ({
 _tapTarget = switch (defaultTargetPlatform) {
   TargetPlatform.android => (
     guideline: androidTapTargetGuideline,
-    fullGuideline: FullTapTargetGuideline(Size(48, 48)),
+    fullGuideline: FullTapTargetGuideline(androidMinTapTarget),
     size: '48dp',
   ),
   TargetPlatform.iOS => (
     guideline: iOSTapTargetGuideline,
-    fullGuideline: FullTapTargetGuideline(Size(44, 44)),
+    fullGuideline: FullTapTargetGuideline(iosMinTapTarget),
     size: '44pt',
   ),
   final platform => throw StateError('탭 영역 기준이 없는 플랫폼: $platform'),
