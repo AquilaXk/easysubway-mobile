@@ -208,27 +208,6 @@ jobs:
       - name: Install Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
-      - name: Diagnose iOS build phases (temporary)
-        working-directory: apps/mobile
-        shell: bash
-        run: |
-          du -sh "${HOME}/Library/Developer/Xcode/DerivedData" build/ios/SourcePackages 2>&1 || true
-          ls "${HOME}/Library/Developer/Xcode/DerivedData" 2>&1 || true
-          ls build/ios/SourcePackages 2>&1 || true
-          du -sh "${HOME}/Library/Developer/Xcode/DerivedData"/* 2>&1 | sort -h | tail -5 || true
-          for n in 1 2; do
-            start=$SECONDS
-            status=0
-            flutter build ios --simulator --debug -t integration_test/native_smoke_test.dart -v 2>&1 | perl -MTime::HiRes=time -ne 'BEGIN{$|=1;$t=time} printf "%7.1f %s", time-$t, $_' > "${RUNNER_TEMP}/build-${n}.log" || status=$?
-            echo "::notice::diagnostic build ${n}: $((SECONDS - start))s exit=${status}"
-            for kind in CompileC SwiftCompile "Ld " SwiftDriver PhaseScriptExecution "Fetching from" "Resolve Package Graph" "Running Xcode build" "Xcode build done"; do
-              echo "build ${n} ${kind}: $(grep -c -- "${kind}" "${RUNNER_TEMP}/build-${n}.log" || true)"
-            done
-            grep -E "Running Xcode build|Xcode build done|Fetching from|completed in|Command line invocation|Resolve Package Graph|executing: .*xcodebuild" "${RUNNER_TEMP}/build-${n}.log" | cut -c1-200 | sed -n '1,60p'
-            grep -E "^ *[0-9.]+ +(CompileC|SwiftCompile|Ld) " "${RUNNER_TEMP}/build-${n}.log" | sed -E 's#/Users/runner/Library/Developer/Xcode/DerivedData/Runner-[a-z]+/Build/Intermediates.noindex/##' | cut -c1-160 | sed -n '1,25p'
-            ls -la --time-style=full-iso build/ios 2>/dev/null | head -5 || true
-          done
-          stat -f '%Sm %N' -t '%F %T' build/ios/SourcePackages/checkouts/firebase-ios-sdk/Package.swift "${HOME}/Library/Developer/Xcode/DerivedData"/Runner-*/Build/Intermediates.noindex/XCBuildData 2>&1 | head -4 || true
       - name: Prepare iOS native evidence
         shell: bash
         run: |
@@ -236,6 +215,23 @@ jobs:
           mkdir -p "${RUNNER_TEMP}/mobile-native-ios"
           printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-ios/receipt.json"
           : > "${RUNNER_TEMP}/mobile-native-ios/simulator.log"
+      - name: Diagnose restored build reuse (temporary)
+        working-directory: apps/mobile
+        shell: bash
+        continue-on-error: true
+        env:
+          NATIVE_TARGETS: native_test
+        run: |
+          xcrun simctl list devices | grep "iPhone 17 Pro" || true
+          stat -f '%Sm inode=%i %N' -t '%F %T' build/ios/SourcePackages/checkouts/firebase-ios-sdk/Package.swift || true
+          for n in 1 2; do
+            start=$SECONDS
+            status=0
+            bash ../../tools/ci/ios-native-drive.sh || status=$?
+            echo "::notice::diagnostic smoke ${n}: $((SECONDS - start))s exit=${status}"
+            grep -h "Xcode build done" "${RUNNER_TEMP}/mobile-native-ios/flutter-drive-scale-1.0.log" || true
+            rm -rf .dart_tool/flutter_build
+          done
       - name: Run iOS simulator native smoke
         id: smoke
         working-directory: apps/mobile
