@@ -55,6 +55,8 @@ test_result_signal='[0-9]{2}:[0-9]{2} \+[0-9]+|All tests passed|Failure Details:
 test_run_complete='All tests passed|Some tests failed'
 # 테스트 시작 줄 `00:03 +1: <group> <테스트 이름>`의 앞부분. group 이름을 뒤에 붙여 쓴다.
 progress_line_prefix='[0-9]{2}:[0-9]{2} \+[0-9]+( -[0-9]+)?: '
+# 실패한 테스트 줄 `00:03 +1 -1: <group> <테스트 이름> [E]`의 끝부분.
+failed_line_suffix=' \[E\][[:space:]]*$'
 retried=()
 drive_reuse_args=()
 
@@ -165,7 +167,9 @@ unconfirmed_specs_at_scale() {
 scale_log() { echo "${evidence}/flutter-drive-scale-$1.log"; }
 
 # 로그의 group별 결과를 verdicts에 반영한다. group 안의 실패는 integrationDriver 실패 상세
-# `Failure in method: <group> <테스트 이름>`으로, 실행 여부는 테스트 시작 줄로 가른다.
+# `Failure in method: <group> <테스트 이름>`이나 실패한 테스트 줄(`[E]`)로, 실행 여부는 테스트 시작 줄로 가른다.
+# 실패 줄도 보는 이유: testWidgets가 아닌 test()의 실패는 integrationDriver가 알지 못해 drive가 종료 코드 0과
+# "All tests passed."로 끝나므로(CI에서 확인), 실패 상세만 믿으면 실패한 group을 PASS로 읽는다.
 # 모든 테스트가 끝난 로그(test_run_complete)에서만 실패 없는 group을 PASS로 확정하고, 그 밖에는
 # 실패가 확인된 group만 FAIL로 두어 중간에 끊긴 drive의 결과를 PASS로 읽지 않는다.
 record_group_verdicts() {
@@ -173,7 +177,7 @@ record_group_verdicts() {
   grep -Eq "${test_run_complete}" "${log}" || completed=0
   for index in $(indexes_at_scale "${scale}"); do
     group="$(spec_target "${specs[index]}")"
-    if grep -Eq "^Failure in method: ${group} " "${log}"; then
+    if grep -Eq "^Failure in method: ${group} |${progress_line_prefix}${group} .*${failed_line_suffix}" "${log}"; then
       verdicts[index]=FAIL
     elif [ "${completed}" -eq 1 ]; then
       if grep -Eq "${progress_line_prefix}${group} " "${log}"; then
@@ -205,18 +209,28 @@ report_retry_pass() {
   return 0
 }
 
+# 실패한 group을 특정하지 못했는데 drive가 실패한 경우, 이 배율의 모든 항목을 실패로 기록한다.
+mark_scale_failed() {
+  local index
+  for index in $(indexes_at_scale "$1"); do verdicts[index]=FAIL; done
+}
+
 # drive가 실패로 끝났을 때: 확인된 group 실패를 대상으로 FAIL을 남긴다.
 # group을 가르지 못하면(결과 없이 끊김) 이 drive의 모든 항목이 대상이다.
 fail_drive() {
   local scale="$1" exit_code="$2" log="$3" targets
   record_group_verdicts "${scale}" "${log}"
   targets="$(unconfirmed_specs_at_scale "${scale}")"
-  : "${targets:=$(specs_at_scale "${scale}")}"
+  if [ -z "${targets}" ]; then
+    mark_scale_failed "${scale}"
+    targets="$(specs_at_scale "${scale}")"
+  fi
   is_timeout_exit "${exit_code}" && fail "${targets}" drive "${reason_timeout}"
   fail "${targets}" drive
 }
 
 # drive가 성공으로 끝났을 때: 앱이 읽은 배율이 요청한 배율과 같고 대상 group이 모두 통과했는지 확인한다.
+# 종료 코드 0이어도 실패한 테스트가 있으면(record_group_verdicts 설명) FAIL이다.
 confirm_drive() {
   local scale="$1" log="$2" observed unconfirmed
   observed="$(observed_scale "${log}")"
@@ -225,6 +239,13 @@ confirm_drive() {
   fi
   record_group_verdicts "${scale}" "${log}"
   unconfirmed="$(unconfirmed_specs_at_scale "${scale}")"
+  if grep -Eq "Some tests failed" "${log}"; then
+    if [ -z "${unconfirmed}" ]; then
+      mark_scale_failed "${scale}"
+      unconfirmed="$(specs_at_scale "${scale}")"
+    fi
+    fail "${unconfirmed}" drive
+  fi
   [ -z "${unconfirmed}" ] || fail "${unconfirmed}" drive "${reason_group_missing}"
 }
 

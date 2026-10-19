@@ -103,6 +103,9 @@ void main() {
 
   if (_runMode == _FontMode.largeText) {
     test('RED 확인용 의도적 실패(큰 글자 실행에서만)', () => fail('intentional RED'));
+    testWidgets('RED 확인용 testWidgets 의도적 실패(큰 글자 실행에서만)', (tester) async {
+      fail('intentional RED testWidgets');
+    });
   }
 
   // 지도 역 위치가 실행 순서에 따라 달라지지 않도록 오너 노드·라벨 사이드카를 비운다.

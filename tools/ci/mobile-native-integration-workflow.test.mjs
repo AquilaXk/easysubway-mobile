@@ -505,6 +505,40 @@ test("real Android large-text log from the shared entry point passes the scale-s
   assert.deepEqual(run.receipt, passedReceipt({ "core_screen_a11y_smoke_test:2.0": "PASS" }));
 });
 
+// 실제 CI(RED 확인 run)에서 testWidgets가 아닌 test()가 실패했는데 integrationDriver가 종료 코드 0과
+// "All tests passed."로 끝낸 로그다. 요약 줄은 "Some tests failed."이고 실패 상세는 없다.
+test("real log where a failing test() leaves the driver green still fails that group's target", () => {
+  const log = readFileSync(path.join(fixtureDir, "real-silent-failure-exit-zero.txt"), "utf8");
+  assert.match(log, /Some tests failed\./u);
+  assert.match(log, /All tests passed\./u);
+  assert.doesNotMatch(log, /Failure Details/u);
+  const run = runDriveScript({ targets: "core_screen_a11y_smoke_test:2.0", drives: [{ log, exit: 0 }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "core_screen_a11y_smoke_test:2.0", step: "drive" }, { "core_screen_a11y_smoke_test:2.0": "FAIL" }),
+  );
+});
+
+test("a green exit with a failed test line fails only the group that owns it, and a summary-only failure fails the whole drive", () => {
+  const failedLine = `I/flutter ( 4098): 00:05 +3 -1: core_screen_a11y_smoke_test 화면 - 글자 1.00배 탭 영역 48dp [E]`;
+  const attributed = `${driveLog({ groups: bothGroups })}${failedLine}\n`.replace("All tests passed!", "Some tests failed.");
+  const run = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log: attributed, exit: 0 }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "core_screen_a11y_smoke_test", step: "drive" }, { native_test: "PASS", core_screen_a11y_smoke_test: "FAIL" }),
+  );
+
+  const unattributed = driveLog({ groups: bothGroups }).replace("All tests passed!", "Some tests failed.");
+  const whole = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log: unattributed, exit: 0 }] });
+  assert.equal(whole.status, 1);
+  assert.deepEqual(
+    whole.receipt,
+    failedReceipt({ target: "native_test core_screen_a11y_smoke_test", step: "drive" }, { native_test: "FAIL", core_screen_a11y_smoke_test: "FAIL" }),
+  );
+});
+
 test("only the first drive builds: later drives reuse the app binary and the scale is never a dart-define", () => {
   const run = runDriveScript({
     targets: "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0",
