@@ -22,7 +22,7 @@ import 'system_text_scale.dart';
 ///
 /// 시스템 글꼴 배율은 드라이브 스크립트가 기기에 설정한다(Android `settings put system font_scale`,
 /// iOS `simctl ui content_size`). 테스트는 컴파일 시점 값이 아니라 앱이 실제로 읽은 배율로 동작하므로
-/// 같은 바이너리를 배율마다 다시 빌드하지 않고 쓴다. 읽은 배율은 `NATIVE_SYSTEM_TEXT_SCALE=` 줄로 남겨
+/// 같은 바이너리를 배율마다 다시 빌드하지 않고 쓴다. 읽은 배율은 진입점이 `NATIVE_SYSTEM_TEXT_SCALE=` 줄로 남겨
 /// 스크립트가 요청한 배율과 같은지 확인한다. 배율이 1.0보다 크면 핵심 화면만 검사한다.
 /// Android 배율 최대치(2.0)는 Android 14 이상이 지원하는 최대 글꼴 크기 200%다.
 /// https://developer.android.com/about/versions/14/features#non-linear-font-scaling
@@ -88,17 +88,17 @@ void main() {
             (_modesByScreen[screen.name] ?? _normalOnly).contains(_runMode),
       )
       .toList();
-  test('모드 표의 화면이 모두 화면 표에 있고 선택이 비지 않는다', () {
+  testWidgets('모드 표의 화면이 모두 화면 표에 있고 선택이 비지 않는다', (tester) async {
     final tableNames = sweepScreens.map((screen) => screen.name).toSet();
     expect(tableNames.containsAll(_modesByScreen.keys), isTrue);
     expect(screens, isNotEmpty);
   });
 
-  testWidgets('앱이 읽은 시스템 글꼴 배율이 등록 시점과 같고 스크립트가 읽도록 남긴다', (tester) async {
-    final scale = tester.platformDispatcher.textScaleFactor;
-    expect(scale, closeTo(_fontScale, textScaleTolerance));
-    // ignore: avoid_print
-    print('$systemTextScaleMarker$scale');
+  testWidgets('앱이 읽은 시스템 글꼴 배율이 등록 시점과 같다', (tester) async {
+    expect(
+      tester.platformDispatcher.textScaleFactor,
+      closeTo(_fontScale, textScaleTolerance),
+    );
   });
 
   // 지도 역 위치가 실행 순서에 따라 달라지지 않도록 오너 노드·라벨 사이드카를 비운다.

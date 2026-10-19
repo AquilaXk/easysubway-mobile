@@ -35,7 +35,7 @@ platform_set_font_scale() {
 }
 
 platform_drive() {
-  timeout "${drive_timeout_seconds}s" flutter drive --driver=test_driver/integration_test.dart "--target=${entrypoint}" ${drive_reuse_args[@]+"${drive_reuse_args[@]}"} -d "${device}" --no-dds
+  timeout "${drive_timeout_seconds}s" flutter drive "--driver=${driver}" "--target=${entrypoint}" ${drive_reuse_args[@]+"${drive_reuse_args[@]}"} -d "${device}" --no-dds
 }
 
 platform_collect_failure_log() {

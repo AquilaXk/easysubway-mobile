@@ -106,6 +106,8 @@ for (const [lane, job, adapter, script, expectedTargets] of [
 
 test("shared drive flow writes PASS once at the end and nothing swallows failures", () => {
   const lines = commonDriveScript.trimEnd().split("\n");
+  assert.equal(lines.at(-4), "  assert_all_passed");
+  assert.equal(lines.at(-3), "  report_verdicts");
   assert.equal(lines.at(-2), "  write_receipt PASS");
   assert.equal(lines.at(-1), "}");
   assert.equal((commonDriveScript.match(/write_receipt PASS/gu) ?? []).length, 1);
@@ -131,15 +133,17 @@ const fixture = (name) => readFileSync(path.join(fixtureDir, name), "utf8");
 // drives: drive 호출 순서별 { log, exit } (log는 재생할 로그 본문, exit 기본 1).
 // boot: android는 adb getprop sys.boot_completed, ios는 simctl bootstatus 호출 순서별 "1"/"0" (마지막 값을 반복).
 //   android는 await_device 한 번에 1회 호출한다(BOOT_POLL_LIMIT=1).
-// binary: 첫 drive가 앱 산출물을 만든 것으로 칠지 여부(app_binary 경로에 파일을 둔다).
-function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitFails = false, targets = "native_test", binary = true, env = {} }) {
+// drives[].results: host driver가 남긴 구조화 결과(reportData). 있으면 FLUTTER_TEST_OUTPUTS_DIR/integration_response_data.json으로 쓴다.
+// binary: "built"는 --use-application-binary 없이 호출된 drive(첫 drive)가 app_binary를 만든 것으로 친다.
+//   "stale"은 실행 전에 이미 있던 산출물만 있고 drive는 만들지 않는다. "none"은 아무것도 없다.
+function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitFails = false, targets = "native_test", binary = "built", env = {} }) {
   const root = mkdtempSync(path.join(tmpdir(), `${platform}-drive-`));
   const bin = path.join(root, "bin");
   const evidence = path.join(root, `mobile-native-${platform}`);
   const appBinary = path.join(root, "app-binary");
   mkdirSync(bin);
   mkdirSync(evidence);
-  if (binary) writeFileSync(appBinary, "");
+  if (binary === "stale") writeFileSync(appBinary, "");
   const stub = (name, body) => {
     writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
     chmodSync(path.join(bin, name), 0o755);
@@ -148,6 +152,7 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
   drives.forEach((drive, index) => {
     writeFileSync(path.join(root, `drive-${index + 1}.log`), drive.log);
     writeFileSync(path.join(root, `drive-${index + 1}.exit`), String(drive.exit ?? 1));
+    if (drive.results) writeFileSync(path.join(root, `drive-${index + 1}.json`), JSON.stringify(drive.results));
   });
   const deviceStubs = {
     android: () =>
@@ -189,7 +194,10 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
       '[ "$1" = drive ] || exit 0',
       `echo drive >> "${root}/calls"`,
       `echo "args $*" >> "${root}/calls"`,
+      `echo "outputs-dir $FLUTTER_TEST_OUTPUTS_DIR" >> "${root}/calls"`,
       `n=$(grep -c '^drive$' "${root}/calls")`,
+      `if [ -f "${root}/drive-$n.json" ]; then mkdir -p "$FLUTTER_TEST_OUTPUTS_DIR"; cp "${root}/drive-$n.json" "$FLUTTER_TEST_OUTPUTS_DIR/integration_response_data.json"; fi`,
+      ...(binary === "built" ? [`case "$*" in *--use-application-binary*) ;; *) : > "${appBinary}" ;; esac`] : []),
       `cat "${root}/drive-$n.log"`,
       `exit "$(cat "${root}/drive-$n.exit")"`,
     ].join("\n"),
@@ -218,6 +226,7 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
     fontScales: calls.filter((line) => line.startsWith("font_scale ")).map((line) => line.slice("font_scale ".length)),
     driveArgs: calls.filter((line) => line.startsWith("args drive ")).map((line) => line.slice("args drive ".length)),
     driveCalls: calls.filter((line) => line === "drive").length,
+    outputsDirs: calls.filter((line) => line.startsWith("outputs-dir ")).map((line) => line.slice("outputs-dir ".length)),
     timeouts: calls.filter((line) => line.startsWith("drive-timeout ")).map((line) => line.slice("drive-timeout ".length)),
     reconnects: calls.filter((line) => line === "adb reconnect offline").length,
     contentSizes: calls.filter((line) => line.startsWith("content_size ")).map((line) => line.slice("content_size ".length)),
@@ -228,23 +237,32 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
   };
 }
 
-// flutter drive가 남기는 로그: 대상 group마다 테스트 시작 줄, 앱이 읽은 배율 줄, 요약 줄(과 실패 줄·실패 상세).
-// failing: 실패한 테스트 줄([E])을 남길 group. integrationDriver의 실패 상세는 실제 로그처럼 group 이름 없이 테스트 이름만 적는다.
-// complete=false는 요약 없이 끊긴 로그.
+// flutter drive가 남기는 로그: 대상 group마다 테스트 시작 줄, 앱이 읽은 배율 줄(observed가 배열이면 줄마다 하나씩, 빈 값이면 없음),
+// 요약 줄(과 실패 줄·실패 상세). failing: 실패한 테스트 줄([E])을 남길 group. integrationDriver의 실패 상세는 실제 로그처럼
+// group 이름 없이 테스트 이름만 적는다. complete=false는 요약 없이 끊긴 로그. counterOnly: [E] 없이 실패 카운터(+N -M)만 남긴다.
 const linePrefix = { android: "I/flutter ( 4098): ", ios: "flutter: " };
-function driveLog({ platform = "android", groups = ["native_test"], observed = "1.0", failing = [], complete = true, noise = "" }) {
+function driveLog({ platform = "android", groups = ["native_test"], observed = "1.0", failing = [], complete = true, counterOnly = false, noise = "" }) {
   const prefix = linePrefix[platform];
   const lines = groups.map((group, index) => `${prefix}00:0${index} +${index}: ${group} 첫 테스트`);
-  if (observed) lines.push(`${prefix}${markerName}${observed}`);
-  lines.push(...failing.map((group, index) => `${prefix}00:0${index} +1 -${index + 1}: ${group} 첫 테스트 [E]`));
+  for (const value of [observed].flat()) if (value) lines.push(`${prefix}${markerName}${value}`);
+  lines.push(...failing.map((group, index) => `${prefix}00:0${index} +1 -${index + 1}: ${group} 첫 테스트${counterOnly ? "" : " [E]"}`));
   if (complete) {
     lines.push(`${prefix}00:09 +9: ${failing.length ? "Some tests failed." : "All tests passed!"}`);
     lines.push(...(failing.length ? ["Failure Details:", "Failure in method: 첫 테스트", "end of failure 1"] : ["All tests passed."]));
   }
   return `${lines.join("\n")}\n${noise}`;
 }
+// host driver가 남기는 구조화 결과: group마다 통과한 테스트 수와 실패한 테스트 이름.
+const structured = (groups, failing = []) => ({
+  nativeGroups: Object.fromEntries(groups.map((group) => [group, { passed: 2, failed: failing.includes(group) ? ["첫 테스트"] : [] }])),
+});
 const markerName = "NATIVE_SYSTEM_TEXT_SCALE=";
-const passDrive = (options = {}) => ({ log: driveLog(options), exit: 0 });
+// 통과한 drive. results를 null로 주면 구조화 결과 없이 끝난 drive다.
+const passDrive = (options = {}) => ({
+  log: driveLog(options),
+  exit: 0,
+  results: options.results === null ? undefined : (options.results ?? structured(options.groups ?? ["native_test"])),
+});
 const passA11y = (scale, options = {}) => passDrive({ groups: ["core_screen_a11y_smoke_test"], observed: scale, ...options });
 const bothGroups = ["native_test", "core_screen_a11y_smoke_test"];
 
@@ -420,8 +438,11 @@ test("targets at the same scale share one drive and each target gets its own ver
 });
 
 test("a failing group fails only its own target while the other group at that scale stays PASS", () => {
-  const log = driveLog({ groups: bothGroups, failing: ["core_screen_a11y_smoke_test"] });
-  const run = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log }, passDrive({ groups: bothGroups })] });
+  const failing = ["core_screen_a11y_smoke_test"];
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test",
+    drives: [{ log: driveLog({ groups: bothGroups, failing }), results: structured(bothGroups, failing) }, passDrive({ groups: bothGroups })],
+  });
   assert.equal(run.status, 1);
   assert.deepEqual(
     run.receipt,
@@ -435,7 +456,10 @@ test("a failing large-scale group fails only that scale's target and earlier tar
     targets: "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0",
     drives: [
       passDrive({ groups: bothGroups }),
-      { log: driveLog({ groups: ["core_screen_a11y_smoke_test"], observed: "2.0", failing: ["core_screen_a11y_smoke_test"] }) },
+      {
+        log: driveLog({ groups: ["core_screen_a11y_smoke_test"], observed: "2.0", failing: ["core_screen_a11y_smoke_test"] }),
+        results: structured(["core_screen_a11y_smoke_test"], ["core_screen_a11y_smoke_test"]),
+      },
     ],
   });
   assert.equal(run.status, 1);
@@ -490,16 +514,40 @@ test("the scale the app read must match the requested scale, otherwise the drive
   }
 });
 
-test("the observed scale may differ from the requested one by the tolerance only", () => {
-  for (const [observed, ok] of [["2.004", true], ["1.996", true], ["2.02", false], ["1.98", false]]) {
+test("the observed scale may differ from the requested one by the tolerance only, exactly at the boundary included", () => {
+  const cases = [["2.004", true], ["1.996", true], ["2.01", true], ["1.99", true], ["2.0101", false], ["1.9899", false], ["2.02", false], ["1.98", false]];
+  for (const [observed, ok] of cases) {
     const run = runDriveScript({ targets: "core_screen_a11y_smoke_test:2.0", drives: [passA11y(observed)] });
     assert.equal(run.status, ok ? 0 : 1, observed);
+    if (!ok) assert.equal(run.receipt.reason, "font_scale_mismatch", observed);
   }
+});
+
+test("the scale line must appear exactly once: none, several, or a bad one before or after the good one all fail", () => {
+  const variants = {
+    none: [],
+    "good twice": ["2.0", "2.0"],
+    "bad then good": ["1.0", "2.0"],
+    "good then bad": ["2.0", "1.0"],
+  };
+  for (const [name, observed] of Object.entries(variants)) {
+    const run = runDriveScript({ targets: "core_screen_a11y_smoke_test:2.0", drives: [passA11y(observed)] });
+    assert.equal(run.status, 1, name);
+    assert.equal(run.receipt.reason, "font_scale_mismatch", name);
+    assert.deepEqual(run.receipt.results, { "core_screen_a11y_smoke_test:2.0": "NOT_RUN" }, name);
+  }
+});
+
+test("native_test alone still gets its scale line because the entry point prints it outside any group", () => {
+  const run = runDriveScript({ targets: "native_test", drives: [passDrive({ groups: ["native_test"], observed: "1.0" })] });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, passedReceipt());
 });
 
 test("real Android large-text log from the shared entry point passes the scale-suffixed target", () => {
   const log = readFileSync(path.join(fixtureDir, "real-pass-large-text-a11y-only.txt"), "utf8");
-  const run = runDriveScript({ targets: "core_screen_a11y_smoke_test:2.0", drives: [{ log, exit: 0 }] });
+  const results = JSON.parse(readFileSync(path.join(fixtureDir, "real-results-large-text-a11y-only.json"), "utf8"));
+  const run = runDriveScript({ targets: "core_screen_a11y_smoke_test:2.0", drives: [{ log, exit: 0, results }] });
   assert.equal(run.status, 0);
   assert.deepEqual(run.receipt, passedReceipt({ "core_screen_a11y_smoke_test:2.0": "PASS" }));
 });
@@ -542,7 +590,10 @@ test("real iOS RED log fails only the large-text target while the other targets 
 test("a green exit with a failed test line fails only the group that owns it, and a summary-only failure fails the whole drive", () => {
   const failedLine = `I/flutter ( 4098): 00:05 +3 -1: core_screen_a11y_smoke_test 화면 - 글자 1.00배 탭 영역 48dp [E]`;
   const attributed = `${driveLog({ groups: bothGroups })}${failedLine}\n`.replace("All tests passed!", "Some tests failed.");
-  const run = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log: attributed, exit: 0 }] });
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test",
+    drives: [{ log: attributed, exit: 0, results: structured(bothGroups) }],
+  });
   assert.equal(run.status, 1);
   assert.deepEqual(
     run.receipt,
@@ -550,12 +601,121 @@ test("a green exit with a failed test line fails only the group that owns it, an
   );
 
   const unattributed = driveLog({ groups: bothGroups }).replace("All tests passed!", "Some tests failed.");
-  const whole = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log: unattributed, exit: 0 }] });
+  const whole = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test",
+    drives: [{ log: unattributed, exit: 0, results: structured(bothGroups) }],
+  });
   assert.equal(whole.status, 1);
   assert.deepEqual(
     whole.receipt,
     failedReceipt({ target: "native_test core_screen_a11y_smoke_test", step: "drive" }, { native_test: "FAIL", core_screen_a11y_smoke_test: "FAIL" }),
   );
+});
+
+// 구조화 결과가 1차 판정이고 로그는 보조다. 둘이 다르면 FAIL이다.
+const a11yGroup = ["core_screen_a11y_smoke_test"];
+const a11yTarget = { targets: "core_screen_a11y_smoke_test" };
+
+test("structured result says the group failed while the log looks clean: FAIL", () => {
+  const run = runDriveScript({ ...a11yTarget, drives: [{ log: driveLog({ groups: a11yGroup }), exit: 0, results: structured(a11yGroup, a11yGroup) }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "core_screen_a11y_smoke_test", step: "drive" }, { core_screen_a11y_smoke_test: "FAIL" }));
+});
+
+test("structured failure is trusted even when the log was cut before its summary", () => {
+  const log = driveLog({ groups: a11yGroup, complete: false });
+  const run = runDriveScript({ ...a11yTarget, drives: [{ log, exit: 1, results: structured(a11yGroup, a11yGroup) }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "core_screen_a11y_smoke_test", step: "drive" }, { core_screen_a11y_smoke_test: "FAIL" }));
+});
+
+test("structured result says passed but the log carries a failed test line: FAIL", () => {
+  const log = driveLog({ groups: a11yGroup, failing: a11yGroup });
+  const run = runDriveScript({ ...a11yTarget, drives: [{ log, exit: 0, results: structured(a11yGroup) }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "core_screen_a11y_smoke_test", step: "drive" }, { core_screen_a11y_smoke_test: "FAIL" }));
+});
+
+test("a failure counter alone (no failed-line marker, summary says passed) still fails the drive even if the structured result passes", () => {
+  const log = driveLog({ groups: bothGroups, failing: a11yGroup, counterOnly: true })
+    .replace("Some tests failed.", "All tests passed!")
+    .replace("Failure Details:", "All tests passed.");
+  assert.doesNotMatch(log, /\[E\]|Some tests failed|Failure Details/u);
+  const run = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log, exit: 0, results: structured(bothGroups) }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "native_test core_screen_a11y_smoke_test", step: "drive" }, { native_test: "FAIL", core_screen_a11y_smoke_test: "FAIL" }),
+  );
+});
+
+test("a green exit without a structured result file or with no passed test in the group is not a PASS", () => {
+  const withoutFile = runDriveScript({ ...a11yTarget, drives: [passDrive({ groups: a11yGroup, results: null })] });
+  assert.equal(withoutFile.status, 1);
+  assert.deepEqual(
+    withoutFile.receipt,
+    failedReceipt({ target: "core_screen_a11y_smoke_test", step: "drive", reason: "group_missing" }, { core_screen_a11y_smoke_test: "FAIL" }),
+  );
+
+  const empty = runDriveScript({
+    ...a11yTarget,
+    drives: [{ log: driveLog({ groups: a11yGroup }), exit: 0, results: { nativeGroups: { core_screen_a11y_smoke_test: { passed: 0, failed: [] } } } }],
+  });
+  assert.equal(empty.status, 1);
+  assert.equal(empty.receipt.reason, "group_missing");
+});
+
+test("structured PASS for a group whose tests never started in the log is a disagreement and fails", () => {
+  const run = runDriveScript({ ...a11yTarget, drives: [{ log: driveLog({ groups: ["other_group"] }), exit: 0, results: structured(a11yGroup) }] });
+  assert.equal(run.status, 1);
+  assert.equal(run.receipt.results.core_screen_a11y_smoke_test, "FAIL");
+});
+
+test("structured results are kept per scale in the evidence and each drive writes into its own outputs directory", () => {
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test:2.0",
+    drives: [passDrive(), passA11y("2.0")],
+  });
+  assert.equal(run.status, 0);
+  assert.deepEqual(JSON.parse(run.read("results-scale-1.0.json")), structured(["native_test"]));
+  assert.deepEqual(JSON.parse(run.read("results-scale-2.0.json")), structured(a11yGroup));
+  assert.equal(new Set(run.outputsDirs).size, 2);
+});
+
+test("an app binary left over from an earlier build is removed first, so only a binary the first drive built can be reused", () => {
+  const run = runDriveScript({
+    binary: "stale",
+    targets: "native_test core_screen_a11y_smoke_test:2.0",
+    drives: [passDrive(), passA11y("2.0")],
+  });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "build" }, { native_test: "PASS", "core_screen_a11y_smoke_test:2.0": "NOT_RUN" }));
+  assert.equal(run.driveCalls, 1);
+});
+
+test("assert_all_passed refuses a PASS receipt while any verdict is not PASS", () => {
+  const commonPath = fileURLToPath(new URL("./native-drive-common.sh", import.meta.url));
+  const harness = (verdicts) => {
+    const evidence = mkdtempSync(path.join(tmpdir(), "assert-"));
+    const result = spawnSync(
+      "bash",
+      ["-c", 'lane=android-native; evidence="$1"; platform_collect_failure_log() { :; }; source "$2"; verdicts=($3); assert_all_passed', "bash", evidence, commonPath, verdicts],
+      { env: { PATH: process.env.PATH, NATIVE_TARGETS: "native_test core_screen_a11y_smoke_test" }, encoding: "utf8" },
+    );
+    return { status: result.status, receipt: existsSync(path.join(evidence, "receipt.json")) ? JSON.parse(readFileSync(path.join(evidence, "receipt.json"), "utf8")) : null };
+  };
+  assert.deepEqual(harness("PASS PASS"), { status: 0, receipt: null });
+  for (const verdicts of ["PASS NOT_RUN", "PASS FAIL"]) {
+    const { status, receipt } = harness(verdicts);
+    assert.equal(status, 1, verdicts);
+    assert.deepEqual(
+      receipt,
+      failedReceipt(
+        { target: "core_screen_a11y_smoke_test", step: "drive", reason: "verdict_not_pass" },
+        { native_test: "PASS", core_screen_a11y_smoke_test: verdicts.split(" ")[1] },
+      ),
+    );
+  }
 });
 
 test("only the first drive builds: later drives reuse the app binary and the scale is never a dart-define", () => {
@@ -580,14 +740,14 @@ test("only the first drive builds: later drives reuse the app binary and the sca
 });
 
 test("a run with one scale never needs a reusable binary", () => {
-  const run = runDriveScript({ binary: false, drives: [passDrive()] });
+  const run = runDriveScript({ binary: "none", drives: [passDrive()] });
   assert.equal(run.status, 0);
   assert.deepEqual(run.driveArgs.map((args) => args.includes("--use-application-binary")), [false]);
 });
 
 test("a missing app binary after the first drive is a build FAIL and the later scale never runs", () => {
   const run = runDriveScript({
-    binary: false,
+    binary: "none",
     targets: "native_test core_screen_a11y_smoke_test:2.0",
     drives: [passDrive(), passA11y("2.0")],
   });
@@ -672,12 +832,13 @@ test("iOS clean run sets the content size once per scale, drives the shared entr
 
 test("real iOS large-text log from the shared entry point passes only the scale-suffixed target", () => {
   const log = readFileSync(new URL("./fixtures/ios-drive/real-pass-large-text-a11y-only.txt", import.meta.url), "utf8");
-  const run = runIos({ targets: "core_screen_a11y_smoke_test:3.12", drives: [{ log, exit: 0 }] });
+  const results = JSON.parse(readFileSync(new URL("./fixtures/ios-drive/real-results-large-text-a11y-only.json", import.meta.url), "utf8"));
+  const run = runIos({ targets: "core_screen_a11y_smoke_test:3.12", drives: [{ log, exit: 0, results }] });
   assert.equal(run.status, 0);
   assert.deepEqual(run.receipt, iosReceipt("PASS", { "core_screen_a11y_smoke_test:3.12": "PASS" }));
 
   // native_test는 큰 글자 실행에 group이 없으므로 같은 배율로 요구하면 PASS로 읽지 않는다.
-  const missing = runIos({ targets: "native_test:3.12 core_screen_a11y_smoke_test:3.12", drives: [{ log, exit: 0 }] });
+  const missing = runIos({ targets: "native_test:3.12 core_screen_a11y_smoke_test:3.12", drives: [{ log, exit: 0, results }] });
   assert.equal(missing.status, 1);
   assert.deepEqual(
     missing.receipt,
@@ -786,23 +947,35 @@ test("iOS AX5 scale is defined once in the Dart constant and the lane values sta
   assert.ok(Math.abs(Number(laneScale) - ax5) <= tolerance, `${laneScale} vs ${ax5}`);
 });
 
-test("the shared entry point groups every lane target by name, builds once, and the host and Dart agree on the scale contract", () => {
-  const groupNames = [...entryPoint.matchAll(/group\('([a-z_0-9]+)'/gu)].map((match) => match[1]);
+test("the shared entry point groups every lane target by name, builds once, and the host and Dart agree on the contract", () => {
+  const groupNames = [...entryPoint.matchAll(/resultGroup\('([a-z_0-9]+)'/gu)].map((match) => match[1]);
   assert.deepEqual(groupNames, ["native_test", "core_screen_a11y_smoke_test"]);
   assert.match(entryPoint, /import 'native_test\.dart' as native_journey/u);
   assert.match(entryPoint, /import 'core_screen_a11y_smoke_test\.dart' as core_screen_a11y_smoke/u);
-  assert.match(entryPoint, /group\('native_test', native_journey\.main\)/u);
-  assert.match(entryPoint, /group\('core_screen_a11y_smoke_test', core_screen_a11y_smoke\.main\)/u);
+  assert.match(entryPoint, /resultGroup\('native_test', native_journey\.main\)/u);
+  assert.match(entryPoint, /resultGroup\('core_screen_a11y_smoke_test', core_screen_a11y_smoke\.main\)/u);
   assert.match(entryPoint, /isLargeTextScale\(systemTextScale\)/u);
   for (const job of [androidJob, iosJob]) {
     for (const target of jobTargets(job)) {
       assert.ok(groupNames.includes(target.split(":")[0]), target);
     }
   }
+  // 배율 줄은 group 밖 setUpAll에서 한 번만 남긴다(대상 조합과 무관하게 스크립트가 읽을 수 있다).
+  const setUpAllAt = entryPoint.indexOf("setUpAll(");
+  assert.ok(setUpAllAt >= 0 && setUpAllAt < entryPoint.indexOf("resultGroup('native_test'"));
+  assert.match(entryPoint, /setUpAll\(\(\) \{\s*\/\/ ignore: avoid_print\s*print\('\$systemTextScaleMarker\$systemTextScale'\);\s*\}\);/u);
+  assert.equal((entryPoint.match(/systemTextScaleMarker/gu) ?? []).length, 1);
+  assert.doesNotMatch(a11ySmokeTest, /systemTextScaleMarker|print\(/u);
+
   assert.match(commonDriveScript, /^entrypoint="integration_test\/native_smoke_test\.dart"$/mu);
-  assert.ok(existsSync(new URL("../../apps/mobile/integration_test/native_smoke_test.dart", import.meta.url)));
+  assert.match(commonDriveScript, /^driver="test_driver\/native_smoke_driver\.dart"$/mu);
+  for (const file of ["integration_test/native_smoke_test.dart", "test_driver/native_smoke_driver.dart"]) {
+    assert.ok(existsSync(new URL(`../../apps/mobile/${file}`, import.meta.url)), file);
+  }
+  const hostDriver = readFileSync(new URL("../../apps/mobile/test_driver/native_smoke_driver.dart", import.meta.url), "utf8");
+  assert.match(hostDriver, /integrationDriver\(writeResponseOnFailure: true\)/u);
   for (const adapter of [androidDriveScript, iosDriveScript]) {
-    assert.match(adapter, /"--target=\$\{entrypoint\}"/u);
+    assert.match(adapter, /"--driver=\$\{driver\}" "--target=\$\{entrypoint\}"/u);
     assert.match(adapter, /\$\{drive_reuse_args\[@\]\+"\$\{drive_reuse_args\[@\]\}"\}/u);
     assert.doesNotMatch(adapter, /dart-define|A11Y_FONT_SCALE|flutter build/u);
   }
@@ -815,12 +988,30 @@ test("the shared entry point groups every lane target by name, builds once, and 
   const hostMarker = commonDriveScript.match(/^scale_marker="([A-Z_]+=)"$/mu)?.[1];
   assert.equal(hostMarker, markerName);
   assert.equal(hostMarker, systemTextScaleSource.match(/const systemTextScaleMarker = '([A-Z_]+=)';/u)?.[1]);
+  const hostResultsKey = commonDriveScript.match(/^results_key="(\w+)"$/mu)?.[1];
+  assert.equal(hostResultsKey, "nativeGroups");
+  assert.equal(hostResultsKey, entryPoint.match(/const _resultsKey = '(\w+)';/u)?.[1]);
 });
 
-test("the shared entry point lists its sources in the workflow path filters of both events", () => {
+test("target suites use testWidgets only, because the integration binding cannot see a failing test()", () => {
+  for (const [name, source] of [["native_test.dart", nativeTest], ["core_screen_a11y_smoke_test.dart", a11ySmokeTest]]) {
+    assert.doesNotMatch(source, /^\s*test\(/mu, name);
+    assert.match(source, /testWidgets\(/u, name);
+  }
+});
+
+test("the shared entry point lists its sources in the workflow path filters of both events and uploads the structured results", () => {
+  for (const lane of ["android", "ios"]) {
+    assert.equal(
+      workflow.split("\n").filter((line) => line === `            \${{ runner.temp }}/mobile-native-${lane}/results-scale-*.json`).length,
+      1,
+      lane,
+    );
+  }
   for (const glob of [
     "apps/mobile/integration_test/native_smoke_test.dart",
     "apps/mobile/integration_test/system_text_scale.dart",
+    "apps/mobile/test_driver/native_smoke_driver.dart",
   ]) {
     assert.equal(workflow.split("\n").filter((line) => line === `      - "${glob}"`).length, 2, glob);
   }
@@ -864,7 +1055,7 @@ test("core screen accessibility smoke reuses the sweep screen table and checks t
   assert.match(a11ySmokeTest, /meetsGuideline\(labeledTapTargetGuideline\)/u);
   assert.doesNotMatch(a11ySmokeTest, /fromEnvironment|A11Y_FONT_SCALE/u);
   assert.match(a11ySmokeTest, /final _fontScale = systemTextScale;/u);
-  assert.match(a11ySmokeTest, /tester\.platformDispatcher\.textScaleFactor;\s*expect\(scale, closeTo\(_fontScale, textScaleTolerance\)\);\s*\/\/ ignore: avoid_print\s*print\('\$systemTextScaleMarker\$scale'\)/u);
+  assert.match(a11ySmokeTest, /platformDispatcher\.textScaleFactor,\s*closeTo\(_fontScale, textScaleTolerance\)/u);
   assert.match(a11ySmokeTest, /expect\(tester\.takeException\(\), isNull\)/u);
   assert.doesNotMatch(a11ySmokeTest, /textContrastGuideline/u);
 });
