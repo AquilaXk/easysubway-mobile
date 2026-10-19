@@ -57,6 +57,8 @@ class _Case {
     this.offset = 0,
     this.violating = const {},
     this.present = const {},
+    this.merged = const {},
+    this.devicePixelRatio = 1.0,
   });
 
   final String name;
@@ -70,6 +72,12 @@ class _Case {
 
   /// 시맨틱스 트리에 있어야 하는 라벨. 건너뛰는 케이스가 노드 부재로 통과하지 않게 한다.
   final Set<String> present;
+
+  /// 부모에 병합된 노드로 있어야 하는 라벨. 병합 케이스가 병합 노드 부재로 통과하지 않게 한다.
+  final Set<String> merged;
+
+  /// 화면 밀도. 시맨틱스 영역은 물리 픽셀이라 1이 아니어야 나눗셈이 검증된다.
+  final double devicePixelRatio;
 }
 
 final _cases = <_Case>[
@@ -195,11 +203,66 @@ final _cases = <_Case>[
       child: MergeSemantics(
         child: Row(
           mainAxisSize: MainAxisSize.min,
-          children: [_button('안', 30, 30), const Text('글')],
+          children: [
+            // container가 있어야 병합 전에 자식 노드가 따로 만들어진다.
+            Semantics(
+              container: true,
+              button: true,
+              label: '안',
+              onTap: () {},
+              child: const SizedBox(width: 30, height: 30),
+            ),
+            const Text('글'),
+          ],
         ),
       ),
     ),
-    violating: {r'안\n글'},
+    merged: {'안'},
+    violating: {'글'},
+  ),
+  _Case(
+    '링크는 건너뛴다',
+    (_) => Center(
+      child: Semantics(
+        link: true,
+        label: '링크',
+        onTap: () {},
+        child: const SizedBox(width: 30, height: 30),
+      ),
+    ),
+    present: {'링크'},
+  ),
+  _Case(
+    '탭 액션이 없는 노드는 건너뛴다',
+    (_) => Center(
+      child: Semantics(
+        button: true,
+        label: '액션없음',
+        child: const SizedBox(width: 30, height: 30),
+      ),
+    ),
+    present: {'액션없음'},
+  ),
+  _Case(
+    '길게 누르기만 있는 30dp 노드는 위반이다',
+    (_) => Center(
+      child: Semantics(
+        label: '길게',
+        onLongPress: () {},
+        child: const SizedBox(width: 30, height: 30),
+      ),
+    ),
+    violating: {'길게'},
+  ),
+  _Case(
+    '화면 밀도 3에서도 30dp 버튼은 위반이고 48dp 버튼은 통과한다',
+    (_) => Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [_button('작음', 30, 30), _button('충분', 48, 48)],
+    ),
+    devicePixelRatio: 3.0,
+    present: {'충분'},
+    violating: {'작음'},
   ),
   _Case(
     '스크롤 밖 화면 가운데의 30dp 버튼은 위반이다',
@@ -222,6 +285,23 @@ Future<Set<String>> _labels(WidgetTester tester) async {
   return labels;
 }
 
+/// 부모에 병합된 노드의 라벨.
+Set<String> _mergedLabels(WidgetTester tester) {
+  final labels = <String>{};
+  void visit(SemanticsNode node) {
+    if (node.isMergedIntoParent) {
+      labels.add(node.label);
+    }
+    node.visitChildren((child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  visit(tester.getSemantics(find.byType(MaterialApp)));
+  return labels;
+}
+
 Set<String> _violatingLabels(Evaluation evaluation) => {
   for (final match in RegExp(
     r'label: "([^"]*)"',
@@ -233,9 +313,10 @@ Future<void> _pump(
   WidgetTester tester,
   Widget Function(ScrollController) build, {
   double offset = 0,
+  double devicePixelRatio = 1.0,
 }) async {
-  tester.view.devicePixelRatio = 1.0;
-  tester.view.physicalSize = _viewport;
+  tester.view.devicePixelRatio = devicePixelRatio;
+  tester.view.physicalSize = _viewport * devicePixelRatio;
   addTearDown(tester.view.reset);
   final controller = ScrollController();
   addTearDown(controller.dispose);
@@ -250,9 +331,15 @@ void main() {
   for (final testCase in _cases) {
     testWidgets(testCase.name, (tester) async {
       final semantics = tester.ensureSemantics();
-      await _pump(tester, testCase.build, offset: testCase.offset);
+      await _pump(
+        tester,
+        testCase.build,
+        offset: testCase.offset,
+        devicePixelRatio: testCase.devicePixelRatio,
+      );
       final evaluation = _guideline.evaluate(tester);
       expect(await _labels(tester), containsAll(testCase.present));
+      expect(_mergedLabels(tester), containsAll(testCase.merged));
       expect(_violatingLabels(evaluation), testCase.violating);
       expect(evaluation.passed, testCase.violating.isEmpty);
       semantics.dispose();
