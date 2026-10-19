@@ -131,12 +131,15 @@ const fixture = (name) => readFileSync(path.join(fixtureDir, name), "utf8");
 // drives: drive 호출 순서별 { log, exit } (log는 재생할 로그 본문, exit 기본 1).
 // boot: android는 adb getprop sys.boot_completed, ios는 simctl bootstatus 호출 순서별 "1"/"0" (마지막 값을 반복).
 //   android는 await_device 한 번에 1회 호출한다(BOOT_POLL_LIMIT=1).
-function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitFails = false, targets = "native_test", env = {} }) {
+// binary: 첫 drive가 앱 산출물을 만든 것으로 칠지 여부(app_binary 경로에 파일을 둔다).
+function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitFails = false, targets = "native_test", binary = true, env = {} }) {
   const root = mkdtempSync(path.join(tmpdir(), `${platform}-drive-`));
   const bin = path.join(root, "bin");
   const evidence = path.join(root, `mobile-native-${platform}`);
+  const appBinary = path.join(root, "app-binary");
   mkdirSync(bin);
   mkdirSync(evidence);
+  if (binary) writeFileSync(appBinary, "");
   const stub = (name, body) => {
     writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`);
     chmodSync(path.join(bin, name), 0o755);
@@ -185,7 +188,7 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
     [
       '[ "$1" = drive ] || exit 0',
       `echo drive >> "${root}/calls"`,
-      `echo "define $4" >> "${root}/calls"`,
+      `echo "args $*" >> "${root}/calls"`,
       `n=$(grep -c '^drive$' "${root}/calls")`,
       `cat "${root}/drive-$n.log"`,
       `exit "$(cat "${root}/drive-$n.exit")"`,
@@ -196,6 +199,7 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
       PATH: `${bin}:${process.env.PATH}`,
       RUNNER_TEMP: root,
       NATIVE_TARGETS: targets,
+      APP_BINARY: appBinary,
       BOOT_POLL_LIMIT: "1",
       FONT_SCALE_FAILS: "0",
       FONT_SCALE_FAIL_LOG: "",
@@ -210,8 +214,9 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
     status: result.status,
     stdout: result.stdout,
     receipt: JSON.parse(read("receipt.json")),
+    appBinary,
     fontScales: calls.filter((line) => line.startsWith("font_scale ")).map((line) => line.slice("font_scale ".length)),
-    driveDefines: calls.filter((line) => line.startsWith("define --dart-define=")).map((line) => line.slice("define --dart-define=".length)),
+    driveArgs: calls.filter((line) => line.startsWith("args drive ")).map((line) => line.slice("args drive ".length)),
     driveCalls: calls.filter((line) => line === "drive").length,
     reconnects: calls.filter((line) => line === "adb reconnect offline").length,
     contentSizes: calls.filter((line) => line.startsWith("content_size ")).map((line) => line.slice("content_size ".length)),
@@ -222,40 +227,59 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
   };
 }
 
-const passLog = { log: fixture("pass-with-uninstall-noise.txt"), exit: 0 };
-const failedReceipt = (extra) => ({ schemaVersion: 1, lane: "android-native", status: "FAIL", ...extra });
+// flutter drive가 남기는 로그: 대상 group마다 테스트 시작 줄, 앱이 읽은 배율 줄, 요약 줄(과 실패 상세).
+// failing: 실패 상세에 올릴 group. complete=false는 요약 없이 끊긴 로그.
+const linePrefix = { android: "I/flutter ( 4098): ", ios: "flutter: " };
+function driveLog({ platform = "android", groups = ["native_test"], observed = "1.0", failing = [], complete = true, noise = "" }) {
+  const prefix = linePrefix[platform];
+  const lines = groups.map((group, index) => `${prefix}00:0${index} +${index}: ${group} 첫 테스트`);
+  if (observed) lines.push(`${prefix}${markerName}${observed}`);
+  if (complete) {
+    lines.push(`${prefix}00:09 +9: ${failing.length ? "Some tests failed." : "All tests passed!"}`);
+    if (failing.length) {
+      lines.push("Failure Details:", ...failing.map((group) => `Failure in method: ${group} 첫 테스트`), "end of failure 1");
+    } else {
+      lines.push("All tests passed.");
+    }
+  }
+  return `${lines.join("\n")}\n${noise}`;
+}
+const markerName = "NATIVE_SYSTEM_TEXT_SCALE=";
+const passDrive = (options = {}) => ({ log: driveLog(options), exit: 0 });
+const passA11y = (scale, options = {}) => passDrive({ groups: ["core_screen_a11y_smoke_test"], observed: scale, ...options });
+const bothGroups = ["native_test", "core_screen_a11y_smoke_test"];
+
+const receiptOf = (platform, status, results, extra = {}) => ({ schemaVersion: 1, lane: `${platform}-native`, status, ...extra, results });
+const passedReceipt = (results = { native_test: "PASS" }, extra = {}) => receiptOf("android", "PASS", results, extra);
+const failedReceipt = (extra, results = { native_test: "FAIL" }) => receiptOf("android", "FAIL", results, extra);
 
 test("real offline-before-tests log retries once, keeps the first log, and reports the retry", () => {
   const offline = fixture("offline-before-tests.txt");
   const summary = path.join(mkdtempSync(path.join(tmpdir(), "summary-")), "summary.md");
   const run = runDriveScript({
-    drives: [{ log: offline }, passLog],
+    drives: [{ log: offline }, passDrive()],
     env: { GITHUB_STEP_SUMMARY: summary },
   });
   assert.equal(run.status, 0);
-  assert.deepEqual(run.receipt, {
-    schemaVersion: 1,
-    lane: "android-native",
-    status: "PASS",
-    retried: ["drive:adb_offline"],
-  });
+  assert.deepEqual(run.receipt, passedReceipt({ native_test: "PASS" }, { retried: ["drive:adb_offline"] }));
   assert.equal(run.driveCalls, 2);
   assert.equal(run.reconnects, 1);
-  assert.equal(run.read("flutter-drive-native_test.attempt1.log"), offline);
+  assert.equal(run.read("flutter-drive-scale-1.0.attempt1.log"), offline);
   assert.match(run.stdout, /^::warning::native_test drive가 adb_offline 때문에 1회 재시도 후 통과했습니다\./mu);
   assert.match(readFileSync(summary, "utf8"), /native_test: drive 재시도 후 통과 \(adb_offline\)/u);
+  assert.match(readFileSync(summary, "utf8"), /- native_test: PASS/u);
 });
 
-test("second target offline-before-tests log retries only that target", () => {
+test("offline-before-tests log on the second scale retries only that scale's drive", () => {
   const run = runDriveScript({
-    targets: "native_test core_screen_a11y_smoke_test",
-    drives: [passLog, { log: fixture("offline-before-tests-second-target.txt") }, passLog],
+    targets: "native_test core_screen_a11y_smoke_test:2.0",
+    drives: [passDrive(), { log: fixture("offline-before-tests-second-target.txt") }, passA11y("2.0")],
   });
   assert.equal(run.status, 0);
   assert.deepEqual(run.receipt.retried, ["drive:adb_offline"]);
   assert.equal(run.driveCalls, 3);
-  assert.ok(run.exists("flutter-drive-core_screen_a11y_smoke_test.attempt1.log"));
-  assert.equal(run.exists("flutter-drive-native_test.attempt1.log"), false);
+  assert.ok(run.exists("flutter-drive-scale-2.0.attempt1.log"));
+  assert.equal(run.exists("flutter-drive-scale-1.0.attempt1.log"), false);
 });
 
 for (const [name, reason] of [
@@ -263,7 +287,7 @@ for (const [name, reason] of [
   ["synthetic-install-failed.txt", "install_failed"],
 ]) {
   test(`${reason} infra error before tests retries once`, () => {
-    const run = runDriveScript({ drives: [{ log: fixture(name) }, passLog] });
+    const run = runDriveScript({ drives: [{ log: fixture(name) }, passDrive()] });
     assert.equal(run.status, 0);
     assert.deepEqual(run.receipt.retried, [`drive:${reason}`]);
     assert.equal(run.driveCalls, 2);
@@ -272,7 +296,7 @@ for (const [name, reason] of [
 
 for (const line of ["error: no devices/emulators found", "error: device not found"]) {
   test(`"${line}" before tests retries once`, () => {
-    const run = runDriveScript({ drives: [{ log: `${line}\n` }, passLog] });
+    const run = runDriveScript({ drives: [{ log: `${line}\n` }, passDrive()] });
     assert.equal(run.status, 0);
     assert.deepEqual(run.receipt.retried, ["drive:device_not_found"]);
   });
@@ -281,7 +305,7 @@ for (const line of ["error: no devices/emulators found", "error: device not foun
 test("real assertion failure never retries, even with offline lines mixed in", () => {
   const mixed = `${fixture("assertion-failure.txt")}\nadb: device offline\nadb uninstall failed: ProcessException\n`;
   for (const log of [fixture("assertion-failure.txt"), mixed]) {
-    const run = runDriveScript({ drives: [{ log }, passLog] });
+    const run = runDriveScript({ drives: [{ log }, passDrive()] });
     assert.equal(run.status, 1);
     assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
     assert.equal(run.driveCalls, 1);
@@ -300,105 +324,242 @@ for (const signal of [
 ]) {
   test(`result signal "${signal}" blocks the retry`, () => {
     const log = `${fixture("offline-before-tests.txt")}\n${signal}\n`;
-    const run = runDriveScript({ drives: [{ log }, passLog] });
+    const run = runDriveScript({ drives: [{ log }, passDrive()] });
     assert.equal(run.status, 1);
-    assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
+    assert.equal(run.receipt.status, "FAIL");
+    assert.equal(run.receipt.target, "native_test");
+    assert.equal(run.receipt.step, "drive");
+    assert.equal(run.receipt.retried, undefined);
     assert.equal(run.driveCalls, 1);
   });
 }
 
 test("drive log without positive infra evidence is not retried", () => {
-  const run = runDriveScript({ drives: [{ log: "Launching integration_test/native_test.dart\nsomething unknown\n" }, passLog] });
+  const run = runDriveScript({ drives: [{ log: "Launching integration_test/native_smoke_test.dart\nsomething unknown\n" }, passDrive()] });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }));
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive" }, { native_test: "NOT_RUN" }));
   assert.equal(run.driveCalls, 1);
 });
 
 test("timeout exit 124 is a hang: no retry even with an offline line, receipt records timeout", () => {
-  const run = runDriveScript({ drives: [{ log: fixture("offline-before-tests.txt"), exit: 124 }, passLog] });
+  const run = runDriveScript({ drives: [{ log: fixture("offline-before-tests.txt"), exit: 124 }, passDrive()] });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", reason: "timeout" }, { native_test: "NOT_RUN" }));
   assert.equal(run.driveCalls, 1);
   assert.equal(run.reconnects, 0);
 });
 
-test("each target is retried at most once and a failed retry stays FAIL with retried recorded", () => {
+test("each drive is retried at most once and a failed retry stays FAIL with retried recorded", () => {
   const offline = { log: fixture("offline-before-tests.txt") };
-  const run = runDriveScript({ drives: [offline, offline, passLog] });
+  const run = runDriveScript({ drives: [offline, offline, passDrive()] });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", retried: ["drive:adb_offline"] }));
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", retried: ["drive:adb_offline"] }, { native_test: "NOT_RUN" }));
   assert.equal(run.driveCalls, 2);
 });
 
 test("device never ready before the format step writes a boot FAIL receipt without running anything", () => {
-  const run = runDriveScript({ boot: ["0"], targets: "native_test core_screen_a11y_smoke_test", drives: [passLog] });
+  const run = runDriveScript({ boot: ["0"], targets: "native_test core_screen_a11y_smoke_test", drives: [passDrive({ groups: bothGroups })] });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test core_screen_a11y_smoke_test", step: "boot" }));
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "native_test core_screen_a11y_smoke_test", step: "boot" }, { native_test: "NOT_RUN", core_screen_a11y_smoke_test: "NOT_RUN" }),
+  );
   assert.equal(run.driveCalls, 0);
 });
 
 test("adb wait-for-device failure is a boot FAIL even when getprop says ready", () => {
-  const run = runDriveScript({ waitFails: true, drives: [passLog] });
+  const run = runDriveScript({ waitFails: true, drives: [passDrive()] });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "boot" }));
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "boot" }, { native_test: "NOT_RUN" }));
   assert.equal(run.driveCalls, 0);
 });
 
-test("device lost before a target's drive fails that target at boot, not drive", () => {
-  const first = runDriveScript({ boot: ["1", "0"], drives: [passLog] });
+test("device lost before a drive fails that drive's targets at boot, not drive", () => {
+  const first = runDriveScript({ boot: ["1", "0"], drives: [passDrive()] });
   assert.equal(first.status, 1);
-  assert.deepEqual(first.receipt, failedReceipt({ target: "native_test", step: "boot" }));
+  assert.deepEqual(first.receipt, failedReceipt({ target: "native_test", step: "boot" }, { native_test: "NOT_RUN" }));
   assert.equal(first.driveCalls, 0);
 
   const second = runDriveScript({
     boot: ["1", "1", "0"],
-    targets: "native_test core_screen_a11y_smoke_test",
-    drives: [passLog, passLog],
+    targets: "native_test core_screen_a11y_smoke_test:2.0",
+    drives: [passDrive(), passA11y("2.0")],
   });
   assert.equal(second.status, 1);
-  assert.deepEqual(second.receipt, failedReceipt({ target: "core_screen_a11y_smoke_test", step: "boot" }));
+  assert.deepEqual(
+    second.receipt,
+    failedReceipt({ target: "core_screen_a11y_smoke_test:2.0", step: "boot" }, { native_test: "PASS", "core_screen_a11y_smoke_test:2.0": "NOT_RUN" }),
+  );
   assert.equal(second.driveCalls, 1);
 });
 
 test("device that does not come back after adb reconnect fails at boot and keeps the retried record", () => {
-  const run = runDriveScript({ boot: ["1", "1", "0"], drives: [{ log: fixture("offline-before-tests.txt") }, passLog] });
+  const run = runDriveScript({ boot: ["1", "1", "0"], drives: [{ log: fixture("offline-before-tests.txt") }, passDrive()] });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "boot", retried: ["drive:adb_offline"] }));
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "boot", retried: ["drive:adb_offline"] }, { native_test: "NOT_RUN" }));
   assert.equal(run.driveCalls, 1);
   assert.equal(run.reconnects, 1);
 });
 
-test("clean drive passes without a retried entry", () => {
-  const run = runDriveScript({
-    targets: "native_test core_screen_a11y_smoke_test",
-    drives: [passLog, passLog],
-  });
+test("clean drive passes without a retried entry, and uninstall noise after the result does not matter", () => {
+  const noise = fixture("pass-with-uninstall-noise.txt").trimEnd().split("\n").slice(-5).join("\n");
+  assert.match(noise, /adb uninstall failed/u);
+  const run = runDriveScript({ drives: [passDrive({ noise })] });
   assert.equal(run.status, 0);
-  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "android-native", status: "PASS" });
+  assert.deepEqual(run.receipt, passedReceipt());
 });
 
-test("font scale spec sets the system scale before each drive and passes it to the test", () => {
+test("targets at the same scale share one drive and each target gets its own verdict", () => {
   const run = runDriveScript({
-    targets: "core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0",
-    drives: [passLog, passLog],
+    targets: "native_test core_screen_a11y_smoke_test",
+    drives: [passDrive({ groups: bothGroups })],
   });
   assert.equal(run.status, 0);
-  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "android-native", status: "PASS" });
+  assert.deepEqual(run.receipt, passedReceipt({ native_test: "PASS", core_screen_a11y_smoke_test: "PASS" }));
+  assert.equal(run.driveCalls, 1);
+  assert.ok(run.exists("flutter-drive-scale-1.0.log"));
+});
+
+test("a failing group fails only its own target while the other group at that scale stays PASS", () => {
+  const log = driveLog({ groups: bothGroups, failing: ["core_screen_a11y_smoke_test"] });
+  const run = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log }, passDrive({ groups: bothGroups })] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "core_screen_a11y_smoke_test", step: "drive" }, { native_test: "PASS", core_screen_a11y_smoke_test: "FAIL" }),
+  );
+  assert.equal(run.driveCalls, 1);
+});
+
+test("a failing large-scale group fails only that scale's target and earlier targets stay PASS", () => {
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0",
+    drives: [
+      passDrive({ groups: bothGroups }),
+      { log: driveLog({ groups: ["core_screen_a11y_smoke_test"], observed: "2.0", failing: ["core_screen_a11y_smoke_test"] }) },
+    ],
+  });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt(
+      { target: "core_screen_a11y_smoke_test:2.0", step: "drive" },
+      { native_test: "PASS", core_screen_a11y_smoke_test: "PASS", "core_screen_a11y_smoke_test:2.0": "FAIL" },
+    ),
+  );
+  assert.equal(run.driveCalls, 2);
+});
+
+test("a drive that ends without a summary never turns started groups into PASS", () => {
+  const log = driveLog({ groups: bothGroups, complete: false });
+  const run = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [{ log, exit: 1 }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "native_test core_screen_a11y_smoke_test", step: "drive" }, { native_test: "NOT_RUN", core_screen_a11y_smoke_test: "NOT_RUN" }),
+  );
+});
+
+test("a green drive missing a target's group fails that target instead of passing", () => {
+  const run = runDriveScript({ targets: "native_test core_screen_a11y_smoke_test", drives: [passDrive({ groups: ["core_screen_a11y_smoke_test"] })] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "native_test", step: "drive", reason: "group_missing" }, { native_test: "FAIL", core_screen_a11y_smoke_test: "PASS" }),
+  );
+});
+
+test("a group name that only shares a prefix with a target does not count as that target", () => {
+  const log = driveLog({ groups: ["native_test_extra"] });
+  const run = runDriveScript({ drives: [{ log, exit: 0 }] });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "drive", reason: "group_missing" }));
+});
+
+test("the scale the app read must match the requested scale, otherwise the drive is a FAIL even when green", () => {
+  for (const observed of ["1.0", "", "abc"]) {
+    const run = runDriveScript({
+      targets: "core_screen_a11y_smoke_test:2.0",
+      drives: [passA11y(observed)],
+    });
+    assert.equal(run.status, 1, observed);
+    assert.deepEqual(
+      run.receipt,
+      failedReceipt({ target: "core_screen_a11y_smoke_test:2.0", step: "drive", reason: "font_scale_mismatch" }, { "core_screen_a11y_smoke_test:2.0": "NOT_RUN" }),
+      observed,
+    );
+  }
+});
+
+test("the observed scale may differ from the requested one by the tolerance only", () => {
+  for (const [observed, ok] of [["2.004", true], ["1.996", true], ["2.02", false], ["1.98", false]]) {
+    const run = runDriveScript({ targets: "core_screen_a11y_smoke_test:2.0", drives: [passA11y(observed)] });
+    assert.equal(run.status, ok ? 0 : 1, observed);
+  }
+});
+
+test("real Android large-text log from the shared entry point passes the scale-suffixed target", () => {
+  const log = readFileSync(path.join(fixtureDir, "real-pass-large-text-a11y-only.txt"), "utf8");
+  const run = runDriveScript({ targets: "core_screen_a11y_smoke_test:2.0", drives: [{ log, exit: 0 }] });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, passedReceipt({ "core_screen_a11y_smoke_test:2.0": "PASS" }));
+});
+
+test("only the first drive builds: later drives reuse the app binary and the scale is never a dart-define", () => {
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:2.0",
+    drives: [passDrive({ groups: bothGroups }), passA11y("2.0")],
+  });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, passedReceipt({ native_test: "PASS", core_screen_a11y_smoke_test: "PASS", "core_screen_a11y_smoke_test:2.0": "PASS" }));
+  assert.equal(run.driveArgs.length, 2);
+  assert.doesNotMatch(run.driveArgs[0], /--use-application-binary/u);
+  assert.ok(run.driveArgs[1].includes(`--use-application-binary=${run.appBinary}`));
+  for (const args of run.driveArgs) {
+    assert.match(args, /--target=integration_test\/native_smoke_test\.dart/u);
+    assert.doesNotMatch(args, /dart-define|A11Y_FONT_SCALE/u);
+  }
   assert.deepEqual(run.fontScales, ["1.0", "2.0"]);
-  assert.deepEqual(run.driveDefines, ["A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=2.0"]);
-  assert.ok(run.exists("flutter-drive-core_screen_a11y_smoke_test.log"));
-  assert.ok(run.exists("flutter-drive-core_screen_a11y_smoke_test-2.0.log"));
+  assert.ok(run.exists("flutter-drive-scale-1.0.log"));
+  assert.ok(run.exists("flutter-drive-scale-2.0.log"));
+});
+
+test("a run with one scale never needs a reusable binary", () => {
+  const run = runDriveScript({ binary: false, drives: [passDrive()] });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.driveArgs.map((args) => args.includes("--use-application-binary")), [false]);
+});
+
+test("a missing app binary after the first drive is a build FAIL and the later scale never runs", () => {
+  const run = runDriveScript({
+    binary: false,
+    targets: "native_test core_screen_a11y_smoke_test:2.0",
+    drives: [passDrive(), passA11y("2.0")],
+  });
+  assert.equal(run.status, 1);
+  assert.deepEqual(run.receipt, failedReceipt({ target: "native_test", step: "build" }, { native_test: "PASS", "core_screen_a11y_smoke_test:2.0": "NOT_RUN" }));
+  assert.equal(run.driveCalls, 1);
+});
+
+test("a retried first drive still builds, and the retry keeps the reuse arguments off", () => {
+  const run = runDriveScript({
+    targets: "native_test core_screen_a11y_smoke_test:2.0",
+    drives: [{ log: fixture("offline-before-tests.txt") }, passDrive(), passA11y("2.0")],
+  });
+  assert.equal(run.status, 0);
+  assert.equal(run.driveArgs.filter((args) => args.includes("--use-application-binary")).length, 1);
+  assert.ok(run.driveArgs[2].includes("--use-application-binary"));
 });
 
 test("font scale write that fails on an offline device retries once and re-applies the scale", () => {
   const run = runDriveScript({
     targets: "core_screen_a11y_smoke_test:2.0",
-    drives: [passLog],
+    drives: [passA11y("2.0")],
     env: { FONT_SCALE_FAILS: "1", FONT_SCALE_FAIL_LOG: "error: device offline" },
   });
   assert.equal(run.status, 0);
-  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "android-native", status: "PASS", retried: ["drive:adb_offline"] });
-  assert.equal(run.read("flutter-drive-core_screen_a11y_smoke_test-2.0.attempt1.log"), "error: device offline\n");
+  assert.deepEqual(run.receipt, passedReceipt({ "core_screen_a11y_smoke_test:2.0": "PASS" }, { retried: ["drive:adb_offline"] }));
+  assert.equal(run.read("flutter-drive-scale-2.0.attempt1.log"), "error: device offline\n");
   assert.deepEqual(run.fontScales, ["2.0", "2.0"]);
   assert.equal(run.driveCalls, 1);
 });
@@ -406,100 +567,133 @@ test("font scale write that fails on an offline device retries once and re-appli
 test("a retried drive sets the font scale again before the second attempt", () => {
   const run = runDriveScript({
     targets: "core_screen_a11y_smoke_test:2.0",
-    drives: [{ log: fixture("offline-before-tests.txt") }, passLog],
+    drives: [{ log: fixture("offline-before-tests.txt") }, passA11y("2.0")],
   });
   assert.equal(run.status, 0);
   assert.deepEqual(run.fontScales, ["2.0", "2.0"]);
-  assert.deepEqual(run.driveDefines, ["A11Y_FONT_SCALE=2.0", "A11Y_FONT_SCALE=2.0"]);
+  assert.equal(run.driveArgs.length, 2);
 });
 
-test("failing to set the font scale fails the target at drive without running the test", () => {
+test("failing to set the font scale fails the drive's targets without running the test", () => {
   const run = runDriveScript({
     targets: "core_screen_a11y_smoke_test:2.0",
-    drives: [passLog],
+    drives: [passA11y("2.0")],
     env: { FONT_SCALE_FAILS: "1" },
   });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, failedReceipt({ target: "core_screen_a11y_smoke_test:2.0", step: "drive" }));
+  assert.deepEqual(
+    run.receipt,
+    failedReceipt({ target: "core_screen_a11y_smoke_test:2.0", step: "drive" }, { "core_screen_a11y_smoke_test:2.0": "NOT_RUN" }),
+  );
   assert.equal(run.driveCalls, 0);
   assert.equal(run.fontScales.length, 1);
 });
 
-const iosFailedReceipt = (extra) => ({ schemaVersion: 1, lane: "ios-native", status: "FAIL", ...extra });
+const iosReceipt = (status, results, extra = {}) => receiptOf("ios", status, results, extra);
 const iosAx5 = "accessibility-extra-extra-extra-large";
 const runIos = (options) => runDriveScript({ platform: "ios", ...options });
+const iosPass = (options = {}) => passDrive({ platform: "ios", ...options });
+const iosA11yPass = (scale) => iosPass({ groups: ["core_screen_a11y_smoke_test"], observed: scale });
 // 합성 로그: 실제 CoreSimulatorService 오류 로그를 채집하기 전까지의 가정이다. 패턴이 맞지 않으면 재시도 없이 FAIL이라 안전하다.
 const simulatorUnavailableLog = "CoreSimulatorService connection became invalid\nSimulator services will no longer be available.\n";
+const iosAllTargets = "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:3.12";
 
-test("iOS clean drive sets the content size per target and passes it to the test", () => {
+test("iOS clean run sets the content size once per scale, drives the shared entry point, and reads the AX5 scale Flutter reports", () => {
   const run = runIos({
-    targets: "native_test core_screen_a11y_smoke_test core_screen_a11y_smoke_test:3.12",
-    drives: [passLog, passLog, passLog],
+    targets: iosAllTargets,
+    drives: [iosPass({ groups: bothGroups }), iosA11yPass("3.1176470588235294")],
   });
   assert.equal(run.status, 0);
-  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "ios-native", status: "PASS" });
-  assert.deepEqual(run.contentSizes, ["large", "large", iosAx5]);
-  assert.deepEqual(run.driveDefines, ["A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=1.0", "A11Y_FONT_SCALE=3.12"]);
-  for (const log of ["native_test", "core_screen_a11y_smoke_test", "core_screen_a11y_smoke_test-3.12"]) {
-    assert.ok(run.exists(`flutter-drive-${log}.log`), log);
+  assert.deepEqual(
+    run.receipt,
+    iosReceipt("PASS", { native_test: "PASS", core_screen_a11y_smoke_test: "PASS", "core_screen_a11y_smoke_test:3.12": "PASS" }),
+  );
+  assert.deepEqual(run.contentSizes, ["large", iosAx5]);
+  assert.equal(run.driveCalls, 2);
+  for (const log of ["flutter-drive-scale-1.0.log", "flutter-drive-scale-3.12.log"]) {
+    assert.ok(run.exists(log), log);
   }
 });
 
-test("iOS font scale outside the content size table fails the target at drive without running the test", () => {
-  const run = runIos({ targets: "core_screen_a11y_smoke_test:2.5", drives: [passLog] });
-  assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, iosFailedReceipt({ target: "core_screen_a11y_smoke_test:2.5", step: "drive" }));
-  assert.equal(run.driveCalls, 0);
-  assert.deepEqual(run.contentSizes, []);
-  assert.match(run.read("flutter-drive-core_screen_a11y_smoke_test-2.5.log"), /지원하지 않는 iOS 글꼴 배율: 2\.5/u);
+test("real iOS large-text log from the shared entry point passes only the scale-suffixed target", () => {
+  const log = readFileSync(new URL("./fixtures/ios-drive/real-pass-large-text-a11y-only.txt", import.meta.url), "utf8");
+  const run = runIos({ targets: "core_screen_a11y_smoke_test:3.12", drives: [{ log, exit: 0 }] });
+  assert.equal(run.status, 0);
+  assert.deepEqual(run.receipt, iosReceipt("PASS", { "core_screen_a11y_smoke_test:3.12": "PASS" }));
+
+  // native_test는 큰 글자 실행에 group이 없으므로 같은 배율로 요구하면 PASS로 읽지 않는다.
+  const missing = runIos({ targets: "native_test:3.12 core_screen_a11y_smoke_test:3.12", drives: [{ log, exit: 0 }] });
+  assert.equal(missing.status, 1);
+  assert.deepEqual(
+    missing.receipt,
+    iosReceipt("FAIL", { "native_test:3.12": "FAIL", "core_screen_a11y_smoke_test:3.12": "PASS" }, { target: "native_test:3.12", step: "drive", reason: "group_missing" }),
+  );
 });
 
-test("iOS content size that reads back differently fails the target at drive", () => {
-  const run = runIos({ targets: "core_screen_a11y_smoke_test:3.12", drives: [passLog], env: { CONTENT_SIZE_STUCK: "1" } });
+test("iOS font scale outside the content size table fails the drive's targets without running the test", () => {
+  const run = runIos({ targets: "core_screen_a11y_smoke_test:2.5", drives: [iosA11yPass("2.5")] });
   assert.equal(run.status, 1);
-  assert.deepEqual(run.receipt, iosFailedReceipt({ target: "core_screen_a11y_smoke_test:3.12", step: "drive" }));
+  assert.deepEqual(
+    run.receipt,
+    iosReceipt("FAIL", { "core_screen_a11y_smoke_test:2.5": "NOT_RUN" }, { target: "core_screen_a11y_smoke_test:2.5", step: "drive" }),
+  );
+  assert.equal(run.driveCalls, 0);
+  assert.deepEqual(run.contentSizes, []);
+  assert.match(run.read("flutter-drive-scale-2.5.log"), /지원하지 않는 iOS 글꼴 배율: 2\.5/u);
+});
+
+test("iOS content size that reads back differently fails the drive's targets", () => {
+  const run = runIos({ targets: "core_screen_a11y_smoke_test:3.12", drives: [iosA11yPass("3.12")], env: { CONTENT_SIZE_STUCK: "1" } });
+  assert.equal(run.status, 1);
+  assert.deepEqual(
+    run.receipt,
+    iosReceipt("FAIL", { "core_screen_a11y_smoke_test:3.12": "NOT_RUN" }, { target: "core_screen_a11y_smoke_test:3.12", step: "drive" }),
+  );
   assert.equal(run.driveCalls, 0);
 });
 
 test("iOS simulator infra error before tests retries once after shutting the simulator down", () => {
-  const run = runIos({ drives: [{ log: simulatorUnavailableLog }, passLog] });
+  const run = runIos({ drives: [{ log: simulatorUnavailableLog }, iosPass()] });
   assert.equal(run.status, 0);
-  assert.deepEqual(run.receipt, { schemaVersion: 1, lane: "ios-native", status: "PASS", retried: ["drive:simulator_unavailable"] });
+  assert.deepEqual(run.receipt, iosReceipt("PASS", { native_test: "PASS" }, { retried: ["drive:simulator_unavailable"] }));
   assert.equal(run.driveCalls, 2);
   assert.equal(run.shutdowns, 1);
-  assert.equal(run.read("flutter-drive-native_test.attempt1.log"), simulatorUnavailableLog);
+  assert.equal(run.read("flutter-drive-scale-1.0.attempt1.log"), simulatorUnavailableLog);
   assert.match(run.stdout, /^::warning::native_test drive가 simulator_unavailable 때문에 1회 재시도 후 통과했습니다\./mu);
 });
 
 test("iOS result signal blocks the retry, and a failed retry stays FAIL with retried recorded", () => {
-  const blocked = runIos({ drives: [{ log: `${simulatorUnavailableLog}00:03 +1: 어떤 테스트\n` }, passLog] });
+  const blocked = runIos({ drives: [{ log: `${simulatorUnavailableLog}00:03 +1: 어떤 테스트\n` }, iosPass()] });
   assert.equal(blocked.status, 1);
-  assert.deepEqual(blocked.receipt, iosFailedReceipt({ target: "native_test", step: "drive" }));
+  assert.deepEqual(blocked.receipt, iosReceipt("FAIL", { native_test: "NOT_RUN" }, { target: "native_test", step: "drive" }));
   assert.equal(blocked.driveCalls, 1);
 
-  const twice = runIos({ drives: [{ log: simulatorUnavailableLog }, { log: simulatorUnavailableLog }, passLog] });
+  const twice = runIos({ drives: [{ log: simulatorUnavailableLog }, { log: simulatorUnavailableLog }, iosPass()] });
   assert.equal(twice.status, 1);
-  assert.deepEqual(twice.receipt, iosFailedReceipt({ target: "native_test", step: "drive", retried: ["drive:simulator_unavailable"] }));
+  assert.deepEqual(
+    twice.receipt,
+    iosReceipt("FAIL", { native_test: "NOT_RUN" }, { target: "native_test", step: "drive", retried: ["drive:simulator_unavailable"] }),
+  );
   assert.equal(twice.driveCalls, 2);
 });
 
 test("iOS drive log without positive infra evidence is not retried, and perl alarm exit 142 is a timeout", () => {
-  const unknown = runIos({ drives: [{ log: "something unknown\n" }, passLog] });
+  const unknown = runIos({ drives: [{ log: "something unknown\n" }, iosPass()] });
   assert.equal(unknown.status, 1);
-  assert.deepEqual(unknown.receipt, iosFailedReceipt({ target: "native_test", step: "drive" }));
+  assert.deepEqual(unknown.receipt, iosReceipt("FAIL", { native_test: "NOT_RUN" }, { target: "native_test", step: "drive" }));
   assert.equal(unknown.driveCalls, 1);
 
-  const timeout = runIos({ drives: [{ log: simulatorUnavailableLog, exit: 142 }, passLog] });
+  const timeout = runIos({ drives: [{ log: simulatorUnavailableLog, exit: 142 }, iosPass()] });
   assert.equal(timeout.status, 1);
-  assert.deepEqual(timeout.receipt, iosFailedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
+  assert.deepEqual(timeout.receipt, iosReceipt("FAIL", { native_test: "NOT_RUN" }, { target: "native_test", step: "drive", reason: "timeout" }));
   assert.equal(timeout.driveCalls, 1);
   assert.equal(timeout.shutdowns, 0);
 });
 
 test("iOS simulator boot failure is recorded by step and keeps the simulator log", () => {
-  const boot = runIos({ boot: ["0"], drives: [passLog] });
+  const boot = runIos({ boot: ["0"], drives: [iosPass()] });
   assert.equal(boot.status, 1);
-  assert.deepEqual(boot.receipt, iosFailedReceipt({ target: "native_test", step: "boot" }));
+  assert.deepEqual(boot.receipt, iosReceipt("FAIL", { native_test: "NOT_RUN" }, { target: "native_test", step: "boot" }));
   assert.equal(boot.driveCalls, 0);
   assert.equal(boot.read("simulator.log"), "SIMULATOR LOG\n");
 });
@@ -509,29 +703,72 @@ test("iOS simulator boot failure is recorded by step and keeps the simulator log
 const realHangLog = readFileSync(path.join(fileURLToPath(new URL("./fixtures/ios-drive/", import.meta.url)), "real-hang-after-build-timeout.txt"), "utf8");
 
 test("real iOS hang log is a timeout, never retried, and carries no simulator infra evidence", () => {
-  const timeout = runIos({ drives: [{ log: realHangLog, exit: 142 }, passLog] });
+  const timeout = runIos({ drives: [{ log: realHangLog, exit: 142 }, iosPass()] });
   assert.equal(timeout.status, 1);
-  assert.deepEqual(timeout.receipt, iosFailedReceipt({ target: "native_test", step: "drive", reason: "timeout" }));
+  assert.deepEqual(timeout.receipt, iosReceipt("FAIL", { native_test: "NOT_RUN" }, { target: "native_test", step: "drive", reason: "timeout" }));
   assert.equal(timeout.driveCalls, 1);
   assert.equal(timeout.shutdowns, 0);
 
-  const unknown = runIos({ drives: [{ log: realHangLog, exit: 1 }, passLog] });
+  const unknown = runIos({ drives: [{ log: realHangLog, exit: 1 }, iosPass()] });
   assert.equal(unknown.status, 1);
-  assert.deepEqual(unknown.receipt, iosFailedReceipt({ target: "native_test", step: "drive" }));
+  assert.deepEqual(unknown.receipt, iosReceipt("FAIL", { native_test: "NOT_RUN" }, { target: "native_test", step: "drive" }));
   assert.equal(unknown.driveCalls, 1);
 });
+
+const systemTextScaleSource = readFileSync(new URL("../../apps/mobile/integration_test/system_text_scale.dart", import.meta.url), "utf8");
+const entryPoint = readFileSync(new URL("../../apps/mobile/integration_test/native_smoke_test.dart", import.meta.url), "utf8");
 
 test("iOS AX5 scale is defined once in the Dart constant and the lane values stay within the smoke test tolerance", () => {
   const constant = readFileSync(new URL("../../apps/mobile/test/support/ios_text_scale.dart", import.meta.url), "utf8");
   const [, numerator, denominator] = constant.match(/const iosAx5TextScale = (\d+) \/ (\d+);/u) ?? [];
   const ax5 = Number(numerator) / Number(denominator);
-  const tolerance = Number(a11ySmokeTest.match(/closeTo\(_fontScale, ([\d.]+)\)/u)?.[1]);
+  const tolerance = Number(systemTextScaleSource.match(/const textScaleTolerance = ([\d.]+);/u)?.[1]);
   assert.ok(tolerance > 0);
   const laneScale = jobTargets(iosJob).find((target) => target.endsWith(":3.12"))?.split(":")[1];
   const tableScale = iosDriveScript.match(/^\s+([\d.]+)\) echo "accessibility-extra-extra-extra-large" ;;$/mu)?.[1];
   assert.equal(laneScale, "3.12");
   assert.equal(tableScale, laneScale);
   assert.ok(Math.abs(Number(laneScale) - ax5) <= tolerance, `${laneScale} vs ${ax5}`);
+});
+
+test("the shared entry point groups every lane target by name, builds once, and the host and Dart agree on the scale contract", () => {
+  const groupNames = [...entryPoint.matchAll(/group\('([a-z_0-9]+)'/gu)].map((match) => match[1]);
+  assert.deepEqual(groupNames, ["native_test", "core_screen_a11y_smoke_test"]);
+  assert.match(entryPoint, /import 'native_test\.dart' as native_journey/u);
+  assert.match(entryPoint, /import 'core_screen_a11y_smoke_test\.dart' as core_screen_a11y_smoke/u);
+  assert.match(entryPoint, /group\('native_test', native_journey\.main\)/u);
+  assert.match(entryPoint, /group\('core_screen_a11y_smoke_test', core_screen_a11y_smoke\.main\)/u);
+  assert.match(entryPoint, /isLargeTextScale\(systemTextScale\)/u);
+  for (const job of [androidJob, iosJob]) {
+    for (const target of jobTargets(job)) {
+      assert.ok(groupNames.includes(target.split(":")[0]), target);
+    }
+  }
+  assert.match(commonDriveScript, /^entrypoint="integration_test\/native_smoke_test\.dart"$/mu);
+  assert.ok(existsSync(new URL("../../apps/mobile/integration_test/native_smoke_test.dart", import.meta.url)));
+  for (const adapter of [androidDriveScript, iosDriveScript]) {
+    assert.match(adapter, /"--target=\$\{entrypoint\}"/u);
+    assert.match(adapter, /\$\{drive_reuse_args\[@\]\+"\$\{drive_reuse_args\[@\]\}"\}/u);
+    assert.doesNotMatch(adapter, /dart-define|A11Y_FONT_SCALE|flutter build/u);
+  }
+  assert.doesNotMatch(commonDriveScript, /dart-define|A11Y_FONT_SCALE|flutter build/u);
+  assert.match(androidDriveScript, /^app_binary="\$\{APP_BINARY:-build\/app\/outputs\/flutter-apk\/app-debug\.apk\}"$/mu);
+  assert.match(iosDriveScript, /^app_binary="\$\{APP_BINARY:-build\/ios\/iphonesimulator\/Runner\.app\}"$/mu);
+
+  const hostTolerance = commonDriveScript.match(/^scale_tolerance="([\d.]+)"$/mu)?.[1];
+  assert.equal(hostTolerance, systemTextScaleSource.match(/const textScaleTolerance = ([\d.]+);/u)?.[1]);
+  const hostMarker = commonDriveScript.match(/^scale_marker="([A-Z_]+=)"$/mu)?.[1];
+  assert.equal(hostMarker, markerName);
+  assert.equal(hostMarker, systemTextScaleSource.match(/const systemTextScaleMarker = '([A-Z_]+=)';/u)?.[1]);
+});
+
+test("the shared entry point lists its sources in the workflow path filters of both events", () => {
+  for (const glob of [
+    "apps/mobile/integration_test/native_smoke_test.dart",
+    "apps/mobile/integration_test/system_text_scale.dart",
+  ]) {
+    assert.equal(workflow.split("\n").filter((line) => line === `      - "${glob}"`).length, 2, glob);
+  }
 });
 
 test("core screen accessibility smoke reuses the sweep screen table and checks tap targets, labels, render exceptions, and the applied font scale", () => {
@@ -570,8 +807,9 @@ test("core screen accessibility smoke reuses the sweep screen table and checks t
   assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(androidMinTapTarget\)/u);
   assert.match(a11ySmokeTest, /fullGuideline: FullTapTargetGuideline\(iosMinTapTarget\)/u);
   assert.match(a11ySmokeTest, /meetsGuideline\(labeledTapTargetGuideline\)/u);
-  assert.match(a11ySmokeTest, /String\.fromEnvironment\('A11Y_FONT_SCALE'/u);
-  assert.match(a11ySmokeTest, /platformDispatcher\.textScaleFactor,\s*closeTo\(_fontScale/u);
+  assert.doesNotMatch(a11ySmokeTest, /fromEnvironment|A11Y_FONT_SCALE/u);
+  assert.match(a11ySmokeTest, /final _fontScale = systemTextScale;/u);
+  assert.match(a11ySmokeTest, /tester\.platformDispatcher\.textScaleFactor;\s*expect\(scale, closeTo\(_fontScale, textScaleTolerance\)\);\s*\/\/ ignore: avoid_print\s*print\('\$systemTextScaleMarker\$scale'\)/u);
   assert.match(a11ySmokeTest, /expect\(tester\.takeException\(\), isNull\)/u);
   assert.doesNotMatch(a11ySmokeTest, /textContrastGuideline/u);
 });

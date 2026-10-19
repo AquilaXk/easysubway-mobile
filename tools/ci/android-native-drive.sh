@@ -8,6 +8,8 @@ evidence="${RUNNER_TEMP:?RUNNER_TEMP가 필요합니다}/mobile-native-android"
 # shellcheck source=native-drive-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/native-drive-common.sh"
 
+# 첫 drive가 만드는 디버그 APK. 나머지 배율의 drive가 재사용한다.
+app_binary="${APP_BINARY:-build/app/outputs/flutter-apk/app-debug.apk}"
 device="emulator-5554"
 device_wait_seconds="${DEVICE_WAIT_SECONDS:-60}"
 boot_poll_limit="${BOOT_POLL_LIMIT:-60}"
@@ -33,7 +35,7 @@ platform_set_font_scale() {
 }
 
 platform_drive() {
-  timeout "${drive_timeout_seconds}s" flutter drive --driver=test_driver/integration_test.dart "--target=integration_test/$1.dart" "--dart-define=A11Y_FONT_SCALE=$2" -d "${device}" --no-dds
+  timeout "${drive_timeout_seconds}s" flutter drive --driver=test_driver/integration_test.dart "--target=${entrypoint}" ${drive_reuse_args[@]+"${drive_reuse_args[@]}"} -d "${device}" --no-dds
 }
 
 platform_collect_failure_log() {

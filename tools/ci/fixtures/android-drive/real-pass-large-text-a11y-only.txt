@@ -1,0 +1,31 @@
+Resolving dependencies...
+Downloading packages...
+Got dependencies!
+80 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+Installing build/app/outputs/flutter-apk/app-debug.apk...         196.4s
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:62625/qraHWST1FwY=/
+VMServiceFlutterDriver: Isolate found with number: 1946567483316435
+VMServiceFlutterDriver: Waiting for isolate 1946567483316435 to be runnable.
+VMServiceFlutterDriver: Waiting for isolate 1946567483316435 to be runnable.
+VMServiceFlutterDriver: Waiting for isolate 1946567483316435 to be runnable.
+VMServiceFlutterDriver: Isolate 1946567483316435 is runnable.
+VMServiceFlutterDriver: Isolate is paused at start.
+VMServiceFlutterDriver: Attempting to resume isolate
+I/WindowExtensionsImpl( 5117): Initializing Window Extensions, vendor API level=9, activity embedding enabled=true
+VMServiceFlutterDriver: Flutter Driver extension is taking a long time to become available. Ensure your test app (often "lib/main.dart") imports "package:flutter_driver/driver_extension.dart" and calls enableFlutterDriverExtension() as the first call in main().
+I/flutter ( 5117): 00:00 +0: core_screen_a11y_smoke_test 모드 표의 화면이 모두 화면 표에 있고 선택이 비지 않는다
+VMServiceFlutterDriver: Connected to Flutter application.
+I/flutter ( 5117): 00:00 +1: core_screen_a11y_smoke_test 앱이 읽은 시스템 글꼴 배율이 등록 시점과 같고 스크립트가 읽도록 남긴다
+I/flutter ( 5117): NATIVE_SYSTEM_TEXT_SCALE=2.0
+I/flutter ( 5117): 00:02 +2: core_screen_a11y_smoke_test 홈(노선도) - 글자 2.00배 탭 영역 48dp와 탭 요소 라벨
+I/HWUI    ( 5117): Davey! duration=4482ms; Flags=1, FrameTimelineVsyncId=43119, IntendedVsync=471421655229, Vsync=475604988395, InputEventId=0, HandleInputStart=475619243101, AnimationStart=475619244809, PerformTraversalsStart=475619245518, DrawStart=475647504393, FrameDeadline=471438321895, FrameStartTime=475615671601, FrameInterval=16666666, WorkloadTarget=16666666, SyncQueued=475654681226, SyncStart=475656826476, IssueDrawCommandsStart=475657583101, SwapBuffers=475846361393, FrameCompleted=475905923393, DequeueBufferDuration=9145292, QueueBufferDuration=306875, GpuCompleted=475905923393, SwapBuffersCompleted=475898674018, DisplayPresentTime=929, CommandSubmissionCompleted=475846361393, 
+I/flutter ( 5117): 00:09 +3: core_screen_a11y_smoke_test 좌측 메뉴 - 글자 2.00배 탭 영역 48dp와 탭 요소 라벨
+I/flutter ( 5117): 00:12 +4: core_screen_a11y_smoke_test 경로 결과·상세 - 글자 2.00배 탭 영역 48dp와 탭 요소 라벨
+I/flutter ( 5117): 00:14 +5: core_screen_a11y_smoke_test 역 상세(출구 지도 안내) - 글자 2.00배 탭 영역 48dp와 탭 요소 라벨
+I/flutter ( 5117): 00:15 +6: core_screen_a11y_smoke_test 역 검색 - 글자 2.00배 탭 영역 48dp와 탭 요소 라벨
+I/flutter ( 5117): 00:16 +7: core_screen_a11y_smoke_test 알림함 - 글자 2.00배 탭 영역 48dp와 탭 요소 라벨
+V/PerfettoTrigger( 5117): Triggering /system/bin/trigger_perfetto com.android.telemetry.interaction-jank-monitor-81
+I/flutter ( 5117): 00:18 +8: (tearDownAll)
+I/flutter ( 5117): 00:18 +9: All tests passed!
+All tests passed.

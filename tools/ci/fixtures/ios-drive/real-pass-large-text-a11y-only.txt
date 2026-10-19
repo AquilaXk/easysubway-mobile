@@ -1,0 +1,23 @@
+Resolving dependencies...
+Downloading packages...
+Got dependencies!
+80 packages have newer versions incompatible with dependency constraints.
+Try `flutter pub outdated` for more information.
+VMServiceFlutterDriver: Connecting to Flutter application at http://127.0.0.1:61753/FpClhrA1Ek0=/
+VMServiceFlutterDriver: Isolate found with number: 3471934301581539
+VMServiceFlutterDriver: Isolate 3471934301581539 is runnable.
+VMServiceFlutterDriver: Isolate is paused at start.
+VMServiceFlutterDriver: Attempting to resume isolate
+flutter: 00:00 +0: core_screen_a11y_smoke_test 모드 표의 화면이 모두 화면 표에 있고 선택이 비지 않는다
+VMServiceFlutterDriver: Connected to Flutter application.
+flutter: 00:00 +1: core_screen_a11y_smoke_test 앱이 읽은 시스템 글꼴 배율이 등록 시점과 같고 스크립트가 읽도록 남긴다
+flutter: NATIVE_SYSTEM_TEXT_SCALE=3.1176470588235294
+flutter: 00:00 +2: core_screen_a11y_smoke_test 홈(노선도) - 글자 3.12배 탭 영역 44pt와 탭 요소 라벨
+flutter: 00:00 +3: core_screen_a11y_smoke_test 좌측 메뉴 - 글자 3.12배 탭 영역 44pt와 탭 요소 라벨
+flutter: 00:01 +4: core_screen_a11y_smoke_test 경로 결과·상세 - 글자 3.12배 탭 영역 44pt와 탭 요소 라벨
+flutter: 00:02 +5: core_screen_a11y_smoke_test 역 상세(출구 지도 안내) - 글자 3.12배 탭 영역 44pt와 탭 요소 라벨
+flutter: 00:03 +6: core_screen_a11y_smoke_test 역 검색 - 글자 3.12배 탭 영역 44pt와 탭 요소 라벨
+flutter: 00:05 +7: core_screen_a11y_smoke_test 알림함 - 글자 3.12배 탭 영역 44pt와 탭 요소 라벨
+flutter: 00:07 +8: (tearDownAll)
+flutter: 00:07 +9: All tests passed!
+All tests passed.
