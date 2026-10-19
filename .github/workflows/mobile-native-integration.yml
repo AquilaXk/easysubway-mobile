@@ -198,6 +198,13 @@ jobs:
             apps/mobile/build/ios/SourcePackages
           key: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/ios/**') }}
           restore-keys: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-
+      - name: Let Xcode and git reuse restored build state
+        shell: bash
+        run: |
+          set -euo pipefail
+          defaults write com.apple.dt.XCBuild IgnoreFileSystemDeviceInodeChanges -bool YES
+          git config --global core.checkStat minimal
+          git config --global core.trustctime false
       - name: Install Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
