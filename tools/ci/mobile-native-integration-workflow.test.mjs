@@ -182,7 +182,7 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
   deviceStubs[platform]();
   stub("dart", "exit 0");
   stub("sleep", "exit 0");
-  stub("timeout", 'shift\nexec "$@"');
+  stub("timeout", `[ "$2" = flutter ] && echo "drive-timeout $1" >> "${root}/calls"\nshift\nexec "$@"`);
   stub(
     "flutter",
     [
@@ -218,6 +218,7 @@ function runDriveScript({ platform = "android", drives = [], boot = ["1"], waitF
     fontScales: calls.filter((line) => line.startsWith("font_scale ")).map((line) => line.slice("font_scale ".length)),
     driveArgs: calls.filter((line) => line.startsWith("args drive ")).map((line) => line.slice("args drive ".length)),
     driveCalls: calls.filter((line) => line === "drive").length,
+    timeouts: calls.filter((line) => line.startsWith("drive-timeout ")).map((line) => line.slice("drive-timeout ".length)),
     reconnects: calls.filter((line) => line === "adb reconnect offline").length,
     contentSizes: calls.filter((line) => line.startsWith("content_size ")).map((line) => line.slice("content_size ".length)),
     shutdowns: calls.filter((line) => line === "shutdown").length,
@@ -556,6 +557,8 @@ test("only the first drive builds: later drives reuse the app binary and the sca
   assert.deepEqual(run.fontScales, ["1.0", "2.0"]);
   assert.ok(run.exists("flutter-drive-scale-1.0.log"));
   assert.ok(run.exists("flutter-drive-scale-2.0.log"));
+  // 빌드를 포함하는 첫 drive만 넉넉한 시간 제한을 받는다.
+  assert.deepEqual(run.timeouts, ["900s", "300s"]);
 });
 
 test("a run with one scale never needs a reusable binary", () => {

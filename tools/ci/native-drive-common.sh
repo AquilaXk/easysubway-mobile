@@ -30,9 +30,12 @@
 # shellcheck disable=SC2154 # lane·evidence·app_binary 등 어댑터가 정하는 변수를 참조한다.
 set -uo pipefail
 
-# 첫 drive는 앱 빌드(Xcode·Gradle)를 포함하므로 시간 제한이 넉넉해야 한다.
+# 첫 drive는 패키지 내려받기와 앱 빌드(Xcode·Gradle)를 포함하므로 시간 제한이 넉넉해야 한다. 산출물을 재사용하는
+# drive는 설치·실행·테스트만 하므로(CI 실측 1~2분) 제한을 짧게 둬, 앱 실행 뒤 멈춘 drive를 오래 붙들지 않는다.
+build_drive_timeout_seconds=900
+reuse_drive_timeout_seconds=300
 # shellcheck disable=SC2034 # 어댑터의 platform_drive가 쓴다.
-drive_timeout_seconds=900
+drive_timeout_seconds="${build_drive_timeout_seconds}"
 timeout_exit_codes=(124 142) # coreutils timeout 124, perl alarm(SIGALRM) 142
 
 # shellcheck disable=SC2034 # 어댑터의 platform_drive가 쓴다.
@@ -275,6 +278,8 @@ drive_scale() {
 reuse_built_app() {
   [ -e "${app_binary}" ] || fail "$1" build
   drive_reuse_args=("--use-application-binary=${app_binary}")
+  # shellcheck disable=SC2034 # 어댑터의 platform_drive가 쓴다.
+  drive_timeout_seconds="${reuse_drive_timeout_seconds}"
 }
 
 run_native_drive() {
