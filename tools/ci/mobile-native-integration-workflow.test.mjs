@@ -79,7 +79,7 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   assert.equal((workflow.match(/^        if: always\(\)$/gmu) ?? []).length, 2);
   assert.equal((workflow.match(/^          if-no-files-found: error$/gmu) ?? []).length, 2);
   assert.equal((workflow.match(/^          retention-days: 5$/gmu) ?? []).length, 2);
-  assert.doesNotMatch(workflow, /secrets\.|EASYSUBWAY_API_BASE_URL|release|store/iu);
+  assert.doesNotMatch(workflow, /secrets\.|EASYSUBWAY_API_BASE_URL|release|\bstore\b/iu);
 });
 
 const androidJob = workflow.slice(0, workflow.indexOf("  ios-native:"));
@@ -1067,4 +1067,150 @@ test("native Journey smoke stays server-only and bounded to success, failure, an
   assert.match(nativeTest, /restartAndRestore\(\)/u);
   assert.match(nativeTest, /expect\(repository\.searchRequests, 1\)/u);
   assert.doesNotMatch(nativeTest, /route[_ -]?v[12]|local route|previous result|provider refresh/iu);
+});
+
+// iOS lane: Xcode 빌드 캐시와 Flutter iOS 시뮬레이터 VM service 연결 수정(#3036).
+const flutterVersion = workflow.match(/flutter-version: "([\d.]+)"/u)?.[1];
+const flutterPatchDir = new URL("./flutter-patches/", import.meta.url);
+const flutterPatchFile = `${flutterVersion}-ios-simulator-log-stream-ready.patch`;
+const flutterPatch = readFileSync(new URL(flutterPatchFile, flutterPatchDir), "utf8");
+const applyPatchScript = readScript("apply-flutter-patch.sh");
+const androidSteps = androidJob.slice(androidJob.indexOf("\njobs:"));
+const stepNames = (job) => [...job.matchAll(/^      - name: (.+)$/gmu)].map((match) => match[1]);
+const stepBlock = (job, name) => job.split(/^      - name: /mu).find((block) => block.startsWith(`${name}\n`)) ?? "";
+const applyPatchMarker = "The iOS simulator log stream did not start";
+
+test("iOS job applies the pinned Flutter tool fix before anything runs flutter, and the fix is tied to the pinned version", () => {
+  const steps = stepNames(iosJob);
+  const applyStep = stepBlock(iosJob, "Apply Flutter iOS simulator log stream fix");
+  assert.match(applyStep, /^        run: bash "\$\{GITHUB_WORKSPACE\}\/tools\/ci\/apply-flutter-patch\.sh" "\$\{GITHUB_WORKSPACE\}\/tools\/ci\/flutter-patches\/3\.44\.0-ios-simulator-log-stream-ready\.patch" "The iOS simulator log stream did not start"$/mu);
+  for (const later of ["Resolve Xcode build cache key", "Restore Xcode build cache", "Install Flutter dependencies", "Run iOS simulator native smoke"]) {
+    assert.ok(steps.indexOf("Apply Flutter iOS simulator log stream fix") < steps.indexOf(later), later);
+  }
+  assert.ok(steps.indexOf("Set up Flutter") < steps.indexOf("Apply Flutter iOS simulator log stream fix"));
+  assert.doesNotMatch(androidSteps, /apply-flutter-patch/u);
+  // 패치 대상은 iOS 시뮬레이터 어댑터 한 파일이고, 패치가 더하는 문자열이 본문에 있다.
+  assert.deepEqual([...flutterPatch.matchAll(/^diff --git a\/(\S+) /gmu)].map((match) => match[1]), ["packages/flutter_tools/lib/src/ios/simulators.dart"]);
+  assert.ok(flutterPatch.split("\n").some((line) => line.startsWith("+") && line.includes(applyPatchMarker)));
+  assert.match(flutterPatch, /flutter\/flutter\/pull\/193142/u);
+  for (const trigger of ["tools/ci/apply-flutter-patch.sh", `tools/ci/flutter-patches/${flutterPatchFile}`]) {
+    assert.equal(workflow.split("\n").filter((line) => line === `      - "${trigger}"`).length, 2, trigger);
+  }
+});
+
+test("iOS job restores the Xcode build cache keyed by toolchain, lockfile, and iOS sources; Android keeps none", () => {
+  const steps = stepNames(iosJob);
+  const keyStep = stepBlock(iosJob, "Resolve Xcode build cache key");
+  const cacheStep = stepBlock(iosJob, "Restore Xcode build cache");
+  assert.match(keyStep, /^        id: toolchain$/mu);
+  assert.match(keyStep, /xcodebuild -version/u);
+  assert.match(keyStep, /flutter --version --machine/u);
+  assert.match(cacheStep, /^        id: xcode-cache$/mu);
+  assert.match(cacheStep, /uses: actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9/u);
+  assert.match(cacheStep, /^            ~\/Library\/Developer\/Xcode\/DerivedData$/mu);
+  assert.match(cacheStep, /^            apps\/mobile\/build\/ios\/SourcePackages$/mu);
+  const toolchainPrefix = "xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-";
+  assert.ok(cacheStep.includes(`key: ${toolchainPrefix}\${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/ios/**') }}`));
+  // 부분 복원은 같은 Xcode·Flutter 안에서만 허용한다. 다른 toolchain의 DerivedData는 복원하지 않는다.
+  assert.ok(cacheStep.includes(`restore-keys: ${toolchainPrefix}\n`));
+  assert.equal((cacheStep.match(/restore-keys:/gu) ?? []).length, 1);
+  assert.ok(steps.indexOf("Resolve Xcode build cache key") < steps.indexOf("Restore Xcode build cache"));
+  assert.ok(steps.indexOf("Restore Xcode build cache") < steps.indexOf("Install Flutter dependencies"));
+  assert.doesNotMatch(androidSteps, /actions\/cache|DerivedData/u);
+});
+
+test("iOS job records whether the Xcode build cache was used and how large it is, even when the smoke fails", () => {
+  const reportStep = stepBlock(iosJob, "Report Xcode build cache");
+  assert.match(reportStep, /^        if: \$\{\{ !cancelled\(\) \}\}$/mu);
+  assert.match(reportStep, /CACHE_HIT: \$\{\{ steps\.xcode-cache\.outputs\.cache-hit \}\}/u);
+  assert.match(reportStep, /MATCHED_KEY: \$\{\{ steps\.xcode-cache\.outputs\.cache-matched-key \}\}/u);
+  assert.match(reportStep, /GITHUB_STEP_SUMMARY/u);
+  assert.ok(stepNames(iosJob).indexOf("Run iOS simulator native smoke") < stepNames(iosJob).indexOf("Report Xcode build cache"));
+});
+
+// 가짜 Flutter SDK(git 저장소)에 패치를 적용하는 스크립트를 실제로 실행한다.
+// flutter 스텁은 stamp가 없으면 tool을 다시 빌드한 것으로 치고, 소스에 패치 줄이 있을 때만 스냅샷에 표지를 쓴다.
+const patchedLine = "wait for the log stream";
+const sdkSource = (patched) => `class Simulator {\n  launch() {}\n${patched ? `  ${patchedLine}();\n` : ""}}\n`;
+function runApplyPatch({ sdk = "unpatched", snapshot = "none", compileIgnoresSource = false } = {}) {
+  const root = mkdtempSync(path.join(tmpdir(), "apply-flutter-patch-"));
+  const flutterRoot = path.join(root, "sdk");
+  const git = (...args) => spawnSync("git", ["-C", flutterRoot, ...args], { encoding: "utf8" });
+  const source = path.join(flutterRoot, "lib.dart");
+  mkdirSync(path.join(flutterRoot, "bin", "cache"), { recursive: true });
+  writeFileSync(source, sdkSource(false));
+  git("init", "-q");
+  git("-c", "user.name=t", "-c", "user.email=t@example.com", "add", "lib.dart");
+  git("-c", "user.name=t", "-c", "user.email=t@example.com", "commit", "-q", "-m", "sdk");
+  writeFileSync(source, sdkSource(true));
+  const patchFile = path.join(root, "fix.patch");
+  writeFileSync(patchFile, `Flutter 수정 설명\n\n${git("diff").stdout}`);
+  writeFileSync(source, sdkSource(sdk === "patched"));
+  if (sdk === "different") writeFileSync(source, "class Other {}\n");
+  const calls = path.join(root, "calls");
+  const stub = path.join(flutterRoot, "bin", "flutter");
+  writeFileSync(
+    stub,
+    [
+      "#!/usr/bin/env bash",
+      `cache="${flutterRoot}/bin/cache"`,
+      `if [ ! -s "$cache/flutter_tools.stamp" ]; then echo rebuild >> "${calls}"; : > "$cache/flutter_tools.snapshot"; ${compileIgnoresSource ? ":" : `grep -q '${patchedLine}' "${source}" && echo '${applyPatchMarker.replace(/'/gu, "")}' > "$cache/flutter_tools.snapshot"`}; echo key > "$cache/flutter_tools.stamp"; fi`,
+    ].join("\n"),
+  );
+  chmodSync(stub, 0o755);
+  if (snapshot === "current") {
+    writeFileSync(path.join(flutterRoot, "bin/cache/flutter_tools.snapshot"), `${applyPatchMarker}\n`);
+    writeFileSync(path.join(flutterRoot, "bin/cache/flutter_tools.stamp"), "key\n");
+  } else if (snapshot === "stale") {
+    writeFileSync(path.join(flutterRoot, "bin/cache/flutter_tools.snapshot"), "old\n");
+    writeFileSync(path.join(flutterRoot, "bin/cache/flutter_tools.stamp"), "key\n");
+  }
+  const result = spawnSync("bash", [fileURLToPath(new URL("./apply-flutter-patch.sh", import.meta.url)), patchFile, applyPatchMarker], {
+    env: { PATH: process.env.PATH, FLUTTER_ROOT: flutterRoot },
+    encoding: "utf8",
+  });
+  return {
+    status: result.status,
+    output: `${result.stdout}${result.stderr}`,
+    source: readFileSync(source, "utf8"),
+    rebuilds: existsSync(calls) ? readFileSync(calls, "utf8").split("\n").filter((line) => line === "rebuild").length : 0,
+  };
+}
+
+test("apply-flutter-patch patches an unpatched SDK once and rebuilds the tool so the fix is in the snapshot", () => {
+  const run = runApplyPatch();
+  assert.equal(run.status, 0, run.output);
+  assert.equal(run.source, sdkSource(true));
+  assert.equal(run.rebuilds, 1);
+});
+
+test("apply-flutter-patch leaves an already patched SDK with a current snapshot alone (cache-restored SDK)", () => {
+  const run = runApplyPatch({ sdk: "patched", snapshot: "current" });
+  assert.equal(run.status, 0, run.output);
+  assert.equal(run.source, sdkSource(true));
+  assert.equal(run.rebuilds, 0);
+});
+
+test("apply-flutter-patch rebuilds when the SDK is patched but the snapshot predates the patch", () => {
+  const run = runApplyPatch({ sdk: "patched", snapshot: "stale" });
+  assert.equal(run.status, 0, run.output);
+  assert.equal(run.rebuilds, 1);
+});
+
+test("apply-flutter-patch fails closed when the SDK is not the version the patch targets", () => {
+  const run = runApplyPatch({ sdk: "different" });
+  assert.notEqual(run.status, 0);
+  assert.equal(run.source, "class Other {}\n");
+  assert.equal(run.rebuilds, 0);
+});
+
+test("apply-flutter-patch fails closed when the rebuilt snapshot does not carry the fix", () => {
+  const run = runApplyPatch({ compileIgnoresSource: true });
+  assert.notEqual(run.status, 0);
+  assert.match(run.output, /스냅샷/u);
+});
+
+test("apply-flutter-patch cannot be told to ignore a failure", () => {
+  assert.match(applyPatchScript, /^set -euo pipefail$/mu);
+  assert.doesNotMatch(applyPatchScript, /\|\| true|continue-on-error|2>\s*\/dev\/null \|\|/u);
 });

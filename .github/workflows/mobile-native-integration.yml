@@ -26,6 +26,8 @@ on:
       - "apps/mobile/lib/features/settings/**"
       - "apps/mobile/lib/features/stations/**"
       - "tools/ci/android-native-drive.sh"
+      - "tools/ci/apply-flutter-patch.sh"
+      - "tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch"
       - "tools/ci/ios-native-drive.sh"
       - "tools/ci/native-drive-common.sh"
       - "apps/mobile/lib/features/journey/**"
@@ -61,6 +63,8 @@ on:
       - "apps/mobile/lib/features/settings/**"
       - "apps/mobile/lib/features/stations/**"
       - "tools/ci/android-native-drive.sh"
+      - "tools/ci/apply-flutter-patch.sh"
+      - "tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch"
       - "tools/ci/ios-native-drive.sh"
       - "tools/ci/native-drive-common.sh"
       - "apps/mobile/lib/features/journey/**"
@@ -175,6 +179,25 @@ jobs:
           channel: stable
           flutter-version: "3.44.0"
           cache: true
+      - name: Apply Flutter iOS simulator log stream fix
+        run: bash "${GITHUB_WORKSPACE}/tools/ci/apply-flutter-patch.sh" "${GITHUB_WORKSPACE}/tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch" "The iOS simulator log stream did not start"
+      - name: Resolve Xcode build cache key
+        id: toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode="$(xcodebuild -version | tr -s '[:space:]' '-')"
+          flutter_build="$(flutter --version --machine | jq -r '.frameworkVersion + "-" + .engineRevision[0:10]')"
+          echo "id=${xcode%-}-flutter-${flutter_build}" >> "${GITHUB_OUTPUT}"
+      - name: Restore Xcode build cache
+        id: xcode-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            apps/mobile/build/ios/SourcePackages
+          key: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/ios/**') }}
+          restore-keys: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-
       - name: Install Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
@@ -197,6 +220,17 @@ jobs:
           if grep -q '"status":"PENDING"' "${receipt}"; then
             printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"FAIL","target":"simulator","step":"boot"}' > "${receipt}"
           fi
+      - name: Report Xcode build cache
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CACHE_HIT: ${{ steps.xcode-cache.outputs.cache-hit }}
+          MATCHED_KEY: ${{ steps.xcode-cache.outputs.cache-matched-key }}
+        run: |
+          echo "- Xcode build cache: ${MATCHED_KEY:-miss} (exact hit: ${CACHE_HIT:-false})" >> "${GITHUB_STEP_SUMMARY}"
+          for dir in "${HOME}/Library/Developer/Xcode/DerivedData" apps/mobile/build/ios/SourcePackages; do
+            if [ -d "${dir}" ]; then du -sh "${dir}" | sed 's/^/- /' >> "${GITHUB_STEP_SUMMARY}"; fi
+          done
       - name: Upload iOS native evidence
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808

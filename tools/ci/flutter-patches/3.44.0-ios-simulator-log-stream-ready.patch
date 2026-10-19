@@ -1,0 +1,108 @@
+Flutter 3.44.0 flutter_tools: iOS 시뮬레이터에서 앱을 실행하기 전에 log stream이 준비될 때까지 기다린다.
+
+문제: flutter drive/run/test는 시뮬레이터 앱이 로그에 남기는 "The Dart VM service is listening on ..." 줄로 VM service
+주소를 찾는다. 이 로그를 읽는 `simctl spawn ... log stream`은 시작 직후 준비되기 전에 나온 로그를 버리는데, flutter tool은 이
+프로세스를 띄운 직후 기다리지 않고 `simctl launch`를 실행한다. 느린 러너에서는 앱이 먼저 주소를 남겨 tool이 그 줄을 놓치고,
+앱은 떴는데 tool이 연결하지 못한 채 시간 제한까지 멈춘다.
+수정: log stream이 첫 줄("Filtering the log data using ...")을 내거나 종료할 때까지 launch를 미룬다. 30초가 지나도 준비되지
+않으면 경고만 남기고 계속 기다린다(상류 최종본과 같은 동작).
+
+출처: https://github.com/flutter/flutter/pull/193142 (flutter/flutter#181771 수정, 2026-10-15 master 병합). Flutter 저작권자의
+BSD-3-Clause 코드이며, 3.44.0 소스에 맞춰 lib 변경만 옮겼다.
+제거 조건: Flutter를 이 수정이 들어간 버전으로 올리면 이 패치가 적용되지 않아 apply-flutter-patch.sh가 실패한다. 그때 이 파일과
+워크플로의 "Apply Flutter iOS simulator log stream fix" 단계를 지운다.
+
+diff --git a/packages/flutter_tools/lib/src/ios/simulators.dart b/packages/flutter_tools/lib/src/ios/simulators.dart
+index 4af0bf29622..08c1c7b7aa6 100644
+--- a/packages/flutter_tools/lib/src/ios/simulators.dart
++++ b/packages/flutter_tools/lib/src/ios/simulators.dart
+@@ -384,7 +384,7 @@ class IOSSimulator extends Device {
+   @override
+   bool supportsRuntimeMode(BuildMode buildMode) => buildMode == BuildMode.debug;
+ 
+-  final _logReaders = <IOSApp?, DeviceLogReader>{};
++  final _logReaders = <IOSApp?, _IOSSimulatorLogReader>{};
+   _IOSSimulatorDevicePortForwarder? _portForwarder;
+ 
+   @override
+@@ -477,13 +477,25 @@ class IOSSimulator extends Device {
+ 
+     ProtocolDiscovery? vmServiceDiscovery;
+     if (debuggingOptions.debuggingEnabled) {
++      final _IOSSimulatorLogReader logReader = getLogReader(app: package);
+       vmServiceDiscovery = ProtocolDiscovery.vmService(
+-        getLogReader(app: package),
++        logReader,
+         ipv6: debuggingOptions.ipv6,
+         hostPort: debuggingOptions.hostVmServicePort,
+         devicePort: debuggingOptions.deviceVmServicePort,
+         logger: globals.logger,
+       );
++      // Launch the app only after the log stream is ready; otherwise the
++      // Dart VM Service URL it logs on startup can be missed.
++      const warningDelay = Duration(seconds: 30);
++      final timer = Timer(warningDelay, () {
++        globals.printError(
++          'The iOS simulator log stream did not start after ${warningDelay.inSeconds} seconds. '
++          'This is taking much longer than expected...',
++        );
++      });
++      await logReader._ready.future;
++      timer.cancel();
+     }
+ 
+     // Launch the updated application in the simulator.
+@@ -611,7 +623,7 @@ class IOSSimulator extends Device {
+   }
+ 
+   @override
+-  DeviceLogReader getLogReader({covariant IOSApp? app, bool includePastLogs = false}) {
++  _IOSSimulatorLogReader getLogReader({covariant IOSApp? app, bool includePastLogs = false}) {
+     assert(!includePastLogs, 'Past log reading not supported on iOS simulators.');
+     return _logReaders.putIfAbsent(app, () => _IOSSimulatorLogReader(this, app));
+   }
+@@ -824,6 +836,14 @@ class _IOSSimulatorLogReader extends SharedIOSDeviceLogReader {
+     onCancel: _stop,
+   );
+ 
++  /// Completes once the log stream is ready to deliver events, or has exited.
++  ///
++  /// `log stream` is ready once it prints its first line (a "Filtering the log
++  /// data using ..." header).
++  ///
++  /// Recreated on every listen, since each one starts a new `log stream`.
++  var _ready = Completer<void>();
++
+   @override
+   @visibleForTesting
+   StreamController<String> get linesController => _linesController;
+@@ -839,10 +859,18 @@ class _IOSSimulatorLogReader extends SharedIOSDeviceLogReader {
+   String get name => device.name;
+ 
+   Future<void> _start() async {
++    // Use a local so that a previous process exiting late cannot complete it.
++    _ready = Completer<void>();
++    final Completer<void> ready = _ready;
+     // Unified logging iOS 11 and greater (introduced in iOS 10).
+     if (await device.sdkMajorVersion >= 11) {
+       _deviceProcess = await launchDeviceUnifiedLogging(device, _appName);
+-      _deviceProcess?.stdout.transform(utf8LineDecoder).listen(_onUnifiedLoggingLine);
++      _deviceProcess?.stdout.transform(utf8LineDecoder).listen((String line) {
++        if (!ready.isCompleted) {
++          ready.complete();
++        }
++        _onUnifiedLoggingLine(line);
++      });
+       _deviceProcess?.stderr.transform(utf8LineDecoder).listen(_onUnifiedLoggingLine);
+     } else {
+       // Fall back to syslog parsing.
+@@ -864,6 +892,9 @@ class _IOSSimulatorLogReader extends SharedIOSDeviceLogReader {
+     // cleanup in the callback.
+     unawaited(
+       _deviceProcess?.exitCode.whenComplete(() {
++        if (!ready.isCompleted) {
++          ready.complete();
++        }
+         if (_linesController.hasListener) {
+           _linesController.close();
+         }
