@@ -10,6 +10,7 @@ import 'package:integration_test/integration_test.dart';
 import '../test/support/core_screen_sweep_fixtures.dart';
 import '../test/support/core_screen_sweep_screens.dart';
 import '../test/support/full_tap_target_guideline.dart';
+import 'system_text_scale.dart';
 
 /// 화면 표 접근성 스모크(에픽 #3036 4-1, 4-24, 4-25).
 ///
@@ -19,10 +20,10 @@ import '../test/support/full_tap_target_guideline.dart';
 /// 탭 요소 라벨, 렌더 예외(overflow)만 검사한다. 글자 대비는 실제 폰트의 안티앨리어싱으로
 /// 오탐이 나므로 호스트 전수 검사가 맡는다.
 ///
-/// 시스템 글꼴 배율은 `--dart-define=A11Y_FONT_SCALE`로 받는다. 값은 드라이브 스크립트가
-/// 기기에 설정한 배율(Android `settings put system font_scale`, iOS `simctl ui content_size`)과
-/// 같아야 하며, 테스트는 앱이 실제로 읽은 배율이 이 값과 같은지 먼저 확인한다.
-/// 배율이 1.0보다 크면 핵심 화면만 검사한다.
+/// 시스템 글꼴 배율은 드라이브 스크립트가 기기에 설정한다(Android `settings put system font_scale`,
+/// iOS `simctl ui content_size`). 테스트는 컴파일 시점 값이 아니라 앱이 실제로 읽은 배율로 동작하므로
+/// 같은 바이너리를 배율마다 다시 빌드하지 않고 쓴다. 읽은 배율은 진입점이 `NATIVE_SYSTEM_TEXT_SCALE=` 줄로 남겨
+/// 스크립트가 요청한 배율과 같은지 확인한다. 배율이 1.0보다 크면 핵심 화면만 검사한다.
 /// Android 배율 최대치(2.0)는 Android 14 이상이 지원하는 최대 글꼴 크기 200%다.
 /// https://developer.android.com/about/versions/14/features#non-linear-font-scaling
 /// iOS 최소 탭 영역은 44x44pt다(Apple HIG Accessibility의 Controls 항목).
@@ -43,9 +44,8 @@ const _modesByScreen = <String, Set<_FontMode>>{
   '알림함': _bothModes,
 };
 
-final _fontScale = double.parse(
-  const String.fromEnvironment('A11Y_FONT_SCALE', defaultValue: '1.0'),
-);
+/// 등록 시점에 읽은 배율. 실행 시점 값과 같은지는 아래 첫 `testWidgets`가 확인한다.
+final _fontScale = systemTextScale;
 
 /// 실행 중인 플랫폼의 최소 탭 영역 기준과 그 크기 표기. 플랫폼 분기는 여기 한 곳이며,
 /// 모르는 플랫폼은 검사를 건너뛰지 않고 실패한다.
@@ -68,7 +68,9 @@ _tapTarget = switch (defaultTargetPlatform) {
   final platform => throw StateError('탭 영역 기준이 없는 플랫폼: $platform'),
 };
 
-final _runMode = _fontScale > 1.0 ? _FontMode.largeText : _FontMode.normal;
+final _runMode = isLargeTextScale(_fontScale)
+    ? _FontMode.largeText
+    : _FontMode.normal;
 
 /// 실제 기기의 짧은 화면에서는 지연 생성 목록 아래에 있어 열린 직후 만들어지지 않는
 /// `shown` 요소를 스크롤로 올리는 화면. 호스트 전수 검사는 세로 2000dp라 필요 없다.
@@ -86,16 +88,16 @@ void main() {
             (_modesByScreen[screen.name] ?? _normalOnly).contains(_runMode),
       )
       .toList();
-  test('모드 표의 화면이 모두 화면 표에 있고 선택이 비지 않는다', () {
+  testWidgets('모드 표의 화면이 모두 화면 표에 있고 선택이 비지 않는다', (tester) async {
     final tableNames = sweepScreens.map((screen) => screen.name).toSet();
     expect(tableNames.containsAll(_modesByScreen.keys), isTrue);
     expect(screens, isNotEmpty);
   });
 
-  testWidgets('앱이 읽은 시스템 글꼴 배율이 요청한 배율과 같다', (tester) async {
+  testWidgets('앱이 읽은 시스템 글꼴 배율이 등록 시점과 같다', (tester) async {
     expect(
       tester.platformDispatcher.textScaleFactor,
-      closeTo(_fontScale, 0.01),
+      closeTo(_fontScale, textScaleTolerance),
     );
   });
 
@@ -111,7 +113,7 @@ void main() {
 
   for (final screen in screens) {
     testWidgets(
-      '${screen.name} - 글자 $_fontScale배 탭 영역 ${_tapTarget.size}와 탭 요소 라벨',
+      '${screen.name} - 글자 ${_fontScale.toStringAsFixed(2)}배 탭 영역 ${_tapTarget.size}와 탭 요소 라벨',
       (tester) async {
         final semantics = tester.ensureSemantics();
         final reportedErrors = <FlutterErrorDetails>[];

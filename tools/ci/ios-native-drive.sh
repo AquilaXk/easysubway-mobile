@@ -10,6 +10,8 @@ evidence="${RUNNER_TEMP:?RUNNER_TEMP가 필요합니다}/mobile-native-ios"
 # shellcheck source=native-drive-common.sh
 source "$(dirname "${BASH_SOURCE[0]}")/native-drive-common.sh"
 
+# 첫 drive가 만드는 시뮬레이터용 앱. 나머지 배율의 drive가 재사용한다.
+app_binary="${APP_BINARY:-build/ios/iphonesimulator/Runner.app}"
 simulator="${IOS_SIMULATOR:-iPhone 17 Pro}"
 simulator_boot_timeout_seconds="${SIMULATOR_BOOT_TIMEOUT_SECONDS:-300}"
 
@@ -45,7 +47,7 @@ platform_set_font_scale() {
 }
 
 platform_drive() {
-  with_timeout "${drive_timeout_seconds}" flutter drive --driver=test_driver/integration_test.dart "--target=integration_test/$1.dart" "--dart-define=A11Y_FONT_SCALE=$2" -d "${simulator}" --no-dds
+  with_timeout "${drive_timeout_seconds}" flutter drive "--driver=${driver}" "--target=${entrypoint}" ${drive_reuse_args[@]+"${drive_reuse_args[@]}"} -d "${simulator}" --no-dds
 }
 
 platform_collect_failure_log() {

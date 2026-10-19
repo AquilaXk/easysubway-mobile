@@ -9,6 +9,9 @@ on:
       - "apps/mobile/ios/**"
       - "apps/mobile/integration_test/native_test.dart"
       - "apps/mobile/integration_test/core_screen_a11y_smoke_test.dart"
+      - "apps/mobile/integration_test/native_smoke_test.dart"
+      - "apps/mobile/integration_test/system_text_scale.dart"
+      - "apps/mobile/test_driver/native_smoke_driver.dart"
       - "apps/mobile/test/support/core_screen_sweep_*.dart"
       - "apps/mobile/test/support/full_tap_target_guideline.dart"
       - "apps/mobile/lib/accessible_design.dart"
@@ -41,6 +44,9 @@ on:
       - "apps/mobile/ios/**"
       - "apps/mobile/integration_test/native_test.dart"
       - "apps/mobile/integration_test/core_screen_a11y_smoke_test.dart"
+      - "apps/mobile/integration_test/native_smoke_test.dart"
+      - "apps/mobile/integration_test/system_text_scale.dart"
+      - "apps/mobile/test_driver/native_smoke_driver.dart"
       - "apps/mobile/test/support/core_screen_sweep_*.dart"
       - "apps/mobile/test/support/full_tap_target_guideline.dart"
       - "apps/mobile/lib/accessible_design.dart"
@@ -109,7 +115,6 @@ jobs:
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/mobile-native-android"
           printf '%s\n' '{"schemaVersion":1,"lane":"android-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-android/receipt.json"
-          for target in ${NATIVE_TARGETS}; do : > "${RUNNER_TEMP}/mobile-native-android/flutter-drive-${target//:/-}.log"; done
           : > "${RUNNER_TEMP}/mobile-native-android/adb-crash.log"
       - name: Enable KVM
         shell: bash
@@ -147,6 +152,7 @@ jobs:
           path: |
             ${{ runner.temp }}/mobile-native-android/receipt.json
             ${{ runner.temp }}/mobile-native-android/flutter-drive-*.log
+            ${{ runner.temp }}/mobile-native-android/results-scale-*.json
             ${{ runner.temp }}/mobile-native-android/adb-crash.log
           if-no-files-found: error
           retention-days: 5
@@ -178,7 +184,6 @@ jobs:
           set -euo pipefail
           mkdir -p "${RUNNER_TEMP}/mobile-native-ios"
           printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"PENDING"}' > "${RUNNER_TEMP}/mobile-native-ios/receipt.json"
-          for target in ${NATIVE_TARGETS}; do : > "${RUNNER_TEMP}/mobile-native-ios/flutter-drive-${target//:/-}.log"; done
           : > "${RUNNER_TEMP}/mobile-native-ios/simulator.log"
       - name: Run iOS simulator native smoke
         id: smoke
@@ -200,6 +205,7 @@ jobs:
           path: |
             ${{ runner.temp }}/mobile-native-ios/receipt.json
             ${{ runner.temp }}/mobile-native-ios/flutter-drive-*.log
+            ${{ runner.temp }}/mobile-native-ios/results-scale-*.json
             ${{ runner.temp }}/mobile-native-ios/simulator.log
           if-no-files-found: error
           retention-days: 5
