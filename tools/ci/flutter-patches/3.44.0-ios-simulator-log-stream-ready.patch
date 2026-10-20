@@ -12,6 +12,8 @@ Flutter 3.44.0 flutter_tools: iOS 시뮬레이터의 log stream이 준비될 때
 
 출처: https://github.com/flutter/flutter/pull/193142 (flutter/flutter#181771 수정, 2026-10-15 master 병합). Flutter 저작권자의
 BSD-3-Clause 코드이며, 3.44.0 소스에 맞춰 lib 변경만 옮기고 위 2를 더했다.
+캐시: 워크플로가 이 파일의 해시를 SDK 캐시 키에 넣으므로, 이 파일을 고치면 이전 패치가 남은 SDK 대신 새 SDK를 받는다. 그래도 적용이
+실패하면 SDK 캐시를 비우거나 패치 파일명을 바꾼다.
 제거 조건: Flutter를 이 수정이 들어간 버전으로 올리면 이 패치가 적용되지 않아 apply-flutter-patch.sh가 실패한다. 그때 이 파일과
 워크플로의 "Apply Flutter iOS simulator log stream fix" 단계를 지운다. 상류에 2에 해당하는 수정이 없으면 새로 올려 둔다.
 

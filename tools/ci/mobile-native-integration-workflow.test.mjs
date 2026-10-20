@@ -24,6 +24,18 @@ const a11ySmokeTest = readFileSync(
   "utf8",
 );
 
+// 이 lane에 서명·스토어·릴리스 재료가 들어오지 않게 하는 가드. `restore-keys`의 restore만 예외다.
+const releaseBoundaryTerms = /secrets\.|EASYSUBWAY_API_BASE_URL|release|(?<!re)store/iu;
+
+test("release boundary guard still catches store and signing words but lets restore-keys through", () => {
+  for (const word of ["store", "keystore", "datastore", "appstore", "app_store", "play-store", "SECRETS.KEY", "release"]) {
+    assert.match(word, releaseBoundaryTerms, word);
+  }
+  for (const word of ["restore", "restore-keys", "Restore Xcode build cache", "actions/cache/restore"]) {
+    assert.doesNotMatch(word, releaseBoundaryTerms, word);
+  }
+});
+
 test("native workflow runs one bounded Android and iOS simulator Journey smoke", () => {
   assert.match(workflow, /^name: Mobile Native Integration$/m);
   assert.match(workflow, /^  pull_request:\n    branches: \[main\]\n    paths:/m);
@@ -79,7 +91,7 @@ test("native workflow runs one bounded Android and iOS simulator Journey smoke",
   assert.equal((workflow.match(/^        if: always\(\)$/gmu) ?? []).length, 2);
   assert.equal((workflow.match(/^          if-no-files-found: error$/gmu) ?? []).length, 2);
   assert.equal((workflow.match(/^          retention-days: 5$/gmu) ?? []).length, 2);
-  assert.doesNotMatch(workflow, /secrets\.|EASYSUBWAY_API_BASE_URL|release|\bstore\b/iu);
+  assert.doesNotMatch(workflow, releaseBoundaryTerms);
 });
 
 const androidJob = workflow.slice(0, workflow.indexOf("  ios-native:"));
@@ -1089,6 +1101,9 @@ test("iOS job applies the pinned Flutter tool fix before anything runs flutter, 
   }
   assert.ok(steps.indexOf("Set up Flutter") < steps.indexOf("Apply Flutter iOS simulator log stream fix"));
   assert.doesNotMatch(androidSteps, /apply-flutter-patch/u);
+  // 패치가 바뀌면 SDK 캐시 키가 바뀌어, 이전 패치가 적용된 SDK에 새 패치를 겹쳐 적용하지 않는다. Android는 패치를 쓰지 않으므로 그대로 둔다.
+  assert.match(stepBlock(iosJob, "Set up Flutter"), /^          cache-key: flutter-:os:-:channel:-:version:-:arch:-:hash:-patch-\$\{\{ hashFiles\('tools\/ci\/flutter-patches\/\*\.patch'\) \}\}$/mu);
+  assert.doesNotMatch(stepBlock(androidJob, "Set up Flutter"), /cache-key/u);
   // 패치 대상은 iOS 시뮬레이터 어댑터 한 파일이고, 패치가 더하는 문자열이 본문에 있다.
   assert.deepEqual([...flutterPatch.matchAll(/^diff --git a\/(\S+) /gmu)].map((match) => match[1]), ["packages/flutter_tools/lib/src/ios/simulators.dart"]);
   assert.ok(flutterPatch.split("\n").some((line) => line.startsWith("+") && line.includes(applyPatchMarker)));
@@ -1106,11 +1121,12 @@ test("iOS job restores the Xcode build cache keyed by toolchain, lockfile, and i
   const steps = stepNames(iosJob);
   const keyStep = stepBlock(iosJob, "Resolve Xcode build cache key");
   const cacheStep = stepBlock(iosJob, "Restore Xcode build cache");
+  const saveStep = stepBlock(iosJob, "Save Xcode build cache");
   assert.match(keyStep, /^        id: toolchain$/mu);
   assert.match(keyStep, /xcodebuild -version/u);
   assert.match(keyStep, /flutter --version --machine/u);
   assert.match(cacheStep, /^        id: xcode-cache$/mu);
-  assert.match(cacheStep, /uses: actions\/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9/u);
+  assert.match(cacheStep, /uses: actions\/cache\/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9/u);
   assert.match(cacheStep, /^            ~\/Library\/Developer\/Xcode\/DerivedData$/mu);
   assert.match(cacheStep, /^            apps\/mobile\/build\/ios\/SourcePackages$/mu);
   const toolchainPrefix = "xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-";
@@ -1121,6 +1137,16 @@ test("iOS job restores the Xcode build cache keyed by toolchain, lockfile, and i
   assert.ok(steps.indexOf("Resolve Xcode build cache key") < steps.indexOf("Restore Xcode build cache"));
   assert.ok(steps.indexOf("Restore Xcode build cache") < steps.indexOf("Install Flutter dependencies"));
   assert.doesNotMatch(androidSteps, /actions\/cache|DerivedData/u);
+  // 저장은 main push에서만, 그리고 정확히 일치하는 캐시가 없을 때만 한다. 저장 실패가 판정을 바꾸지 않도록 smoke 뒤(성공했을 때만)에 둔다.
+  assert.match(saveStep, /uses: actions\/cache\/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9/u);
+  assert.match(saveStep, /^        if: github\.event_name == 'push' && github\.ref == 'refs\/heads\/main' && steps\.xcode-cache\.outputs\.cache-hit != 'true'$/mu);
+  assert.match(saveStep, /^          key: \$\{\{ steps\.xcode-cache\.outputs\.cache-primary-key \}\}$/mu);
+  const cachedPaths = (block) => block.match(/^          path: \|\n((?: {12}.+\n)+)/mu)?.[1];
+  assert.ok(cachedPaths(cacheStep));
+  assert.equal(cachedPaths(saveStep), cachedPaths(cacheStep));
+  assert.ok(steps.indexOf("Run iOS simulator native smoke") < steps.indexOf("Save Xcode build cache"));
+  assert.doesNotMatch(saveStep, /always\(\)|failure\(\)|continue-on-error/u);
+  assert.doesNotMatch(iosJob, /uses: actions\/cache@/u);
 });
 
 test("iOS job records whether the Xcode build cache was used and how large it is, even when the smoke fails", () => {
@@ -1207,6 +1233,8 @@ test("apply-flutter-patch fails closed when the SDK is not the version the patch
   assert.notEqual(run.status, 0);
   assert.equal(run.source, "class Other {}\n");
   assert.equal(run.rebuilds, 0);
+  // 캐시된 SDK에 다른 패치가 남은 경우도 같은 실패이므로 안내를 함께 준다.
+  assert.match(run.output, /SDK 캐시를 비우거나 패치 파일명을 바꾼다/u);
 });
 
 test("apply-flutter-patch fails closed when the rebuilt snapshot does not carry the fix", () => {
