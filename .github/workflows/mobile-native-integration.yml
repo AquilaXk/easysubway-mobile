@@ -26,6 +26,8 @@ on:
       - "apps/mobile/lib/features/settings/**"
       - "apps/mobile/lib/features/stations/**"
       - "tools/ci/android-native-drive.sh"
+      - "tools/ci/apply-flutter-patch.sh"
+      - "tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch"
       - "tools/ci/ios-native-drive.sh"
       - "tools/ci/native-drive-common.sh"
       - "apps/mobile/lib/features/journey/**"
@@ -61,6 +63,8 @@ on:
       - "apps/mobile/lib/features/settings/**"
       - "apps/mobile/lib/features/stations/**"
       - "tools/ci/android-native-drive.sh"
+      - "tools/ci/apply-flutter-patch.sh"
+      - "tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch"
       - "tools/ci/ios-native-drive.sh"
       - "tools/ci/native-drive-common.sh"
       - "apps/mobile/lib/features/journey/**"
@@ -175,6 +179,32 @@ jobs:
           channel: stable
           flutter-version: "3.44.0"
           cache: true
+          # 패치한 SDK가 캐시에 저장되므로 키에 패치 해시를 넣는다. 패치가 바뀌면 이전 패치가 남은 SDK 대신 새 SDK를 받는다.
+          cache-key: flutter-:os:-:channel:-:version:-:arch:-:hash:-patch-${{ hashFiles('tools/ci/flutter-patches/*.patch') }}
+      # Flutter 3.44.0 tool은 시뮬레이터 log stream이 준비되기 전에 앱과 테스트를 시작해 VM service 주소나 테스트 첫 줄을 놓친다.
+      # 상류 수정(flutter/flutter#193142)과 확장을 적용한다. 자세한 내용은 패치 파일 머리말에 있다.
+      - name: Apply Flutter iOS simulator log stream fix
+        run: bash "${GITHUB_WORKSPACE}/tools/ci/apply-flutter-patch.sh" "${GITHUB_WORKSPACE}/tools/ci/flutter-patches/3.44.0-ios-simulator-log-stream-ready.patch" "The iOS simulator log stream did not start"
+      # DerivedData(컴파일 산출물)와 SwiftPM SourcePackages(내려받은 의존성)를 run 사이에 재사용한다. 키에 Xcode·Flutter 버전을 넣어
+      # 다른 toolchain의 산출물은 복원하지 않는다. restore-keys는 같은 toolchain 안에서만 이전 캐시를 쓰며, 바뀐 소스는 Xcode가 다시 컴파일한다.
+      # 저장은 main push에서만 한다(아래 Save 단계). PR run은 main이 저장한 캐시를 읽기만 해서 저장소 캐시 쿼터를 쓰지 않는다.
+      - name: Resolve Xcode build cache key
+        id: toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcode="$(xcodebuild -version | tr -s '[:space:]' '-')"
+          flutter_build="$(flutter --version --machine | jq -r '.frameworkVersion + "-" + .engineRevision[0:10]')"
+          echo "id=${xcode%-}-flutter-${flutter_build}" >> "${GITHUB_OUTPUT}"
+      - name: Restore Xcode build cache
+        id: xcode-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            apps/mobile/build/ios/SourcePackages
+          key: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/ios/**') }}
+          restore-keys: xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-
       - name: Install Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
@@ -197,6 +227,29 @@ jobs:
           if grep -q '"status":"PENDING"' "${receipt}"; then
             printf '%s\n' '{"schemaVersion":1,"lane":"ios-native","status":"FAIL","target":"simulator","step":"boot"}' > "${receipt}"
           fi
+      - name: Report Xcode build cache
+        if: ${{ !cancelled() }}
+        shell: bash
+        env:
+          CACHE_HIT: ${{ steps.xcode-cache.outputs.cache-hit }}
+        run: |
+          case "${CACHE_HIT}" in
+            true) restored="exact hit" ;;
+            false) restored="partial restore from restore-keys" ;;
+            *) restored="miss" ;;
+          esac
+          echo "- Xcode build cache: ${restored}" >> "${GITHUB_STEP_SUMMARY}"
+          for dir in "${HOME}/Library/Developer/Xcode/DerivedData" apps/mobile/build/ios/SourcePackages; do
+            if [ -d "${dir}" ]; then du -sh "${dir}" | sed 's/^/- /' >> "${GITHUB_STEP_SUMMARY}"; fi
+          done
+      - name: Save Xcode build cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.xcode-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |
+            ~/Library/Developer/Xcode/DerivedData
+            apps/mobile/build/ios/SourcePackages
+          key: ${{ steps.xcode-cache.outputs.cache-primary-key }}
       - name: Upload iOS native evidence
         if: always()
         uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
