@@ -109,5 +109,5 @@ Related #
 - [ ] current failure를 previous/local/legacy 결과의 성공 표시로 바꾸지 않습니다.
 - [ ] CodeRabbit 리뷰 결과와 필요한 조치를 확인했습니다.
 - [ ] GitHub PR Review 객체가 있는지 확인했습니다. CodeRabbit status check만으로는 리뷰 완료로 보지 않습니다.
-- [ ] CodeRabbit Review 객체가 없으면 지원되는 Codex CLI 폴백 Review를 단일 GitHub PR Review로 게시했습니다.
+- [ ] `aquila-review` 스킬로 Aquila 마커 Review를 단일 PR review로 게시했습니다.
 - [ ] store 배포 영향이 있는 경우 release·distribution workflow 상태를 확인했습니다.

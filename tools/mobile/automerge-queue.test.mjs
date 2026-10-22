@@ -16,6 +16,11 @@ const workflowUrl = new URL(
 );
 const MARKER_SYNC_RE =
   /# authorization-marker-sync-begin\n([\s\S]*?)\n\s+# authorization-marker-sync-end/;
+const AQUILA_UNIVERSAL_MARKER = '<!-- Review source: Aquila Universal Review; engine: aquila-review -->';
+const AQUILA_FALLBACK_MARKER =
+  '<!-- Review source: Aquila fallback; canonical visible structure: PR #1926 Review 4676157515 -->';
+const CODEX_LEGACY_MARKER =
+  '<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->';
 test('automerge coordinator fails closed around the native merge queue', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
 
@@ -201,8 +206,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   )?.[1];
   assert.ok(reviewProgram, 'review state jq program must stay testable');
 
-  const fallbackBody =
-    '**Actionable comments posted: 0**\n<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->';
+  const fallbackBody = `**Actionable comments posted: 0**\n${AQUILA_UNIVERSAL_MARKER}`;
   const head = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
   const review = (id, state, submittedAt, body = '', overrides = {}) => ({
     id,
@@ -257,19 +261,31 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ]),
     0,
   );
-  assert.equal(
+  for (const [name, marker] of [
+    ['Aquila fallback', AQUILA_FALLBACK_MARKER],
+    ['Aquila Universal Review', AQUILA_UNIVERSAL_MARKER],
+  ]) {
+    assert.equal(
+      runReviewFilter([
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', `**Actionable comments posted: 0**\n${marker}`),
+      ]),
+      0,
+      `${name} review must satisfy frozen discovery filter`,
+    );
+  }
+  assert.notEqual(
     runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '**Actionable comments posted: 0**\n<!-- Review source: Aquila fallback; canonical visible structure: PR #1926 Review 4676157515 -->'),
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', `**Actionable comments posted: 0**\n${CODEX_LEGACY_MARKER}`),
     ]),
     0,
-    'Aquila fallback review must satisfy frozen discovery filter',
+    'a review that carries only the retired Codex marker must not satisfy frozen discovery filter',
   );
-  assert.equal(
+  assert.notEqual(
     runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '**Actionable comments posted: 0**\n<!-- Review source: Aquila Universal Review; engine: aquila-review -->'),
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '**Actionable comments posted: 0**'),
     ]),
     0,
-    'Aquila Universal Review must satisfy frozen discovery filter',
+    'a review without any recognized marker must not satisfy frozen discovery filter',
   );
   assert.notEqual(
     runReviewFilter([
@@ -1155,8 +1171,8 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     ...overrides,
   });
 
-  const canonicalCodexBody = (findings = 0) =>
-    `**Actionable comments posted: ${findings}**\n<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->`;
+  const canonicalReviewBody = (findings = 0) =>
+    `**Actionable comments posted: ${findings}**\n${AQUILA_UNIVERSAL_MARKER}`;
 
   const canonicalMarker = (headSha = currentHead) => ({
     body: `<!-- Automerge frozen discovery authorization: ${headSha} -->`,
@@ -1183,7 +1199,7 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
   assert.equal(
     verifyAutomergeReviewClosure({
       head: currentHead,
-      reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalCodexBody(1))],
+      reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalReviewBody(1))],
       comments: [canonicalMarker(currentHead)],
       reviewThreads: {
         pageInfo: { hasNextPage: false },
@@ -1279,7 +1295,7 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
   // 5. selected 밖 production/test path와 add/delete/rename/binary/submodule 차단
   const baseClosureSetup = {
     head: currentHead,
-    reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalCodexBody(1))],
+    reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalReviewBody(1))],
     comments: [canonicalMarker(currentHead)],
     reviewThreads: {
       pageInfo: { hasNextPage: false },
@@ -1372,7 +1388,7 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     () =>
       verifyAutomergeReviewClosure({
         head: currentHead,
-        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalCodexBody(0))],
+        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalReviewBody(0))],
         comments: [canonicalMarker(currentHead)],
         reviewedCommits: [{ sha: previousHead, patch: validPatch }],
         currentCommits: [{ sha: previousHead, patch: validPatch }, { sha: currentHead, patch: validPatch }],
@@ -1418,13 +1434,32 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     () =>
       verifyAutomergeReviewClosure({
         head: currentHead,
-        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, 'Not a canonical codex body')],
+        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, 'Not a canonical review body')],
         comments: [canonicalMarker(currentHead)],
         reviewedCommits: [{ sha: previousHead, patch: validPatch }],
         currentCommits: [{ sha: currentHead, patch: validPatch }],
       }),
     /no eligible previous-head discovery review found/,
   );
+
+  const closureWithBody = (body) => () =>
+    verifyAutomergeReviewClosure({
+      head: currentHead,
+      reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, body)],
+      comments: [canonicalMarker(currentHead)],
+      reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+      currentCommits: [{ sha: currentHead, patch: validPatch }],
+      closureFiles: [],
+    });
+  for (const marker of [AQUILA_FALLBACK_MARKER, AQUILA_UNIVERSAL_MARKER]) {
+    assert.equal(closureWithBody(`**Actionable comments posted: 0**\n${marker}`)().ok, true, marker);
+  }
+  for (const body of [
+    `**Actionable comments posted: 0**\n${CODEX_LEGACY_MARKER}`,
+    '**Actionable comments posted: 0**',
+  ]) {
+    assert.throws(closureWithBody(body), /no eligible previous-head discovery review found/, body);
+  }
 
   // wrong actor for CodeRabbit
   assert.throws(
@@ -2121,7 +2156,7 @@ test('marker 동기화의 discovery 판정은 리뷰 게이트와 같은 정의�
   const gate = workflow.match(/# frozen-discovery-review-filter-begin\n([\s\S]*?)\n\s+# review-state-filter-end/)?.[1];
   assert.ok(gate, 'review gate must stay testable');
   const normalize = (text) => text.replace(/\s+/g, ' ').trim();
-  for (const name of ['is_coderabbit', 'is_trusted_human', 'is_codex_fallback', 'is_frozen_discovery']) {
+  for (const name of ['is_coderabbit', 'is_trusted_human', 'is_aquila_fallback', 'is_frozen_discovery']) {
     const definition = (source) => source.match(new RegExp(`def ${name}:[\\s\\S]*?;\\n`))?.[0];
     assert.ok(definition(gate), `gate must define ${name}`);
     assert.equal(normalize(definition(sync) ?? ''), normalize(definition(gate)), `marker sync ${name} must match the review gate`);

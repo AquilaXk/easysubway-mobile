@@ -37,14 +37,13 @@ export function isCodeRabbit(review) {
   );
 }
 
-export function isCanonicalCodexFallback(review) {
+export function isCanonicalAquilaReview(review) {
   const body = review?.body ?? '';
   return (
     isTrustedHuman(review) &&
     body.startsWith('**Actionable comments posted: ') &&
     (body.includes('<!-- Review source: Aquila fallback; canonical visible structure:') ||
-      body.includes('<!-- Review source: Aquila Universal Review; engine: aquila-review -->') ||
-      body.includes('<!-- Review source: Codex CLI fallback; canonical visible structure:'))
+      body.includes('<!-- Review source: Aquila Universal Review; engine: aquila-review -->'))
   );
 }
 
@@ -96,7 +95,7 @@ export function getActiveReviewStates(reviews) {
 }
 
 export function extractFindings(discoveryReview, reviewThreads = []) {
-  if (isCanonicalCodexFallback(discoveryReview)) {
+  if (isCanonicalAquilaReview(discoveryReview)) {
     const match = (discoveryReview.body ?? '').match(/\*\*Actionable comments posted: (\d+)\*\*/);
     const findingCount = match ? parseInt(match[1], 10) : 0;
     const inlinePaths = new Set();
@@ -351,7 +350,7 @@ export function verifyAutomergeReviewClosure({
     if (r.state === 'DISMISSED') return false;
     if (isTrustedHuman(r) && r.state === 'APPROVED') return true;
     if (isCodeRabbit(r) && r.state === 'COMMENTED') return true;
-    if (isCanonicalCodexFallback(r) && r.state === 'COMMENTED') return true;
+    if (isCanonicalAquilaReview(r) && r.state === 'COMMENTED') return true;
     return false;
   });
 
