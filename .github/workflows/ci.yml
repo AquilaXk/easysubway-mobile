@@ -464,6 +464,17 @@ jobs:
           mkdir -p apps/mobile/coverage
           sed 's#^SF:lib/#SF:apps/mobile/lib/#' \
             "${RUNNER_TEMP}/mobile-sonar-lcov/mobile-coverage-normalized.lcov" > apps/mobile/coverage/lcov.info
+      - name: Verify mapped coverage paths
+        run: |
+          lcov=apps/mobile/coverage/lcov.info
+          if ! grep -q '^SF:' "${lcov}"; then
+            echo "::error::${lcov} has no SF: records, so SonarCloud would report zero coverage"
+            exit 1
+          fi
+          if grep '^SF:' "${lcov}" | grep -v '^SF:apps/mobile/lib/'; then
+            echo "::error::${lcov} has SF: records outside apps/mobile/lib/ (listed above), so SonarCloud cannot match them to sources"
+            exit 1
+          fi
       - name: SonarCloud scan
         uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
         env:

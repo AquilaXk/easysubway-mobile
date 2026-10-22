@@ -5,27 +5,13 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
+import { jobBlock as workflowJobBlock, runScript, stepBlock } from "./lib/workflow-blocks.mjs";
 
 const repositoryRoot = fileURLToPath(new URL("../..", import.meta.url));
 const workflowPath = path.join(repositoryRoot, ".github/workflows/ci.yml");
 const workflow = readFileSync(workflowPath, "utf8");
 
-function jobBlock(id) {
-  const lines = workflow.split("\n");
-  const jobsStart = lines.indexOf("jobs:");
-  assert.notEqual(jobsStart, -1, "jobs: section is missing");
-  const start = lines.indexOf(`  ${id}:`, jobsStart);
-  assert.notEqual(start, -1, `job ${id} is missing`);
-  let end = lines.length;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    // 다음 job 키나 다음 job 앞 주석(2칸 들여쓰기)에서 끝난다. job 내부는 4칸 이상이다.
-    if (/^ {2}\S/u.test(lines[index])) {
-      end = index;
-      break;
-    }
-  }
-  return lines.slice(start, end).join("\n");
-}
+const jobBlock = (id) => workflowJobBlock(workflow, id);
 
 function jobIds() {
   const lines = workflow.split("\n");
@@ -35,26 +21,6 @@ function jobIds() {
 
 function stepNames(job) {
   return [...job.matchAll(/^ {6}- name: (.+)$/gmu)].map((match) => match[1]);
-}
-
-function stepBlock(job, name) {
-  const header = `      - name: ${name}`;
-  const start = job.indexOf(`${header}\n`);
-  assert.notEqual(start, -1, `step ${name} is missing`);
-  const next = job.indexOf("\n      - name: ", start + header.length);
-  return job.slice(start, next === -1 ? undefined : next);
-}
-
-function runScript(step) {
-  const lines = step.split("\n");
-  const start = lines.indexOf("        run: |");
-  assert.notEqual(start, -1, "run: | block is missing");
-  const body = [];
-  for (const line of lines.slice(start + 1)) {
-    if (line.trim() !== "" && !line.startsWith("          ")) break;
-    body.push(line.slice(10));
-  }
-  return `${body.join("\n").trimEnd()}\n`;
 }
 
 const MOBILE_CONTRACT_STEPS = [
