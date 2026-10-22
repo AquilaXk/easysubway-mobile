@@ -280,6 +280,7 @@ jobs:
             tools/ci/mobile-changed-path-classifier.test.mjs \
             tools/ci/mobile-ci-parallel-lanes.test.mjs \
             tools/ci/mobile-ci-scope.test.mjs \
+            tools/ci/mobile-sonarcloud-workflow.test.mjs \
             tools/ci/mobile-dependabot-policy.test.mjs \
             tools/ci/mobile-root-import-ratchet.test.mjs \
             tools/ci/public-sensitivity-owner-receipt-caller.test.mjs \
@@ -372,6 +373,13 @@ jobs:
             --output "${RUNNER_TEMP}/mobile-coverage-normalized.lcov" \
             --policy tools/ci/mobile-coverage-policy.json \
             --result "${RUNNER_TEMP}/mobile-coverage-filter-result.json"
+      - name: Upload mobile coverage for SonarCloud
+        uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808
+        with:
+          name: mobile-sonar-lcov
+          path: ${{ runner.temp }}/mobile-coverage-normalized.lcov
+          retention-days: 1
+          if-no-files-found: error
       - name: Analyze mobile coverage ratchet
         id: coverage_ratchet_analyze
         env:
@@ -414,6 +422,64 @@ jobs:
           node tools/ci/mobile-coverage-ratchet.mjs verdict \
             --analysis-outcome "${{ steps.coverage_ratchet_analyze.outcome }}" \
             --upload-outcome "${{ steps.coverage_ratchet_upload.outcome }}"
+
+  # SonarQube Cloud Automatic Analysis는 Dart를 지원하지 않아 CI scanner로 분석한다.
+  # coverage는 ratchet과 같은 필터링 lcov를 쓴다. secret이 없는 fork·Dependabot PR은 건너뛴다.
+  sonarcloud:
+    name: SonarCloud
+    needs: mobile-host-tests
+    if: >-
+      ${{
+        needs.mobile-host-tests.result == 'success' &&
+        github.actor != 'dependabot[bot]' &&
+        (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          channel: stable
+          flutter-version-file: .fvmrc
+          cache: true
+      - name: Install Flutter dependencies
+        working-directory: apps/mobile
+        run: flutter pub get
+      - name: Download mobile coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: mobile-sonar-lcov
+          path: ${{ runner.temp }}/mobile-sonar-lcov
+      - name: Map coverage paths to repository root
+        run: |
+          mkdir -p apps/mobile/coverage
+          sed 's#^SF:lib/#SF:apps/mobile/lib/#' \
+            "${RUNNER_TEMP}/mobile-sonar-lcov/mobile-coverage-normalized.lcov" > apps/mobile/coverage/lcov.info
+      - name: Verify mapped coverage paths
+        run: |
+          lcov=apps/mobile/coverage/lcov.info
+          if ! grep -q '^SF:' "${lcov}"; then
+            echo "::error::${lcov} has no SF: records, so SonarCloud would report zero coverage"
+            exit 1
+          fi
+          if grep '^SF:' "${lcov}" | grep -v '^SF:apps/mobile/lib/'; then
+            echo "::error::${lcov} has SF: records outside apps/mobile/lib/ (listed above), so SonarCloud cannot match them to sources"
+            exit 1
+          fi
+      - name: SonarCloud scan
+        uses: SonarSource/sonarqube-scan-action@d209202bc7d53ff1cc128f7f907dac145c9d6ae9 # v8.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
   # required check "Mobile CI". 모든 lane 결과를 모은다. 실패·누락·취소는 물론, 실행 판정인데
   # skipped이거나 skip 판정인데 실행된 lane도 실패다. always()라 취소된 run에서도 실패로 남는다.
