@@ -41,7 +41,7 @@
     "passCriteria": "Local Android emulator smoke is diagnostic-only; release-blocking GO requires the exact current-RC Play-installed build to pass the required 16 KB smoke."
   },
   "evidencePolicy": {
-    "localOnlyEvidenceRoot": ".codex/evidence/release/android-16kb-page-size/<rc-or-run>/",
+    "localOnlyEvidenceRoot": ".evidence/evidence/release/android-16kb-page-size/<rc-or-run>/",
     "githubEvidencePolicy": "summary-only",
     "sensitiveEvidence": [
       "AAB binary",

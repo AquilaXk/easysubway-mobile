@@ -15,7 +15,7 @@ Options:
   --settle-seconds <seconds>  Wait after launch/settings changes. Defaults to 2.
   -h, --help                  Show this help.
 
-This smoke is for Codex PR evidence and intentionally requires a local Android
+This smoke is for PR evidence and intentionally requires a local Android
 emulator. It writes screenshots, UI trees, settings, package, gfxinfo, and
 logcat summaries under the artifact directory. It does not use physical devices.
 USAGE
