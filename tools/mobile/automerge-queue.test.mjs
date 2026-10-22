@@ -1461,6 +1461,33 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     assert.throws(closureWithBody(body), /no eligible previous-head discovery review found/, body);
   }
 
+  // 요약 머리말은 본문 맨 앞에 있어야 한다. 마커만 있거나 머리말이 중간에 있으면 인정하지 않는다.
+  for (const body of [
+    AQUILA_UNIVERSAL_MARKER,
+    `intro\n**Actionable comments posted: 0**\n${AQUILA_UNIVERSAL_MARKER}`,
+  ]) {
+    assert.throws(closureWithBody(body), /no eligible previous-head discovery review found/, body);
+  }
+
+  // 신뢰하지 않는 작성자가 마커와 머리말을 모두 갖춰 게시해도 canonical로 인정하지 않는다.
+  // 신뢰 작성자의 비정형 리뷰와 함께 두어, 외부 리뷰가 유일한 후보가 되는 경우를 가린다.
+  const untrustedCanonical = trustedHumanReview(2, 'COMMENTED', previousHead, canonicalReviewBody(0), {
+    author_association: 'NONE',
+    user: { login: 'outsider', id: 2, type: 'User' },
+  });
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head: currentHead,
+        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, 'plain note'), untrustedCanonical],
+        comments: [canonicalMarker(currentHead)],
+        reviewedCommits: [{ sha: previousHead, patch: validPatch }],
+        currentCommits: [{ sha: currentHead, patch: validPatch }],
+        closureFiles: [],
+      }),
+    /no eligible previous-head discovery review found/,
+  );
+
   // wrong actor for CodeRabbit
   assert.throws(
     () =>
