@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -74,9 +76,21 @@ void main() {
         expect(paragraph.didExceedMaxLines, isFalse);
         expect(paragraph.textSize.height, lessThanOrEqualTo(mark.height));
         expect(paragraph.textSize.width, lessThanOrEqualTo(mark.width));
-        expect(mark.height, greaterThanOrEqualTo(20 * scale));
+        expect(mark.height, 20 * math.min(scale, lineMarkMaxTextScale));
       });
     }
+  }
+
+  // 상용 서비스 역 검색 화면 3x 캡처 실측: 높이 18pt 알약의 폭은 수인분당 53.7pt,
+  // 신분당 43.3pt다.
+  for (final (label, width) in [('수인분당', 53.7), ('신분당', 43.3)]) {
+    testWidgets('높이 18 알약 $label은 실측 폭 $width에 맞게 조밀하다', (tester) async {
+      await _pump(tester, LineMark(label: label, color: color, size: 18));
+
+      final mark = tester.getSize(find.byType(LineMark));
+      expect(mark.height, 18);
+      expect(mark.width, closeTo(width, 1.5));
+    });
   }
 
   testWidgets('호선 번호 글자는 원 높이의 절반 이상이라 한눈에 읽힌다', (tester) async {

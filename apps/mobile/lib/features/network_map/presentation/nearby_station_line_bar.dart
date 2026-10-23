@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -40,6 +42,8 @@ class NearbyStationLineBar extends StatelessWidget {
 
   /// 다음(오른쪽) 역 탭. null이면 표시만 한다.
   final VoidCallback? onRightNameTap;
+
+  static const _pillMarkSize = 20.0;
 
   @override
   Widget build(BuildContext context) {
@@ -99,6 +103,11 @@ class NearbyStationLineBar extends StatelessWidget {
         final capsuleHeight = baseCenterWidth * 41 / 129;
         final hitHeight = capsuleHeight < 48.0 ? 48.0 : capsuleHeight;
         final badgeDiameter = (capsuleHeight * 0.62).clamp(24.0, 28.0);
+        // 알약 마크는 같은 높이 원보다 훨씬 넓어 캡슐 안 이름 자리를 먹는다.
+        // 이름이 줄어들지 않게 알약만 더 낮게 그린다.
+        final badgeSize = isLineMarkCircle(badgeText)
+            ? badgeDiameter
+            : math.min(badgeDiameter, _pillMarkSize);
         final stationNameSize = (capsuleHeight * 0.42).clamp(16.0, 20.0);
         final openDetail = onStationNameTap;
         final currentLabel = badgeText.isEmpty
@@ -183,14 +192,14 @@ class NearbyStationLineBar extends StatelessWidget {
                             children: [
                               if (badgeText.isNotEmpty ||
                                   badgeBuilder != null) ...[
-                                badgeBuilder?.call(badgeDiameter) ??
+                                badgeBuilder?.call(badgeSize) ??
                                     LineMark(
                                       key: const Key(
                                         'nearbyStationLineBarBadge',
                                       ),
                                       label: badgeText,
                                       color: lineColor,
-                                      size: badgeDiameter,
+                                      size: badgeSize,
                                     ),
                                 const SizedBox(width: 7),
                               ],

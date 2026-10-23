@@ -5,12 +5,14 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../app/easy_subway_family_app_bar.dart';
 import '../../../core/external/kakao_map_launcher.dart';
+import '../../../core/ui/name_with_marks.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../application/station_detail_controller.dart';
 import '../domain/station_line.dart';
+import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
 import 'station_detail_body.dart';
 import 'station_line_badges.dart';
@@ -209,6 +211,12 @@ class _StationDetailAppBarTitle extends StatelessWidget {
 
   final StationDetailState state;
 
+  // 상단바 높이가 60 고정이라 마크는 두 줄까지만 쌓인다. 큰 글자에서도 마크가
+  // 줄 폭의 45%를 넘지 않아 역 이름이 나머지를 가진다.
+  static const _markSize = 20.0;
+  static const _maxMarkCount = 3;
+  static const _marksMaxFraction = 0.45;
+
   @override
   Widget build(BuildContext context) {
     final detail = state.detail;
@@ -220,28 +228,33 @@ class _StationDetailAppBarTitle extends StatelessWidget {
       // 본문 헤더를 없애므로 상세 요약 시맨틱을 AppBar 타이틀에 둔다.
       label: detail.semanticLabel,
       header: true,
-      child: ExcludeSemantics(
-        child: Row(
-          children: [
-            for (final line in detail.lines.take(3)) ...[
-              StationLineBadge(line: line, size: 28),
-              const SizedBox(width: 6),
-            ],
-            if (detail.lines.isNotEmpty) const SizedBox(width: 2),
-            Expanded(
-              child: Text(
-                '${detail.nameKo}역',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: EasySubwayAccessibleColors.onPrimary,
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
-              ),
-            ),
-          ],
-        ),
+      child: ExcludeSemantics(child: _titleWithMarks(context, detail)),
+    );
+  }
+
+  Widget _titleWithMarks(BuildContext context, StationDetail detail) {
+    final name = Text(
+      '${detail.nameKo}역',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        color: EasySubwayAccessibleColors.onPrimary,
+        fontWeight: FontWeight.w700,
+        height: 1.2,
+      ),
+    );
+    if (detail.lines.isEmpty) {
+      return name;
+    }
+    return NameWithMarks(
+      name: name,
+      marksFirst: true,
+      maxMarksFraction: _marksMaxFraction,
+      marks: StationLineBadges(
+        lines: detail.lines,
+        size: _markSize,
+        maxBadgeCount: _maxMarkCount,
+        runSpacing: 4,
       ),
     );
   }

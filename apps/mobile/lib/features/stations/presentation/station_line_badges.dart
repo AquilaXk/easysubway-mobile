@@ -9,12 +9,14 @@ class StationLineBadges extends StatelessWidget {
     required this.lines,
     this.size = 40,
     this.maxBadgeCount,
+    this.runSpacing = 8,
     super.key,
   });
 
   final List<StationSearchLine> lines;
   final double size;
   final int? maxBadgeCount;
+  final double runSpacing;
 
   @override
   Widget build(BuildContext context) {
@@ -31,7 +33,7 @@ class StationLineBadges extends StatelessWidget {
 
     return Wrap(
       spacing: 8,
-      runSpacing: 8,
+      runSpacing: runSpacing,
       children: [
         for (final line in lines.take(visibleLineCount))
           StationLineBadge(line: line, size: size),
@@ -51,15 +53,16 @@ class StationLineBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final badgeText = line.badgeText;
-    final isSingleChar = badgeText.length <= 1;
     final assetPath = line.badgeAssetPath;
 
-    if (isSingleChar && assetPath != null) {
-      final cachePx = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    if (isLineMarkCircle(badgeText) && assetPath != null) {
+      final markSize = scaledLineMarkSize(context, size);
+      final cachePx = (markSize * MediaQuery.devicePixelRatioOf(context))
+          .round();
       final image = Image.asset(
         assetPath,
-        width: size,
-        height: size,
+        width: markSize,
+        height: markSize,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
         cacheWidth: cachePx,
@@ -67,11 +70,13 @@ class StationLineBadge extends StatelessWidget {
       );
       return SizedBox(
         key: Key('stationLineBadge-${line.id}'),
-        width: size,
-        height: size,
+        width: markSize,
+        height: markSize,
         child: stationLineBadgeNeedsRoundedCorners(assetPath)
             ? ClipRRect(
-                borderRadius: BorderRadius.all(Radius.circular(size * 0.16)),
+                borderRadius: BorderRadius.all(
+                  Radius.circular(markSize * 0.16),
+                ),
                 child: image,
               )
             : image,
@@ -104,7 +109,7 @@ class StationLineBadgeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSingleChar = line.badgeText.length <= 1;
+    final isSingleChar = isLineMarkCircle(line.badgeText);
 
     return Semantics(
       button: true,
@@ -157,10 +162,11 @@ class _StationLineOverflowBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final markSize = scaledLineMarkSize(context, size);
     return Container(
       key: const Key('stationLineBadgeOverflow'),
-      width: size,
-      height: size,
+      width: markSize,
+      height: markSize,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: EasySubwayAccessibleColors.scaffoldSurface,
@@ -170,9 +176,10 @@ class _StationLineOverflowBadge extends StatelessWidget {
       child: Text(
         '+$count',
         textAlign: TextAlign.center,
+        textScaler: TextScaler.noScaling,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: EasySubwayAccessibleColors.mutedText,
-          fontSize: 13 * (size / 32),
+          fontSize: 13 * (markSize / 32),
           fontWeight: FontWeight.w800,
           height: 1.0,
         ),

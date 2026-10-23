@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/ui/name_with_marks.dart';
 import '../../../design_tokens.dart';
 import '../domain/station_line.dart';
 import '../domain/station_repositories.dart';
@@ -215,8 +216,6 @@ class _RecentSearchItem extends StatelessWidget {
   final ValueChanged<RecentRouteSearchEntry> onRouteSelected;
   final ValueChanged<RecentSearchEntry> onRemove;
 
-  static const _badgeSize = 26.0;
-
   @override
   Widget build(BuildContext context) {
     final entry = this.entry;
@@ -230,7 +229,6 @@ class _RecentSearchItem extends StatelessWidget {
       removeKey,
       removeTooltip,
       semanticsLabel,
-      leading,
       title,
     ) = switch (entry) {
       RecentStationSearchEntry() => (
@@ -238,8 +236,7 @@ class _RecentSearchItem extends StatelessWidget {
         Key('stationRecentSearchRemove-${entry.query}'),
         '${entry.query} 최근 검색 삭제',
         '최근 검색어 ${entry.query} 검색',
-        _stationLeading(entry.lines),
-        Text(entry.query, style: titleStyle),
+        _StationQueryLabel(entry: entry, textStyle: titleStyle),
       ),
       RecentRouteSearchEntry() => (
         Key(
@@ -252,7 +249,6 @@ class _RecentSearchItem extends StatelessWidget {
         ),
         '${entry.displayLabel} 최근 경로 삭제',
         '최근 경로 ${entry.displayLabel} 다시 찾기',
-        null,
         _RouteStationsLabel(entry: entry, textStyle: titleStyle),
       ),
     };
@@ -288,15 +284,7 @@ class _RecentSearchItem extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                       vertical: EasySubwaySpacing.xs,
                     ),
-                    child: Row(
-                      children: [
-                        if (leading != null) ...[
-                          leading,
-                          const SizedBox(width: EasySubwaySpacing.sm),
-                        ],
-                        Expanded(child: title),
-                      ],
-                    ),
+                    child: Row(children: [Expanded(child: title)]),
                   ),
                 ),
               ),
@@ -312,15 +300,38 @@ class _RecentSearchItem extends StatelessWidget {
       ],
     );
   }
+}
 
-  static Widget _stationLeading(List<StationSearchLine> lines) {
-    if (lines.isEmpty) {
-      return const Icon(
-        Icons.train_outlined,
-        color: EasySubwayAccessibleColors.iconMuted,
-      );
-    }
-    return StationLineBadges(lines: lines, size: _badgeSize, maxBadgeCount: 3);
+/// 검색 결과 행의 마크 크기와 같다.
+const _recentMarkSize = 20.0;
+
+/// 최근 검색어와 그 역의 노선 마크. 검색어가 우선이라 마크는 줄 폭의 일부만 쓰고
+/// 넘치면 다음 줄로 접힌다.
+class _StationQueryLabel extends StatelessWidget {
+  const _StationQueryLabel({required this.entry, required this.textStyle});
+
+  final RecentStationSearchEntry entry;
+  final TextStyle? textStyle;
+
+  @override
+  Widget build(BuildContext context) {
+    final marks = entry.lines.isEmpty
+        ? const Icon(
+            Icons.train_outlined,
+            color: EasySubwayAccessibleColors.iconMuted,
+          )
+        : StationLineBadges(
+            lines: entry.lines,
+            size: _recentMarkSize,
+            maxBadgeCount: 3,
+            runSpacing: 4,
+          );
+    return NameWithMarks(
+      name: Text(entry.query, style: textStyle),
+      marks: marks,
+      marksFirst: true,
+      gap: EasySubwaySpacing.sm,
+    );
   }
 }
 
@@ -330,7 +341,6 @@ class _RouteStationsLabel extends StatelessWidget {
   final RecentRouteSearchEntry entry;
   final TextStyle? textStyle;
 
-  static const _badgeSize = 26.0;
   static const _arrowStyle = TextStyle(
     color: EasySubwayAccessibleColors.mutedText,
     fontSize: 15,
@@ -370,7 +380,11 @@ class _RouteStationsLabel extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (lines.isNotEmpty) ...[
-          StationLineBadges(lines: lines, size: _badgeSize, maxBadgeCount: 2),
+          StationLineBadges(
+            lines: lines,
+            size: _recentMarkSize,
+            maxBadgeCount: 2,
+          ),
           const SizedBox(width: 6),
         ],
         Text(label, style: textStyle),

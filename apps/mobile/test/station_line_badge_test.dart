@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:math' as math;
 
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
@@ -343,4 +345,64 @@ void main() {
       expect(find.text('4'), findsOneWidget);
     },
   );
+
+  for (final scale in [1.0, 1.5, 2.0]) {
+    testWidgets('글자 $scale배에서 번들 PNG 마크와 알약 마크는 같은 높이로 자란다', (tester) async {
+      const png = StationSearchLine(
+        id: 'seoul-2',
+        name: '수도권 2호선',
+        color: '#00A84D',
+        stationCode: '239',
+      );
+      const pill = StationSearchLine(
+        id: 'unbundled-pill',
+        name: '수도권 가상선',
+        color: '#77C4A3',
+        stationCode: 'X01',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          builder: (context, child) => MediaQuery(
+            data: MediaQuery.of(
+              context,
+            ).copyWith(textScaler: TextScaler.linear(scale)),
+            child: child!,
+          ),
+          home: const Scaffold(
+            body: Row(
+              children: [
+                StationLineBadge(line: png, size: 20),
+                StationLineBadge(line: pill, size: 20),
+                StationLineBadges(
+                  lines: [png, png, png],
+                  size: 20,
+                  maxBadgeCount: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+
+      final markScale = math.min<double>(scale, lineMarkMaxTextScale);
+      final pngMark = tester.getSize(
+        find.byKey(const Key('stationLineBadge-seoul-2')).first,
+      );
+      final pillMark = tester.getSize(
+        find.byKey(const Key('stationLineBadge-unbundled-pill')),
+      );
+      final overflowMark = tester.getSize(
+        find.byKey(const Key('stationLineBadgeOverflow')),
+      );
+      expect(pngMark, Size.square(20 * markScale));
+      expect(pillMark.height, 20 * markScale);
+      expect(overflowMark, Size.square(20 * markScale));
+    });
+  }
+
+  test('원 마크 규칙은 한 글자 라벨만 원으로 본다', () {
+    expect(isLineMarkCircle('2'), isTrue);
+    expect(isLineMarkCircle('경의중앙'), isFalse);
+    expect(isLineMarkCircle(''), isTrue);
+  });
 }
