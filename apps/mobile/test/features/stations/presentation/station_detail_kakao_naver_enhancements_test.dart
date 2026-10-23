@@ -213,13 +213,13 @@ void main() {
 
       expect(find.text('역정보'), findsOneWidget);
       expect(find.text('시설정보'), findsOneWidget);
-      expect(find.text('플랫폼'), findsOneWidget);
       expect(find.text('화장실'), findsOneWidget);
       expect(find.text('개찰구 안/밖'), findsOneWidget);
-      expect(find.text('내리는문'), findsOneWidget);
-      expect(find.text('반대편'), findsOneWidget);
-      // 승강장(플랫폼, 내리는문, 반대편) 데이터 부재 시 가짜 기본값 대신 '-'이 정직하게 표출됨
-      expect(find.text('-'), findsNWidgets(3));
+      // 원천에 값이 없는 승강장 칸(플랫폼, 내리는문, 반대편)은 `-`로 채우지 않고 뺀다.
+      expect(find.text('플랫폼'), findsNothing);
+      expect(find.text('내리는문'), findsNothing);
+      expect(find.text('반대편'), findsNothing);
+      expect(find.text('-'), findsNothing);
       expect(find.text('양쪽'), findsNothing);
       expect(find.text('오른쪽'), findsNothing);
       expect(find.text('연결됨'), findsNothing);
@@ -312,9 +312,7 @@ void main() {
     expect(find.text('이동 불가'), findsOneWidget);
   });
 
-  testWidgets('화장실 정보가 전혀 없으면 임의로 개찰구 밖을 날조하지 않고 -으로 정직하게 표출한다', (
-    tester,
-  ) async {
+  testWidgets('화장실 정보가 전혀 없으면 개찰구 밖을 날조하지 않고 화장실 칸을 뺀다', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -341,8 +339,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('화장실'), findsOneWidget);
-    expect(find.text('-'), findsNWidgets(4)); // 플랫폼, 화장실, 내리는문, 반대편 모두 -
+    expect(find.text('시설정보'), findsNothing);
+    expect(find.text('화장실'), findsNothing);
+    expect(find.text('-'), findsNothing);
     expect(find.text('개찰구 밖'), findsNothing);
     expect(find.text('개찰구 안'), findsNothing);
   });

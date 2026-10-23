@@ -107,6 +107,8 @@ void main() {
       expect(_announced('$label 없음'), findsNothing, reason: label);
     }
     expect(find.text('편의시설'), findsNothing);
+    expect(find.text('시설정보'), findsNothing);
+    expect(find.text('-'), findsNothing);
     expect(find.text('역정보'), findsOneWidget);
     expect(_announced('엘리베이터 있음'), findsOneWidget);
   });
@@ -149,6 +151,16 @@ void main() {
     expect(find.text('교통약자 시설'), findsNothing);
     expect(find.text('엘리베이터'), findsNothing);
     expect(find.text('휠체어 리프트'), findsNothing);
+  });
+
+  testWidgets('확인된 칸이 하나도 없으면 역정보 제목까지 뺀다', (tester) async {
+    await _pumpDetail(
+      tester,
+      facilities: [_installed('ESCALATOR', '금남로4가역 에스컬레이터 설치 정보')],
+    );
+
+    expect(find.text('역정보'), findsNothing);
+    expect(find.text('시설 상세 및 고장 신고'), findsOneWidget);
   });
 
   testWidgets('시설 행이 없어도 미설치 증거가 있는 역은 없음 칸을 보인다', (tester) async {

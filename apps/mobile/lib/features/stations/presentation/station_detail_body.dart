@@ -612,8 +612,8 @@ class _StationDetailSectionTitle extends StatelessWidget {
 /// 2. 편의시설 2열 그리드 (자전거보관소, 환승주차장, 유실물센터, 물품보관소)
 /// 3. 교통약자 시설 2열 그리드 (장애인화장실, 엘리베이터, 수유실, 휠체어 리프트)
 ///
-/// 편의시설과 교통약자 시설은 원천이 확인한 칸만 그린다. 모르는 유형은 없음으로
-/// 그리지 않고 칸을 빼며, 칸이 하나도 없는 묶음은 제목까지 뺀다.
+/// 모든 묶음은 원천이 확인한 칸만 그린다. 모르는 값은 `-`나 없음으로 그리지 않고
+/// 칸을 빼며, 칸이 하나도 없는 묶음은 제목까지 뺀다.
 class _StationNaverStationInfoSection extends StatelessWidget {
   const _StationNaverStationInfoSection({
     required this.station,
@@ -659,45 +659,39 @@ class _StationNaverStationInfoSection extends StatelessWidget {
         outsideGate = true;
       }
     }
-    final String toiletTag;
-    if (toilets.isEmpty) {
-      toiletTag = '-';
-    } else if (insideGate && outsideGate) {
+    final String? toiletTag;
+    if (insideGate && outsideGate) {
       toiletTag = '개찰구 안/밖';
     } else if (insideGate) {
       toiletTag = '개찰구 안';
     } else if (outsideGate) {
       toiletTag = '개찰구 밖';
     } else {
-      toiletTag = '-';
+      toiletTag = null;
     }
 
-    String? foundDoorTag;
-    String? foundPlatformTag;
-    String? foundCrossPlatformTag;
+    String? doorTag;
+    String? platformTag;
+    String? crossPlatformTag;
     for (final f in facilities) {
       final text = '${f.name} ${f.description}'.toLowerCase();
-      if (text.contains('왼쪽')) foundDoorTag = '왼쪽';
-      if (text.contains('오른쪽')) foundDoorTag = '오른쪽';
+      if (text.contains('왼쪽')) doorTag = '왼쪽';
+      if (text.contains('오른쪽')) doorTag = '오른쪽';
       if (text.contains('단선') || text.contains('단선승강장')) {
-        foundPlatformTag = '단선';
+        platformTag = '단선';
       }
-      if (text.contains('섬식')) foundPlatformTag = '섬식';
-      if (text.contains('상대식')) foundPlatformTag = '양쪽';
+      if (text.contains('섬식')) platformTag = '섬식';
+      if (text.contains('상대식')) platformTag = '양쪽';
       final noSpaces = text.replaceAll(' ', '');
       if (noSpaces.contains('이동불가') || noSpaces.contains('횡단불가')) {
-        foundCrossPlatformTag = '이동 불가';
+        crossPlatformTag = '이동 불가';
       }
       if (noSpaces.contains('횡단가능') ||
           noSpaces.contains('반대편연결') ||
           noSpaces.contains('반대편이동가능')) {
-        foundCrossPlatformTag = '연결됨';
+        crossPlatformTag = '연결됨';
       }
     }
-
-    final doorTag = foundDoorTag ?? '-';
-    final platformTag = foundPlatformTag ?? '-';
-    final crossPlatformTag = foundCrossPlatformTag ?? '-';
 
     // 2. 편의시설 설치 여부 확인
     final hasBicycle = facilities.any(
@@ -794,26 +788,30 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       _StationInfoGroup(
         title: '시설정보',
         items: [
-          _NaverFacilityTagItem(
-            icon: Icons.train_outlined,
-            label: '플랫폼',
-            tag: platformTag,
-          ),
-          _NaverFacilityTagItem(
-            icon: Icons.wc_outlined,
-            label: '화장실',
-            tag: toiletTag,
-          ),
-          _NaverFacilityTagItem(
-            icon: Icons.meeting_room_outlined,
-            label: '내리는문',
-            tag: doorTag,
-          ),
-          _NaverFacilityTagItem(
-            icon: Icons.swap_horiz,
-            label: '반대편',
-            tag: crossPlatformTag,
-          ),
+          if (platformTag != null)
+            _NaverFacilityTagItem(
+              icon: Icons.train_outlined,
+              label: '플랫폼',
+              tag: platformTag,
+            ),
+          if (toiletTag != null)
+            _NaverFacilityTagItem(
+              icon: Icons.wc_outlined,
+              label: '화장실',
+              tag: toiletTag,
+            ),
+          if (doorTag != null)
+            _NaverFacilityTagItem(
+              icon: Icons.meeting_room_outlined,
+              label: '내리는문',
+              tag: doorTag,
+            ),
+          if (crossPlatformTag != null)
+            _NaverFacilityTagItem(
+              icon: Icons.swap_horiz,
+              label: '반대편',
+              tag: crossPlatformTag,
+            ),
         ],
       ),
       _StationInfoGroup(
@@ -894,7 +892,8 @@ class _StationNaverStationInfoSection extends StatelessWidget {
             ),
         ],
       ),
-    ].where((group) => group.items.isNotEmpty);
+    ].where((group) => group.items.isNotEmpty).toList();
+    if (groups.isEmpty) return const SizedBox.shrink();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
