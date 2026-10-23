@@ -66,9 +66,10 @@ double _contrast(Color a, Color b) {
 /// 노선 마크 단일 그림. 한 글자 라벨(호선 번호)은 노선색 원 안 흰 글자, 그 밖의
 /// 공식 약칭은 노선색 알약 안 흰 글자다. 글자는 배경색과 무관하게 항상 흰색이다.
 ///
-/// [onLineColor]는 노선색 막대 위에 얹는 마크다. 흰 면에 노선색 테두리와 노선색
-/// 글자를 쓴다(상용 지하철 서비스 경로 결과의 구간 막대). 흰색과 노선색의 대비는
-/// 방향과 무관하게 같다.
+/// [onLineColor]는 노선색 막대 위에 얹는 마크다. 흰 면에 노선색 테두리를 두고,
+/// 글자는 노선색 대신 [lineInkOnWhite]로 4.5:1을 맞춘 같은 색상의 어두운 색을
+/// 쓴다(상용 지하철 서비스 경로 결과의 구간 막대). 노선색 그대로는 밝은 노선에서
+/// 흰 면과의 대비가 모자란다.
 ///
 /// [maxTextScale]은 높이가 정해진 칸 안의 마크만 [lineMarkFixedChromeMaxTextScale]로
 /// 넘긴다. 기본 null은 상한이 없어 시스템 글자 배율을 그대로 따른다.
@@ -114,7 +115,7 @@ class LineMark extends StatelessWidget {
       textScaler: TextScaler.noScaling,
       style: TextStyle(
         color: onLineColor
-            ? color
+            ? lineInkOnWhite(color)
             : EasySubwayAccessibleColors.interactionOnPrimary,
         fontSize: fontSize,
         fontWeight: EasySubwayFontWeight.boldForContrast,

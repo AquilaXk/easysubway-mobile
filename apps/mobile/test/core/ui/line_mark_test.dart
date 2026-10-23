@@ -198,13 +198,29 @@ void main() {
       });
     }
 
-    testWidgets('막대 위 마크는 흰 면에 노선색 테두리와 노선색 글자를 쓴다', (tester) async {
+    for (final (name, lineColor) in const [
+      ('수인분당', Color(0xFFF5A200)),
+      ('2호선', Color(0xFF00A84D)),
+      ('4호선', Color(0xFF00A5DE)),
+    ]) {
+      testWidgets('막대 위 $name 마크 글자는 흰 면과 4.5:1을 넘긴다', (tester) async {
+        await _pump(
+          tester,
+          LineMark(label: '4', color: lineColor, onLineColor: true),
+        );
+
+        final label = paragraphOf(tester, '4').text.style!.color!;
+        expect(contrastOnWhite(label), greaterThanOrEqualTo(4.5));
+      });
+    }
+
+    testWidgets('막대 위 마크는 흰 면에 노선색 테두리와 흰 바탕용 글자색을 쓴다', (tester) async {
       await _pump(
         tester,
         const LineMark(label: '4', color: color, onLineColor: true),
       );
 
-      expect(paragraphOf(tester, '4').text.style?.color, color);
+      expect(paragraphOf(tester, '4').text.style?.color, lineInkOnWhite(color));
       final decoration =
           tester
                   .widget<DecoratedBox>(
