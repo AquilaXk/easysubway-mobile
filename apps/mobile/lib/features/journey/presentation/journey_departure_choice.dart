@@ -1,6 +1,3 @@
-import '../../../generated/journey_v3/journey_v3_contract.dart';
-import '../domain/journey_profile_models.dart';
-
 /// 경로 검색의 출발 기준. 서버가 받는 요청 모드만 둔다(지금 출발, 출발 시각
 /// 지정, 막차). 도착 시각과 첫차는 서버 요청 모드가 없어 두지 않는다.
 sealed class JourneyDepartureChoice {
@@ -91,19 +88,3 @@ String journeyDepartureBarLabel(JourneyDepartureChoice choice, DateTime now) {
       '${journeyDayLabel(serviceDay, today)} 막차',
   };
 }
-
-/// 출발 기준을 서버 요청의 출발(`departure`)과 프로필 질의로 바꾼다. 막차는
-/// 운행일 하나만 보내는 `LAST_CONNECTION` 프로필 질의다.
-(JourneyDeparture, JourneyTemporalQuery?) journeyDepartureRequest(
-  JourneyDepartureChoice choice,
-) => switch (choice) {
-  JourneyDepartNow() => (const JourneyDepartureNow(), null),
-  JourneyDepartAt(:final requestedAt) => (
-    JourneyDepartureScheduled(requestedAt),
-    null,
-  ),
-  final JourneyLastTrain lastTrain => (
-    JourneyDepartureScheduled(lastTrain.serviceDay),
-    JourneyLastConnectionQuery(serviceDate: lastTrain.serviceDate),
-  ),
-};

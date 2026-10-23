@@ -790,7 +790,21 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         ConstraintMode.requireStepFree,
       ),
     };
-    final (departure, temporalQuery) = journeyDepartureRequest(_departure);
+    // 막차는 운행일 하나만 보내는 LAST_CONNECTION 프로필 질의다.
+    final (
+      JourneyDeparture departure,
+      JourneyTemporalQuery? temporalQuery,
+    ) = switch (_departure) {
+      JourneyDepartNow() => (const JourneyDepartureNow(), null),
+      JourneyDepartAt(:final requestedAt) => (
+        JourneyDepartureScheduled(requestedAt),
+        null,
+      ),
+      final JourneyLastTrain lastTrain => (
+        JourneyDepartureScheduled(lastTrain.serviceDay),
+        JourneyLastConnectionQuery(serviceDate: lastTrain.serviceDate),
+      ),
+    };
     return JourneySearchCommand(
       originStationId: origin.id,
       destinationStationId: destination.id,

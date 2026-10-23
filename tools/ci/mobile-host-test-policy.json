@@ -244,6 +244,13 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/431",
       "reason": "Station facility status summary was unreachable from lib/main.dart after the station detail redesign (#381).",
       "reviewTrigger": "Mobile #431 orphan source removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/network_map_route_draft_pill_mark_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/509",
+      "reason": "Route draft input fields no longer render line marks; network_map_route_draft_dot_test.dart covers the role dot, name width and text-scale overflow at the same widths.",
+      "reviewTrigger": "Mobile #509 route draft line mark removal"
     }
   ]
 }

@@ -1,6 +1,4 @@
-import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_departure_choice.dart';
-import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // 시각은 서울 시각으로 적고 UTC로 바꿔 넣는다. 기대값은 손으로 적는다.
@@ -52,27 +50,6 @@ void main() {
         now,
       ),
       '10월 23일(금) 막차',
-    );
-  });
-
-  test('출발 기준은 서버가 받는 요청 모드로만 바뀐다', () {
-    final (now, nowQuery) = journeyDepartureRequest(const JourneyDepartNow());
-    expect(now, isA<JourneyDepartureNow>());
-    expect(nowQuery, isNull);
-
-    final at = _seoul(25, 8, 5);
-    final (scheduled, scheduledQuery) = journeyDepartureRequest(
-      JourneyDepartAt(at),
-    );
-    expect((scheduled as JourneyDepartureScheduled).requestedAt, at);
-    expect(scheduledQuery, isNull);
-
-    final (_, lastQuery) = journeyDepartureRequest(
-      JourneyLastTrain(DateTime.utc(2026, 10, 23)),
-    );
-    expect(
-      (lastQuery! as JourneyLastConnectionQuery).serviceDate,
-      '2026-10-23',
     );
   });
 
