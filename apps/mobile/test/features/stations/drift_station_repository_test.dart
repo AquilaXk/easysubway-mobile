@@ -370,6 +370,44 @@ void main() {
     expect(facilityIds, isNot(contains('facility-sangnoksu-lift-absent')));
   });
 
+  test('미설치 엘리베이터에만 이어진 출구는 엘리베이터 연결로 읽지 않는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO station_exits (id, station_id, exit_number, has_elevator_connection)
+      VALUES
+        ('exit-sangnoksu-2', 'station-sangnoksu', '2', 0),
+        ('exit-sangnoksu-3', 'station-sangnoksu', '3', 0)
+      ''');
+    await database.customStatement('''
+      INSERT INTO facilities (id, station_id, exit_id, type, name, installation_status)
+      VALUES
+        ('facility-sangnoksu-exit2-elevator-absent', 'station-sangnoksu',
+         'exit-sangnoksu-2', 'ELEVATOR', '2번 출구 엘리베이터 설치 정보',
+         'NOT_INSTALLED'),
+        ('facility-sangnoksu-exit3-elevator', 'station-sangnoksu',
+         'exit-sangnoksu-3', 'ELEVATOR', '3번 출구 엘리베이터', 'INSTALLED')
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final exits = await repository.listStationExits('station-sangnoksu');
+    final facilityIds = (await repository.listStationFacilities(
+      'station-sangnoksu',
+    )).map((facility) => facility.id);
+
+    final connected = {
+      for (final exit in exits) exit.id: exit.hasElevatorConnection,
+    };
+    expect(connected['exit-sangnoksu-2'], isFalse);
+    expect(connected['exit-sangnoksu-3'], isTrue);
+    expect(facilityIds, contains('facility-sangnoksu-exit3-elevator'));
+    expect(
+      facilityIds,
+      isNot(contains('facility-sangnoksu-exit2-elevator-absent')),
+    );
+  });
+
   test('역 상세는 모든 노선에서 미설치가 확인된 시설 유형만 없음으로 싣는다', () async {
     final database = CatalogDatabase.memory();
     addTearDown(database.close);
