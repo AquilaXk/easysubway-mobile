@@ -621,6 +621,95 @@ class _StationNaverStationInfoSection extends StatelessWidget {
 
   final List<_StationInfoGroup> groups;
 
+  static const _insideGateKeywords = [
+    '안',
+    '내부',
+    '운임구역 내',
+    '승강장',
+    '게이트 안',
+    '개찰구 안',
+  ];
+  static const _outsideGateKeywords = [
+    '밖',
+    '외부',
+    '운임구역 외',
+    '대합실',
+    '게이트 밖',
+    '개찰구 밖',
+    '출구',
+  ];
+  static const _doorRules = [
+    _TagRule(['왼쪽'], '왼쪽'),
+    _TagRule(['오른쪽'], '오른쪽'),
+  ];
+  static const _platformRules = [
+    _TagRule(['단선'], '단선'),
+    _TagRule(['섬식'], '섬식'),
+    _TagRule(['상대식'], '양쪽'),
+  ];
+  static const _crossPlatformRules = [
+    _TagRule(['이동불가', '횡단불가'], '이동 불가'),
+    _TagRule(['횡단가능', '반대편연결', '반대편이동가능'], '연결됨'),
+  ];
+  static const _amenityKinds = [
+    _FacilityKind(
+      icon: Icons.directions_bike,
+      label: '자전거보관소',
+      types: ['BICYCLE'],
+      keywords: ['자전거'],
+      matchesDescription: true,
+    ),
+    _FacilityKind(
+      icon: Icons.local_parking,
+      label: '환승주차장',
+      types: ['PARKING'],
+      keywords: ['주차장'],
+      matchesDescription: true,
+    ),
+    _FacilityKind(
+      icon: Icons.find_in_page_outlined,
+      label: '유실물센터',
+      types: ['LOST_ITEM', 'LOST_AND_FOUND'],
+      keywords: ['유실물'],
+      matchesDescription: true,
+    ),
+    _FacilityKind(
+      icon: Icons.inventory_2_outlined,
+      label: '물품보관소',
+      types: ['LOCKER', 'STORAGE'],
+      keywords: ['물품보관', '보관함'],
+      matchesDescription: true,
+    ),
+  ];
+  static const _accessibleKinds = [
+    _FacilityKind(
+      icon: Icons.accessible,
+      label: '장애인화장실',
+      types: ['ACCESSIBLE_TOILET'],
+      keywords: ['장애인'],
+    ),
+    _FacilityKind(
+      icon: Icons.elevator_outlined,
+      label: '엘리베이터',
+      types: ['ELEVATOR'],
+      keywords: ['엘리베이터'],
+      absenceType: 'ELEVATOR',
+    ),
+    _FacilityKind(
+      icon: Icons.baby_changing_station,
+      label: '수유실',
+      types: ['NURSING_ROOM'],
+      keywords: ['수유실'],
+    ),
+    _FacilityKind(
+      icon: Icons.accessible_forward,
+      label: '휠체어 리프트',
+      types: ['WHEELCHAIR_LIFT'],
+      keywords: ['리프트'],
+      absenceType: 'WHEELCHAIR_LIFT',
+    ),
+  ];
+
   /// 화면에 그릴 칸이 있는 묶음만 돌려준다. 구역을 그릴지는 이 목록이 정한다.
   static List<_StationInfoGroup> groupsOf({
     required StationDetail station,
@@ -628,272 +717,145 @@ class _StationNaverStationInfoSection extends StatelessWidget {
     required Future<void> Function(FacilityReportTarget target)
     onOpenFacilityReport,
   }) {
-    // 1. 시설정보 계산
-    final toilets = facilities
-        .where(
-          (f) =>
-              f.type == 'TOILET' ||
-              f.type == 'ACCESSIBLE_TOILET' ||
-              f.name.contains('화장실'),
-        )
-        .toList();
-    bool insideGate = false;
-    bool outsideGate = false;
-    for (final t in toilets) {
-      final text = '${t.name} ${t.description} ${t.floorFrom}'.toLowerCase();
-      if (text.contains('안') ||
-          text.contains('내부') ||
-          text.contains('운임구역 내') ||
-          text.contains('승강장') ||
-          text.contains('게이트 안') ||
-          text.contains('개찰구 안')) {
-        insideGate = true;
-      }
-      if (text.contains('밖') ||
-          text.contains('외부') ||
-          text.contains('운임구역 외') ||
-          text.contains('대합실') ||
-          text.contains('게이트 밖') ||
-          text.contains('개찰구 밖') ||
-          text.contains('출구')) {
-        outsideGate = true;
-      }
-    }
-    final String? toiletTag;
-    if (insideGate && outsideGate) {
-      toiletTag = '개찰구 안/밖';
-    } else if (insideGate) {
-      toiletTag = '개찰구 안';
-    } else if (outsideGate) {
-      toiletTag = '개찰구 밖';
-    } else {
-      toiletTag = null;
-    }
-
-    String? doorTag;
-    String? platformTag;
-    String? crossPlatformTag;
-    for (final f in facilities) {
-      final text = '${f.name} ${f.description}'.toLowerCase();
-      if (text.contains('왼쪽')) doorTag = '왼쪽';
-      if (text.contains('오른쪽')) doorTag = '오른쪽';
-      if (text.contains('단선') || text.contains('단선승강장')) {
-        platformTag = '단선';
-      }
-      if (text.contains('섬식')) platformTag = '섬식';
-      if (text.contains('상대식')) platformTag = '양쪽';
-      final noSpaces = text.replaceAll(' ', '');
-      if (noSpaces.contains('이동불가') || noSpaces.contains('횡단불가')) {
-        crossPlatformTag = '이동 불가';
-      }
-      if (noSpaces.contains('횡단가능') ||
-          noSpaces.contains('반대편연결') ||
-          noSpaces.contains('반대편이동가능')) {
-        crossPlatformTag = '연결됨';
-      }
-    }
-
-    // 2. 편의시설 설치 여부 확인
-    final hasBicycle = facilities.any(
-      (f) =>
-          f.type == 'BICYCLE' ||
-          f.name.contains('자전거') ||
-          f.description.contains('자전거'),
-    );
-    final hasParking = facilities.any(
-      (f) =>
-          f.type == 'PARKING' ||
-          f.name.contains('주차장') ||
-          f.description.contains('주차장'),
-    );
-    final hasLostItem = facilities.any(
-      (f) =>
-          f.type == 'LOST_ITEM' ||
-          f.type == 'LOST_AND_FOUND' ||
-          f.name.contains('유실물') ||
-          f.description.contains('유실물'),
-    );
-    final hasStorage = facilities.any(
-      (f) =>
-          f.type == 'LOCKER' ||
-          f.type == 'STORAGE' ||
-          f.name.contains('물품보관') ||
-          f.name.contains('보관함') ||
-          f.description.contains('물품보관') ||
-          f.description.contains('보관함'),
-    );
-
-    // 3. 교통약자 시설 매핑 및 설치 여부 확인
-    final disabledToiletFacility = facilities
-        .cast<StationFacilityInfo?>()
-        .firstWhere(
-          (f) =>
-              f != null &&
-              (f.type == 'ACCESSIBLE_TOILET' || f.name.contains('장애인')),
-          orElse: () => null,
-        );
-    final elevatorFacility = facilities.cast<StationFacilityInfo?>().firstWhere(
-      (f) => f != null && (f.type == 'ELEVATOR' || f.name.contains('엘리베이터')),
-      orElse: () => null,
-    );
-    final nursingFacility = facilities.cast<StationFacilityInfo?>().firstWhere(
-      (f) => f != null && (f.type == 'NURSING_ROOM' || f.name.contains('수유실')),
-      orElse: () => null,
-    );
-    final wheelchairLiftFacility = facilities
-        .cast<StationFacilityInfo?>()
-        .firstWhere(
-          (f) =>
-              f != null &&
-              (f.type == 'WHEELCHAIR_LIFT' || f.name.contains('리프트')),
-          orElse: () => null,
-        );
-
     final absentTypes = station.confirmedAbsentFacilityTypes;
-    bool? availability(bool present, {String? absenceType}) {
-      if (present) return true;
-      return absentTypes.contains(absenceType) ? false : null;
-    }
-
-    final bicycle = availability(hasBicycle);
-    final parking = availability(hasParking);
-    final lostItem = availability(hasLostItem);
-    final storage = availability(hasStorage);
-    final disabledToilet = availability(disabledToiletFacility != null);
-    final elevator = availability(
-      elevatorFacility != null,
-      absenceType: 'ELEVATOR',
-    );
-    final nursingRoom = availability(nursingFacility != null);
-    final wheelchairLift = availability(
-      wheelchairLiftFacility != null,
-      absenceType: 'WHEELCHAIR_LIFT',
-    );
-
-    VoidCallback? reportCallback(StationFacilityInfo? facility) {
-      if (facility == null) return null;
-      return () => onOpenFacilityReport(
-        FacilityReportTarget(
-          stationId: station.id,
-          stationName: station.nameKo,
-          facilityId: facility.id,
-          facilityName: facility.name,
-          facilityTypeLabel: facility.type,
-          facilityStatusLabel: facility.status,
-        ),
-      );
-    }
-
     return [
-      _StationInfoGroup(
-        title: '시설정보',
-        items: [
-          if (platformTag != null)
-            _NaverFacilityTagItem(
-              icon: Icons.train_outlined,
-              label: '플랫폼',
-              tag: platformTag,
-            ),
-          if (toiletTag != null)
-            _NaverFacilityTagItem(
-              icon: Icons.wc_outlined,
-              label: '화장실',
-              tag: toiletTag,
-            ),
-          if (doorTag != null)
-            _NaverFacilityTagItem(
-              icon: Icons.meeting_room_outlined,
-              label: '내리는문',
-              tag: doorTag,
-            ),
-          if (crossPlatformTag != null)
-            _NaverFacilityTagItem(
-              icon: Icons.swap_horiz,
-              label: '반대편',
-              tag: crossPlatformTag,
-            ),
-        ],
-      ),
+      _facilityInfoGroup(facilities),
       _StationInfoGroup(
         title: '편의시설',
-        items: [
-          if (bicycle != null)
-            _NaverAmenityGridItem(
-              icon: Icons.directions_bike,
-              label: '자전거보관소',
-              isAvailable: bicycle,
-            ),
-          if (parking != null)
-            _NaverAmenityGridItem(
-              icon: Icons.local_parking,
-              label: '환승주차장',
-              isAvailable: parking,
-            ),
-          if (lostItem != null)
-            _NaverAmenityGridItem(
-              icon: Icons.find_in_page_outlined,
-              label: '유실물센터',
-              isAvailable: lostItem,
-            ),
-          if (storage != null)
-            _NaverAmenityGridItem(
-              icon: Icons.inventory_2_outlined,
-              label: '물품보관소',
-              isAvailable: storage,
-            ),
-        ],
+        items: _knownItems(
+          _amenityKinds,
+          facilities,
+          absentTypes,
+          (kind, _, isAvailable) => _NaverAmenityGridItem(
+            icon: kind.icon,
+            label: kind.label,
+            isAvailable: isAvailable,
+          ),
+        ),
       ),
       _StationInfoGroup(
         title: '교통약자 시설',
-        items: [
-          if (disabledToilet != null)
-            _NaverAccessibleFacilityItem(
-              key: disabledToiletFacility != null
-                  ? Key(
-                      'naverFacilityReportButton-${disabledToiletFacility.id}',
-                    )
-                  : null,
-              icon: Icons.accessible,
-              label: '장애인화장실',
-              isAvailable: disabledToilet,
-              onTap: reportCallback(disabledToiletFacility),
-            ),
-          if (elevator != null)
-            _NaverAccessibleFacilityItem(
-              key: elevatorFacility != null
-                  ? Key('naverFacilityReportButton-${elevatorFacility.id}')
-                  : null,
-              icon: Icons.elevator_outlined,
-              label: '엘리베이터',
-              isAvailable: elevator,
-              onTap: reportCallback(elevatorFacility),
-            ),
-          if (nursingRoom != null)
-            _NaverAccessibleFacilityItem(
-              key: nursingFacility != null
-                  ? Key('naverFacilityReportButton-${nursingFacility.id}')
-                  : null,
-              icon: Icons.baby_changing_station,
-              label: '수유실',
-              isAvailable: nursingRoom,
-              onTap: reportCallback(nursingFacility),
-            ),
-          if (wheelchairLift != null)
-            _NaverAccessibleFacilityItem(
-              key: wheelchairLiftFacility != null
-                  ? Key(
-                      'naverFacilityReportButton-${wheelchairLiftFacility.id}',
-                    )
-                  : null,
-              icon: Icons.accessible_forward,
-              label: '휠체어 리프트',
-              isAvailable: wheelchairLift,
-              onTap: reportCallback(wheelchairLiftFacility),
-            ),
-        ],
+        items: _knownItems(
+          _accessibleKinds,
+          facilities,
+          absentTypes,
+          (kind, installed, isAvailable) => _NaverAccessibleFacilityItem(
+            key: installed == null
+                ? null
+                : Key('naverFacilityReportButton-${installed.id}'),
+            icon: kind.icon,
+            label: kind.label,
+            isAvailable: isAvailable,
+            onTap: installed == null
+                ? null
+                : () => onOpenFacilityReport(_reportTarget(station, installed)),
+          ),
+        ),
       ),
     ].where((group) => group.items.isNotEmpty).toList();
   }
+
+  static FacilityReportTarget _reportTarget(
+    StationDetail station,
+    StationFacilityInfo facility,
+  ) {
+    return FacilityReportTarget(
+      stationId: station.id,
+      stationName: station.nameKo,
+      facilityId: facility.id,
+      facilityName: facility.name,
+      facilityTypeLabel: facility.type,
+      facilityStatusLabel: facility.status,
+    );
+  }
+
+  /// 유형마다 시설이 있는지, 없다고 확인됐는지, 모르는지를 읽어
+  /// 아는 유형만 [build]로 그린다.
+  static List<Widget> _knownItems(
+    List<_FacilityKind> kinds,
+    List<StationFacilityInfo> facilities,
+    Set<String> absentTypes,
+    Widget Function(
+      _FacilityKind kind,
+      StationFacilityInfo? installed,
+      bool isAvailable,
+    )
+    build,
+  ) {
+    final items = <Widget>[];
+    for (final kind in kinds) {
+      final installed = facilities.where(kind.matches).firstOrNull;
+      final knowledge = kind.knowledgeOf(installed, absentTypes);
+      if (knowledge != _FacilityKnowledge.unknown) {
+        items.add(
+          build(kind, installed, knowledge == _FacilityKnowledge.exists),
+        );
+      }
+    }
+    return items;
+  }
+
+  static _StationInfoGroup _facilityInfoGroup(
+    List<StationFacilityInfo> facilities,
+  ) {
+    final texts = facilities
+        .map((f) => '${f.name} ${f.description}'.toLowerCase())
+        .toList();
+    final tags = [
+      (Icons.train_outlined, '플랫폼', _lastTag(texts, _platformRules)),
+      (Icons.wc_outlined, '화장실', _toiletTag(facilities)),
+      (Icons.meeting_room_outlined, '내리는문', _lastTag(texts, _doorRules)),
+      (
+        Icons.swap_horiz,
+        '반대편',
+        _lastTag(
+          texts.map((text) => text.replaceAll(' ', '')),
+          _crossPlatformRules,
+        ),
+      ),
+    ];
+    return _StationInfoGroup(
+      title: '시설정보',
+      items: [
+        for (final (icon, label, tag) in tags)
+          if (tag != null)
+            _NaverFacilityTagItem(icon: icon, label: label, tag: tag),
+      ],
+    );
+  }
+
+  /// 텍스트를 차례로 보며 마지막으로 맞은 규칙의 태그를 돌려준다.
+  static String? _lastTag(Iterable<String> texts, List<_TagRule> rules) {
+    String? tag;
+    for (final text in texts) {
+      for (final rule in rules) {
+        if (rule.matches(text)) tag = rule.tag;
+      }
+    }
+    return tag;
+  }
+
+  static String? _toiletTag(List<StationFacilityInfo> facilities) {
+    final texts = facilities
+        .where(_isToilet)
+        .map((t) => '${t.name} ${t.description} ${t.floorFrom}'.toLowerCase())
+        .toList();
+    final insideGate = texts.any(
+      (text) => _insideGateKeywords.any(text.contains),
+    );
+    final outsideGate = texts.any(
+      (text) => _outsideGateKeywords.any(text.contains),
+    );
+    if (insideGate && outsideGate) return '개찰구 안/밖';
+    if (insideGate) return '개찰구 안';
+    if (outsideGate) return '개찰구 밖';
+    return null;
+  }
+
+  static bool _isToilet(StationFacilityInfo f) =>
+      f.type == 'TOILET' ||
+      f.type == 'ACCESSIBLE_TOILET' ||
+      f.name.contains('화장실');
 
   @override
   Widget build(BuildContext context) {
@@ -913,6 +875,60 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       ],
     );
   }
+}
+
+/// 시설 유형 하나에 대해 이 역이 아는 상태.
+/// 설치 기록이 있으면 항상 [exists]이고, 기록이 없을 때만 원천이 없다고
+/// 확인한 유형이 [confirmedAbsent]가 된다. 그 밖에는 모르는 값이라 칸을 그리지 않는다.
+enum _FacilityKnowledge { exists, confirmedAbsent, unknown }
+
+/// 원천 시설 목록에서 한 유형을 찾는 규칙과 그 칸의 표시 정보.
+class _FacilityKind {
+  const _FacilityKind({
+    required this.icon,
+    required this.label,
+    required this.types,
+    required this.keywords,
+    this.matchesDescription = false,
+    this.absenceType,
+  });
+
+  final IconData icon;
+  final String label;
+  final List<String> types;
+  final List<String> keywords;
+  final bool matchesDescription;
+
+  /// 원천이 NOT_EXISTS로 확인할 수 있는 유형 코드. 확인 수단이 없으면 null.
+  final String? absenceType;
+
+  bool matches(StationFacilityInfo facility) =>
+      types.contains(facility.type) ||
+      keywords.any(
+        (keyword) =>
+            facility.name.contains(keyword) ||
+            (matchesDescription && facility.description.contains(keyword)),
+      );
+
+  _FacilityKnowledge knowledgeOf(
+    StationFacilityInfo? installed,
+    Set<String> absentTypes,
+  ) {
+    if (installed != null) return _FacilityKnowledge.exists;
+    return absentTypes.contains(absenceType)
+        ? _FacilityKnowledge.confirmedAbsent
+        : _FacilityKnowledge.unknown;
+  }
+}
+
+/// 소문자로 바꾼 설명에 [keywords] 중 하나가 있으면 [tag]를 붙이는 규칙.
+class _TagRule {
+  const _TagRule(this.keywords, this.tag);
+
+  final List<String> keywords;
+  final String tag;
+
+  bool matches(String text) => keywords.any(text.contains);
 }
 
 class _NaverFacilityTagItem extends StatelessWidget {
