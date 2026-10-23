@@ -22,6 +22,7 @@ Future<void> _pumpMenu(
   double width = _menuWidth,
   Set<RouteDraftSlot> selected = const {},
   Set<RouteDraftSlot> disabled = const {},
+  String? stationName,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -38,6 +39,7 @@ Future<void> _pumpMenu(
                   : _goldenBackground,
               child: StationFanMenu(
                 width: width,
+                stationName: stationName,
                 selectedSlots: selected,
                 disabledSlots: disabled,
                 fontFamily: _goldenFontFamily,
@@ -70,6 +72,14 @@ void main() {
 
   testWidgets('기본 상태', (tester) async {
     await _pumpMenu(tester);
+    await expectLater(
+      find.byKey(_menuBoundaryKey),
+      matchesGoldenFile('goldens/station_fan_menu_default.png'),
+    );
+  }, skip: skipReason);
+
+  testWidgets('역명을 넘겨도 가운데에 역명을 그리지 않는다', (tester) async {
+    await _pumpMenu(tester, stationName: '가오리');
     await expectLater(
       find.byKey(_menuBoundaryKey),
       matchesGoldenFile('goldens/station_fan_menu_default.png'),

@@ -78,6 +78,8 @@ class StationFanMenu extends StatefulWidget {
   final ValueChanged<RouteDraftSlot> onAction;
   final VoidCallback onClose;
   final String? fontFamily;
+
+  /// 화면에는 그리지 않고 TalkBack 그룹 라벨로만 쓴다.
   final String? stationName;
 
   @override
@@ -124,73 +126,80 @@ class _StationFanMenuState extends State<StationFanMenu> {
   @override
   Widget build(BuildContext context) {
     final size = Size(widget.width, _height);
+    final stationName = widget.stationName?.trim();
     return SizedBox.fromSize(
       size: size,
-      child: Stack(
-        children: [
-          Listener(
-            onPointerDown: (event) {
-              if (_activePointer != null) {
-                return;
-              }
-              final sector = _sectorAtLocal(event.localPosition);
-              if (sector != null && !_disabled(sector)) {
+      child: Semantics(
+        container: true,
+        explicitChildNodes: true,
+        label: (stationName == null || stationName.isEmpty)
+            ? null
+            : '$stationName 역 메뉴',
+        child: Stack(
+          children: [
+            Listener(
+              onPointerDown: (event) {
+                if (_activePointer != null) {
+                  return;
+                }
+                final sector = _sectorAtLocal(event.localPosition);
+                if (sector != null && !_disabled(sector)) {
+                  setState(() {
+                    _activePointer = event.pointer;
+                    _pressed = sector;
+                  });
+                }
+              },
+              onPointerMove: (event) {
+                if (event.pointer != _activePointer || _pressed == null) {
+                  return;
+                }
+                if (_sectorAtLocal(event.localPosition) != _pressed) {
+                  setState(() => _pressed = null);
+                }
+              },
+              onPointerUp: (event) {
+                if (event.pointer != _activePointer) {
+                  return;
+                }
+                final pressed = _pressed;
+                final released = _sectorAtLocal(event.localPosition);
                 setState(() {
-                  _activePointer = event.pointer;
-                  _pressed = sector;
+                  _activePointer = null;
+                  _pressed = null;
                 });
-              }
-            },
-            onPointerMove: (event) {
-              if (event.pointer != _activePointer || _pressed == null) {
-                return;
-              }
-              if (_sectorAtLocal(event.localPosition) != _pressed) {
-                setState(() => _pressed = null);
-              }
-            },
-            onPointerUp: (event) {
-              if (event.pointer != _activePointer) {
-                return;
-              }
-              final pressed = _pressed;
-              final released = _sectorAtLocal(event.localPosition);
-              setState(() {
-                _activePointer = null;
-                _pressed = null;
-              });
-              if (pressed != null && released == pressed) {
-                _handleTapUp(pressed);
-              }
-            },
-            onPointerCancel: (event) {
-              if (event.pointer != _activePointer) {
-                return;
-              }
-              setState(() {
-                _activePointer = null;
-                _pressed = null;
-              });
-            },
-            behavior: HitTestBehavior.opaque,
-            child: CustomPaint(
-              size: size,
-              painter: _StationFanMenuPainter(
-                geometry: _geometry,
-                scale: _scale,
-                selectedSlots: widget.selectedSlots,
-                disabledSlots: widget.disabledSlots,
-                pressed: _pressed,
-                fontFamily: widget.fontFamily,
-                stationName: widget.stationName,
+                if (pressed != null && released == pressed) {
+                  _handleTapUp(pressed);
+                }
+              },
+              onPointerCancel: (event) {
+                if (event.pointer != _activePointer) {
+                  return;
+                }
+                setState(() {
+                  _activePointer = null;
+                  _pressed = null;
+                });
+              },
+              behavior: HitTestBehavior.opaque,
+              child: CustomPaint(
+                size: size,
+                painter: _StationFanMenuPainter(
+                  geometry: _geometry,
+                  scale: _scale,
+                  selectedSlots: widget.selectedSlots,
+                  disabledSlots: widget.disabledSlots,
+                  pressed: _pressed,
+                  fontFamily: widget.fontFamily,
+                ),
               ),
             ),
-          ),
-          // 스크린리더용 시맨틱: 각 섹터 bounds에 투명 버튼을 겹친다(그리기와
-          // 별개 계층이라 시각엔 영향 없음). tap도 위 Listener가 처리하지만
-          // Semantics onTap으로 접근성 활성화 경로를 노출한다.
-          for (final sector in _FanSector.values) _sectorSemantics(sector),
-        ],
+            // 스크린리더용 시맨틱: 각 섹터 bounds에 투명 버튼을 겹친다(그리기와
+            // 별개 계층이라 시각엔 영향 없음). tap도 위 Listener가 처리하지만
+            // Semantics onTap으로 접근성 활성화 경로를 노출한다.
+            for (final sector in _FanSector.values) _sectorSemantics(sector),
+          ],
+        ),
       ),
     );
   }
@@ -227,7 +236,6 @@ class _StationFanMenuPainter extends CustomPainter {
     required this.disabledSlots,
     required this.pressed,
     required this.fontFamily,
-    this.stationName,
   }) {
     _labelPainters = {
       _FanSector.departure: _buildLabelPainter(
@@ -255,15 +263,6 @@ class _StationFanMenuPainter extends CustomPainter {
         letterSpacing: -0.6,
       ),
     };
-    final trimmedName = stationName?.trim();
-    _stationNamePainter = (trimmedName == null || trimmedName.isEmpty)
-        ? null
-        : _buildLabelPainter(
-            trimmedName,
-            EasySubwayAccessibleColors.onPrimary,
-            fontSize: 25,
-            letterSpacing: -0.5,
-          );
   }
 
   final StationFanMenuGeometry geometry;
@@ -272,9 +271,7 @@ class _StationFanMenuPainter extends CustomPainter {
   final Set<RouteDraftSlot> disabledSlots;
   final _FanSector? pressed;
   final String? fontFamily;
-  final String? stationName;
   late final Map<_FanSector, TextPainter> _labelPainters;
-  late final TextPainter? _stationNamePainter;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -286,7 +283,6 @@ class _StationFanMenuPainter extends CustomPainter {
     _paintClose(canvas);
     _paintBorders(canvas);
     _paintIconsAndLabels(canvas);
-    _paintStationNameBadge(canvas);
     canvas.restore();
   }
 
@@ -585,45 +581,11 @@ class _StationFanMenuPainter extends CustomPainter {
     );
   }
 
-  void _paintStationNameBadge(Canvas canvas) {
-    final tp = _stationNamePainter;
-    if (tp == null) {
-      return;
-    }
-    const center = Offset(350, 200);
-    final badgeWidth = (tp.width + 36).clamp(112.0, 220.0);
-    const badgeHeight = 38.0;
-    final rect = Rect.fromCenter(
-      center: center,
-      width: badgeWidth,
-      height: badgeHeight,
-    );
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(8));
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.fill
-        ..color = EasySubwayAccessibleColors.primary,
-    );
-    canvas.drawRRect(
-      rrect,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 2.4 / scale
-        ..color = EasySubwayAccessibleColors.onPrimary,
-    );
-    tp.paint(
-      canvas,
-      Offset(center.dx - tp.width / 2, center.dy - tp.height / 2),
-    );
-  }
-
   @override
   bool shouldRepaint(_StationFanMenuPainter old) =>
       old.scale != scale ||
       old.pressed != pressed ||
       old.fontFamily != fontFamily ||
-      old.stationName != stationName ||
       !setEquals(old.selectedSlots, selectedSlots) ||
       !setEquals(old.disabledSlots, disabledSlots);
 }
