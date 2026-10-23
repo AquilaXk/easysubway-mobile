@@ -434,6 +434,18 @@ void main() {
     ).summary;
     expect(availableWithoutCard.fareLabel, isNull);
 
+    // 금액이 있어도 서버가 운임을 제공하지 않는다고 하면 쓰지 않는다.
+    final unavailableWithAmount = _viewModel(
+      _transferJourney(
+        fare: const JourneyFare(
+          status: JourneyFareStatus.unavailable,
+          adultCardWon: 1550,
+          sourceSnapshotIds: <String>[],
+        ),
+      ),
+    ).summary;
+    expect(unavailableWithAmount.fareLabel, isNull);
+
     final large = _viewModel(
       _transferJourney(
         fare: const JourneyFare(

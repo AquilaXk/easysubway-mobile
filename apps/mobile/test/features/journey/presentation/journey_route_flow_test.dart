@@ -683,6 +683,11 @@ void main() {
         _textColor(tester, soyosan),
         lineInkOnWhite(journeyLineColor('line-1')),
       );
+      // 4호선 하늘색은 흰 바탕 대비가 모자라 같은 색상에서 어둡게 쓴다.
+      final changdong = find.descendant(of: bar, matching: find.text('창동'));
+      final lineFour = journeyLineColor('line-4');
+      expect(_textColor(tester, changdong), lineInkOnWhite(lineFour));
+      expect(_textColor(tester, changdong), isNot(lineFour));
       expect(
         find.descendant(of: bar, matching: find.byType(LineMark)),
         findsNWidgets(2),
