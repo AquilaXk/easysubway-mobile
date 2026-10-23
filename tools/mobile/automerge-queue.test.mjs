@@ -184,7 +184,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   // run은 YAML block scalar라 본문 줄이 블록 들여쓰기 아래로 내려가면 워크플로 전체가
   // 파싱되지 않는다. 이 테스트는 파일을 텍스트로 읽어 셸을 뽑으므로 그 파손을 그냥
   // 지나치고, CI에는 actionlint가 없다. 들여쓰기 불변식을 여기서 직접 고정한다.
-  const runBlockAt = workflow.indexOf('        run: |\n');
+  const runBlockAt = workflow.indexOf('        run: |\n', workflow.indexOf('\n  coordinate:\n'));
   assert.ok(runBlockAt > 0, 'coordinate step run block must stay findable');
   for (const line of workflow.slice(runBlockAt).split('\n').slice(1)) {
     if (line.trim() === '') continue;
@@ -2337,7 +2337,7 @@ test('코디네이터 base 갱신 기록 뒤 다음 실행은 marker를 재발�
 // 읽고 건너뛰면 그 상태가 풀려도 이 워크플로가 구독하는 이벤트는 나오지 않는다(backend 2026-10-22 #539·#542, 110분 정지).
 // 빈 큐 tick은 checkout 없이 목록 조회 한 번으로 끝나야 한다.
 const PROBE_JOB_RE = /\n {2}queue-probe:\n([\s\S]*?)\n {2}coordinate:\n/;
-const COORDINATE_HEAD_RE = /\n {2}coordinate:\n([\s\S]*?)\n {4}steps:\n/;
+const COORDINATE_HEAD_RE = /\n {2}coordinate:(\n[\s\S]*?)\n {4}steps:\n/;
 
 const scheduleMinutesOf = (workflow) => {
   const cron = workflow.match(/\n {2}schedule:\n {4}- cron: "([^"]+)"\n/)?.[1];
@@ -2352,6 +2352,9 @@ const runQueueProbe = (workflow, { listOutput = '0', listFails = false } = {}) =
   assert.ok(job, 'queue-probe job must precede coordinate');
   const script = job.match(/\n {8}run: \|\n([\s\S]*)$/)?.[1];
   assert.ok(script, 'queue-probe must have one run block');
+  for (const line of script.split('\n').filter((l) => l.trim() !== '')) {
+    assert.ok(line.startsWith('          '), `probe run line escapes the YAML block scalar: ${line.slice(0, 48)}`);
+  }
   const dir = mkdtempSync(join(tmpdir(), 'automerge-probe-'));
   const log = join(dir, 'gh.log');
   const output = join(dir, 'output');
