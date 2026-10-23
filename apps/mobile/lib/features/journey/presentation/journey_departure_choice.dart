@@ -74,7 +74,8 @@ String _clock(DateTime wall) =>
     '${wall.hour.toString().padLeft(2, '0')}:'
     '${wall.minute.toString().padLeft(2, '0')}';
 
-/// 시간 줄 가운데 문구(`오늘 00:36 출발`, `내일 08:05 출발`, `오늘 막차`).
+/// 시간 줄 가운데 문구(`오늘 00:36 출발`, `내일 08:05 출발`, `오늘 막차`). 막차의
+/// 오늘은 달력 날짜가 아니라 현재 운행일이다(03:00 전은 전날).
 String journeyDepartureBarLabel(JourneyDepartureChoice choice, DateTime now) {
   final today = journeySeoulWallTime(now);
   return switch (choice) {
@@ -85,6 +86,6 @@ String journeyDepartureBarLabel(JourneyDepartureChoice choice, DateTime now) {
       return '${journeyDayLabel(wall, today)} ${_clock(wall)} 출발';
     }(),
     JourneyLastTrain(:final serviceDay) =>
-      '${journeyDayLabel(serviceDay, today)} 막차',
+      '${journeyDayLabel(serviceDay, journeyCurrentServiceDay(now))} 막차',
   };
 }

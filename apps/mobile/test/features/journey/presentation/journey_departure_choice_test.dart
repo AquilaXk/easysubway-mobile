@@ -46,10 +46,28 @@ void main() {
     );
     expect(
       journeyDepartureBarLabel(
-        JourneyLastTrain(DateTime.utc(2026, 10, 23)),
+        JourneyLastTrain(DateTime.utc(2026, 10, 22)),
         now,
       ),
-      '10월 23일(금) 막차',
+      '10월 22일(목) 막차',
+    );
+  });
+
+  test('막차 문구는 03:00 전에도 현재 운행일을 오늘로 쓴다', () {
+    final afterMidnight = _seoul(24, 1, 0);
+    expect(
+      journeyDepartureBarLabel(
+        JourneyLastTrain(DateTime.utc(2026, 10, 23)),
+        afterMidnight,
+      ),
+      '오늘 막차',
+    );
+    expect(
+      journeyDepartureBarLabel(
+        JourneyLastTrain(DateTime.utc(2026, 10, 24)),
+        afterMidnight,
+      ),
+      '내일 막차',
     );
   });
 
