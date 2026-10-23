@@ -73,22 +73,36 @@ class NearbyArrivalRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Text(
-              destination,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: destinationStyle,
-            ),
-          ),
-          const SizedBox(width: 8),
-          Flexible(
-            child: Text(eta, textAlign: TextAlign.end, style: etaStyle),
-          ),
-        ],
+      child: NearbyDirectionRowLayout(
+        leading: Text(destination, style: destinationStyle),
+        trailing: Text(eta, style: etaStyle),
+      ),
+    );
+  }
+}
+
+/// 방면 카드 한 줄의 배치. 왼쪽 글자와 오른쪽 남은 시간이 한 줄에 들어가면 양 끝에
+/// 두고, 남은 시간이 `[3]번째 전역 (고잔)`처럼 길거나 글자가 커서 넘치면 남은 시간을
+/// 다음 줄로 내린다. 글자 중간에서 줄이 끊기지 않게 한다.
+class NearbyDirectionRowLayout extends StatelessWidget {
+  const NearbyDirectionRowLayout({
+    required this.leading,
+    required this.trailing,
+    super.key,
+  });
+
+  final Widget leading;
+  final Widget trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        children: [leading, trailing],
       ),
     );
   }

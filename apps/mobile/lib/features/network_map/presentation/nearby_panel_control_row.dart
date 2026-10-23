@@ -33,20 +33,19 @@ class NearbyPanelControlRow extends StatelessWidget {
       child: Row(
         children: [
           toggle,
-          const Spacer(),
-          if (time != null)
-            Flexible(
-              child: Semantics(
-                label: '${time.spoken} 기준',
-                excludeSemantics: true,
-                child: Text(
-                  time.visible,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: _timeStyle,
-                ),
-              ),
-            ),
+          Expanded(
+            child: time == null
+                ? const SizedBox.shrink()
+                : Semantics(
+                    label: '${time.spoken} 기준',
+                    excludeSemantics: true,
+                    child: Text(
+                      time.visible,
+                      textAlign: TextAlign.end,
+                      style: _timeStyle,
+                    ),
+                  ),
+          ),
           if (refresh != null)
             IconButton.outlined(
               tooltip: '새로고침',

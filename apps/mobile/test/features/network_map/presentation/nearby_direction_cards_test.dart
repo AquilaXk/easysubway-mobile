@@ -159,6 +159,55 @@ void main() {
       expect(find.text('1시간 5분'), findsOneWidget);
     });
 
+    testWidgets('긴 도착 안내는 행선지 옆에 끼우지 않고 아래 줄 전체 폭을 쓴다', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          _realtime(
+            arrivals: const [
+              NearbyArrivalData(
+                direction: '하행',
+                destination: '불암산',
+                etaSeconds: null,
+                message: '[3]번째 전역 (고잔)',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final destination = tester.getRect(find.text('불암산'));
+      final eta = tester.getRect(find.text('[3]번째 전역 (고잔)'));
+      expect(eta.top, greaterThanOrEqualTo(destination.bottom));
+      expect(eta.left, closeTo(destination.left, 0.5));
+    });
+
+    testWidgets('짧은 남은 시간은 행선지와 같은 줄 오른쪽 끝에 둔다', (tester) async {
+      await tester.pumpWidget(
+        _host(
+          _realtime(
+            arrivals: const [
+              NearbyArrivalData(
+                direction: '하행',
+                destination: '약수',
+                etaSeconds: 19 * 60,
+                message: '',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      final destination = tester.getRect(find.text('약수'));
+      final eta = tester.getRect(find.text('19분'));
+      expect(eta.center.dy, closeTo(destination.center.dy, 0.5));
+      final card = tester.getRect(
+        find
+            .ancestor(of: find.text('19분'), matching: find.byType(Material))
+            .first,
+      );
+      expect(card.right - eta.right, lessThan(card.width / 4));
+    });
+
     testWidgets('도착 정보가 없는 방면은 실시간 정보 없음과 시간표 안내를 보인다', (tester) async {
       await tester.pumpWidget(_host(_realtime()));
 

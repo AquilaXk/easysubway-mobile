@@ -385,29 +385,20 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
         : (destinationLabel.isNotEmpty
               ? nearbyDestinationName(destinationLabel)
               : departure.timeLabel);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Expanded(
-          child: Wrap(
-            spacing: 6,
-            runSpacing: 2,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              Text(leading, style: NearbyArrivalRow.destinationStyle),
-              if (departure.isExpress) expressBadgeBuilder(),
-            ],
-          ),
-        ),
-        const SizedBox(width: 8),
-        Flexible(
-          child: Text(
-            _formatDepartureCountdown(departure, now),
-            textAlign: TextAlign.end,
-            style: NearbyArrivalRow.etaStyle,
-          ),
-        ),
-      ],
+    return NearbyDirectionRowLayout(
+      leading: Wrap(
+        spacing: 6,
+        runSpacing: 2,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(leading, style: NearbyArrivalRow.destinationStyle),
+          if (departure.isExpress) expressBadgeBuilder(),
+        ],
+      ),
+      trailing: Text(
+        _formatDepartureCountdown(departure, now),
+        style: NearbyArrivalRow.etaStyle,
+      ),
     );
   }
 }

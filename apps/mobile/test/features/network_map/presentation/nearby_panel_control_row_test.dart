@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _line = StationSearchLine(
@@ -134,5 +135,24 @@ void main() {
     );
 
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('글자 1.5배, 412dp에서 받은 시각을 자르지 않고 한 줄로 쓴다', (tester) async {
+    await tester.pumpWidget(
+      MediaQuery(
+        data: const MediaQueryData(
+          size: Size(412, 800),
+          textScaler: TextScaler.linear(1.5),
+        ),
+        child: _controlRow(
+          dataSource: NetworkMapNearbyPanelDataSource.realtime,
+          onRefresh: () {},
+        ),
+      ),
+    );
+
+    final time = tester.renderObject<RenderParagraph>(find.text('오전 12:37'));
+    expect(time.didExceedMaxLines, isFalse);
+    expect(time.size.height, lessThan(15 * 1.5 * 2));
   });
 }
