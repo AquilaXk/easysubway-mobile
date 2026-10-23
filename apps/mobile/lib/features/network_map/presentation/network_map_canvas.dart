@@ -687,7 +687,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                       width: menuWidth,
                       child: StationFanMenu(
                         width: menuWidth,
-                        stationName: selectedStation.nameKo,
+                        stationName: selectedStation.displayName,
                         selectedSlots: selectedSlots,
                         disabledSlots: fanMenuDisabledSlots(
                           stationId: selectedStation.id,
