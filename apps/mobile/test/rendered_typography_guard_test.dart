@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:flutter/material.dart';
@@ -89,6 +90,22 @@ void main() {
       ),
       hasLength(1),
     );
+  });
+
+  testWidgets('노선색을 흰 바탕용으로 어둡게 한 글자색의 700은 통과한다', (tester) async {
+    for (final color in datapackLineColors) {
+      expect(
+        await _violationsOf(
+          tester,
+          TextStyle(
+            fontWeight: EasySubwayFontWeight.boldForContrast,
+            color: lineInkOnWhite(color),
+          ),
+        ),
+        isEmpty,
+        reason: '$color',
+      );
+    }
   });
 
   testWidgets('흰색도 노선색도 아닌 색의 700을 잡는다', (tester) async {

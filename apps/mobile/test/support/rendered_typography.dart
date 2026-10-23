@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,7 +14,8 @@ final _allowedWeights = <FontWeight>{
   EasySubwayFontWeight.boldForContrast,
 };
 
-/// 대비용 700이 정당한 글자색이다. 노선색 면 위 흰 글자거나, 흰 바탕 위 노선색 글자다.
+/// 대비용 700이 정당한 글자색이다. 노선색 면 위 흰 글자거나, 흰 바탕 위 노선색 글자(또는
+/// 그 노선색을 4.5:1로 어둡게 한 글자색)다.
 /// 노선색 글자는 노선마다 굵기가 달라 보이지 않게 모든 노선을 700으로 맞춘다. 굵게
 /// 하면 흰 바탕 위 대비 기준이 4.5:1에서 큰 글자 기준 3:1로 내려가 2·5·6·7·8호선과
 /// 공항철도를 구한다. 3·4·9호선, 경의중앙선, 수인분당선은 굵게 해도 3:1에 못 미치며 이는
@@ -23,7 +25,14 @@ final _allowedWeights = <FontWeight>{
 bool _isContrastBoldColor(Color? color) =>
     color != null &&
     (color == EasySubwayColorPrimitives.neutralWhite ||
-        datapackLineColors.contains(color));
+        datapackLineColors.contains(color) ||
+        _datapackLineInks.contains(color));
+
+/// 흰 바탕 위 글자로 4.5:1을 맞춘 노선색(`lineInkOnWhite`). 같은 색상에서 명도만
+/// 낮춘 색이라 노선색 글자와 같이 대비용 700을 쓸 수 있다.
+final Set<Color> _datapackLineInks = {
+  for (final color in datapackLineColors) lineInkOnWhite(color),
+};
 
 /// 화면에 그려진 모든 글자의 서체 설정 중 앱 규칙을 어긴 것을 모은다(#503).
 ///
