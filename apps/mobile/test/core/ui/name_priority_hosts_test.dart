@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_screen.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_recent_search_section.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -140,6 +141,44 @@ void main() {
 
         final name = _paragraph(tester, find.text(_name));
         _expectNameReadable(name, scale);
+        expect(tester.takeException(), isNull);
+      });
+
+      testWidgets('최근 경로 행은 마크가 있어도 역 이름이 한 줄로 이어진다', (tester) async {
+        await _pump360(
+          tester,
+          Scaffold(
+            body: StationRecentSearchSection(
+              entries: [
+                RecentRouteSearchEntry(
+                  originStationId: 'station-hongdae',
+                  originStationName: '홍대입구',
+                  destinationStationId: 'station-gangnam',
+                  destinationStationName: '강남',
+                  region: '수도권',
+                  searchedAt: DateTime(2026, 10, 23),
+                  originLines: _hongdae,
+                  destinationLines: [_hongdae.first],
+                ),
+              ],
+              enabled: true,
+              onStationSelected: (_) {},
+              onRouteSelected: (_) {},
+              onRemove: (_) {},
+              onClearAll: () {},
+            ),
+          ),
+          scale,
+        );
+
+        for (final name in ['홍대입구역', '강남역']) {
+          _expectNameReadable(_paragraph(tester, find.text(name)), scale);
+        }
+        expect(find.byType(StationLineBadge), findsNWidgets(2));
+        expect(
+          find.byKey(const Key('stationLineBadgeOverflow')),
+          findsOneWidget,
+        );
         expect(tester.takeException(), isNull);
       });
 
