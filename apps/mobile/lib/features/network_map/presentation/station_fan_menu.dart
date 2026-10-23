@@ -79,7 +79,8 @@ class StationFanMenu extends StatefulWidget {
   final VoidCallback onClose;
   final String? fontFamily;
 
-  /// 화면에는 그리지 않고 TalkBack 그룹 라벨로만 쓴다.
+  /// 화면에는 그리지 않고 TalkBack 그룹 라벨로만 쓴다. `서울역`처럼 역으로 끝나는
+  /// 표시명을 넘긴다.
   final String? stationName;
 
   @override
@@ -134,7 +135,7 @@ class _StationFanMenuState extends State<StationFanMenu> {
         explicitChildNodes: true,
         label: (stationName == null || stationName.isEmpty)
             ? null
-            : '$stationName 역 메뉴',
+            : '$stationName 메뉴',
         child: Stack(
           children: [
             Listener(

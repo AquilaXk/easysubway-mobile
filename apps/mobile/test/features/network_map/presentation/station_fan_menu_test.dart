@@ -131,11 +131,25 @@ void main() {
 
   testWidgets('역명을 넘기면 메뉴 그룹 Semantics 라벨로 역명을 안내한다', (tester) async {
     final semantics = tester.ensureSemantics();
-    await _pump(tester, stationName: ' 가오리 ', onAction: (_) {}, onClose: () {});
+    await _pump(
+      tester,
+      stationName: ' 가오리역 ',
+      onAction: (_) {},
+      onClose: () {},
+    );
 
-    expect(find.bySemanticsLabel('가오리 역 메뉴'), findsOneWidget);
+    expect(find.bySemanticsLabel('가오리역 메뉴'), findsOneWidget);
     expect(find.bySemanticsLabel('출발역으로 설정'), findsOneWidget);
     expect(find.bySemanticsLabel('메뉴 닫기'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('이미 역으로 끝나는 표시명도 역을 두 번 읽지 않는다', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, stationName: '서울역', onAction: (_) {}, onClose: () {});
+
+    expect(find.bySemanticsLabel('서울역 메뉴'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('역 역')), findsNothing);
     semantics.dispose();
   });
 
@@ -143,7 +157,7 @@ void main() {
     final semantics = tester.ensureSemantics();
     await _pump(tester, stationName: '  ', onAction: (_) {}, onClose: () {});
 
-    expect(find.bySemanticsLabel(RegExp('역 메뉴')), findsNothing);
+    expect(find.bySemanticsLabel(RegExp('메뉴\$')), findsNothing);
     semantics.dispose();
   });
 

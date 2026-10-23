@@ -4248,6 +4248,8 @@ void main() {
       tester.semantics.tap(find.semantics.byLabel('광주송정역'));
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
+      expect(find.bySemanticsLabel('광주송정역 메뉴'), findsOneWidget);
+      expect(find.bySemanticsLabel(RegExp('광주송정역 역')), findsNothing);
     } finally {
       semanticsHandle.dispose();
       resetNetworkMapOwnerLabelsCacheForTest();
@@ -4595,6 +4597,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
+    expect(find.bySemanticsLabel('상록수역 메뉴'), findsOneWidget);
     expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
     expect(find.bySemanticsLabel(_fanDestinationLabel), findsOneWidget);
     // #1933 요구 3: 별도 길찾기 폼 페이지를 없앴으므로 팝오버의 "길찾기" 액션도
