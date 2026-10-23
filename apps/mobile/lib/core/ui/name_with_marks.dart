@@ -34,6 +34,8 @@ class NameWithMarks extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final budgetedMarks = _MarksBudget(
+          // 간격이 마크의 어느 쪽에 붙는지는 상자가 만들어질 때 정해진다.
+          key: ValueKey(marksFirst),
           maxWidth: constraints.maxWidth * maxMarksFraction,
           gap: gap,
           gapAfterMarks: marksFirst,
@@ -57,6 +59,7 @@ class NameWithMarks extends StatelessWidget {
 /// 넓으면 자식과 간격이 함께 사라진다.
 class _MarksBudget extends SingleChildRenderObjectWidget {
   const _MarksBudget({
+    super.key,
     required this.maxWidth,
     required this.gap,
     required this.gapAfterMarks,
@@ -81,7 +84,6 @@ class _MarksBudget extends SingleChildRenderObjectWidget {
     renderObject
       ..maxWidth = maxWidth
       ..gap = gap
-      ..gapAfterMarks = gapAfterMarks
       ..hideOverBudget = hideOverBudget;
   }
 }
@@ -96,7 +98,7 @@ class _RenderMarksBudget extends RenderShiftedBox {
 
   double _maxWidth;
   double _gap;
-  bool _gapAfterMarks;
+  final bool _gapAfterMarks;
   bool _hideOverBudget;
 
   set maxWidth(double value) {
@@ -109,13 +111,6 @@ class _RenderMarksBudget extends RenderShiftedBox {
   set gap(double value) {
     if (value != _gap) {
       _gap = value;
-      markNeedsLayout();
-    }
-  }
-
-  set gapAfterMarks(bool value) {
-    if (value != _gapAfterMarks) {
-      _gapAfterMarks = value;
       markNeedsLayout();
     }
   }

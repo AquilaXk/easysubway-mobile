@@ -9,6 +9,8 @@ Widget _host({
   required double width,
   required List<double> markWidths,
   double markHeight = 20,
+  double gap = 8,
+  bool marksFirst = true,
   bool hideMarksOverBudget = false,
 }) {
   return MaterialApp(
@@ -17,8 +19,8 @@ Widget _host({
       child: SizedBox(
         width: width,
         child: NameWithMarks(
-          marksFirst: true,
-          gap: 8,
+          marksFirst: marksFirst,
+          gap: gap,
           hideMarksOverBudget: hideMarksOverBudget,
           name: const SizedBox(key: _nameKey, height: 10),
           marks: Wrap(
@@ -76,6 +78,40 @@ void main() {
       0,
       reason: '감춘 마크 자리에 간격이 남지 않는다',
     );
+  });
+
+  testWidgets('같은 자리에서 간격·마크 위치·감춤 설정이 바뀌면 다시 배치한다', (tester) async {
+    const marks = [150.0, 30.0];
+    await tester.pumpWidget(_host(width: 200, markWidths: marks));
+    expect(tester.getSize(find.byKey(_nameKey)).width, 200 - 150 - 8);
+
+    await tester.pumpWidget(
+      _host(width: 200, markWidths: marks, hideMarksOverBudget: true),
+    );
+    expect(tester.getSize(find.byKey(_marksKey)), Size.zero);
+    expect(tester.getSize(find.byKey(_nameKey)).width, 200);
+
+    await tester.pumpWidget(_host(width: 200, markWidths: marks, gap: 20));
+    expect(tester.getSize(find.byKey(_nameKey)).width, 200 - 150 - 20);
+
+    await tester.pumpWidget(
+      _host(width: 200, markWidths: marks, gap: 20, marksFirst: false),
+    );
+    expect(tester.getRect(find.byKey(_nameKey)).left, 0);
+    expect(tester.getRect(find.byKey(_marksKey)).left, 200 - 150);
+  });
+
+  testWidgets('감춘 마크 묶음의 건조 레이아웃은 0이고 기준선은 없다', (tester) async {
+    await tester.pumpWidget(
+      _host(width: 200, markWidths: [150, 30], hideMarksOverBudget: true),
+    );
+
+    final budget =
+        tester.renderObject<RenderBox>(find.byKey(_marksKey)).parent!
+            as RenderBox;
+    const unbounded = BoxConstraints(maxWidth: double.infinity);
+    expect(budget.getDryLayout(unbounded), Size.zero);
+    expect(budget.getDryBaseline(unbounded, TextBaseline.alphabetic), isNull);
   });
 
   testWidgets('감춤을 켠 칸도 마크가 예산 안이면 그대로 보이고 이름이 나머지를 쓴다', (tester) async {
