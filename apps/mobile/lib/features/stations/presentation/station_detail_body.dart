@@ -254,7 +254,7 @@ class _StationDetailContent extends StatelessWidget {
         ),
         const SizedBox(height: 16),
       ],
-      if (hasFacilities) ...[
+      if (hasFacilities || detail.confirmedAbsentFacilityTypes.isNotEmpty) ...[
         _StationNaverStationInfoSection(
           station: detail,
           facilities: facilities,
@@ -608,9 +608,12 @@ class _StationDetailSectionTitle extends StatelessWidget {
 
 /// 네이버 지도 1:1 표준 역정보 섹션.
 ///
-/// 1. 시설정보 2열 2행 4구 그리드 (플랫폼, 화장실, 내리는문, 반대편 연결)
-/// 2. 편의시설 2열 2행 4구 그리드 (자전거보관소, 환승주차장, 유실물센터, 물품보관소)
-/// 3. 교통약자 시설 2열 2행 4구 그리드 (장애인화장실, 엘리베이터, 수유실, 휠체어 리프트)
+/// 1. 시설정보 2열 그리드 (플랫폼, 화장실, 내리는문, 반대편 연결)
+/// 2. 편의시설 2열 그리드 (자전거보관소, 환승주차장, 유실물센터, 물품보관소)
+/// 3. 교통약자 시설 2열 그리드 (장애인화장실, 엘리베이터, 수유실, 휠체어 리프트)
+///
+/// 편의시설과 교통약자 시설은 원천이 확인한 칸만 그린다. 모르는 유형은 없음으로
+/// 그리지 않고 칸을 빼며, 칸이 하나도 없는 묶음은 제목까지 뺀다.
 class _StationNaverStationInfoSection extends StatelessWidget {
   const _StationNaverStationInfoSection({
     required this.station,
@@ -752,10 +755,26 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           orElse: () => null,
         );
 
-    final hasDisabledToilet = disabledToiletFacility != null;
-    final hasElevator = elevatorFacility != null;
-    final hasNursingRoom = nursingFacility != null;
-    final hasWheelchairLift = wheelchairLiftFacility != null;
+    final absentTypes = station.confirmedAbsentFacilityTypes;
+    bool? availability(bool present, {String? absenceType}) {
+      if (present) return true;
+      return absentTypes.contains(absenceType) ? false : null;
+    }
+
+    final bicycle = availability(hasBicycle);
+    final parking = availability(hasParking);
+    final lostItem = availability(hasLostItem);
+    final storage = availability(hasStorage);
+    final disabledToilet = availability(disabledToiletFacility != null);
+    final elevator = availability(
+      elevatorFacility != null,
+      absenceType: 'ELEVATOR',
+    );
+    final nursingRoom = availability(nursingFacility != null);
+    final wheelchairLift = availability(
+      wheelchairLiftFacility != null,
+      absenceType: 'WHEELCHAIR_LIFT',
+    );
 
     VoidCallback? reportCallback(StationFacilityInfo? facility) {
       if (facility == null || onOpenFacilityReport == null) return null;
@@ -771,6 +790,112 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       );
     }
 
+    final groups = [
+      _StationInfoGroup(
+        title: '시설정보',
+        items: [
+          _NaverFacilityTagItem(
+            icon: Icons.train_outlined,
+            label: '플랫폼',
+            tag: platformTag,
+          ),
+          _NaverFacilityTagItem(
+            icon: Icons.wc_outlined,
+            label: '화장실',
+            tag: toiletTag,
+          ),
+          _NaverFacilityTagItem(
+            icon: Icons.meeting_room_outlined,
+            label: '내리는문',
+            tag: doorTag,
+          ),
+          _NaverFacilityTagItem(
+            icon: Icons.swap_horiz,
+            label: '반대편',
+            tag: crossPlatformTag,
+          ),
+        ],
+      ),
+      _StationInfoGroup(
+        title: '편의시설',
+        items: [
+          if (bicycle != null)
+            _NaverAmenityGridItem(
+              icon: Icons.directions_bike,
+              label: '자전거보관소',
+              isAvailable: bicycle,
+            ),
+          if (parking != null)
+            _NaverAmenityGridItem(
+              icon: Icons.local_parking,
+              label: '환승주차장',
+              isAvailable: parking,
+            ),
+          if (lostItem != null)
+            _NaverAmenityGridItem(
+              icon: Icons.find_in_page_outlined,
+              label: '유실물센터',
+              isAvailable: lostItem,
+            ),
+          if (storage != null)
+            _NaverAmenityGridItem(
+              icon: Icons.inventory_2_outlined,
+              label: '물품보관소',
+              isAvailable: storage,
+            ),
+        ],
+      ),
+      _StationInfoGroup(
+        title: '교통약자 시설',
+        items: [
+          if (disabledToilet != null)
+            _NaverAccessibleFacilityItem(
+              key: disabledToiletFacility != null
+                  ? Key(
+                      'naverFacilityReportButton-${disabledToiletFacility.id}',
+                    )
+                  : null,
+              icon: Icons.accessible,
+              label: '장애인화장실',
+              isAvailable: disabledToilet,
+              onTap: reportCallback(disabledToiletFacility),
+            ),
+          if (elevator != null)
+            _NaverAccessibleFacilityItem(
+              key: elevatorFacility != null
+                  ? Key('naverFacilityReportButton-${elevatorFacility.id}')
+                  : null,
+              icon: Icons.elevator_outlined,
+              label: '엘리베이터',
+              isAvailable: elevator,
+              onTap: reportCallback(elevatorFacility),
+            ),
+          if (nursingRoom != null)
+            _NaverAccessibleFacilityItem(
+              key: nursingFacility != null
+                  ? Key('naverFacilityReportButton-${nursingFacility.id}')
+                  : null,
+              icon: Icons.baby_changing_station,
+              label: '수유실',
+              isAvailable: nursingRoom,
+              onTap: reportCallback(nursingFacility),
+            ),
+          if (wheelchairLift != null)
+            _NaverAccessibleFacilityItem(
+              key: wheelchairLiftFacility != null
+                  ? Key(
+                      'naverFacilityReportButton-${wheelchairLiftFacility.id}',
+                    )
+                  : null,
+              icon: Icons.accessible_forward,
+              label: '휠체어 리프트',
+              isAvailable: wheelchairLift,
+              onTap: reportCallback(wheelchairLiftFacility),
+            ),
+        ],
+      ),
+    ].where((group) => group.items.isNotEmpty);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -783,118 +908,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
             letterSpacing: -0.3,
           ),
         ),
-        const SizedBox(height: 12),
-        _StationInfoGroup(
-          title: '시설정보',
-          rows: [
-            (
-              _NaverFacilityTagItem(
-                icon: Icons.train_outlined,
-                label: '플랫폼',
-                tag: platformTag,
-              ),
-              _NaverFacilityTagItem(
-                icon: Icons.wc_outlined,
-                label: '화장실',
-                tag: toiletTag,
-              ),
-            ),
-            (
-              _NaverFacilityTagItem(
-                icon: Icons.meeting_room_outlined,
-                label: '내리는문',
-                tag: doorTag,
-              ),
-              _NaverFacilityTagItem(
-                icon: Icons.swap_horiz,
-                label: '반대편',
-                tag: crossPlatformTag,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        _StationInfoGroup(
-          title: '편의시설',
-          rows: [
-            (
-              _NaverAmenityGridItem(
-                icon: Icons.directions_bike,
-                label: '자전거보관소',
-                isAvailable: hasBicycle,
-              ),
-              _NaverAmenityGridItem(
-                icon: Icons.local_parking,
-                label: '환승주차장',
-                isAvailable: hasParking,
-              ),
-            ),
-            (
-              _NaverAmenityGridItem(
-                icon: Icons.find_in_page_outlined,
-                label: '유실물센터',
-                isAvailable: hasLostItem,
-              ),
-              _NaverAmenityGridItem(
-                icon: Icons.inventory_2_outlined,
-                label: '물품보관소',
-                isAvailable: hasStorage,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-
-        _StationInfoGroup(
-          title: '교통약자 시설',
-          rows: [
-            (
-              _NaverAccessibleFacilityItem(
-                key: disabledToiletFacility != null
-                    ? Key(
-                        'naverFacilityReportButton-${disabledToiletFacility.id}',
-                      )
-                    : null,
-                icon: Icons.accessible,
-                label: '장애인화장실',
-                isAvailable: hasDisabledToilet,
-                onTap: reportCallback(disabledToiletFacility),
-              ),
-              _NaverAccessibleFacilityItem(
-                key: elevatorFacility != null
-                    ? Key('naverFacilityReportButton-${elevatorFacility.id}')
-                    : null,
-                icon: Icons.elevator_outlined,
-                label: '엘리베이터',
-                isAvailable: hasElevator,
-                onTap: reportCallback(elevatorFacility),
-              ),
-            ),
-            (
-              _NaverAccessibleFacilityItem(
-                key: nursingFacility != null
-                    ? Key('naverFacilityReportButton-${nursingFacility.id}')
-                    : null,
-                icon: Icons.baby_changing_station,
-                label: '수유실',
-                isAvailable: hasNursingRoom,
-                onTap: reportCallback(nursingFacility),
-              ),
-              _NaverAccessibleFacilityItem(
-                key: wheelchairLiftFacility != null
-                    ? Key(
-                        'naverFacilityReportButton-${wheelchairLiftFacility.id}',
-                      )
-                    : null,
-                icon: Icons.accessible_forward,
-                label: '휠체어 리프트',
-                isAvailable: hasWheelchairLift,
-                onTap: reportCallback(wheelchairLiftFacility),
-              ),
-            ),
-          ],
-        ),
+        for (final group in groups) ...[const SizedBox(height: 12), group],
       ],
     );
   }
@@ -1029,10 +1043,10 @@ class _NaverAccessibleFacilityItem extends StatelessWidget {
 
 /// 역정보 카드 한 묶음. 제목 아래 칸을 두 개씩 한 줄로 놓는다.
 class _StationInfoGroup extends StatelessWidget {
-  const _StationInfoGroup({required this.title, required this.rows});
+  const _StationInfoGroup({required this.title, required this.items});
 
   final String title;
-  final List<(Widget, Widget)> rows;
+  final List<Widget> items;
 
   @override
   Widget build(BuildContext context) {
@@ -1054,13 +1068,17 @@ class _StationInfoGroup extends StatelessWidget {
               color: EasySubwayAccessibleColors.text,
             ),
           ),
-          for (final (left, right) in rows) ...[
+          for (var index = 0; index < items.length; index += 2) ...[
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: left),
+                Expanded(child: items[index]),
                 const SizedBox(width: 12),
-                Expanded(child: right),
+                Expanded(
+                  child: index + 1 < items.length
+                      ? items[index + 1]
+                      : const SizedBox.shrink(),
+                ),
               ],
             ),
           ],

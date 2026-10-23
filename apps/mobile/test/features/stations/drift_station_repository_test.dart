@@ -370,6 +370,43 @@ void main() {
     expect(facilityIds, isNot(contains('facility-sangnoksu-lift-absent')));
   });
 
+  test('역 상세는 모든 노선에서 미설치가 확인된 시설 유형만 없음으로 싣는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO station_facility_evidence (
+        station_id, line_id, facility_type, evidence_kind, source_id,
+        source_snapshot_id, provider_record_hash, evidence_hash,
+        provenance_kind
+      )
+      VALUES
+        ('station-sadang', 'seoul-2', 'WHEELCHAIR_LIFT', 'NOT_EXISTS',
+         'src', 'snap', 'p1', 'e1', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-4', 'WHEELCHAIR_LIFT', 'NOT_EXISTS',
+         'src', 'snap', 'p2', 'e2', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-2', 'ELEVATOR', 'NOT_EXISTS',
+         'src', 'snap', 'p3', 'e3', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-4', 'ELEVATOR', 'EXISTS',
+         'src', 'snap', 'p4', 'e4', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-2', 'ESCALATOR', 'NOT_EXISTS',
+         'src', 'snap', 'p5', 'e5', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-2', 'ACCESSIBILITY_STATUS_PROBE', 'UNKNOWN',
+         'src', 'snap', 'p6', 'e6', 'OFFICIAL_SOURCE'),
+        ('station-sadang', 'seoul-4', 'ACCESSIBILITY_STATUS_PROBE', 'UNKNOWN',
+         'src', 'snap', 'p7', 'e7', 'OFFICIAL_SOURCE'),
+        ('station-sangnoksu', 'seoul-4', 'ESCALATOR', 'NOT_EXISTS',
+         'src', 'snap', 'p8', 'e8', 'OFFICIAL_SOURCE')
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final sadang = await repository.getStationDetail('station-sadang');
+    final sangnoksu = await repository.getStationDetail('station-sangnoksu');
+
+    expect(sadang.confirmedAbsentFacilityTypes, {'WHEELCHAIR_LIFT'});
+    expect(sangnoksu.confirmedAbsentFacilityTypes, {'ESCALATOR'});
+  });
+
   test('흡수된 station ID로 상세·출구·시설을 요청해도 대표 역을 반환한다', () async {
     final database = CatalogDatabase.memory();
     addTearDown(database.close);

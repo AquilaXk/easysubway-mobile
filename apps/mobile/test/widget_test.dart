@@ -14196,8 +14196,9 @@ void main() {
     expect(find.text('내리는문'), findsOneWidget);
     expect(find.text('반대편'), findsOneWidget);
 
-    expect(find.text('편의시설'), findsOneWidget);
-    expect(find.text('자전거보관소'), findsOneWidget);
+    // 원천에 행이 없는 편의시설은 없음으로 단정하지 않고 묶음째 뺀다.
+    expect(find.text('편의시설'), findsNothing);
+    expect(find.text('자전거보관소'), findsNothing);
     expect(find.text('교통약자 시설'), findsOneWidget);
     expect(find.text('엘리베이터'), findsWidgets);
   });

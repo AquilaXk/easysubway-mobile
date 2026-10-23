@@ -224,17 +224,15 @@ void main() {
       expect(find.text('오른쪽'), findsNothing);
       expect(find.text('연결됨'), findsNothing);
 
-      expect(find.text('편의시설'), findsOneWidget);
-      expect(find.text('자전거보관소'), findsOneWidget);
-      expect(find.text('환승주차장'), findsOneWidget);
-      expect(find.text('유실물센터'), findsOneWidget);
-      expect(find.text('물품보관소'), findsOneWidget);
+      // 원천에 행이 없는 편의시설은 없음으로 단정하지 않고 묶음째 뺀다.
+      expect(find.text('편의시설'), findsNothing);
+      expect(find.text('자전거보관소'), findsNothing);
 
       expect(find.text('교통약자 시설'), findsOneWidget);
       expect(find.text('장애인화장실'), findsOneWidget);
       expect(find.text('엘리베이터'), findsWidgets);
       expect(find.text('수유실'), findsWidgets);
-      expect(find.text('휠체어 리프트'), findsOneWidget);
+      expect(find.text('휠체어 리프트'), findsNothing);
 
       // 하단 고정 액션바 4종 버튼 검증
       expect(find.text('출발'), findsOneWidget);
@@ -795,10 +793,7 @@ void main() {
         'hasStairOnlyPath': 'present',
         'dataConfidence': 'MEDIUM',
       });
-      expect(
-        withoutDesc.semanticLabel,
-        startsWith('2번 출구, 엘리베이터 없음, 계단만 있는 길 있음'),
-      );
+      expect(withoutDesc.semanticLabel, startsWith('2번 출구, 계단만 있는 길 있음'));
     },
   );
 
