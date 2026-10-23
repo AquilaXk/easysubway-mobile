@@ -112,12 +112,12 @@ final sweepScreens = <SweepScreen>[
   SweepScreen('좌측 메뉴', _openMenu, find.byKey(const Key('networkMapMenuPanel'))),
   SweepScreen(
     '경로 검색',
-    (context) => _openJourney(context, search: false),
+    (context) => openSweepJourney(context, search: false),
     find.widgetWithText(FilledButton, '경로 찾기'),
   ),
   SweepScreen(
     '경로 검색(예약 모드)',
-    (context) => _openJourney(
+    (context) => openSweepJourney(
       context,
       search: false,
       departureChip: 'journey-departure-scheduled',
@@ -126,7 +126,7 @@ final sweepScreens = <SweepScreen>[
   ),
   SweepScreen(
     '경로 검색(구간 모드)',
-    (context) => _openJourney(
+    (context) => openSweepJourney(
       context,
       search: false,
       departureChip: 'journey-departure-window',
@@ -135,7 +135,7 @@ final sweepScreens = <SweepScreen>[
   ),
   SweepScreen(
     '경로 검색(막차 모드)',
-    (context) => _openJourney(
+    (context) => openSweepJourney(
       context,
       search: false,
       departureChip: 'journey-departure-last-connection',
@@ -144,7 +144,7 @@ final sweepScreens = <SweepScreen>[
   ),
   SweepScreen(
     '경로 결과·상세',
-    (context) => _openJourney(context, search: true),
+    (context) => openSweepJourney(context, search: true),
     find.byKey(const Key('selected-journey-detail')),
   ),
   SweepScreen(
@@ -593,7 +593,7 @@ Future<void> _openMenu(SweepScreenContext context) async {
   await context.tester.pumpAndSettle();
 }
 
-Future<void> _openJourney(
+Future<void> openSweepJourney(
   SweepScreenContext context, {
   required bool search,
   String? departureChip,

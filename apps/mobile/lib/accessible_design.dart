@@ -39,12 +39,11 @@ abstract final class EasySubwayFontWeight {
   static const regular = FontWeight.w400;
   static const emphasis = FontWeight.w500;
 
-  /// 노선색 면 위 흰 글자 전용이다. 노선색과 흰색의 대비는 2호선 3.13, 6호선 3.22,
-  /// 공항철도 3.55로 3:1~4.5:1이라, 14pt 이상 굵은 글자일 때만 큰 글자 기준(3:1)을
-  /// 받는다. Flutter `textContrastGuideline`은 w700만 굵게 본다(flutter_test
-  /// accessibility.dart `kBoldTextMinimumSize`). 노선 마크, 주변역 바 이웃역 이름,
-  /// 구간 막대, 노선도 배지, 역 시간표 선택 칩이 쓰며, 새 사용처는 design_guard_test의
-  /// 허용 목록에 올려 검토를 거친다.
+  /// 노선색과 흰색이 맞닿은 글자의 대비용 굵기다. 노선색과 흰색의 대비는 2호선 3.13,
+  /// 6호선 3.22, 공항철도 3.55로 3:1~4.5:1이라, 14pt 이상 굵은 글자일 때만 큰 글자
+  /// 기준(3:1)을 받는다. Flutter `textContrastGuideline`은 w700만 굵게 본다(flutter_test
+  /// accessibility.dart `kBoldTextMinimumSize`). 쓸 수 있는 곳과 곳마다의 이유는
+  /// design_guard_test의 허용 목록이 정하며, 새 사용처는 거기에 올려 검토를 거친다.
   static const boldForContrast = FontWeight.w700;
 }
 

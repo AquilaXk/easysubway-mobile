@@ -566,6 +566,13 @@ void main() {
       expect(spans[0].style!.color, _line2Green);
     });
 
+    testWidgets('노선색 이름은 대비용 굵기, " 방면"은 강조 굵기다', (tester) async {
+      await tester.pumpWidget(hostTitle('성수 방면', _line2Green));
+      final spans = spansOf(tester).cast<TextSpan>();
+      expect(spans[0].style!.fontWeight, EasySubwayFontWeight.boldForContrast);
+      expect(spans[1].style!.fontWeight, isNull);
+    });
+
     testWidgets('"방면"으로 끝나지 않으면 전체를 노선색으로 그린다(텍스트 무변경)', (tester) async {
       await tester.pumpWidget(hostTitle('내선순환', _line2Green));
       final spans = spansOf(tester).cast<TextSpan>();

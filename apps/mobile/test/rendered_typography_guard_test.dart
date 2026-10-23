@@ -17,7 +17,7 @@ Future<List<String>> _violationsOf(WidgetTester tester, TextStyle style) async {
 }
 
 void main() {
-  testWidgets('역할 굵기와 흰 글자 700, 아이콘 글꼴은 통과한다', (tester) async {
+  testWidgets('역할 굵기와 대비용 700, 아이콘 글꼴은 통과한다', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -36,6 +36,13 @@ void main() {
                 style: TextStyle(
                   fontWeight: EasySubwayFontWeight.boldForContrast,
                   color: Colors.white,
+                ),
+              ),
+              Text(
+                '방면 제목',
+                style: TextStyle(
+                  fontWeight: EasySubwayFontWeight.boldForContrast,
+                  color: Color(0xFF00A84D),
                 ),
               ),
               Icon(Icons.chevron_right),
@@ -61,9 +68,22 @@ void main() {
     );
   });
 
-  testWidgets('흰 글자가 아닌 700을 잡는다', (tester) async {
+  testWidgets('색이 없는 700을 잡는다', (tester) async {
     expect(
       await _violationsOf(tester, TextStyle(fontWeight: FontWeight.values[6])),
+      hasLength(1),
+    );
+  });
+
+  testWidgets('이미 4.5:1을 넘는 본문색의 700은 대비용이 아니라 잡는다', (tester) async {
+    expect(
+      await _violationsOf(
+        tester,
+        TextStyle(
+          fontWeight: FontWeight.values[6],
+          color: EasySubwayAccessibleColors.contentPrimary,
+        ),
+      ),
       hasLength(1),
     );
   });

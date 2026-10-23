@@ -278,24 +278,28 @@ void main() {
     expectRatchet(actual, const {}, rule: 'FontWeight 리터럴·우회');
   });
 
-  test('대비용 700(boldForContrast)은 검토를 거친 노선색 위 흰 글자에만 쓴다', () {
-    // 새 사용처는 상한을 올리기 전에 노선색 면 위 흰 글자인지, 14pt 이상이어서
-    // 굵게 해야 3:1 기준을 받는지 검토한다(#503).
+  test('굵은 700(boldForContrast)은 검토를 거친 호스트에만 쓴다', () {
+    // 새 사용처는 상한을 올리기 전에 이유를 가린다(#503). 대비용이면 글자색이 노선색
+    // 면 위 흰색이거나 흰 바탕 위 4.5:1 미만 노선색이고 크기가 14pt 이상이어서 굵게
+    // 해야 3:1 기준을 받는지 본다. 그려진 글자색은 rendered_typography_guard가 본다.
     final actual = countPerFile(
       RegExp(r'EasySubwayFontWeight\.boldForContrast\b'),
       exclude: {'accessible_design.dart'},
     );
     expectRatchet(actual, {
-      // 노선 마크 알약·원 글자.
+      // 대비용: 노선 마크 알약·원 위 흰 글자.
       'lib/core/ui/line_mark.dart': 1,
-      // 경로 결과 구간 막대의 분 표시.
+      // 대비용 아님: 11px 구간 막대 분 표시는 굵게 해도 큰 글자 기준을 못 받아 어느
+      // 굵기든 4.5:1이 필요하다. 노선 배지는 굵게 읽는 기존 모양을 지키려 700을 쓴다.
       'lib/features/journey/presentation/result/journey_result_widgets.dart': 1,
-      // 주변역 바 이전·다음역 이름(좌·우 두 곳).
+      // 대비용: 주변역 바 이전·다음역 이름(좌·우 두 곳), 노선색 면 위 흰 글자.
       'lib/features/network_map/presentation/nearby_station_line_bar.dart': 2,
-      // 노선도 바탕 위 노선 배지 글자.
+      // 대비용: 주변역 패널 "○○ 방면" 제목의 노선색 이름, 흰 바탕 위 노선색 글자.
+      'lib/features/network_map/presentation/nearby_direction_title.dart': 1,
+      // 대비용 아님: 노선도 배지는 굵게 읽는 기존 모양을 지키려 700을 쓴다.
       'lib/features/network_map/presentation/structured_route_map_painter.dart':
           1,
-      // 역 시간표의 선택된 호선 칩.
+      // 대비용: 역 시간표의 선택된 호선 칩, 노선색 면 위 흰 글자.
       'lib/features/stations/presentation/station_timetable_screen.dart': 1,
     }, rule: 'boldForContrast 허용 목록');
   });

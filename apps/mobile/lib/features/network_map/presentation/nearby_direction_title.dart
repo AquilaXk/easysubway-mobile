@@ -7,6 +7,9 @@ import '../../../accessible_design.dart';
 /// 역명 부분은 선택 노선색, " 방면" 부분은 primary content 역할색으로 스타일만 분리한다. 라벨
 /// 문자열(데이터 포맷)은 조작하지 않는다 — "방면"으로 끝나지 않으면 전체를
 /// 노선색으로 그린다. 실시간·시간표 열이 공유하는 단일 스타일이다.
+///
+/// 노선색 글자는 흰 바탕 위 대비가 2호선 3.13처럼 3:1~4.5:1이라 14pt 굵은 글자
+/// 기준(3:1)을 받도록 대비용 굵기를 쓴다.
 class NearbyDirectionTitle extends StatelessWidget {
   const NearbyDirectionTitle({
     required this.label,
@@ -16,6 +19,7 @@ class NearbyDirectionTitle extends StatelessWidget {
 
   static const _suffix = '방면';
   static const _suffixColor = EasySubwayAccessibleColors.contentPrimary;
+  static const _nameWeight = EasySubwayFontWeight.boldForContrast;
   static const _style = TextStyle(
     fontSize: 14,
     fontWeight: EasySubwayFontWeight.emphasis,
@@ -36,7 +40,7 @@ class NearbyDirectionTitle extends StatelessWidget {
         spans.add(
           TextSpan(
             text: name,
-            style: TextStyle(color: lineColor),
+            style: TextStyle(color: lineColor, fontWeight: _nameWeight),
           ),
         );
       }
@@ -50,7 +54,7 @@ class NearbyDirectionTitle extends StatelessWidget {
       spans.add(
         TextSpan(
           text: label,
-          style: TextStyle(color: lineColor),
+          style: TextStyle(color: lineColor, fontWeight: _nameWeight),
         ),
       );
     }
