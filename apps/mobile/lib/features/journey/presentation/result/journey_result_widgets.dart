@@ -105,7 +105,7 @@ class JourneyRouteTabs extends StatelessWidget {
               ),
               Text(
                 tab.transferLabel,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: EasySubwayFontWeight.regular,
                   color: EasySubwayAccessibleColors.secondaryText,
