@@ -1012,6 +1012,7 @@ class _NaverAccessibleFacilityItem extends StatelessWidget {
     );
 
     return Semantics(
+      container: true,
       label: '$label ${isAvailable ? '있음' : '없음'}',
       button: isAvailable && onTap != null,
       child: isAvailable && onTap != null

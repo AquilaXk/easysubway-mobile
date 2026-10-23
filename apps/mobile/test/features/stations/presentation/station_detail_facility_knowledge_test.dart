@@ -4,6 +4,7 @@ import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_body.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 const _geumnamno = StationDetail(
@@ -117,6 +118,21 @@ void main() {
     expect(_announced('휠체어 리프트 없음'), findsOneWidget);
     expect(_announced('휠체어 리프트 있음'), findsNothing);
     expect(_announced('엘리베이터 있음'), findsOneWidget);
+  });
+
+  testWidgets('신고할 수 있는 시설 칸만 탭 동작을 가지고 역정보 묶음은 탭되지 않는다', (tester) async {
+    await _pumpDetail(tester, detail: _withAbsences(const {'WHEELCHAIR_LIFT'}));
+
+    final heading = tester.getSemantics(find.text('역정보'));
+    final elevatorCell = tester.getSemantics(_announced('엘리베이터 있음'));
+    final liftCell = tester.getSemantics(_announced('휠체어 리프트 없음'));
+
+    expect(heading.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
+    expect(
+      elevatorCell.getSemanticsData().hasAction(SemanticsAction.tap),
+      isTrue,
+    );
+    expect(liftCell.getSemanticsData().hasAction(SemanticsAction.tap), isFalse);
   });
 
   testWidgets('설치 기록이 있는 유형은 미설치 증거보다 있음이 앞선다', (tester) async {
