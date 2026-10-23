@@ -67,8 +67,8 @@ class AccessibleSelectableOptionRow extends StatelessWidget {
                           style: textTheme.bodyLarge?.copyWith(
                             color: EasySubwayAccessibleColors.text,
                             fontWeight: selected
-                                ? FontWeight.w700
-                                : FontWeight.w600,
+                                ? EasySubwayFontWeight.emphasis
+                                : EasySubwayFontWeight.regular,
                             fontSize: 18,
                             height: 1.25,
                           ),
@@ -79,7 +79,6 @@ class AccessibleSelectableOptionRow extends StatelessWidget {
                             description,
                             style: textTheme.bodyMedium?.copyWith(
                               color: EasySubwayAccessibleColors.mutedText,
-                              fontWeight: FontWeight.w600,
                               height: 1.3,
                             ),
                           ),

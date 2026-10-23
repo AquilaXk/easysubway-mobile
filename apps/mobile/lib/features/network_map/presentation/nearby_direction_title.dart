@@ -18,7 +18,7 @@ class NearbyDirectionTitle extends StatelessWidget {
   static const _suffixColor = EasySubwayAccessibleColors.contentPrimary;
   static const _style = TextStyle(
     fontSize: 14,
-    fontWeight: FontWeight.w900,
+    fontWeight: EasySubwayFontWeight.emphasis,
     height: 20 / 14,
   );
 
@@ -93,7 +93,7 @@ class NearbyArrivalRow extends StatelessWidget {
                 color: EasySubwayAccessibleColors.contentPrimary,
                 fontSize: 13,
                 height: 1.3,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.regular,
               ),
             ),
           if (eta.isNotEmpty)
@@ -107,7 +107,9 @@ class NearbyArrivalRow extends StatelessWidget {
                     : EasySubwayAccessibleColors.secondaryText,
                 fontSize: 12,
                 height: 1.3,
-                fontWeight: isSoon ? FontWeight.w700 : FontWeight.w600,
+                fontWeight: isSoon
+                    ? EasySubwayFontWeight.emphasis
+                    : EasySubwayFontWeight.regular,
               ),
             ),
         ],

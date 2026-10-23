@@ -198,9 +198,8 @@ class _StationPointButton extends StatelessWidget {
           borderRadius: _stationDetailActionButtonRadius,
         ),
         textStyle: const TextStyle(
-          fontFamily: 'Pretendard',
           fontSize: 15,
-          fontWeight: FontWeight.w700,
+          fontWeight: EasySubwayFontWeight.emphasis,
         ),
       ),
       icon: Icon(icon, size: 20, color: iconColor ?? fg),

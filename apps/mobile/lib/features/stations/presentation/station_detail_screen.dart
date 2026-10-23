@@ -241,7 +241,7 @@ class _StationDetailAppBarTitle extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: Theme.of(context).textTheme.titleLarge?.copyWith(
         color: EasySubwayAccessibleColors.onPrimary,
-        fontWeight: FontWeight.w700,
+        fontWeight: EasySubwayFontWeight.emphasis,
         height: 1.2,
       ),
     );

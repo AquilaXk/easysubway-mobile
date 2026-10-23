@@ -58,7 +58,6 @@ class _StationInfoBasisDisclosureState
                     '안내 확인 방법',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
                       color: EasySubwayAccessibleColors.text,
-                      fontWeight: FontWeight.w700,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -67,7 +66,6 @@ class _StationInfoBasisDisclosureState
                       label,
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: EasySubwayAccessibleColors.mutedText,
-                        fontWeight: FontWeight.w700,
                         height: 1.3,
                       ),
                     ),

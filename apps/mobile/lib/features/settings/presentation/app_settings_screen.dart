@@ -186,7 +186,7 @@ class _AppSettingsScreenState extends State<AppSettingsScreen> {
             style: TextStyle(
               color: EasySubwayAccessibleColors.onPrimary,
               fontSize: 21,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.emphasis,
               letterSpacing: -0.3,
             ),
           ),
@@ -403,7 +403,7 @@ class _AppSettingsSectionHeader extends StatelessWidget {
               title,
               style: textTheme.bodyMedium?.copyWith(
                 color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 height: 1.25,
               ),
             ),
@@ -480,7 +480,6 @@ class _MobilityHeroBlock extends StatelessWidget {
                                 summaryName,
                                 style: textTheme.titleMedium?.copyWith(
                                   color: EasySubwayAccessibleColors.text,
-                                  fontWeight: FontWeight.w700,
                                   fontSize: 16,
                                   height: 1.2,
                                 ),
@@ -493,7 +492,6 @@ class _MobilityHeroBlock extends StatelessWidget {
                                 ),
                                 style: textTheme.bodySmall?.copyWith(
                                   color: EasySubwayAccessibleColors.mutedText,
-                                  fontWeight: FontWeight.w500,
                                   fontSize: 12,
                                   height: 1.2,
                                 ),
@@ -523,7 +521,6 @@ class _MobilityHeroBlock extends StatelessWidget {
             '보행 속도',
             style: textTheme.labelLarge?.copyWith(
               color: EasySubwayAccessibleColors.secondaryText,
-              fontWeight: FontWeight.w700,
               fontSize: 11.5,
             ),
           ),
@@ -572,7 +569,6 @@ class _MobilityHeroBlock extends StatelessWidget {
             '이동 편의 (시설 제약)',
             style: textTheme.labelLarge?.copyWith(
               color: EasySubwayAccessibleColors.secondaryText,
-              fontWeight: FontWeight.w700,
               fontSize: 11.5,
             ),
           ),
@@ -723,7 +719,9 @@ class _SegmentButton extends StatelessWidget {
                     color: selected
                         ? primaryColor
                         : EasySubwayAccessibleColors.text,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w600,
+                    fontWeight: selected
+                        ? EasySubwayFontWeight.emphasis
+                        : EasySubwayFontWeight.regular,
                     fontSize: 13.5,
                     height: 1.2,
                   ),
@@ -811,7 +809,6 @@ class _AppSettingsActionTile extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: EasySubwayAccessibleColors.text,
-                fontWeight: FontWeight.w700,
                 height: 1.25,
               ),
             ),
@@ -859,7 +856,6 @@ class _AppSettingsPreferenceTile extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: EasySubwayAccessibleColors.text,
-                fontWeight: FontWeight.w700,
                 height: 1.25,
               ),
             ),
@@ -870,7 +866,6 @@ class _AppSettingsPreferenceTile extends StatelessWidget {
                   value,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.w700,
                   ),
                 ),
                 const SizedBox(width: 8),

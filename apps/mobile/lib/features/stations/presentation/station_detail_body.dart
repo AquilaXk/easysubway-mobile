@@ -138,7 +138,6 @@ class _StationDetailMessage extends StatelessWidget {
         message,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           color: EasySubwayAccessibleColors.secondaryText,
-          fontWeight: FontWeight.w700,
           height: 1.35,
         ),
       ),
@@ -293,7 +292,6 @@ class _StationDetailContent extends StatelessWidget {
           detail.nameSub,
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: EasySubwayAccessibleColors.secondaryText,
-            fontWeight: FontWeight.w600,
             height: 1.2,
           ),
         ),
@@ -303,7 +301,6 @@ class _StationDetailContent extends StatelessWidget {
         '마지막 확인',
         style: Theme.of(context).textTheme.bodySmall?.copyWith(
           color: EasySubwayAccessibleColors.mutedText,
-          fontWeight: FontWeight.w500,
           height: 1.2,
         ),
       ),
@@ -312,7 +309,6 @@ class _StationDetailContent extends StatelessWidget {
         stationVerifiedRelativeLabel(detail.lastVerifiedAt),
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
           color: EasySubwayAccessibleColors.text,
-          fontWeight: FontWeight.w600,
           height: 1.3,
         ),
       ),
@@ -410,7 +406,7 @@ class _StationDetailContextChrome extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
       style: Theme.of(context).textTheme.titleLarge?.copyWith(
         color: EasySubwayAccessibleColors.text,
-        fontWeight: FontWeight.w700,
+        fontWeight: EasySubwayFontWeight.emphasis,
         height: 1.2,
       ),
     );
@@ -475,7 +471,6 @@ class _StationDetailContextChrome extends StatelessWidget {
                   '${detail.nameKo}역',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.w700,
                     height: 1.2,
                   ),
                 ),
@@ -600,7 +595,6 @@ class _StationDetailSectionTitle extends StatelessWidget {
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
             color: EasySubwayAccessibleColors.text,
-            fontWeight: FontWeight.w700,
             fontSize: 15,
             letterSpacing: -0.2,
           ),
@@ -782,7 +776,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           '역정보',
           style: TextStyle(
             fontSize: 20,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             color: EasySubwayAccessibleColors.text,
             letterSpacing: -0.3,
           ),
@@ -803,7 +797,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
                 '시설정보',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                   color: EasySubwayAccessibleColors.text,
                 ),
               ),
@@ -867,7 +861,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
                 '편의시설',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                   color: EasySubwayAccessibleColors.text,
                 ),
               ),
@@ -931,7 +925,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
                 '교통약자 시설',
                 style: TextStyle(
                   fontSize: 15,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                   color: EasySubwayAccessibleColors.text,
                 ),
               ),
@@ -1032,7 +1026,7 @@ class _NaverFacilityTagItem extends StatelessWidget {
             label,
             style: const TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w500,
+              fontWeight: EasySubwayFontWeight.regular,
               color: EasySubwayAccessibleColors.text,
             ),
           ),
@@ -1047,7 +1041,7 @@ class _NaverFacilityTagItem extends StatelessWidget {
               tag,
               style: const TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.regular,
                 color: EasySubwayAccessibleColors.text,
               ),
             ),
@@ -1092,7 +1086,9 @@ class _NaverAmenityGridItem extends StatelessWidget {
               label,
               style: TextStyle(
                 fontSize: 14,
-                fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
+                fontWeight: isAvailable
+                    ? EasySubwayFontWeight.regular
+                    : EasySubwayFontWeight.regular,
                 color: isAvailable
                     ? EasySubwayAccessibleColors.text
                     : EasySubwayAccessibleColors.mutedText,
@@ -1140,7 +1136,9 @@ class _NaverAccessibleFacilityItem extends StatelessWidget {
             label,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: isAvailable ? FontWeight.w600 : FontWeight.w400,
+              fontWeight: isAvailable
+                  ? EasySubwayFontWeight.regular
+                  : EasySubwayFontWeight.regular,
               color: isAvailable
                   ? EasySubwayAccessibleColors.text
                   : EasySubwayAccessibleColors.mutedText,
@@ -1239,7 +1237,7 @@ class _StationNaverExitSection extends StatelessWidget {
           '출구정보',
           style: TextStyle(
             fontSize: 20,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             color: EasySubwayAccessibleColors.text,
             letterSpacing: -0.3,
           ),
@@ -1327,7 +1325,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                       '출발',
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         color: EasySubwayAccessibleColors.primary,
                       ),
                     ),
@@ -1364,7 +1362,7 @@ class _StationDetailStickyBottomBar extends StatelessWidget {
                       '도착',
                       style: TextStyle(
                         fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         color: EasySubwayAccessibleColors.onPrimary,
                       ),
                     ),
@@ -1473,7 +1471,7 @@ class _StationBottomBarOutlinedButton extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: EasySubwayFontWeight.regular,
                     color: EasySubwayAccessibleColors.text,
                   ),
                 ),
@@ -1627,7 +1625,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
                             style: TextStyle(
                               color: EasySubwayAccessibleColors.text,
                               fontSize: 14,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: EasySubwayFontWeight.emphasis,
                             ),
                           ),
                           Wrap(
@@ -1682,7 +1680,7 @@ class _StationDetailFirstLastBadge extends StatelessWidget {
           style: TextStyle(
             color: EasySubwayAccessibleColors.secondaryText,
             fontSize: 12,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.regular,
           ),
         ),
         const SizedBox(width: 4),
@@ -1691,7 +1689,7 @@ class _StationDetailFirstLastBadge extends StatelessWidget {
           style: TextStyle(
             color: EasySubwayAccessibleColors.text,
             fontSize: 13,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.regular,
           ),
         ),
       ],

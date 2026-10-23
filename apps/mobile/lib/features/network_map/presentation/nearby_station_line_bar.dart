@@ -244,7 +244,7 @@ class _StationNameLabel extends StatelessWidget {
         style: TextStyle(
           color: EasySubwayAccessibleColors.contentPrimary,
           fontSize: fontSize,
-          fontWeight: FontWeight.w800,
+          fontWeight: EasySubwayFontWeight.emphasis,
           height: 1.1,
         ),
       ),
@@ -297,7 +297,7 @@ class _SideName extends StatelessWidget {
                   style: TextStyle(
                     color: EasySubwayAccessibleColors.interactionOnPrimary,
                     fontSize: fontSize,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.regular,
                   ),
                 ),
               ),
@@ -316,7 +316,7 @@ class _SideName extends StatelessWidget {
                   style: TextStyle(
                     color: EasySubwayAccessibleColors.interactionOnPrimary,
                     fontSize: fontSize,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.regular,
                   ),
                 ),
               ),

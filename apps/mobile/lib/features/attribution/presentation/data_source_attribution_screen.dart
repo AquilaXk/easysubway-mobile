@@ -266,7 +266,6 @@ class _AttributionCard extends StatelessWidget {
                 title,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.w700,
                   height: 1.25,
                 ),
               ),
@@ -276,7 +275,6 @@ class _AttributionCard extends StatelessWidget {
                   subtitle,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: EasySubwayAccessibleColors.mutedText,
-                    fontWeight: FontWeight.w700,
                     height: 1.3,
                   ),
                 ),
@@ -321,7 +319,6 @@ class _AttributionRow extends StatelessWidget {
             label,
             style: Theme.of(context).textTheme.labelLarge?.copyWith(
               color: EasySubwayAccessibleColors.secondaryText,
-              fontWeight: FontWeight.w700,
               height: 1.25,
             ),
           ),
@@ -330,7 +327,6 @@ class _AttributionRow extends StatelessWidget {
             value,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(
               color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
               height: 1.3,
             ),
           ),

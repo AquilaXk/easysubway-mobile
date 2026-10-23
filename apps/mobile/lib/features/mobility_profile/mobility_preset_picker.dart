@@ -65,7 +65,6 @@ Future<MobilityPreset?> showMobilityPresetSheet(
                     '이동 조건',
                     style: textTheme.titleMedium?.copyWith(
                       color: EasySubwayAccessibleColors.text,
-                      fontWeight: FontWeight.w700,
                       height: 1.2,
                     ),
                   ),

@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import 'ad_slot.dart';
 import 'ad_repository.dart';
+import '../../accessible_design.dart';
 
 typedef AdImageLoader =
     Future<ImageProvider<Object>> Function(Uri uri, BuildContext context);
@@ -291,7 +292,7 @@ class _ActiveAdBannerState extends State<ActiveAdBanner>
                               '광고',
                               style: TextStyle(
                                 fontSize: 11,
-                                fontWeight: FontWeight.w600,
+                                fontWeight: EasySubwayFontWeight.regular,
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -302,7 +303,7 @@ class _ActiveAdBannerState extends State<ActiveAdBanner>
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
                                   fontSize: 14,
-                                  fontWeight: FontWeight.w600,
+                                  fontWeight: EasySubwayFontWeight.regular,
                                 ),
                               ),
                             ),

@@ -84,7 +84,7 @@ class LineMark extends StatelessWidget {
       style: TextStyle(
         color: EasySubwayAccessibleColors.interactionOnPrimary,
         fontSize: fontSize,
-        fontWeight: FontWeight.w700,
+        fontWeight: EasySubwayFontWeight.emphasis,
         height: 1.0,
       ),
     );

@@ -13,11 +13,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'support/easy_subway_app_fixture.dart';
-import 'support/pretendard_test_font.dart';
+import 'support/korean_test_font.dart';
 import 'widget_test.dart' as wt;
 
 Future<void> _loadTestFonts() async {
-  await loadPretendardTestFont();
+  await loadKoreanTestFont();
 
   const iconFontPaths = [
     '/Volumes/MACSSD/Android/flutter/flutter/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
@@ -163,7 +163,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             useMaterial3: true,
-            fontFamily: 'Pretendard',
+            fontFamily: koreanTestFontFamily,
             colorScheme: ColorScheme.fromSeed(
               seedColor: EasySubwayAccessibleColors.primary,
             ),
@@ -214,7 +214,7 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: ThemeData(
             useMaterial3: true,
-            fontFamily: 'Pretendard',
+            fontFamily: koreanTestFontFamily,
             colorScheme: ColorScheme.fromSeed(
               seedColor: EasySubwayAccessibleColors.primary,
             ),

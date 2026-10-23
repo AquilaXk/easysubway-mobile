@@ -50,7 +50,6 @@ class UserDataDeletionAccessItem extends StatelessWidget {
             copy.title,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
               height: 1.25,
             ),
           ),
@@ -185,7 +184,7 @@ class _UserDataDeletionScreenState extends State<UserDataDeletionScreen> {
           style: const TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -255,7 +254,7 @@ class _UserDataDeletionScreenState extends State<UserDataDeletionScreen> {
                       '삭제 전에 확인해 주세요',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: EasySubwayAccessibleColors.secondaryText,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         height: 1.25,
                       ),
                     ),
@@ -374,7 +373,7 @@ class UserDataDeletionResultScreen extends StatelessWidget {
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -420,7 +419,7 @@ class UserDataDeletionResultScreen extends StatelessWidget {
                       '내 정보가 삭제됐어요',
                       style: textTheme.titleLarge?.copyWith(
                         color: EasySubwayAccessibleColors.text,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         height: 1.25,
                       ),
                       textAlign: TextAlign.center,
@@ -450,7 +449,7 @@ class UserDataDeletionResultScreen extends StatelessWidget {
                       '이용 안내',
                       style: textTheme.bodyMedium?.copyWith(
                         color: EasySubwayAccessibleColors.secondaryText,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         height: 1.25,
                       ),
                     ),
@@ -476,7 +475,6 @@ class UserDataDeletionResultScreen extends StatelessWidget {
                         '노선도와 역 정보는 계속 이용할 수 있어요',
                         style: textTheme.bodyLarge?.copyWith(
                           color: EasySubwayAccessibleColors.text,
-                          fontWeight: FontWeight.w700,
                           height: 1.35,
                         ),
                       ),
@@ -532,7 +530,9 @@ class _UserDataNoticeBullet extends StatelessWidget {
             text,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: color,
-              fontWeight: emphasis ? FontWeight.w700 : FontWeight.w400,
+              fontWeight: emphasis
+                  ? EasySubwayFontWeight.emphasis
+                  : EasySubwayFontWeight.regular,
               height: 1.4,
             ),
           ),

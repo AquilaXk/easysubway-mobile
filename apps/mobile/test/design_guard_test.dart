@@ -8,8 +8,7 @@ import 'support/fixed_height_text_scan.dart';
 ///
 /// 규칙: 상한은 내리기만 한다. 이 테스트가 빨간불이면 상한을 올리지 말고
 /// 사용처를 공용 토큰(design_tokens.dart)·중립 표면·구분선으로 정리하라.
-/// 최종 목표: 로컬 색 상수 0, w900 0, w800 = 화면 타이틀 수, Gradient 0,
-/// 장식 Soft 틴트 0.
+/// 최종 목표: 로컬 색 상수 0, 굵기 리터럴 0, Gradient 0, 장식 Soft 틴트 0.
 void main() {
   final libDir = Directory('lib');
   late final Map<String, String> sources;
@@ -264,38 +263,14 @@ void main() {
     expectRatchet(actual, const {}, rule: '로컬 색 상수');
   });
 
-  test('FontWeight.w900 ratchet — 전면 제거 대상', () {
-    final actual = countPerFile(RegExp(r'FontWeight\.w900'));
-    expectRatchet(actual, {
-      // 주변역 패널 "○○ 방면" 제목 — 실시간·시간표 공유 단일 스타일 1건.
-      // — 오너 결정 2026-07-16, #2200
-      'lib/features/network_map/presentation/nearby_direction_title.dart': 1,
-    }, rule: 'w900');
-  });
-
-  test('FontWeight.w800 ratchet — 화면 타이틀 한정', () {
+  test('글자 굵기 리터럴은 토큰 정의 밖에 없다', () {
+    // 화면 코드는 EasySubwayFontWeight.regular·emphasis 역할만 쓴다(#503).
+    // 기기 설정 굵은 글꼴 대응(accessibility_theme.dart)은 굵기 단계를 직접 다룬다.
     final actual = countPerFile(
-      RegExp(r'FontWeight\.w800'),
-      exclude: {'accessible_design.dart', 'design_tokens.dart'},
+      RegExp(r'FontWeight\.(?:w[1-9]00|normal|bold)\b'),
+      exclude: {'accessible_design.dart', 'accessibility_theme.dart'},
     );
-    expectRatchet(actual, {
-      // 의도 잔존: 노선도 홈 화면 타이틀 1건 — 룩 불변 원칙.
-      // 좌측 메뉴와 lookup toast는 feature owner로 이동해 5→1로 하향.
-      // — #122, #124
-      'lib/app/network_map_screen.dart': 1,
-      // 의도 잔존: nearby lookup toast 1건 — #124 owner 이전.
-      'lib/features/network_map/presentation/network_map_chrome_controls.dart':
-          1,
-      // 의도 잔존: 좌측 메뉴 타이틀 1건 — #122 owner 이전.
-      'lib/features/network_map/presentation/network_map_menu_panel.dart': 1,
-      // 주변역 패널 현재역 캡슐 역명 — 색/캡슐 위 시인성.
-      // — 오너 결정 2026-07-16, #2200
-      'lib/features/network_map/presentation/nearby_station_line_bar.dart': 1,
-      // 의도 잔존: 온보딩 시작·프리셋·권한 화면 타이틀 (#1936 전면 재설계로 축소)
-      'lib/features/onboarding/onboarding.dart': 4,
-      // 의도 잔존: 노선 배지 겹침 개수(+N) 1건.
-      'lib/features/stations/presentation/station_line_badges.dart': 1,
-    }, rule: 'w800');
+    expectRatchet(actual, const {}, rule: 'FontWeight 리터럴');
   });
 
   test('장식 Soft 틴트 ratchet — 상태 의미 없는 배경 틴트 제거', () {

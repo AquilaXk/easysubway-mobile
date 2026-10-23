@@ -1,15 +1,14 @@
-import 'dart:io' show File, Platform;
-import 'dart:typed_data' show ByteData;
+import 'dart:io' show Platform;
 
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/features/journey/presentation/result/journey_result_widgets.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../../support/korean_test_font.dart';
 
 // #451: 환승 노드 아래 이동 안내 단계의 화면 고정. 고속터미널 9호선 사평 방면 →
 // 3호선 잠원 방면 문장은 국토교통부 원문 그대로다.
-const _goldenFontFamily = 'NanumGothicGolden';
 const _boundaryKey = ValueKey('journey-transfer-guide-golden-boundary');
 const _injectVisualMutation = bool.fromEnvironment(
   'EASYSUBWAY_GOLDEN_MUTATION',
@@ -87,7 +86,7 @@ Widget _transferNode({required bool expanded, List<String> steps = _steps}) {
 Future<void> _pump(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: ThemeData(fontFamily: _goldenFontFamily),
+      theme: ThemeData(fontFamily: koreanTestFontFamily),
       home: Scaffold(
         backgroundColor: _goldenBackground,
         body: Center(
@@ -111,14 +110,7 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  setUpAll(() async {
-    final bytes = await File(
-      'test/assets/fonts/NanumGothic-Regular.ttf',
-    ).readAsBytes();
-    await (FontLoader(
-      _goldenFontFamily,
-    )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
-  });
+  setUpAll(loadKoreanTestFont);
 
   // golden 비교는 macOS 호스트 래스터라이저에서만 (CI 크로스플랫폼 오탐 방지).
   final skipReason = !Platform.isMacOS;

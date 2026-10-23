@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/app/app_components.dart';
 import 'package:easysubway_mobile/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -60,15 +61,63 @@ void main() {
   });
 
   group('easySubwayTextTheme', () {
-    test('타이포 위계 — 타이틀만 w800, 본문 w500, 라벨 w600', () {
-      final theme = easySubwayTextTheme(
-        ThemeData(useMaterial3: true).textTheme,
+    Future<TextTheme> pumpAppTextTheme(WidgetTester tester) async {
+      late TextTheme textTheme;
+      await tester.pumpWidget(
+        MaterialApp(
+          locale: appLocale,
+          supportedLocales: appSupportedLocales,
+          localizationsDelegates: appLocalizationsDelegates,
+          theme: ThemeData(
+            useMaterial3: true,
+            textTheme: easySubwayTextTheme(
+              ThemeData(useMaterial3: true).textTheme,
+            ),
+          ),
+          home: Builder(
+            builder: (context) {
+              textTheme = Theme.of(context).textTheme;
+              return const SizedBox.shrink();
+            },
+          ),
+        ),
       );
-      expect(theme.titleLarge?.fontWeight, FontWeight.w800);
-      expect(theme.titleMedium?.fontWeight, FontWeight.w700);
-      expect(theme.bodyLarge?.fontWeight, FontWeight.w500);
-      expect(theme.bodyMedium?.fontWeight, FontWeight.w500);
-      expect(theme.labelLarge?.fontWeight, FontWeight.w600);
+      return textTheme;
+    }
+
+    testWidgets('한국어 화면의 역할별 굵기는 Material 3 기본 타이포와 같다', (tester) async {
+      final textTheme = await pumpAppTextTheme(tester);
+      final material3 = Typography.material2021().tall;
+      final roles = <String, TextStyle? Function(TextTheme)>{
+        'displayLarge': (t) => t.displayLarge,
+        'headlineSmall': (t) => t.headlineSmall,
+        'titleLarge': (t) => t.titleLarge,
+        'titleMedium': (t) => t.titleMedium,
+        'titleSmall': (t) => t.titleSmall,
+        'bodyLarge': (t) => t.bodyLarge,
+        'bodyMedium': (t) => t.bodyMedium,
+        'bodySmall': (t) => t.bodySmall,
+        'labelLarge': (t) => t.labelLarge,
+        'labelMedium': (t) => t.labelMedium,
+        'labelSmall': (t) => t.labelSmall,
+      };
+      roles.forEach((role, of) {
+        expect(
+          of(textTheme)?.fontWeight,
+          of(material3)?.fontWeight,
+          reason: role,
+        );
+      });
+    });
+
+    testWidgets('본문 역할은 400, 소제목·라벨 역할은 강조 500이다', (tester) async {
+      final textTheme = await pumpAppTextTheme(tester);
+      expect(EasySubwayFontWeight.regular, FontWeight.w400);
+      expect(EasySubwayFontWeight.emphasis, FontWeight.w500);
+      expect(textTheme.bodyLarge?.fontWeight, EasySubwayFontWeight.regular);
+      expect(textTheme.titleLarge?.fontWeight, EasySubwayFontWeight.regular);
+      expect(textTheme.titleMedium?.fontWeight, EasySubwayFontWeight.emphasis);
+      expect(textTheme.labelLarge?.fontWeight, EasySubwayFontWeight.emphasis);
     });
   });
 

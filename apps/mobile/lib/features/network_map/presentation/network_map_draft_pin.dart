@@ -186,7 +186,7 @@ class NetworkMapDraftPin extends StatelessWidget {
                                   textAlign: TextAlign.center,
                                   maxLines: 1,
                                   style: TextStyle(
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: EasySubwayFontWeight.emphasis,
                                     fontSize: _labelFontSize,
                                     height: 1.0,
                                     foreground: Paint()
@@ -202,7 +202,7 @@ class NetworkMapDraftPin extends StatelessWidget {
                                   maxLines: 1,
                                   style: TextStyle(
                                     color: role.onFace,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: EasySubwayFontWeight.emphasis,
                                     fontSize: _labelFontSize,
                                     height: 1.0,
                                   ),

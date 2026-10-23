@@ -211,7 +211,6 @@ class _StationLineOverflowBadge extends StatelessWidget {
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: EasySubwayAccessibleColors.mutedText,
           fontSize: 13 * (markSize / 32),
-          fontWeight: FontWeight.w800,
           height: 1.0,
         ),
       ),

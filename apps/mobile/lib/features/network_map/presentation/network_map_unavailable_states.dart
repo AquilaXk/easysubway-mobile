@@ -40,7 +40,10 @@ class OriginalRouteMapUnavailable extends StatelessWidget {
       child: Center(
         child: Text(
           '노선도를 불러오지 못했어요',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: EasySubwayFontWeight.emphasis,
+          ),
         ),
       ),
     );

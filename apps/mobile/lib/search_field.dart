@@ -41,11 +41,11 @@ const easySubwaySearchFieldIconSize = 22.0;
 /// 아이콘과 텍스트 사이 간격(8).
 const easySubwaySearchFieldIconGap = 8.0;
 
-/// hint(placeholder) 텍스트 스타일. secondaryText·17·w600·height 미지정.
+/// hint(placeholder) 텍스트 스타일. secondaryText·17·regular·height 미지정.
 const easySubwaySearchFieldHintStyle = TextStyle(
   color: EasySubwayAccessibleColors.secondaryText,
   fontSize: 17,
-  fontWeight: FontWeight.w600,
+  fontWeight: EasySubwayFontWeight.regular,
 );
 
 /// 입력(편집) 텍스트 스타일. hint와 glyph 메트릭(fontSize·fontWeight·height
@@ -56,7 +56,7 @@ const easySubwaySearchFieldHintStyle = TextStyle(
 const easySubwaySearchFieldInputStyle = TextStyle(
   color: EasySubwayAccessibleColors.text,
   fontSize: 17,
-  fontWeight: FontWeight.w600,
+  fontWeight: EasySubwayFontWeight.regular,
 );
 
 /// 홈 편집 모드와 역 검색 화면이 공유하는 편집 가능한 검색 입력 필드. 바깥
@@ -255,7 +255,7 @@ class EasySubwaySearchField extends StatelessWidget {
                               maxLines: 1,
                               textInputAction: TextInputAction.search,
                               // #2082: 입력 텍스트 style을 hint style과 동일 glyph
-                              // 메트릭(fontSize 17·w600·height 미지정)으로 두고 색만
+                              // 메트릭(fontSize 17·regular·height 미지정)으로 두고 색만
                               // 본문색으로 바꾼다. 두 style이 다른 height를 가지면
                               // hint와 편집 텍스트의 glyph 중심이 어긋난다.
                               style: easySubwaySearchFieldInputStyle,

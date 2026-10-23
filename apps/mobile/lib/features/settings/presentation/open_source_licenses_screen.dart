@@ -111,7 +111,7 @@ class _NoticeHeader extends StatelessWidget {
             style: TextStyle(
               color: EasySubwayAccessibleColors.interactionOnPrimary,
               fontSize: 20,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.emphasis,
             ),
           ),
         ),
@@ -124,7 +124,7 @@ class _NoticeHeader extends StatelessWidget {
                 '© 2026 아퀼라 소프트웨어',
                 style: TextStyle(
                   color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.regular,
                 ),
               ),
               SizedBox(height: 12),
@@ -174,7 +174,7 @@ class _PackageLicenseTileState extends State<_PackageLicenseTile> {
         widget.package.name,
         style: const TextStyle(
           color: EasySubwayAccessibleColors.text,
-          fontWeight: FontWeight.w700,
+          fontWeight: EasySubwayFontWeight.regular,
         ),
       ),
       subtitle: const Text('저작권 고지 및 라이선스 전문'),

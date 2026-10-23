@@ -54,7 +54,7 @@ void main() {
     );
     final message = tester.widget<Text>(find.text('노선도를 불러오지 못했어요'));
     expect(message.style?.fontSize, 16);
-    expect(message.style?.fontWeight, FontWeight.w700);
+    expect(message.style?.fontWeight, EasySubwayFontWeight.emphasis);
   });
 
   test('screen과 canvas는 unavailable-state owner만 소비하고 private duplicate가 없다', () {

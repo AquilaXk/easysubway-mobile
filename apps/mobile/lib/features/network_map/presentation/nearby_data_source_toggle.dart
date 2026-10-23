@@ -135,7 +135,7 @@ class _Segment extends StatelessWidget {
                 label,
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                   color: textColor,
                 ),
               ),

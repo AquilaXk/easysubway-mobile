@@ -84,7 +84,7 @@ class JourneyRouteTabs extends StatelessWidget {
                       tab.labels[index],
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.regular,
                         color:
                             tab.labels[index] == journeyStairFreeCategoryLabel
                             ? EasySubwayAccessibleColors.mint
@@ -99,7 +99,7 @@ class JourneyRouteTabs extends StatelessWidget {
                 tab.durationLabel,
                 style: const TextStyle(
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                   color: EasySubwayAccessibleColors.text,
                 ),
               ),
@@ -107,7 +107,9 @@ class JourneyRouteTabs extends StatelessWidget {
                 tab.transferLabel,
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                  fontWeight: selected
+                      ? EasySubwayFontWeight.regular
+                      : EasySubwayFontWeight.regular,
                   color: EasySubwayAccessibleColors.secondaryText,
                 ),
               ),
@@ -147,7 +149,7 @@ class JourneyResultSummaryView extends StatelessWidget {
                   summary.durationLabel,
                   style: const TextStyle(
                     fontSize: 30,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     color: EasySubwayAccessibleColors.text,
                   ),
                 ),
@@ -159,7 +161,7 @@ class JourneyResultSummaryView extends StatelessWidget {
                       summary.timesLabel,
                       style: const TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                         color: EasySubwayAccessibleColors.text,
                       ),
                     ),
@@ -168,7 +170,7 @@ class JourneyResultSummaryView extends StatelessWidget {
                         '실시간 반영',
                         style: TextStyle(
                           fontSize: 12,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           color: EasySubwayAccessibleColors.statusInfoContent,
                         ),
                       ),
@@ -198,7 +200,7 @@ class JourneyResultSummaryView extends StatelessWidget {
               journeyStairFreeCategoryLabel,
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 color: EasySubwayAccessibleColors.mint,
               ),
             ),
@@ -226,7 +228,7 @@ class JourneySegmentBar extends StatelessWidget {
 
   static const _labelStyle = TextStyle(
     fontSize: 11,
-    fontWeight: FontWeight.w700,
+    fontWeight: EasySubwayFontWeight.emphasis,
     color: EasySubwayColorPrimitives.neutralWhite,
   );
 
@@ -347,7 +349,7 @@ class JourneyStairStatusNotices extends StatelessWidget {
                 notice.title,
                 style: TextStyle(
                   fontSize: 14,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                   color: content,
                 ),
               ),
@@ -402,7 +404,7 @@ class JourneyStepFreeUnavailablePanel extends StatelessWidget {
                   key: const Key('journey-failure-message'),
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.regular,
                     color: EasySubwayAccessibleColors.text,
                   ),
                 ),
@@ -494,7 +496,7 @@ class JourneyTransferGuideSteps extends StatelessWidget {
                       label,
                       style: const TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                         color: EasySubwayAccessibleColors.secondaryText,
                       ),
                     ),

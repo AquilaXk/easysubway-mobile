@@ -47,7 +47,7 @@ class _MyFacilityReportListScreenState
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -112,7 +112,7 @@ class _MyFacilityReportListScreenState
                           style: Theme.of(context).textTheme.bodyMedium
                               ?.copyWith(
                                 color: EasySubwayAccessibleColors.secondaryText,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: EasySubwayFontWeight.emphasis,
                                 height: 1.25,
                               ),
                         ),
@@ -186,7 +186,6 @@ class _MyReportEmpty extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: _emptyTone,
-                fontWeight: FontWeight.w600,
                 height: 1.35,
                 fontSize: 16,
               ),
@@ -216,7 +215,7 @@ class _MyReportError extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: EasySubwayAccessibleColors.text,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 height: 1.3,
               ),
             ),
@@ -286,7 +285,6 @@ class _MyReportListItem extends StatelessWidget {
             report.reportTypeLabel,
             style: textTheme.bodyLarge?.copyWith(
               color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
               height: 1.25,
             ),
           ),
@@ -299,7 +297,6 @@ class _MyReportListItem extends StatelessWidget {
                   description,
                   style: textTheme.bodyMedium?.copyWith(
                     color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.w700,
                     height: 1.3,
                   ),
                 ),
@@ -357,7 +354,7 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -408,7 +405,7 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
                         '진행 상태',
                         style: textTheme.bodyMedium?.copyWith(
                           color: EasySubwayAccessibleColors.secondaryText,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           height: 1.25,
                         ),
                       ),
@@ -427,7 +424,7 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
                         report.reportTypeLabel,
                         style: textTheme.bodyLarge?.copyWith(
                           color: EasySubwayAccessibleColors.text,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           height: 1.25,
                         ),
                       ),
@@ -452,7 +449,7 @@ class MyFacilityReportDetailScreen extends StatelessWidget {
                         '제보 정보',
                         style: textTheme.bodyMedium?.copyWith(
                           color: EasySubwayAccessibleColors.secondaryText,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           height: 1.25,
                         ),
                       ),
@@ -511,11 +508,9 @@ class _MyReportDetailStatus extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              color: color,
-              fontWeight: FontWeight.w700,
-              height: 1.2,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(color: color, height: 1.2),
           ),
         ],
       ),
@@ -543,7 +538,6 @@ class _MyReportDetailRow extends StatelessWidget {
               label,
               style: textTheme.bodyMedium?.copyWith(
                 color: EasySubwayAccessibleColors.mutedText,
-                fontWeight: FontWeight.w700,
                 height: 1.25,
               ),
             ),
@@ -552,7 +546,6 @@ class _MyReportDetailRow extends StatelessWidget {
               value,
               style: textTheme.bodyLarge?.copyWith(
                 color: EasySubwayAccessibleColors.text,
-                fontWeight: FontWeight.w700,
                 height: 1.35,
               ),
             ),
@@ -583,11 +576,9 @@ class _MyReportStatusLabel extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: Theme.of(context).textTheme.labelLarge?.copyWith(
-            color: color,
-            fontWeight: FontWeight.w700,
-            height: 1.2,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelLarge?.copyWith(color: color, height: 1.2),
         ),
       ],
     );

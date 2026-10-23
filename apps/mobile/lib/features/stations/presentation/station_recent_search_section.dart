@@ -90,15 +90,14 @@ class _RecentSearchHeader extends StatelessWidget {
 
   static const _titleStyle = TextStyle(
     fontSize: 16,
-    // #1915: 섹션 헤더는 w800 금지. 화면 타이틀 전용 ratchet 유지.
-    fontWeight: FontWeight.w700,
+    fontWeight: EasySubwayFontWeight.emphasis,
     height: 1.0,
     color: EasySubwayAccessibleColors.text,
   );
 
   static const _clearStyle = TextStyle(
     fontSize: 14,
-    fontWeight: FontWeight.w400,
+    fontWeight: EasySubwayFontWeight.regular,
     height: 1.0,
     color: EasySubwayAccessibleColors.brandSignature,
   );
@@ -189,7 +188,6 @@ class _RecentSearchEmptyState extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: _emptyTone,
-                  fontWeight: FontWeight.w600,
                   height: 1.35,
                   fontSize: 16,
                 ),
@@ -222,7 +220,6 @@ class _RecentSearchItem extends StatelessWidget {
     final entry = this.entry;
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
       color: EasySubwayAccessibleColors.text,
-      fontWeight: FontWeight.w700,
       height: 1.25,
     );
     final (
@@ -342,7 +339,7 @@ class _RouteStationsLabel extends StatelessWidget {
   static const _arrowStyle = TextStyle(
     color: EasySubwayAccessibleColors.mutedText,
     fontSize: 15,
-    fontWeight: FontWeight.w600,
+    fontWeight: EasySubwayFontWeight.regular,
     height: 1.25,
   );
 

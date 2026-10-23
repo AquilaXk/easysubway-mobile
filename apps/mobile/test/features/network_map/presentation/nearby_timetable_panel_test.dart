@@ -426,17 +426,17 @@ void main() {
       // 행선지 '오이도행'이 선두에 배치됨
       expect(find.text('오이도행'), findsNWidgets(2));
 
-      // 60초 미만은 빨간색 볼드 statusDanger '곧 도착'
+      // 60초 미만은 빨간색 강조 굵기 statusDanger '곧 도착'
       expect(find.text('곧 도착'), findsOneWidget);
       final soonText = tester.widget<Text>(find.text('곧 도착'));
       expect(soonText.style?.color, EasySubwayColorPrimitives.statusDanger);
-      expect(soonText.style?.fontWeight, FontWeight.w700);
+      expect(soonText.style?.fontWeight, EasySubwayFontWeight.emphasis);
 
-      // 1분은 띄어쓰기를 철저히 준수한 '1분 뒤 도착' (1~3분 뒤 도착은 amber 볼드 탑승 임박 강조)
+      // 1분은 띄어쓰기를 철저히 준수한 '1분 뒤 도착' (1~3분 뒤 도착은 amber 강조 굵기로 탑승 임박 강조)
       expect(find.text('1분 뒤 도착'), findsOneWidget);
       final oneMinText = tester.widget<Text>(find.text('1분 뒤 도착'));
       expect(oneMinText.style?.color, EasySubwayAccessibleColors.amber);
-      expect(oneMinText.style?.fontWeight, FontWeight.w700);
+      expect(oneMinText.style?.fontWeight, EasySubwayFontWeight.emphasis);
 
       // 중앙점(·, .)이나 불필요한 정적 시각(10:00, 10:01) 절대 노출 금지
       expect(find.textContaining('·'), findsNothing);

@@ -77,7 +77,7 @@ class ServiceInfoScreen extends StatelessWidget {
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -191,7 +191,7 @@ class _ServiceInfoSection extends StatelessWidget {
                   sectionTitle,
                   style: textTheme.bodyMedium?.copyWith(
                     color: EasySubwayAccessibleColors.secondaryText,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     height: 1.25,
                   ),
                 ),
@@ -242,7 +242,6 @@ class _ServiceInfoActionTile extends StatelessWidget {
             title,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
               height: 1.25,
             ),
           ),

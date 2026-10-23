@@ -1,3 +1,4 @@
+import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/features/stations/application/station_search_controller.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
@@ -175,9 +176,9 @@ void main() {
       });
 
       expect(spans.first.text, '노');
-      expect(spans.first.style!.fontWeight, FontWeight.w400);
+      expect(spans.first.style!.fontWeight, EasySubwayFontWeight.regular);
       expect(spans.last.text, '량진역');
-      expect(spans.last.style!.fontWeight, FontWeight.w400);
+      expect(spans.last.style!.fontWeight, EasySubwayFontWeight.regular);
       expect(spans.first.style!.color, isNot(spans.last.style!.color));
     });
   });

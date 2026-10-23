@@ -23,7 +23,7 @@ import 'support/full_tap_target_guideline.dart';
 /// 팬 메뉴의 글자는 CustomPaint로 그려져 `textContrastGuideline`이 볼 수 없다.
 /// 팬 메뉴 역할색의 글자 대비는 `design_tokens_test`가 단언한다.
 ///
-/// 한계: 이 테스트는 실제 폰트(Pretendard)의 글자 대비와 오버플로를 검증하지
+/// 한계: 이 테스트는 기기 시스템 서체의 글자 대비와 오버플로를 검증하지
 /// 않는다. Ahem은 글자 폭이 달라 1.5배 줄바꿈과 넘침도 근사치다. 실제 폰트의
 /// 대비·오버플로는 실기기 점검(에픽 #3036 체크리스트 4번 후속 행)이 맡는다.
 

@@ -140,7 +140,7 @@ void main() {
 
   testWidgets('시작 화면 CTA는 시그니처 브랜드 색 채움 + 흰 글자 + 키운 라벨이다', (tester) async {
     // #2089: '시작하기' CTA만 브랜드 색으로 채우고 글자는 흰색(대비 5.7:1, AA).
-    // 오너 실기기 검수 2차로 라벨을 더 키운다(22/w700).
+    // 오너 실기기 검수 2차로 라벨을 더 키운다(22, 강조 굵기).
     await tester.pumpWidget(MaterialApp(home: StartScreen(onStart: () {})));
 
     final button = tester.widget<FilledButton>(
@@ -158,7 +158,7 @@ void main() {
     // 라벨을 키워 58px 버튼과 균형을 맞춘다.
     final textStyle = style.textStyle?.resolve(<WidgetState>{});
     expect(textStyle?.fontSize, 22);
-    expect(textStyle?.fontWeight, FontWeight.w700);
+    expect(textStyle?.fontWeight, EasySubwayFontWeight.emphasis);
   });
 
   testWidgets('시작 화면은 소형 화면(320×568)에서도 카피 3행과 CTA를 오버플로 없이 렌더한다', (
@@ -293,7 +293,7 @@ void main() {
         <WidgetState>{},
       );
       expect(doneButtonTextStyle?.fontSize, 22);
-      expect(doneButtonTextStyle?.fontWeight, FontWeight.w700);
+      expect(doneButtonTextStyle?.fontWeight, EasySubwayFontWeight.emphasis);
 
       await tester.tap(find.byKey(const Key('mobilityPresetRow-stepFree')));
       await tester.pumpAndSettle();
@@ -470,7 +470,7 @@ void main() {
       <WidgetState>{},
     );
     expect(allowTextStyle?.fontSize, 22);
-    expect(allowTextStyle?.fontWeight, FontWeight.w700);
+    expect(allowTextStyle?.fontWeight, EasySubwayFontWeight.emphasis);
 
     final skipButton = tester.widget<TextButton>(
       find.byKey(const Key('onboardingPermissionSkipButton')),
@@ -478,7 +478,7 @@ void main() {
     expect(skipButton.style?.minimumSize?.resolve(<WidgetState>{})?.height, 48);
     final skipTextStyle = skipButton.style?.textStyle?.resolve(<WidgetState>{});
     expect(skipTextStyle?.fontSize, 18);
-    expect(skipTextStyle?.fontWeight, FontWeight.w700);
+    expect(skipTextStyle?.fontWeight, EasySubwayFontWeight.regular);
 
     final locationSwitch = tester.widget<Switch>(find.byType(Switch));
     expect(
