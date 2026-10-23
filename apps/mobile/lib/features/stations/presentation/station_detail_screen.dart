@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../app/easy_subway_family_app_bar.dart';
 import '../../../core/external/kakao_map_launcher.dart';
+import '../../../core/ui/line_mark.dart';
 import '../../../core/ui/name_with_marks.dart';
 import '../../facility_report/domain/facility_report_repository.dart';
 import '../../facility_report/domain/facility_report_target.dart';
@@ -211,10 +212,12 @@ class _StationDetailAppBarTitle extends StatelessWidget {
 
   final StationDetailState state;
 
-  // 상단바 높이가 60 고정이라 마크는 두 줄까지만 쌓인다. 큰 글자에서도 마크가
-  // 줄 폭의 45%를 넘지 않아 역 이름이 나머지를 가진다.
-  static const _markSize = 20.0;
-  static const _maxMarkCount = 3;
+  // 상단바 높이가 60 고정이라 마크는 두 줄(최대 26+4+26=56)까지만 쌓인다. 묶음이
+  // 둘(마크 둘, 또는 마크 하나와 +N)이면 각각이 폭 예산 안에 드는 한 한 줄에 하나씩
+  // 두 줄이 되어 세 줄이 될 수 없다. 셋이면 알약 셋이 좁은 폭이나 큰 글자에서 세
+  // 줄로 쌓여 상단바 밖으로 나간다. 마크 묶음은 줄 폭의 45%를 넘지 않아 역 이름이
+  // 나머지를 가진다.
+  static const _maxMarkCount = 2;
   static const _marksMaxFraction = 0.45;
 
   @override
@@ -252,7 +255,7 @@ class _StationDetailAppBarTitle extends StatelessWidget {
       maxMarksFraction: _marksMaxFraction,
       marks: StationLineBadges(
         lines: detail.lines,
-        size: _markSize,
+        size: lineMarkDefaultSize,
         maxBadgeCount: _maxMarkCount,
         runSpacing: 4,
       ),
