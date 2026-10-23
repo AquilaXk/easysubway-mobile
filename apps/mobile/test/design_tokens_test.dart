@@ -1,10 +1,11 @@
 import 'dart:math' as math;
 
 import 'package:easysubway_mobile/accessible_design.dart';
-import 'package:easysubway_mobile/app/app_components.dart';
 import 'package:easysubway_mobile/design_tokens.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/easy_subway_app_fixture.dart';
 
 void main() {
   group('EasySubwayTokens', () {
@@ -61,28 +62,12 @@ void main() {
   });
 
   group('easySubwayTextTheme', () {
+    // 앱이 실제로 쓰는 테마를 읽는다. 테마를 테스트에서 따로 만들면 앱 설정이
+    // 바뀌어도 이 테스트는 계속 통과한다.
     Future<TextTheme> pumpAppTextTheme(WidgetTester tester) async {
-      late TextTheme textTheme;
-      await tester.pumpWidget(
-        MaterialApp(
-          locale: appLocale,
-          supportedLocales: appSupportedLocales,
-          localizationsDelegates: appLocalizationsDelegates,
-          theme: ThemeData(
-            useMaterial3: true,
-            textTheme: easySubwayTextTheme(
-              ThemeData(useMaterial3: true).textTheme,
-            ),
-          ),
-          home: Builder(
-            builder: (context) {
-              textTheme = Theme.of(context).textTheme;
-              return const SizedBox.shrink();
-            },
-          ),
-        ),
-      );
-      return textTheme;
+      await tester.pumpWidget(buildEasySubwayTestApp());
+      await tester.pumpAndSettle();
+      return Theme.of(tester.element(find.byType(Navigator).first)).textTheme;
     }
 
     testWidgets('한국어 화면의 역할별 굵기는 Material 3 기본 타이포와 같다', (tester) async {

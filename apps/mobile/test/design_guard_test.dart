@@ -263,14 +263,41 @@ void main() {
     expectRatchet(actual, const {}, rule: '로컬 색 상수');
   });
 
-  test('글자 굵기 리터럴은 토큰 정의 밖에 없다', () {
-    // 화면 코드는 EasySubwayFontWeight.regular·emphasis 역할만 쓴다(#503).
-    // 기기 설정 굵은 글꼴 대응(accessibility_theme.dart)은 굵기 단계를 직접 다룬다.
+  test('글자 굵기는 토큰 정의 밖에서 만들지 않는다', () {
+    // 화면 코드는 EasySubwayFontWeight 역할만 쓴다(#503). 숫자 리터럴뿐 아니라
+    // FontWeight.values[n]·FontWeight.lerp·가변 글꼴 축(FontVariation)으로 만든 굵기도
+    // 같은 우회다. 기기 설정 굵은 글꼴 대응(accessibility_theme.dart)만 굵기 단계를
+    // 직접 다룬다. 그려진 결과는 sweep의 renderedTypographyViolations가 다시 본다.
     final actual = countPerFile(
-      RegExp(r'FontWeight\.(?:w[1-9]00|normal|bold)\b'),
+      RegExp(
+        r'FontWeight\.(?:w[1-9]00|normal|bold|values|lerp)\b'
+        r'|\bFontVariation\b|\bfontVariations\b',
+      ),
       exclude: {'accessible_design.dart', 'accessibility_theme.dart'},
     );
-    expectRatchet(actual, const {}, rule: 'FontWeight 리터럴');
+    expectRatchet(actual, const {}, rule: 'FontWeight 리터럴·우회');
+  });
+
+  test('대비용 700(boldForContrast)은 검토를 거친 노선색 위 흰 글자에만 쓴다', () {
+    // 새 사용처는 상한을 올리기 전에 노선색 면 위 흰 글자인지, 14pt 이상이어서
+    // 굵게 해야 3:1 기준을 받는지 검토한다(#503).
+    final actual = countPerFile(
+      RegExp(r'EasySubwayFontWeight\.boldForContrast\b'),
+      exclude: {'accessible_design.dart'},
+    );
+    expectRatchet(actual, {
+      // 노선 마크 알약·원 글자.
+      'lib/core/ui/line_mark.dart': 1,
+      // 경로 결과 구간 막대의 분 표시.
+      'lib/features/journey/presentation/result/journey_result_widgets.dart': 1,
+      // 주변역 바 이전·다음역 이름(좌·우 두 곳).
+      'lib/features/network_map/presentation/nearby_station_line_bar.dart': 2,
+      // 노선도 바탕 위 노선 배지 글자.
+      'lib/features/network_map/presentation/structured_route_map_painter.dart':
+          1,
+      // 역 시간표의 선택된 호선 칩.
+      'lib/features/stations/presentation/station_timetable_screen.dart': 1,
+    }, rule: 'boldForContrast 허용 목록');
   });
 
   test('장식 Soft 틴트 ratchet — 상태 의미 없는 배경 틴트 제거', () {

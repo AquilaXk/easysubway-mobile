@@ -226,7 +226,7 @@ class JourneySegmentBar extends StatelessWidget {
 
   static const _labelStyle = TextStyle(
     fontSize: 11,
-    fontWeight: EasySubwayFontWeight.emphasis,
+    fontWeight: EasySubwayFontWeight.boldForContrast,
     color: EasySubwayColorPrimitives.neutralWhite,
   );
 
@@ -402,7 +402,7 @@ class JourneyStepFreeUnavailablePanel extends StatelessWidget {
                   key: const Key('journey-failure-message'),
                   style: const TextStyle(
                     fontSize: 15,
-                    fontWeight: EasySubwayFontWeight.regular,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     color: EasySubwayAccessibleColors.text,
                   ),
                 ),

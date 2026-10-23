@@ -57,6 +57,7 @@ class _StationInfoBasisDisclosureState
                   Text(
                     '안내 확인 방법',
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       color: EasySubwayAccessibleColors.text,
                     ),
                   ),

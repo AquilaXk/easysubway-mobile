@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'support/core_screen_sweep_fixtures.dart';
 import 'support/core_screen_sweep_screens.dart';
 import 'support/full_tap_target_guideline.dart';
+import 'support/rendered_typography.dart';
 
 /// 핵심 화면 x 테마 x 글자 크기 x 접근성 가이드라인 전수 검사(#464).
 ///
@@ -76,6 +77,7 @@ void main() {
             expect(tester.takeException(), isNull);
             expect(await _violations(tester), isEmpty);
             expect(_ambiguousTapLabels(tester), isEmpty);
+            expect(renderedTypographyViolations(tester), isEmpty);
           }
 
           try {

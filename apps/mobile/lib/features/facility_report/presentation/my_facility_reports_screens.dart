@@ -508,9 +508,11 @@ class _MyReportDetailStatus extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             label,
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(color: color, height: 1.2),
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: EasySubwayFontWeight.emphasis,
+              color: color,
+              height: 1.2,
+            ),
           ),
         ],
       ),
@@ -576,9 +578,11 @@ class _MyReportStatusLabel extends StatelessWidget {
         const SizedBox(width: 6),
         Text(
           label,
-          style: Theme.of(
-            context,
-          ).textTheme.labelLarge?.copyWith(color: color, height: 1.2),
+          style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontWeight: EasySubwayFontWeight.emphasis,
+            color: color,
+            height: 1.2,
+          ),
         ),
       ],
     );

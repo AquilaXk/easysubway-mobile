@@ -82,7 +82,7 @@ const TextStyle _boldLabelStyle = TextStyle(
 const TextStyle _badgeStyle = TextStyle(
   color: Color(0xFFFFFFFF),
   fontSize: kRouteMapDesignBadgeFontPx,
-  fontWeight: EasySubwayFontWeight.emphasis,
+  fontWeight: EasySubwayFontWeight.boldForContrast,
 );
 
 /// #2068 SVG 충실도(2026-07-26 오너 결정): 바탕층 모드가 소비하는 **빈** 라벨

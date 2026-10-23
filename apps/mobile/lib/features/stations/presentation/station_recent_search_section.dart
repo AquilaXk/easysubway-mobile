@@ -219,6 +219,7 @@ class _RecentSearchItem extends StatelessWidget {
   Widget build(BuildContext context) {
     final entry = this.entry;
     final titleStyle = Theme.of(context).textTheme.titleMedium?.copyWith(
+      fontWeight: EasySubwayFontWeight.regular,
       color: EasySubwayAccessibleColors.text,
       height: 1.25,
     );

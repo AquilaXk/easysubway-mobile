@@ -479,6 +479,7 @@ class _MobilityHeroBlock extends StatelessWidget {
                               Text(
                                 summaryName,
                                 style: textTheme.titleMedium?.copyWith(
+                                  fontWeight: EasySubwayFontWeight.emphasis,
                                   color: EasySubwayAccessibleColors.text,
                                   fontSize: 16,
                                   height: 1.2,
@@ -520,6 +521,7 @@ class _MobilityHeroBlock extends StatelessWidget {
           Text(
             '보행 속도',
             style: textTheme.labelLarge?.copyWith(
+              fontWeight: EasySubwayFontWeight.regular,
               color: EasySubwayAccessibleColors.secondaryText,
               fontSize: 11.5,
             ),
@@ -568,6 +570,7 @@ class _MobilityHeroBlock extends StatelessWidget {
           Text(
             '이동 편의 (시설 제약)',
             style: textTheme.labelLarge?.copyWith(
+              fontWeight: EasySubwayFontWeight.regular,
               color: EasySubwayAccessibleColors.secondaryText,
               fontSize: 11.5,
             ),

@@ -116,6 +116,33 @@ final sweepScreens = <SweepScreen>[
     find.widgetWithText(FilledButton, '경로 찾기'),
   ),
   SweepScreen(
+    '경로 검색(예약 모드)',
+    (context) => _openJourney(
+      context,
+      search: false,
+      departureChip: 'journey-departure-scheduled',
+    ),
+    find.byKey(const Key('journey-scheduled-time')),
+  ),
+  SweepScreen(
+    '경로 검색(구간 모드)',
+    (context) => _openJourney(
+      context,
+      search: false,
+      departureChip: 'journey-departure-window',
+    ),
+    find.byKey(const Key('journey-window-time')),
+  ),
+  SweepScreen(
+    '경로 검색(막차 모드)',
+    (context) => _openJourney(
+      context,
+      search: false,
+      departureChip: 'journey-departure-last-connection',
+    ),
+    find.byKey(const Key('journey-last-connection-date')),
+  ),
+  SweepScreen(
     '경로 결과·상세',
     (context) => _openJourney(context, search: true),
     find.byKey(const Key('selected-journey-detail')),
@@ -569,6 +596,7 @@ Future<void> _openMenu(SweepScreenContext context) async {
 Future<void> _openJourney(
   SweepScreenContext context, {
   required bool search,
+  String? departureChip,
 }) async {
   final tester = context.tester;
   unawaited(
@@ -591,6 +619,11 @@ Future<void> _openJourney(
     ),
   );
   await tester.pumpAndSettle();
+  if (departureChip != null) {
+    await tester.ensureVisible(find.byKey(Key(departureChip)));
+    await tester.tap(find.byKey(Key(departureChip)));
+    await tester.pumpAndSettle();
+  }
   if (search) {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();

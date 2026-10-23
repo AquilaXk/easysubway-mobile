@@ -21,19 +21,40 @@ void main() {
     expect(families, {'MaterialIcons'});
   });
 
-  test('lib 코드는 글꼴 family 이름을 직접 지정하지 않는다', () {
-    final literalFamily = RegExp(r'''fontFamily:\s*['"]''');
+  test('lib 코드는 글꼴 family를 지정하지 않는다', () {
+    // 문자열 리터럴뿐 아니라 상수·변수로 돌려 넘기는 표기도 fontFamily 식별자로 잡는다.
+    // 그려진 결과는 sweep의 renderedTypographyViolations가 다시 본다.
+    final familyIdentifier = RegExp(r'\bfontFamily(?:Fallback)?\b|Pretendard');
     final offenders = <String>[];
     for (final entity in Directory('lib').listSync(recursive: true)) {
-      if (entity is! File || !entity.path.endsWith('.dart')) {
+      if (entity is! File ||
+          !entity.path.endsWith('.dart') ||
+          entity.path == _fanMenuSource) {
         continue;
       }
-      final source = entity.readAsStringSync();
-      if (literalFamily.hasMatch(source) || source.contains('Pretendard')) {
+      if (familyIdentifier.hasMatch(entity.readAsStringSync())) {
         offenders.add(entity.path);
       }
     }
 
     expect(offenders, isEmpty);
   });
+
+  test('팬 메뉴는 주변 DefaultTextStyle의 family만 CustomPaint로 넘긴다', () {
+    // CustomPaint는 DefaultTextStyle을 상속하지 못해 family를 인자로 받는다.
+    final assignments = RegExp(
+      r'fontFamily:\s*([^,\n]+)',
+    ).allMatches(File(_fanMenuSource).readAsStringSync());
+
+    expect(assignments, isNotEmpty);
+    for (final match in assignments) {
+      expect(
+        match.group(1),
+        anyOf('DefaultTextStyle.of(context).style.fontFamily', 'fontFamily'),
+      );
+    }
+  });
 }
+
+const _fanMenuSource =
+    'lib/features/network_map/presentation/station_fan_menu.dart';

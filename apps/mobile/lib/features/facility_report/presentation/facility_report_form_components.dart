@@ -108,6 +108,7 @@ class _FacilityReportStatusRow extends StatelessWidget {
         Text(
           label,
           style: textTheme.labelLarge?.copyWith(
+            fontWeight: EasySubwayFontWeight.regular,
             color: EasySubwayAccessibleColors.mutedText,
           ),
         ),
@@ -115,6 +116,7 @@ class _FacilityReportStatusRow extends StatelessWidget {
         Text(
           value,
           style: textTheme.titleMedium?.copyWith(
+            fontWeight: EasySubwayFontWeight.regular,
             color: valueColor ?? EasySubwayAccessibleColors.text,
             height: 1.25,
           ),

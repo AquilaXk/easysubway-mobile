@@ -114,6 +114,8 @@ class StationFacilityCard extends StatelessWidget {
                                     child: Text(
                                       facility.displayName,
                                       style: textTheme.titleMedium?.copyWith(
+                                        fontWeight:
+                                            EasySubwayFontWeight.regular,
                                         color: EasySubwayAccessibleColors.text,
                                         height: 1.25,
                                       ),

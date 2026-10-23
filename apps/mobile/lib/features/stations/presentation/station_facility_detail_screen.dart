@@ -92,7 +92,11 @@ class FacilityDetailScreen extends StatelessWidget {
                             Text(
                               statusTitle,
                               style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(color: statusColor, height: 1.25),
+                                  ?.copyWith(
+                                    fontWeight: EasySubwayFontWeight.emphasis,
+                                    color: statusColor,
+                                    height: 1.25,
+                                  ),
                             ),
                             if (showDisplayLabel) ...[
                               const SizedBox(height: 3),

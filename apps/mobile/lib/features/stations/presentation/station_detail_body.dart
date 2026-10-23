@@ -470,6 +470,7 @@ class _StationDetailContextChrome extends StatelessWidget {
                 child: Text(
                   '${detail.nameKo}역',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     color: EasySubwayAccessibleColors.text,
                     height: 1.2,
                   ),
@@ -594,6 +595,7 @@ class _StationDetailSectionTitle extends StatelessWidget {
         child: Text(
           title,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
+            fontWeight: EasySubwayFontWeight.emphasis,
             color: EasySubwayAccessibleColors.text,
             fontSize: 15,
             letterSpacing: -0.2,
@@ -784,26 +786,30 @@ class _StationNaverStationInfoSection extends StatelessWidget {
         const SizedBox(height: 12),
         _StationInfoGroup(
           title: '시설정보',
-          cells: [
-            _NaverFacilityTagItem(
-              icon: Icons.train_outlined,
-              label: '플랫폼',
-              tag: platformTag,
+          rows: [
+            (
+              _NaverFacilityTagItem(
+                icon: Icons.train_outlined,
+                label: '플랫폼',
+                tag: platformTag,
+              ),
+              _NaverFacilityTagItem(
+                icon: Icons.wc_outlined,
+                label: '화장실',
+                tag: toiletTag,
+              ),
             ),
-            _NaverFacilityTagItem(
-              icon: Icons.wc_outlined,
-              label: '화장실',
-              tag: toiletTag,
-            ),
-            _NaverFacilityTagItem(
-              icon: Icons.meeting_room_outlined,
-              label: '내리는문',
-              tag: doorTag,
-            ),
-            _NaverFacilityTagItem(
-              icon: Icons.swap_horiz,
-              label: '반대편',
-              tag: crossPlatformTag,
+            (
+              _NaverFacilityTagItem(
+                icon: Icons.meeting_room_outlined,
+                label: '내리는문',
+                tag: doorTag,
+              ),
+              _NaverFacilityTagItem(
+                icon: Icons.swap_horiz,
+                label: '반대편',
+                tag: crossPlatformTag,
+              ),
             ),
           ],
         ),
@@ -811,26 +817,30 @@ class _StationNaverStationInfoSection extends StatelessWidget {
 
         _StationInfoGroup(
           title: '편의시설',
-          cells: [
-            _NaverAmenityGridItem(
-              icon: Icons.directions_bike,
-              label: '자전거보관소',
-              isAvailable: hasBicycle,
+          rows: [
+            (
+              _NaverAmenityGridItem(
+                icon: Icons.directions_bike,
+                label: '자전거보관소',
+                isAvailable: hasBicycle,
+              ),
+              _NaverAmenityGridItem(
+                icon: Icons.local_parking,
+                label: '환승주차장',
+                isAvailable: hasParking,
+              ),
             ),
-            _NaverAmenityGridItem(
-              icon: Icons.local_parking,
-              label: '환승주차장',
-              isAvailable: hasParking,
-            ),
-            _NaverAmenityGridItem(
-              icon: Icons.find_in_page_outlined,
-              label: '유실물센터',
-              isAvailable: hasLostItem,
-            ),
-            _NaverAmenityGridItem(
-              icon: Icons.inventory_2_outlined,
-              label: '물품보관소',
-              isAvailable: hasStorage,
+            (
+              _NaverAmenityGridItem(
+                icon: Icons.find_in_page_outlined,
+                label: '유실물센터',
+                isAvailable: hasLostItem,
+              ),
+              _NaverAmenityGridItem(
+                icon: Icons.inventory_2_outlined,
+                label: '물품보관소',
+                isAvailable: hasStorage,
+              ),
             ),
           ],
         ),
@@ -838,46 +848,50 @@ class _StationNaverStationInfoSection extends StatelessWidget {
 
         _StationInfoGroup(
           title: '교통약자 시설',
-          cells: [
-            _NaverAccessibleFacilityItem(
-              key: disabledToiletFacility != null
-                  ? Key(
-                      'naverFacilityReportButton-${disabledToiletFacility.id}',
-                    )
-                  : null,
-              icon: Icons.accessible,
-              label: '장애인화장실',
-              isAvailable: hasDisabledToilet,
-              onTap: reportCallback(disabledToiletFacility),
+          rows: [
+            (
+              _NaverAccessibleFacilityItem(
+                key: disabledToiletFacility != null
+                    ? Key(
+                        'naverFacilityReportButton-${disabledToiletFacility.id}',
+                      )
+                    : null,
+                icon: Icons.accessible,
+                label: '장애인화장실',
+                isAvailable: hasDisabledToilet,
+                onTap: reportCallback(disabledToiletFacility),
+              ),
+              _NaverAccessibleFacilityItem(
+                key: elevatorFacility != null
+                    ? Key('naverFacilityReportButton-${elevatorFacility.id}')
+                    : null,
+                icon: Icons.elevator_outlined,
+                label: '엘리베이터',
+                isAvailable: hasElevator,
+                onTap: reportCallback(elevatorFacility),
+              ),
             ),
-            _NaverAccessibleFacilityItem(
-              key: elevatorFacility != null
-                  ? Key('naverFacilityReportButton-${elevatorFacility.id}')
-                  : null,
-              icon: Icons.elevator_outlined,
-              label: '엘리베이터',
-              isAvailable: hasElevator,
-              onTap: reportCallback(elevatorFacility),
-            ),
-            _NaverAccessibleFacilityItem(
-              key: nursingFacility != null
-                  ? Key('naverFacilityReportButton-${nursingFacility.id}')
-                  : null,
-              icon: Icons.baby_changing_station,
-              label: '수유실',
-              isAvailable: hasNursingRoom,
-              onTap: reportCallback(nursingFacility),
-            ),
-            _NaverAccessibleFacilityItem(
-              key: wheelchairLiftFacility != null
-                  ? Key(
-                      'naverFacilityReportButton-${wheelchairLiftFacility.id}',
-                    )
-                  : null,
-              icon: Icons.accessible_forward,
-              label: '휠체어 리프트',
-              isAvailable: hasWheelchairLift,
-              onTap: reportCallback(wheelchairLiftFacility),
+            (
+              _NaverAccessibleFacilityItem(
+                key: nursingFacility != null
+                    ? Key('naverFacilityReportButton-${nursingFacility.id}')
+                    : null,
+                icon: Icons.baby_changing_station,
+                label: '수유실',
+                isAvailable: hasNursingRoom,
+                onTap: reportCallback(nursingFacility),
+              ),
+              _NaverAccessibleFacilityItem(
+                key: wheelchairLiftFacility != null
+                    ? Key(
+                        'naverFacilityReportButton-${wheelchairLiftFacility.id}',
+                      )
+                    : null,
+                icon: Icons.accessible_forward,
+                label: '휠체어 리프트',
+                isAvailable: hasWheelchairLift,
+                onTap: reportCallback(wheelchairLiftFacility),
+              ),
             ),
           ],
         ),
@@ -1015,10 +1029,10 @@ class _NaverAccessibleFacilityItem extends StatelessWidget {
 
 /// 역정보 카드 한 묶음. 제목 아래 칸을 두 개씩 한 줄로 놓는다.
 class _StationInfoGroup extends StatelessWidget {
-  const _StationInfoGroup({required this.title, required this.cells});
+  const _StationInfoGroup({required this.title, required this.rows});
 
   final String title;
-  final List<Widget> cells;
+  final List<(Widget, Widget)> rows;
 
   @override
   Widget build(BuildContext context) {
@@ -1040,13 +1054,13 @@ class _StationInfoGroup extends StatelessWidget {
               color: EasySubwayAccessibleColors.text,
             ),
           ),
-          for (var i = 0; i < cells.length; i += 2) ...[
+          for (final (left, right) in rows) ...[
             const SizedBox(height: 12),
             Row(
               children: [
-                Expanded(child: cells[i]),
+                Expanded(child: left),
                 const SizedBox(width: 12),
-                Expanded(child: cells[i + 1]),
+                Expanded(child: right),
               ],
             ),
           ],

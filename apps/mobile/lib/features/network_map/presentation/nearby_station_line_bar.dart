@@ -297,7 +297,7 @@ class _SideName extends StatelessWidget {
                   style: TextStyle(
                     color: EasySubwayAccessibleColors.interactionOnPrimary,
                     fontSize: fontSize,
-                    fontWeight: EasySubwayFontWeight.regular,
+                    fontWeight: EasySubwayFontWeight.boldForContrast,
                   ),
                 ),
               ),
@@ -316,7 +316,7 @@ class _SideName extends StatelessWidget {
                   style: TextStyle(
                     color: EasySubwayAccessibleColors.interactionOnPrimary,
                     fontSize: fontSize,
-                    fontWeight: EasySubwayFontWeight.regular,
+                    fontWeight: EasySubwayFontWeight.boldForContrast,
                   ),
                 ),
               ),

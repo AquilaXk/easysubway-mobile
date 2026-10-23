@@ -1753,107 +1753,65 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         ),
         if (isScheduled) ...[
           const SizedBox(height: 8),
-          OutlinedButton(
+          _departureTimeButton(
             key: const Key('journey-scheduled-time'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            icon: Icons.access_time_rounded,
+            label: selectedLabel,
             onPressed: enabled ? _selectScheduledTime : null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.access_time_rounded,
-                  size: 18,
-                  color: EasySubwayAccessibleColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  selectedLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: EasySubwayFontWeight.regular,
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
         if (isWindow) ...[
           const SizedBox(height: 8),
-          OutlinedButton(
+          _departureTimeButton(
             key: const Key('journey-window-time'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            icon: Icons.tune_rounded,
+            label: windowLabel,
             onPressed: enabled ? _selectWindowTime : null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.tune_rounded,
-                  size: 18,
-                  color: EasySubwayAccessibleColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  windowLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: EasySubwayFontWeight.regular,
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
         if (isLastConnection) ...[
           const SizedBox(height: 8),
-          OutlinedButton(
+          _departureTimeButton(
             key: const Key('journey-last-connection-date'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            icon: Icons.nightlight_round,
+            label: lastConnectionLabel,
             onPressed: enabled ? _selectLastConnectionDate : null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.nightlight_round,
-                  size: 18,
-                  color: EasySubwayAccessibleColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  lastConnectionLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: EasySubwayFontWeight.regular,
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _departureTimeButton({
+    required Key key,
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return OutlinedButton(
+      key: key,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(48),
+        backgroundColor: EasySubwayAccessibleColors.surfaceDefault,
+        side: const BorderSide(color: EasySubwayAccessibleColors.primary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: EasySubwayAccessibleColors.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: EasySubwayFontWeight.regular,
+              color: EasySubwayAccessibleColors.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -2213,7 +2171,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           key: const Key('journey-failure-message'),
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: EasySubwayFontWeight.regular,
+                            fontWeight: EasySubwayFontWeight.emphasis,
                             color: Theme.of(context).colorScheme.error,
                           ),
                         ),
