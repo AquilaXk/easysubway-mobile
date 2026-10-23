@@ -87,7 +87,8 @@ void main() {
 
     testWidgets('한국어 화면의 역할별 굵기는 Material 3 기본 타이포와 같다', (tester) async {
       final textTheme = await pumpAppTextTheme(tester);
-      final material3 = Typography.material2021().tall;
+      // 한국어는 ScriptCategory.dense다(flutter_localizations MaterialLocalizationKo).
+      final material3 = Typography.material2021().dense;
       final roles = <String, TextStyle? Function(TextTheme)>{
         'displayLarge': (t) => t.displayLarge,
         'headlineSmall': (t) => t.headlineSmall,
