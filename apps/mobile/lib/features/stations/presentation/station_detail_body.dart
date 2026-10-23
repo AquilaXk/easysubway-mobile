@@ -240,6 +240,11 @@ class _StationDetailContent extends StatelessWidget {
 
     final hasExits = exits.isNotEmpty;
     final hasFacilities = facilities.isNotEmpty;
+    final stationInfoGroups = _StationNaverStationInfoSection.groupsOf(
+      station: detail,
+      facilities: facilities,
+      onOpenFacilityReport: onOpenFacilityReport,
+    );
 
     final detailChildren = <Widget>[
       if (hasExits) ...[
@@ -254,14 +259,11 @@ class _StationDetailContent extends StatelessWidget {
         ),
         const SizedBox(height: 16),
       ],
-      if (hasFacilities || detail.confirmedAbsentFacilityTypes.isNotEmpty) ...[
-        _StationNaverStationInfoSection(
-          station: detail,
-          facilities: facilities,
-          onOpenFacilityReport: onOpenFacilityReport,
-        ),
-        if (facilities.isNotEmpty) ...[
-          const SizedBox(height: 8),
+      if (stationInfoGroups.isNotEmpty || hasFacilities) ...[
+        if (stationInfoGroups.isNotEmpty)
+          _StationNaverStationInfoSection(groups: stationInfoGroups),
+        if (hasFacilities) ...[
+          if (stationInfoGroups.isNotEmpty) const SizedBox(height: 8),
           const _StationDetailSectionTitle(title: '시설 상세 및 고장 신고'),
           const SizedBox(height: 8),
           for (final facility in facilities)
@@ -615,19 +617,17 @@ class _StationDetailSectionTitle extends StatelessWidget {
 /// 모든 묶음은 원천이 확인한 칸만 그린다. 모르는 값은 `-`나 없음으로 그리지 않고
 /// 칸을 빼며, 칸이 하나도 없는 묶음은 제목까지 뺀다.
 class _StationNaverStationInfoSection extends StatelessWidget {
-  const _StationNaverStationInfoSection({
-    required this.station,
-    required this.facilities,
-    this.onOpenFacilityReport,
-  });
+  const _StationNaverStationInfoSection({required this.groups});
 
-  final StationDetail station;
-  final List<StationFacilityInfo> facilities;
-  final Future<void> Function(FacilityReportTarget target)?
-  onOpenFacilityReport;
+  final List<_StationInfoGroup> groups;
 
-  @override
-  Widget build(BuildContext context) {
+  /// 화면에 그릴 칸이 있는 묶음만 돌려준다. 구역을 그릴지는 이 목록이 정한다.
+  static List<_StationInfoGroup> groupsOf({
+    required StationDetail station,
+    required List<StationFacilityInfo> facilities,
+    required Future<void> Function(FacilityReportTarget target)
+    onOpenFacilityReport,
+  }) {
     // 1. 시설정보 계산
     final toilets = facilities
         .where(
@@ -771,8 +771,8 @@ class _StationNaverStationInfoSection extends StatelessWidget {
     );
 
     VoidCallback? reportCallback(StationFacilityInfo? facility) {
-      if (facility == null || onOpenFacilityReport == null) return null;
-      return () => onOpenFacilityReport!(
+      if (facility == null) return null;
+      return () => onOpenFacilityReport(
         FacilityReportTarget(
           stationId: station.id,
           stationName: station.nameKo,
@@ -784,7 +784,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       );
     }
 
-    final groups = [
+    return [
       _StationInfoGroup(
         title: '시설정보',
         items: [
@@ -893,8 +893,10 @@ class _StationNaverStationInfoSection extends StatelessWidget {
         ],
       ),
     ].where((group) => group.items.isNotEmpty).toList();
-    if (groups.isEmpty) return const SizedBox.shrink();
+  }
 
+  @override
+  Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1116,14 +1118,16 @@ class _FacilityAvailabilityLabel extends StatelessWidget {
           ),
         const SizedBox(width: 8),
         Flexible(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: EasySubwayFontWeight.regular,
-              color: isAvailable
-                  ? EasySubwayAccessibleColors.text
-                  : EasySubwayAccessibleColors.mutedText,
+          child: ExcludeSemantics(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: EasySubwayFontWeight.regular,
+                color: isAvailable
+                    ? EasySubwayAccessibleColors.text
+                    : EasySubwayAccessibleColors.mutedText,
+              ),
             ),
           ),
         ),
