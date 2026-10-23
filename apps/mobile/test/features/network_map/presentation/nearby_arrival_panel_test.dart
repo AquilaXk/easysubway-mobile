@@ -9,16 +9,13 @@ void main() {
     required NearbyArrivalPanelData data,
     String? leftName = '건대입구',
     String? rightName = '한양대',
-    VoidCallback? onSelectTimetable,
   }) {
     return MaterialApp(
       home: Scaffold(
         body: NearbyArrivalPanel(
           data: data,
-          lineColor: Colors.green,
           leftName: leftName,
           rightName: rightName,
-          onSelectTimetable: onSelectTimetable,
         ),
       ),
     );
@@ -59,19 +56,18 @@ void main() {
       ),
     );
 
-    expect(find.text('3분 뒤 도착'), findsOneWidget);
+    expect(find.text('3분'), findsOneWidget);
     expect(find.text('전역 출발'), findsOneWidget);
     expect(find.text('곧 도착'), findsOneWidget);
-    expect(find.text('신도림행'), findsNothing);
+    expect(find.text('신도림'), findsNothing);
     expect(
-      find.bySemanticsLabel(
-        '건대입구 방면 성수행 3분 뒤 도착, 건대입구 방면 을지로입구행 전역 출발, 한양대 방면 한양대행 곧 도착',
-      ),
+      find.bySemanticsLabel('건대입구 방면, 성수행 3분, 을지로입구행 전역 출발'),
       findsOneWidget,
     );
+    expect(find.bySemanticsLabel('한양대 방면, 한양대행 곧 도착'), findsOneWidget);
   });
 
-  testWidgets('도착 시간 표기 규칙 및 곧 도착 빨간색 강조 검증', (tester) async {
+  testWidgets('도착 시간 표기 규칙과 남은 시간 빨간색 강조 검증', (tester) async {
     final fixedNow = DateTime(2026, 9, 26, 20, 0); // 20:00
     await tester.pumpWidget(
       MaterialApp(
@@ -89,24 +85,23 @@ void main() {
                 NearbyArrivalData(
                   direction: '당고개 방면',
                   destination: '노원',
-                  etaSeconds: 300, // 5분 뒤 도착
+                  etaSeconds: 300, // 5분
                   message: '',
                 ),
                 NearbyArrivalData(
                   direction: '오이도 방면',
                   destination: '오이도',
-                  etaSeconds: 600, // 10분 뒤 도착
+                  etaSeconds: 600, // 10분
                   message: '',
                 ),
                 NearbyArrivalData(
                   direction: '오이도 방면',
                   destination: '안산',
-                  etaSeconds: 1140, // 19분 -> 19분 뒤 도착
+                  etaSeconds: 1140, // 19분
                   message: '',
                 ),
               ],
             ),
-            lineColor: Colors.blue,
             leftName: '반월',
             rightName: '한대앞',
             now: fixedNow,
@@ -116,19 +111,16 @@ void main() {
     );
 
     expect(find.text('곧 도착'), findsOneWidget);
-    expect(find.text('5분 뒤 도착'), findsOneWidget);
-    expect(find.text('10분 뒤 도착'), findsOneWidget);
-    expect(find.text('19분 뒤 도착'), findsOneWidget);
+    expect(find.text('5분'), findsOneWidget);
+    expect(find.text('10분'), findsOneWidget);
+    expect(find.text('19분'), findsOneWidget);
 
-    // 곧 도착 텍스트 위젯은 빨간색 강조 (statusDestructive, 강조 굵기)
-    final soonText = tester.widget<Text>(find.text('곧 도착'));
-    expect(soonText.style?.color, EasySubwayAccessibleColors.statusDestructive);
-    expect(soonText.style?.fontWeight, EasySubwayFontWeight.emphasis);
-
-    // 일반 도착 텍스트 위젯은 secondaryText, 본문 굵기
-    final regularText = tester.widget<Text>(find.text('5분 뒤 도착'));
-    expect(regularText.style?.color, EasySubwayAccessibleColors.secondaryText);
-    expect(regularText.style?.fontWeight, EasySubwayFontWeight.regular);
+    // 상용 지하철 서비스처럼 남은 시간은 모두 빨강 강조다.
+    for (final eta in ['곧 도착', '5분', '19분']) {
+      final text = tester.widget<Text>(find.text(eta));
+      expect(text.style?.color, EasySubwayAccessibleColors.statusDestructive);
+      expect(text.style?.fontWeight, EasySubwayFontWeight.emphasis);
+    }
   });
 
   testWidgets('eta가 0이어도 상세 위치 메시지가 있으면 메시지를 우선 표시한다 (코레일 구간 방어)', (
@@ -192,12 +184,11 @@ void main() {
     },
   );
 
-  testWidgets('stale 정보의 수신 시각을 표시한다', (tester) async {
+  testWidgets('stale 정보는 최근 도착 정보라고 알린다', (tester) async {
     await tester.pumpWidget(
       subject(
         data: const NearbyArrivalPanelData(
           status: NearbyArrivalPanelStatus.stale,
-          receivedAt: '오전 10:30',
           arrivals: [
             NearbyArrivalData(
               direction: '건대입구 방면',
@@ -210,7 +201,7 @@ void main() {
       ),
     );
 
-    expect(find.text('최근 도착 정보 · 오전 10:30'), findsOneWidget);
+    expect(find.text('최근 도착 정보'), findsOneWidget);
   });
 
   testWidgets('unavailable은 arrivals를 노출하지 않고 인접역 skeleton을 유지한다', (
@@ -236,12 +227,18 @@ void main() {
       find.byKey(const Key('networkMapNearbyArrivalSkeleton')),
       findsOneWidget,
     );
-    expect(find.text('노출 금지행'), findsNothing);
-    expect(find.bySemanticsLabel('건대입구 방면 정보 없음'), findsOneWidget);
-    expect(find.bySemanticsLabel('한양대 방면 정보 없음'), findsOneWidget);
+    expect(find.text('노출 금지'), findsNothing);
+    expect(
+      find.bySemanticsLabel('건대입구 방면, 실시간 정보 없음 (시간표를 확인해 주세요.)'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('한양대 방면, 실시간 정보 없음 (시간표를 확인해 주세요.)'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('unavailable은 AI 슬롭 문구 없이 방면 대시 스켈레톤을 노출한다', (tester) async {
+  testWidgets('unavailable은 오류 문구 없이 방면마다 실시간 정보 없음을 노출한다', (tester) async {
     await tester.pumpWidget(
       subject(
         data: const NearbyArrivalPanelData(
@@ -256,8 +253,7 @@ void main() {
       find.byKey(const Key('networkMapNearbyArrivalSkeleton')),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('건대입구 방면 정보 없음'), findsOneWidget);
-    expect(find.bySemanticsLabel('한양대 방면 정보 없음'), findsOneWidget);
+    expect(find.text('실시간 정보 없음'), findsNWidgets(2));
   });
 
   testWidgets(
@@ -309,8 +305,8 @@ void main() {
     expect(find.text('반월 방면'), findsOneWidget);
     expect(find.text('한대앞 방면'), findsOneWidget);
 
-    expect(find.text('사당행'), findsOneWidget);
-    expect(find.text('오이도행'), findsOneWidget);
+    expect(find.text('사당'), findsOneWidget);
+    expect(find.text('오이도'), findsOneWidget);
   });
 
   testWidgets('공공 API 하행 사당행 열차가 좌측(상행)으로 왜곡되지 않고 우측(하행) 열에 정상 매핑된다', (
@@ -336,8 +332,8 @@ void main() {
 
     // 하행 사당행 열차는 leftName(반월 방면)이 아닌 rightName(한대앞 방면)에 배정되어야 함
     expect(find.text('한대앞 방면'), findsOneWidget);
-    expect(find.text('사당행'), findsOneWidget);
-    expect(find.text('3분 뒤 도착'), findsOneWidget);
+    expect(find.text('사당'), findsOneWidget);
+    expect(find.text('3분'), findsOneWidget);
   });
 
   testWidgets('다양한 방향 및 목적지 fallback, 시간 단위 ETA 표기 검증', (tester) async {
@@ -349,13 +345,13 @@ void main() {
             NearbyArrivalData(
               direction: '사당행',
               destination: '', // destination empty -> fallbackDestination
-              etaSeconds: 3660, // 1시간 1분 뒤 도착
+              etaSeconds: 3660, // 1시간 1분
               message: '',
             ),
             NearbyArrivalData(
               direction: '반월 방면',
               destination: '진접행',
-              etaSeconds: 7200, // 2시간 뒤 도착
+              etaSeconds: 7200, // 2시간
               message: '',
             ),
             NearbyArrivalData(
@@ -371,8 +367,8 @@ void main() {
       ),
     );
 
-    expect(find.text('1시간 1분 뒤 도착'), findsOneWidget);
-    expect(find.text('2시간 뒤 도착'), findsOneWidget);
+    expect(find.text('1시간 1분'), findsOneWidget);
+    expect(find.text('2시간'), findsOneWidget);
   });
 
   testWidgets('인접역이 없을 때 기본 방향 및 목적지 라벨로 폴백한다', (tester) async {
@@ -446,8 +442,9 @@ void main() {
     );
 
     expect(find.text('한대앞 방면'), findsOneWidget);
+    expect(find.bySemanticsLabel('한대앞 방면, 오이도행 2분'), findsOneWidget);
     expect(
-      find.bySemanticsLabel('한대앞 방면 오이도행 2분 뒤 도착, 반월 방면 정보 없음'),
+      find.bySemanticsLabel('반월 방면, 실시간 정보 없음 (시간표를 확인해 주세요.)'),
       findsOneWidget,
     );
   });
@@ -496,7 +493,7 @@ void main() {
         ),
       );
 
-      expect(find.bySemanticsLabel('사당 방면 사당행 2분 뒤 도착'), findsOneWidget);
+      expect(find.bySemanticsLabel('사당 방면, 사당행 2분'), findsOneWidget);
     },
   );
 
@@ -521,10 +518,7 @@ void main() {
       ),
     );
 
-    expect(
-      find.bySemanticsLabel('반월 방면 사당행 3분 뒤 도착, 한대앞 방면 정보 없음'),
-      findsOneWidget,
-    );
+    expect(find.bySemanticsLabel('반월 방면, 사당행 3분'), findsOneWidget);
     expect(find.bySemanticsLabel(RegExp('사당행행')), findsNothing);
   });
 
@@ -550,10 +544,7 @@ void main() {
       );
 
       expect(find.text('상행'), findsOneWidget);
-      expect(
-        find.bySemanticsLabel('반월 방면 상행 1분 뒤 도착, 한대앞 방면 정보 없음'),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsLabel('반월 방면, 상행 1분'), findsOneWidget);
     },
   );
 }

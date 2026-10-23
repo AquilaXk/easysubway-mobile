@@ -1,6 +1,7 @@
 import '../../../../generated/journey_v3/journey_v3_contract.dart';
 import '../../../route_draft/domain/route_draft.dart';
 import '../../../stations/domain/station_line.dart';
+import '../../../../core/format/date_time_labels.dart';
 
 /// 역 ID를 화면에 보일 역 이름으로 바꾼다.
 typedef JourneyStationNameLookup = String Function(String stationId);
@@ -42,7 +43,7 @@ class JourneyResultViewModel {
             JourneyDepartureNode._(
               legIndex: index,
               stationName: stationName(fromStationId),
-              departureTime: journeyKstTime(departure),
+              departureTime: kstTime(departure),
               walkLabel: '승강장까지 도보 ${_minutesLabel(durationSeconds)}',
             ),
           );
@@ -82,7 +83,7 @@ class JourneyResultViewModel {
             JourneyArrivalNode._(
               legIndex: index,
               stationName: stationName(fromStationId),
-              arrivalTime: journeyKstTime(arrival),
+              arrivalTime: kstTime(arrival),
               walkLabel: '출구까지 도보 ${_minutesLabel(durationSeconds)}',
             ),
           );
@@ -141,7 +142,7 @@ class JourneyResultViewModel {
 
 String _basisLabel(DateTime basis, DateTime firstBoarding) {
   final waitSeconds = firstBoarding.difference(basis).inSeconds;
-  final label = '${journeyKstClock(basis)} 기준';
+  final label = '${kstClock(basis)} 기준';
   if (waitSeconds < Duration.secondsPerMinute) return label;
   return '$label (출발 대기 ${journeyDurationLabel(_minutes(waitSeconds))})';
 }
@@ -193,16 +194,15 @@ class JourneyResultSummary {
       journeyDurationParts(durationMinutes);
 
   /// `HH:mm` 도착 시각(공유 문구용).
-  String get arrivalTime => journeyKstTime(arrival);
+  String get arrivalTime => kstTime(arrival);
 
   /// `오전 5:11 - 오전 7:28`.
-  String get timesLabel =>
-      '${journeyKstClock(departure)} - ${journeyKstClock(arrival)}';
+  String get timesLabel => '${kstClock(departure)} - ${kstClock(arrival)}';
 
   String get semanticsLabel => [
     '$durationLabel 소요',
-    '${journeyKstSpokenClock(departure)} 출발',
-    '${journeyKstSpokenClock(arrival)} 도착',
+    '${kstSpokenClock(departure)} 출발',
+    '${kstSpokenClock(arrival)} 도착',
     transferLabel,
     ?fareLabel,
   ].join(', ');
@@ -306,8 +306,8 @@ final class JourneyRideNode extends JourneyTimelineNode {
       directionLabel: leg.directionStationId.isEmpty
           ? null
           : '${stationNameWithSuffix(stationName(leg.directionStationId))} 방면',
-      departureTime: journeyKstTime(departure),
-      arrivalTime: journeyKstTime(arrival),
+      departureTime: kstTime(departure),
+      arrivalTime: kstTime(arrival),
       isExpress: leg.servicePattern == JourneyServicePattern.express,
       carDoorLines: List.unmodifiable(
         doors.map(
@@ -337,7 +337,7 @@ final class JourneyRideNode extends JourneyTimelineNode {
                     stop.plannedArrivalTime ??
                     stop.realtimeDepartureTime ??
                     stop.plannedDepartureTime) {
-                  final DateTime time => journeyKstTime(time),
+                  final DateTime time => kstTime(time),
                   null => null,
                 },
               ),
@@ -631,38 +631,6 @@ JourneyFailureCopy journeyFailureCopy(JourneyErrorDisposition? disposition) {
     );
   }
   return JourneyFailureCopy._(message: disposition.canonicalKoreanCopy);
-}
-
-DateTime _kst(DateTime instant) =>
-    instant.toUtc().add(const Duration(hours: 9));
-
-/// 서울 표준시(KST) `HH:mm`.
-String journeyKstTime(DateTime instant) {
-  final value = _kst(instant);
-  return '${value.hour.toString().padLeft(2, '0')}:'
-      '${value.minute.toString().padLeft(2, '0')}';
-}
-
-const _hoursPerHalfDay = 12;
-
-(String, int) _halfDayHour(DateTime instant) {
-  final hour = _kst(instant).hour;
-  final twelve = hour % _hoursPerHalfDay == 0
-      ? _hoursPerHalfDay
-      : hour % _hoursPerHalfDay;
-  return (hour < _hoursPerHalfDay ? '오전' : '오후', twelve);
-}
-
-/// 서울 표준시 12시간제 `오전 5:11`. 자정 시는 `오전 12:36`이다.
-String journeyKstClock(DateTime instant) {
-  final (half, hour) = _halfDayHour(instant);
-  return '$half $hour:${_kst(instant).minute.toString().padLeft(2, '0')}';
-}
-
-/// 스크린리더용 `오전 5시 11분`.
-String journeyKstSpokenClock(DateTime instant) {
-  final (half, hour) = _halfDayHour(instant);
-  return '$half $hour시 ${_kst(instant).minute}분';
 }
 
 /// 숫자와 단위 쌍(`[('2', '시간'), ('17', '분')]`). 1시간 미만은 분만, 정시는

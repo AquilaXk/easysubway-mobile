@@ -2,14 +2,13 @@ import 'package:flutter/material.dart';
 
 /// 주변역 패널의 공용 chrome과 collapsed/expanded layout을 소유한다.
 ///
-/// 역·노선·실시간·상세 구현은 app composition에서 [lineTabs],
-/// [dataSourceToggle], [body], [expandedDetail]로 조합한다. 이 shell은 feature
+/// 역·노선·실시간·상세 구현은 app composition에서 [lineTabs], [body],
+/// [expandedDetail]로 조합한다. 이 shell은 feature
 /// layout과 접근성 close action만 유지한다.
 class NetworkMapNearbyPanelShell extends StatelessWidget {
   const NetworkMapNearbyPanelShell({
     required this.expanded,
     required this.lineTabs,
-    required this.dataSourceToggle,
     required this.onClose,
     required this.body,
     required this.surfaceColor,
@@ -21,7 +20,6 @@ class NetworkMapNearbyPanelShell extends StatelessWidget {
 
   final bool expanded;
   final List<Widget> lineTabs;
-  final Widget dataSourceToggle;
   final VoidCallback onClose;
   final Widget body;
   final Color surfaceColor;
@@ -62,10 +60,6 @@ class NetworkMapNearbyPanelShell extends StatelessWidget {
                         ],
                       ),
                     ),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 2),
-                    child: dataSourceToggle,
                   ),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 2),

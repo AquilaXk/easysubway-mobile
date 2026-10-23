@@ -8,6 +8,7 @@ import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
 import '../../../core/ui/line_mark.dart';
 import '../../../core/ui/name_with_marks.dart';
+import '../../../design_tokens.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
@@ -38,7 +39,7 @@ class StationDetailNeighbor {
   String get displayName => nameKo.endsWith('역') ? nameKo : '$nameKo역';
 }
 
-/// 전국 전역에 공통 적용되는 네이버 지도 1:1 표준 역 상세 화면 본문.
+/// 전국 전역에 공통 적용되는 상용 지하철 서비스와 같은 역 상세 화면 본문.
 ///
 /// 특정 역에 하드코딩되지 않고 [StationDetail], [StationFacilityInfo], [StationExitInfo]
 /// 도메인 데이터에 기반하여 역정보(시설정보·편의시설·교통약자 시설), 출구정보,
@@ -240,51 +241,48 @@ class _StationDetailContent extends StatelessWidget {
 
     final hasExits = exits.isNotEmpty;
     final hasFacilities = facilities.isNotEmpty;
-    final stationInfoGroups = _StationNaverStationInfoSection.groupsOf(
+    final stationInfoGroups = _StationInfoSection.groupsOf(
       station: detail,
       facilities: facilities,
       onOpenFacilityReport: onOpenFacilityReport,
     );
 
+    // 상용 지하철 서비스처럼 역정보 다음에 출구정보를 둔다.
     final detailChildren = <Widget>[
+      if (stationInfoGroups.isNotEmpty) ...[
+        _StationInfoSection(groups: stationInfoGroups),
+        const SizedBox(height: 16),
+      ],
       if (hasExits) ...[
-        _StationNaverExitSection(
+        _StationExitInfoSection(
           station: detail,
           exits: exits,
           mapLauncher: mapLauncher,
-          locationProvider: locationProvider,
           mapPreviewBuilder: mapPreviewBuilder,
-          previousStation: previousStation?.nameKo,
-          nextStation: nextStation?.nameKo,
         ),
         const SizedBox(height: 16),
       ],
-      if (stationInfoGroups.isNotEmpty || hasFacilities) ...[
-        if (stationInfoGroups.isNotEmpty)
-          _StationNaverStationInfoSection(groups: stationInfoGroups),
-        if (hasFacilities) ...[
-          if (stationInfoGroups.isNotEmpty) const SizedBox(height: 8),
-          const _StationDetailSectionTitle(title: '시설 상세 및 고장 신고'),
-          const SizedBox(height: 8),
-          for (final facility in facilities)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: StationFacilityCard(
-                facility: facility,
-                station: detail,
-                onReportTap: () => onOpenFacilityReport(
-                  FacilityReportTarget(
-                    stationId: detail.id,
-                    stationName: detail.nameKo,
-                    facilityId: facility.id,
-                    facilityName: facility.name,
-                    facilityTypeLabel: facility.type,
-                    facilityStatusLabel: facility.status,
-                  ),
+      if (hasFacilities) ...[
+        const _StationDetailSectionTitle(title: '시설 상세 및 고장 신고'),
+        const SizedBox(height: 8),
+        for (final facility in facilities)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: StationFacilityCard(
+              facility: facility,
+              station: detail,
+              onReportTap: () => onOpenFacilityReport(
+                FacilityReportTarget(
+                  stationId: detail.id,
+                  stationName: detail.nameKo,
+                  facilityId: facility.id,
+                  facilityName: facility.name,
+                  facilityTypeLabel: facility.type,
+                  facilityStatusLabel: facility.status,
                 ),
               ),
             ),
-        ],
+          ),
         const SizedBox(height: 16),
       ],
       const _StationDetailSectionTitle(title: '안내'),
@@ -608,7 +606,7 @@ class _StationDetailSectionTitle extends StatelessWidget {
   }
 }
 
-/// 네이버 지도 1:1 표준 역정보 섹션.
+/// 상용 지하철 서비스와 같은 역정보 섹션.
 ///
 /// 1. 시설정보 2열 그리드 (플랫폼, 화장실, 내리는문, 반대편 연결)
 /// 2. 편의시설 2열 그리드 (자전거보관소, 환승주차장, 유실물센터, 물품보관소)
@@ -616,8 +614,8 @@ class _StationDetailSectionTitle extends StatelessWidget {
 ///
 /// 모든 묶음은 원천이 확인한 칸만 그린다. 모르는 값은 `-`나 없음으로 그리지 않고
 /// 칸을 빼며, 칸이 하나도 없는 묶음은 제목까지 뺀다.
-class _StationNaverStationInfoSection extends StatelessWidget {
-  const _StationNaverStationInfoSection({required this.groups});
+class _StationInfoSection extends StatelessWidget {
+  const _StationInfoSection({required this.groups});
 
   final List<_StationInfoGroup> groups;
 
@@ -726,7 +724,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           _amenityKinds,
           facilities,
           absentTypes,
-          (kind, _, isAvailable) => _NaverAmenityGridItem(
+          (kind, _, isAvailable) => _AmenityGridItem(
             icon: kind.icon,
             label: kind.label,
             isAvailable: isAvailable,
@@ -739,10 +737,10 @@ class _StationNaverStationInfoSection extends StatelessWidget {
           _accessibleKinds,
           facilities,
           absentTypes,
-          (kind, installed, isAvailable) => _NaverAccessibleFacilityItem(
+          (kind, installed, isAvailable) => _AccessibleFacilityItem(
             key: installed == null
                 ? null
-                : Key('naverFacilityReportButton-${installed.id}'),
+                : Key('stationFacilityReportButton-${installed.id}'),
             icon: kind.icon,
             label: kind.label,
             isAvailable: isAvailable,
@@ -818,8 +816,7 @@ class _StationNaverStationInfoSection extends StatelessWidget {
       title: '시설정보',
       items: [
         for (final (icon, label, tag) in tags)
-          if (tag != null)
-            _NaverFacilityTagItem(icon: icon, label: label, tag: tag),
+          if (tag != null) _FacilityTagItem(icon: icon, label: label, tag: tag),
       ],
     );
   }
@@ -871,7 +868,16 @@ class _StationNaverStationInfoSection extends StatelessWidget {
             letterSpacing: -0.3,
           ),
         ),
-        for (final group in groups) ...[const SizedBox(height: 12), group],
+        for (final (index, group) in groups.indexed) ...[
+          if (index == 0)
+            const SizedBox(height: EasySubwaySpacing.md)
+          else
+            const Divider(
+              height: EasySubwaySpacing.xl,
+              color: EasySubwayAccessibleColors.borderSubtle,
+            ),
+          group,
+        ],
       ],
     );
   }
@@ -931,8 +937,8 @@ class _TagRule {
   bool matches(String text) => keywords.any(text.contains);
 }
 
-class _NaverFacilityTagItem extends StatelessWidget {
-  const _NaverFacilityTagItem({
+class _FacilityTagItem extends StatelessWidget {
+  const _FacilityTagItem({
     required this.icon,
     required this.label,
     required this.tag,
@@ -944,33 +950,19 @@ class _NaverFacilityTagItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 상용 지하철 서비스처럼 `플랫폼 중앙` 한 줄 글자로 쓴다. 값을 상자로 감싸지 않는다.
     return Semantics(
       label: '$label $tag',
-      child: Wrap(
-        spacing: 6,
-        runSpacing: 4,
-        crossAxisAlignment: WrapCrossAlignment.center,
+      excludeSemantics: true,
+      child: Row(
         children: [
           Icon(icon, size: 20, color: EasySubwayAccessibleColors.secondaryText),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: EasySubwayFontWeight.regular,
-              color: EasySubwayAccessibleColors.text,
-            ),
-          ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: EasySubwayAccessibleColors.surface,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(color: EasySubwayAccessibleColors.line),
-            ),
+          const SizedBox(width: EasySubwaySpacing.sm),
+          Flexible(
             child: Text(
-              tag,
+              '$label $tag',
               style: const TextStyle(
-                fontSize: 12,
+                fontSize: 14,
                 fontWeight: EasySubwayFontWeight.regular,
                 color: EasySubwayAccessibleColors.text,
               ),
@@ -982,8 +974,8 @@ class _NaverFacilityTagItem extends StatelessWidget {
   }
 }
 
-class _NaverAmenityGridItem extends StatelessWidget {
-  const _NaverAmenityGridItem({
+class _AmenityGridItem extends StatelessWidget {
+  const _AmenityGridItem({
     required this.icon,
     required this.label,
     required this.isAvailable,
@@ -1006,8 +998,8 @@ class _NaverAmenityGridItem extends StatelessWidget {
   }
 }
 
-class _NaverAccessibleFacilityItem extends StatelessWidget {
-  const _NaverAccessibleFacilityItem({
+class _AccessibleFacilityItem extends StatelessWidget {
+  const _AccessibleFacilityItem({
     super.key,
     required this.icon,
     required this.label,
@@ -1059,7 +1051,7 @@ class _NaverAccessibleFacilityItem extends StatelessWidget {
   }
 }
 
-/// 역정보 카드 한 묶음. 제목 아래 칸을 두 개씩 한 줄로 놓는다.
+/// 역정보 한 묶음. 상자 없이 제목 아래 칸을 두 개씩 한 줄로 놓는다.
 class _StationInfoGroup extends StatelessWidget {
   const _StationInfoGroup({required this.title, required this.items});
 
@@ -1068,40 +1060,32 @@ class _StationInfoGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: EasySubwayAccessibleColors.surfaceSubtle,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: EasySubwayAccessibleColors.line),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 15,
-              fontWeight: EasySubwayFontWeight.emphasis,
-              color: EasySubwayAccessibleColors.text,
-            ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: EasySubwayFontWeight.emphasis,
+            color: EasySubwayAccessibleColors.text,
           ),
-          for (var index = 0; index < items.length; index += 2) ...[
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(child: items[index]),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: index + 1 < items.length
-                      ? items[index + 1]
-                      : const SizedBox.shrink(),
-                ),
-              ],
-            ),
-          ],
+        ),
+        for (var index = 0; index < items.length; index += 2) ...[
+          const SizedBox(height: EasySubwaySpacing.md),
+          Row(
+            children: [
+              Expanded(child: items[index]),
+              const SizedBox(width: EasySubwaySpacing.md),
+              Expanded(
+                child: index + 1 < items.length
+                    ? items[index + 1]
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
         ],
-      ),
+      ],
     );
   }
 }
@@ -1182,25 +1166,19 @@ class _SlashPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
-/// 네이버 지도 1:1 표준 출구정보 래퍼 섹션.
-class _StationNaverExitSection extends StatelessWidget {
-  const _StationNaverExitSection({
+/// 상용 지하철 서비스와 같은 출구정보 래퍼 섹션.
+class _StationExitInfoSection extends StatelessWidget {
+  const _StationExitInfoSection({
     required this.station,
     required this.exits,
     required this.mapLauncher,
-    required this.locationProvider,
     this.mapPreviewBuilder,
-    this.previousStation,
-    this.nextStation,
   });
 
   final StationDetail station;
   final List<StationExitInfo> exits;
   final KakaoMapLauncher mapLauncher;
-  final CurrentLocationProvider? locationProvider;
   final StationExitMapPreviewBuilder? mapPreviewBuilder;
-  final String? previousStation;
-  final String? nextStation;
 
   @override
   Widget build(BuildContext context) {
@@ -1222,17 +1200,14 @@ class _StationNaverExitSection extends StatelessWidget {
           station: station,
           exits: exits,
           mapLauncher: mapLauncher,
-          locationProvider: locationProvider,
           mapPreviewBuilder: mapPreviewBuilder,
-          previousStation: previousStation,
-          nextStation: nextStation,
         ),
       ],
     );
   }
 }
 
-/// 네이버 지도 1:1 표준 하단 고정 액션바 (Sticky Bottom Bar).
+/// 상용 지하철 서비스와 같은 하단 고정 액션바 (Sticky Bottom Bar).
 ///
 /// [출발] (연한 블루 둥근 버튼), [도착] (진한 블루 채움 둥근 버튼),
 /// [📅 전체 시간표] (화이트 아웃라인 둥근 버튼), [🚆 첫차·막차] (화이트 아웃라인 둥근 버튼).

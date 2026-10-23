@@ -20,13 +20,6 @@
   ],
   "overrides": [
     {
-      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_golden_test.dart",
-      "classification": "GOLDEN_OWNED_BY_MOBILE_23",
-      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/23",
-      "reason": "Golden comparison is intentionally macOS-rasterizer-owned and all-skipped on Ubuntu.",
-      "reviewTrigger": "Mobile #23 terminal golden execution lane"
-    },
-    {
       "path": "apps/mobile/test/features/journey/presentation/result/journey_stair_status_golden_test.dart",
       "classification": "GOLDEN_OWNED_BY_MOBILE_23",
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/441",
@@ -251,6 +244,27 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/509",
       "reason": "Route draft input fields no longer render line marks; network_map_route_draft_dot_test.dart covers the role dot, name width and text-scale overflow at the same widths.",
       "reviewTrigger": "Mobile #509 route draft line mark removal"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
+      "reason": "The radial fan menu was replaced by the station popover; station_popover_menu_test.dart covers slot actions, clear-on-reselect, disabled slots, semantics labels, dismiss and text scale.",
+      "reviewTrigger": "Mobile #511 station fan menu replacement"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_geometry_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
+      "reason": "Fan sector paths were removed with the radial menu; the popover keeps only its design size and tail tip, covered by station_popover_menu_test.dart and the placement tests in network_map_station_popover_wiring_test.dart.",
+      "reviewTrigger": "Mobile #511 station fan menu replacement"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_golden_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
+      "reason": "Fan menu goldens were removed with the radial menu; the popover is checked by widget tests and emulator evidence under apps/mobile/test/evidence/station-flow.",
+      "reviewTrigger": "Mobile #511 station fan menu replacement"
     }
   ]
 }

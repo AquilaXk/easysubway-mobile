@@ -1,174 +1,73 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
-import '../../../core/external/kakao_map_launcher.dart';
+import '../../../design_tokens.dart';
 import '../domain/station_models.dart';
-import '../domain/station_repositories.dart';
 
-/// 네이버 지도 1:1 표준 역 출구 상세 정보 카드.
+/// 선택한 출구의 정보. 상용 지하철 서비스처럼 제목 없이 주변 시설 문장과 출구와
+/// 가까운 하차문을 쓴다. 원천에 없는 값은 줄을 만들지 않고 자리표시 문구로 채우지
+/// 않는다.
 ///
-/// 장소 정보와 출구와 가까운 하차문(카-도어 번호)을 안내하며,
-/// 불필요한 슬롭 버튼(외부 지도 열기, 도보 길안내, 거리 측정 등)은 일체 배제한다.
+/// 맨 위 한 줄은 교통약자를 위해 우리가 더한 출구 접근성이다. 원천이 확인한 계단
+/// 정보만 쓴다. 출구와 엘리베이터의 연결은 데이터팩이 있음·없음·모름을 가르지
+/// 못해(`has_elevator_connection`은 기본값 false인 bool) 아직 쓰지 않는다.
 class StationExitCard extends StatelessWidget {
-  const StationExitCard({
-    required this.station,
-    required this.exit,
-    this.mapLauncher,
-    this.locationProvider,
-    this.mapPreview,
-    this.previousStation,
-    this.nextStation,
-    super.key,
-  });
+  const StationExitCard({required this.exit, super.key});
 
-  final StationDetail station;
   final StationExitInfo exit;
-  final KakaoMapLauncher? mapLauncher;
-  final CurrentLocationProvider? locationProvider;
-  final Widget? mapPreview;
-  final String? previousStation;
-  final String? nextStation;
+
+  static const _accessStyle = TextStyle(
+    fontSize: 15,
+    fontWeight: EasySubwayFontWeight.emphasis,
+    color: EasySubwayAccessibleColors.text,
+    height: 1.4,
+  );
+  static const _bodyStyle = TextStyle(
+    fontSize: 15,
+    fontWeight: EasySubwayFontWeight.regular,
+    color: EasySubwayAccessibleColors.secondaryText,
+    height: 1.5,
+  );
+  static const _titleStyle = TextStyle(
+    fontSize: 15,
+    fontWeight: EasySubwayFontWeight.emphasis,
+    color: EasySubwayAccessibleColors.text,
+  );
 
   @override
   Widget build(BuildContext context) {
-    final description = exit.description.trim().isNotEmpty
-        ? exit.description.trim()
-        : '${station.nameKo}역 ${exit.name} 주변 및 연계 시설';
-    final doorHint = fastExitDoorHint(
-      station: station,
-      exit: exit,
-      previousStation: previousStation,
-      nextStation: nextStation,
-    );
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Semantics(
-            container: true,
-            label: exit.semanticLabel,
-            child: ExcludeSemantics(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Wrap(
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 4,
-                    children: [
-                      Text(
-                        exit.name,
-                        style: const TextStyle(
-                          fontSize: 16,
-                          fontWeight: EasySubwayFontWeight.emphasis,
-                          color: EasySubwayAccessibleColors.text,
-                        ),
-                      ),
-                      if (exit.hasElevatorConnection)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                EasySubwayAccessibleColors.surfaceBrandChrome,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            '엘리베이터 연결',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: EasySubwayFontWeight.regular,
-                              color: EasySubwayAccessibleColors.primary,
-                            ),
-                          ),
-                        ),
-                      if (exit.hasStairOnlyPath == StairOnlyPathStatus.absent)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 2,
-                          ),
-                          decoration: BoxDecoration(
-                            color:
-                                EasySubwayAccessibleColors.surfaceBrandChrome,
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            '계단 없는 이동 가능',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: EasySubwayFontWeight.regular,
-                              color: EasySubwayAccessibleColors.primary,
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    '장소 정보',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: EasySubwayFontWeight.emphasis,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    description,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      color: EasySubwayAccessibleColors.secondaryText,
-                      height: 1.4,
-                    ),
-                  ),
-                  if (doorHint != null) ...[
-                    const SizedBox(height: 16),
-                    const Text(
-                      '출구와 가까운 하차문',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: EasySubwayFontWeight.emphasis,
-                        color: EasySubwayAccessibleColors.text,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      doorHint,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        color: EasySubwayAccessibleColors.secondaryText,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          if (mapPreview != null) ...[const SizedBox(height: 12), mapPreview!],
-        ],
+    final access = exit.stairPathLabel;
+    final description = exit.description.trim();
+    final doorHint = exit.hasNearbyDoorHint
+        ? exit.nearbyDoorHint!.trim()
+        : null;
+    final lines = <Widget>[
+      if (access != null) Text(access, style: _accessStyle),
+      if (description.isNotEmpty) Text(description, style: _bodyStyle),
+      if (doorHint != null)
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('출구와 가까운 하차문', style: _titleStyle),
+            const SizedBox(height: EasySubwaySpacing.xs),
+            Text(doorHint, style: _bodyStyle),
+          ],
+        ),
+    ];
+    return Semantics(
+      container: true,
+      label: exit.semanticLabel,
+      child: ExcludeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final (index, line) in lines.indexed) ...[
+              if (index > 0) const SizedBox(height: EasySubwaySpacing.md),
+              line,
+            ],
+          ],
+        ),
       ),
     );
   }
-}
-
-/// 공식 출구 연계 하차문 (카-도어) 안내 문구 반환.
-///
-/// 공식 데이터([exit.nearbyDoorHint])가 존재하는 경우에만 노출하며,
-/// 임의의 모듈로 산술이나 역 이름 하드코딩 분기는 일체 배제한다.
-String? fastExitDoorHint({
-  required StationDetail station,
-  required StationExitInfo exit,
-  String? previousStation,
-  String? nextStation,
-}) {
-  if (!exit.hasNearbyDoorHint) {
-    return null;
-  }
-  return exit.nearbyDoorHint!.trim();
 }

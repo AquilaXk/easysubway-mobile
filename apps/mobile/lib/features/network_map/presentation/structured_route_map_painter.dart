@@ -82,7 +82,7 @@ const TextStyle _boldLabelStyle = TextStyle(
 const TextStyle _badgeStyle = TextStyle(
   color: Color(0xFFFFFFFF),
   fontSize: kRouteMapDesignBadgeFontPx,
-  fontWeight: EasySubwayFontWeight.boldForContrast,
+  fontWeight: EasySubwayFontWeight.markGlyph,
 );
 
 /// #2068 SVG 충실도(2026-07-26 오너 결정): 바탕층 모드가 소비하는 **빈** 라벨
@@ -669,7 +669,7 @@ class _StructuredRouteMapViewState extends State<StructuredRouteMapView> {
     // #1635에서 온 "라벨=구조화 렌더" 조항의 오너 공식 폐기다.
     // 유지되는 것: 역 탭 히트(_labelPolygonFor는 route_map_positions의
     // labelPolygon을 쓰고, labels.json은 networkMapOwnerLabelSourceRects로 히트
-    // 소스 경계를 넓히는 데만 관여한다), 팬 메뉴, TalkBack semantics(시각
+    // 소스 경계를 넓히는 데만 관여한다), 역 말풍선, TalkBack semantics(시각
     // 텍스트와 무관), 경로 강조 오버레이, 초기 카메라 가독 배율(labels.json
     // fontSizePx 기반).
     // 노선 뱃지 pill도 오너 SVG가 자체 종점 마크를 그리므로 함께 비운다.

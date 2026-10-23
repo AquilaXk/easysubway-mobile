@@ -2,9 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../design_tokens.dart';
 import '../../../core/external/kakao_map_launcher.dart';
+import '../../../core/ui/line_mark.dart';
 import '../domain/station_models.dart';
-import '../domain/station_repositories.dart';
 import 'station_exit_card.dart';
 import 'station_exit_map_preview.dart';
 import 'station_exit_map_target.dart';
@@ -17,30 +18,23 @@ typedef StationExitMapPreviewBuilder =
       required VoidCallback onOpenSelected,
     });
 
-/// 네이버 지도 1:1 표준 출구정보 섹션.
+/// 상용 지하철 서비스와 같은 출구정보 섹션.
 ///
-/// 미니 지도 타일(카카오맵 SDK 뷰 + 우측 상단 ⤢ 확대 버튼),
-/// 가로 스크롤 출구 알약 탭 (Horizontal Pill Tabs),
-/// 선택된 출구의 상세 정보(장소 정보 + 가까운 하차문)를 통합 제공한다.
+/// 미니 지도(우측 상단 확대 버튼), 지도 아래 `◀ ① 번 출구 ▾ ▶` 선택기, 선택한
+/// 출구의 정보(주변 시설 문장, 가까운 하차문)를 차례로 둔다.
 class StationExitSection extends StatefulWidget {
   const StationExitSection({
     required this.station,
     required this.exits,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
-    this.locationProvider,
     this.mapPreviewBuilder,
-    this.previousStation,
-    this.nextStation,
     super.key,
   }) : assert(exits.length > 0);
 
   final StationDetail station;
   final List<StationExitInfo> exits;
   final KakaoMapLauncher mapLauncher;
-  final CurrentLocationProvider? locationProvider;
   final StationExitMapPreviewBuilder? mapPreviewBuilder;
-  final String? previousStation;
-  final String? nextStation;
 
   @override
   State<StationExitSection> createState() => _StationExitSectionState();
@@ -136,34 +130,13 @@ class _StationExitSectionState extends State<StationExitSection> {
           ),
           const SizedBox(height: 12),
         ],
-        SingleChildScrollView(
-          key: const Key('stationExitPillTabs'),
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              for (var i = 0; i < widget.exits.length; i++) ...[
-                if (i > 0) const SizedBox(width: 8),
-                _ExitPillTab(
-                  key: Key('stationExitPill-${widget.exits[i].id}'),
-                  exit: widget.exits[i],
-                  isSelected: i == _selectedIndex,
-                  onTap: () => _select(i),
-                ),
-              ],
-            ],
-          ),
+        _ExitSelector(
+          exits: widget.exits,
+          selectedIndex: _selectedIndex,
+          onSelect: _select,
         ),
-        const SizedBox(height: 12),
-        StationExitCard(
-          key: ValueKey(selectedExit.id),
-          station: widget.station,
-          exit: selectedExit,
-          mapLauncher: widget.mapLauncher,
-          locationProvider: widget.locationProvider,
-          previousStation: widget.previousStation,
-          nextStation: widget.nextStation,
-        ),
+        const SizedBox(height: EasySubwaySpacing.md),
+        StationExitCard(key: ValueKey(selectedExit.id), exit: selectedExit),
       ],
     );
   }
@@ -197,88 +170,144 @@ class _StationExitSectionState extends State<StationExitSection> {
   }
 }
 
-class _ExitPillTab extends StatelessWidget {
-  const _ExitPillTab({
-    required this.exit,
-    required this.isSelected,
-    required this.onTap,
-    super.key,
+/// 상용 지하철 서비스의 `◀ ① 번 출구 ▾ ▶` 선택기. 가운데를 누르면 출구 목록을
+/// 열고, 양쪽 버튼은 이전·다음 출구로 옮긴다. 처음과 끝에서는 그쪽 버튼이 꺼진다.
+class _ExitSelector extends StatelessWidget {
+  const _ExitSelector({
+    required this.exits,
+    required this.selectedIndex,
+    required this.onSelect,
   });
 
-  final StationExitInfo exit;
-  final bool isSelected;
-  final VoidCallback onTap;
+  final List<StationExitInfo> exits;
+  final int selectedIndex;
+  final ValueChanged<int> onSelect;
+
+  static const _shape = RoundedRectangleBorder(
+    side: BorderSide(color: EasySubwayAccessibleColors.borderSubtle),
+    borderRadius: BorderRadius.all(Radius.circular(EasySubwayRadius.control)),
+  );
 
   @override
   Widget build(BuildContext context) {
-    return Semantics(
-      button: true,
-      selected: isSelected,
-      label: '${exit.exitNumber}번 출구',
-      child: Material(
-        color: isSelected
-            ? EasySubwayAccessibleColors.surface
-            : EasySubwayAccessibleColors.surfaceSubtle,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(
-            color: isSelected
-                ? EasySubwayAccessibleColors.text
-                : EasySubwayAccessibleColors.line,
-            width: isSelected ? 1.5 : 1.0,
-          ),
-        ),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(8),
-          onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 48),
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: isSelected
-                        ? EasySubwayAccessibleColors.primary
-                        : EasySubwayAccessibleColors.surface,
-                    border: Border.all(
-                      color: isSelected
-                          ? EasySubwayAccessibleColors.primary
-                          : EasySubwayAccessibleColors.line,
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    exit.exitNumber,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: EasySubwayFontWeight.emphasis,
-                      color: isSelected
-                          ? EasySubwayAccessibleColors.onPrimary
-                          : EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '번',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: isSelected
-                        ? EasySubwayFontWeight.emphasis
-                        : EasySubwayFontWeight.regular,
-                    color: isSelected
-                        ? EasySubwayAccessibleColors.text
-                        : EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-              ],
+    final exit = exits[selectedIndex];
+    final hasPrevious = selectedIndex > 0;
+    final hasNext = selectedIndex < exits.length - 1;
+    return Material(
+      key: const Key('stationExitSelector'),
+      color: EasySubwayAccessibleColors.surfaceDefault,
+      shape: _shape,
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            IconButton(
+              tooltip: '이전 출구',
+              onPressed: hasPrevious ? () => onSelect(selectedIndex - 1) : null,
+              icon: const Icon(Icons.chevron_left),
             ),
-          ),
+            const VerticalDivider(
+              width: 1,
+              color: EasySubwayAccessibleColors.borderSubtle,
+            ),
+            Expanded(
+              child: MenuAnchor(
+                menuChildren: [
+                  for (final (index, item) in exits.indexed)
+                    MenuItemButton(
+                      onPressed: () => onSelect(index),
+                      child: Text(item.name),
+                    ),
+                ],
+                builder: (context, controller, _) => Semantics(
+                  container: true,
+                  button: true,
+                  label: '${exit.name}, 출구 목록 열기',
+                  excludeSemantics: true,
+                  onTap: controller.open,
+                  child: InkWell(
+                    key: const Key('stationExitSelectorCurrent'),
+                    onTap: controller.open,
+                    child: Container(
+                      constraints: const BoxConstraints(
+                        minHeight: EasySubwayTouchTarget.iconOnly,
+                      ),
+                      alignment: Alignment.center,
+                      padding: const EdgeInsets.symmetric(
+                        vertical: EasySubwaySpacing.sm,
+                      ),
+                      child: Wrap(
+                        alignment: WrapAlignment.center,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        spacing: EasySubwaySpacing.xs,
+                        children: [
+                          _ExitNumberBadge(number: exit.exitNumber),
+                          const Text('번 출구', style: _labelStyle),
+                          const Icon(
+                            Icons.arrow_drop_down,
+                            color: EasySubwayAccessibleColors.secondaryText,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const VerticalDivider(
+              width: 1,
+              color: EasySubwayAccessibleColors.borderSubtle,
+            ),
+            IconButton(
+              tooltip: '다음 출구',
+              onPressed: hasNext ? () => onSelect(selectedIndex + 1) : null,
+              icon: const Icon(Icons.chevron_right),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  static const _labelStyle = TextStyle(
+    fontSize: 16,
+    fontWeight: EasySubwayFontWeight.regular,
+    color: EasySubwayAccessibleColors.text,
+  );
+}
+
+/// 출구 번호 원. 지도 미리보기의 선택 출구 표시와 같은 색이다. 원 안 숫자는 노선
+/// 마크처럼 정해진 배율까지만 키우고, 원 크기도 같은 배율로 맞춰 숫자가 원을
+/// 벗어나지 않게 한다. 옆의 `번 출구`는 기기 배율을 그대로 따른다.
+class _ExitNumberBadge extends StatelessWidget {
+  const _ExitNumberBadge({required this.number});
+
+  final String number;
+
+  static const _diameter = 24.0;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(
+      context,
+    ).clamp(maxScaleFactor: lineMarkFixedChromeMaxTextScale);
+    return Container(
+      width: scaler.scale(_diameter),
+      height: scaler.scale(_diameter),
+      decoration: const ShapeDecoration(
+        color: EasySubwayAccessibleColors.primary,
+        shape: CircleBorder(),
+      ),
+      alignment: Alignment.center,
+      child: Text(
+        number,
+        maxLines: 1,
+        textScaler: scaler,
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: EasySubwayFontWeight.emphasis,
+          color: EasySubwayAccessibleColors.onPrimary,
         ),
       ),
     );

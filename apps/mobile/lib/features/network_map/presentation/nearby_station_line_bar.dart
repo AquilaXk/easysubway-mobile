@@ -256,12 +256,21 @@ class _StationNameLabel extends StatelessWidget {
   }
 }
 
+/// 노선색 바 위 이웃역 이름. 흰 글자와 노선색의 대비가 3:1~4.5:1인 노선이 많아
+/// 큰 글자 기준(14pt 이상 굵게, 3:1)을 받도록 크기를 14pt로 고정한다(에픽 7-48).
+/// 글자 배율 때문에 자리를 넘칠 때만 배율을 14pt까지 낮춰 이름을 끝까지 보인다.
 class _SideName extends StatelessWidget {
   const _SideName({
     required this.name,
     required this.semanticsPrefix,
     this.onTap,
   });
+
+  static const _style = TextStyle(
+    color: EasySubwayAccessibleColors.interactionOnPrimary,
+    fontSize: 14,
+    fontWeight: EasySubwayFontWeight.boldForContrast,
+  );
 
   final String? name;
   final String semanticsPrefix;
@@ -274,61 +283,40 @@ class _SideName extends StatelessWidget {
       return const SizedBox.shrink();
     }
     final isLeft = semanticsPrefix == '이전역';
-    final double fontSize = value.length >= 9
-        ? 12.0
-        : (value.length >= 7 ? 13.0 : (value.length >= 5 ? 14.0 : 15.0));
-
-    final content = isLeft
-        ? Row(
-            children: [
-              const SizedBox(width: 8),
-              const Icon(
-                Icons.chevron_left,
-                size: 16,
-                color: EasySubwayAccessibleColors.interactionOnPrimary,
-              ),
+    final chevron = Icon(
+      isLeft ? Icons.chevron_left : Icons.chevron_right,
+      size: 16,
+      color: EasySubwayAccessibleColors.interactionOnPrimary,
+    );
+    final label = Expanded(
+      child: LayoutBuilder(
+        builder: (context, constraints) => Text(
+          value,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          textAlign: isLeft ? TextAlign.left : TextAlign.right,
+          textScaler: _fittingScaler(context, value, constraints.maxWidth),
+          style: _style,
+        ),
+      ),
+    );
+    final content = Row(
+      children: isLeft
+          ? [
+              const SizedBox(width: 6),
+              chevron,
               const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.left,
-                  style: TextStyle(
-                    color: EasySubwayAccessibleColors.interactionOnPrimary,
-                    fontSize: fontSize,
-                    fontWeight: EasySubwayFontWeight.boldForContrast,
-                  ),
-                ),
-              ),
+              label,
+              const SizedBox(width: 2),
+            ]
+          : [
+              const SizedBox(width: 2),
+              label,
               const SizedBox(width: 4),
+              chevron,
+              const SizedBox(width: 6),
             ],
-          )
-        : Row(
-            children: [
-              const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  value,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.right,
-                  style: TextStyle(
-                    color: EasySubwayAccessibleColors.interactionOnPrimary,
-                    fontSize: fontSize,
-                    fontWeight: EasySubwayFontWeight.boldForContrast,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 4),
-              const Icon(
-                Icons.chevron_right,
-                size: 16,
-                color: EasySubwayAccessibleColors.interactionOnPrimary,
-              ),
-              const SizedBox(width: 8),
-            ],
-          );
+    );
 
     final tap = onTap;
     if (tap == null) {
@@ -358,4 +346,34 @@ class _SideName extends StatelessWidget {
       ),
     );
   }
+
+  /// 기기 글자 배율을 따르되, 이름이 [maxWidth]를 넘으면 배율을 맞는 만큼 낮춘다.
+  /// 14pt 아래로는 내리지 않고 그때는 말줄임표로 자른다.
+  static TextScaler _fittingScaler(
+    BuildContext context,
+    String value,
+    double maxWidth,
+  ) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final scale = scaler.scale(_style.fontSize!) / _style.fontSize!;
+    if (scale <= 1 || !maxWidth.isFinite) {
+      return scaler;
+    }
+    final painter = TextPainter(
+      text: TextSpan(text: value, style: _style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final scaledWidth = painter.width;
+    painter.dispose();
+    if (scaledWidth <= maxWidth) {
+      return scaler;
+    }
+    // 글자 폭은 배율에 정확히 비례하지 않아(자간·반올림) 약간 여유를 둔다.
+    final fitting = scale * maxWidth / scaledWidth * _fitMargin;
+    return scaler.clamp(maxScaleFactor: fitting < 1 ? 1 : fitting);
+  }
+
+  static const _fitMargin = 0.97;
 }

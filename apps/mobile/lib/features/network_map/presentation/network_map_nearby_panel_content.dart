@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../../../design_tokens.dart';
 import '../application/network_map_nearby_panel_state.dart';
 
 typedef NetworkMapNearbyPanelSuccessContent = ({
   Widget stationBar,
+  Widget controlRow,
   Widget dataPanel,
 });
 
@@ -42,7 +44,9 @@ class NetworkMapNearbyPanelContent extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         content.stationBar,
-        const SizedBox(height: 17),
+        const SizedBox(height: EasySubwaySpacing.md),
+        content.controlRow,
+        const SizedBox(height: EasySubwaySpacing.md),
         Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
           child: content.dataPanel,

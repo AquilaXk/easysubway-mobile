@@ -1,6 +1,8 @@
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/format/date_time_labels.dart';
 import '../../../core/ui/line_mark.dart';
 import '../../../core/ui/name_with_marks.dart';
 import '../../../design_tokens.dart';
@@ -35,9 +37,9 @@ Future<bool?> confirmClearRecentSearches(BuildContext context) {
 /// 역 검색 화면·노선도 임베디드 검색의 최근 목록. 역·경로를 한 시간순 목록으로
 /// 통합한다. 상단은 `최근 검색` / `모두 지우기` 헤더다.
 ///
-/// 항목 사이·헤더 아래에는 구분선을 **추가하지 않는다**(상단 네비바 아래
-/// 기존 구분선은 화면 레이아웃이 담당하며 여기서 건드리지 않는다).
-/// 지역 필터는 호출부가 [entries]를 좁혀 전달한다.
+/// 상용 지하철 서비스처럼 헤더 아래와 항목 사이에 얇은 구분선을 두고, 항목마다
+/// 검색한 날짜를 지우기 버튼 왼쪽에 쓴다. 지역 필터는 호출부가 [entries]를 좁혀
+/// 전달한다.
 class StationRecentSearchSection extends StatelessWidget {
   const StationRecentSearchSection({
     super.key,
@@ -56,9 +58,16 @@ class StationRecentSearchSection extends StatelessWidget {
   final ValueChanged<RecentSearchEntry> onRemove;
   final VoidCallback onClearAll;
 
+  static const _divider = Divider(
+    height: 1,
+    thickness: 1,
+    color: EasySubwayAccessibleColors.borderSubtle,
+  );
+
   @override
   Widget build(BuildContext context) {
     final hasEntries = entries.isNotEmpty;
+    final now = clock.now();
     return Column(
       key: const Key('stationRecentSearchSection'),
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -69,14 +78,17 @@ class StationRecentSearchSection extends StatelessWidget {
         if (!hasEntries)
           const _RecentSearchEmptyState()
         else
-          for (final entry in entries)
+          for (final entry in entries) ...[
+            _divider,
             _RecentSearchItem(
               entry: entry,
               enabled: enabled,
+              now: now,
               onStationSelected: onStationSelected,
               onRouteSelected: onRouteSelected,
               onRemove: onRemove,
             ),
+          ],
       ],
     );
   }
@@ -144,7 +156,7 @@ class _RecentSearchEmptyState extends StatelessWidget {
   const _RecentSearchEmptyState();
 
   static const _message = '최근 검색 내역이 없습니다.';
-  // 카카오메트로 빈 상태와 같은 연회색. 크기는 살짝 더 큼(아이콘 56·글자 16).
+  // 상용 지하철 서비스 빈 상태와 같은 연회색. 크기는 살짝 더 큼(아이콘 56·글자 16).
   static const _iconSize = 56.0;
   static const _emptyTone = EasySubwayAccessibleColors.disclosure;
 
@@ -204,6 +216,7 @@ class _RecentSearchItem extends StatelessWidget {
   const _RecentSearchItem({
     required this.entry,
     required this.enabled,
+    required this.now,
     required this.onStationSelected,
     required this.onRouteSelected,
     required this.onRemove,
@@ -211,9 +224,16 @@ class _RecentSearchItem extends StatelessWidget {
 
   final RecentSearchEntry entry;
   final bool enabled;
+  final DateTime now;
   final ValueChanged<RecentStationSearchEntry> onStationSelected;
   final ValueChanged<RecentRouteSearchEntry> onRouteSelected;
   final ValueChanged<RecentSearchEntry> onRemove;
+
+  static const _dateStyle = TextStyle(
+    color: EasySubwayAccessibleColors.contentMuted,
+    fontSize: 14,
+    fontWeight: EasySubwayFontWeight.regular,
+  );
 
   @override
   Widget build(BuildContext context) {
@@ -261,11 +281,24 @@ class _RecentSearchItem extends StatelessWidget {
       }
     }
 
+    final searchedOn = formatSpokenDate(entry.searchedAt, now: now);
+    final date = ExcludeSemantics(
+      child: Text(
+        formatShortDate(entry.searchedAt, now: now),
+        style: _dateStyle,
+      ),
+    );
+    // 날짜는 상용 지하철 서비스처럼 지우기 버튼 왼쪽에 둔다. 글자가 커서 날짜가 역
+    // 이름 자리를 먹을 만큼 넓어지면(노선 마크와 같은 고정 배율 상한을 넘으면)
+    // 이름 아래 줄로 내린다.
+    final inlineDate =
+        MediaQuery.textScalerOf(context).scale(1) <=
+        lineMarkFixedChromeMaxTextScale;
     return Row(
       children: [
         Expanded(
           child: Semantics(
-            label: semanticsLabel,
+            label: '$semanticsLabel, $searchedOn 검색',
             button: true,
             enabled: enabled,
             onTap: enabled ? onTap : null,
@@ -283,13 +316,19 @@ class _RecentSearchItem extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(
                       vertical: EasySubwaySpacing.xs,
                     ),
-                    child: Row(children: [Expanded(child: title)]),
+                    child: inlineDate
+                        ? Row(children: [Expanded(child: title)])
+                        : Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [title, date],
+                          ),
                   ),
                 ),
               ),
             ),
           ),
         ),
+        if (inlineDate) date,
         IconButton(
           key: removeKey,
           tooltip: removeTooltip,

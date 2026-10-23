@@ -1,7 +1,6 @@
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_data_source_toggle.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_columns.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
@@ -200,9 +199,9 @@ void main() {
       expect(find.text('동대문역사문화공원'), findsOneWidget);
       expect(find.text('국제금융센터·부산은행'), findsOneWidget);
 
-      // 9글자 이상 역명은 12sp로 스케일다운된다
+      // 긴 역명도 큰 글자 대비 기준을 받도록 14pt로 고정한다.
       final longRightText = tester.widget<Text>(find.text('국제금융센터·부산은행'));
-      expect(longRightText.style?.fontSize, 12.0);
+      expect(longRightText.style?.fontSize, 14.0);
       expect(longRightText.textAlign, TextAlign.right);
 
       expect(tester.takeException(), isNull);
@@ -532,86 +531,6 @@ void main() {
     });
   });
 
-  group('NearbyDirectionTitle (Task 5)', () {
-    Widget hostTitle(String label, Color lineColor) {
-      return MaterialApp(
-        home: Scaffold(
-          body: Center(
-            child: NearbyDirectionTitle(label: label, lineColor: lineColor),
-          ),
-        ),
-      );
-    }
-
-    List<InlineSpan> spansOf(WidgetTester tester) {
-      final text = tester.widget<Text>(find.byType(Text));
-      final root = text.textSpan! as TextSpan;
-      return root.children!;
-    }
-
-    testWidgets('"방면"으로 끝나면 역명은 노선색, " 방면"은 본문 역할색으로 분리한다', (tester) async {
-      await tester.pumpWidget(hostTitle('성수 방면', _line2Green));
-
-      final spans = spansOf(tester).cast<TextSpan>();
-      expect(spans[0].text, '성수');
-      expect(spans[0].style!.color, _line2Green);
-      expect(spans[1].text, ' 방면');
-      expect(spans[1].style!.color, EasySubwayAccessibleColors.contentPrimary);
-    });
-
-    testWidgets('2호선 선택 시 방면 역명이 #00A84D이다', (tester) async {
-      await tester.pumpWidget(hostTitle('건대입구 방면', _line2Green));
-      final spans = spansOf(tester).cast<TextSpan>();
-      expect(spans[0].text, '건대입구');
-      expect(spans[0].style!.color, _line2Green);
-    });
-
-    testWidgets('노선색 이름은 대비용 굵기, " 방면"은 강조 굵기다', (tester) async {
-      await tester.pumpWidget(hostTitle('성수 방면', _line2Green));
-      final spans = spansOf(tester).cast<TextSpan>();
-      expect(spans[0].style!.fontWeight, EasySubwayFontWeight.boldForContrast);
-      expect(spans[1].style!.fontWeight, isNull);
-    });
-
-    testWidgets('"방면"으로 끝나지 않으면 전체를 노선색으로 그린다(텍스트 무변경)', (tester) async {
-      await tester.pumpWidget(hostTitle('내선순환', _line2Green));
-      final spans = spansOf(tester).cast<TextSpan>();
-      expect(spans.length, 1);
-      expect(spans[0].text, '내선순환');
-      expect(spans[0].style!.color, _line2Green);
-    });
-
-    testWidgets('제목 스타일은 14sp 강조 굵기다', (tester) async {
-      await tester.pumpWidget(hostTitle('성수 방면', _line2Green));
-      final text = tester.widget<Text>(find.byType(Text));
-      final root = text.textSpan! as TextSpan;
-      expect(root.style!.fontSize, 14);
-      expect(root.style!.fontWeight, EasySubwayFontWeight.emphasis);
-    });
-  });
-
-  group('NearbyArrivalRow 회귀 (Task 5 무변경 고정)', () {
-    testWidgets('"○○행"은 13sp 본문 굵기 본문 역할색, 도착 안내는 12sp 본문 굵기다', (tester) async {
-      await tester.pumpWidget(
-        const MaterialApp(
-          home: Scaffold(
-            body: NearbyArrivalRow(destination: '성수', eta: '약 3분'),
-          ),
-        ),
-      );
-
-      final dest = tester.widget<Text>(find.text('성수행'));
-      expect(dest.style!.fontSize, 13);
-      expect(dest.style!.fontWeight, EasySubwayFontWeight.regular);
-      expect(dest.style!.color, EasySubwayAccessibleColors.contentPrimary);
-
-      final eta = tester.widget<Text>(find.text('약 3분'));
-      expect(eta.style!.fontSize, 12);
-      expect(eta.style!.fontWeight, EasySubwayFontWeight.regular);
-      expect(eta.style!.color, EasySubwayAccessibleColors.secondaryText);
-    });
-  });
-
   // 실시간·시간표 패널이 공유하는 열 구성 로직(#2200 QA): 열차 정보가 없어도
   // 인접역에서 방면 제목을 유도해 두 열 스켈레톤을 유지한다.
   group('resolveNearbyColumnSlots (#2200 QA)', () {
@@ -712,121 +631,6 @@ void main() {
       );
       expect(slots.map((s) => s.title).toList(), ['성수 방면', '신도림 방면']);
       expect(slots.map((s) => s.dataIndex).toList(), [0, 1]);
-    });
-  });
-
-  group('NearbyPanelColumns (#2200 QA)', () {
-    Widget host(List<NearbyPanelColumn> columns) {
-      return MaterialApp(
-        home: Scaffold(
-          body: NearbyPanelColumns(columns: columns, lineColor: _line2Green),
-        ),
-      );
-    }
-
-    testWidgets('standalone 정보 없음은 exact Semantics와 대시 표면을 보존한다', (
-      tester,
-    ) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        const MaterialApp(home: Scaffold(body: NearbyDataUnavailable())),
-      );
-
-      final dash = find.byKey(const Key('networkMapNearbyDataUnavailable'));
-      expect(dash, findsOneWidget);
-      expect(find.text('-'), findsOneWidget);
-      expect(find.bySemanticsLabel('정보 없음'), findsOneWidget);
-      expect(
-        find.ancestor(
-          of: dash,
-          matching: find.byWidgetPredicate(
-            (widget) => widget is SizedBox && widget.height == 46,
-          ),
-        ),
-        findsOneWidget,
-      );
-      final dashText = tester.widget<Text>(dash);
-      expect(dashText.style, NearbyPanelColumns.dashStyle);
-      handle.dispose();
-    });
-
-    testWidgets('데이터 없는 두 열은 제목 + 대시 + 1개 구분선을 그린다', (tester) async {
-      await tester.pumpWidget(
-        host(const [
-          NearbyPanelColumn(title: '건대입구 방면'),
-          NearbyPanelColumn(title: '한양대 방면'),
-        ]),
-      );
-
-      expect(find.byType(NearbyDirectionTitle), findsNWidgets(2));
-      expect(find.text('-'), findsNWidgets(2));
-      expect(find.byType(VerticalDivider), findsOneWidget);
-    });
-
-    testWidgets('데이터 열 + 대시 열: 데이터 열은 도착 행, 나머지는 대시', (tester) async {
-      await tester.pumpWidget(
-        host(const [
-          NearbyPanelColumn(
-            title: '성수 방면',
-            rows: [NearbyArrivalRow(destination: '성수', eta: '약 3분')],
-          ),
-          NearbyPanelColumn(title: '뚝섬 방면'),
-        ]),
-      );
-
-      expect(find.text('성수행'), findsOneWidget);
-      expect(find.text('-'), findsOneWidget);
-      expect(find.byType(VerticalDivider), findsOneWidget);
-    });
-
-    testWidgets('한 열만 있으면 구분선을 그리지 않는다', (tester) async {
-      await tester.pumpWidget(
-        host(const [NearbyPanelColumn(title: '건대입구 방면')]),
-      );
-      expect(find.byType(VerticalDivider), findsNothing);
-      expect(find.text('-'), findsOneWidget);
-    });
-
-    testWidgets('종착역(인접 1개) 슬롯은 한 열·대시만 그리고 구분선이 없다', (tester) async {
-      final slots = resolveNearbyColumnSlots(
-        dataTitles: const [],
-        leftName: '건대입구',
-        rightName: null,
-      );
-      await tester.pumpWidget(
-        host([for (final slot in slots) NearbyPanelColumn(title: slot.title)]),
-      );
-
-      expect(find.byType(NearbyDirectionTitle), findsOneWidget);
-      expect(find.text('건대입구 방면'), findsOneWidget);
-      expect(find.text('-'), findsOneWidget);
-      expect(find.byType(VerticalDivider), findsNothing);
-    });
-
-    testWidgets('대시 스타일은 16sp 본문 굵기 본문 역할색이다', (tester) async {
-      await tester.pumpWidget(
-        host(const [NearbyPanelColumn(title: '건대입구 방면')]),
-      );
-      final dash = tester.widget<Text>(find.text('-'));
-      expect(dash.style!.fontSize, 16);
-      expect(dash.style!.fontWeight, EasySubwayFontWeight.regular);
-      expect(dash.style!.color, EasySubwayAccessibleColors.contentPrimary);
-    });
-
-    testWidgets('대시 열은 열 단위 Semantics 라벨을 쓰고 대시 문자는 제외한다', (tester) async {
-      final handle = tester.ensureSemantics();
-      await tester.pumpWidget(
-        host(const [
-          NearbyPanelColumn(title: '건대입구 방면'),
-          NearbyPanelColumn(title: '한양대 방면'),
-        ]),
-      );
-
-      expect(find.bySemanticsLabel('건대입구 방면 정보 없음'), findsOneWidget);
-      expect(find.bySemanticsLabel('한양대 방면 정보 없음'), findsOneWidget);
-      // 시각 대시('-')는 ExcludeSemantics라 단독 Semantics 라벨로 노출되지 않는다.
-      expect(find.bySemanticsLabel('-'), findsNothing);
-      handle.dispose();
     });
   });
 }

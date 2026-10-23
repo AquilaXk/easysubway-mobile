@@ -121,18 +121,11 @@ void main() {
     });
   });
 
-  test('부채꼴 메뉴 v2 색상과 opacity를 고정한다', () {
+  test('경로 역할 핀 색상과 비활성 opacity를 고정한다', () {
     expect(EasySubwayFanMenuColors.disabledOpacity, 0.40);
-    expect(EasySubwayFanMenuColors.pressedOpacity, 0.84);
     expect(EasySubwayFanMenuColors.departure, const Color(0xFF0070E0));
-    expect(EasySubwayFanMenuColors.departureSurface, const Color(0xFFF2F8FF));
-    expect(EasySubwayFanMenuColors.departurePressed, const Color(0xFFE1F0FF));
     expect(EasySubwayFanMenuColors.waypoint, const Color(0xFFFF9F0A));
-    expect(EasySubwayFanMenuColors.waypointSurface, const Color(0xFFFFF8ED));
-    expect(EasySubwayFanMenuColors.waypointPressed, const Color(0xFFFFEFCC));
     expect(EasySubwayFanMenuColors.arrival, const Color(0xFFD92B20));
-    expect(EasySubwayFanMenuColors.arrivalSurface, const Color(0xFFFFF5F4));
-    expect(EasySubwayFanMenuColors.arrivalPressed, const Color(0xFFFFE8E6));
     expect(EasySubwayFanMenuColors.pinShadow, const Color(0x40000000));
     expect(EasySubwayFanMenuColors.pinEdgeDeparture, const Color(0xFF0654A1));
     expect(EasySubwayFanMenuColors.pinEdgeWaypoint, const Color(0xFFA16506));
@@ -142,11 +135,6 @@ void main() {
     expect(EasySubwayFanMenuColors.pinClearBorder, const Color(0xFFE5E5E5));
     expect(EasySubwayFanMenuColors.pinClearInk, const Color(0xFF666666));
     expect(EasySubwayFanMenuColors.pinClearShadow, const Color(0x26000000));
-    expect(EasySubwayFanMenuColors.closeSurface, const Color(0xFFF5F7FA));
-    expect(EasySubwayFanMenuColors.closePressed, const Color(0xFFE9EDF2));
-    expect(EasySubwayFanMenuColors.closeInk, const Color(0xFF475467));
-    expect(EasySubwayFanMenuColors.border, const Color(0xE8404445));
-    expect(EasySubwayFanMenuColors.outline, const Color(0xE8404445));
   });
 
   group('접근성 대비(WCAG 2.1)', () {
@@ -198,24 +186,10 @@ void main() {
     for (final MapEntry(:key, :value) in roles.entries) {
       final role = value.role;
 
-      test('$key 면 위의 글자(경로 카드 배지·팬 메뉴 선택 면)는 4.5:1을 넘는다', () {
+      test('$key 면 위의 글자(경로 카드 배지)는 4.5:1을 넘는다', () {
         expect(
           contrast(role.onFace, role.face),
           greaterThanOrEqualTo(normalTextRatio),
-        );
-      });
-
-      test('$key 역할색 글자(경로 입력 상단바의 15pt 라벨)는 입력 칸 배경 위에서 4.5:1을 넘는다', () {
-        expect(
-          contrast(role.ink, EasySubwayAccessibleColors.searchFieldSurface),
-          greaterThanOrEqualTo(normalTextRatio),
-        );
-      });
-
-      test('$key 역할색 글자(팬 메뉴 비선택 면의 큰 라벨)는 연한 면 위에서 3:1을 넘는다', () {
-        expect(
-          contrast(role.ink, role.surface),
-          greaterThanOrEqualTo(largeTextRatio),
         );
       });
 
@@ -232,14 +206,29 @@ void main() {
           lessThanOrEqualTo(value.maxFaceHueShift),
         );
       });
-
-      test('$key 역할색 글자는 면과 색상(hue)이 $maxHueShiftDegrees도 안에서 같다', () {
-        expect(
-          hueGap(role.ink, role.face),
-          lessThanOrEqualTo(maxHueShiftDegrees),
-        );
-      });
     }
+
+    test('역 말풍선 흰 글자는 두 바탕에서 4.5:1, 역할 핀은 3:1을 넘는다', () {
+      for (final surface in [
+        EasySubwayPopoverColors.surface,
+        EasySubwayPopoverColors.actionSurface,
+      ]) {
+        expect(
+          contrast(EasySubwayPopoverColors.onSurface, surface),
+          greaterThanOrEqualTo(normalTextRatio),
+        );
+      }
+      for (final pin in [
+        EasySubwayPopoverColors.originPin,
+        EasySubwayPopoverColors.waypointPin,
+        EasySubwayPopoverColors.destinationPin,
+      ]) {
+        expect(
+          contrast(pin, EasySubwayPopoverColors.surface),
+          greaterThanOrEqualTo(largeTextRatio),
+        );
+      }
+    });
 
     test('경유 면은 원래 앰버 값을 그대로 두고 어두운 글자를 얹는다', () {
       expect(

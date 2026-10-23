@@ -27,9 +27,7 @@ void main() {
     final familyIdentifier = RegExp(r'\bfontFamily(?:Fallback)?\b|Pretendard');
     final offenders = <String>[];
     for (final entity in Directory('lib').listSync(recursive: true)) {
-      if (entity is! File ||
-          !entity.path.endsWith('.dart') ||
-          entity.path == _fanMenuSource) {
+      if (entity is! File || !entity.path.endsWith('.dart')) {
         continue;
       }
       if (familyIdentifier.hasMatch(entity.readAsStringSync())) {
@@ -39,22 +37,4 @@ void main() {
 
     expect(offenders, isEmpty);
   });
-
-  test('팬 메뉴는 주변 DefaultTextStyle의 family만 CustomPaint로 넘긴다', () {
-    // CustomPaint는 DefaultTextStyle을 상속하지 못해 family를 인자로 받는다.
-    final assignments = RegExp(
-      r'fontFamily:\s*([^,\n]+)',
-    ).allMatches(File(_fanMenuSource).readAsStringSync());
-
-    expect(assignments, isNotEmpty);
-    for (final match in assignments) {
-      expect(
-        match.group(1),
-        anyOf('DefaultTextStyle.of(context).style.fontFamily', 'fontFamily'),
-      );
-    }
-  });
 }
-
-const _fanMenuSource =
-    'lib/features/network_map/presentation/station_fan_menu.dart';

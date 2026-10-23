@@ -695,7 +695,7 @@ void main() {
     expect(exits.single.name, '1번 출구');
     expect(exits.single.latitude, 37.302795);
     expect(exits.single.longitude, 126.866489);
-    expect(exits.single.elevatorConnectionLabel, '엘리베이터 연결');
+    expect(exits.single.hasElevatorConnection, isTrue);
     expect(exits.single.stairPathLabel, '계단 없는 이동 가능');
     expect(exits.single.dataSourceLabel, '공식 안내');
     expect(facilities.single.typeLabel, '엘리베이터');

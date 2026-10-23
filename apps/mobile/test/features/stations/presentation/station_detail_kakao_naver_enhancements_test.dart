@@ -131,42 +131,37 @@ void main() {
     );
   }
 
-  testWidgets(
-    '네이버 지도 1:1 표준 출구정보(미니맵 확대, 출구 알약 탭, 장소 정보, 가까운 하차문)가 렌더링되고 슬롭 버튼이 제거된다',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('출구정보(미니맵 확대, 출구 선택기, 주변 시설 문장, 가까운 하차문)가 렌더링되고 슬롭 버튼이 제거된다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(buildDetailBody());
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(buildDetailBody());
+    await tester.pumpAndSettle();
 
-      expect(find.text('출구정보'), findsOneWidget);
-      expect(find.text('장소 정보'), findsOneWidget);
-      expect(find.text('상록수역 공영주차장, 본오동 방면'), findsOneWidget);
-      expect(find.text('출구와 가까운 하차문'), findsOneWidget);
-      expect(find.text('반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1'), findsOneWidget);
-      expect(find.byKey(const Key('stationExitPill-exit-1')), findsOneWidget);
-      expect(find.byKey(const Key('stationExitPill-exit-2')), findsOneWidget);
-      expect(
-        find.byKey(const Key('stationExitMapExpandButton')),
-        findsOneWidget,
-      );
+    expect(find.text('출구정보'), findsOneWidget);
+    expect(find.text('장소 정보'), findsNothing);
+    expect(find.text('상록수역 공영주차장, 본오동 방면'), findsOneWidget);
+    expect(find.text('출구와 가까운 하차문'), findsOneWidget);
+    expect(find.text('반월 방면 4-4, 7-3, 한대앞 방면 4-2, 7-1'), findsOneWidget);
+    expect(find.byKey(const Key('stationExitSelector')), findsOneWidget);
+    expect(find.byKey(const Key('stationExitMapExpandButton')), findsOneWidget);
 
-      // 하차문 정보가 없는 2번 출구 선택 시 '출구와 가까운 하차문' 섹션이 숨겨짐을 검증
-      await tester.tap(find.byKey(const Key('stationExitPill-exit-2')));
-      await tester.pumpAndSettle();
-      expect(find.text('일동 방면, 안산상록경찰서'), findsOneWidget);
-      expect(find.text('출구와 가까운 하차문'), findsNothing);
+    // 하차문 정보가 없는 2번 출구 선택 시 '출구와 가까운 하차문' 섹션이 숨겨짐을 검증
+    await tester.tap(find.byTooltip('다음 출구'));
+    await tester.pumpAndSettle();
+    expect(find.text('일동 방면, 안산상록경찰서'), findsOneWidget);
+    expect(find.text('출구와 가까운 하차문'), findsNothing);
 
-      // 잔여 슬롭 버튼 완전 삭제 검증
-      expect(find.text('버스 도착 정보 보기'), findsNothing);
-      expect(find.text('카카오맵에서 보기'), findsNothing);
-      expect(find.text('출구까지 거리'), findsNothing);
-      expect(find.text('도보 길안내'), findsNothing);
-    },
-  );
+    // 잔여 슬롭 버튼 완전 삭제 검증
+    expect(find.text('버스 도착 정보 보기'), findsNothing);
+    expect(find.text('카카오맵에서 보기'), findsNothing);
+    expect(find.text('출구까지 거리'), findsNothing);
+    expect(find.text('도보 길안내'), findsNothing);
+  });
 
   testWidgets('공식 하차문 정보가 없는 출구만 존재하는 역은 가짜 모듈로 산술 없이 하차문 섹션을 완전히 숨긴다', (
     tester,
@@ -200,47 +195,40 @@ void main() {
     expect(find.textContaining('한대앞 방면'), findsNothing);
   });
 
-  testWidgets(
-    '네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드) 및 하단 액션바가 렌더링된다',
-    (tester) async {
-      tester.view.physicalSize = const Size(800, 2400);
-      tester.view.devicePixelRatio = 1.0;
-      addTearDown(tester.view.resetPhysicalSize);
-      addTearDown(tester.view.resetDevicePixelRatio);
+  testWidgets('역정보(시설정보, 편의시설, 교통약자 시설 2열 격자) 및 하단 액션바가 렌더링된다', (tester) async {
+    tester.view.physicalSize = const Size(800, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
 
-      await tester.pumpWidget(buildDetailBody());
-      await tester.pumpAndSettle();
+    await tester.pumpWidget(buildDetailBody());
+    await tester.pumpAndSettle();
 
-      expect(find.text('역정보'), findsOneWidget);
-      expect(find.text('시설정보'), findsOneWidget);
-      expect(find.text('화장실'), findsOneWidget);
-      expect(find.text('개찰구 안/밖'), findsOneWidget);
-      // 원천에 값이 없는 승강장 칸(플랫폼, 내리는문, 반대편)은 `-`로 채우지 않고 뺀다.
-      expect(find.text('플랫폼'), findsNothing);
-      expect(find.text('내리는문'), findsNothing);
-      expect(find.text('반대편'), findsNothing);
-      expect(find.text('-'), findsNothing);
-      expect(find.text('양쪽'), findsNothing);
-      expect(find.text('오른쪽'), findsNothing);
-      expect(find.text('연결됨'), findsNothing);
+    expect(find.text('역정보'), findsOneWidget);
+    expect(find.text('시설정보'), findsOneWidget);
+    expect(find.text('화장실 개찰구 안/밖'), findsOneWidget);
+    // 원천에 값이 없는 승강장 칸(플랫폼, 내리는문, 반대편)은 `-`로 채우지 않고 뺀다.
+    expect(find.textContaining('플랫폼'), findsNothing);
+    expect(find.textContaining('내리는문'), findsNothing);
+    expect(find.textContaining('반대편'), findsNothing);
+    expect(find.text('-'), findsNothing);
 
-      // 원천에 행이 없는 편의시설은 없음으로 단정하지 않고 묶음째 뺀다.
-      expect(find.text('편의시설'), findsNothing);
-      expect(find.text('자전거보관소'), findsNothing);
+    // 원천에 행이 없는 편의시설은 없음으로 단정하지 않고 묶음째 뺀다.
+    expect(find.text('편의시설'), findsNothing);
+    expect(find.text('자전거보관소'), findsNothing);
 
-      expect(find.text('교통약자 시설'), findsOneWidget);
-      expect(find.text('장애인화장실'), findsOneWidget);
-      expect(find.text('엘리베이터'), findsWidgets);
-      expect(find.text('수유실'), findsWidgets);
-      expect(find.text('휠체어 리프트'), findsNothing);
+    expect(find.text('교통약자 시설'), findsOneWidget);
+    expect(find.text('장애인화장실'), findsOneWidget);
+    expect(find.text('엘리베이터'), findsWidgets);
+    expect(find.text('수유실'), findsWidgets);
+    expect(find.text('휠체어 리프트'), findsNothing);
 
-      // 하단 고정 액션바 4종 버튼 검증
-      expect(find.text('출발'), findsOneWidget);
-      expect(find.text('도착'), findsOneWidget);
-      expect(find.text('전체 시간표'), findsOneWidget);
-      expect(find.text('첫차·막차'), findsOneWidget);
-    },
-  );
+    // 하단 고정 액션바 4종 버튼 검증
+    expect(find.text('출발'), findsOneWidget);
+    expect(find.text('도착'), findsOneWidget);
+    expect(find.text('전체 시간표'), findsOneWidget);
+    expect(find.text('첫차·막차'), findsOneWidget);
+  });
 
   testWidgets('공식 승강장 정보(내리는문, 플랫폼, 반대편 횡단)가 데이터에 명시된 경우 올바른 태그로 매핑된다', (
     tester,
@@ -272,12 +260,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('플랫폼'), findsOneWidget);
-    expect(find.text('양쪽'), findsOneWidget);
-    expect(find.text('내리는문'), findsOneWidget);
-    expect(find.text('왼쪽'), findsOneWidget);
-    expect(find.text('반대편'), findsOneWidget);
-    expect(find.text('연결됨'), findsOneWidget);
+    expect(find.text('플랫폼 양쪽'), findsOneWidget);
+    expect(find.text('내리는문 왼쪽'), findsOneWidget);
+    expect(find.text('반대편 연결됨'), findsOneWidget);
   });
 
   testWidgets('공식 승강장 정보에 반대편 횡단 불가(공백 포함) 표기 시 이동 불가로 매핑된다', (tester) async {
@@ -306,10 +291,8 @@ void main() {
     await tester.pumpWidget(buildDetailBody(facilities: facilitiesWithNoCross));
     await tester.pumpAndSettle();
 
-    expect(find.text('내리는문'), findsOneWidget);
-    expect(find.text('오른쪽'), findsOneWidget);
-    expect(find.text('반대편'), findsOneWidget);
-    expect(find.text('이동 불가'), findsOneWidget);
+    expect(find.text('내리는문 오른쪽'), findsOneWidget);
+    expect(find.text('반대편 이동 불가'), findsOneWidget);
   });
 
   testWidgets('화장실 정보가 전혀 없으면 개찰구 밖을 날조하지 않고 화장실 칸을 뺀다', (tester) async {
@@ -340,10 +323,8 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('시설정보'), findsNothing);
-    expect(find.text('화장실'), findsNothing);
+    expect(find.textContaining('화장실 개찰구'), findsNothing);
     expect(find.text('-'), findsNothing);
-    expect(find.text('개찰구 밖'), findsNothing);
-    expect(find.text('개찰구 안'), findsNothing);
   });
 
   testWidgets('개찰구 안 단독 화장실 시설만 존재하는 경우 개찰구 안 태그가 정확히 표출된다', (tester) async {
@@ -371,10 +352,7 @@ void main() {
     await tester.pumpWidget(buildDetailBody(facilities: insideOnlyToilet));
     await tester.pumpAndSettle();
 
-    expect(find.text('화장실'), findsOneWidget);
-    expect(find.text('개찰구 안'), findsOneWidget);
-    expect(find.text('개찰구 밖'), findsNothing);
-    expect(find.text('개찰구 안/밖'), findsNothing);
+    expect(find.text('화장실 개찰구 안'), findsOneWidget);
   });
 
   testWidgets('개찰구 밖 단독 화장실 시설만 존재하는 경우 개찰구 밖 태그가 정확히 표출된다', (tester) async {
@@ -402,10 +380,7 @@ void main() {
     await tester.pumpWidget(buildDetailBody(facilities: outsideOnlyToilet));
     await tester.pumpAndSettle();
 
-    expect(find.text('화장실'), findsOneWidget);
-    expect(find.text('개찰구 밖'), findsOneWidget);
-    expect(find.text('개찰구 안'), findsNothing);
-    expect(find.text('개찰구 안/밖'), findsNothing);
+    expect(find.text('화장실 개찰구 밖'), findsOneWidget);
   });
 
   testWidgets('출구 DB가 비어있으면 출구정보를 숨기고 역정보와 하단 액션바만 렌더링된다', (tester) async {
@@ -467,7 +442,7 @@ void main() {
 
       // 엘리베이터 탭
       final evButton = find.byKey(
-        const Key('naverFacilityReportButton-facility-ev-1'),
+        const Key('stationFacilityReportButton-facility-ev-1'),
       );
       expect(evButton, findsOneWidget);
       await tester.tap(evButton);
@@ -483,7 +458,7 @@ void main() {
       // 장애인화장실 탭
       reportedTarget = null;
       final toiletButton = find.byKey(
-        const Key('naverFacilityReportButton-facility-toilet-2'),
+        const Key('stationFacilityReportButton-facility-toilet-2'),
       );
       expect(toiletButton, findsOneWidget);
       await tester.tap(toiletButton);
@@ -561,7 +536,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.byKey(const Key('naverFacilityReportButton-facility-lift-1')),
+      find.byKey(const Key('stationFacilityReportButton-facility-lift-1')),
       findsOneWidget,
     );
   });
@@ -735,7 +710,8 @@ void main() {
       });
       expect(withHint.semanticLabel, contains('출구와 가까운 하차문 상행 4-4, 7-3'));
       expect(withHint.semanticLabel, contains('1번 출구'));
-      expect(withHint.semanticLabel, contains('엘리베이터 연결'));
+      // 출구와 엘리베이터 연결은 원천 확인 근거가 없어 읽지 않는다(#511).
+      expect(withHint.semanticLabel, isNot(contains('엘리베이터 연결')));
 
       final withoutHint = StationExitInfo.fromJson(const {
         'id': 'exit-2',
@@ -779,7 +755,7 @@ void main() {
       expect(withDesc.semanticLabel, contains('상록수역 공영주차장, 본오동 방면'));
       expect(
         withDesc.semanticLabel,
-        startsWith('1번 출구, 상록수역 공영주차장, 본오동 방면, 엘리베이터 연결'),
+        startsWith('1번 출구, 상록수역 공영주차장, 본오동 방면, 계단 없는 이동 가능'),
       );
 
       final withoutDesc = StationExitInfo.fromJson(const {

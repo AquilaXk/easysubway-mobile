@@ -37,6 +37,7 @@ import '../features/route_draft/domain/route_draft.dart';
 import '../features/stations/presentation/station_detail_body.dart';
 import '../features/stations/presentation/station_detail_screen.dart';
 import '../features/stations/presentation/station_line_badges.dart';
+import '../features/stations/presentation/station_timetable_screen.dart';
 import '../mobile_error_reporter.dart';
 import '../features/stations/domain/station_models.dart';
 import '../features/stations/domain/station_line.dart';
@@ -156,12 +157,12 @@ class NetworkMapScreen extends StatefulWidget {
   final Widget? bottomNavigationBar;
 
   /// 풀페이지 검색 결과를 노선도에 전달하는 채널. 역 ID뿐 아니라 노선 정보를
-  /// 보존해 팬 메뉴와 해당 역 하단 정보 패널을 함께 갱신한다.
+  /// 보존해 역 말풍선과 해당 역 하단 정보 패널을 함께 갱신한다.
   final StationSearchResult? focusStationRequest;
 
   /// #2109 풀페이지 검색(햄버거 메뉴 경유) 결과 탭으로 반환된 역 id. 설정되면
-  /// 노선도가 그 역으로 카메라를 이동하고 팬 메뉴를 띄운다. 임베디드 검색의
-  /// _searchFanMenuStationId와 같은 메커니즘을 재사용한다.
+  /// 노선도가 그 역으로 카메라를 이동하고 역 말풍선을 띄운다. 임베디드 검색의
+  /// _searchPopoverStationId와 같은 메커니즘을 재사용한다.
   final String? focusStationRequestId;
 
   /// [focusStationRequestId]를 소비했음을 부모에게 알린다(같은 id로 재요청되지
@@ -188,9 +189,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       const NetworkMapNearbyPanelData<StationSearchResult>.idle();
   String? _nearbySelectedStationId;
   String? _nearbySelectedLineId;
-  // #2109: 인플레이스 검색 결과 탭으로 연 팬 메뉴의 대상 역 id. 캔버스의
-  // selectedStationId(팬 메뉴)와 focusedStationId(카메라 이동)에 함께 실린다.
-  String? _searchFanMenuStationId;
+  // #2109: 인플레이스 검색 결과 탭으로 연 역 말풍선의 대상 역 id. 캔버스의
+  // selectedStationId(역 말풍선)와 focusedStationId(카메라 이동)에 함께 실린다.
+  String? _searchPopoverStationId;
   bool _preserveFocusedStationScale = false;
   String? _nearbyLookupMessage;
   Timer? _nearbyLookupMessageTimer;
@@ -328,8 +329,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 
   /// #2109 Fix: 풀페이지 검색(햄버거 메뉴 경유) 결과 탭으로 반환된
-  /// [NetworkMapScreen.focusStationRequestId]를 인플레이스 검색과 같은 팬 메뉴
-  /// 채널(_searchFanMenuStationId)로 수렴시킨다. 부모([onFocusStationRequestHandled])의
+  /// [NetworkMapScreen.focusStationRequestId]를 인플레이스 검색과 같은 역 말풍선
+  /// 채널(_searchPopoverStationId)로 수렴시킨다. 부모([onFocusStationRequestHandled])의
   /// setState를 이 build 사이클 안에서 직접 호출하면 "build 중 setState" 예외가
   /// 나므로(부모가 이 위젯을 빌드하는 도중 didUpdateWidget이 실행됨), 다음
   /// 프레임으로 미룬다.
@@ -351,10 +352,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     final requestId = widget.focusStationRequestId;
     if (requestId != null && requestId != oldWidget.focusStationRequestId) {
       setState(() {
-        _searchFanMenuStationId = requestId;
-        // #2109 Fix: 풀페이지 검색으로 팬 메뉴를 여는데 하단 주변 역 패널이 열려
-        // 있던 상태(현재 위치 버튼 → 패널 → 햄버거 검색 → 결과 탭 경로)면 팬 메뉴와
-        // 패널이 동시에 뜨고 bottomNavigationBar도 계속 억제된다. 팬 메뉴로
+        _searchPopoverStationId = requestId;
+        // #2109 Fix: 풀페이지 검색으로 역 말풍선을 여는데 하단 주변 역 패널이 열려
+        // 있던 상태(현재 위치 버튼 → 패널 → 햄버거 검색 → 결과 탭 경로)면 역 말풍선과
+        // 패널이 동시에 뜨고 bottomNavigationBar도 계속 억제된다. 역 말풍선으로
         // 수렴하므로 주변 역 패널을 함께 닫아 상호배제한다.
         _resetNearbyPanelState();
       });
@@ -402,7 +403,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 
   /// #2109 일반(비픽) 모드의 인플레이스 검색 결과 탭: 검색을 닫고 해당 역으로
-  /// 카메라를 이동한 뒤 부채꼴 팬 메뉴와 해당 역 하단 정보 패널을 띄운다.
+  /// 카메라를 이동한 뒤 역 말풍선과 해당 역 하단 정보 패널을 띄운다.
   void _focusStationFromSearch(
     StationSearchResult result,
     StationSearchLine? line,
@@ -477,7 +478,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         _nearbyRealtimeInFlightGeneration = null;
         _nearbyTimetableInFlightGeneration = null;
       }
-      _searchFanMenuStationId = station.id;
+      _searchPopoverStationId = station.id;
       _preserveFocusedStationScale = preserveFocusedStationScale;
     });
     if (request != null && selectedLine != null) {
@@ -532,11 +533,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     return null;
   }
 
-  /// #2200 캔버스에서 역을 탭하면(팬 메뉴는 canvas가 이미 띄운다) 그 역을
+  /// #2200 캔버스에서 역을 탭하면(역 말풍선은 canvas가 이미 띄운다) 그 역을
   /// 검색과 동일한 방식([StationSearchRepository.searchStations])으로
   /// [StationSearchResult]로 해석해 [_openNearbyStationPanel]로 하단 역 정보
   /// 패널을 연다. 해석에 실패하면(저장소 없음·데이터 없음) 패널을 열지 않고
-  /// canvas가 띄운 팬 메뉴만 유지한다. 신원 해석 await는 허용되며, 해석 후
+  /// canvas가 띄운 역 말풍선만 유지한다. 신원 해석 await는 허용되며, 해석 후
   /// 데이터 로드는 fire-and-forget이다.
   Future<void> _handleCanvasStationTapped(NetworkMapStation station) async {
     final repository = widget.stationSearchRepository;
@@ -553,7 +554,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         stackTrace,
         context: '노선도 역 탭 패널 해석 중 예외가 발생했습니다.',
       );
-      // 해석 실패 → 팬 메뉴만 유지(패널 없음).
+      // 해석 실패 → 역 말풍선만 유지(패널 없음).
       return;
     }
     if (!mounted || token != _canvasTapPanelToken) {
@@ -563,7 +564,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         .where((result) => result.id == station.id)
         .firstOrNull;
     if (match == null) {
-      // 데이터 없음 → 팬 메뉴만 유지(크래시·빈 패널 금지).
+      // 데이터 없음 → 역 말풍선만 유지(크래시·빈 패널 금지).
       return;
     }
     final preferredLine = match.lines
@@ -572,14 +573,14 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     _openNearbyStationPanel(match, preferredLine: preferredLine);
   }
 
-  /// #2109 검색 결과 탭으로 연 팬 메뉴가 닫히면(액션 선택·닫기·배경 탭·팬) 이
+  /// #2109 검색 결과 탭으로 연 역 말풍선이 닫히면(액션 선택·닫기·배경 탭·팬) 이
   /// 화면이 들고 있는 대상 역 id도 비운다. 그러지 않으면 canvas의
-  /// selectedStationId prop이 계속 팬 메뉴를 다시 띄운다.
-  void _dismissSearchFanMenu() {
-    if (_searchFanMenuStationId == null) {
+  /// selectedStationId prop이 계속 역 말풍선을 다시 띄운다.
+  void _dismissSearchPopover() {
+    if (_searchPopoverStationId == null) {
       return;
     }
-    setState(() => _searchFanMenuStationId = null);
+    setState(() => _searchPopoverStationId = null);
   }
 
   /// 상단바 편집 필드의 제출(엔터/검색 액션)을 검색 세션으로 위임한다.
@@ -831,12 +832,20 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                     data: data,
                     initialViewport: loadResult.initialViewport,
                     focusedStationId:
-                        _searchFanMenuStationId ?? _nearbySelectedStationId,
+                        _searchPopoverStationId ?? _nearbySelectedStationId,
                     preserveFocusedStationScale: _preserveFocusedStationScale,
-                    selectedStationId: _searchFanMenuStationId,
+                    selectedStationId: _searchPopoverStationId,
                     selectionClearRevision: _selectionClearRevision,
-                    onSelectionDismissed: _dismissSearchFanMenu,
+                    onSelectionDismissed: _dismissSearchPopover,
                     onStationTapped: _handleCanvasStationTapped,
+                    onOpenStationRealtime: _nearbyPanelHasStation
+                        ? _openNearbyRealtime
+                        : null,
+                    onOpenStationTimetable: _nearbyPanelHasStation
+                        ? () => _openNearbyStationTimetable(
+                            _adjacentStationsFor(data),
+                          )
+                        : null,
                     originStationId:
                         widget.routeDraftController.draft.origin?.id,
                     waypointStationId:
@@ -868,13 +877,13 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     );
   }
 
-  Future<void> _showNearestStationFanMenu() async {
+  Future<void> _showNearestStationPopover() async {
     final requestToken = ++_nearestStationRequestToken;
     _nearbyLookupMessageTimer?.cancel();
     _nearbyLookupMessageTimer = null;
     setState(() {
       _nearbyLookupMessage = null;
-      _searchFanMenuStationId = null;
+      _searchPopoverStationId = null;
       _selectionClearRevision++;
       _resetNearbyPanelState();
       _nearbyPanelData =
@@ -1400,19 +1409,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       if (_nearbyRealtimeRequestInFlight) {
         return;
       }
-      final request = NearbyPanelRequestKey(
-        stationId: station.id,
-        lineId: line.id,
-        generation: ++_nearbyDataRequestToken,
-      );
-      setState(() {
-        _markNearbyRealtimeInFlight(request);
-        // generation을 올린 뒤 반대 채널 이전 요청은 무효 — 고아 in-flight로
-        // 재요청이 영구 스킵되지 않게 플래그를 함께 정리한다.
-        _nearbyTimetableRequestInFlight = false;
-        _nearbyTimetableInFlightGeneration = null;
-      });
-      unawaited(_loadNearbyRealtime(station, line, request: request));
+      _requestNearbyRealtime(station, line);
       return;
     }
     if (_nearbyTimetableDisplayMatchesCurrent()) {
@@ -1434,10 +1431,68 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     unawaited(_loadNearbyTimetable(station, line, request: request));
   }
 
-  void _selectNearbyTimetable() {
-    if (_nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime) {
+  void _requestNearbyRealtime(
+    StationSearchResult station,
+    StationSearchLine line,
+  ) {
+    final request = NearbyPanelRequestKey(
+      stationId: station.id,
+      lineId: line.id,
+      generation: ++_nearbyDataRequestToken,
+    );
+    setState(() {
+      _markNearbyRealtimeInFlight(request);
+      // generation을 올린 뒤 반대 채널 이전 요청은 무효 — 고아 in-flight로
+      // 재요청이 영구 스킵되지 않게 플래그를 함께 정리한다.
+      _nearbyTimetableRequestInFlight = false;
+      _nearbyTimetableInFlightGeneration = null;
+    });
+    unawaited(_loadNearbyRealtime(station, line, request: request));
+  }
+
+  /// 실시간 줄의 새로고침. 같은 역·노선을 다시 받는다. 받는 중이면 겹쳐 보내지 않는다.
+  void _refreshNearbyRealtime() {
+    final station = _nearbyPanelData.results.firstOrNull;
+    final line = station?.lines
+        .where((candidate) => candidate.id == _nearbySelectedLineId)
+        .firstOrNull;
+    if (station == null || line == null || _nearbyRealtimeRequestInFlight) {
+      return;
+    }
+    _requestNearbyRealtime(station, line);
+  }
+
+  bool get _nearbyPanelHasStation =>
+      _nearbyPanelVisible && _nearbyPanelData.results.isNotEmpty;
+
+  /// 역 말풍선의 실시간. 하단 패널을 실시간으로 바꾸고 역 상세로 펼친다.
+  void _openNearbyRealtime() {
+    if (_nearbyDataSource != NetworkMapNearbyPanelDataSource.realtime) {
       _toggleNearbyDataSource();
     }
+    _nearbyStationDetailAction?.call();
+  }
+
+  /// 방면 카드·역 말풍선의 전체 시간표. 역 상세 하단 줄과 같은 역 시간표 화면을 연다.
+  void _openNearbyStationTimetable(NearbyAdjacentStations adjacent) {
+    final station = _nearbyPanelData.results.firstOrNull;
+    if (station == null) {
+      return;
+    }
+    unawaited(
+      Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => StationTimetableScreen(
+            stationId: station.id,
+            stationName: station.nameKo,
+            lines: station.lines,
+            repository: widget.timetableRepository,
+            previousStation: adjacent.leftName,
+            nextStation: adjacent.rightName,
+          ),
+        ),
+      ),
+    );
   }
 
   void _hideNearbyPanel() {
@@ -1464,7 +1519,12 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (stationRepository == null || reportRepository == null) {
       return;
     }
-    setState(() => _nearbyPanelExpanded = true);
+    // 펼친 역 상세가 지도를 덮으므로 그 뒤의 역 말풍선은 닫는다.
+    setState(() {
+      _nearbyPanelExpanded = true;
+      _searchPopoverStationId = null;
+      _selectionClearRevision++;
+    });
   }
 
   /// 확장 패널 이전/다음 역 탭. 패널 역을 바꾸고 확장을 유지한다.
@@ -1569,18 +1629,18 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     _dismissNearbyPanelForDraft();
   }
 
-  /// #2200 팬 메뉴로 출발/경유/도착 슬롯을 지정하면 OD 경로 편집 모드로 넘어가므로
+  /// #2200 역 말풍선으로 출발/경유/도착 슬롯을 지정하면 OD 경로 편집 모드로 넘어가므로
   /// #2200에서 역 탭과 함께 열린 단일 역 정보 패널을 닫는다(검색 모드가 draft
-  /// 변경 시 닫히는 것과 같은 상호배제). 캔버스 팬 메뉴 대상 역 id도 함께 비워
-  /// 다음 프레임 rebuild가 패널을 되살리지 않게 한다. 패널·팬 메뉴가 이미 없으면
+  /// 변경 시 닫히는 것과 같은 상호배제). 캔버스 역 말풍선 대상 역 id도 함께 비워
+  /// 다음 프레임 rebuild가 패널을 되살리지 않게 한다. 패널·역 말풍선이 이미 없으면
   /// 불필요한 setState를 피한다.
   void _dismissNearbyPanelForDraft() {
-    if (!_nearbyPanelVisible && _searchFanMenuStationId == null) {
+    if (!_nearbyPanelVisible && _searchPopoverStationId == null) {
       return;
     }
     setState(() {
       _canvasTapPanelToken++;
-      _searchFanMenuStationId = null;
+      _searchPopoverStationId = null;
       _resetNearbyPanelState();
     });
   }
@@ -1690,7 +1750,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       nearbyPanelExpanded: _nearbyPanelExpanded,
       nearbyPanel: _buildNetworkMapNearbyStationPanel(adjacentStations),
       nearbyLookupMessage: _nearbyLookupMessage,
-      onCurrentLocationTap: _showNearestStationFanMenu,
+      onCurrentLocationTap: _showNearestStationPopover,
       child: child,
     );
   }
@@ -1751,12 +1811,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             onTap: () => _selectNearbyLine(line),
           ),
       ],
-      dataSourceToggle: NearbyDataSourceToggle(
-        isRealtime:
-            _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime,
-        enabled: dataSourceToggleEnabled,
-        onToggle: _toggleNearbyDataSource,
-      ),
       onClose: _hideNearbyPanel,
       surfaceColor: EasySubwayAccessibleColors.surfaceDefault,
       borderColor: EasySubwayAccessibleColors.borderSubtle,
@@ -1774,7 +1828,14 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
               ? null
               : _nearbyStationDetailAction,
           onSelectNeighbor: _selectNearbyNeighborStation,
-          onSelectTimetable: _selectNearbyTimetable,
+          onOpenTimetable: () => _openNearbyStationTimetable(adjacentStations),
+          dataSourceToggle: NearbyDataSourceToggle(
+            isRealtime:
+                _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime,
+            enabled: dataSourceToggleEnabled,
+            onToggle: _toggleNearbyDataSource,
+          ),
+          onRefreshRealtime: _refreshNearbyRealtime,
         ),
       ),
       expandedDetail: expandedDetail,

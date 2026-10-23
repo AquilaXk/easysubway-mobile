@@ -182,4 +182,39 @@ void main() {
       expect(spans.first.style!.color, isNot(spans.last.style!.color));
     });
   });
+
+  testWidgets('행 구분선은 1 논리 픽셀 선이라 소수점 위치에서도 남는다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StationSearchBody(
+            state: StationSearchState(
+              status: StationSearchStatus.success,
+              results: [
+                _station('a', '가', const []),
+                _station('b', '나', const []),
+              ],
+            ),
+            query: '',
+            onResultTap: (_, _) {},
+          ),
+        ),
+      ),
+    );
+
+    final borders = tester
+        .widgetList<DecoratedBox>(
+          find.descendant(
+            of: find.byKey(const Key('stationSearchResult-a-none')),
+            matching: find.byType(DecoratedBox),
+          ),
+        )
+        .map((box) => box.decoration)
+        .whereType<BoxDecoration>()
+        .map((decoration) => decoration.border)
+        .whereType<Border>()
+        .toList();
+    expect(borders.first.bottom.width, 1);
+    expect(borders.first.bottom.color, EasySubwayAccessibleColors.line);
+  });
 }

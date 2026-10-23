@@ -1,6 +1,5 @@
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,7 +120,7 @@ void main() {
     expect(violations.single, contains('흰색도 노선색도 아닌'));
   });
 
-  group('방면 제목의 노선색 이름은 노선과 관계없이 700이다', () {
+  group('흰 바탕 위 노선색 글자의 700은 노선과 관계없이 통과한다', () {
     Future<List<String>> titleViolations(
       WidgetTester tester,
       Color color,
@@ -129,7 +128,13 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
-            body: NearbyDirectionTitle(label: '금정 방면', lineColor: color),
+            body: Text(
+              '금정',
+              style: TextStyle(
+                color: color,
+                fontWeight: EasySubwayFontWeight.boldForContrast,
+              ),
+            ),
           ),
         ),
       );

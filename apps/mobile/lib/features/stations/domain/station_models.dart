@@ -500,11 +500,6 @@ class StationExitInfo {
 
   bool get hasCoordinate => latitude != null && longitude != null;
 
-  /// 연결 여부 컬럼은 모름과 없음을 가르지 못하므로 연결이 확인된 경우에만 읽는다.
-  String? get elevatorConnectionLabel {
-    return hasElevatorConnection ? '엘리베이터 연결' : null;
-  }
-
   String? get stairPathLabel {
     return switch (hasStairOnlyPath) {
       StairOnlyPathStatus.present => '계단만 있는 길 있음',
@@ -528,10 +523,6 @@ class StationExitInfo {
     final desc = description.trim();
     if (desc.isNotEmpty) {
       parts.add(desc);
-    }
-    final elevatorLabel = elevatorConnectionLabel;
-    if (elevatorLabel != null) {
-      parts.add(elevatorLabel);
     }
     final stairLabel = stairPathLabel;
     if (stairLabel != null) {

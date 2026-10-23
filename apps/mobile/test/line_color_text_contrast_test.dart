@@ -64,20 +64,11 @@ void main() {
     });
   });
 
-  group('주변역 패널 방면 제목', () {
-    for (final lineName in const ['1호선', '2호선', '6호선', '신분당선', '공항철도']) {
-      testWidgets('$lineName 노선색 이름이 흰 바탕에서 대비 기준을 지킨다', (tester) async {
-        await expectHostTextContrast(
-          tester,
-          Center(
-            child: NearbyDirectionTitle(
-              label: '금정 방면',
-              lineColor: _lineColor(lineName),
-            ),
-          ),
-        );
-      });
-    }
+  testWidgets('주변역 패널 방면 제목은 검정 글자라 대비 기준을 지킨다', (tester) async {
+    await expectHostTextContrast(
+      tester,
+      const Center(child: NearbyDirectionTitle(label: '금정 방면')),
+    );
   });
 
   group('LineMark 안 흰 글자', () {

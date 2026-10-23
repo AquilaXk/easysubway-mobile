@@ -34,3 +34,54 @@ String? tryFormatServerDateTime(String raw, {required DateTime now}) {
   final parsed = parseServerDateTime(raw);
   return parsed == null ? null : formatListDateTime(parsed, now: now);
 }
+
+DateTime _kst(DateTime instant) =>
+    instant.toUtc().add(const Duration(hours: 9));
+
+/// 서울 표준시(KST) `HH:mm`.
+String kstTime(DateTime instant) {
+  final value = _kst(instant);
+  return '${value.hour.toString().padLeft(2, '0')}:'
+      '${value.minute.toString().padLeft(2, '0')}';
+}
+
+const _hoursPerHalfDay = 12;
+
+(String, int) _halfDayHour(DateTime instant) {
+  final hour = _kst(instant).hour;
+  final twelve = hour % _hoursPerHalfDay == 0
+      ? _hoursPerHalfDay
+      : hour % _hoursPerHalfDay;
+  return (hour < _hoursPerHalfDay ? '오전' : '오후', twelve);
+}
+
+/// 서울 표준시 12시간제 `오전 5:11`. 자정 시는 `오전 12:36`이다.
+String kstClock(DateTime instant) {
+  final (half, hour) = _halfDayHour(instant);
+  return '$half $hour:${_kst(instant).minute.toString().padLeft(2, '0')}';
+}
+
+/// 스크린리더용 `오전 5시 11분`.
+String kstSpokenClock(DateTime instant) {
+  final (half, hour) = _halfDayHour(instant);
+  return '$half $hour시 ${_kst(instant).minute}분';
+}
+
+/// 목록 행 끝의 짧은 날짜. 올해는 `10. 24.`, 다른 해는 `2025. 12. 31.`이다.
+String formatShortDate(DateTime value, {required DateTime now}) {
+  final local = value.toLocal();
+  final monthDay = '${local.month}. ${local.day}.';
+  return local.year == now.toLocal().year
+      ? monthDay
+      : '${local.year}. $monthDay';
+}
+
+/// [formatShortDate]의 스크린리더 표현. 올해는 `10월 24일`, 다른 해는
+/// `2025년 12월 31일`이다.
+String formatSpokenDate(DateTime value, {required DateTime now}) {
+  final local = value.toLocal();
+  final monthDay = '${local.month}월 ${local.day}일';
+  return local.year == now.toLocal().year
+      ? monthDay
+      : '${local.year}년 $monthDay';
+}
