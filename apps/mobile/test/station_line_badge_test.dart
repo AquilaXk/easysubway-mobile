@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
@@ -343,4 +344,98 @@ void main() {
       expect(find.text('4'), findsOneWidget);
     },
   );
+
+  // 번들 PNG 마크, 알약 마크, +N 마크는 한 변이 같다. 기대값은 상수로 계산하지
+  // 않고 값 그대로 적어 상한이 바뀌면 이 표가 먼저 깨진다.
+  Future<void> pumpMarkRow(
+    WidgetTester tester, {
+    required double scale,
+    double? maxTextScale,
+  }) async {
+    const png = StationSearchLine(
+      id: 'seoul-2',
+      name: '수도권 2호선',
+      color: '#00A84D',
+      stationCode: '239',
+    );
+    const pill = StationSearchLine(
+      id: 'unbundled-pill',
+      name: '수도권 가상선',
+      color: '#77C4A3',
+      stationCode: 'X01',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Row(
+            children: [
+              StationLineBadge(line: png, size: 20, maxTextScale: maxTextScale),
+              StationLineBadge(
+                line: pill,
+                size: 20,
+                maxTextScale: maxTextScale,
+              ),
+              StationLineBadges(
+                lines: const [png, png, png],
+                size: 20,
+                maxBadgeCount: 2,
+                maxTextScale: maxTextScale,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void expectMarkSides(WidgetTester tester, double side) {
+    expect(
+      tester.getSize(find.byKey(const Key('stationLineBadge-seoul-2')).first),
+      Size.square(side),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const Key('stationLineBadge-unbundled-pill')))
+          .height,
+      side,
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('stationLineBadgeOverflow'))),
+      Size.square(side),
+    );
+  }
+
+  for (final (scale, side) in [(1.0, 20.0), (1.5, 30.0), (2.0, 40.0)]) {
+    testWidgets('상한 없는 마크는 글자 $scale배에서 PNG·알약·+N이 한 변 $side다', (tester) async {
+      await pumpMarkRow(tester, scale: scale);
+
+      expectMarkSides(tester, side);
+    });
+  }
+
+  for (final (scale, side) in [(1.0, 20.0), (1.5, 26.0), (2.0, 26.0)]) {
+    testWidgets('고정 칸 마크는 글자 $scale배에서 PNG·알약·+N이 한 변 $side로 멈춘다', (
+      tester,
+    ) async {
+      await pumpMarkRow(
+        tester,
+        scale: scale,
+        maxTextScale: lineMarkFixedChromeMaxTextScale,
+      );
+
+      expectMarkSides(tester, side);
+    });
+  }
+
+  test('원 마크 규칙은 한 글자 라벨만 원으로 본다', () {
+    expect(isLineMarkCircle('2'), isTrue);
+    expect(isLineMarkCircle('경의중앙'), isFalse);
+    expect(isLineMarkCircle(''), isTrue);
+  });
 }

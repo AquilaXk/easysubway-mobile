@@ -6,8 +6,6 @@ import '../accessible_design.dart';
 import '../features/route_draft/application/route_draft_controller.dart';
 import '../features/route_draft/domain/route_draft.dart';
 import '../features/stations/application/station_search_controller.dart';
-import '../features/stations/domain/station_line.dart';
-import '../features/stations/domain/station_models.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/stations/presentation/station_recent_search_section.dart';
 import '../features/stations/presentation/station_search_body.dart';
@@ -25,7 +23,6 @@ class NetworkMapSearchSession extends StatefulWidget {
     required this.searchQueryController,
     required this.stationSearchRepository,
     required this.searchHistoryRepository,
-    this.favoriteRepository,
     required this.routeDraftController,
     required this.regionLabel,
   });
@@ -34,7 +31,6 @@ class NetworkMapSearchSession extends StatefulWidget {
   final TextEditingController searchQueryController;
   final StationSearchRepository stationSearchRepository;
   final SearchHistoryRepository? searchHistoryRepository;
-  final FavoriteStationRepository? favoriteRepository;
   final RouteDraftController routeDraftController;
   final String regionLabel;
 
@@ -48,7 +44,6 @@ class NetworkMapSearchSessionState extends State<NetworkMapSearchSession> {
   Timer? _searchDebounce;
   List<RecentSearchEntry> _searchRecentEntries = const [];
   bool _searchRecentEntriesReady = false;
-  Set<String> _favoriteKeys = const <String>{};
 
   /// 최근↔결과 레이아웃만 전환. 글자마다 결과 목록을 다시 그리지 않는다.
   bool _layoutHasSearchQuery = false;
@@ -69,7 +64,6 @@ class NetworkMapSearchSessionState extends State<NetworkMapSearchSession> {
     );
     _queryController.addListener(_handleSearchQueryChanged);
     unawaited(_loadSearchRecentEntries());
-    unawaited(_loadFavoriteStationIds());
     unawaited(
       warmStationSearchCacheIfSupported(widget.stationSearchRepository),
     );
@@ -282,85 +276,11 @@ class NetworkMapSearchSessionState extends State<NetworkMapSearchSession> {
     }
   }
 
-  Future<void> _loadFavoriteStationIds() async {
-    final repository = widget.favoriteRepository;
-    if (repository == null) {
-      return;
-    }
-    try {
-      final favorites = await repository.listFavoriteStations();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _favoriteKeys = {
-          for (final favorite in favorites)
-            favoriteStationLineKey(favorite.stationId, favorite.lineId),
-        };
-      });
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '노선도 검색 즐겨찾기 조회 중 예외가 발생했습니다.',
-      );
-    }
-  }
-
-  Future<void> _toggleFavoriteStation(
-    StationSearchResult result,
-    StationSearchLine? line,
-  ) async {
-    final repository = widget.favoriteRepository;
-    if (repository == null) {
-      return;
-    }
-    final stationId = result.id;
-    final lineId = line?.id;
-    final key = favoriteStationLineKey(stationId, lineId);
-    final removing = isFavoriteStationLine(_favoriteKeys, stationId, lineId);
-    try {
-      if (removing) {
-        await repository.removeFavoriteStation(stationId, lineId: lineId);
-      } else {
-        await repository.saveFavoriteStation(stationId, lineId: lineId);
-      }
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        final next = Set<String>.from(_favoriteKeys);
-        // 레거시 역 전체 키가 있으면 구체 호선 키로 정리한다.
-        next.remove(favoriteStationLineKey(stationId, ''));
-        if (removing) {
-          next.remove(key);
-        } else {
-          next.add(key);
-        }
-        _favoriteKeys = next;
-      });
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '노선도 검색 즐겨찾기 변경 중 예외가 발생했습니다.',
-      );
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(removing ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기를 추가하지 못했어요.'),
-        ),
-      );
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     // 검색어/결과 상태 변화는 setState 없이 AnimatedBuilder만 갱신한다.
     // searching·여백·배경은 builder 안에서 읽어야 한다. 바깥 build 클로저에
-    // 묶으면 타이핑 때는 여백이 남고 즐겨찾기 setState 때만 풀블리드로
+    // 묶으면 타이핑 때는 여백이 남고 다른 setState 때만 풀블리드로
     // 바뀌어 화면이 갑자기 넓어진다.
     // 결과 목록은 검색 컨트롤러만 구독한다. queryController를 묶으면
     // 한글 조합 글자마다 배지·행 전체를 다시 그려 입력 자체가 버벅인다.
@@ -401,11 +321,7 @@ class NetworkMapSearchSessionState extends State<NetworkMapSearchSession> {
                   StationSearchBody(
                     state: state,
                     query: _highlightQuery,
-                    favoriteKeys: _favoriteKeys,
                     onResultTap: widget.onResultFocus,
-                    onToggleFavorite: widget.favoriteRepository == null
-                        ? null
-                        : _toggleFavoriteStation,
                   ),
                 ],
               );

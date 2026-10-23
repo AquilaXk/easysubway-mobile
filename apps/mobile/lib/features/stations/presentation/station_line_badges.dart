@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/ui/line_mark.dart';
 import '../domain/station_line.dart';
 
 class StationLineBadges extends StatelessWidget {
@@ -8,12 +9,16 @@ class StationLineBadges extends StatelessWidget {
     required this.lines,
     this.size = 40,
     this.maxBadgeCount,
+    this.runSpacing = 8,
+    this.maxTextScale,
     super.key,
   });
 
   final List<StationSearchLine> lines;
   final double size;
   final int? maxBadgeCount;
+  final double runSpacing;
+  final double? maxTextScale;
 
   @override
   Widget build(BuildContext context) {
@@ -30,35 +35,50 @@ class StationLineBadges extends StatelessWidget {
 
     return Wrap(
       spacing: 8,
-      runSpacing: 8,
+      runSpacing: runSpacing,
       children: [
         for (final line in lines.take(visibleLineCount))
-          StationLineBadge(line: line, size: size),
+          StationLineBadge(line: line, size: size, maxTextScale: maxTextScale),
         if (hiddenLineCount > 0)
-          _StationLineOverflowBadge(count: hiddenLineCount, size: size),
+          _StationLineOverflowBadge(
+            count: hiddenLineCount,
+            size: size,
+            maxTextScale: maxTextScale,
+          ),
       ],
     );
   }
 }
 
 class StationLineBadge extends StatelessWidget {
-  const StationLineBadge({required this.line, this.size = 40, super.key});
+  const StationLineBadge({
+    required this.line,
+    this.size = 40,
+    this.maxTextScale,
+    super.key,
+  });
 
   final StationSearchLine line;
   final double size;
+  final double? maxTextScale;
 
   @override
   Widget build(BuildContext context) {
     final badgeText = line.badgeText;
-    final isSingleChar = badgeText.length <= 1;
     final assetPath = line.badgeAssetPath;
 
-    if (isSingleChar && assetPath != null) {
-      final cachePx = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    if (isLineMarkCircle(badgeText) && assetPath != null) {
+      final markSize = scaledLineMarkSize(
+        context,
+        size,
+        maxTextScale: maxTextScale,
+      );
+      final cachePx = (markSize * MediaQuery.devicePixelRatioOf(context))
+          .round();
       final image = Image.asset(
         assetPath,
-        width: size,
-        height: size,
+        width: markSize,
+        height: markSize,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.medium,
         cacheWidth: cachePx,
@@ -66,78 +86,31 @@ class StationLineBadge extends StatelessWidget {
       );
       return SizedBox(
         key: Key('stationLineBadge-${line.id}'),
-        width: size,
-        height: size,
+        width: markSize,
+        height: markSize,
         child: stationLineBadgeNeedsRoundedCorners(assetPath)
             ? ClipRRect(
-                borderRadius: BorderRadius.all(Radius.circular(size * 0.16)),
+                borderRadius: BorderRadius.all(
+                  Radius.circular(markSize * 0.16),
+                ),
                 child: image,
               )
             : image,
       );
     }
 
-    final backgroundColor = line.badgeColor;
-    final foregroundColor = stationLineTextColor(backgroundColor);
-    final scale = size / 40;
-
-    if (isSingleChar) {
-      final badgeFontSize = RegExp(r'^\d+$').hasMatch(badgeText)
-          ? 25.0 * scale
-          : 15.0 * scale;
-
-      return Container(
-        key: Key('stationLineBadge-${line.id}'),
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          shape: BoxShape.circle,
-        ),
-        child: Text(
-          badgeText,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: foregroundColor,
-            fontSize: badgeFontSize,
-            fontWeight: FontWeight.w800,
-            height: 1.05,
-          ),
-        ),
-      );
-    }
-
-    final badgeFontSize = 13.0 * scale;
-    final horizontalPadding = 8.0 * scale;
-
-    return Container(
+    return LineMark(
       key: Key('stationLineBadge-${line.id}'),
-      height: size,
-      constraints: BoxConstraints(minWidth: size),
-      alignment: Alignment.center,
-      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(size / 2),
-      ),
-      child: Text(
-        badgeText,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: foregroundColor,
-          fontSize: badgeFontSize,
-          fontWeight: FontWeight.bold,
-          height: 1.05,
-        ),
-      ),
+      label: badgeText,
+      color: line.badgeColor,
+      size: size,
+      maxTextScale: maxTextScale,
     );
   }
 }
 
-/// 호선 선택 탭. [StationLineBadge]와 동일 마크에 선택 밑줄만 얹는다.
+/// 호선 선택 탭. [StationLineBadge]와 동일 마크에 선택 밑줄만 얹는다. 탭 줄 높이가
+/// 48로 정해져 있어 마크는 [lineMarkFixedChromeMaxTextScale]에서 멈춘다.
 class StationLineBadgeTab extends StatelessWidget {
   const StationLineBadgeTab({
     required this.line,
@@ -154,7 +127,7 @@ class StationLineBadgeTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isSingleChar = line.badgeText.length <= 1;
+    final isSingleChar = isLineMarkCircle(line.badgeText);
 
     return Semantics(
       button: true,
@@ -174,7 +147,11 @@ class StationLineBadgeTab extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   Center(
-                    child: StationLineBadge(line: line, size: size),
+                    child: StationLineBadge(
+                      line: line,
+                      size: size,
+                      maxTextScale: lineMarkFixedChromeMaxTextScale,
+                    ),
                   ),
                   Positioned(
                     bottom: 2,
@@ -200,17 +177,27 @@ class StationLineBadgeTab extends StatelessWidget {
 }
 
 class _StationLineOverflowBadge extends StatelessWidget {
-  const _StationLineOverflowBadge({required this.count, required this.size});
+  const _StationLineOverflowBadge({
+    required this.count,
+    required this.size,
+    required this.maxTextScale,
+  });
 
   final int count;
   final double size;
+  final double? maxTextScale;
 
   @override
   Widget build(BuildContext context) {
+    final markSize = scaledLineMarkSize(
+      context,
+      size,
+      maxTextScale: maxTextScale,
+    );
     return Container(
       key: const Key('stationLineBadgeOverflow'),
-      width: size,
-      height: size,
+      width: markSize,
+      height: markSize,
       alignment: Alignment.center,
       decoration: BoxDecoration(
         color: EasySubwayAccessibleColors.scaffoldSurface,
@@ -220,9 +207,10 @@ class _StationLineOverflowBadge extends StatelessWidget {
       child: Text(
         '+$count',
         textAlign: TextAlign.center,
+        textScaler: TextScaler.noScaling,
         style: Theme.of(context).textTheme.labelLarge?.copyWith(
           color: EasySubwayAccessibleColors.mutedText,
-          fontSize: 13 * (size / 32),
+          fontSize: 13 * (markSize / 32),
           fontWeight: FontWeight.w800,
           height: 1.0,
         ),

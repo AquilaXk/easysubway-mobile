@@ -8,7 +8,6 @@ import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_search_screen.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
-import 'package:easysubway_mobile/search_field.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -23,9 +22,7 @@ const _completedOnboardingState = OnboardingState.completed(
 );
 
 void main() {
-  testWidgets('#2083 역 검색 화면은 홈 편집 모드와 같은 40px 시각 박스·중앙 정렬 입력 필드를 렌더한다', (
-    tester,
-  ) async {
+  testWidgets('#2083 역 검색 화면은 48px 시각 박스·중앙 정렬 입력 필드를 렌더한다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: StationSearchScreen(
@@ -38,10 +35,10 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 홈 편집 모드와 동일한 공용 시각 박스(40px)를 렌더한다.
+    // 흰 상단바 안 외곽선 필드는 48px 시각 박스를 렌더한다.
     expect(
       tester.getSize(find.byKey(const Key('heroStationSearchInputBox'))).height,
-      easySubwaySearchFieldVisualHeight,
+      48.0,
     );
 
     // pickSlot별 힌트가 placeholder(이자 TalkBack 라벨)로 렌더된다. #2083 오너
@@ -104,6 +101,68 @@ void main() {
     // 뒤로가기 버튼과 검색 입력창이 정상 존재해야 함
     expect(find.byKey(const Key('stationSearchBackButton')), findsOneWidget);
     expect(find.byKey(const Key('heroStationSearchInputBox')), findsOneWidget);
+  });
+
+  testWidgets('역 검색 상단바는 흰 배경이고 뒤로가기가 필드 안에, 지우기는 채운 원 아이콘이다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: StationSearchScreen(
+          repository: _EmptyStationSearchRepository(),
+          reportRepository: const UnavailableFacilityReportRepository(),
+          regionLabel: '수도권',
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    final appBar = tester.widget<Material>(
+      find.byKey(const Key('stationSearchAppBar')),
+    );
+    expect(appBar.color, EasySubwayAccessibleColors.surface);
+
+    final fieldRect = tester.getRect(
+      find.byKey(const Key('heroStationSearchInputBox')),
+    );
+    final backRect = tester.getRect(
+      find.byKey(const Key('stationSearchBackButton')),
+    );
+    expect(fieldRect.contains(backRect.center), isTrue);
+
+    expect(find.byIcon(Icons.cancel), findsNothing);
+    await tester.enterText(find.byKey(const Key('stationSearchInput')), '노');
+    await tester.pumpAndSettle();
+    expect(find.byIcon(Icons.cancel), findsOneWidget);
+    expect(find.byIcon(Icons.close), findsNothing);
+  });
+
+  testWidgets('역 검색 뒤로가기를 누르면 검색 화면이 닫힌다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => StationSearchScreen(
+                  repository: _EmptyStationSearchRepository(),
+                  reportRepository: const UnavailableFacilityReportRepository(),
+                  regionLabel: '수도권',
+                ),
+              ),
+            ),
+            child: const Text('검색 열기'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('검색 열기'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('stationSearchScreen')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('stationSearchBackButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('stationSearchScreen')), findsNothing);
+    expect(find.text('검색 열기'), findsOneWidget);
   });
 
   testWidgets('역 검색어를 지우면 결과를 닫고 최근 검색 상태로 돌아간다', (tester) async {

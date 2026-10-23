@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -9,6 +8,8 @@ import '../../get_off_alarm/get_off_alarm_port.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
+import '../../stations/domain/station_line.dart';
+import '../../../core/ui/line_mark.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import '../domain/transfer_guide.dart';
@@ -29,6 +30,10 @@ enum _JourneyDepartureSelection {
   departureWindow,
   lastConnection,
 }
+
+/// 타임라인 트랙의 원 크기. 글자가 없는 장식이라 시작·탑승·환승·도착 원이 글자
+/// 크기와 무관하게 모두 같다. 노선 마크 글자는 탑승 노드 내용의 LineMark가 그린다.
+const _timelineTrackWidth = 24.0;
 
 class JourneySearchScreen extends StatefulWidget {
   const JourneySearchScreen({
@@ -195,31 +200,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   String _stationName(String stationId) =>
       _resolvedStationNames[stationId] ?? stationId;
-
-  String _lineBadgeNumber(String lineId) {
-    final clean = lineId.replaceAll(RegExp(r'^line-|^seoul-|^korail-'), '');
-    const knownShort = <String, String>{
-      'gyeongui-jungang': '경의',
-      'suin-bundang': '수인',
-      'shinbundang': '신분',
-      'arex': '공항',
-      'airport': '공항',
-      'gyeongchun': '경춘',
-      'gyeonggang': '경강',
-      'seohae': '서해',
-      'sillim': '신림',
-      'ui-sinseol': '우이',
-      'everline': '용인',
-      'gimpo-gold': '김포',
-    };
-    if (knownShort.containsKey(clean)) {
-      return knownShort[clean]!;
-    }
-    final numMatch = RegExp(r'\d+').firstMatch(clean);
-    if (numMatch != null) return numMatch.group(0)!;
-    if (clean.length > 2) return clean.substring(0, 2);
-    return clean;
-  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -451,12 +431,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     required Color departureColor,
     required Color arrivalColor,
   }) {
-    // 큰 글자 설정에서 노선 배지 텍스트가 잘리지 않도록 트랙 폭과 배지를 함께 키운다.
-    // 1.0배에서는 24dp 그대로다.
-    final trackWidth = math.max(
-      24.0,
-      MediaQuery.textScalerOf(context).scale(24),
-    );
     final Widget marker;
     final Widget content;
     var trackColor = EasySubwayAccessibleColors.line;
@@ -474,36 +448,24 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         final lineColor = journeyLineColor(node.lineId);
         trackColor = lineColor;
         trackThickness = 5;
-        marker = Container(
-          constraints: BoxConstraints(
-            minWidth: trackWidth,
-            minHeight: trackWidth,
-          ),
-          decoration: ShapeDecoration(
-            shape: const CircleBorder(
-              side: BorderSide(
-                color: EasySubwayColorPrimitives.neutralWhite,
-                width: 1.5,
+        marker = SizedBox.square(
+          dimension: _timelineTrackWidth,
+          child: DecoratedBox(
+            decoration: ShapeDecoration(
+              shape: const CircleBorder(
+                side: BorderSide(
+                  color: EasySubwayColorPrimitives.neutralWhite,
+                  width: 1.5,
+                ),
               ),
-            ),
-            color: lineColor,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            _lineBadgeNumber(node.lineId),
-            maxLines: 1,
-            softWrap: false,
-            style: const TextStyle(
-              color: EasySubwayColorPrimitives.neutralWhite,
-              fontWeight: FontWeight.w700,
-              fontSize: 10,
+              color: lineColor,
             ),
           ),
         );
         content = _rideNodeContent(journeyId, node);
       case JourneyTransferNode():
         marker = SizedBox.square(
-          dimension: 24,
+          dimension: _timelineTrackWidth,
           child: DecoratedBox(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -523,7 +485,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         content = _transferNodeContent(node, transferGuideKey);
       case JourneyArrivalNode():
         marker = SizedBox.square(
-          dimension: 24,
+          dimension: _timelineTrackWidth,
           child: DecoratedBox(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -550,7 +512,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              width: trackWidth,
+              width: _timelineTrackWidth,
               // 노드 원·세로 선은 장식이다. 내용은 오른쪽 노드 라벨이 읽는다.
               child: ExcludeSemantics(
                 child: Column(
@@ -583,7 +545,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   Widget _ringMarker(Color color) {
     return SizedBox.square(
-      dimension: 24,
+      dimension: _timelineTrackWidth,
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
@@ -604,22 +566,21 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       label: semanticsLabel,
       child: ExcludeSemantics(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 8,
+              runSpacing: 2,
               children: [
-                Expanded(
-                  child: Text(
-                    stationName,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
+                Text(
+                  stationName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: EasySubwayAccessibleColors.text,
                   ),
                 ),
-                const SizedBox(width: 8),
                 Text(
                   timeLabel,
                   style: const TextStyle(
@@ -654,61 +615,64 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           label: node.semanticsLabel,
           child: ExcludeSemantics(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 8,
+                  runSpacing: 2,
                   children: [
-                    Expanded(
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 2,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        LineMark(
+                          label: stationLineBadgeText(node.lineName),
+                          color: journeyLineColor(node.lineId),
+                        ),
+                        Text(
+                          node.lineName,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: EasySubwayAccessibleColors.text,
+                          ),
+                        ),
+                        if (node.directionLabel case final direction?)
                           Text(
-                            node.lineName,
+                            direction,
                             style: const TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               color: EasySubwayAccessibleColors.text,
                             ),
                           ),
-                          if (node.directionLabel case final direction?)
-                            Text(
-                              direction,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: EasySubwayAccessibleColors.text,
-                              ),
+                        if (node.isExpress)
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: EasySubwayAccessibleColors
+                                  .statusDangerSurface,
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                          if (node.isExpress)
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: EasySubwayAccessibleColors
-                                    .statusDangerSurface,
-                                borderRadius: BorderRadius.circular(4),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
                               ),
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 1,
-                                ),
-                                child: Text(
-                                  '급행',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: EasySubwayAccessibleColors
-                                        .statusDangerContent,
-                                  ),
+                              child: Text(
+                                '급행',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: EasySubwayAccessibleColors
+                                      .statusDangerContent,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
                     Text(
                       '${node.departureTime} 출발',
                       style: const TextStyle(

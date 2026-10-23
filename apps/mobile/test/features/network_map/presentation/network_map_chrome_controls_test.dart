@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:easysubway_mobile/features/ads/ad_slot.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
@@ -305,11 +306,15 @@ void main() {
     final backIcon = tester.widget<Icon>(
       find.descendant(
         of: find.byKey(const Key('networkMapSearchBackButton')),
-        matching: find.byIcon(Icons.arrow_back),
+        matching: find.byIcon(Icons.arrow_back_ios_new),
       ),
     );
-    expect(backIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
+    expect(backIcon.color, EasySubwayAccessibleColors.text);
     expect(find.byType(EasySubwaySearchField), findsOneWidget);
+    expect(
+      tester.widget<Material>(find.byKey(const Key('networkMapTopBar'))).color,
+      EasySubwayAccessibleColors.surface,
+    );
 
     await tester.tap(find.byKey(const Key('networkMapSearchBackButton')));
     expect(searchBackCount, 1);
@@ -355,6 +360,96 @@ void main() {
             w.value == SystemUiOverlayStyle.light,
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'top-bar searchMode는 흰 상단바에 맞춰 SystemUiOverlayStyle.dark 상태바를 지정한다',
+    (tester) async {
+      await tester.pumpWidget(
+        _host(
+          SizedBox(
+            width: 520,
+            child: NetworkMapTopBar(
+              regions: const [NetworkMapRegion(name: '수도권')],
+              selectedRegion: '수도권',
+              searchMode: true,
+              searchQueryController: TextEditingController(),
+              searchFocusNode: FocusNode(),
+              onSearchBack: _noop,
+              onSearchSubmitted: (_) {},
+              onSearchClear: _noop,
+              onMenuTap: _noop,
+              onSearchTap: _noop,
+              onRegionSelected: (_) {},
+              routeDraftListenable: ValueNotifier(0),
+              routeDraft: () => const RouteDraft.empty(),
+              isWaypointRowVisible: () => false,
+              onClearDraft: _noop,
+              onOpenWaypointSlot: _noop,
+              onClearOrigin: _noop,
+              onClearDestination: _noop,
+              onClearWaypoint: _noop,
+              onReorderDraft: (_, _) {},
+              roleColorForSlot: (_) => Colors.black,
+              lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
+            ),
+          ),
+        ),
+      );
+
+      final overlayStyles = tester
+          .widgetList<AnnotatedRegion<SystemUiOverlayStyle>>(
+            find.byWidgetPredicate(
+              (w) => w is AnnotatedRegion<SystemUiOverlayStyle>,
+            ),
+          )
+          .map((region) => region.value);
+      expect(overlayStyles, contains(SystemUiOverlayStyle.dark));
+      expect(overlayStyles, isNot(contains(SystemUiOverlayStyle.light)));
+    },
+  );
+
+  testWidgets('chrome 본문은 idle에서 상단바 아래 10dp 겹쳐 시작하고 검색 모드에서는 옅은 띠 아래서 시작한다', (
+    tester,
+  ) async {
+    const statusBarInset = 24.0;
+
+    Widget shell({required bool searchMode}) {
+      return MediaQuery(
+        data: const MediaQueryData(
+          padding: EdgeInsets.only(top: statusBarInset),
+        ),
+        child: SizedBox(
+          width: 400,
+          height: 560,
+          child: NetworkMapChrome(
+            topBar: const SizedBox(height: easySubwayTopBarContentHeight),
+            disruptionBanner: null,
+            searchMode: searchMode,
+            searchBody: const SizedBox(key: Key('mapTopSearchBody')),
+            nearbyPanelVisible: false,
+            nearbyPanelExpanded: false,
+            nearbyPanel: const SizedBox(),
+            nearbyLookupMessage: null,
+            onCurrentLocationTap: _noop,
+            child: const SizedBox(key: Key('mapTopMapBody')),
+          ),
+        ),
+      );
+    }
+
+    double topOf(Key key) =>
+        tester.getTopLeft(find.byKey(key)).dy -
+        tester.getTopLeft(find.byType(NetworkMapChrome)).dy;
+
+    await tester.pumpWidget(_host(shell(searchMode: false)));
+    expect(topOf(const Key('mapTopMapBody')), statusBarInset + 60 - 10);
+
+    await tester.pumpWidget(_host(shell(searchMode: true)));
+    expect(
+      topOf(const Key('mapTopSearchBody')),
+      statusBarInset + easySubwayTopBarContentHeight + 8,
     );
   });
 
@@ -639,6 +734,89 @@ void main() {
     expect(pickDestinationCount, 1);
     semantics.dispose();
   });
+
+  // 입력 칸 높이는 48dp(시각 박스 40dp)로 정해져 있어 칸 안 노선 마크는 1.3배에서
+  // 멈춘다. 26dp 기본 마크의 한 변은 26, 33.8, 33.8, 33.8이다. 폭이 좁으면 이름을
+  // 위해 마크를 감추므로(network_map_route_draft_pill_mark_test) 마크가 모두 들어가는
+  // 600dp 폭에서 상한만 본다.
+  for (final (scale, side) in [
+    (1.0, 26.0),
+    (1.3, 33.8),
+    (1.5, 33.8),
+    (2.0, 33.8),
+  ]) {
+    testWidgets(
+      'top-bar route draft 입력 칸 마크는 글자 $scale배에서 한 변 $side로 칸 안에 든다',
+      (tester) async {
+        tester.view.physicalSize = const Size(600, 780) * 2;
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: NetworkMapTopBarRouteDraft(
+                draft: const RouteDraft(
+                  origin: RouteDraftStation(
+                    id: 'origin',
+                    nameKo: '서울',
+                    lineId: 'seoul-2',
+                    lineName: '수도권 2호선',
+                    lineColor: '#00A84D',
+                    stationCode: '222',
+                  ),
+                  destination: RouteDraftStation(
+                    id: 'destination',
+                    nameKo: '강남',
+                    lineId: 'seoul-4',
+                    lineName: '수도권 4호선',
+                    lineColor: '#00A5DE',
+                    stationCode: '434',
+                  ),
+                  lastModifiedAt: null,
+                ),
+                showWaypointRow: false,
+                regionLabel: '수도권',
+                onClearDraft: _noop,
+                onOpenWaypointSlot: _noop,
+                onClearOrigin: _noop,
+                onClearDestination: _noop,
+                onClearWaypoint: _noop,
+                onReorderDraft: (_, _) {},
+                roleColorForSlot: (_) => Colors.black,
+                lineBadgeBuilder: routeDraftStationLineBadge,
+              ),
+            ),
+          ),
+        );
+
+        for (final (rowKey, lineId) in [
+          ('networkMapRouteDraftOriginRow', 'seoul-2'),
+          ('networkMapRouteDraftDestinationRow', 'seoul-4'),
+        ]) {
+          final row = tester.getRect(find.byKey(Key(rowKey)));
+          final mark = tester.getRect(
+            find.descendant(
+              of: find.byKey(Key(rowKey)),
+              matching: find.byKey(Key('stationLineBadge-$lineId')),
+            ),
+          );
+          expect(mark.width, closeTo(side, 0.001), reason: rowKey);
+          expect(mark.height, closeTo(side, 0.001), reason: rowKey);
+          expect(row.height, 48);
+          expect(mark.top, greaterThanOrEqualTo(row.top));
+          expect(mark.bottom, lessThanOrEqualTo(row.bottom));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('top-bar route draft는 waypoint row와 reorder Semantics를 보존한다', (
     tester,

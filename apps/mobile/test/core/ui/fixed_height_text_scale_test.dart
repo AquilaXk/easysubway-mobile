@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
@@ -462,15 +463,18 @@ void main() {
         await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
         await tester.pumpAndSettle();
 
-        for (final badge in ['2', '경의']) {
-          final textFinder = find.text(badge);
-          expect(textFinder, findsOneWidget, reason: '배지 $badge');
+        for (final badge in ['2', '경의중앙']) {
+          final markFinder = find.byWidgetPredicate(
+            (widget) => widget is LineMark && widget.label == badge,
+          );
+          expect(markFinder, findsOneWidget, reason: '노선 마크 $badge');
+          final textFinder = find.descendant(
+            of: markFinder,
+            matching: find.text(badge),
+          );
           await tester.ensureVisible(textFinder);
           final paragraph = tester.renderObject<RenderParagraph>(textFinder);
-          final boxFinder = find
-              .ancestor(of: textFinder, matching: find.byType(Container))
-              .first;
-          final box = tester.getSize(boxFinder);
+          final box = tester.getSize(markFinder);
           debugPrint(
             'BADGE MEASURE: scale=$scale, badge="$badge", '
             'text=${paragraph.textSize}, box=$box',
@@ -485,9 +489,28 @@ void main() {
             lessThanOrEqualTo(box.width + 0.01),
             reason: '$badge 배지 폭 잘림',
           );
-          if (scale == 1.0) {
-            expect(box, const Size(24, 24), reason: '$badge 1.0배 24x24 유지');
+          // 경로 노드 제목 줄은 마크가 커지면 함께 자라므로 상한 없이 20, 40이다.
+          final side = scale == 1.0 ? 20.0 : 40.0;
+          expect(box.height, side, reason: '$badge $scale배 높이');
+          if (badge == '2') {
+            expect(box, Size(side, side), reason: '호선 번호는 정원');
           }
+        }
+
+        // 트랙 원은 글자 크기와 무관하게 모두 24dp라 노드 내용이 모든 배율에서
+        // 같은 가장자리(원 24 + 간격 12)에서 시작한다.
+        for (final leg in [0, 1, 2]) {
+          final node = find.byKey(Key('selected-journey-leg-$leg'));
+          expect(node, findsOneWidget, reason: '타임라인 노드 $leg');
+          final content = find.descendant(
+            of: node,
+            matching: find.byType(Expanded),
+          );
+          expect(
+            tester.getTopLeft(content.last).dx - tester.getTopLeft(node).dx,
+            36,
+            reason: '노드 $leg 내용 시작 위치(배율 $scale)',
+          );
         }
       });
     }

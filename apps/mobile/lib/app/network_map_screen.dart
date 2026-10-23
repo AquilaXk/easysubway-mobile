@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
+import '../core/ui/line_mark.dart';
 import '../features/ads/active_ad_banner.dart';
 import '../features/ads/ad_slot.dart';
 import '../design_tokens.dart';
@@ -52,6 +53,20 @@ WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
     placement: AdPlacement.stationDetailBottom,
   );
 }
+
+/// 상단 출발·경유·도착 입력 칸의 노선 마크. 칸 높이가 정해져 있어 마크는
+/// [lineMarkFixedChromeMaxTextScale]에서 멈춘다.
+Widget routeDraftStationLineBadge(RouteDraftStation station, double size) =>
+    StationLineBadge(
+      line: StationSearchLine(
+        id: station.lineId,
+        name: station.lineName,
+        color: station.lineColor,
+        stationCode: station.stationCode,
+      ),
+      size: size,
+      maxTextScale: lineMarkFixedChromeMaxTextScale,
+    );
 
 class NetworkMapScreen extends StatefulWidget {
   const NetworkMapScreen({
@@ -597,7 +612,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       searchQueryController: _searchQueryController,
       stationSearchRepository: searchRepository,
       searchHistoryRepository: widget.searchHistoryRepository,
-      favoriteRepository: widget.favoriteRepository,
       routeDraftController: widget.routeDraftController,
       regionLabel: routeMapDisplayRegionName(_selectedRegion ?? '수도권'),
     );
@@ -1680,15 +1694,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
           RouteDraftSlot.waypoint => EasySubwayFanMenuColors.waypointRole.ink,
           RouteDraftSlot.destination => EasySubwayFanMenuColors.arrivalRole.ink,
         },
-        lineBadgeBuilder: (station, size) => StationLineBadge(
-          line: StationSearchLine(
-            id: station.lineId,
-            name: station.lineName,
-            color: station.lineColor,
-            stationCode: station.stationCode,
-          ),
-          size: size,
-        ),
+        lineBadgeBuilder: routeDraftStationLineBadge,
       ),
       disruptionBanner: widget.disruptionBanner,
       searchMode: inSearchMode,

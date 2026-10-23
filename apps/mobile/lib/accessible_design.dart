@@ -164,6 +164,9 @@ class EasySubwayAccessibleColors {
   /// 지도 위 지역 선택 칩 톤(밝은 블루).
   static const mapRegionAccent = Color(0xFF006FD6);
 
+  /// 검색 결과에서 검색어와 일치한 글자(밝은 블루).
+  static const searchMatchHighlight = mapRegionAccent;
+
   // --- 홈 신규 알림 안내 바 (오너 스펙 2026-07-16, #2200) ---
   /// 신규 알림 안내 바 배경.
   static const noticeBarSurface = statusWarningSurface;

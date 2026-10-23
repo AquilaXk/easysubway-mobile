@@ -6,6 +6,8 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
+import '../../../core/ui/line_mark.dart';
+import '../../../core/ui/name_with_marks.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../facility_report/domain/facility_report_target.dart';
 import '../../realtime/realtime_repository.dart';
@@ -401,6 +403,32 @@ class _StationDetailContextChrome extends StatelessWidget {
   final StationDetailNeighbor? nextStation;
   final ValueChanged<StationDetailNeighbor>? onSelectNeighbor;
 
+  Widget _nameWithMark(BuildContext context) {
+    final name = Text(
+      '${detail.nameKo}역',
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+        color: EasySubwayAccessibleColors.text,
+        fontWeight: FontWeight.w700,
+        height: 1.2,
+      ),
+    );
+    final mark = line;
+    if (mark == null) {
+      return name;
+    }
+    return NameWithMarks(
+      name: name,
+      marksFirst: true,
+      marks: StationLineBadge(
+        line: mark,
+        size: 24,
+        maxTextScale: lineMarkFixedChromeMaxTextScale,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final hasNeighbors = previousStation != null || nextStation != null;
@@ -410,22 +438,7 @@ class _StationDetailContextChrome extends StatelessWidget {
       children: [
         Row(
           children: [
-            if (line != null) ...[
-              StationLineBadge(line: line!, size: 28),
-              const SizedBox(width: 8),
-            ],
-            Expanded(
-              child: Text(
-                '${detail.nameKo}역',
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.w700,
-                  height: 1.2,
-                ),
-              ),
-            ),
+            Expanded(child: _nameWithMark(context)),
             if (onClose != null)
               IconButton(
                 key: const Key('stationDetailChromeCloseButton'),

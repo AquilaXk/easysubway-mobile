@@ -4,6 +4,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/nearby_direc
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
 import 'dart:ui' show Tristate;
 
@@ -259,23 +260,17 @@ void main() {
       }
     });
 
-    Finder badgeCircleFinder() {
-      return find.byWidgetPredicate(
-        (widget) =>
-            widget is Container &&
-            widget.decoration is BoxDecoration &&
-            (widget.decoration! as BoxDecoration).shape == BoxShape.circle,
-      );
-    }
-
-    testWidgets('badgeText가 있으면 원형 노선 배지를 그린다', (tester) async {
+    testWidgets('badgeText가 있으면 노선색 노선 마크를 그린다', (tester) async {
       await tester.pumpWidget(_hostBar(lineColor: _line2Green, badgeText: '2'));
-      expect(badgeCircleFinder(), findsOneWidget);
+
+      final mark = tester.widget<LineMark>(find.byType(LineMark));
+      expect(mark.label, '2');
+      expect(mark.color, _line2Green);
     });
 
     testWidgets('badgeText가 비면 빈 원 배지를 그리지 않고 역명만 남긴다', (tester) async {
       await tester.pumpWidget(_hostBar(lineColor: _line2Green, badgeText: ''));
-      expect(badgeCircleFinder(), findsNothing);
+      expect(find.byType(LineMark), findsNothing);
       expect(find.text('왕십리'), findsOneWidget);
     });
 

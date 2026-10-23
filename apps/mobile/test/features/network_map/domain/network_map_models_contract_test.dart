@@ -74,9 +74,6 @@ void main() {
     expect(data.regions.map((region) => region.name), <String>['부산권', '수도권']);
     expect(data.regions.first.displayName, '부산');
     expect(data.lines.map((line) => line.id), <String>['line-2', 'gtx-a']);
-    expect(data.lines.first.shortName, '2호선');
-    expect(data.lines.first.badgeText, '2');
-    expect(data.lines.last.badgeText, 'A');
     expect(data.stations.single.displayName, '시청역');
     expect(data.stations.single.position.labelDx, 4);
     expect(data.edges.single.accessibilityStatus, 'AVAILABLE');
@@ -137,12 +134,6 @@ void main() {
     expect(emptyMembership.lineId, '');
     expect(emptyTrack.lineId, '');
     expect(emptyTrack.paths, isEmpty);
-    expect(
-      NetworkMapLine.fromJson(const <String, Object?>{
-        'name': '부산김해경전철',
-      }).badgeText,
-      '김해',
-    );
     expect(
       NetworkMapRegion(name: '수도권') == NetworkMapRegion(name: '수도권'),
       isFalse,

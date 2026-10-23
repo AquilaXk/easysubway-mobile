@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show SystemUiOverlayStyle;
 
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
@@ -93,7 +94,6 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
   final FocusNode _searchFocusNode = FocusNode();
   List<RecentSearchEntry> _recentEntries = const [];
   bool _recentEntriesReady = false;
-  Set<String> _favoriteKeys = const <String>{};
   Timer? _searchDebounce;
   late String _regionLabel;
 
@@ -114,7 +114,6 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
     _controller.addListener(_handleControllerChanged);
     _queryController.addListener(_handleQueryChanged);
     unawaited(_loadRecentEntries());
-    unawaited(_loadFavoriteStationIds());
     unawaited(warmStationSearchCacheIfSupported(widget.repository));
     // 검색 진입은 화면을 여는 즉시 입력 모드로 들어간다. autofocus가 담당한다.
   }
@@ -200,8 +199,8 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
     // #2083 홈 편집 모드와 동일한 공용 검색 필드를 쓴다. pickSlot별 힌트는
     // hintText로 전달돼 placeholder이자 TalkBack 라벨 역할을 유지하고, 즉시
     // (디바운스) 검색은 _queryController를, 지우기는 onClear를 통해 보존된다.
-    // AppBar leading(자동 뒤로가기)은 title 왼쪽에 그대로 남아 "← + 40px 필드"
-    // 구성이 홈 편집 모드와 일치한다.
+    // 뒤로가기는 필드 안(onBack)에 들어가 높이 48px 페이지 필드 하나가 상단바
+    // 전체를 채운다.
     final searchInputField = EasySubwaySearchField(
       controller: _queryController,
       focusNode: _searchFocusNode,
@@ -214,6 +213,8 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
       autofocus: true,
       onSubmitted: _submit,
       onClear: _queryController.clear,
+      onBack: () => Navigator.of(context).maybePop(),
+      backButtonKey: const Key('stationSearchBackButton'),
     );
     final scaler = MediaQuery.textScalerOf(context);
     final scaledFieldHeight = math.max(
@@ -250,75 +251,33 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         return StationSearchBody(
           state: _controller.state,
           query: _highlightQuery,
-          favoriteKeys: _favoriteKeys,
           // 칸 채우기 모드에서는 결과 한 번 탭 = 해당 칸 설정 후 닫기. 지도 탭과 동일
           // 하게 "출발역 선택 → 도착역 선택" UX로 수렴시킨다. 둘러보기 모드에서는
           // 선택한 역을 지도로 반환한다.
           onResultTap: isPicking ? _pickStation : _openStationDetail,
-          onToggleFavorite: widget.favoriteRepository == null
-              ? null
-              : _toggleFavoriteStation,
         );
       },
     );
-    // 홈 `_NetworkMapTopBar`와 동일 골격(Material + SafeArea + 고정/배율 높이 +
-    // Positioned 구분선). AppBar toolbar 슬롯을 쓰지 않아 콘텐츠 높이·구분선
-    // Y·그림자가 홈과 픽셀 단위로 맞는다. 왼쪽만 메뉴→뒤로 아이콘이 다르다.
     final topPadding = MediaQuery.paddingOf(context).top;
     return Scaffold(
       key: const Key('stationSearchScreen'),
       backgroundColor: EasySubwayAccessibleColors.surface,
       appBar: PreferredSize(
-        preferredSize: Size.fromHeight(topPadding + topBarHeight),
-        child: Material(
-          key: const Key('stationSearchAppBar'),
-          color: EasySubwayAccessibleColors.topBarSurface,
-          elevation: 0,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              SafeArea(
-                bottom: false,
-                child: SizedBox(
-                  key: const Key('stationSearchTopBarContent'),
-                  height: topBarHeight,
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
-                    child: Row(
-                      children: [
-                        IconButton(
-                          key: const Key('stationSearchBackButton'),
-                          tooltip: '뒤로',
-                          onPressed: () => Navigator.of(context).maybePop(),
-                          style: IconButton.styleFrom(
-                            minimumSize: const Size.square(
-                              EasySubwayTouchTarget.general,
-                            ),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                            padding: EdgeInsets.zero,
-                          ),
-                          icon: const Icon(
-                            Icons.arrow_back,
-                            size: 26,
-                            color: EasySubwayAccessibleColors.onPrimary,
-                          ),
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(child: searchInputField),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-              const Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: EasySubwayHeaderDivider(
-                  key: Key('stationSearchHeaderDivider'),
-                ),
-              ),
-            ],
+        preferredSize: Size.fromHeight(
+          topPadding + topBarHeight + easySubwaySearchBarSeparatorHeight,
+        ),
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle.dark,
+          child: Material(
+            key: const Key('stationSearchAppBar'),
+            color: EasySubwayAccessibleColors.surface,
+            elevation: 0,
+            child: EasySubwaySearchBar(
+              field: searchInputField,
+              contentHeight: topBarHeight,
+              contentKey: const Key('stationSearchTopBarContent'),
+              separatorKey: const Key('stationSearchHeaderDivider'),
+            ),
           ),
         ),
       ),
@@ -354,80 +313,6 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         ),
       ),
     );
-  }
-
-  Future<void> _loadFavoriteStationIds() async {
-    final repository = widget.favoriteRepository;
-    if (repository == null) {
-      return;
-    }
-    try {
-      final favorites = await repository.listFavoriteStations();
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        _favoriteKeys = {
-          for (final favorite in favorites)
-            favoriteStationLineKey(favorite.stationId, favorite.lineId),
-        };
-      });
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '역 검색 즐겨찾기 조회 중 예외가 발생했습니다.',
-      );
-    }
-  }
-
-  Future<void> _toggleFavoriteStation(
-    StationSearchResult result,
-    StationSearchLine? line,
-  ) async {
-    final repository = widget.favoriteRepository;
-    if (repository == null) {
-      return;
-    }
-    final stationId = result.id;
-    final lineId = line?.id;
-    final key = favoriteStationLineKey(stationId, lineId);
-    final removing = isFavoriteStationLine(_favoriteKeys, stationId, lineId);
-    try {
-      if (removing) {
-        await repository.removeFavoriteStation(stationId, lineId: lineId);
-      } else {
-        await repository.saveFavoriteStation(stationId, lineId: lineId);
-      }
-      if (!mounted) {
-        return;
-      }
-      setState(() {
-        final next = Set<String>.from(_favoriteKeys);
-        // 레거시 역 전체 키가 있으면 구체 호선 키로 정리한다.
-        next.remove(favoriteStationLineKey(stationId, ''));
-        if (removing) {
-          next.remove(key);
-        } else {
-          next.add(key);
-        }
-        _favoriteKeys = next;
-      });
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '역 검색 즐겨찾기 변경 중 예외가 발생했습니다.',
-      );
-      if (!mounted) {
-        return;
-      }
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(removing ? '즐겨찾기를 해제하지 못했어요.' : '즐겨찾기를 추가하지 못했어요.'),
-        ),
-      );
-    }
   }
 
   void _submit(String query) {
