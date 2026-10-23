@@ -280,8 +280,8 @@ void main() {
 
   test('굵은 700(boldForContrast)은 검토를 거친 호스트에만 쓴다', () {
     // 새 사용처는 상한을 올리기 전에 이유를 가린다(#503). 대비용이면 글자색이 노선색
-    // 면 위 흰색이거나 흰 바탕 위 4.5:1 미만 노선색이고 크기가 14pt 이상이어서 굵게
-    // 해야 3:1 기준을 받는지 본다. 그려진 글자색은 rendered_typography_guard가 본다.
+    // 면 위 흰색이거나 흰 바탕 위 노선색이고 크기가 14pt 이상이어서 굵게 해야 3:1
+    // 기준을 받는지 본다. 그려진 글자색은 rendered_typography_guard가 본다.
     final actual = countPerFile(
       RegExp(r'EasySubwayFontWeight\.boldForContrast\b'),
       exclude: {'accessible_design.dart'},

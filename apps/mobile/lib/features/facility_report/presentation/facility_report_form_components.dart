@@ -69,6 +69,7 @@ class FacilityReportStatusPanel extends StatelessWidget {
                       label: '진행 상황',
                       value: result.statusLabel,
                       valueColor: facilityReportStatusColor(result.status),
+                      emphasized: true,
                     ),
                   ],
                 ),
@@ -93,11 +94,13 @@ class _FacilityReportStatusRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.valueColor,
+    this.emphasized = false,
   });
 
   final String label;
   final String value;
   final Color? valueColor;
+  final bool emphasized;
 
   @override
   Widget build(BuildContext context) {
@@ -116,9 +119,9 @@ class _FacilityReportStatusRow extends StatelessWidget {
         Text(
           value,
           style: textTheme.titleMedium?.copyWith(
-            fontWeight: valueColor == null
-                ? EasySubwayFontWeight.regular
-                : EasySubwayFontWeight.emphasis,
+            fontWeight: emphasized
+                ? EasySubwayFontWeight.emphasis
+                : EasySubwayFontWeight.regular,
             color: valueColor ?? EasySubwayAccessibleColors.text,
             height: 1.25,
           ),

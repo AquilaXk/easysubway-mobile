@@ -2,16 +2,12 @@ import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
-import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
-import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'support/core_screen_sweep_fixtures.dart';
-import 'support/core_screen_sweep_screens.dart';
 import 'support/host_text_contrast.dart';
-import 'support/test_viewport.dart';
+import 'support/sweep_journey.dart';
 
 /// 노선색과 흰색이 맞닿은 글자와 시간 버튼의 글자 대비(#503).
 ///
@@ -69,7 +65,7 @@ void main() {
   });
 
   group('주변역 패널 방면 제목', () {
-    for (final lineName in const ['2호선', '6호선', '공항철도']) {
+    for (final lineName in const ['1호선', '2호선', '6호선', '신분당선', '공항철도']) {
       testWidgets('$lineName 노선색 이름이 흰 바탕에서 대비 기준을 지킨다', (tester) async {
         await expectHostTextContrast(
           tester,
@@ -200,33 +196,6 @@ void main() {
   });
 
   group('경로 검색 시간 버튼', () {
-    Future<void> pumpJourney(WidgetTester tester, String departureChip) async {
-      useLogicalViewport(tester, const Size(360, 2000));
-      const theme = SweepTheme.standard;
-      final navigatorKey = GlobalKey<NavigatorState>();
-      await tester.pumpWidget(
-        buildSweepApp(
-          navigatorKey: navigatorKey,
-          onboardingState: OnboardingState.completed(
-            result: OnboardingResult(
-              preset: MobilityPreset.standard,
-              preferences: theme.preferences,
-            ),
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-      await openSweepJourney(
-        SweepScreenContext(
-          tester: tester,
-          navigatorKey: navigatorKey,
-          theme: theme,
-        ),
-        search: false,
-        departureChip: departureChip,
-      );
-    }
-
     for (final (mode, chipKey, buttonKey, label) in const [
       (
         '예약',
@@ -245,7 +214,7 @@ void main() {
       testWidgets('$mode 모드 시간 버튼 글자가 4.5:1을 넘는다', (tester) async {
         final semantics = tester.ensureSemantics();
         try {
-          await pumpJourney(tester, chipKey);
+          await pumpSweepJourney(tester, departureChip: chipKey);
 
           // 가이드라인은 의미 라벨과 글자가 같은 노드만 본다. 버튼 라벨이 글자와
           // 같아야 이 검사가 실제로 그 글자에 닿는다.
