@@ -160,8 +160,8 @@ class EasySubwayRegionMenuPanel extends StatelessWidget {
                               : EasySubwayAccessibleColors.listRowText,
                           fontSize: 16,
                           fontWeight: isSelected
-                              ? FontWeight.w700
-                              : FontWeight.w600,
+                              ? EasySubwayFontWeight.emphasis
+                              : EasySubwayFontWeight.regular,
                           letterSpacing: -0.2,
                         ),
                       ),

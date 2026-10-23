@@ -81,13 +81,13 @@ void main() {
       );
       expect(
         Theme.of(homeContext).appBarTheme.titleTextStyle?.fontWeight,
-        FontWeight.w900,
+        FontWeight.w700,
       );
       expect(
         Theme.of(homeContext).filledButtonTheme.style?.textStyle
             ?.resolve(<WidgetState>{})
             ?.fontWeight,
-        FontWeight.w900,
+        FontWeight.w700,
       );
       expect(find.bySemanticsLabel('지하철역 검색'), findsOneWidget);
 

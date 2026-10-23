@@ -697,7 +697,6 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: EasySubwayAccessibleColors.text,
-                                    fontWeight: FontWeight.w700,
                                   ),
                             ),
                           ),

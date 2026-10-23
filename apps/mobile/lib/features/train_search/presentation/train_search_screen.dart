@@ -74,7 +74,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 22,
-            fontWeight: FontWeight.bold,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.4,
           ),
         ),
@@ -201,7 +201,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         '일정 선택',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           color: EasySubwayAccessibleColors.text,
                         ),
                       ),
@@ -247,7 +247,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                     '왕복',
                                     style: TextStyle(
                                       fontSize: 16,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: EasySubwayFontWeight.regular,
                                       color: EasySubwayAccessibleColors
                                           .secondaryText,
                                     ),
@@ -341,7 +341,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                         '시간표 조회',
                         style: TextStyle(
                           fontSize: 18,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           letterSpacing: -0.3,
                         ),
                       ),
@@ -392,7 +392,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           label,
           style: TextStyle(
             fontSize: 18,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.regular,
             color: EasySubwayAccessibleColors.text,
           ),
         ),
@@ -405,14 +405,14 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             textInputAction: TextInputAction.search,
             style: TextStyle(
               fontSize: 20,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.regular,
               color: EasySubwayAccessibleColors.text,
             ),
             decoration: InputDecoration(
               hintText: isDeparture ? '출발역 입력' : '도착역 입력',
               hintStyle: TextStyle(
                 fontSize: 18,
-                fontWeight: FontWeight.w500,
+                fontWeight: EasySubwayFontWeight.regular,
                 color: EasySubwayAccessibleColors.mutedText,
               ),
               border: InputBorder.none,
@@ -518,7 +518,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                 title: Text(
                   station.name,
                   style: const TextStyle(
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.regular,
                     fontSize: 17,
                   ),
                 ),
@@ -579,7 +579,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                       label,
                       style: TextStyle(
                         fontSize: 16,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.regular,
                         color: EasySubwayAccessibleColors.secondaryText,
                       ),
                     ),
@@ -591,7 +591,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                     'ㅣ',
                     style: TextStyle(
                       fontSize: 14,
-                      fontWeight: FontWeight.w400,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.line,
                     ),
                   ),
@@ -601,7 +601,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                     value,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.text,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -660,7 +660,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: EasySubwayAccessibleColors.text,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: EasySubwayFontWeight.regular,
                 ),
               ),
               const SizedBox(height: 12),
@@ -691,7 +691,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
             key: Key('trainSearchEmpty'),
             style: TextStyle(
               color: EasySubwayAccessibleColors.secondaryText,
-              fontWeight: FontWeight.w600,
+              fontWeight: EasySubwayFontWeight.regular,
             ),
           ),
         ),
@@ -744,7 +744,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                       '$departureName → $arrivalName',
                       style: TextStyle(
                         fontSize: 17,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         color: EasySubwayAccessibleColors.text,
                       ),
                     ),
@@ -754,7 +754,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                     title,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.primary,
                     ),
                   ),
@@ -791,7 +791,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                     _formatDate(_departureDate),
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
@@ -853,7 +853,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
               '운행 열차가 없습니다.',
               style: TextStyle(
                 color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w600,
+                fontWeight: EasySubwayFontWeight.regular,
               ),
             ),
           )
@@ -884,7 +884,9 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
           label,
           style: TextStyle(
             fontSize: 13,
-            fontWeight: isSelected ? FontWeight.w700 : FontWeight.w600,
+            fontWeight: isSelected
+                ? EasySubwayFontWeight.emphasis
+                : EasySubwayFontWeight.regular,
             color: isSelected
                 ? EasySubwayAccessibleColors.surface
                 : EasySubwayAccessibleColors.secondaryText,
@@ -959,7 +961,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                             style: TextStyle(
                               color: EasySubwayAccessibleColors.surface,
                               fontSize: 13,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: EasySubwayFontWeight.regular,
                             ),
                           ),
                           const SizedBox(width: 2),
@@ -987,7 +989,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                 style: TextStyle(
                                   color: EasySubwayAccessibleColors.text,
                                   fontSize: 18,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: EasySubwayFontWeight.emphasis,
                                   letterSpacing: -0.5,
                                 ),
                               ),
@@ -1012,7 +1014,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                       '일반 예매가능',
                                       style: TextStyle(
                                         fontSize: 12,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight:
+                                            EasySubwayFontWeight.emphasis,
                                         color: EasySubwayAccessibleColors.mint,
                                       ),
                                     ),
@@ -1022,7 +1025,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                     style: TextStyle(
                                       color: EasySubwayAccessibleColors.text,
                                       fontSize: 15,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: EasySubwayFontWeight.regular,
                                     ),
                                   ),
                                 ],
@@ -1066,7 +1069,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                   '코레일+',
                                   style: TextStyle(
                                     fontSize: 13,
-                                    fontWeight: FontWeight.w700,
+                                    fontWeight: EasySubwayFontWeight.emphasis,
                                     color: EasySubwayAccessibleColors.primary,
                                   ),
                                 ),
@@ -1276,7 +1279,7 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                             '열차종류 선택',
                             style: TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: EasySubwayFontWeight.emphasis,
                               color: EasySubwayAccessibleColors.text,
                             ),
                           ),
@@ -1309,8 +1312,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                 style: TextStyle(
                                   fontSize: 17,
                                   fontWeight: _trainType == null
-                                      ? FontWeight.w700
-                                      : FontWeight.w600,
+                                      ? EasySubwayFontWeight.emphasis
+                                      : EasySubwayFontWeight.regular,
                                   color: _trainType == null
                                       ? EasySubwayAccessibleColors.primary
                                       : EasySubwayAccessibleColors.text,
@@ -1340,8 +1343,8 @@ class _TrainSearchScreenState extends State<TrainSearchScreen> {
                                   style: TextStyle(
                                     fontSize: 17,
                                     fontWeight: _trainType == type
-                                        ? FontWeight.w700
-                                        : FontWeight.w600,
+                                        ? EasySubwayFontWeight.emphasis
+                                        : EasySubwayFontWeight.regular,
                                     color: _trainType == type
                                         ? EasySubwayAccessibleColors.primary
                                         : EasySubwayAccessibleColors.text,
@@ -1577,7 +1580,7 @@ class _TrainTimetableModalContentState
                     '기차 시간표 · 운임',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       color: EasySubwayAccessibleColors.text,
                     ),
                   ),
@@ -1601,7 +1604,7 @@ class _TrainTimetableModalContentState
                       '${widget.dateFormatted} (${widget.weekday})',
                       style: TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                         color: EasySubwayAccessibleColors.secondaryText,
                       ),
                     ),
@@ -1610,7 +1613,7 @@ class _TrainTimetableModalContentState
                       '${journey.trainType.labelKo} ${journey.trainNumber}',
                       style: TextStyle(
                         fontSize: 22,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         color: EasySubwayAccessibleColors.text,
                         letterSpacing: -0.5,
                       ),
@@ -1654,7 +1657,7 @@ class _TrainTimetableModalContentState
                       '코레일+ 에서 예매',
                       style: TextStyle(
                         fontSize: 17,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                       ),
                     ),
                     style: FilledButton.styleFrom(
@@ -1692,7 +1695,9 @@ class _TrainTimetableModalContentState
           label,
           style: TextStyle(
             fontSize: 13,
-            fontWeight: FontWeight.w700,
+            fontWeight: isSelected
+                ? EasySubwayFontWeight.emphasis
+                : EasySubwayFontWeight.regular,
             color: isSelected
                 ? EasySubwayAccessibleColors.surface
                 : EasySubwayAccessibleColors.secondaryText,
@@ -1727,7 +1732,7 @@ class _TrainTimetableModalContentState
                     '정차역',
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
@@ -1739,7 +1744,7 @@ class _TrainTimetableModalContentState
                     textAlign: TextAlign.center,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
@@ -1751,7 +1756,7 @@ class _TrainTimetableModalContentState
                     textAlign: TextAlign.right,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.secondaryText,
                     ),
                   ),
@@ -1892,8 +1897,8 @@ class _TrainTimetableModalContentState
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: isOrigin || isDestination
-                        ? FontWeight.w700
-                        : FontWeight.w500,
+                        ? EasySubwayFontWeight.emphasis
+                        : EasySubwayFontWeight.regular,
                     color: EasySubwayAccessibleColors.text,
                   ),
                 ),
@@ -1912,7 +1917,7 @@ class _TrainTimetableModalContentState
                       '출발역',
                       style: TextStyle(
                         fontSize: 10,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         color: EasySubwayAccessibleColors.primary,
                       ),
                     ),
@@ -1932,7 +1937,7 @@ class _TrainTimetableModalContentState
                       '도착역',
                       style: TextStyle(
                         fontSize: 10,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         color: EasySubwayAccessibleColors.red,
                       ),
                     ),
@@ -1948,7 +1953,9 @@ class _TrainTimetableModalContentState
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: isDestination ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: isDestination
+                    ? EasySubwayFontWeight.emphasis
+                    : EasySubwayFontWeight.regular,
                 color: isDestination
                     ? EasySubwayAccessibleColors.text
                     : EasySubwayAccessibleColors.secondaryText,
@@ -1962,7 +1969,9 @@ class _TrainTimetableModalContentState
               textAlign: TextAlign.right,
               style: TextStyle(
                 fontSize: 13,
-                fontWeight: isOrigin ? FontWeight.w700 : FontWeight.w500,
+                fontWeight: isOrigin
+                    ? EasySubwayFontWeight.emphasis
+                    : EasySubwayFontWeight.regular,
                 color: isOrigin
                     ? EasySubwayAccessibleColors.text
                     : EasySubwayAccessibleColors.secondaryText,
@@ -2010,7 +2019,9 @@ class _TrainTimetableModalContentState
             title,
             style: TextStyle(
               fontSize: 13,
-              fontWeight: isBold ? FontWeight.w700 : FontWeight.w500,
+              fontWeight: isBold
+                  ? EasySubwayFontWeight.emphasis
+                  : EasySubwayFontWeight.regular,
               color: EasySubwayAccessibleColors.text,
             ),
           ),
@@ -2018,7 +2029,7 @@ class _TrainTimetableModalContentState
             price,
             style: TextStyle(
               fontSize: 14,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.regular,
               color: isBold
                   ? EasySubwayAccessibleColors.primary
                   : EasySubwayAccessibleColors.text,

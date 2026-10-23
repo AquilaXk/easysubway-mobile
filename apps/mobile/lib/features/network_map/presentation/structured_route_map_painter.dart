@@ -12,6 +12,7 @@ import '../domain/route_map_parallel_offsets.dart';
 import '../domain/structured_route_map.dart';
 import 'route_map_label_layout.dart';
 import 'route_map_transfer_marker.dart';
+import '../../../accessible_design.dart';
 
 /// profile 계측용. [easySubwayPerfLogsEnabled]일 때만 증가한다.
 int debugStructuredRouteMapPictureBuildCount = 0;
@@ -71,17 +72,17 @@ String routeMapStationLabel(String nameKo) {
 const TextStyle _labelStyle = TextStyle(
   color: Color(0xFF102A2C),
   fontSize: kRouteMapDesignLabelFontPx,
-  fontWeight: FontWeight.w500,
+  fontWeight: EasySubwayFontWeight.regular,
 );
 const TextStyle _boldLabelStyle = TextStyle(
   color: Color(0xFF102A2C),
   fontSize: kRouteMapDesignLabelFontPx,
-  fontWeight: FontWeight.w700,
+  fontWeight: EasySubwayFontWeight.emphasis,
 );
 const TextStyle _badgeStyle = TextStyle(
   color: Color(0xFFFFFFFF),
   fontSize: kRouteMapDesignBadgeFontPx,
-  fontWeight: FontWeight.w700,
+  fontWeight: EasySubwayFontWeight.boldForContrast,
 );
 
 /// #2068 SVG 충실도(2026-07-26 오너 결정): 바탕층 모드가 소비하는 **빈** 라벨

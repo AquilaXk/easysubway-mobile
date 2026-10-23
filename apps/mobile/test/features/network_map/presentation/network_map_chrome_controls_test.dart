@@ -50,7 +50,7 @@ void main() {
       EasySubwayAccessibleColors.interactionOnPrimary,
     );
     expect(message.style?.fontSize, 15);
-    expect(message.style?.fontWeight, FontWeight.w800);
+    expect(message.style?.fontWeight, EasySubwayFontWeight.regular);
     expect(message.style?.height, 1.2);
   });
 

@@ -280,7 +280,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           '노외 환승 (기후동행카드 적용)',
           style: TextStyle(
             fontSize: 11,
-            fontWeight: FontWeight.bold,
+            fontWeight: EasySubwayFontWeight.emphasis,
             color: EasySubwayAccessibleColors.statusInfoContent,
           ),
         ),
@@ -325,7 +325,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         label,
         style: TextStyle(
           fontSize: 11,
-          fontWeight: FontWeight.bold,
+          fontWeight: EasySubwayFontWeight.emphasis,
           color: textColor,
         ),
       ),
@@ -577,7 +577,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   stationName,
                   style: const TextStyle(
                     fontSize: 17,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     color: EasySubwayAccessibleColors.text,
                   ),
                 ),
@@ -585,7 +585,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   timeLabel,
                   style: const TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: EasySubwayFontWeight.regular,
                     color: EasySubwayAccessibleColors.secondaryText,
                   ),
                 ),
@@ -635,7 +635,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           node.lineName,
                           style: const TextStyle(
                             fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: EasySubwayFontWeight.regular,
                             color: EasySubwayAccessibleColors.text,
                           ),
                         ),
@@ -644,7 +644,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                             direction,
                             style: const TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: EasySubwayFontWeight.regular,
                               color: EasySubwayAccessibleColors.text,
                             ),
                           ),
@@ -664,7 +664,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                                 '급행',
                                 style: TextStyle(
                                   fontSize: 12,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: EasySubwayFontWeight.emphasis,
                                   color: EasySubwayAccessibleColors
                                       .statusDangerContent,
                                 ),
@@ -677,7 +677,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       '${node.departureTime} 출발',
                       style: const TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                         color: EasySubwayAccessibleColors.secondaryText,
                       ),
                     ),
@@ -699,7 +699,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           carDoor,
                           style: const TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: EasySubwayFontWeight.regular,
                             color: EasySubwayAccessibleColors.primary,
                           ),
                         ),
@@ -724,7 +724,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 node.stopToggleLabel,
                 style: const TextStyle(
                   fontSize: 13,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: EasySubwayFontWeight.regular,
                   color: EasySubwayAccessibleColors.secondaryText,
                 ),
               ),
@@ -800,7 +800,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   node.stopToggleLabel,
                   style: const TextStyle(
                     fontSize: 13,
-                    fontWeight: FontWeight.w600,
+                    fontWeight: EasySubwayFontWeight.regular,
                     color: EasySubwayAccessibleColors.secondaryText,
                   ),
                 ),
@@ -838,7 +838,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   node.stationName,
                   style: const TextStyle(
                     fontSize: 16,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     color: EasySubwayAccessibleColors.text,
                   ),
                 ),
@@ -997,7 +997,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       text,
                       style: const TextStyle(
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                         color: EasySubwayAccessibleColors.text,
                       ),
                     ),
@@ -1050,7 +1050,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           '$stationName ${isBoarding ? '탑승' : '하차'} 승강장',
                           style: const TextStyle(
                             fontSize: 16,
-                            fontWeight: FontWeight.bold,
+                            fontWeight: EasySubwayFontWeight.emphasis,
                             color: EasySubwayAccessibleColors.text,
                           ),
                         ),
@@ -1336,7 +1336,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           '걷는 속도',
           style: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             color: EasySubwayAccessibleColors.text,
           ),
         ),
@@ -1370,8 +1370,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: _walkingPace == pace
-                              ? FontWeight.w700
-                              : FontWeight.w500,
+                              ? EasySubwayFontWeight.emphasis
+                              : EasySubwayFontWeight.regular,
                           color: _walkingPace == pace
                               ? EasySubwayAccessibleColors.interactionOnBrand
                               : EasySubwayAccessibleColors.secondaryText,
@@ -1546,7 +1546,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           '출발 기준',
           style: TextStyle(
             fontSize: 14,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             color: EasySubwayAccessibleColors.text,
           ),
         ),
@@ -1575,7 +1575,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     '지금 출발',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isNow ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isNow
+                          ? EasySubwayFontWeight.emphasis
+                          : EasySubwayFontWeight.regular,
                       color: isNow
                           ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
@@ -1622,8 +1624,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: isScheduled
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                          ? EasySubwayFontWeight.emphasis
+                          : EasySubwayFontWeight.regular,
                       color: isScheduled
                           ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
@@ -1669,7 +1671,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     '출발 대안',
                     style: TextStyle(
                       fontSize: 13,
-                      fontWeight: isWindow ? FontWeight.w700 : FontWeight.w500,
+                      fontWeight: isWindow
+                          ? EasySubwayFontWeight.emphasis
+                          : EasySubwayFontWeight.regular,
                       color: isWindow
                           ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
@@ -1717,8 +1721,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: isLastConnection
-                          ? FontWeight.w700
-                          : FontWeight.w500,
+                          ? EasySubwayFontWeight.emphasis
+                          : EasySubwayFontWeight.regular,
                       color: isLastConnection
                           ? EasySubwayAccessibleColors.interactionOnBrand
                           : EasySubwayAccessibleColors.secondaryText,
@@ -1749,107 +1753,65 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         ),
         if (isScheduled) ...[
           const SizedBox(height: 8),
-          OutlinedButton(
+          _departureTimeButton(
             key: const Key('journey-scheduled-time'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            icon: Icons.access_time_rounded,
+            label: selectedLabel,
             onPressed: enabled ? _selectScheduledTime : null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.access_time_rounded,
-                  size: 18,
-                  color: EasySubwayAccessibleColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  selectedLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
         if (isWindow) ...[
           const SizedBox(height: 8),
-          OutlinedButton(
+          _departureTimeButton(
             key: const Key('journey-window-time'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            icon: Icons.tune_rounded,
+            label: windowLabel,
             onPressed: enabled ? _selectWindowTime : null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.tune_rounded,
-                  size: 18,
-                  color: EasySubwayAccessibleColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  windowLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
         if (isLastConnection) ...[
           const SizedBox(height: 8),
-          OutlinedButton(
+          _departureTimeButton(
             key: const Key('journey-last-connection-date'),
-            style: OutlinedButton.styleFrom(
-              minimumSize: const Size.fromHeight(48),
-              backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-              side: const BorderSide(color: EasySubwayAccessibleColors.primary),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
+            icon: Icons.nightlight_round,
+            label: lastConnectionLabel,
             onPressed: enabled ? _selectLastConnectionDate : null,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Icon(
-                  Icons.nightlight_round,
-                  size: 18,
-                  color: EasySubwayAccessibleColors.primary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  lastConnectionLabel,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ],
+    );
+  }
+
+  Widget _departureTimeButton({
+    required Key key,
+    required IconData icon,
+    required String label,
+    required VoidCallback? onPressed,
+  }) {
+    return OutlinedButton(
+      key: key,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size.fromHeight(48),
+        backgroundColor: EasySubwayAccessibleColors.surfaceDefault,
+        side: const BorderSide(color: EasySubwayAccessibleColors.primary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      onPressed: onPressed,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, size: 18, color: EasySubwayAccessibleColors.primary),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: EasySubwayFontWeight.regular,
+              color: EasySubwayAccessibleColors.primary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1969,7 +1931,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                             semanticsLabel: _draft.originLabel,
                             style: const TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: EasySubwayFontWeight.regular,
                               color: EasySubwayAccessibleColors.text,
                               letterSpacing: -0.3,
                             ),
@@ -1997,7 +1959,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                               semanticsLabel: _draft.waypointLabel,
                               style: const TextStyle(
                                 fontSize: 18,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: EasySubwayFontWeight.regular,
                                 color: EasySubwayAccessibleColors.text,
                                 letterSpacing: -0.3,
                               ),
@@ -2047,7 +2009,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                             semanticsLabel: _draft.destinationLabel,
                             style: const TextStyle(
                               fontSize: 18,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: EasySubwayFontWeight.regular,
                               color: EasySubwayAccessibleColors.text,
                               letterSpacing: -0.3,
                             ),
@@ -2096,7 +2058,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               '출발역과 도착역을 다시 확인해 주세요.',
               style: TextStyle(
                 fontSize: 12,
-                fontWeight: FontWeight.w600,
+                fontWeight: EasySubwayFontWeight.regular,
                 color: Theme.of(context).colorScheme.error,
               ),
             ),
@@ -2159,7 +2121,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     : null,
                 label: const Text(
                   '경로 찾기',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: EasySubwayFontWeight.emphasis,
+                  ),
                 ),
               ),
               if (state.status == JourneySearchStatus.searching)
@@ -2206,7 +2171,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           key: const Key('journey-failure-message'),
                           style: TextStyle(
                             fontSize: 13,
-                            fontWeight: FontWeight.w600,
+                            fontWeight: EasySubwayFontWeight.emphasis,
                             color: Theme.of(context).colorScheme.error,
                           ),
                         ),
@@ -2246,7 +2211,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     '경로 후보 ${state.response!.journeys.length}개',
                     style: const TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       color: EasySubwayAccessibleColors.text,
                     ),
                   ),
@@ -2319,7 +2284,7 @@ class _RouteRoleBadge extends StatelessWidget {
         label,
         style: TextStyle(
           fontSize: 12,
-          fontWeight: FontWeight.w700,
+          fontWeight: EasySubwayFontWeight.emphasis,
           color: role.onFace,
         ),
       ),

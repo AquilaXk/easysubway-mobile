@@ -249,7 +249,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                     label: Text(
                       _photoAttachment == null ? '사진 추가' : '사진 바꾸기',
                       style: const TextStyle(
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                         fontSize: 15,
                       ),
                     ),
@@ -284,7 +284,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                                 '현재 위치를 첨부했어요',
                                 style: TextStyle(
                                   color: EasySubwayAccessibleColors.text,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: EasySubwayFontWeight.regular,
                                 ),
                               ),
                             ),
@@ -349,7 +349,7 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                             label: Text(
                               _isLocationFailure ? '위치 다시 찾기' : '현재 위치 첨부 (선택)',
                               style: const TextStyle(
-                                fontWeight: FontWeight.w600,
+                                fontWeight: EasySubwayFontWeight.regular,
                                 fontSize: 15,
                               ),
                             ),
@@ -433,9 +433,8 @@ class _FacilityReportScreenState extends State<FacilityReportScreen> {
                         borderRadius: facilityReportCardRadius,
                       ),
                       textStyle: const TextStyle(
-                        fontFamily: 'Pretendard',
                         fontSize: 17,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                       ),
                     ),
                     icon: isLoading

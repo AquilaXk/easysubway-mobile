@@ -276,27 +276,14 @@ class EasySubwayRoleColor {
   final Color pinEdge;
 }
 
-/// v4 타이포 위계 — 크기·행간·색으로 위계를 만들고 굵기는 보조로만 쓴다.
-///
-/// w800+는 화면 타이틀(titleLarge) 한정, 본문 w500, 라벨 w600, 행 강조 w700.
+/// 타이포 위계는 크기·행간·색으로 만든다. 굵기는 Material 3 역할 기본값을
+/// 그대로 둔다(제목·본문 [EasySubwayFontWeight.regular], 소제목·라벨
+/// [EasySubwayFontWeight.emphasis]).
 TextTheme easySubwayTextTheme(TextTheme base) {
   return base.copyWith(
-    titleLarge: base.titleLarge?.copyWith(
-      fontWeight: FontWeight.w800,
-      height: 1.25,
-    ),
-    titleMedium: base.titleMedium?.copyWith(
-      fontWeight: FontWeight.w700,
-      height: 1.3,
-    ),
-    bodyLarge: base.bodyLarge?.copyWith(
-      fontWeight: FontWeight.w500,
-      height: 1.4,
-    ),
-    bodyMedium: base.bodyMedium?.copyWith(
-      fontWeight: FontWeight.w500,
-      height: 1.4,
-    ),
-    labelLarge: base.labelLarge?.copyWith(fontWeight: FontWeight.w600),
+    titleLarge: base.titleLarge?.copyWith(height: 1.25),
+    titleMedium: base.titleMedium?.copyWith(height: 1.3),
+    bodyLarge: base.bodyLarge?.copyWith(height: 1.4),
+    bodyMedium: base.bodyMedium?.copyWith(height: 1.4),
   );
 }

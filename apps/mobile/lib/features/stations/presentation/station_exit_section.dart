@@ -256,7 +256,7 @@ class _ExitPillTab extends StatelessWidget {
                     exit.exitNumber,
                     style: TextStyle(
                       fontSize: 12,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       color: isSelected
                           ? EasySubwayAccessibleColors.onPrimary
                           : EasySubwayAccessibleColors.secondaryText,
@@ -268,7 +268,9 @@ class _ExitPillTab extends StatelessWidget {
                   '번',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: isSelected
+                        ? EasySubwayFontWeight.emphasis
+                        : EasySubwayFontWeight.regular,
                     color: isSelected
                         ? EasySubwayAccessibleColors.text
                         : EasySubwayAccessibleColors.secondaryText,

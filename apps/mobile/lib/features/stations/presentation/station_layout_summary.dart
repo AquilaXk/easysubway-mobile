@@ -76,7 +76,6 @@ class _StationLayoutStep extends StatelessWidget {
               item.text,
               style: textTheme.bodyLarge?.copyWith(
                 color: EasySubwayAccessibleColors.text,
-                fontWeight: FontWeight.w700,
                 height: 1.2,
               ),
             ),

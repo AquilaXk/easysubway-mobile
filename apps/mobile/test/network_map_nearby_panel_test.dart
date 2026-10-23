@@ -566,6 +566,13 @@ void main() {
       expect(spans[0].style!.color, _line2Green);
     });
 
+    testWidgets('노선색 이름은 대비용 굵기, " 방면"은 강조 굵기다', (tester) async {
+      await tester.pumpWidget(hostTitle('성수 방면', _line2Green));
+      final spans = spansOf(tester).cast<TextSpan>();
+      expect(spans[0].style!.fontWeight, EasySubwayFontWeight.boldForContrast);
+      expect(spans[1].style!.fontWeight, isNull);
+    });
+
     testWidgets('"방면"으로 끝나지 않으면 전체를 노선색으로 그린다(텍스트 무변경)', (tester) async {
       await tester.pumpWidget(hostTitle('내선순환', _line2Green));
       final spans = spansOf(tester).cast<TextSpan>();
@@ -574,19 +581,17 @@ void main() {
       expect(spans[0].style!.color, _line2Green);
     });
 
-    testWidgets('제목 스타일은 14sp w900이다', (tester) async {
+    testWidgets('제목 스타일은 14sp 강조 굵기다', (tester) async {
       await tester.pumpWidget(hostTitle('성수 방면', _line2Green));
       final text = tester.widget<Text>(find.byType(Text));
       final root = text.textSpan! as TextSpan;
       expect(root.style!.fontSize, 14);
-      expect(root.style!.fontWeight, FontWeight.w900);
+      expect(root.style!.fontWeight, EasySubwayFontWeight.emphasis);
     });
   });
 
   group('NearbyArrivalRow 회귀 (Task 5 무변경 고정)', () {
-    testWidgets('"○○행"은 13sp w700 본문 역할색, 도착 안내는 12sp w600으로 유지된다', (
-      tester,
-    ) async {
+    testWidgets('"○○행"은 13sp 본문 굵기 본문 역할색, 도착 안내는 12sp 본문 굵기다', (tester) async {
       await tester.pumpWidget(
         const MaterialApp(
           home: Scaffold(
@@ -597,12 +602,12 @@ void main() {
 
       final dest = tester.widget<Text>(find.text('성수행'));
       expect(dest.style!.fontSize, 13);
-      expect(dest.style!.fontWeight, FontWeight.w700);
+      expect(dest.style!.fontWeight, EasySubwayFontWeight.regular);
       expect(dest.style!.color, EasySubwayAccessibleColors.contentPrimary);
 
       final eta = tester.widget<Text>(find.text('약 3분'));
       expect(eta.style!.fontSize, 12);
-      expect(eta.style!.fontWeight, FontWeight.w600);
+      expect(eta.style!.fontWeight, EasySubwayFontWeight.regular);
       expect(eta.style!.color, EasySubwayAccessibleColors.secondaryText);
     });
   });
@@ -798,13 +803,13 @@ void main() {
       expect(find.byType(VerticalDivider), findsNothing);
     });
 
-    testWidgets('대시 스타일은 16sp w700 본문 역할색이다', (tester) async {
+    testWidgets('대시 스타일은 16sp 본문 굵기 본문 역할색이다', (tester) async {
       await tester.pumpWidget(
         host(const [NearbyPanelColumn(title: '건대입구 방면')]),
       );
       final dash = tester.widget<Text>(find.text('-'));
       expect(dash.style!.fontSize, 16);
-      expect(dash.style!.fontWeight, FontWeight.w700);
+      expect(dash.style!.fontWeight, EasySubwayFontWeight.regular);
       expect(dash.style!.color, EasySubwayAccessibleColors.contentPrimary);
     });
 

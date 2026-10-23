@@ -36,7 +36,7 @@ void main() {
     final stations = [_station('A', 160, 400), _station('B', 1600, 900)];
     // Gwangju sidecar 대표값. '조선대'(anchor start, x=2060) 라벨이 오른쪽으로
     // 뻗어 최우측 extent를 만든다. entry.fontSizePx는 이미 source 단위라
-    // 클램프 없이(#2068 Pretendard 번들 후) 그대로 쓴다.
+    // 클램프 없이(#2068) 그대로 쓴다.
     final ownerLabels = <RouteMapOwnerLabelEntry>[
       const RouteMapOwnerLabelEntry(
         station: '조선대',
@@ -99,7 +99,7 @@ void main() {
   });
 
   group('오너 라벨 source rect 렌더 규칙', () {
-    test('#2068 Pretendard 번들 후: 큰 오너 폰트도 클램프 없이 source 폰트 그대로 폭을 잡는다', () {
+    test('#2068 큰 오너 폰트도 클램프 없이 source 폰트 그대로 폭을 잡는다', () {
       const entry = RouteMapOwnerLabelEntry(
         station: '가나다', // 3 runes
         role: 'ordinary',

@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
+import '../../accessible_design.dart';
+
 /// 에러 문구를 스크린리더에 즉시 공지한다.
 Future<void> announceErrorMessage(
   String message, {
@@ -77,7 +79,9 @@ Future<void> showErrorReferenceSheet(
             children: [
               Text(
                 message,
-                style: Theme.of(sheetContext).textTheme.titleMedium,
+                style: Theme.of(sheetContext).textTheme.titleMedium?.copyWith(
+                  fontWeight: EasySubwayFontWeight.emphasis,
+                ),
               ),
               const SizedBox(height: 12),
               ExpansionTile(

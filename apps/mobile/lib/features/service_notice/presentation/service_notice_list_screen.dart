@@ -31,7 +31,7 @@ class ServiceNoticeListScreen extends StatelessWidget {
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -150,7 +150,7 @@ class _StaleBar extends StatelessWidget {
               style: const TextStyle(
                 color: EasySubwayAccessibleColors.mutedText,
                 fontSize: 13,
-                fontWeight: FontWeight.w600,
+                fontWeight: EasySubwayFontWeight.regular,
               ),
             ),
           ),
@@ -193,7 +193,7 @@ class _NoticeItem extends StatelessWidget {
                 style: TextStyle(
                   color: accent,
                   fontSize: 13,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                   letterSpacing: 0.1,
                 ),
               ),
@@ -205,7 +205,7 @@ class _NoticeItem extends StatelessWidget {
                   style: const TextStyle(
                     color: EasySubwayAccessibleColors.mutedText,
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: EasySubwayFontWeight.regular,
                   ),
                 ),
               ),
@@ -217,7 +217,7 @@ class _NoticeItem extends StatelessWidget {
             style: const TextStyle(
               color: EasySubwayAccessibleColors.text,
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.regular,
               height: 1.3,
             ),
           ),
@@ -228,7 +228,7 @@ class _NoticeItem extends StatelessWidget {
               style: const TextStyle(
                 color: EasySubwayAccessibleColors.secondaryText,
                 fontSize: 14,
-                fontWeight: FontWeight.w500,
+                fontWeight: EasySubwayFontWeight.regular,
                 height: 1.4,
               ),
             ),
@@ -276,7 +276,7 @@ class _EmptyNotices extends StatelessWidget {
                   style: TextStyle(
                     color: EasySubwayAccessibleColors.text,
                     fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                   ),
                 ),
               ],

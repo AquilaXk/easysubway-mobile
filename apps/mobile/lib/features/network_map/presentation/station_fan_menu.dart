@@ -68,7 +68,6 @@ class StationFanMenu extends StatefulWidget {
     required this.disabledSlots,
     required this.onAction,
     required this.onClose,
-    this.fontFamily = 'Pretendard',
     this.stationName,
   });
 
@@ -77,7 +76,6 @@ class StationFanMenu extends StatefulWidget {
   final Set<RouteDraftSlot> disabledSlots;
   final ValueChanged<RouteDraftSlot> onAction;
   final VoidCallback onClose;
-  final String? fontFamily;
 
   /// 화면에는 그리지 않고 TalkBack 그룹 라벨로만 쓴다. `서울역`처럼 역으로 끝나는
   /// 표시명을 넘긴다.
@@ -191,7 +189,7 @@ class _StationFanMenuState extends State<StationFanMenu> {
                   selectedSlots: widget.selectedSlots,
                   disabledSlots: widget.disabledSlots,
                   pressed: _pressed,
-                  fontFamily: widget.fontFamily,
+                  fontFamily: DefaultTextStyle.of(context).style.fontFamily,
                 ),
               ),
             ),
@@ -563,7 +561,7 @@ class _StationFanMenuPainter extends CustomPainter {
       style: TextStyle(
         color: color,
         fontSize: fontSize,
-        fontWeight: FontWeight.w700,
+        fontWeight: EasySubwayFontWeight.emphasis,
         fontFamily: fontFamily,
         letterSpacing: letterSpacing,
       ),

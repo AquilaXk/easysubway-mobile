@@ -70,7 +70,7 @@ class _InquiryScreenState extends State<InquiryScreen> {
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -324,7 +324,7 @@ class _InquirySection extends StatelessWidget {
                   title,
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                     color: EasySubwayAccessibleColors.secondaryText,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     height: 1.25,
                   ),
                 ),
@@ -369,7 +369,6 @@ class _InquiryKindTile extends StatelessWidget {
             title,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
               height: 1.25,
             ),
           ),
@@ -417,7 +416,7 @@ class _InquirySecurityNotice extends StatelessWidget {
                   _title,
                   style: textTheme.bodyMedium?.copyWith(
                     color: EasySubwayAccessibleColors.secondaryText,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     height: 1.25,
                   ),
                 ),

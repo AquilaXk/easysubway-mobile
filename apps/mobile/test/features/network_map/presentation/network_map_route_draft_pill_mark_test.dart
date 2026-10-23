@@ -4,7 +4,7 @@ import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../support/pretendard_test_font.dart';
+import '../../../support/korean_test_font.dart';
 
 const _stationName = '홍대입구역';
 const _originRow = Key('networkMapRouteDraftOriginRow');
@@ -30,7 +30,7 @@ Future<void> _pumpDraft(
   addTearDown(tester.view.resetDevicePixelRatio);
   await tester.pumpWidget(
     MaterialApp(
-      theme: ThemeData(fontFamily: 'Pretendard'),
+      theme: ThemeData(fontFamily: koreanTestFontFamily),
       builder: (context, child) => MediaQuery(
         data: MediaQuery.of(
           context,
@@ -73,11 +73,11 @@ Size _markSize(WidgetTester tester, String lineId) =>
     tester.getSize(find.byKey(Key('stationLineBadge-$lineId')));
 
 void main() {
-  setUpAll(loadPretendardTestFont);
+  setUpAll(loadKoreanTestFont);
 
-  // 알약 노선은 마크가 4글자라 입력 칸 안에서 이름 폭을 깎는다. 기준 폭은 알약
-  // 마크가 더 좁았던 기준선(c7dbe6b6)에서 같은 글꼴로 잰 이름 폭이다. 360dp에서
-  // 56, 320dp에서 16이다.
+  // 알약 노선은 마크가 4글자라 입력 칸 안에서 이름 폭을 깎는다. 하한은 알약
+  // 마크가 더 좁았던 기준선(c7dbe6b6)에서 잰 이름 폭이다(360dp 56, 320dp 16).
+  // 테스트 글꼴(NanumGothic)에서 이름 폭은 360dp 100.3, 320dp 60.3이다.
   final baseNameWidth = {360.0: 56.0, 320.0: 16.0};
   final pillLines = [
     ('gyeongui-jungang', '수도권 경의중앙선'),
@@ -122,11 +122,11 @@ void main() {
     }
   }
 
-  // 알약 마크 폭은 70.29dp다. 마크 묶음 예산은 이름 줄 폭의 45%라 이름 줄이
-  // 156.2dp가 되는 412dp까지는 감추고 413dp부터 보인다. 예산 비율이 커지면 이
-  // 폭보다 훨씬 좁은 화면에서도 보이므로 411dp가 감춤으로 남는지가 비율을 지킨다.
+  // 테스트 글꼴(NanumGothic)에서 알약 마크 폭은 74.86dp다. 마크 묶음 예산은 이름
+  // 줄 폭의 45%라 426dp까지는 감추고 427dp부터 보인다. 예산 비율이 커지면 이
+  // 폭보다 훨씬 좁은 화면에서도 보이므로 426dp가 감춤으로 남는지가 비율을 지킨다.
   for (final (lineId, lineName) in pillLines) {
-    for (final (width, visible) in [(411.0, false), (413.0, true)]) {
+    for (final (width, visible) in [(426.0, false), (427.0, true)]) {
       testWidgets(
         '알약 노선 $lineName ${width}dp 1.0배: 마크는 ${visible ? '보인다' : '감춘다'}',
         (tester) async {
@@ -139,7 +139,7 @@ void main() {
 
           expect(
             _markSize(tester, lineId).width,
-            visible ? closeTo(70.29, 0.01) : 0,
+            visible ? closeTo(74.86, 0.01) : 0,
           );
           expect(tester.takeException(), isNull);
         },
@@ -208,6 +208,6 @@ void main() {
     );
 
     expect(_markSize(tester, 'seoul-2'), const Size.square(26));
-    expect(_nameWidth(tester), closeTo(70.2, 0.5));
+    expect(_nameWidth(tester), closeTo(66.3, 0.5));
   });
 }

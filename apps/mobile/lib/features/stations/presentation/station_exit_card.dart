@@ -62,7 +62,7 @@ class StationExitCard extends StatelessWidget {
                         exit.name,
                         style: const TextStyle(
                           fontSize: 16,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           color: EasySubwayAccessibleColors.text,
                         ),
                       ),
@@ -81,7 +81,7 @@ class StationExitCard extends StatelessWidget {
                             '엘리베이터 연결',
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: EasySubwayFontWeight.regular,
                               color: EasySubwayAccessibleColors.primary,
                             ),
                           ),
@@ -101,7 +101,7 @@ class StationExitCard extends StatelessWidget {
                             '계단 없는 이동 가능',
                             style: TextStyle(
                               fontSize: 12,
-                              fontWeight: FontWeight.w600,
+                              fontWeight: EasySubwayFontWeight.regular,
                               color: EasySubwayAccessibleColors.primary,
                             ),
                           ),
@@ -113,7 +113,7 @@ class StationExitCard extends StatelessWidget {
                     '장소 정보',
                     style: TextStyle(
                       fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       color: EasySubwayAccessibleColors.text,
                     ),
                   ),
@@ -132,7 +132,7 @@ class StationExitCard extends StatelessWidget {
                       '출구와 가까운 하차문',
                       style: TextStyle(
                         fontSize: 15,
-                        fontWeight: FontWeight.w700,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         color: EasySubwayAccessibleColors.text,
                       ),
                     ),

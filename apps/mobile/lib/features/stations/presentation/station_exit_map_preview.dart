@@ -245,7 +245,7 @@ class _StationExitMapPreviewState extends State<StationExitMapPreview>
                         style: TextStyle(
                           color: EasySubwayAccessibleColors.text,
                           fontSize: 11,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                         ),
                       ),
                     ],
@@ -534,7 +534,7 @@ class _ExitNumberMarker extends StatelessWidget {
               number,
               style: TextStyle(
                 color: selected ? onPrimary : primary,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
               ),
             ),
           ),
@@ -597,7 +597,7 @@ class _MapMessagePanel extends StatelessWidget {
                     textAlign: TextAlign.center,
                     style: const TextStyle(
                       fontSize: 13,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: EasySubwayAccessibleColors.text,
                     ),
                   ),

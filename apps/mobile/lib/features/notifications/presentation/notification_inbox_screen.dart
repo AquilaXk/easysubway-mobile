@@ -285,7 +285,7 @@ class _NotificationInboxEmptyState extends StatelessWidget {
             style: TextStyle(
               color: EasySubwayAccessibleColors.text,
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.emphasis,
             ),
           ),
           const SizedBox(height: 6),
@@ -295,7 +295,7 @@ class _NotificationInboxEmptyState extends StatelessWidget {
             style: TextStyle(
               color: EasySubwayAccessibleColors.mutedText,
               fontSize: 13,
-              fontWeight: FontWeight.w500,
+              fontWeight: EasySubwayFontWeight.regular,
               height: 1.4,
             ),
           ),
@@ -395,7 +395,7 @@ class _NotificationInboxChips extends StatelessWidget {
         style: const TextStyle(
           color: EasySubwayAccessibleColors.mutedText,
           fontSize: 13,
-          fontWeight: FontWeight.w600,
+          fontWeight: EasySubwayFontWeight.regular,
         ),
       ),
     );
@@ -446,7 +446,7 @@ class _NotificationInboxRow extends StatelessWidget {
                         style: const TextStyle(
                           color: EasySubwayAccessibleColors.text,
                           fontSize: 15,
-                          fontWeight: FontWeight.w700,
+                          fontWeight: EasySubwayFontWeight.regular,
                           height: 1.25,
                         ),
                       ),
@@ -457,7 +457,7 @@ class _NotificationInboxRow extends StatelessWidget {
                       style: const TextStyle(
                         color: EasySubwayAccessibleColors.contentSecondary,
                         fontSize: 12,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                       ),
                     ),
                   ],
@@ -468,7 +468,7 @@ class _NotificationInboxRow extends StatelessWidget {
                   style: TextStyle(
                     color: accent.iconColor,
                     fontSize: 12,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: EasySubwayFontWeight.regular,
                     height: 1.4,
                   ),
                 ),
@@ -479,7 +479,7 @@ class _NotificationInboxRow extends StatelessWidget {
                     style: const TextStyle(
                       color: EasySubwayAccessibleColors.text,
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: EasySubwayFontWeight.regular,
                       height: 1.3,
                     ),
                   ),
