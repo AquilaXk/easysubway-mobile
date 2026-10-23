@@ -16,7 +16,7 @@ import 'package:easysubway_mobile/features/journey/presentation/journey_search_s
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
-import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:easysubway_mobile/core/crashlytics/crash_report_redaction.dart';
 import 'package:easysubway_mobile/core/crashlytics/crashlytics_gateway.dart';

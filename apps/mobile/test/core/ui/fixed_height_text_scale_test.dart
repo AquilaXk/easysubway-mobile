@@ -1,4 +1,5 @@
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
+import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
@@ -462,15 +463,18 @@ void main() {
         await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
         await tester.pumpAndSettle();
 
-        for (final badge in ['2', '경의']) {
-          final textFinder = find.text(badge);
-          expect(textFinder, findsOneWidget, reason: '배지 $badge');
+        for (final badge in ['2', '경의중앙']) {
+          final markFinder = find.byWidgetPredicate(
+            (widget) => widget is LineMark && widget.label == badge,
+          );
+          expect(markFinder, findsOneWidget, reason: '노선 마크 $badge');
+          final textFinder = find.descendant(
+            of: markFinder,
+            matching: find.text(badge),
+          );
           await tester.ensureVisible(textFinder);
           final paragraph = tester.renderObject<RenderParagraph>(textFinder);
-          final boxFinder = find
-              .ancestor(of: textFinder, matching: find.byType(Container))
-              .first;
-          final box = tester.getSize(boxFinder);
+          final box = tester.getSize(markFinder);
           debugPrint(
             'BADGE MEASURE: scale=$scale, badge="$badge", '
             'text=${paragraph.textSize}, box=$box',
@@ -486,7 +490,10 @@ void main() {
             reason: '$badge 배지 폭 잘림',
           );
           if (scale == 1.0) {
-            expect(box, const Size(24, 24), reason: '$badge 1.0배 24x24 유지');
+            expect(box.height, 20, reason: '$badge 1.0배 높이 20 유지');
+            if (badge == '2') {
+              expect(box, const Size(20, 20), reason: '호선 번호는 20x20 원');
+            }
           }
         }
       });

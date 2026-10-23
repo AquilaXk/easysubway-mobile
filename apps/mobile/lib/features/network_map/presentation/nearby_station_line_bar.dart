@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
-import '../../stations/presentation/station_line_badges.dart';
+import '../../../core/ui/line_mark.dart';
 
 /// 주변역 패널의 이전-현재-다음역 노선 표시 바 (오너 스펙 2026-07-16, #2200).
 ///

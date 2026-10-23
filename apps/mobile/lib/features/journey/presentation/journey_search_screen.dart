@@ -10,7 +10,7 @@ import '../../route_draft/domain/route_draft.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
 import '../../stations/domain/station_line.dart';
-import '../../stations/presentation/station_line_badges.dart';
+import '../../../core/ui/line_mark.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import '../domain/transfer_guide.dart';

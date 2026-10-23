@@ -1,8 +1,7 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/ui/line_mark.dart';
 import '../domain/station_line.dart';
 
 class StationLineBadges extends StatelessWidget {
@@ -84,54 +83,6 @@ class StationLineBadge extends StatelessWidget {
       label: badgeText,
       color: line.badgeColor,
       size: size,
-    );
-  }
-}
-
-/// 노선 마크 단일 그림. 한 글자 라벨(호선 번호)은 노선색 원 안 흰 글자, 그 밖의
-/// 공식 약칭은 노선색 알약 안 흰 글자다. 글자는 배경색과 무관하게 항상 흰색이다.
-class LineMark extends StatelessWidget {
-  const LineMark({
-    required this.label,
-    required this.color,
-    this.size = 20,
-    super.key,
-  });
-
-  final String label;
-  final Color color;
-  final double size;
-
-  static const _minPillFontSize = 10.5;
-
-  @override
-  Widget build(BuildContext context) {
-    final isCircle = label.length <= 1;
-    final fontSize = isCircle
-        ? size * 0.6
-        : math.max(_minPillFontSize, size * 0.4);
-    return Container(
-      width: isCircle ? size : null,
-      height: size,
-      constraints: BoxConstraints(minWidth: size),
-      alignment: Alignment.center,
-      padding: isCircle ? null : EdgeInsets.symmetric(horizontal: size * 0.4),
-      decoration: BoxDecoration(
-        color: color,
-        shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: isCircle ? null : BorderRadius.circular(size / 2),
-      ),
-      child: Text(
-        label,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        style: TextStyle(
-          color: EasySubwayAccessibleColors.interactionOnPrimary,
-          fontSize: fontSize,
-          fontWeight: FontWeight.w700,
-          height: 1.0,
-        ),
-      ),
     );
   }
 }
