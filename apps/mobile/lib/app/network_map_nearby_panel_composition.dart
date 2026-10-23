@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/ui/line_mark.dart';
 import '../features/network_map/application/network_map_nearby_panel_state.dart';
 import '../features/network_map/domain/nearby_adjacent_stations.dart';
 import '../features/network_map/presentation/nearby_arrival_panel.dart';
@@ -71,7 +72,11 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
       lineColor: lineColor,
       badgeBuilder: selectedLine == null
           ? null
-          : (diameter) => StationLineBadge(line: selectedLine, size: diameter),
+          : (diameter) => StationLineBadge(
+              line: selectedLine,
+              size: diameter,
+              maxTextScale: lineMarkFixedChromeMaxTextScale,
+            ),
       line: selectedLine,
       onStationNameTap: onOpenStationDetail,
       onLeftNameTap: selectNeighbor == null || previous == null

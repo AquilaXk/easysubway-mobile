@@ -345,60 +345,91 @@ void main() {
     },
   );
 
-  // 마크 한 변은 글자 배율을 따라 20, 26(1.3배 상한), 26으로 자란다. 기대값은
-  // 상수로 계산하지 않고 값 그대로 적어 상한이 바뀌면 이 표가 먼저 깨진다.
-  for (final (scale, side) in [(1.0, 20.0), (1.5, 26.0), (2.0, 26.0)]) {
-    testWidgets('글자 $scale배에서 번들 PNG 마크와 알약 마크는 한 변 $side로 같은 높이가 된다', (
-      tester,
-    ) async {
-      const png = StationSearchLine(
-        id: 'seoul-2',
-        name: '수도권 2호선',
-        color: '#00A84D',
-        stationCode: '239',
-      );
-      const pill = StationSearchLine(
-        id: 'unbundled-pill',
-        name: '수도권 가상선',
-        color: '#77C4A3',
-        stationCode: 'X01',
-      );
-      await tester.pumpWidget(
-        MaterialApp(
-          builder: (context, child) => MediaQuery(
-            data: MediaQuery.of(
-              context,
-            ).copyWith(textScaler: TextScaler.linear(scale)),
-            child: child!,
-          ),
-          home: const Scaffold(
-            body: Row(
-              children: [
-                StationLineBadge(line: png, size: 20),
-                StationLineBadge(line: pill, size: 20),
-                StationLineBadges(
-                  lines: [png, png, png],
-                  size: 20,
-                  maxBadgeCount: 2,
-                ),
-              ],
-            ),
+  // 번들 PNG 마크, 알약 마크, +N 마크는 한 변이 같다. 기대값은 상수로 계산하지
+  // 않고 값 그대로 적어 상한이 바뀌면 이 표가 먼저 깨진다.
+  Future<void> pumpMarkRow(
+    WidgetTester tester, {
+    required double scale,
+    double? maxTextScale,
+  }) async {
+    const png = StationSearchLine(
+      id: 'seoul-2',
+      name: '수도권 2호선',
+      color: '#00A84D',
+      stationCode: '239',
+    );
+    const pill = StationSearchLine(
+      id: 'unbundled-pill',
+      name: '수도권 가상선',
+      color: '#77C4A3',
+      stationCode: 'X01',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
+        home: Scaffold(
+          body: Row(
+            children: [
+              StationLineBadge(line: png, size: 20, maxTextScale: maxTextScale),
+              StationLineBadge(
+                line: pill,
+                size: 20,
+                maxTextScale: maxTextScale,
+              ),
+              StationLineBadges(
+                lines: const [png, png, png],
+                size: 20,
+                maxBadgeCount: 2,
+                maxTextScale: maxTextScale,
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  void expectMarkSides(WidgetTester tester, double side) {
+    expect(
+      tester.getSize(find.byKey(const Key('stationLineBadge-seoul-2')).first),
+      Size.square(side),
+    );
+    expect(
+      tester
+          .getSize(find.byKey(const Key('stationLineBadge-unbundled-pill')))
+          .height,
+      side,
+    );
+    expect(
+      tester.getSize(find.byKey(const Key('stationLineBadgeOverflow'))),
+      Size.square(side),
+    );
+  }
+
+  for (final (scale, side) in [(1.0, 20.0), (1.5, 30.0), (2.0, 40.0)]) {
+    testWidgets('상한 없는 마크는 글자 $scale배에서 PNG·알약·+N이 한 변 $side다', (tester) async {
+      await pumpMarkRow(tester, scale: scale);
+
+      expectMarkSides(tester, side);
+    });
+  }
+
+  for (final (scale, side) in [(1.0, 20.0), (1.5, 26.0), (2.0, 26.0)]) {
+    testWidgets('고정 칸 마크는 글자 $scale배에서 PNG·알약·+N이 한 변 $side로 멈춘다', (
+      tester,
+    ) async {
+      await pumpMarkRow(
+        tester,
+        scale: scale,
+        maxTextScale: lineMarkFixedChromeMaxTextScale,
       );
 
-      final pngMark = tester.getSize(
-        find.byKey(const Key('stationLineBadge-seoul-2')).first,
-      );
-      final pillMark = tester.getSize(
-        find.byKey(const Key('stationLineBadge-unbundled-pill')),
-      );
-      final overflowMark = tester.getSize(
-        find.byKey(const Key('stationLineBadgeOverflow')),
-      );
-      expect(pngMark, Size.square(side));
-      expect(pillMark.height, side);
-      expect(overflowMark, Size.square(side));
+      expectMarkSides(tester, side);
     });
   }
 

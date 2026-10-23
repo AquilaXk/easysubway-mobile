@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
+import '../../../core/ui/line_mark.dart';
 import '../../../core/ui/name_with_marks.dart';
 import '../../../mobile_error_reporter.dart';
 import '../../facility_report/domain/facility_report_target.dart';
@@ -420,7 +421,11 @@ class _StationDetailContextChrome extends StatelessWidget {
     return NameWithMarks(
       name: name,
       marksFirst: true,
-      marks: StationLineBadge(line: mark, size: 24),
+      marks: StationLineBadge(
+        line: mark,
+        size: 24,
+        maxTextScale: lineMarkFixedChromeMaxTextScale,
+      ),
     );
   }
 

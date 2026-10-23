@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
+import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:easysubway_mobile/features/ads/ad_slot.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
@@ -733,6 +734,87 @@ void main() {
     expect(pickDestinationCount, 1);
     semantics.dispose();
   });
+
+  // 입력 칸 높이는 48dp(시각 박스 40dp)로 정해져 있어 칸 안 노선 마크는 1.3배에서
+  // 멈춘다. 26dp 기본 마크의 한 변은 26, 33.8, 33.8, 33.8이다.
+  for (final (scale, side) in [
+    (1.0, 26.0),
+    (1.3, 33.8),
+    (1.5, 33.8),
+    (2.0, 33.8),
+  ]) {
+    testWidgets(
+      'top-bar route draft 입력 칸 마크는 글자 $scale배에서 한 변 $side로 칸 안에 든다',
+      (tester) async {
+        tester.view.physicalSize = const Size(360, 780) * 2;
+        tester.view.devicePixelRatio = 2;
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        await tester.pumpWidget(
+          MaterialApp(
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(
+                context,
+              ).copyWith(textScaler: TextScaler.linear(scale)),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: NetworkMapTopBarRouteDraft(
+                draft: const RouteDraft(
+                  origin: RouteDraftStation(
+                    id: 'origin',
+                    nameKo: '서울',
+                    lineId: 'seoul-2',
+                    lineName: '수도권 2호선',
+                    lineColor: '#00A84D',
+                    stationCode: '222',
+                  ),
+                  destination: RouteDraftStation(
+                    id: 'destination',
+                    nameKo: '강남',
+                    lineId: 'seoul-4',
+                    lineName: '수도권 4호선',
+                    lineColor: '#00A5DE',
+                    stationCode: '434',
+                  ),
+                  lastModifiedAt: null,
+                ),
+                showWaypointRow: false,
+                regionLabel: '수도권',
+                onClearDraft: _noop,
+                onOpenWaypointSlot: _noop,
+                onClearOrigin: _noop,
+                onClearDestination: _noop,
+                onClearWaypoint: _noop,
+                onReorderDraft: (_, _) {},
+                roleColorForSlot: (_) => Colors.black,
+                lineBadgeBuilder: routeDraftStationLineBadge,
+              ),
+            ),
+          ),
+        );
+
+        for (final (rowKey, lineId) in [
+          ('networkMapRouteDraftOriginRow', 'seoul-2'),
+          ('networkMapRouteDraftDestinationRow', 'seoul-4'),
+        ]) {
+          final row = tester.getRect(find.byKey(Key(rowKey)));
+          final mark = tester.getRect(
+            find.descendant(
+              of: find.byKey(Key(rowKey)),
+              matching: find.byKey(Key('stationLineBadge-$lineId')),
+            ),
+          );
+          expect(mark.width, closeTo(side, 0.001), reason: rowKey);
+          expect(mark.height, closeTo(side, 0.001), reason: rowKey);
+          expect(row.height, 48);
+          expect(mark.top, greaterThanOrEqualTo(row.top));
+          expect(mark.bottom, lessThanOrEqualTo(row.bottom));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   testWidgets('top-bar route draft는 waypoint row와 reorder Semantics를 보존한다', (
     tester,

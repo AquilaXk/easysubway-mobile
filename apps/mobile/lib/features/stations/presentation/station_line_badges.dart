@@ -10,6 +10,7 @@ class StationLineBadges extends StatelessWidget {
     this.size = 40,
     this.maxBadgeCount,
     this.runSpacing = 8,
+    this.maxTextScale,
     super.key,
   });
 
@@ -17,6 +18,7 @@ class StationLineBadges extends StatelessWidget {
   final double size;
   final int? maxBadgeCount;
   final double runSpacing;
+  final double? maxTextScale;
 
   @override
   Widget build(BuildContext context) {
@@ -36,19 +38,29 @@ class StationLineBadges extends StatelessWidget {
       runSpacing: runSpacing,
       children: [
         for (final line in lines.take(visibleLineCount))
-          StationLineBadge(line: line, size: size),
+          StationLineBadge(line: line, size: size, maxTextScale: maxTextScale),
         if (hiddenLineCount > 0)
-          _StationLineOverflowBadge(count: hiddenLineCount, size: size),
+          _StationLineOverflowBadge(
+            count: hiddenLineCount,
+            size: size,
+            maxTextScale: maxTextScale,
+          ),
       ],
     );
   }
 }
 
 class StationLineBadge extends StatelessWidget {
-  const StationLineBadge({required this.line, this.size = 40, super.key});
+  const StationLineBadge({
+    required this.line,
+    this.size = 40,
+    this.maxTextScale,
+    super.key,
+  });
 
   final StationSearchLine line;
   final double size;
+  final double? maxTextScale;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +68,11 @@ class StationLineBadge extends StatelessWidget {
     final assetPath = line.badgeAssetPath;
 
     if (isLineMarkCircle(badgeText) && assetPath != null) {
-      final markSize = scaledLineMarkSize(context, size);
+      final markSize = scaledLineMarkSize(
+        context,
+        size,
+        maxTextScale: maxTextScale,
+      );
       final cachePx = (markSize * MediaQuery.devicePixelRatioOf(context))
           .round();
       final image = Image.asset(
@@ -88,11 +104,13 @@ class StationLineBadge extends StatelessWidget {
       label: badgeText,
       color: line.badgeColor,
       size: size,
+      maxTextScale: maxTextScale,
     );
   }
 }
 
-/// 호선 선택 탭. [StationLineBadge]와 동일 마크에 선택 밑줄만 얹는다.
+/// 호선 선택 탭. [StationLineBadge]와 동일 마크에 선택 밑줄만 얹는다. 탭 줄 높이가
+/// 48로 정해져 있어 마크는 [lineMarkFixedChromeMaxTextScale]에서 멈춘다.
 class StationLineBadgeTab extends StatelessWidget {
   const StationLineBadgeTab({
     required this.line,
@@ -129,7 +147,11 @@ class StationLineBadgeTab extends StatelessWidget {
                 alignment: Alignment.center,
                 children: [
                   Center(
-                    child: StationLineBadge(line: line, size: size),
+                    child: StationLineBadge(
+                      line: line,
+                      size: size,
+                      maxTextScale: lineMarkFixedChromeMaxTextScale,
+                    ),
                   ),
                   Positioned(
                     bottom: 2,
@@ -155,14 +177,23 @@ class StationLineBadgeTab extends StatelessWidget {
 }
 
 class _StationLineOverflowBadge extends StatelessWidget {
-  const _StationLineOverflowBadge({required this.count, required this.size});
+  const _StationLineOverflowBadge({
+    required this.count,
+    required this.size,
+    required this.maxTextScale,
+  });
 
   final int count;
   final double size;
+  final double? maxTextScale;
 
   @override
   Widget build(BuildContext context) {
-    final markSize = scaledLineMarkSize(context, size);
+    final markSize = scaledLineMarkSize(
+      context,
+      size,
+      maxTextScale: maxTextScale,
+    );
     return Container(
       key: const Key('stationLineBadgeOverflow'),
       width: markSize,

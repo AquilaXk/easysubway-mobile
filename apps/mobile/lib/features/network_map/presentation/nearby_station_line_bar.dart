@@ -198,6 +198,8 @@ class NearbyStationLineBar extends StatelessWidget {
                                       label: badgeText,
                                       color: lineColor,
                                       size: badgeSize,
+                                      maxTextScale:
+                                          lineMarkFixedChromeMaxTextScale,
                                     ),
                                 const SizedBox(width: 7),
                               ],

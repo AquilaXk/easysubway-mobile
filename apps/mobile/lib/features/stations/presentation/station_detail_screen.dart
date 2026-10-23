@@ -258,6 +258,7 @@ class _StationDetailAppBarTitle extends StatelessWidget {
         size: lineMarkDefaultSize,
         maxBadgeCount: _maxMarkCount,
         runSpacing: 4,
+        maxTextScale: lineMarkFixedChromeMaxTextScale,
       ),
     );
   }

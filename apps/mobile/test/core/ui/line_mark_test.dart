@@ -60,40 +60,80 @@ void main() {
   RenderParagraph paragraphOf(WidgetTester tester, String label) =>
       tester.renderObject<RenderParagraph>(find.text(label));
 
-  // 실제 레이아웃에서 잰 값을 그대로 적었다. 기대값을 상한 상수로 계산하면 상한을
-  // 1.0으로 바꾸거나 글자만 배율을 놓쳐도 같이 따라가 통과한다. 글자 크기는
-  // 20 * 0.6 = 12, 20 * 0.58 = 11.6에 배율(최대 1.3)을 곱한 15.6과 15.08이다.
-  // 알약 폭은 4글자 알약의 글자 폭에 좌우 여백(높이의 0.33배씩)을 더한 값이다.
+  // 아래 두 표의 기대값은 실제 레이아웃에서 잰 값을 그대로 적었다. 상한 상수로
+  // 계산하면 상한을 없애거나 글자만 배율을 놓쳐도 기대값이 같이 따라가 통과한다.
+  // 기본 마크는 상한이 없어 한 변이 20 * 배율이고, 글자는 원 20 * 0.6 = 12와 알약
+  // 20 * 0.58 = 11.6에 같은 배율을 곱한 값이다. 알약 폭은 4글자 알약의 글자 폭에
+  // 좌우 여백(높이의 0.33배씩)을 더한 값이다.
+  for (final (scale, label, side, width, fontSize) in [
+    (1.0, '2', 20.0, 20.0, 12.0),
+    (1.3, '2', 26.0, 26.0, 15.6),
+    (1.5, '2', 30.0, 30.0, 18.0),
+    (2.0, '2', 40.0, 40.0, 24.0),
+    (1.0, '경의중앙', 20.0, 60.6, 11.6),
+    (1.0, '수인분당', 20.0, 60.6, 11.6),
+    (1.3, '경의중앙', 26.0, 78.48, 15.08),
+    (1.5, '경의중앙', 30.0, 90.4, 17.4),
+    (2.0, '경의중앙', 40.0, 120.2, 23.2),
+    (2.0, '수인분당', 40.0, 120.2, 23.2),
+  ]) {
+    testWidgets(
+      '상한 없는 마크는 글자 $scale배에서 $label 한 변 $side, 폭 $width, 글자 $fontSize다',
+      (tester) async {
+        await _pump(
+          tester,
+          LineMark(label: label, color: color),
+          scale: scale,
+        );
+
+        final mark = tester.getSize(find.byType(LineMark));
+        final paragraph = paragraphOf(tester, label);
+        expect(mark.height, side);
+        expect(mark.width, closeTo(width, 0.05));
+        expect(paragraph.text.style!.fontSize, closeTo(fontSize, 0.001));
+        expect(paragraph.didExceedMaxLines, isFalse);
+        expect(paragraph.textSize.height, lessThanOrEqualTo(mark.height));
+        expect(paragraph.textSize.width, lessThanOrEqualTo(mark.width));
+      },
+    );
+  }
+
+  // 높이가 정해진 칸의 마크는 1.3배에서 멈춘다. 1.3배 이상에서는 한 변 26, 글자
+  // 15.6(원)과 15.08(알약)로 같다.
   for (final (scale, label, side, width, fontSize) in [
     (1.0, '2', 20.0, 20.0, 12.0),
     (1.3, '2', 26.0, 26.0, 15.6),
     (1.5, '2', 26.0, 26.0, 15.6),
     (2.0, '2', 26.0, 26.0, 15.6),
     (1.0, '경의중앙', 20.0, 60.6, 11.6),
-    (1.0, '수인분당', 20.0, 60.6, 11.6),
     (1.3, '경의중앙', 26.0, 78.48, 15.08),
     (1.5, '경의중앙', 26.0, 78.48, 15.08),
     (2.0, '경의중앙', 26.0, 78.48, 15.08),
     (2.0, '수인분당', 26.0, 78.48, 15.08),
   ]) {
-    testWidgets('글자 $scale배에서 $label 마크는 한 변 $side, 폭 $width, 글자 $fontSize다', (
-      tester,
-    ) async {
-      await _pump(
-        tester,
-        LineMark(label: label, color: color),
-        scale: scale,
-      );
+    testWidgets(
+      '고정 칸 마크는 글자 $scale배에서 $label 한 변 $side, 폭 $width, 글자 $fontSize다',
+      (tester) async {
+        await _pump(
+          tester,
+          LineMark(
+            label: label,
+            color: color,
+            maxTextScale: lineMarkFixedChromeMaxTextScale,
+          ),
+          scale: scale,
+        );
 
-      final mark = tester.getSize(find.byType(LineMark));
-      final paragraph = paragraphOf(tester, label);
-      expect(mark.height, side);
-      expect(mark.width, closeTo(width, 0.05));
-      expect(paragraph.text.style!.fontSize, closeTo(fontSize, 0.001));
-      expect(paragraph.didExceedMaxLines, isFalse);
-      expect(paragraph.textSize.height, lessThanOrEqualTo(mark.height));
-      expect(paragraph.textSize.width, lessThanOrEqualTo(mark.width));
-    });
+        final mark = tester.getSize(find.byType(LineMark));
+        final paragraph = paragraphOf(tester, label);
+        expect(mark.height, side);
+        expect(mark.width, closeTo(width, 0.05));
+        expect(paragraph.text.style!.fontSize, closeTo(fontSize, 0.001));
+        expect(paragraph.didExceedMaxLines, isFalse);
+        expect(paragraph.textSize.height, lessThanOrEqualTo(mark.height));
+        expect(paragraph.textSize.width, lessThanOrEqualTo(mark.width));
+      },
+    );
   }
 
   // 상용 서비스 역 검색 화면 3x 캡처 실측: 높이 18pt 알약의 폭은 수인분당 53.7pt,

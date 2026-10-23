@@ -489,11 +489,11 @@ void main() {
             lessThanOrEqualTo(box.width + 0.01),
             reason: '$badge 배지 폭 잘림',
           );
-          if (scale == 1.0) {
-            expect(box.height, 20, reason: '$badge 1.0배 높이 20 유지');
-            if (badge == '2') {
-              expect(box, const Size(20, 20), reason: '호선 번호는 20x20 원');
-            }
+          // 경로 노드 제목 줄은 마크가 커지면 함께 자라므로 상한 없이 20, 40이다.
+          final side = scale == 1.0 ? 20.0 : 40.0;
+          expect(box.height, side, reason: '$badge $scale배 높이');
+          if (badge == '2') {
+            expect(box, Size(side, side), reason: '호선 번호는 정원');
           }
         }
 
