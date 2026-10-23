@@ -362,6 +362,96 @@ void main() {
     );
   });
 
+  testWidgets(
+    'top-bar searchMode는 흰 상단바에 맞춰 SystemUiOverlayStyle.dark 상태바를 지정한다',
+    (tester) async {
+      await tester.pumpWidget(
+        _host(
+          SizedBox(
+            width: 520,
+            child: NetworkMapTopBar(
+              regions: const [NetworkMapRegion(name: '수도권')],
+              selectedRegion: '수도권',
+              searchMode: true,
+              searchQueryController: TextEditingController(),
+              searchFocusNode: FocusNode(),
+              onSearchBack: _noop,
+              onSearchSubmitted: (_) {},
+              onSearchClear: _noop,
+              onMenuTap: _noop,
+              onSearchTap: _noop,
+              onRegionSelected: (_) {},
+              routeDraftListenable: ValueNotifier(0),
+              routeDraft: () => const RouteDraft.empty(),
+              isWaypointRowVisible: () => false,
+              onClearDraft: _noop,
+              onOpenWaypointSlot: _noop,
+              onClearOrigin: _noop,
+              onClearDestination: _noop,
+              onClearWaypoint: _noop,
+              onReorderDraft: (_, _) {},
+              roleColorForSlot: (_) => Colors.black,
+              lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
+            ),
+          ),
+        ),
+      );
+
+      final overlayStyles = tester
+          .widgetList<AnnotatedRegion<SystemUiOverlayStyle>>(
+            find.byWidgetPredicate(
+              (w) => w is AnnotatedRegion<SystemUiOverlayStyle>,
+            ),
+          )
+          .map((region) => region.value);
+      expect(overlayStyles, contains(SystemUiOverlayStyle.dark));
+      expect(overlayStyles, isNot(contains(SystemUiOverlayStyle.light)));
+    },
+  );
+
+  testWidgets('chrome 본문은 idle에서 상단바 아래 10dp 겹쳐 시작하고 검색 모드에서는 옅은 띠 아래서 시작한다', (
+    tester,
+  ) async {
+    const statusBarInset = 24.0;
+
+    Widget shell({required bool searchMode}) {
+      return MediaQuery(
+        data: const MediaQueryData(
+          padding: EdgeInsets.only(top: statusBarInset),
+        ),
+        child: SizedBox(
+          width: 400,
+          height: 560,
+          child: NetworkMapChrome(
+            topBar: const SizedBox(height: easySubwayTopBarContentHeight),
+            disruptionBanner: null,
+            searchMode: searchMode,
+            searchBody: const SizedBox(key: Key('mapTopSearchBody')),
+            nearbyPanelVisible: false,
+            nearbyPanelExpanded: false,
+            nearbyPanel: const SizedBox(),
+            nearbyLookupMessage: null,
+            onCurrentLocationTap: _noop,
+            child: const SizedBox(key: Key('mapTopMapBody')),
+          ),
+        ),
+      );
+    }
+
+    double topOf(Key key) =>
+        tester.getTopLeft(find.byKey(key)).dy -
+        tester.getTopLeft(find.byType(NetworkMapChrome)).dy;
+
+    await tester.pumpWidget(_host(shell(searchMode: false)));
+    expect(topOf(const Key('mapTopMapBody')), statusBarInset + 60 - 10);
+
+    await tester.pumpWidget(_host(shell(searchMode: true)));
+    expect(
+      topOf(const Key('mapTopSearchBody')),
+      statusBarInset + easySubwayTopBarContentHeight + 8,
+    );
+  });
+
   testWidgets('outer chrome shell은 map/search와 overlay 가시성을 보존한다', (
     tester,
   ) async {
