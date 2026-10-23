@@ -1,5 +1,4 @@
 import 'dart:ui' as ui;
-import 'dart:ui' show SemanticsAction;
 
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart';
@@ -116,7 +115,7 @@ void main() {
         hasEnabledState: true,
       ),
     );
-    node.owner!.performAction(node.id, SemanticsAction.tap);
+    node.owner!.performAction(node.id, ui.SemanticsAction.tap);
     await tester.pump();
     expect(actions, isEmpty);
     semantics.dispose();
