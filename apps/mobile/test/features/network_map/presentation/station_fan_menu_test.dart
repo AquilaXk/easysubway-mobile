@@ -290,6 +290,7 @@ void main() {
   testWidgets('역명을 넘겨도 가운데에 역명을 그리지 않는다', (tester) async {
     const boundaryKey = ValueKey('station-fan-menu-pixel-boundary');
     Future<List<int>> pumpAndCapture(String? stationName) async {
+      await tester.pumpWidget(const SizedBox.shrink());
       await tester.pumpWidget(
         MaterialApp(
           home: Scaffold(
