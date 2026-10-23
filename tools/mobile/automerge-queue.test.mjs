@@ -2336,6 +2336,8 @@ test('코디네이터 base 갱신 기록 뒤 다음 실행은 marker를 재발�
 // #3036: 큐를 다시 깨울 이벤트가 오지 않는 공백을 schedule tick이 메운다. 한 run이 후보를 일시적 상태(대기 중 check)로
 // 읽고 건너뛰면 그 상태가 풀려도 이 워크플로가 구독하는 이벤트는 나오지 않는다(backend 2026-10-22 #539·#542, 110분 정지).
 // 빈 큐 tick은 checkout 없이 목록 조회 한 번으로 끝나야 한다.
+const COORDINATE_IF =
+  "if: ${{ !cancelled() && (github.event_name != 'schedule' || needs.queue-probe.outputs.labeled == 'true') && (github.event_name != 'pull_request_target' || github.event.label.name == 'automerge') }}";
 const PROBE_JOB_RE = /\n {2}queue-probe:\n([\s\S]*?)\n {2}coordinate:\n/;
 const COORDINATE_HEAD_RE = /\n {2}coordinate:(\n[\s\S]*?)\n {4}steps:\n/;
 
@@ -2401,7 +2403,7 @@ test('schedule tick이 이벤트 없이도 큐를 다시 판정하고 빈 큐에
   assert.equal(idle.status, 0, idle.stderr);
   assert.equal(idle.output, 'labeled=false\n');
   assert.equal(idle.calls.length, 1);
-  assert.match(idle.calls[0], /^gh pr list --repo o\/r --base main --state open --label automerge --limit 1 /);
+  assert.match(idle.calls[0], /^gh pr list --repo o\/r --base main --state open --label automerge --draft=false --limit 1 /);
 
   assert.equal(runQueueProbe(workflow, { listOutput: '1' }).output, 'labeled=true\n');
 
@@ -2417,13 +2419,9 @@ test('coordinate는 schedule에서 라벨 PR이 있을 때만 돌고 동시성 �
   const head = workflow.match(COORDINATE_HEAD_RE)?.[1] ?? '';
 
   assert.match(head, /\n {4}needs: queue-probe\n/);
-  for (const clause of [
-    '!cancelled()',
-    "(github.event_name != 'schedule' || needs.queue-probe.outputs.labeled == 'true')",
-    "(github.event_name != 'pull_request_target' || github.event.label.name == 'automerge')",
-  ]) {
-    assert.ok(head.includes(clause), `coordinate gate missing: ${clause}`);
-  }
+  // 이 if를 이벤트별로 평가해 볼 수 있는 평가기가 이 저장소에 없다. 첫 &&가 ||로 바뀌면 probe가 실패하거나 라벨 PR이 없다고 답해도
+  // schedule tick이 coordinate를 띄우므로, 식 전체를 한 글자도 다르지 않게 고정한다.
+  assert.equal(head.match(/\n {4}(if: .+)\n/)?.[1], COORDINATE_IF, 'coordinate if must match the pinned expression');
   // 빈 큐 tick이 그룹에 들어가면 대기 중인 라벨 run을 밀어낼 수 있다. 그룹은 coordinate job에만 둔다.
   assert.match(head, /\n {4}concurrency:\n {6}group: automerge-queue\n {6}cancel-in-progress: false\n/);
   assert.doesNotMatch(workflow, /^concurrency:/m);
