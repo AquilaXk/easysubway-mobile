@@ -83,7 +83,11 @@ Future<void> openSweepJourney({
     await tester.pumpAndSettle();
   }
   if (search) {
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
+    // 큰 글자에서는 시간 줄·걷는 속도가 길어져 버튼이 첫 화면 아래로 내려간다.
+    final submit = find.widgetWithText(FilledButton, '경로 찾기');
+    await tester.ensureVisible(submit);
+    await tester.pumpAndSettle();
+    await tester.tap(submit);
     await tester.pumpAndSettle();
   }
 }
