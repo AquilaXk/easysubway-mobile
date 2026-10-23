@@ -272,11 +272,11 @@ class NetworkMapTopBar extends StatelessWidget {
                 },
               ),
             ),
-            Positioned(
+            const Positioned(
               left: 0,
               right: 0,
               bottom: 0,
-              child: const EasySubwayHeaderDivider.mapChrome(
+              child: EasySubwayHeaderDivider.mapChrome(
                 key: Key('networkMapTopBarDivider'),
               ),
             ),
