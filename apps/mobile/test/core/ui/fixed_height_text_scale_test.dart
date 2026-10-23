@@ -496,6 +496,22 @@ void main() {
             }
           }
         }
+
+        // 트랙 원은 글자 크기와 무관하게 모두 24dp라 노드 내용이 모든 배율에서
+        // 같은 가장자리(원 24 + 간격 12)에서 시작한다.
+        for (final leg in [0, 1, 2]) {
+          final node = find.byKey(Key('selected-journey-leg-$leg'));
+          expect(node, findsOneWidget, reason: '타임라인 노드 $leg');
+          final content = find.descendant(
+            of: node,
+            matching: find.byType(Expanded),
+          );
+          expect(
+            tester.getTopLeft(content.last).dx - tester.getTopLeft(node).dx,
+            36,
+            reason: '노드 $leg 내용 시작 위치(배율 $scale)',
+          );
+        }
       });
     }
 

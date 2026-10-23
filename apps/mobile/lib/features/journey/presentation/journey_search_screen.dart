@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
@@ -31,6 +30,10 @@ enum _JourneyDepartureSelection {
   departureWindow,
   lastConnection,
 }
+
+/// 타임라인 트랙의 원 크기. 글자가 없는 장식이라 시작·탑승·환승·도착 원이 글자
+/// 크기와 무관하게 모두 같다. 노선 마크 글자는 탑승 노드 내용의 LineMark가 그린다.
+const _timelineTrackWidth = 24.0;
 
 class JourneySearchScreen extends StatefulWidget {
   const JourneySearchScreen({
@@ -428,12 +431,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     required Color departureColor,
     required Color arrivalColor,
   }) {
-    // 큰 글자 설정에서 노선 배지 텍스트가 잘리지 않도록 트랙 폭과 배지를 함께 키운다.
-    // 1.0배에서는 24dp 그대로다.
-    final trackWidth = math.max(
-      24.0,
-      MediaQuery.textScalerOf(context).scale(24),
-    );
     final Widget marker;
     final Widget content;
     var trackColor = EasySubwayAccessibleColors.line;
@@ -452,7 +449,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         trackColor = lineColor;
         trackThickness = 5;
         marker = SizedBox.square(
-          dimension: trackWidth,
+          dimension: _timelineTrackWidth,
           child: DecoratedBox(
             decoration: ShapeDecoration(
               shape: const CircleBorder(
@@ -468,7 +465,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         content = _rideNodeContent(journeyId, node);
       case JourneyTransferNode():
         marker = SizedBox.square(
-          dimension: 24,
+          dimension: _timelineTrackWidth,
           child: DecoratedBox(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -488,7 +485,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         content = _transferNodeContent(node, transferGuideKey);
       case JourneyArrivalNode():
         marker = SizedBox.square(
-          dimension: 24,
+          dimension: _timelineTrackWidth,
           child: DecoratedBox(
             decoration: BoxDecoration(
               shape: BoxShape.circle,
@@ -515,7 +512,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             SizedBox(
-              width: trackWidth,
+              width: _timelineTrackWidth,
               // 노드 원·세로 선은 장식이다. 내용은 오른쪽 노드 라벨이 읽는다.
               child: ExcludeSemantics(
                 child: Column(
@@ -548,7 +545,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   Widget _ringMarker(Color color) {
     return SizedBox.square(
-      dimension: 24,
+      dimension: _timelineTrackWidth,
       child: DecoratedBox(
         decoration: BoxDecoration(
           shape: BoxShape.circle,
