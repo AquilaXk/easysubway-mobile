@@ -103,7 +103,7 @@ class _AdBannerSlotDevPlaceholder extends StatelessWidget {
                     style: TextStyle(
                       color: EasySubwayAccessibleColors.mutedText,
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: EasySubwayFontWeight.regular,
                     ),
                     maxLines: 1,
                   ),

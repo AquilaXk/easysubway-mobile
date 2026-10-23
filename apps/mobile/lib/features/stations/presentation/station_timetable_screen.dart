@@ -569,7 +569,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                   _stationDisplayName,
                   style: TextStyle(
                     color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                     fontSize: 18,
                   ),
                 ),
@@ -579,7 +579,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                     lineDisplayName,
                     style: TextStyle(
                       color: lineColor,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       fontSize: 18,
                     ),
                   ),
@@ -633,8 +633,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                               _formatLineName(line.name),
                               style: TextStyle(
                                 fontWeight: _lineId == line.id
-                                    ? FontWeight.bold
-                                    : FontWeight.normal,
+                                    ? EasySubwayFontWeight.boldForContrast
+                                    : EasySubwayFontWeight.regular,
                                 color: _lineId == line.id
                                     ? EasySubwayAccessibleColors.onPrimary
                                     : EasySubwayAccessibleColors.text,
@@ -770,7 +770,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                 '기기에 저장된 시간표를 보고 있어요.',
                 style: TextStyle(
                   fontSize: 12,
-                  fontWeight: FontWeight.w600,
+                  fontWeight: EasySubwayFontWeight.regular,
                   color: EasySubwayAccessibleColors.statusWarningContent,
                   height: 1.3,
                 ),
@@ -802,7 +802,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               '지금은 시간표를 불러올 수 없어요',
               style: TextStyle(
                 fontSize: 16,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 color: EasySubwayAccessibleColors.text,
               ),
               textAlign: TextAlign.center,
@@ -835,7 +835,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text(
               '다시 시도',
-              style: TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(fontWeight: EasySubwayFontWeight.regular),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: EasySubwayAccessibleColors.primary,
@@ -878,7 +878,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             '네트워크 연결 불안정',
             style: TextStyle(
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.emphasis,
               color: EasySubwayAccessibleColors.text,
             ),
             textAlign: TextAlign.center,
@@ -908,7 +908,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
             icon: const Icon(Icons.refresh_rounded, size: 18),
             label: const Text(
               '다시 시도',
-              style: TextStyle(fontWeight: FontWeight.w600),
+              style: TextStyle(fontWeight: EasySubwayFontWeight.regular),
             ),
             style: OutlinedButton.styleFrom(
               foregroundColor: EasySubwayAccessibleColors.primary,
@@ -948,7 +948,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         key: const Key('station-timetable-service-day-note'),
         style: const TextStyle(
           fontSize: 13,
-          fontWeight: FontWeight.w600,
+          fontWeight: EasySubwayFontWeight.regular,
           color: EasySubwayAccessibleColors.text,
         ),
       ),
@@ -1036,8 +1036,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                   style: TextStyle(
                     fontSize: isSelected ? 16 : 15,
                     fontWeight: isSelected
-                        ? FontWeight.bold
-                        : FontWeight.normal,
+                        ? EasySubwayFontWeight.emphasis
+                        : EasySubwayFontWeight.regular,
                     color: isSelected
                         ? EasySubwayAccessibleColors.text
                         : EasySubwayAccessibleColors.secondaryText,
@@ -1098,7 +1098,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                       ? EasySubwayAccessibleColors.primary
                       : EasySubwayAccessibleColors.secondaryText,
                   fontSize: 13,
-                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  fontWeight: isSelected
+                      ? EasySubwayFontWeight.emphasis
+                      : EasySubwayFontWeight.regular,
                 ),
               ),
             ),
@@ -1170,7 +1172,9 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                     ? EasySubwayAccessibleColors.primary
                     : EasySubwayAccessibleColors.secondaryText,
                 fontSize: 14,
-                fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                fontWeight: isSelected
+                    ? EasySubwayFontWeight.emphasis
+                    : EasySubwayFontWeight.regular,
               ),
             ),
           ),
@@ -1272,7 +1276,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               displayName,
               style: const TextStyle(
                 fontSize: 15,
-                fontWeight: FontWeight.bold,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 color: EasySubwayAccessibleColors.text,
               ),
             ),
@@ -1324,7 +1328,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                 style: const TextStyle(
                   color: EasySubwayAccessibleColors.secondaryText,
                   fontSize: 13,
-                  fontWeight: FontWeight.normal,
+                  fontWeight: EasySubwayFontWeight.regular,
                 ),
               ),
               const SizedBox(width: 2),
@@ -1658,7 +1662,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                     departure.timeLabel,
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: EasySubwayFontWeight.regular,
                       color: isPast
                           ? EasySubwayAccessibleColors.mutedText
                           : EasySubwayAccessibleColors.text,
@@ -1683,7 +1687,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                         style: TextStyle(
                           color: EasySubwayAccessibleColors.primary,
                           fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           height: 1.1,
                         ),
                       ),
@@ -1707,7 +1711,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                         style: TextStyle(
                           color: EasySubwayAccessibleColors.red,
                           fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                          fontWeight: EasySubwayFontWeight.emphasis,
                           height: 1.1,
                         ),
                       ),
@@ -1738,8 +1742,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
                                   : EasySubwayAccessibleColors.secondaryText);
                         final FontWeight countdownWeight =
                             (isImminent || isWarning)
-                            ? FontWeight.w700
-                            : FontWeight.w500;
+                            ? EasySubwayFontWeight.emphasis
+                            : EasySubwayFontWeight.regular;
                         return Text(
                           countdown,
                           style: TextStyle(
@@ -1789,7 +1793,6 @@ class _StationTimetableEmptyMessage extends StatelessWidget {
       message,
       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
         color: EasySubwayAccessibleColors.secondaryText,
-        fontWeight: FontWeight.w700,
         height: 1.35,
       ),
     );

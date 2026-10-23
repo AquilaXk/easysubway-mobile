@@ -300,7 +300,7 @@ class _StartScreenState extends State<StartScreen>
                                   color:
                                       EasySubwayAccessibleColors.secondaryText,
                                   fontSize: 40,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: EasySubwayFontWeight.emphasis,
                                   letterSpacing: -0.8,
                                   height: 1.20,
                                 ),
@@ -324,9 +324,8 @@ class _StartScreenState extends State<StartScreen>
                                     EasySubwayAccessibleColors.surface,
                                 minimumSize: const Size.fromHeight(58),
                                 textStyle: const TextStyle(
-                                  fontFamily: 'Pretendard',
                                   fontSize: 22,
-                                  fontWeight: FontWeight.w700,
+                                  fontWeight: EasySubwayFontWeight.emphasis,
                                   letterSpacing: -0.3,
                                 ),
                                 shape: RoundedRectangleBorder(
@@ -523,7 +522,6 @@ class _PermissionInfoRow extends StatelessWidget {
                   title,
                   style: textTheme.bodyLarge?.copyWith(
                     color: EasySubwayAccessibleColors.text,
-                    fontWeight: FontWeight.w700,
                     fontSize: 18,
                     height: 1.25,
                   ),
@@ -619,9 +617,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                   foregroundColor: EasySubwayAccessibleColors.surface,
                   minimumSize: const Size.fromHeight(58),
                   textStyle: const TextStyle(
-                    fontFamily: 'Pretendard',
                     fontSize: 22,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                   ),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(
@@ -655,7 +652,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                           '어떻게 걸으세요?',
                           style: textTheme.titleLarge?.copyWith(
                             color: EasySubwayAccessibleColors.text,
-                            fontWeight: FontWeight.w800,
+                            fontWeight: EasySubwayFontWeight.emphasis,
                             fontSize: 26,
                             height: 1.2,
                           ),
@@ -744,7 +741,8 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                       // 프로필 질문과 같은 타이포 위계(titleLarge)로 통일(#1936 일관성).
                                       style: textTheme.titleLarge?.copyWith(
                                         color: EasySubwayAccessibleColors.text,
-                                        fontWeight: FontWeight.w800,
+                                        fontWeight:
+                                            EasySubwayFontWeight.emphasis,
                                         fontSize: 26,
                                         height: 1.2,
                                       ),
@@ -782,7 +780,6 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                         style: textTheme.bodyMedium?.copyWith(
                                           color: EasySubwayAccessibleColors
                                               .mutedText,
-                                          fontWeight: FontWeight.w700,
                                           height: 1.35,
                                         ),
                                       ),
@@ -803,9 +800,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           EasySubwayAccessibleColors.surface,
                                       minimumSize: const Size.fromHeight(58),
                                       textStyle: const TextStyle(
-                                        fontFamily: 'Pretendard',
                                         fontSize: 22,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight:
+                                            EasySubwayFontWeight.emphasis,
                                       ),
                                       shape: RoundedRectangleBorder(
                                         borderRadius: BorderRadius.circular(
@@ -826,9 +823,9 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                                           EasySubwayAccessibleColors.text,
                                       minimumSize: const Size.fromHeight(48),
                                       textStyle: const TextStyle(
-                                        fontFamily: 'Pretendard',
                                         fontSize: 18,
-                                        fontWeight: FontWeight.w700,
+                                        fontWeight:
+                                            EasySubwayFontWeight.regular,
                                       ),
                                     ),
                                     child: const Text('나중에 설정'),

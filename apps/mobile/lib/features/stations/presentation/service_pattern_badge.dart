@@ -68,8 +68,8 @@ class ServicePatternBadge extends StatelessWidget {
         child: Text(
           label,
           style: Theme.of(context).textTheme.labelLarge?.copyWith(
+            fontWeight: EasySubwayFontWeight.emphasis,
             color: EasySubwayAccessibleColors.secondaryText,
-            fontWeight: FontWeight.w700,
             height: 1.2,
           ),
         ),

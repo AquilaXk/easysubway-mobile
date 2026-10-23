@@ -23,8 +23,8 @@ class AppSectionTitle extends StatelessWidget {
       child: Text(
         title,
         style: Theme.of(context).textTheme.titleMedium?.copyWith(
+          fontWeight: EasySubwayFontWeight.emphasis,
           color: EasySubwayAccessibleColors.text,
-          fontWeight: FontWeight.w700,
           height: 1.2,
         ),
       ),
@@ -147,7 +147,7 @@ class AppInfoRow extends StatelessWidget {
           style: const TextStyle(
             color: EasySubwayAccessibleColors.text,
             fontSize: 15,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.regular,
             height: 1.25,
           ),
         ),
@@ -158,7 +158,7 @@ class AppInfoRow extends StatelessWidget {
             style: const TextStyle(
               color: EasySubwayAccessibleColors.mutedText,
               fontSize: 12,
-              fontWeight: FontWeight.w500,
+              fontWeight: EasySubwayFontWeight.regular,
               height: 1.4,
             ),
           ),
@@ -214,8 +214,8 @@ class FeatureTile extends StatelessWidget {
                     child: Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: EasySubwayFontWeight.regular,
                         color: EasySubwayAccessibleColors.text,
-                        fontWeight: FontWeight.w700,
                         height: 1.35,
                       ),
                     ),

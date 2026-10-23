@@ -1,15 +1,14 @@
-import 'dart:io' show File, Platform;
-import 'dart:typed_data' show ByteData;
+import 'dart:io' show Platform;
 
 import 'package:easysubway_mobile/features/journey/presentation/result/journey_result_view_model.dart';
 import 'package:easysubway_mobile/features/journey/presentation/result/journey_result_widgets.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../../support/korean_test_font.dart';
+
 // #441: 계단 상태 안내, 계단 없는 경로 요청 422 안내, 경로 탭 라벨의 화면 고정.
-const _goldenFontFamily = 'NanumGothicGolden';
 const _boundaryKey = ValueKey('journey-stair-status-golden-boundary');
 const _injectVisualMutation = bool.fromEnvironment(
   'EASYSUBWAY_GOLDEN_MUTATION',
@@ -20,7 +19,7 @@ const _mutationBackground = Color(0xFF004D40);
 Future<void> _pump(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(
     MaterialApp(
-      theme: ThemeData(fontFamily: _goldenFontFamily),
+      theme: ThemeData(fontFamily: koreanTestFontFamily),
       home: Scaffold(
         backgroundColor: _goldenBackground,
         body: Center(
@@ -52,14 +51,7 @@ List<JourneyStairStatusNotice> _notices(
 );
 
 void main() {
-  setUpAll(() async {
-    final bytes = await File(
-      'test/assets/fonts/NanumGothic-Regular.ttf',
-    ).readAsBytes();
-    await (FontLoader(
-      _goldenFontFamily,
-    )..addFont(Future.value(ByteData.sublistView(bytes)))).load();
-  });
+  setUpAll(loadKoreanTestFont);
 
   // golden 비교는 macOS 호스트 래스터라이저에서만 (CI 크로스플랫폼 오탐 방지).
   final skipReason = !Platform.isMacOS;

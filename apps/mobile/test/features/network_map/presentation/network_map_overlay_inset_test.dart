@@ -103,7 +103,6 @@ Widget _home({
 }) {
   return MaterialApp(
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(fontFamily: 'Pretendard'),
     home: MediaQuery(
       data: MediaQueryData(
         size: _screen,

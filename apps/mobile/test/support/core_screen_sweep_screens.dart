@@ -3,13 +3,11 @@ import 'dart:async' show unawaited;
 import 'dart:convert' show jsonDecode;
 import 'dart:io' show File;
 
-import 'package:easysubway_mobile/app/accessibility_theme.dart';
 import 'package:easysubway_mobile/core/error/error_feedback.dart';
 import 'package:easysubway_mobile/core/ui/region_menu.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_screen.dart';
-import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
@@ -24,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'core_screen_sweep_fixtures.dart';
 import 'journey_result_fixture.dart';
+import 'sweep_journey.dart';
 
 /// 앱에 다크 테마는 없다(`darkTheme` 미정의). 시스템 다크 모드에서도 같은
 /// 테마로 그려지는지 `systemDark` 조합으로 함께 검사해, 다크 테마를 도입하면
@@ -114,6 +113,33 @@ final sweepScreens = <SweepScreen>[
     '경로 검색',
     (context) => _openJourney(context, search: false),
     find.widgetWithText(FilledButton, '경로 찾기'),
+  ),
+  SweepScreen(
+    '경로 검색(예약 모드)',
+    (context) => _openJourney(
+      context,
+      search: false,
+      departureChip: 'journey-departure-scheduled',
+    ),
+    find.byKey(const Key('journey-scheduled-time')),
+  ),
+  SweepScreen(
+    '경로 검색(구간 모드)',
+    (context) => _openJourney(
+      context,
+      search: false,
+      departureChip: 'journey-departure-window',
+    ),
+    find.byKey(const Key('journey-window-time')),
+  ),
+  SweepScreen(
+    '경로 검색(막차 모드)',
+    (context) => _openJourney(
+      context,
+      search: false,
+      departureChip: 'journey-departure-last-connection',
+    ),
+    find.byKey(const Key('journey-last-connection-date')),
   ),
   SweepScreen(
     '경로 결과·상세',
@@ -569,33 +595,14 @@ Future<void> _openMenu(SweepScreenContext context) async {
 Future<void> _openJourney(
   SweepScreenContext context, {
   required bool search,
-}) async {
-  final tester = context.tester;
-  unawaited(
-    context.navigatorKey.currentState!.push(
-      MaterialPageRoute<void>(
-        builder: (_) => OnboardingPreferenceScope(
-          preferences: context.theme.preferences,
-          child: JourneySearchScreen(
-            repository: FixtureJourneyRepository(),
-            attestor: const FixtureIntegrityAttestor(),
-            draft: fixtureRouteDraft(),
-            mobilityType: 'WHEELCHAIR',
-            onShellBackToHome: () {},
-            stationNameResolver: fixtureStationName,
-            transferGuideRepository: const FixtureTransferGuideRepository(),
-            journeyNow: () => DateTime.utc(2026, 8, 12),
-          ),
-        ),
-      ),
-    ),
-  );
-  await tester.pumpAndSettle();
-  if (search) {
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-  }
-}
+  String? departureChip,
+}) => openSweepJourney(
+  tester: context.tester,
+  navigatorKey: context.navigatorKey,
+  preferences: context.theme.preferences,
+  search: search,
+  departureChip: departureChip,
+);
 
 Future<void> _openStationDetail(SweepScreenContext context) async {
   unawaited(

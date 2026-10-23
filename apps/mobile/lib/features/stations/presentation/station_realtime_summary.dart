@@ -70,8 +70,8 @@ class StationRealtimeSummary extends StatelessWidget {
                   child: Text(
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       color: EasySubwayAccessibleColors.text,
-                      fontWeight: FontWeight.w700,
                       height: 1.25,
                     ),
                   ),
@@ -92,7 +92,7 @@ class StationRealtimeSummary extends StatelessWidget {
                     style: const TextStyle(
                       color: EasySubwayAccessibleColors.secondaryText,
                       fontSize: 13,
-                      fontWeight: FontWeight.w600,
+                      fontWeight: EasySubwayFontWeight.regular,
                     ),
                   ),
                 ),
@@ -106,7 +106,6 @@ class StationRealtimeSummary extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: EasySubwayAccessibleColors.text,
                   height: 1.35,
-                  fontWeight: FontWeight.w700,
                 ),
               ),
             ],
@@ -332,7 +331,7 @@ class _StationRealtimeRow extends StatelessWidget {
                     style: const TextStyle(
                       color: EasySubwayAccessibleColors.text,
                       fontSize: 15,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.regular,
                     ),
                   ),
                   if (statusSubtext.isNotEmpty)
@@ -341,7 +340,7 @@ class _StationRealtimeRow extends StatelessWidget {
                       style: const TextStyle(
                         color: EasySubwayAccessibleColors.secondaryText,
                         fontSize: 13,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: EasySubwayFontWeight.regular,
                       ),
                     ),
                 ],
@@ -366,7 +365,7 @@ class _StationRealtimeRow extends StatelessWidget {
                   style: TextStyle(
                     color: badgeText,
                     fontSize: 13,
-                    fontWeight: FontWeight.w700,
+                    fontWeight: EasySubwayFontWeight.emphasis,
                   ),
                 ),
               ),

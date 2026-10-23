@@ -1044,7 +1044,6 @@ class _NotificationSettingsContent extends StatelessWidget {
                         '저장 중...',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: EasySubwayAccessibleColors.mutedText,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ] else ...[
@@ -1058,7 +1057,6 @@ class _NotificationSettingsContent extends StatelessWidget {
                         '변경 시 자동으로 저장됩니다',
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
                           color: EasySubwayAccessibleColors.mutedText,
-                          fontWeight: FontWeight.w600,
                         ),
                       ),
                     ],
@@ -1092,7 +1090,7 @@ class _NotificationSectionHeader extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 height: 1.25,
               ),
             ),
@@ -1126,7 +1124,6 @@ class _NotificationSettingsMessage extends StatelessWidget {
             key: const Key('notificationSettingsMessage'),
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
               height: 1.35,
             ),
           ),
@@ -1143,7 +1140,6 @@ class _NotificationSettingsMessage extends StatelessWidget {
               _notificationRegistrationFailureNextAction,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: EasySubwayAccessibleColors.mutedText,
-                fontWeight: FontWeight.w700,
                 height: 1.35,
               ),
             ),
@@ -1194,10 +1190,10 @@ class _NotificationSwitchTile extends StatelessWidget {
         title: Text(
           title,
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
+            fontWeight: EasySubwayFontWeight.regular,
             color: enabled
                 ? EasySubwayAccessibleColors.text
                 : EasySubwayAccessibleColors.mutedText,
-            fontWeight: FontWeight.w700,
             height: 1.3,
           ),
         ),
@@ -1286,8 +1282,8 @@ class _NotificationSettingsFailure extends StatelessWidget {
           child: Text(
             message,
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
+              fontWeight: EasySubwayFontWeight.emphasis,
               color: EasySubwayAccessibleColors.text,
-              fontWeight: FontWeight.w700,
               height: 1.35,
             ),
           ),

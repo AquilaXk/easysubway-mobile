@@ -134,13 +134,13 @@ void main() {
       expect(find.text('2분 뒤 도착'), findsNothing);
 
       // AI 슬롭 박스(Container decoration with Border)가 카운트다운을 감싸지 않는다
-      // 인라인 Text 위젯으로 바로 렌더링되며 빨간색 볼드 강조
+      // 인라인 Text 위젯으로 바로 렌더링되며 빨간색 강조 굵기
       final countdownWidget = tester.widget<Text>(find.text('곧 도착'));
       expect(
         countdownWidget.style?.color,
         EasySubwayColorPrimitives.statusDanger,
       );
-      expect(countdownWidget.style?.fontWeight, FontWeight.w700);
+      expect(countdownWidget.style?.fontWeight, EasySubwayFontWeight.emphasis);
       expect(countdownWidget.style?.fontSize, 13);
 
       // 25초 경과 (10:01:15) -> Ticker 2회 틱(20초) 실행되어 10:01 열차가 지나가고 다음 열차가 10:03으로 롤오버
@@ -158,7 +158,7 @@ void main() {
 
       final nextCountdown = tester.widget<Text>(find.text('2분 뒤 도착'));
       expect(nextCountdown.style?.color, EasySubwayAccessibleColors.amber);
-      expect(nextCountdown.style?.fontWeight, FontWeight.w700);
+      expect(nextCountdown.style?.fontWeight, EasySubwayFontWeight.emphasis);
       expect(nextCountdown.style?.fontSize, 13);
     });
   });

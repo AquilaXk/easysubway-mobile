@@ -154,7 +154,7 @@ class NearbyArrivalPanel extends StatelessWidget {
             style: const TextStyle(
               color: EasySubwayAccessibleColors.mutedText,
               fontSize: 12,
-              fontWeight: FontWeight.w600,
+              fontWeight: EasySubwayFontWeight.regular,
             ),
           ),
           const SizedBox(height: 6),

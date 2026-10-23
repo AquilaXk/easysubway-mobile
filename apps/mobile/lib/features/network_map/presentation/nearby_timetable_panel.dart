@@ -387,7 +387,7 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
             style: TextStyle(
               color: EasySubwayAccessibleColors.contentSecondary,
               fontSize: 15,
-              fontWeight: FontWeight.w600,
+              fontWeight: EasySubwayFontWeight.regular,
             ),
           ),
         ),
@@ -410,8 +410,8 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
               ? EasySubwayAccessibleColors.amber
               : EasySubwayAccessibleColors.secondaryText);
     final countdownWeight = (isImminent || isWarning)
-        ? FontWeight.w700
-        : FontWeight.w600;
+        ? EasySubwayFontWeight.emphasis
+        : EasySubwayFontWeight.regular;
 
     final destinationLabel = departure.destinationLabel;
     final bool hasDestination = destinationLabel.isNotEmpty;
@@ -424,7 +424,7 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
         style: const TextStyle(
           color: EasySubwayAccessibleColors.contentPrimary,
           fontSize: 15,
-          fontWeight: FontWeight.w700,
+          fontWeight: EasySubwayFontWeight.regular,
         ),
       );
     } else if (hasDestination) {
@@ -433,7 +433,7 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
         style: const TextStyle(
           color: EasySubwayAccessibleColors.contentPrimary,
           fontSize: 14,
-          fontWeight: FontWeight.w700,
+          fontWeight: EasySubwayFontWeight.regular,
         ),
       );
     } else {
@@ -442,7 +442,7 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
         style: const TextStyle(
           color: EasySubwayAccessibleColors.contentPrimary,
           fontSize: 15,
-          fontWeight: FontWeight.w700,
+          fontWeight: EasySubwayFontWeight.regular,
         ),
       );
     }

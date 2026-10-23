@@ -114,8 +114,9 @@ class StationFacilityCard extends StatelessWidget {
                                     child: Text(
                                       facility.displayName,
                                       style: textTheme.titleMedium?.copyWith(
+                                        fontWeight:
+                                            EasySubwayFontWeight.regular,
                                         color: EasySubwayAccessibleColors.text,
-                                        fontWeight: FontWeight.w700,
                                         height: 1.25,
                                       ),
                                     ),
@@ -154,7 +155,7 @@ class StationFacilityCard extends StatelessWidget {
                                         : '개찰구 바깥쪽 (대합실)',
                                     style: TextStyle(
                                       fontSize: 11,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: EasySubwayFontWeight.emphasis,
                                       color: isInsideGate
                                           ? EasySubwayAccessibleColors.primary
                                           : EasySubwayAccessibleColors
@@ -197,7 +198,8 @@ class StationFacilityCard extends StatelessWidget {
                                           facility.statusTitle,
                                           style: textTheme.bodySmall?.copyWith(
                                             color: style.badgeTextColor,
-                                            fontWeight: FontWeight.w700,
+                                            fontWeight:
+                                                EasySubwayFontWeight.emphasis,
                                             height: 1.2,
                                           ),
                                         ),
@@ -221,7 +223,6 @@ class StationFacilityCard extends StatelessWidget {
                                       style: textTheme.bodyMedium?.copyWith(
                                         color: EasySubwayAccessibleColors
                                             .secondaryText,
-                                        fontWeight: FontWeight.w500,
                                         height: 1.3,
                                       ),
                                     ),
@@ -243,7 +244,6 @@ class StationFacilityCard extends StatelessWidget {
                                       style: textTheme.bodySmall?.copyWith(
                                         color: EasySubwayAccessibleColors
                                             .mutedText,
-                                        fontWeight: FontWeight.w500,
                                         height: 1.3,
                                       ),
                                     ),
@@ -290,7 +290,9 @@ class StationFacilityCard extends StatelessWidget {
                         icon: const Icon(Icons.report_outlined, size: 18),
                         label: const Text(
                           '시설 제보',
-                          style: TextStyle(fontWeight: FontWeight.w600),
+                          style: TextStyle(
+                            fontWeight: EasySubwayFontWeight.regular,
+                          ),
                         ),
                       ),
                     ),

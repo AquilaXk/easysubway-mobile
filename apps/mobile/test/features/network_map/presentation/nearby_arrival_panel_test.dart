@@ -120,15 +120,15 @@ void main() {
     expect(find.text('10분 뒤 도착'), findsOneWidget);
     expect(find.text('19분 뒤 도착'), findsOneWidget);
 
-    // 곧 도착 텍스트 위젯은 빨간색 강조 (statusDestructive w700)
+    // 곧 도착 텍스트 위젯은 빨간색 강조 (statusDestructive, 강조 굵기)
     final soonText = tester.widget<Text>(find.text('곧 도착'));
     expect(soonText.style?.color, EasySubwayAccessibleColors.statusDestructive);
-    expect(soonText.style?.fontWeight, FontWeight.w700);
+    expect(soonText.style?.fontWeight, EasySubwayFontWeight.emphasis);
 
-    // 일반 도착 텍스트 위젯은 secondaryText w600
+    // 일반 도착 텍스트 위젯은 secondaryText, 본문 굵기
     final regularText = tester.widget<Text>(find.text('5분 뒤 도착'));
     expect(regularText.style?.color, EasySubwayAccessibleColors.secondaryText);
-    expect(regularText.style?.fontWeight, FontWeight.w600);
+    expect(regularText.style?.fontWeight, EasySubwayFontWeight.regular);
   });
 
   testWidgets('eta가 0이어도 상세 위치 메시지가 있으면 메시지를 우선 표시한다 (코레일 구간 방어)', (

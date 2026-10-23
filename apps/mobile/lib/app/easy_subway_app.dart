@@ -188,7 +188,6 @@ class EasySubwayApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       scrollBehavior: const EasySubwayScrollBehavior(),
       theme: ThemeData(
-        fontFamily: 'Pretendard',
         // fromSeed 파생색 대신 시그니처 역할색을 명시해 JSON 색 계약을 유지한다.
         colorScheme:
             ColorScheme.fromSeed(
@@ -213,9 +212,7 @@ class EasySubwayApp extends StatelessWidget {
               onErrorContainer: EasySubwayAccessibleColors.statusDangerContent,
             ),
         extensions: const [EasySubwayTokens.light],
-        textTheme: easySubwayTextTheme(
-          ThemeData(useMaterial3: true).textTheme,
-        ).apply(fontFamily: 'Pretendard'),
+        textTheme: easySubwayTextTheme(ThemeData(useMaterial3: true).textTheme),
         scaffoldBackgroundColor: EasySubwayAccessibleColors.surfaceScaffold,
         // 기본 대화상자 배경은 보랏빛 톤이라 그 위 primary 글자 버튼이 대비
         // 4.5:1에 못 미친다. 앱의 흰 면으로 맞춘다(#469).
@@ -237,10 +234,9 @@ class EasySubwayApp extends StatelessWidget {
             size: 26,
           ),
           titleTextStyle: TextStyle(
-            fontFamily: 'Pretendard',
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -255,9 +251,8 @@ class EasySubwayApp extends StatelessWidget {
                   borderRadius: mainThemeControlRadius,
                 ),
                 textStyle: const TextStyle(
-                  fontFamily: 'Pretendard',
                   fontSize: 18,
-                  fontWeight: FontWeight.w700,
+                  fontWeight: EasySubwayFontWeight.emphasis,
                 ),
               ).copyWith(
                 backgroundColor: WidgetStateProperty.resolveWith(
@@ -281,9 +276,8 @@ class EasySubwayApp extends StatelessWidget {
               borderRadius: mainThemeControlRadius,
             ),
             textStyle: const TextStyle(
-              fontFamily: 'Pretendard',
               fontSize: 16,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.regular,
             ),
           ),
         ),

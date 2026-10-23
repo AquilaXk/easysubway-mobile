@@ -170,7 +170,6 @@ class _StationSearchEmptyState extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: _emptyTone,
-                  fontWeight: FontWeight.w600,
                   height: 1.35,
                   fontSize: 16,
                 ),
@@ -198,7 +197,6 @@ class _StationSearchMessage extends StatelessWidget {
         message,
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
           color: EasySubwayAccessibleColors.secondaryText,
-          fontWeight: FontWeight.w700,
           height: 1.35,
         ),
       ),
@@ -228,7 +226,7 @@ class _StationSearchResultLineRow extends StatelessWidget {
     const nameStyle = TextStyle(
       color: EasySubwayAccessibleColors.text,
       fontSize: _stationNameFontSize,
-      fontWeight: FontWeight.w400,
+      fontWeight: EasySubwayFontWeight.regular,
       height: 1.2,
     );
     final highlightStyle = nameStyle.copyWith(color: _searchMatchHighlight);

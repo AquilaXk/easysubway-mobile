@@ -170,7 +170,7 @@ class _NetworkMapMenuHeader extends StatelessWidget {
                     style: TextStyle(
                       color: EasySubwayAccessibleColors.onPrimary,
                       fontSize: 21,
-                      fontWeight: FontWeight.w800,
+                      fontWeight: EasySubwayFontWeight.emphasis,
                       letterSpacing: -0.2,
                     ),
                   ),
@@ -228,7 +228,7 @@ class _NetworkMapMenuTile extends StatelessWidget {
                       style: const TextStyle(
                         color: EasySubwayAccessibleColors.listRowText,
                         fontSize: 17,
-                        fontWeight: FontWeight.w600,
+                        fontWeight: EasySubwayFontWeight.regular,
                       ),
                     ),
                   ),

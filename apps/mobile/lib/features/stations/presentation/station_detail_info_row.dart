@@ -23,7 +23,6 @@ class StationDetailInfoRow extends StatelessWidget {
             text,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
               color: EasySubwayAccessibleColors.secondaryText,
-              fontWeight: FontWeight.w700,
               height: 1.3,
             ),
           ),

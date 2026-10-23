@@ -2281,7 +2281,7 @@ void main() {
       easySubwayPageSearchFieldHeight,
     );
 
-    // in-place 입력 TextField의 스타일을 검증한다(폰트 크기 17, w600). #2082:
+    // in-place 입력 TextField의 스타일을 검증한다(폰트 크기 17, 본문 굵기). #2082:
     // 입력 style은 hint style과 동일 glyph 메트릭을 갖도록 height를 지정하지
     // 않는다(height 1.2를 주면 hint와 편집 텍스트 glyph 중심이 어긋나 편집
     // 텍스트가 시각 박스 중앙보다 위로 뜬다).
@@ -2290,7 +2290,7 @@ void main() {
     );
     expect(activeField.style?.fontSize, 17);
     expect(activeField.style?.height, isNull);
-    expect(activeField.style?.fontWeight, FontWeight.w600);
+    expect(activeField.style?.fontWeight, EasySubwayFontWeight.regular);
 
     // 검색 모드의 뒤로가기는 흰 상단바 검색 필드 안에서 22 크기 셰브런이다.
     final backIcon = tester.widget<Icon>(
@@ -2739,7 +2739,7 @@ void main() {
     );
     expect(dimBarrier, findsOneWidget);
 
-    // 선택 상태: 선택 행(초기=테스트권)은 굵기 w700·accent 색상 + 체크마크(✓).
+    // 선택 상태: 선택 행(초기=테스트권)은 강조 굵기·accent 색상 + 체크마크(✓).
     final selectedRow = find.byKey(
       const ValueKey('networkMapRegionMenuRow_테스트권'),
     );
@@ -2749,7 +2749,7 @@ void main() {
       find.descendant(of: selectedRow, matching: find.text('테스트권')),
     );
     expect(selectedText.style?.fontSize, 16);
-    expect(selectedText.style?.fontWeight, FontWeight.w700);
+    expect(selectedText.style?.fontWeight, EasySubwayFontWeight.emphasis);
     expect(
       selectedText.style?.color,
       EasySubwayAccessibleColors.interactionPrimary,
@@ -2759,7 +2759,7 @@ void main() {
       find.descendant(of: busanRow, matching: find.text('부산')),
     );
     expect(busanText.style?.fontSize, 16);
-    expect(busanText.style?.fontWeight, FontWeight.w600);
+    expect(busanText.style?.fontWeight, EasySubwayFontWeight.regular);
     expect(busanText.style?.color, EasySubwayAccessibleColors.listRowText);
 
     // ✓ 트레일링 체크마크:

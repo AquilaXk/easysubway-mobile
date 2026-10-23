@@ -731,7 +731,7 @@ void main() {
     final titleWidget = tester.widget<Text>(find.text('기차 조회'));
     expect(titleWidget.style?.color, Colors.white);
     expect(titleWidget.style?.fontSize, 22);
-    expect(titleWidget.style?.fontWeight, FontWeight.bold);
+    expect(titleWidget.style?.fontWeight, EasySubwayFontWeight.emphasis);
     expect(find.text('전국 열차 시간표와 운임을 간편하게 조회하세요'), findsNothing);
 
     // 제거된 TMI / 예매 옵션 확인
@@ -794,14 +794,14 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 출발·도착 라벨 18pt bold 확인
+    // 출발·도착 라벨 18pt 본문 굵기 확인
     final departLabel = tester.widget<Text>(find.text('출발'));
     expect(departLabel.style?.fontSize, 18);
-    expect(departLabel.style?.fontWeight, FontWeight.bold);
+    expect(departLabel.style?.fontWeight, EasySubwayFontWeight.regular);
 
     final arriveLabel = tester.widget<Text>(find.text('도착'));
     expect(arriveLabel.style?.fontSize, 18);
-    expect(arriveLabel.style?.fontWeight, FontWeight.bold);
+    expect(arriveLabel.style?.fontWeight, EasySubwayFontWeight.regular);
 
     // 출발·도착 입력창 힌트 텍스트 확인
     final departField = tester.widget<TextField>(
@@ -827,19 +827,19 @@ void main() {
       findsOneWidget,
     );
 
-    // 일정 선택 헤더 18pt w700 확인
+    // 일정 선택 헤더 18pt 강조 굵기 확인
     final scheduleHeader = tester.widget<Text>(find.text('일정 선택'));
     expect(scheduleHeader.style?.fontSize, 18);
-    expect(scheduleHeader.style?.fontWeight, FontWeight.w700);
+    expect(scheduleHeader.style?.fontWeight, EasySubwayFontWeight.emphasis);
 
-    // 일정 선택 행 라벨 16pt w700, 값 16pt w700 확인
+    // 일정 선택 행 라벨과 값은 16pt 본문 굵기 확인
     final goingLabel = tester.widget<Text>(find.text('가는 날'));
     expect(goingLabel.style?.fontSize, 16);
-    expect(goingLabel.style?.fontWeight, FontWeight.w700);
+    expect(goingLabel.style?.fontWeight, EasySubwayFontWeight.regular);
 
     final goingValue = tester.widget<Text>(find.text('2026.07.19 (일)'));
     expect(goingValue.style?.fontSize, 16);
-    expect(goingValue.style?.fontWeight, FontWeight.w700);
+    expect(goingValue.style?.fontWeight, EasySubwayFontWeight.regular);
 
     // 시간표 조회 버튼 최소 높이 54 확인
     final submitBox = tester.widget<ConstrainedBox>(

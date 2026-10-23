@@ -84,7 +84,7 @@ class NewNotificationBar extends StatelessWidget {
                           style: TextStyle(
                             color: EasySubwayAccessibleColors.noticeBarText,
                             fontSize: 15,
-                            fontWeight: FontWeight.w700,
+                            fontWeight: EasySubwayFontWeight.emphasis,
                           ),
                         ),
                       ),
@@ -100,7 +100,7 @@ class NewNotificationBar extends StatelessWidget {
                                 color:
                                     EasySubwayAccessibleColors.noticeBarAccent,
                                 fontSize: 13,
-                                fontWeight: FontWeight.w700,
+                                fontWeight: EasySubwayFontWeight.emphasis,
                               ),
                             ),
                             SizedBox(height: 3),

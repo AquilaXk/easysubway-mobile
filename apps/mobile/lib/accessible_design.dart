@@ -30,6 +30,23 @@ abstract final class EasySubwayColorPrimitives {
   static const statusInfoSoft = Color(0xFFEEF5FF);
 }
 
+/// 글자 굵기 역할. 기본은 [regular]이고 화면 제목·섹션 머리·선택 상태·주 버튼·
+/// 상태 강조만 [emphasis]를 쓴다(#503).
+///
+/// 값은 Flutter `Typography.material2021`이 Material 3 역할에 주는 두 굵기다
+/// (packages/flutter/lib/src/material/typography.dart `_M3Typography`).
+abstract final class EasySubwayFontWeight {
+  static const regular = FontWeight.w400;
+  static const emphasis = FontWeight.w500;
+
+  /// 노선색과 흰색이 맞닿은 글자의 대비용 굵기다. 노선색과 흰색의 대비는 2호선 3.13,
+  /// 6호선 3.22, 공항철도 3.55로 3:1~4.5:1이라, 14pt 이상 굵은 글자일 때만 큰 글자
+  /// 기준(3:1)을 받는다. 3·4·9호선, 경의중앙선, 수인분당선은 굵게 해도 3:1에 못 미친다. Flutter `textContrastGuideline`은 w700만 굵게 본다(flutter_test
+  /// accessibility.dart `kBoldTextMinimumSize`). 쓸 수 있는 곳과 곳마다의 이유는
+  /// design_guard_test의 허용 목록이 정하며, 새 사용처는 거기에 올려 검토를 거친다.
+  static const boldForContrast = FontWeight.w700;
+}
+
 /// 노선도 화면을 기준으로 삼는 앱 공용 색 팔레트.
 ///
 /// 역할별로 상수를 묶어 화면마다 색이 섞이지 않게 한다.
@@ -38,10 +55,7 @@ abstract final class EasySubwayColorPrimitives {
 /// - 상태색(정상/주의/고장)은 의미가 있는 곳에만 쓴다.
 /// - soft 틴트 배경은 상태 표현용이며 장식용으로 쓰지 않는다.
 ///
-/// 타이포 위계 가이드(전 화면 공통):
-/// - 본문·라벨: w500~w600
-/// - 강조(행 타이틀·값): w700~w800
-/// - 화면 타이틀만 w800 이상(w900은 화면 타이틀에 한정)
+/// 글자 굵기는 [EasySubwayFontWeight] 역할을 쓴다.
 class EasySubwayAccessibleColors {
   const EasySubwayAccessibleColors._();
 
@@ -347,11 +361,7 @@ class AccessibleShortcutButton extends StatelessWidget {
         foregroundColor: EasySubwayAccessibleColors.primary,
         minimumSize: const Size.fromHeight(EasySubwayTouchTarget.general),
         side: BorderSide(color: colorScheme.outlineVariant),
-        textStyle: const TextStyle(
-          fontFamily: 'Pretendard',
-          fontSize: 16,
-          fontWeight: FontWeight.w700,
-        ),
+        textStyle: const TextStyle(fontSize: 16),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       ),
       icon: IconTheme.merge(data: const IconThemeData(size: 22), child: icon),
@@ -396,7 +406,7 @@ class AccessibleStateCard extends StatelessWidget {
                     Text(
                       title,
                       style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
+                        fontWeight: EasySubwayFontWeight.emphasis,
                         height: 1.25,
                       ),
                     ),

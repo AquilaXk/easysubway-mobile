@@ -66,7 +66,7 @@ class _FavoriteHomeScreenState extends State<FavoriteHomeScreen> {
           style: TextStyle(
             color: EasySubwayAccessibleColors.onPrimary,
             fontSize: 21,
-            fontWeight: FontWeight.w700,
+            fontWeight: EasySubwayFontWeight.emphasis,
             letterSpacing: -0.3,
           ),
         ),
@@ -347,7 +347,7 @@ class _FavoriteHomeSectionHeader extends StatelessWidget {
               title,
               style: textTheme.bodyMedium?.copyWith(
                 color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 height: 1.25,
               ),
             ),
@@ -399,7 +399,6 @@ class _FavoriteHomeEmptyState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                 color: _emptyTone,
-                fontWeight: FontWeight.w600,
                 height: 1.35,
                 fontSize: 16,
               ),
@@ -438,7 +437,7 @@ class _FavoriteHomeErrorState extends StatelessWidget {
               textAlign: TextAlign.center,
               style: Theme.of(context).textTheme.titleLarge?.copyWith(
                 color: EasySubwayAccessibleColors.text,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 height: 1.3,
               ),
             ),
@@ -499,7 +498,6 @@ class _FavoriteHomeStationRow extends StatelessWidget {
                           name,
                           style: textTheme.bodyLarge?.copyWith(
                             color: EasySubwayAccessibleColors.text,
-                            fontWeight: FontWeight.w700,
                             height: 1.25,
                           ),
                         ),
@@ -585,7 +583,6 @@ class _FavoriteHomeRouteRow extends StatelessWidget {
                           '$originName → $destinationName',
                           style: textTheme.bodyLarge?.copyWith(
                             color: EasySubwayAccessibleColors.text,
-                            fontWeight: FontWeight.w700,
                             height: 1.25,
                           ),
                         ),
@@ -664,7 +661,6 @@ class _FavoriteHomeFacilityRow extends StatelessWidget {
                     facility.displayName,
                     style: textTheme.bodyLarge?.copyWith(
                       color: EasySubwayAccessibleColors.text,
-                      fontWeight: FontWeight.w700,
                       height: 1.25,
                     ),
                   ),

@@ -114,11 +114,11 @@ class NearbyPanelColumns extends StatelessWidget {
     super.key,
   });
 
-  /// [NearbyDataUnavailable]과 공유하는 대시 스타일(16sp w700 primary content).
+  /// [NearbyDataUnavailable]과 공유하는 대시 스타일(16sp regular primary content).
   static const dashStyle = TextStyle(
     color: EasySubwayAccessibleColors.contentPrimary,
     fontSize: 16,
-    fontWeight: FontWeight.w700,
+    fontWeight: EasySubwayFontWeight.regular,
   );
 
   final List<NearbyPanelColumn> columns;

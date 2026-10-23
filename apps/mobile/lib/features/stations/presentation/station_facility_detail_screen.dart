@@ -93,8 +93,8 @@ class FacilityDetailScreen extends StatelessWidget {
                               statusTitle,
                               style: Theme.of(context).textTheme.titleMedium
                                   ?.copyWith(
+                                    fontWeight: EasySubwayFontWeight.emphasis,
                                     color: statusColor,
-                                    fontWeight: FontWeight.w700,
                                     height: 1.25,
                                   ),
                             ),
@@ -106,7 +106,6 @@ class FacilityDetailScreen extends StatelessWidget {
                                     ?.copyWith(
                                       color:
                                           EasySubwayAccessibleColors.mutedText,
-                                      fontWeight: FontWeight.w600,
                                       height: 1.3,
                                     ),
                               ),
@@ -117,7 +116,6 @@ class FacilityDetailScreen extends StatelessWidget {
                               style: Theme.of(context).textTheme.bodyMedium
                                   ?.copyWith(
                                     color: EasySubwayAccessibleColors.mutedText,
-                                    fontWeight: FontWeight.w600,
                                     height: 1.3,
                                   ),
                             ),
@@ -164,7 +162,6 @@ class FacilityDetailScreen extends StatelessWidget {
                 facility.nextActionDescription,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: EasySubwayAccessibleColors.secondaryText,
-                  fontWeight: FontWeight.w600,
                   height: 1.35,
                 ),
               ),
@@ -196,9 +193,8 @@ class FacilityDetailScreen extends StatelessWidget {
                       ),
                     ),
                     textStyle: const TextStyle(
-                      fontFamily: 'Pretendard',
                       fontSize: 17,
-                      fontWeight: FontWeight.w700,
+                      fontWeight: EasySubwayFontWeight.emphasis,
                     ),
                   ),
                   icon: const Icon(Icons.report_outlined),
@@ -276,7 +272,7 @@ class _FacilityDetailSectionTitle extends StatelessWidget {
               title,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: EasySubwayAccessibleColors.secondaryText,
-                fontWeight: FontWeight.w700,
+                fontWeight: EasySubwayFontWeight.emphasis,
                 height: 1.25,
               ),
             ),

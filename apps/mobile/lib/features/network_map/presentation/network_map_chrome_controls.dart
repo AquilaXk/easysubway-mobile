@@ -344,7 +344,7 @@ class NetworkMapTopBar extends StatelessWidget {
                                       color: EasySubwayAccessibleColors
                                           .interactionOnPrimary,
                                       fontSize: 16,
-                                      fontWeight: FontWeight.w700,
+                                      fontWeight: EasySubwayFontWeight.emphasis,
                                       letterSpacing: -0.2,
                                     ),
                                   ),
@@ -594,7 +594,7 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
             style: const TextStyle(
               color: EasySubwayAccessibleColors.interactionOnPrimary,
               fontSize: 17,
-              fontWeight: FontWeight.w600,
+              fontWeight: EasySubwayFontWeight.regular,
             ),
           ),
         ),
@@ -697,7 +697,7 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
             style: TextStyle(
               color: roleColorForSlot(slot),
               fontSize: 15,
-              fontWeight: FontWeight.w700,
+              fontWeight: EasySubwayFontWeight.emphasis,
               height: 1.2,
             ),
           ),
@@ -714,7 +714,9 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
             ? EasySubwayAccessibleColors.text
             : EasySubwayAccessibleColors.mutedText,
         fontSize: filled ? 17 : 15,
-        fontWeight: filled ? FontWeight.w700 : FontWeight.w600,
+        fontWeight: filled
+            ? EasySubwayFontWeight.emphasis
+            : EasySubwayFontWeight.regular,
         height: 1.2,
       ),
     );
@@ -865,7 +867,6 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
                     roleLabel,
                     style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                       color: EasySubwayAccessibleColors.mutedText,
-                      fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -945,7 +946,7 @@ class NetworkMapLookupToast extends StatelessWidget {
             style: const TextStyle(
               color: EasySubwayAccessibleColors.interactionOnPrimary,
               fontSize: 15,
-              fontWeight: FontWeight.w800,
+              fontWeight: EasySubwayFontWeight.regular,
               height: 1.2,
             ),
           ),
