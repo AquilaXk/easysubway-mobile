@@ -46,6 +46,7 @@ import '../features/stations/domain/station_models.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/stations/presentation/station_search_screen.dart';
 import '../features/stations/presentation/station_detail_screen.dart';
+import '../features/stations/presentation/station_timetable_screen.dart';
 import '../features/support/presentation/inquiry_screen.dart';
 import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
@@ -457,6 +458,48 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
+    // 경로 상세의 `시간표` 칩. 역 상세의 `전체 시간표`와 같은 화면을 연다.
+    void showStationLookupFailure(String message) {
+      if (!context.mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+
+    Future<void> openStationTimetable(String stationId) async {
+      const lookupFailureMessage = '역 정보를 불러오지 못했어요.';
+      final StationDetail detail;
+      try {
+        detail = await repository.getStationDetail(stationId);
+      } on StationSearchException catch (error) {
+        showStationLookupFailure(error.message);
+        return;
+      } catch (error, stackTrace) {
+        reportMobileError(
+          error,
+          stackTrace,
+          context: '경로 상세 시간표 역 조회 중 예외가 발생했습니다.',
+        );
+        showStationLookupFailure(lookupFailureMessage);
+        return;
+      }
+      if (!context.mounted) return;
+      if (detail.id != stationId) {
+        showStationLookupFailure(lookupFailureMessage);
+        return;
+      }
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => StationTimetableScreen(
+            stationId: detail.id,
+            stationName: detail.nameKo,
+            lines: detail.lines,
+            repository: widget.timetableRepository,
+          ),
+        ),
+      );
+    }
+
     Future<void> openFacilityReport(FacilityReportTarget target) {
       return Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -785,6 +828,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           getOffAlarmController: widget.getOffAlarmController,
           stationNameResolver: journeyAlarmStationNameResolver(repository),
           transferGuideRepository: widget.transferGuideRepository,
+          onOpenStation: (stationId) => unawaited(
+            showStationDetailSheet<void>(
+              context: context,
+              repository: repository,
+              reportRepository: reportRepository,
+              favoriteRepository: favoriteRepository,
+              bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
+              locationProvider: locationProvider,
+              realtimeRepository: realtimeRepository,
+              timetableRepository: widget.timetableRepository,
+              stationId: stationId,
+              facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+              onOpenFacilityReport: openFacilityReport,
+            ),
+          ),
+          onOpenStationTimetable: (stationId) =>
+              unawaited(openStationTimetable(stationId)),
         ),
       );
     }

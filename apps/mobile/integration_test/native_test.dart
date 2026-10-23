@@ -13,7 +13,7 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   testWidgets(
-    'Android native Journey success는 exact candidate를 선택하고 restart 뒤 상태를 재사용하지 않는다',
+    'Android native Journey success는 최단시간 탭으로 exact journey를 선택하고 restart 뒤 상태를 재사용하지 않는다',
     (tester) async {
       final repository = _NativeJourneyRepository();
       await _pumpJourney(tester, repository);
@@ -23,13 +23,11 @@ void main() {
       expect(repository.sessionRequests, 1);
       expect(repository.searchRequests, 1);
       expect(
-        find.byKey(const Key('journey-candidate-native-journey')),
+        find.byKey(const Key('journey-criterion-fastest')),
         findsOneWidget,
       );
 
-      await tester.tap(
-        find.byKey(const Key('journey-candidate-native-journey')),
-      );
+      await tester.tap(find.byKey(const Key('journey-criterion-fastest')));
       await tester.pumpAndSettle();
       expect(
         find.byKey(const Key('selected-journey-native-journey')),
@@ -40,10 +38,7 @@ void main() {
       await tester.restartAndRestore();
       await tester.pumpAndSettle();
       expect(find.byKey(const Key('selected-journey-detail')), findsNothing);
-      expect(
-        find.byKey(const Key('journey-candidate-native-journey')),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('journey-criterion-fastest')), findsNothing);
       expect(repository.searchRequests, 1);
     },
   );
@@ -63,10 +58,7 @@ void main() {
       expect(repository.sessionRequests, 1);
       expect(repository.searchRequests, 1);
       expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
-      expect(
-        find.byKey(const Key('journey-candidate-native-journey')),
-        findsNothing,
-      );
+      expect(find.byKey(const Key('journey-criterion-fastest')), findsNothing);
       expect(find.textContaining('native transport detail'), findsNothing);
       expect(crashlytics.errors, hasLength(1));
       expect(crashlytics.fatalFlags, <bool>[false]);

@@ -1,8 +1,13 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'
+    show listEquals, precisionErrorTolerance;
+import 'package:flutter/rendering.dart';
 
 import '../../../../accessible_design.dart';
+import '../../../../core/ui/line_mark.dart';
+import '../../../../design_tokens.dart';
 import '../../../stations/domain/station_line.dart';
 import 'journey_result_view_model.dart';
 
@@ -10,116 +15,141 @@ import 'journey_result_view_model.dart';
 Color journeyLineColor(String lineId) =>
     stationLineColor(fallbackLineColorHex(lineId: lineId));
 
-/// 후보 경로를 서버 순서대로 보여 주는 가로 탭.
-class JourneyRouteTabs extends StatelessWidget {
-  const JourneyRouteTabs({
+/// 결과 기준 탭(`최단시간`·`최소환승`)과 오른쪽 `막차`. 상용 지하철 서비스처럼
+/// 고른 탭은 굵은 글자와 밑줄이고, 탭 줄 아래에 얇은 구분선을 둔다.
+class JourneyCriterionTabBar extends StatelessWidget {
+  const JourneyCriterionTabBar({
     required this.tabs,
-    required this.selectedJourneyId,
+    required this.selected,
     required this.onSelect,
+    required this.lastTrainSelected,
+    required this.onLastTrain,
     super.key,
   });
 
-  final List<JourneyRouteTab> tabs;
-  final String? selectedJourneyId;
+  final List<JourneyCriterionTab> tabs;
+  final JourneyCriterion? selected;
 
   /// null이면 탭을 누를 수 없다(알림 전환 중).
-  final ValueChanged<String>? onSelect;
+  final ValueChanged<JourneyCriterionTab>? onSelect;
+  final bool lastTrainSelected;
+  final VoidCallback? onLastTrain;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        border: Border(
+          bottom: BorderSide(color: EasySubwayAccessibleColors.line),
+        ),
+      ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          for (var index = 0; index < tabs.length; index++) ...[
-            if (index > 0) const SizedBox(width: 8),
-            _tab(tabs[index]),
-          ],
+          Expanded(
+            child: Wrap(
+              spacing: EasySubwaySpacing.lg,
+              children: [
+                for (final tab in tabs)
+                  _tab(
+                    key: Key('journey-criterion-${tab.criterion.name}'),
+                    label: tab.label,
+                    selected: tab.criterion == selected,
+                    onTap: switch (onSelect) {
+                      final select? => () => select(tab),
+                      null => null,
+                    },
+                  ),
+              ],
+            ),
+          ),
+          _tab(
+            key: const Key('journey-last-train-tab'),
+            label: '막차',
+            icon: Icons.schedule,
+            selected: lastTrainSelected,
+            onTap: onLastTrain,
+          ),
         ],
       ),
     );
   }
 
-  Widget _tab(JourneyRouteTab tab) {
-    final selected = tab.journeyId == selectedJourneyId;
-    final select = onSelect;
-    final onTap = select == null ? null : () => select(tab.journeyId);
+  Widget _tab({
+    required Key key,
+    required String label,
+    required bool selected,
+    required VoidCallback? onTap,
+    IconData? icon,
+  }) {
+    final color = selected
+        ? EasySubwayAccessibleColors.text
+        : EasySubwayAccessibleColors.secondaryText;
     return Semantics(
       button: true,
       selected: selected,
-      label: tab.semanticsLabel,
+      label: label,
       onTap: onTap,
       excludeSemantics: true,
       child: InkWell(
-        key: Key('journey-candidate-${tab.journeyId}'),
+        key: key,
         onTap: onTap,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          key: selected ? Key('selected-journey-${tab.journeyId}') : null,
-          constraints: const BoxConstraints(minWidth: 96, minHeight: 48),
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: DecoratedBox(
           decoration: BoxDecoration(
-            color: selected
-                ? EasySubwayAccessibleColors.surface
-                : EasySubwayAccessibleColors.surfaceSubtle,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: selected
-                  ? EasySubwayAccessibleColors.primary
-                  : EasySubwayAccessibleColors.line,
-              width: selected ? 1.5 : 1.0,
+            border: Border(
+              bottom: BorderSide(
+                color: selected
+                    ? EasySubwayAccessibleColors.text
+                    : Colors.transparent,
+                width: _selectedUnderline,
+              ),
             ),
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var index = 0; index < tab.labels.length; index++) ...[
-                    if (index > 0) const SizedBox(width: 6),
-                    Text(
-                      tab.labels[index],
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: EasySubwayFontWeight.regular,
-                        color:
-                            tab.labels[index] == journeyStairFreeCategoryLabel
-                            ? EasySubwayAccessibleColors.mint
-                            : EasySubwayAccessibleColors.primary,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(
+              minHeight: EasySubwayTouchTarget.iconOnly,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: EasySubwaySpacing.xs,
+              ),
+              child: Align(
+                widthFactor: 1,
+                heightFactor: 1,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (icon != null) ...[
+                      Icon(icon, size: 20, color: color),
+                      const SizedBox(width: EasySubwaySpacing.xs),
+                    ],
+                    Flexible(
+                      child: Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: selected
+                              ? EasySubwayFontWeight.emphasis
+                              : EasySubwayFontWeight.regular,
+                          color: color,
+                        ),
                       ),
                     ),
                   ],
-                ],
-              ),
-              const SizedBox(height: 2),
-              Text(
-                tab.durationLabel,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: EasySubwayFontWeight.emphasis,
-                  color: EasySubwayAccessibleColors.text,
                 ),
               ),
-              Text(
-                tab.transferLabel,
-                style: const TextStyle(
-                  fontSize: 12,
-                  fontWeight: EasySubwayFontWeight.regular,
-                  color: EasySubwayAccessibleColors.secondaryText,
-                ),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
+
+  static const _selectedUnderline = 3.0;
 }
 
-/// 요약: 소요시간(크게), 출발·도착 시각, 환승·운임·도보.
+/// 요약: 큰 총시간(`2시간 17분`, 숫자만 크게), 그 아래 `오전 5:11 - 오전 7:28 | 2,850원`.
+/// 운임이 없으면 운임 칸을 숨긴다.
 class JourneyResultSummaryView extends StatelessWidget {
   const JourneyResultSummaryView({
     required this.summary,
@@ -132,74 +162,88 @@ class JourneyResultSummaryView extends StatelessWidget {
   /// false면 계단 없는 경로 표시를 하지 않는다(#441 QA).
   final bool showStairStatus;
 
+  static const _number = TextStyle(
+    fontSize: 36,
+    height: 1.2,
+    fontWeight: EasySubwayFontWeight.emphasis,
+    color: EasySubwayAccessibleColors.text,
+  );
+  static const _unit = TextStyle(
+    fontSize: 20,
+    fontWeight: EasySubwayFontWeight.regular,
+    color: EasySubwayAccessibleColors.text,
+  );
+  static const _line = TextStyle(
+    fontSize: 18,
+    color: EasySubwayAccessibleColors.text,
+  );
+
   @override
   Widget build(BuildContext context) {
+    final fare = summary.fareLabel;
+    final showStairFree = showStairStatus && summary.isStairFree;
     return Column(
+      key: const Key('journey-summary'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Semantics(
-          label: summary.semanticsLabel,
+          label: [
+            summary.semanticsLabel,
+            if (showStairFree) journeyStairFreeCategoryLabel,
+          ].join(', '),
           child: ExcludeSemantics(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  summary.durationLabel,
-                  style: const TextStyle(
-                    fontSize: 30,
-                    fontWeight: EasySubwayFontWeight.emphasis,
-                    color: EasySubwayAccessibleColors.text,
+                Text.rich(
+                  TextSpan(
+                    children: [
+                      for (final (index, (number, unit))
+                          in summary.durationParts.indexed) ...[
+                        if (index > 0) const TextSpan(text: ' ', style: _unit),
+                        TextSpan(text: number, style: _number),
+                        TextSpan(text: unit, style: _unit),
+                      ],
+                    ],
                   ),
                 ),
                 Wrap(
-                  spacing: 8,
                   crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: EasySubwaySpacing.sm,
                   children: [
-                    Text(
-                      summary.timesLabel,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: EasySubwayFontWeight.regular,
-                        color: EasySubwayAccessibleColors.text,
-                      ),
-                    ),
-                    if (summary.isRealtime)
-                      const Text(
-                        '실시간 반영',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: EasySubwayFontWeight.emphasis,
-                          color: EasySubwayAccessibleColors.statusInfoContent,
+                    Text(summary.timesLabel, style: _line),
+                    if (fare != null) ...[
+                      const SizedBox(
+                        height: 16,
+                        child: VerticalDivider(
+                          width: 1,
+                          color: EasySubwayAccessibleColors.line,
                         ),
                       ),
+                      Text(fare, style: _line),
+                    ],
                   ],
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  summary.detailLabel,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
                 ),
               ],
             ),
           ),
         ),
-        if (showStairStatus && summary.isStairFree) ...[
+        if (showStairFree) ...[
           const SizedBox(height: 8),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: EasySubwayAccessibleColors.statusSuccessSurface,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: const Text(
-              journeyStairFreeCategoryLabel,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: EasySubwayFontWeight.emphasis,
-                color: EasySubwayAccessibleColors.mint,
+          ExcludeSemantics(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: EasySubwayAccessibleColors.statusSuccessSurface,
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: const Text(
+                journeyStairFreeCategoryLabel,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: EasySubwayFontWeight.emphasis,
+                  color: EasySubwayAccessibleColors.mint,
+                ),
               ),
             ),
           ),
@@ -209,7 +253,14 @@ class JourneyResultSummaryView extends StatelessWidget {
   }
 }
 
-/// 전체 이동을 구간별 가로 막대 한 줄로 보여 준다. 폭은 구간 시간 비율이다.
+/// 구간 막대. 탑승 구간은 노선색 막대 안에 흰 노선 원과 `N분`, 막대 위에 출발
+/// 시각, 아래에 승차역 이름(노선 글자색)을 둔다. 걷는 구간은 회색 막대다. 폭은
+/// 구간 시간 비율이되 어느 구간도 자기 내용의 최소 폭 아래로 줄이지 않는다. 모두
+/// 한 줄에 못 들어가면(큰 글자, 환승이 많을 때) 구간을 다음 줄로 넘긴다.
+///
+/// 막대 묶음은 OpenTripPlanner otp-react-redux `lib/components/narrative/metro/
+/// metro-itinerary-routes.tsx`(MIT)처럼 그림은 스크린리더에서 숨기고 경로 전체를
+/// 한 라벨로 읽게 하며, 넘치면 줄을 바꾼다(`flex-wrap: wrap`).
 class JourneySegmentBar extends StatelessWidget {
   const JourneySegmentBar({
     required this.segments,
@@ -220,89 +271,250 @@ class JourneySegmentBar extends StatelessWidget {
   final List<JourneyResultSegment> segments;
   final String semanticsLabel;
 
-  static const double _minSegmentWidth = 6;
-  static const double _minLabelWidth = 36;
+  static const double _walkMinWidth = 6;
   static const double _gap = 2;
+  static const double _barHeight = 24;
 
-  static const _labelStyle = TextStyle(
-    fontSize: 11,
+  static const _minutesStyle = TextStyle(
+    fontSize: 13,
     fontWeight: EasySubwayFontWeight.boldForContrast,
     color: EasySubwayColorPrimitives.neutralWhite,
+  );
+  static const _timeStyle = TextStyle(
+    fontSize: 15,
+    color: EasySubwayAccessibleColors.text,
+  );
+  static const _stationStyle = TextStyle(
+    fontSize: 15,
+    fontWeight: EasySubwayFontWeight.emphasis,
   );
 
   @override
   Widget build(BuildContext context) {
-    final textScaler = MediaQuery.textScalerOf(context);
+    final scaler = MediaQuery.textScalerOf(context);
+    final barHeight = scaler.scale(_barHeight);
+    // 걷는 막대를 탑승 막대와 같은 높이에 두려고 출발 시각 줄 높이만큼 내린다.
+    final timeLine = (TextPainter(
+      text: const TextSpan(text: '00:00', style: _timeStyle),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout());
+    final walkTop = timeLine.height;
+    timeLine.dispose();
     return Semantics(
       label: semanticsLabel,
       child: ExcludeSemantics(
-        child: LayoutBuilder(
-          builder: (context, constraints) {
-            final count = segments.length;
-            // 모든 구간이 0초여도 나눗셈이 되도록 분모를 1 이상으로 둔다.
-            final totalSeconds = math.max(
-              1,
-              segments.fold<int>(0, (sum, segment) => sum + segment.seconds),
-            );
-            final flexibleWidth = math.max(
-              0.0,
-              constraints.maxWidth -
-                  _gap * (count - 1) -
-                  _minSegmentWidth * count,
-            );
-            return IntrinsicHeight(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (var index = 0; index < count; index++) ...[
-                    if (index > 0) const SizedBox(width: _gap),
-                    _segment(
-                      segments[index],
-                      width:
-                          _minSegmentWidth +
-                          flexibleWidth *
-                              segments[index].seconds /
-                              totalSeconds,
-                      textScaler: textScaler,
+        child: _ProportionalWrap(
+          key: const Key('journey-segment-bar'),
+          weights: [for (final segment in segments) segment.seconds],
+          children: [
+            for (final segment in segments)
+              switch (segment.lineId) {
+                final lineId? => _ride(segment, lineId, barHeight),
+                null => Padding(
+                  padding: EdgeInsets.only(top: walkTop),
+                  child: SizedBox(
+                    width: _walkMinWidth,
+                    height: barHeight,
+                    child: const DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: EasySubwayAccessibleColors.line,
+                      ),
                     ),
-                  ],
-                ],
-              ),
-            );
-          },
+                  ),
+                ),
+              },
+          ],
         ),
       ),
     );
   }
 
-  Widget _segment(
-    JourneyResultSegment segment, {
-    required double width,
-    required TextScaler textScaler,
-  }) {
-    final label = segment.minutesLabel;
-    final painter = TextPainter(
-      text: TextSpan(text: label, style: _labelStyle),
-      textDirection: TextDirection.ltr,
-      textScaler: textScaler,
-      maxLines: 1,
-    )..layout();
-    final showLabel = width >= _minLabelWidth && painter.width + 8 <= width;
-    painter.dispose();
-    final lineId = segment.lineId;
-    return Container(
-      width: width,
-      constraints: const BoxConstraints(minHeight: 20),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: lineId == null
-            ? EasySubwayAccessibleColors.mutedText
-            : journeyLineColor(lineId),
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: showLabel
-          ? Text(label, maxLines: 1, softWrap: false, style: _labelStyle)
-          : null,
+  Widget _ride(JourneyResultSegment segment, String lineId, double barHeight) {
+    final color = journeyLineColor(lineId);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(segment.departureTime!, maxLines: 1, style: _timeStyle),
+        Container(
+          height: barHeight,
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(barHeight / 2),
+          ),
+          child: Row(
+            children: [
+              LineMark(
+                label: segment.lineMarkLabel!,
+                color: color,
+                size: barHeight,
+                maxTextScale: 1,
+                onLineColor: true,
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: EasySubwaySpacing.xs,
+                  ),
+                  child: Text(
+                    segment.minutesLabel,
+                    maxLines: 1,
+                    softWrap: false,
+                    textAlign: TextAlign.center,
+                    style: _minutesStyle,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          segment.boardingStationName!,
+          maxLines: 1,
+          softWrap: false,
+          style: _stationStyle.copyWith(color: lineInkOnWhite(color)),
+        ),
+      ],
+    );
+  }
+}
+
+/// 자식을 가로로 놓되 폭은 [weights] 비율로 남는 폭을 나눠 받고, 자식의 최소 고유
+/// 폭 아래로 줄이지 않는다. 최소 폭 합이 줄 폭을 넘으면 최소 폭으로 줄을 바꿔 놓는다.
+class _ProportionalWrap extends MultiChildRenderObjectWidget {
+  const _ProportionalWrap({
+    required this.weights,
+    required super.children,
+    super.key,
+  });
+
+  final List<int> weights;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _RenderProportionalWrap(weights);
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderProportionalWrap renderObject,
+  ) {
+    renderObject.weights = weights;
+  }
+}
+
+class _ProportionalWrapParentData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderProportionalWrap extends RenderBox
+    with
+        ContainerRenderObjectMixin<RenderBox, _ProportionalWrapParentData>,
+        RenderBoxContainerDefaultsMixin<
+          RenderBox,
+          _ProportionalWrapParentData
+        > {
+  _RenderProportionalWrap(this._weights);
+
+  static const _gap = JourneySegmentBar._gap;
+  static const _runGap = EasySubwaySpacing.sm;
+
+  List<int> _weights;
+
+  set weights(List<int> value) {
+    if (listEquals(value, _weights)) return;
+    _weights = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _ProportionalWrapParentData) {
+      child.parentData = _ProportionalWrapParentData();
+    }
+  }
+
+  List<RenderBox> get _children {
+    final children = <RenderBox>[];
+    var child = firstChild;
+    while (child != null) {
+      children.add(child);
+      child = childAfter(child);
+    }
+    return children;
+  }
+
+  @override
+  void performLayout() {
+    final children = _children;
+    final maxWidth = constraints.maxWidth;
+    final minimums = [
+      for (final child in children)
+        math.min(maxWidth, child.getMinIntrinsicWidth(double.infinity)),
+    ];
+    final needed =
+        minimums.fold<double>(0, (sum, width) => sum + width) +
+        _gap * math.max(0, children.length - 1);
+    final fits = needed <= maxWidth;
+    final totalWeight = math.max(
+      1,
+      _weights.fold<int>(0, (sum, weight) => sum + weight),
+    );
+    final spare = fits ? maxWidth - needed : 0.0;
+    var x = 0.0;
+    var y = 0.0;
+    var runHeight = 0.0;
+    var width = 0.0;
+    for (var index = 0; index < children.length; index++) {
+      final child = children[index];
+      final childWidth =
+          minimums[index] + spare * _weights[index] / totalWeight;
+      if (x > 0 && x + childWidth > maxWidth + precisionErrorTolerance) {
+        x = 0;
+        y += runHeight + _runGap;
+        runHeight = 0;
+      }
+      child.layout(
+        BoxConstraints.tightFor(width: childWidth),
+        parentUsesSize: true,
+      );
+      (child.parentData! as _ProportionalWrapParentData).offset = Offset(x, y);
+      x += childWidth + _gap;
+      width = math.max(width, x - _gap);
+      runHeight = math.max(runHeight, child.size.height);
+    }
+    size = constraints.constrain(Size(fits ? maxWidth : width, y + runHeight));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) =>
+      defaultPaint(context, offset);
+}
+
+/// `오전 12:36 기준 (출발 대기 4시간 35분)` 줄. 위아래 구분선으로 요약과 상세를 나눈다.
+class JourneyBasisRow extends StatelessWidget {
+  const JourneyBasisRow({required this.label, super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const Divider(height: 1, color: EasySubwayAccessibleColors.line),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: EasySubwaySpacing.md),
+          child: Text(
+            label,
+            key: const Key('journey-basis-row'),
+            style: const TextStyle(
+              fontSize: 16,
+              color: EasySubwayAccessibleColors.secondaryText,
+            ),
+          ),
+        ),
+        const Divider(height: 1, color: EasySubwayAccessibleColors.line),
+      ],
     );
   }
 }

@@ -9,7 +9,7 @@ import '../../../search_field.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../domain/network_map_models.dart';
 import '../domain/route_map_min_scale.dart';
-import '../../../core/ui/name_with_marks.dart';
+import '../../../core/ui/route_role_dot.dart';
 import '../../../core/ui/region_menu.dart';
 import 'network_map_overlay_inset.dart';
 
@@ -21,6 +21,9 @@ int debugNetworkMapChromeBuildCount = 0;
 /// 경로 입력 칸 한 줄의 높이. 시각 박스(40dp)는 이 줄 안에서 가운데에 그려지고,
 /// 버튼·입력 영역은 줄 높이만큼 눌려 최소 터치 영역(48dp)을 채운다.
 const _draftRowHeight = EasySubwayTouchTarget.iconOnly;
+
+/// 역할 점 좌우 여백.
+const _roleDotInset = 12.0;
 
 class NetworkMapChrome extends StatefulWidget {
   const NetworkMapChrome({
@@ -171,7 +174,6 @@ class NetworkMapTopBar extends StatelessWidget {
     required this.onClearWaypoint,
     required this.onReorderDraft,
     required this.roleColorForSlot,
-    required this.lineBadgeBuilder,
     this.onPickOrigin,
     this.onPickDestination,
     this.onPickWaypoint,
@@ -199,8 +201,6 @@ class NetworkMapTopBar extends StatelessWidget {
   final VoidCallback onClearWaypoint;
   final void Function(RouteDraftSlot from, RouteDraftSlot to) onReorderDraft;
   final Color Function(RouteDraftSlot slot) roleColorForSlot;
-  final Widget Function(RouteDraftStation station, double size)
-  lineBadgeBuilder;
   final VoidCallback? onPickOrigin;
   final VoidCallback? onPickDestination;
   final VoidCallback? onPickWaypoint;
@@ -268,7 +268,6 @@ class NetworkMapTopBar extends StatelessWidget {
                     onPickDestination: onPickDestination,
                     onPickWaypoint: onPickWaypoint,
                     roleColorForSlot: roleColorForSlot,
-                    lineBadgeBuilder: lineBadgeBuilder,
                   );
                 },
               ),
@@ -422,7 +421,6 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
     required this.onClearWaypoint,
     required this.onReorderDraft,
     required this.roleColorForSlot,
-    required this.lineBadgeBuilder,
     this.onPickOrigin,
     this.onPickDestination,
     this.onPickWaypoint,
@@ -444,8 +442,6 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
   final VoidCallback onClearWaypoint;
   final void Function(RouteDraftSlot from, RouteDraftSlot to) onReorderDraft;
   final Color Function(RouteDraftSlot slot) roleColorForSlot;
-  final Widget Function(RouteDraftStation station, double size)
-  lineBadgeBuilder;
   final VoidCallback? onPickOrigin;
   final VoidCallback? onPickDestination;
   final VoidCallback? onPickWaypoint;
@@ -473,7 +469,6 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
       reorderTargets: targetsFor(RouteDraftSlot.origin),
       onReorder: onReorderDraft,
       roleColorForSlot: roleColorForSlot,
-      lineBadgeBuilder: lineBadgeBuilder,
     );
     final destinationField = _NetworkMapRouteDraftField(
       kind: _RouteDraftFieldKind.destination,
@@ -484,7 +479,6 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
       reorderTargets: targetsFor(RouteDraftSlot.destination),
       onReorder: onReorderDraft,
       roleColorForSlot: roleColorForSlot,
-      lineBadgeBuilder: lineBadgeBuilder,
     );
 
     final fieldRows = <Widget>[
@@ -509,7 +503,6 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
             reorderTargets: targetsFor(RouteDraftSlot.waypoint),
             onReorder: onReorderDraft,
             roleColorForSlot: roleColorForSlot,
-            lineBadgeBuilder: lineBadgeBuilder,
             showClearWhenEmpty: true,
           ),
         ),
@@ -626,7 +619,6 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
     required this.reorderTargets,
     required this.onReorder,
     required this.roleColorForSlot,
-    required this.lineBadgeBuilder,
     this.onPick,
     this.showClearWhenEmpty = false,
   });
@@ -638,8 +630,6 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
   final List<RouteDraftSlot> reorderTargets;
   final void Function(RouteDraftSlot from, RouteDraftSlot to) onReorder;
   final Color Function(RouteDraftSlot slot) roleColorForSlot;
-  final Widget Function(RouteDraftStation station, double size)
-  lineBadgeBuilder;
   final VoidCallback? onPick;
   final bool showClearWhenEmpty;
 
@@ -684,25 +674,11 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
         ? '$filledSemanticsCore, $searchLabel'
         : '$roleLabel, $_valuePlaceholder, $searchLabel';
 
-    final roleLabelWidget = ExcludeSemantics(
-      child: SizedBox(
-        width: 72,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8),
-          child: Text(
-            roleLabel,
-            maxLines: 1,
-            softWrap: false,
-            textAlign: TextAlign.center,
-            style: TextStyle(
-              color: roleColorForSlot(slot),
-              fontSize: 15,
-              fontWeight: EasySubwayFontWeight.emphasis,
-              height: 1.2,
-            ),
-          ),
-        ),
-      ),
+    // 상용 지하철 서비스의 입력 칸처럼 역할 글자와 노선 마크 없이 역할 점과 역
+    // 이름만 둔다(#509). 역할과 노선은 칸의 Semantics 라벨이 읽는다.
+    final roleDot = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: _roleDotInset),
+      child: RouteRoleDot(color: roleColorForSlot(slot)),
     );
 
     final valueName = Text(
@@ -720,16 +696,7 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
         height: 1.2,
       ),
     );
-    Widget nameWithLineMark(Text name, double markSize) => showLineBadge
-        ? NameWithMarks(
-            name: name,
-            marks: lineBadgeBuilder(filledStation, markSize),
-            marksFirst: true,
-            maxMarksFraction: nameFirstMarksMaxFraction,
-            hideMarksOverBudget: true,
-          )
-        : Row(children: [Expanded(child: name)]);
-    final valueRow = nameWithLineMark(valueName, 26);
+    final valueRow = Row(children: [Expanded(child: valueName)]);
 
     final Widget pickArea = onPick == null
         ? Semantics(
@@ -778,16 +745,11 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
           ),
           Row(
             children: [
-              roleLabelWidget,
-              Container(
-                width: easySubwaySearchFieldBorderWidth,
-                height: easySubwaySearchFieldVisualHeight,
-                color: easySubwaySearchFieldBorderColor,
-              ),
+              roleDot,
               Expanded(
                 child: Padding(
                   padding: EdgeInsets.only(
-                    left: 10,
+                    left: 0,
                     right: (filled || showClearWhenEmpty) ? 0 : 10,
                   ),
                   child: pickArea,
@@ -871,16 +833,13 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
-                    child: nameWithLineMark(
-                      Text(
-                        filledStation!.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: EasySubwayAccessibleColors.text,
-                        ),
+                    child: Text(
+                      filledStation!.displayName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: EasySubwayAccessibleColors.text,
                       ),
-                      30,
                     ),
                   ),
                 ],

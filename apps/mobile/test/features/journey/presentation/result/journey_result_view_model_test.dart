@@ -119,7 +119,7 @@ const _transferDoor = JourneyAlightingCarDoor(
   targetFacilityType: AlightingTargetFacilityType.transfer,
 );
 
-/// 강남 → (2호선 교대 방면, 5개 역) → 교대 환승 → (3호선 오금 방면, 2개 역) → 양재
+/// 강남 → (2호선 교대역 방면, 5개 역) → 교대 환승 → (3호선 오금역 방면, 2개 역) → 양재
 Journey _transferJourney({JourneyFare fare = _availableFare}) => _journey(
   departure: _kst(8, 12),
   arrival: _kst(8, 47),
@@ -250,7 +250,7 @@ void main() {
     expect(ride.isExpress, isFalse);
     expect(ride.lineId, 'line-2');
     expect(ride.lineName, '2호선');
-    expect(ride.directionLabel, '교대 방면');
+    expect(ride.directionLabel, '교대역 방면');
     expect(ride.departureTime, '08:15');
     expect(ride.boardingStationName, '강남');
     expect(ride.alightingStationName, '교대');
@@ -258,8 +258,12 @@ void main() {
     expect(viewModel.summary.durationMinutes, 16);
     expect(viewModel.summary.durationLabel, '16분');
     expect(viewModel.summary.transferLabel, '환승 없음');
-    expect(viewModel.summary.detailLabel, '환승 없음 · 카드 1,550원 · 도보 320m');
-    expect(viewModel.segmentsSemanticsLabel, '구간: 도보 2분, 2호선 12분, 도보 1분');
+    expect(viewModel.summary.timesLabel, '오전 8:12 - 오전 8:28');
+    expect(viewModel.summary.fareLabel, '1,550원');
+    expect(
+      viewModel.segmentsSemanticsLabel,
+      '구간: 도보 2분, 2호선 강남 08:15 출발 12분, 도보 1분',
+    );
   });
 
   test('(2) 급행: stops 3개 EXPRESS면 2개 역 이동과 급행을 표시한다', () {
@@ -300,7 +304,7 @@ void main() {
     expect(ride.stopToggleLabel, '2개 역 이동 · 10분');
     expect(ride.intermediateStops.single.name, '고속터미널');
     expect(ride.intermediateStops.single.time, '08:23');
-    expect(ride.semanticsLabel, '9호선 급행 중앙보훈병원 방면 탑승, 08:20 출발, 2개 역 이동, 10분');
+    expect(ride.semanticsLabel, '9호선 급행 중앙보훈병원역 방면 탑승, 08:20 출발, 2개 역 이동, 10분');
   });
 
   test('(3) 환승 1회: 타임라인 노드 순서가 출발·탑승·환승·탑승·도착이다', () {
@@ -325,18 +329,20 @@ void main() {
     final firstRide = timeline[1] as JourneyRideNode;
     expect(
       firstRide.semanticsLabel,
-      '2호선 교대 방면 탑승, 08:15 출발, 빠른 환승 3호차 2번 문, 5개 역 이동, 12분',
+      '2호선 교대역 방면 탑승, 08:15 출발, 빠른 환승 3호차 2번 문, 5개 역 이동, 12분',
     );
 
     final transfer = timeline[2] as JourneyTransferNode;
     expect(transfer.stationName, '교대');
-    expect(transfer.walkLabel, '환승 · 도보 3분');
-    expect(transfer.semanticsLabel, '교대 환승, 도보 3분');
+    expect(transfer.walkLabel, '도보 3분');
+    // 08:27 하차 + 도보 3분 = 08:30, 다음 열차 08:36 출발.
+    expect(transfer.waitLabel, '환승 대기 6분');
+    expect(transfer.semanticsLabel, '교대 환승, 도보 3분, 환승 대기 6분');
     expect(transfer.leg.durationSeconds, 180);
 
     final secondRide = timeline[3] as JourneyRideNode;
     expect(secondRide.lineName, '3호선');
-    expect(secondRide.directionLabel, '오금 방면');
+    expect(secondRide.directionLabel, '오금역 방면');
     expect(secondRide.stopToggleLabel, '2개 역 이동 · 8분');
 
     final arrival = timeline[4] as JourneyArrivalNode;
@@ -346,13 +352,11 @@ void main() {
     expect(arrival.semanticsLabel, '양재, 08:47 도착, 출구까지 도보 1분');
 
     expect(viewModel.summary.durationLabel, '35분');
-    expect(viewModel.summary.timesLabel, '08:12 출발 → 08:47 도착');
-    expect(viewModel.summary.detailLabel, '환승 1회 · 카드 1,550원 · 도보 320m');
+    expect(viewModel.summary.timesLabel, '오전 8:12 - 오전 8:47');
     expect(
       viewModel.summary.semanticsLabel,
-      '35분 소요, 08:12 출발, 08:47 도착, 환승 1회, 카드 1,550원, 도보 320m',
+      '35분 소요, 오전 8시 12분 출발, 오전 8시 47분 도착, 환승 1회, 1,550원',
     );
-    expect(viewModel.summary.isRealtime, isFalse);
     expect(viewModel.summary.isStairFree, isFalse);
 
     expect(
@@ -379,23 +383,44 @@ void main() {
       '8분',
       '1분',
     ]);
+    expect(viewModel.segments.map((segment) => segment.departureTime), [
+      null,
+      '08:15',
+      null,
+      '08:36',
+      null,
+    ]);
+    expect(viewModel.segments.map((segment) => segment.boardingStationName), [
+      null,
+      '강남',
+      null,
+      '교대',
+      null,
+    ]);
+    expect(viewModel.segments.map((segment) => segment.lineMarkLabel), [
+      null,
+      '2',
+      null,
+      '3',
+      null,
+    ]);
     expect(
       viewModel.segmentsSemanticsLabel,
-      '구간: 도보 2분, 2호선 12분, 환승 도보 3분, 3호선 8분, 도보 1분',
+      '구간: 도보 2분, 2호선 강남 08:15 출발 12분, 환승 도보 3분, '
+      '3호선 교대 08:36 출발 8분, 도보 1분',
     );
   });
 
   test('(4) 운임: AVAILABLE 1550이면 카드 1,550원, 그 밖에는 null이다', () {
-    expect(_viewModel(_transferJourney()).summary.fareLabel, '카드 1,550원');
+    expect(_viewModel(_transferJourney()).summary.fareLabel, '1,550원');
 
     final unavailable = _viewModel(
       _transferJourney(fare: _unavailableFare),
     ).summary;
     expect(unavailable.fareLabel, isNull);
-    expect(unavailable.detailLabel, '환승 1회 · 도보 320m');
     expect(
       unavailable.semanticsLabel,
-      '35분 소요, 08:12 출발, 08:47 도착, 환승 1회, 도보 320m',
+      '35분 소요, 오전 8시 12분 출발, 오전 8시 47분 도착, 환승 1회',
     );
 
     final availableWithoutCard = _viewModel(
@@ -409,6 +434,18 @@ void main() {
     ).summary;
     expect(availableWithoutCard.fareLabel, isNull);
 
+    // 금액이 있어도 서버가 운임을 제공하지 않는다고 하면 쓰지 않는다.
+    final unavailableWithAmount = _viewModel(
+      _transferJourney(
+        fare: const JourneyFare(
+          status: JourneyFareStatus.unavailable,
+          adultCardWon: 1550,
+          sourceSnapshotIds: <String>[],
+        ),
+      ),
+    ).summary;
+    expect(unavailableWithAmount.fareLabel, isNull);
+
     final large = _viewModel(
       _transferJourney(
         fare: const JourneyFare(
@@ -418,179 +455,87 @@ void main() {
         ),
       ),
     ).summary;
-    expect(large.fareLabel, '카드 12,050원');
+    expect(large.fareLabel, '12,050원');
   });
 
-  test('(5b) 서버가 대표 묶음을 주면 그 묶음으로 탭 라벨을 만든다(#438)', () {
-    Journey candidate(
-      String id,
-      int minutes,
-      int transfers,
-      List<JourneyAlternativeCategory> categories, {
-      bool stairFree = false,
-    }) => _journey(
-      id: id,
-      departure: _kst(8, 0),
-      arrival: _kst(8, minutes),
-      durationSeconds: minutes * 60,
-      transferCount: transfers,
-      stairFree: stairFree,
-      alternativeCategories: categories,
-      legs: const <JourneyLeg>[
-        JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
-      ],
-    );
+  Journey tabCandidate(
+    String id,
+    int minutes,
+    int transfers,
+    List<JourneyAlternativeCategory>? categories, {
+    bool stairFree = false,
+  }) => _journey(
+    id: id,
+    departure: _kst(8, 0),
+    arrival: _kst(8, minutes),
+    durationSeconds: minutes * 60,
+    transferCount: transfers,
+    stairFree: stairFree,
+    alternativeCategories: categories,
+    legs: const <JourneyLeg>[
+      JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
+    ],
+  );
 
-    // 상용 지하철 서비스의 빠른·환승 적은·계단 없는 분류를 쉬운 말로 붙인다(#441 QA).
-    // 계단 없는 경로 묶음이 붙은 여정에는 같은 사실을 겹쳐 달지 않는다.
-    final tabs = journeyRouteTabs(showStairStatus: true, [
-      candidate('a', 30, 2, [JourneyAlternativeCategory.fastest]),
-      candidate('b', 34, 1, [JourneyAlternativeCategory.fewestTransfers]),
-      candidate('c', 41, 2, [
+  List<(String, String)> tabPairs(List<JourneyCriterionTab> tabs) => [
+    for (final tab in tabs) (tab.label, tab.journeyId),
+  ];
+
+  test('(5b) 기준 탭은 서버 대표 묶음을 최단시간·최소환승·계단 없는 경로 순으로 잇는다', () {
+    final tabs = journeyCriterionTabs(showStairStatus: true, [
+      tabCandidate('a', 30, 2, [JourneyAlternativeCategory.fastest]),
+      tabCandidate('b', 34, 1, [JourneyAlternativeCategory.fewestTransfers]),
+      tabCandidate('c', 41, 2, [
         JourneyAlternativeCategory.stairFree,
       ], stairFree: true),
     ]);
-    expect(tabs.map((tab) => tab.labels), [
-      ['빠른 경로'],
-      ['환승 적은 경로'],
-      ['계단 없는 경로'],
-    ]);
-    expect(tabs[2].semanticsLabel, '계단 없는 경로, 41분, 환승 2회, 08:41 도착');
+    expect(tabPairs(tabs), [('최단시간', 'a'), ('최소환승', 'b'), ('계단 없는 경로', 'c')]);
 
-    // 한 여정이 여러 묶음을 대표하면 서버 묶음 순서대로 모두 붙인다.
-    // 묶음이 빈 여정은 남는 자리를 채운 경로다.
-    final merged = journeyRouteTabs(showStairStatus: true, [
-      candidate('a', 30, 1, [
+    // 한 여정이 두 묶음을 대표하면 두 탭이 같은 여정을 가리킨다. 묶음이 빈 여정은
+    // 기준 탭이 없다.
+    final merged = journeyCriterionTabs(showStairStatus: true, [
+      tabCandidate('a', 30, 0, [
+        JourneyAlternativeCategory.fastest,
+        JourneyAlternativeCategory.fewestTransfers,
+      ]),
+      tabCandidate('b', 38, 1, const [], stairFree: true),
+    ]);
+    expect(tabPairs(merged), [('최단시간', 'a'), ('최소환승', 'a')]);
+  });
+
+  test('(5) 묶음이 없는 응답은 소요시간·환승 수 사실로 기준 탭을 만든다', () {
+    final facts = journeyCriterionTabs(showStairStatus: true, [
+      tabCandidate('a', 40, 1, null),
+      tabCandidate('b', 30, 1, null),
+      tabCandidate('c', 45, 0, null, stairFree: true),
+      tabCandidate('d', 30, 0, null),
+    ]);
+    expect(tabPairs(facts), [('최단시간', 'b'), ('최소환승', 'c'), ('계단 없는 경로', 'c')]);
+
+    // 묶음이 일부 여정에만 오면(계약상 선택 필드) 사실로 만든다.
+    final mixed = journeyCriterionTabs(showStairStatus: false, [
+      tabCandidate('a', 30, 1, [JourneyAlternativeCategory.fastest]),
+      tabCandidate('b', 35, 0, null),
+    ]);
+    expect(tabPairs(mixed), [('최단시간', 'a'), ('최소환승', 'b')]);
+  });
+
+  // #441 QA: 일반 이동 프로필 사용자에게는 계단 관련 표시를 하지 않는다.
+  test('(5-1) 계단 표시가 필요 없는 사용자에게는 계단 없는 경로 탭을 만들지 않는다', () {
+    final grouped = journeyCriterionTabs(showStairStatus: false, [
+      tabCandidate('a', 30, 1, [
         JourneyAlternativeCategory.fastest,
         JourneyAlternativeCategory.stairFree,
       ], stairFree: true),
-      candidate('b', 35, 0, [JourneyAlternativeCategory.fewestTransfers]),
-      candidate('c', 38, 1, const [], stairFree: true),
+      tabCandidate('b', 35, 0, [JourneyAlternativeCategory.fewestTransfers]),
     ]);
-    expect(merged.map((tab) => tab.labels), [
-      ['빠른 경로', '계단 없는 경로'],
-      ['환승 적은 경로'],
-      ['경로 3', '계단 없는 경로'],
-    ]);
+    expect(tabPairs(grouped), [('최단시간', 'a'), ('최소환승', 'b')]);
 
-    // 묶음이 일부 여정에만 오면(계약상 선택 필드) 사실 기반 라벨로 만든다.
-    final mixed = journeyRouteTabs(showStairStatus: true, [
-      candidate('a', 30, 1, [JourneyAlternativeCategory.fastest]),
-      _journey(
-        id: 'b',
-        departure: _kst(8, 0),
-        arrival: _kst(8, 35),
-        durationSeconds: 35 * 60,
-        transferCount: 0,
-        legs: const <JourneyLeg>[
-          JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
-        ],
-      ),
+    // 계단 없는 여정이 없으면 계단 없는 경로 탭도 없다.
+    final none = journeyCriterionTabs(showStairStatus: true, [
+      tabCandidate('a', 30, 1, null),
     ]);
-    expect(mixed.map((tab) => tab.labels), [
-      ['빠른 경로'],
-      ['환승 적은 경로'],
-    ]);
-  });
-
-  test('(5) 탭 라벨은 사실에서만 만든다', () {
-    Journey candidate(
-      String id,
-      int minutes,
-      int transfers, {
-      bool stairFree = false,
-    }) => _journey(
-      id: id,
-      departure: _kst(8, 0),
-      arrival: _kst(8, minutes),
-      durationSeconds: minutes * 60,
-      transferCount: transfers,
-      stairFree: stairFree,
-      legs: const <JourneyLeg>[
-        JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
-      ],
-    );
-
-    // 가장 빠른 후보가 둘째이면 첫째는 경로 1이다.
-    final fastestSecond = journeyRouteTabs(showStairStatus: true, [
-      candidate('a', 40, 1),
-      candidate('b', 30, 1),
-      candidate('c', 45, 0, stairFree: true),
-      candidate('d', 30, 0),
-    ]);
-    expect(fastestSecond.map((tab) => tab.labels), [
-      ['경로 1'],
-      ['빠른 경로'],
-      ['환승 적은 경로', '계단 없는 경로'],
-      ['경로 4'],
-    ]);
-    expect(fastestSecond.map((tab) => tab.journeyId), ['a', 'b', 'c', 'd']);
-    expect(fastestSecond[1].durationLabel, '30분');
-    expect(fastestSecond[1].transferLabel, '환승 1회');
-    expect(fastestSecond[1].arrivalTime, '08:30');
-    expect(fastestSecond[1].semanticsLabel, '빠른 경로, 30분, 환승 1회, 08:30 도착');
-    expect(
-      fastestSecond[2].semanticsLabel,
-      '환승 적은 경로, 계단 없는 경로, 45분, 환승 없음, 08:45 도착',
-    );
-
-    // 환승 적은 후보가 빠른 후보와 같으면 환승 적은 경로 라벨은 없다.
-    final sameCandidate = journeyRouteTabs(showStairStatus: true, [
-      candidate('a', 30, 0),
-      candidate('b', 40, 1, stairFree: true),
-    ]);
-    expect(sameCandidate.map((tab) => tab.labels), [
-      ['빠른 경로'],
-      ['경로 2', '계단 없는 경로'],
-    ]);
-  });
-
-  // #441 QA: 일반 이동 프로필 사용자에게는 계단 관련 표시를 하지 않는다. 상용 지하철
-  // 서비스는 계단회피를 사용자가 고르는 길찾기 옵션으로만 보여 준다.
-  test('(5-1) 계단 표시가 필요 없는 사용자에게는 계단 없는 경로 라벨을 붙이지 않는다', () {
-    Journey candidate(
-      String id,
-      int minutes,
-      int transfers,
-      List<JourneyAlternativeCategory>? categories, {
-      bool stairFree = false,
-    }) => _journey(
-      id: id,
-      departure: _kst(8, 0),
-      arrival: _kst(8, minutes),
-      durationSeconds: minutes * 60,
-      transferCount: transfers,
-      stairFree: stairFree,
-      alternativeCategories: categories,
-      legs: const <JourneyLeg>[
-        JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 60),
-      ],
-    );
-
-    final grouped = journeyRouteTabs(showStairStatus: false, [
-      candidate('a', 30, 1, [
-        JourneyAlternativeCategory.fastest,
-        JourneyAlternativeCategory.stairFree,
-      ], stairFree: true),
-      candidate('b', 35, 0, [JourneyAlternativeCategory.fewestTransfers]),
-      candidate('c', 41, 2, [
-        JourneyAlternativeCategory.stairFree,
-      ], stairFree: true),
-    ]);
-    expect(grouped.map((tab) => tab.labels), [
-      ['빠른 경로'],
-      ['환승 적은 경로'],
-      ['경로 3'],
-    ]);
-
-    final facts = journeyRouteTabs(showStairStatus: false, [
-      candidate('a', 30, 1, null),
-      candidate('b', 45, 0, null, stairFree: true),
-    ]);
-    expect(facts.map((tab) => tab.labels), [
-      ['빠른 경로'],
-      ['환승 적은 경로'],
-    ]);
+    expect(tabPairs(none), [('최단시간', 'a'), ('최소환승', 'a')]);
   });
 
   test('(5-2) 계단 표시는 계단 없는 경로가 필요한 이동 프로필이나 계단 없는 경로 요청에만 켠다', () {
@@ -701,10 +646,13 @@ void main() {
         targetFacilityType: AlightingTargetFacilityType.escalator,
       ),
     ]);
-    expect(transferAndElevator.carDoorLabel, '빠른 환승 3-2 · 엘리베이터 가까운 문 4-1');
+    expect(transferAndElevator.carDoorLines, [
+      '빠른 환승: 3-2',
+      '엘리베이터 가까운 문: 4-1',
+    ]);
     expect(
       transferAndElevator.semanticsLabel,
-      '2호선 교대 방면 탑승, 08:15 출발, '
+      '2호선 교대역 방면 탑승, 08:15 출발, '
       '빠른 환승 3호차 2번 문, 엘리베이터 가까운 4호차 1번 문, 1개 역 이동, 2분',
     );
 
@@ -720,14 +668,17 @@ void main() {
         targetFacilityType: AlightingTargetFacilityType.stair,
       ),
     ]);
-    expect(escalatorAndStair.carDoorLabel, '에스컬레이터 가까운 문 7-3 · 계단 가까운 문 2-4');
+    expect(escalatorAndStair.carDoorLines, [
+      '에스컬레이터 가까운 문: 7-3',
+      '계단 가까운 문: 2-4',
+    ]);
     expect(
       escalatorAndStair.semanticsLabel,
-      '2호선 교대 방면 탑승, 08:15 출발, '
+      '2호선 교대역 방면 탑승, 08:15 출발, '
       '에스컬레이터 가까운 7호차 3번 문, 계단 가까운 2호차 4번 문, 1개 역 이동, 2분',
     );
 
-    expect(rideWith(const []).carDoorLabel, isNull);
+    expect(rideWith(const []).carDoorLines, isEmpty);
   });
 
   test('(8) 실시간 시각이 있으면 계획 시각보다 우선한다', () {
@@ -778,13 +729,11 @@ void main() {
     final viewModel = _viewModel(journey);
     final ride = viewModel.timeline[1] as JourneyRideNode;
 
-    expect(viewModel.summary.departureTime, '08:13');
-    expect(viewModel.summary.arrivalTime, '08:49');
-    expect(viewModel.summary.isRealtime, isTrue);
+    expect(viewModel.summary.timesLabel, '오전 8:13 - 오전 8:49');
     expect(viewModel.summary.isStairFree, isTrue);
     expect(
       viewModel.summary.semanticsLabel,
-      '35분 소요, 08:13 출발, 08:49 도착, 환승 없음, 카드 1,550원, 도보 320m, 실시간 반영',
+      '35분 소요, 오전 8시 13분 출발, 오전 8시 49분 도착, 환승 없음, 1,550원',
     );
     expect(
       (viewModel.timeline.first as JourneyDepartureNode).departureTime,
@@ -795,6 +744,7 @@ void main() {
       '08:49',
     );
     expect(ride.departureTime, '08:16');
+    expect(ride.arrivalTime, '08:30');
     expect(ride.rideMinutes, 14);
     expect(viewModel.segments[1].seconds, 14 * 60);
     expect(ride.intermediateStops.map((stop) => stop.time), [
@@ -804,6 +754,180 @@ void main() {
       null,
     ]);
     expect(ride.intermediateStops.last.name, '종합운동장');
+  });
+
+  group('상용 지하철 서비스 표현(#509)', () {
+    Journey longRide({
+      required DateTime departure,
+      required DateTime arrival,
+      DateTime? realtimeDeparture,
+      DateTime? realtimeArrival,
+    }) => _journey(
+      departure: departure,
+      arrival: arrival,
+      durationSeconds: arrival.difference(departure).inSeconds,
+      legs: <JourneyLeg>[
+        _ride(
+          lineId: 'line-1',
+          from: 'st-gangnam',
+          to: 'st-yeoksam',
+          departure: departure,
+          arrival: arrival,
+          realtimeDeparture: realtimeDeparture,
+          realtimeArrival: realtimeArrival,
+          stops: [
+            _stop('st-gangnam', plannedDeparture: departure),
+            _stop('st-yeoksam', plannedArrival: arrival),
+          ],
+        ),
+      ],
+    );
+
+    test('총시간이 1시간 이상이면 시간과 분으로 쓴다', () {
+      final summary = _viewModel(
+        longRide(departure: _kst(5, 11), arrival: _kst(7, 28)),
+      ).summary;
+      expect(summary.durationLabel, '2시간 17분');
+      expect(summary.durationParts, [('2', '시간'), ('17', '분')]);
+      expect(summary.timesLabel, '오전 5:11 - 오전 7:28');
+
+      final exact = _viewModel(
+        longRide(departure: _kst(5, 0), arrival: _kst(6, 0)),
+      ).summary;
+      expect(exact.durationLabel, '1시간');
+      expect(exact.durationParts, [('1', '시간')]);
+    });
+
+    test('자정 시각은 오전 12시, 정오 뒤는 오후로 쓴다', () {
+      // 자정 넘어 00:36 출발은 KST 다음 날 00:36이다.
+      final midnight = _viewModel(
+        longRide(
+          departure: DateTime.utc(2026, 9, 30, 15, 36),
+          arrival: DateTime.utc(2026, 9, 30, 16, 5),
+        ),
+      ).summary;
+      expect(midnight.timesLabel, '오전 12:36 - 오전 1:05');
+      expect(
+        midnight.semanticsLabel,
+        '29분 소요, 오전 12시 36분 출발, 오전 1시 5분 도착, 환승 없음, 1,550원',
+      );
+
+      final noon = _viewModel(
+        longRide(departure: _kst(12, 5), arrival: _kst(13, 40)),
+      ).summary;
+      expect(noon.timesLabel, '오후 12:05 - 오후 1:40');
+    });
+
+    test('기준 시각 줄은 서버 기준 시각과 첫 열차 출발까지의 대기를 쓴다', () {
+      final viewModel = JourneyResultViewModel.fromJourney(
+        longRide(departure: _kst(5, 11), arrival: _kst(5, 56)),
+        stationName: _name,
+        basis: DateTime.utc(2026, 9, 29, 15, 36),
+      );
+      expect(viewModel.basisLabel, '오전 12:36 기준 (출발 대기 4시간 35분)');
+
+      final noWait = JourneyResultViewModel.fromJourney(
+        longRide(departure: _kst(8, 0), arrival: _kst(8, 10)),
+        stationName: _name,
+        basis: _kst(8, 0),
+      );
+      expect(noWait.basisLabel, '오전 8:00 기준');
+
+      expect(
+        _viewModel(
+          longRide(departure: _kst(8, 0), arrival: _kst(8, 10)),
+        ).basisLabel,
+        isNull,
+      );
+    });
+
+    test('남은 분은 서버가 실시간 출발을 준 탑승에만 만든다', () {
+      final realtime = JourneyResultViewModel.fromJourney(
+        longRide(
+          departure: _kst(0, 55),
+          arrival: _kst(1, 0),
+          realtimeDeparture: _kst(0, 57),
+          realtimeArrival: _kst(1, 1),
+        ),
+        stationName: _name,
+        basis: _kst(0, 46),
+      );
+      final ride = realtime.timeline.single as JourneyRideNode;
+      expect(ride.departureTime, '00:57');
+      expect(ride.remainingLabel, '11분');
+      expect(ride.trainSemanticsLabel, '00:57 출발 열차, 11분 남음');
+
+      final timetable = JourneyResultViewModel.fromJourney(
+        longRide(departure: _kst(0, 55), arrival: _kst(1, 0)),
+        stationName: _name,
+        basis: _kst(0, 46),
+      );
+      final planned = timetable.timeline.single as JourneyRideNode;
+      expect(planned.remainingLabel, isNull);
+      expect(planned.trainSemanticsLabel, '00:55 출발 열차');
+
+      final noBasis = _viewModel(
+        longRide(
+          departure: _kst(0, 55),
+          arrival: _kst(1, 0),
+          realtimeDeparture: _kst(0, 57),
+          realtimeArrival: _kst(1, 1),
+        ),
+      );
+      expect(
+        (noBasis.timeline.single as JourneyRideNode).remainingLabel,
+        isNull,
+      );
+    });
+
+    test('환승 대기가 1분 미만이면 대기 줄을 만들지 않는다', () {
+      final journey = _journey(
+        departure: _kst(8, 15),
+        arrival: _kst(8, 44),
+        transferCount: 1,
+        legs: <JourneyLeg>[
+          _ride(
+            from: 'st-gangnam',
+            to: 'st-gyodae',
+            departure: _kst(8, 15),
+            arrival: _kst(8, 27),
+            stops: [
+              _stop('st-gangnam', plannedDeparture: _kst(8, 15)),
+              _stop('st-gyodae', plannedArrival: _kst(8, 27)),
+            ],
+          ),
+          const JourneyTransferLeg(
+            fromStationId: 'st-gyodae',
+            toStationId: 'st-gyodae',
+            durationSeconds: 180,
+          ),
+          _ride(
+            lineId: 'line-3',
+            from: 'st-gyodae',
+            to: 'st-yangjae',
+            departure: _kst(8, 30),
+            arrival: _kst(8, 44),
+            stops: [
+              _stop('st-gyodae', plannedDeparture: _kst(8, 30)),
+              _stop('st-yangjae', plannedArrival: _kst(8, 44)),
+            ],
+          ),
+        ],
+      );
+      final transfer = _viewModel(journey).timeline[1] as JourneyTransferNode;
+      expect(transfer.waitLabel, isNull);
+      expect(transfer.semanticsLabel, '교대 환승, 도보 3분');
+    });
+
+    test('하차 단계는 하차역 이름과 도착 시각을 갖는다', () {
+      final ride =
+          _viewModel(_transferJourney()).timeline[1] as JourneyRideNode;
+      expect(ride.boardingStationId, 'st-gangnam');
+      expect(ride.alightingStationId, 'st-gyodae');
+      expect(ride.arrivalTime, '08:27');
+      expect(ride.boardingHeading, '강남역');
+      expect(ride.alightingHeading, '교대역');
+    });
   });
 
   test('노선명은 알려진 노선 ID만 이름으로 바꾸고 모르는 ID는 그대로 둔다', () {

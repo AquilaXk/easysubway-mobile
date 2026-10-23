@@ -195,30 +195,40 @@ void main() {
     });
   });
 
-  group('경로 검색 시간 버튼', () {
-    for (final (mode, chipKey, buttonKey, label) in const [
-      (
-        '예약',
-        'journey-departure-scheduled',
-        'journey-scheduled-time',
-        '출발 시간 선택',
-      ),
-      ('구간', 'journey-departure-window', 'journey-window-time', '출발 대안 시간대 선택'),
+  group('경로 검색 출발 시각', () {
+    testWidgets('시간 줄 글자는 4.5:1을 넘고 라벨은 보이는 글자를 담는다', (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        await pumpSweepJourney(tester);
+
+        expect(
+          tester
+              .getSemantics(find.byKey(const Key('journey-departure-bar-time')))
+              .label,
+          '출발 시각 설정, 오늘 09:00 출발',
+        );
+        await expectLater(tester, meetsGuideline(textContrastGuideline));
+      } finally {
+        semantics.dispose();
+      }
+    });
+
+    for (final (mode, taps) in const [
+      ('출발 시각', ['journey-departure-bar-time']),
       (
         '막차',
-        'journey-departure-last-connection',
-        'journey-last-connection-date',
-        '안심 막차 운행일 선택',
+        [
+          'journey-departure-bar-time',
+          'journey-departure-sheet-mode-lastTrain',
+        ],
       ),
     ]) {
-      testWidgets('$mode 모드 시간 버튼 글자가 4.5:1을 넘는다', (tester) async {
+      testWidgets('$mode 시트의 칩·휠·버튼 글자가 4.5:1을 넘는다', (tester) async {
         final semantics = tester.ensureSemantics();
         try {
-          await pumpSweepJourney(tester, departureChip: chipKey);
+          await pumpSweepJourney(tester, taps: taps);
 
-          // 가이드라인은 의미 라벨과 글자가 같은 노드만 본다. 버튼 라벨이 글자와
-          // 같아야 이 검사가 실제로 그 글자에 닿는다.
-          expect(tester.getSemantics(find.byKey(Key(buttonKey))).label, label);
+          expect(find.text('출발 시각 설정'), findsOneWidget);
           await expectLater(tester, meetsGuideline(textContrastGuideline));
         } finally {
           semantics.dispose();

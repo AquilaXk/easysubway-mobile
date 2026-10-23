@@ -4,6 +4,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:clock/clock.dart';
+import 'package:easysubway_mobile/core/ui/route_role_dot.dart';
 import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/auth_headers.dart';
@@ -2602,6 +2603,104 @@ void main() {
     expect(find.byKey(const Key('networkMapRouteDraftOverlay')), findsNothing);
   });
 
+  testWidgets('경로 상세의 역 링크·실시간 칩은 역 상세를, 시간표 칩은 역 시간표를 연다', (tester) async {
+    final repository = FakeStationSearchRepository();
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: repository,
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        favoriteRouteRepository: FakeFavoriteRouteRepository(),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openJourneySearchScreen(tester);
+    final screen = tester.widget<JourneySearchScreen>(
+      find.byType(JourneySearchScreen),
+    );
+
+    screen.onOpenStationTimetable!('station-sadang');
+    await tester.pumpAndSettle();
+    expect(find.byType(StationTimetableScreen), findsOneWidget);
+    expect(
+      tester
+          .widget<StationTimetableScreen>(find.byType(StationTimetableScreen))
+          .stationId,
+      'station-sadang',
+    );
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+    expect(find.byType(StationTimetableScreen), findsNothing);
+    expect(find.byType(JourneySearchScreen), findsOneWidget);
+
+    screen.onOpenStation!('station-sadang');
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('stationDetailSheet')), findsOneWidget);
+    expect(repository.requestedDetailStationIds, contains('station-sadang'));
+  });
+
+  for (final (name, repository) in <(String, FakeStationSearchRepository)>[
+    ('역 조회가 실패하면', _FailingStationDetailRepository()),
+    ('조회한 역이 요청한 역과 다르면', FakeStationSearchRepository()),
+  ]) {
+    testWidgets('경로 상세의 시간표 칩은 $name 안내를 보이고 시간표를 열지 않는다', (tester) async {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: repository,
+          reportRepository: FakeFacilityReportRepository(),
+          favoriteRepository: FakeFavoriteStationRepository(),
+          favoriteRouteRepository: FakeFavoriteRouteRepository(),
+          notificationRepository: FakeNotificationSettingsRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _openJourneySearchScreen(tester);
+      final screen = tester.widget<JourneySearchScreen>(
+        find.byType(JourneySearchScreen),
+      );
+
+      screen.onOpenStationTimetable!('station-unknown');
+      await tester.pumpAndSettle();
+
+      expect(find.text('역 정보를 불러오지 못했어요.'), findsOneWidget);
+      expect(find.byType(StationTimetableScreen), findsNothing);
+      expect(find.byType(JourneySearchScreen), findsOneWidget);
+    });
+  }
+
+  testWidgets('경로 상세의 시간표 칩은 역 조회가 예기치 않게 실패하면 오류를 보고하고 안내를 보인다', (
+    tester,
+  ) async {
+    final reportedErrors = <FlutterErrorDetails>[];
+    await tester.pumpWidget(
+      buildEasySubwayTestApp(
+        repository: _FailingStationDetailRepository(StateError('조회 실패')),
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        favoriteRouteRepository: FakeFavoriteRouteRepository(),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        initialOnboardingState: _completedOnboardingState(),
+      ),
+    );
+    await tester.pumpAndSettle();
+    await _openJourneySearchScreen(tester);
+    final screen = tester.widget<JourneySearchScreen>(
+      find.byType(JourneySearchScreen),
+    );
+
+    await runWithMobileErrorReporter(reportedErrors.add, () async {
+      screen.onOpenStationTimetable!('station-sadang');
+      await tester.pumpAndSettle();
+    });
+
+    expect(reportedErrors.single.exception, isA<StateError>());
+    expect(find.text('역 정보를 불러오지 못했어요.'), findsOneWidget);
+    expect(find.byType(StationTimetableScreen), findsNothing);
+  });
+
   testWidgets('결과 화면에서 뒤로가기로 홈에 오면 상단바가 빈 검색바로 복귀한다', (tester) async {
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -3011,16 +3110,21 @@ void main() {
       ),
       findsOneWidget,
     );
-    // 역할 라벨(도착역) + 값 영역 플레이스홀더(도착역 입력).
-    expect(find.text('도착역'), findsWidgets); // 역할 라벨(출발에도 역할 라벨 있음)
+    // 역할 점(#509) + 값 영역 플레이스홀더(도착역 입력).
     expect(find.text('도착역 입력'), findsOneWidget);
-    expect(
-      find.descendant(
-        of: find.byKey(const Key('networkMapRouteDraftOriginRow')),
-        matching: find.text('출발역'),
-      ),
-      findsOneWidget,
-    );
+    for (final row in [
+      'networkMapRouteDraftOriginRow',
+      'networkMapRouteDraftDestinationRow',
+    ]) {
+      expect(
+        find.descendant(
+          of: find.byKey(Key(row)),
+          matching: find.byType(RouteRoleDot),
+        ),
+        findsOneWidget,
+        reason: row,
+      );
+    }
     // owner spec: 라벨 프리픽스 텍스트와 노드 점 커넥터 컬럼은 제거되고, 두 개의
     // 무채색 채움 필드만 남는다.
     expect(find.text('출발역을 탭하거나 검색'), findsNothing);
@@ -3043,13 +3147,13 @@ void main() {
       find.byKey(const Key('networkMapRouteDraftBackButton')),
       findsOneWidget,
     );
-    // 채워진 출발 칸은 노선 뱃지 + 역명을 보여 준다.
+    // 채워진 출발 칸은 노선 마크 없이 역명만 보여 준다(#509).
     expect(
       find.descendant(
         of: find.byKey(const Key('networkMapRouteDraftOriginRow')),
         matching: find.byKey(const Key('stationLineBadge-seoul-4')),
       ),
-      findsOneWidget,
+      findsNothing,
     );
 
     // 출발칸 지우기(✕) → draft에서 출발이 지워지고, 도착도 없으니 상단바는 다시
@@ -3588,7 +3692,7 @@ void main() {
     semanticsHandle.dispose();
   });
 
-  testWidgets('#1985 빈 출발 행은 역할 라벨과 입력 플레이스홀더를 보여 준다', (tester) async {
+  testWidgets('#1985 빈 출발 행은 역할 점과 입력 플레이스홀더를 보여 준다', (tester) async {
     final routeDraftController = RouteDraftController()
       ..setDestination(const RouteDraftStation(id: 'jamsil', nameKo: '잠실'));
     await tester.pumpWidget(
@@ -3602,10 +3706,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // 역할은 글자 대신 점으로 보인다(#509).
     expect(
       find.descendant(
         of: find.byKey(const Key('networkMapRouteDraftOriginRow')),
-        matching: find.text('출발역'),
+        matching: find.byType(RouteRoleDot),
       ),
       findsOneWidget,
     );
@@ -17122,6 +17227,19 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
 }
 
 /// #2453: 로컬 시간표 Future를 완료하지 않아 패널 첫 프레임 골격을 검증한다.
+class _FailingStationDetailRepository extends FakeStationSearchRepository {
+  _FailingStationDetailRepository([
+    this.error = const StationSearchException('역 정보를 불러오지 못했어요.'),
+  ]);
+
+  final Object error;
+
+  @override
+  Future<StationDetail> getStationDetail(String stationId) async {
+    throw error;
+  }
+}
+
 class _HangingTimetableStationRepository extends FakeStationSearchRepository
     implements StationTimetableRepository {
   _HangingTimetableStationRepository({

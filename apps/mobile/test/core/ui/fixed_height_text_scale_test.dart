@@ -430,7 +430,7 @@ void main() {
     });
 
     for (final scale in [1.0, 2.0]) {
-      testWidgets('10. journey_search_screen: 타임라인 노선 배지가 $scale배에서 잘리지 않는다', (
+      testWidgets('10. journey_search_screen: 구간 막대 노선 마크가 $scale배에서 잘리지 않는다', (
         tester,
       ) async {
         // 배지와 무관한 화면 내 다른 가로 overflow는 이 측정의 범위 밖이다.
@@ -460,8 +460,6 @@ void main() {
         );
         await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
         await tester.pumpAndSettle();
-        await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
-        await tester.pumpAndSettle();
 
         for (final badge in ['2', '경의중앙']) {
           final markFinder = find.byWidgetPredicate(
@@ -489,28 +487,12 @@ void main() {
             lessThanOrEqualTo(box.width + 0.01),
             reason: '$badge 배지 폭 잘림',
           );
-          // 경로 노드 제목 줄은 마크가 커지면 함께 자라므로 상한 없이 20, 40이다.
-          final side = scale == 1.0 ? 20.0 : 40.0;
+          // 구간 막대 높이(24dp)는 글자 배율을 따라 자라고 마크는 막대 높이와 같다.
+          final side = scale == 1.0 ? 24.0 : 48.0;
           expect(box.height, side, reason: '$badge $scale배 높이');
           if (badge == '2') {
             expect(box, Size(side, side), reason: '호선 번호는 정원');
           }
-        }
-
-        // 트랙 원은 글자 크기와 무관하게 모두 24dp라 노드 내용이 모든 배율에서
-        // 같은 가장자리(원 24 + 간격 12)에서 시작한다.
-        for (final leg in [0, 1, 2]) {
-          final node = find.byKey(Key('selected-journey-leg-$leg'));
-          expect(node, findsOneWidget, reason: '타임라인 노드 $leg');
-          final content = find.descendant(
-            of: node,
-            matching: find.byType(Expanded),
-          );
-          expect(
-            tester.getTopLeft(content.last).dx - tester.getTopLeft(node).dx,
-            36,
-            reason: '노드 $leg 내용 시작 위치(배율 $scale)',
-          );
         }
       });
     }

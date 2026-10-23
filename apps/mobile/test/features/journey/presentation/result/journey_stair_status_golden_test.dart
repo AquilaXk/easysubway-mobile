@@ -105,7 +105,7 @@ void main() {
       ),
       alternativeCategories: categories,
     );
-    final tabs = journeyRouteTabs(showStairStatus: true, [
+    final tabs = journeyCriterionTabs(showStairStatus: true, [
       journey('a', 30, 2, [JourneyAlternativeCategory.fastest]),
       journey('b', 34, 1, [JourneyAlternativeCategory.fewestTransfers]),
       journey('c', 41, 0, [
@@ -114,11 +114,17 @@ void main() {
     ]);
     await _pump(
       tester,
-      JourneyRouteTabs(tabs: tabs, selectedJourneyId: 'a', onSelect: (_) {}),
+      JourneyCriterionTabBar(
+        tabs: tabs,
+        selected: JourneyCriterion.fastest,
+        onSelect: (_) {},
+        lastTrainSelected: false,
+        onLastTrain: () {},
+      ),
     );
     await expectLater(
       find.byKey(_boundaryKey),
-      matchesGoldenFile('goldens/journey_route_tabs_stair_free.png'),
+      matchesGoldenFile('goldens/journey_criterion_tabs_stair_free.png'),
     );
   }, skip: skipReason);
 

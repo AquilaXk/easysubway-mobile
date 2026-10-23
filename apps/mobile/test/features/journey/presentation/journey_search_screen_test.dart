@@ -69,16 +69,15 @@ void main() {
     expect(request.constraintMode, ConstraintMode.none);
     expect(request.maxTransfers, 3);
     expect(request.alternativeCount, 3);
-    expect(find.text('경로 후보 2개'), findsOneWidget);
-    final second = find.byKey(const Key('journey-candidate-journey-1'));
-    final first = find.byKey(const Key('journey-candidate-journey-2'));
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
+    final second = find.byKey(const Key('journey-criterion-fewestTransfers'));
+    final first = find.byKey(const Key('journey-criterion-fastest'));
     expect(first, findsOneWidget);
     expect(second, findsOneWidget);
     // 후보는 서버 순서의 가로 탭이고, 첫 후보가 기본 선택된다.
     expect(tester.getTopLeft(first).dx, lessThan(tester.getTopLeft(second).dx));
     expect(tester.getTopLeft(first).dy, tester.getTopLeft(second).dy);
-    expect(find.text('09:00 출발 → 09:05 도착'), findsOneWidget);
-    expect(find.textContaining('환승 2회'), findsOneWidget);
+    expect(find.text('오전 9:00 - 오전 9:05'), findsOneWidget);
     expect(
       tester.getSemantics(first).flagsCollection.isSelected,
       Tristate.isTrue,
@@ -142,11 +141,8 @@ void main() {
     await _pumpScreen(tester, repository: single);
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
-    expect(find.text('경로 후보 1개'), findsOneWidget);
-    expect(
-      find.byKey(const Key('journey-candidate-journey-only')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
+    expect(find.byKey(const Key('journey-criterion-fastest')), findsOneWidget);
     semantics.dispose();
   });
 
@@ -187,7 +183,7 @@ void main() {
     semantics.dispose();
   });
 
-  testWidgets('출발 시간은 exact SCHEDULED requestedAt으로 전송하고 모드 변경 시 이전 결과를 지운다', (
+  testWidgets('출발 시각 시트는 exact SCHEDULED requestedAt으로 다시 찾고 기존 알림을 먼저 끈다', (
     tester,
   ) async {
     final repository = _Repository();
@@ -202,7 +198,7 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
-    expect(find.text('경로 후보 2개'), findsOneWidget);
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
     await alarm.controller.enable(
       routeId: 'scheduled-selection-alarm',
       stops: [
@@ -216,69 +212,39 @@ void main() {
       transferAlarmEnabled: false,
     );
 
-    final scheduled = find.byKey(const Key('journey-departure-scheduled'));
-    expect(tester.getSize(scheduled).height, greaterThanOrEqualTo(48));
-    await tester.tap(scheduled);
+    final bar = find.byKey(const Key('journey-departure-bar-time'));
+    expect(tester.getSize(bar).height, greaterThanOrEqualTo(48));
+    expect(find.text('오늘 09:00 출발'), findsOneWidget);
+
+    // 닫으면 아무것도 바꾸지 않는다.
+    await tester.tap(bar);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('닫기'));
+    await tester.pumpAndSettle();
+    expect(alarm.notifier.cancelAllCount, 0);
+    expect(repository.requests, hasLength(1));
+
+    await tester.tap(bar);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const Key('journey-departure-sheet-confirm')));
     await tester.pumpAndSettle();
 
     expect(alarm.notifier.cancelAllCount, 1);
-    expect(find.text('경로 후보 2개'), findsNothing);
-    expect(
-      tester.getSemantics(scheduled).flagsCollection.isSelected,
-      Tristate.isTrue,
-    );
-    expect(
-      tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
-          .onPressed,
-      isNull,
-    );
-
-    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await tester.pumpAndSettle();
-    expect(find.text('출발 시간 선택'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'OK'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await tester.pumpAndSettle();
-    expect(find.text('출발 시간 선택'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'OK'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'OK'));
-    await tester.pumpAndSettle();
-
-    expect(find.text('출발 시간 2026-08-12 09:00'), findsOneWidget);
-
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
+    expect(repository.requests, hasLength(2));
     final departure = repository.requests.last.departure;
     expect(departure, isA<JourneyDepartureScheduled>());
     expect(
       (departure as JourneyDepartureScheduled).requestedAt,
       DateTime.utc(2026, 8, 12),
     );
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('journey-scheduled-time')));
+    await tester.tap(bar);
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.tap(find.byKey(const Key('journey-departure-sheet-now')));
     await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'OK'));
-    await tester.pumpAndSettle();
-    expect(find.text('경로 후보 2개'), findsOneWidget);
-
-    await tester.tap(find.byKey(const Key('journey-departure-now')));
-    await tester.pumpAndSettle();
-    expect(find.text('경로 후보 2개'), findsNothing);
-    expect(find.byKey(const Key('journey-scheduled-time')), findsNothing);
+    expect(repository.requests.last.departure, isA<JourneyDepartureNow>());
+    expect(find.text('오늘 09:00 출발'), findsOneWidget);
   });
 
   testWidgets('계단 회피 profile은 REQUIRE_STEP_FREE로 전송한다', (tester) async {
@@ -323,10 +289,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    expect(
-      find.byKey(const Key('journey-candidate-journey-2')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('journey-criterion-fastest')), findsOneWidget);
     expect(find.byKey(const Key('journey-stair-status-notices')), findsNothing);
     expect(find.textContaining('계단'), findsNothing);
     expect(find.textContaining('엘리베이터 고장'), findsNothing);
@@ -419,7 +382,7 @@ void main() {
         );
         expect(find.text('계단 없이 갈 수 있는 경로를 찾지 못했어요.'), findsNothing);
         expect(
-          find.byKey(const Key('journey-candidate-journey-2')),
+          find.byKey(const Key('journey-criterion-fastest')),
           findsOneWidget,
         );
         // 확인되지 않은 계단 정보는 면책 문구로 알리지 않는다(#443 QA).
@@ -464,7 +427,7 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
     final selectedCandidate = find.byKey(
-      const Key('journey-candidate-journey-1'),
+      const Key('journey-criterion-fewestTransfers'),
     );
     await tester.ensureVisible(selectedCandidate);
     await tester.tap(selectedCandidate);
@@ -481,7 +444,7 @@ void main() {
     await tester.pumpAndSettle();
 
     alarm.notifier.cancelErrorOnce = StateError('cancel failed');
-    final otherCandidate = find.byKey(const Key('journey-candidate-journey-2'));
+    final otherCandidate = find.byKey(const Key('journey-criterion-fastest'));
     await tester.ensureVisible(otherCandidate);
     await tester.tap(otherCandidate);
     await tester.pumpAndSettle();
@@ -505,7 +468,7 @@ void main() {
     );
 
     final currentCandidate = find.byKey(
-      const Key('journey-candidate-journey-1'),
+      const Key('journey-criterion-fewestTransfers'),
     );
     await tester.ensureVisible(currentCandidate);
     await tester.tap(currentCandidate);
@@ -525,7 +488,7 @@ void main() {
     expect(repository.requests, hasLength(requestsBefore));
     expect(find.byKey(const Key('selected-journey-journey-1')), findsOneWidget);
 
-    final nextCandidate = find.byKey(const Key('journey-candidate-journey-2'));
+    final nextCandidate = find.byKey(const Key('journey-criterion-fastest'));
     alarm.notifier.cancelBarrier = Completer<void>();
     await tester.ensureVisible(nextCandidate);
     await tester.tap(nextCandidate);
@@ -549,7 +512,7 @@ void main() {
 
     session.complete(_sessionResponse());
     await tester.pumpAndSettle();
-    expect(find.text('경로 후보 2개'), findsOneWidget);
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
   });
 
   testWidgets('validUntil 만료는 후보·선택 상세·공유 claim을 함께 제거한다', (tester) async {
@@ -563,17 +526,19 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+    await tester.tap(
+      find.byKey(const Key('journey-criterion-fewestTransfers')),
+    );
     await tester.pump();
 
-    expect(find.text('경로 후보 2개'), findsOneWidget);
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
     expect(find.byKey(const Key('selected-journey-detail')), findsOneWidget);
     expect(find.widgetWithText(OutlinedButton, '공유'), findsOneWidget);
 
     current = current.add(const Duration(minutes: 5));
     await tester.pump(const Duration(minutes: 5));
 
-    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(find.byKey(const Key('journey-summary')), findsNothing);
     expect(find.byKey(const Key('selected-journey-detail')), findsNothing);
     expect(find.widgetWithText(OutlinedButton, '공유'), findsNothing);
     expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
@@ -592,14 +557,14 @@ void main() {
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
-    expect(find.text('경로 후보 2개'), findsOneWidget);
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
 
     current = current.add(const Duration(minutes: 6));
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
     tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
     await tester.pump();
 
-    expect(find.text('경로 후보 2개'), findsNothing);
+    expect(find.byKey(const Key('journey-summary')), findsNothing);
     expect(find.widgetWithText(FilledButton, '다시 시도'), findsOneWidget);
   });
 
@@ -717,8 +682,10 @@ void main() {
       repository.requests.map((request) => request.walkingPace),
       everyElement(WalkingPace.standard),
     );
-    expect(find.text('경로 후보 2개'), findsOneWidget);
-    final candidate = find.byKey(const Key('journey-candidate-journey-1'));
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
+    final candidate = find.byKey(
+      const Key('journey-criterion-fewestTransfers'),
+    );
     await tester.ensureVisible(candidate);
     await tester.tap(candidate);
     await tester.pump();
@@ -736,29 +703,15 @@ void main() {
   testWidgets('노외 환승은 시간에 따라 3단계 배지(녹색, 주황색, 빨간색) 및 분리 요금을 렌더링한다', (
     tester,
   ) async {
-    final repository = _Repository();
-    repository.journeyIds = <String>[
-      'journey-oos-green',
-      'journey-oos-amber',
-      'journey-oos-red',
-    ];
-    await _pumpScreen(tester, repository: repository);
-
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
-    // 배지는 선택한 경로의 환승 노드에 붙는다. 탭을 바꿔 가며 확인한다.
+    // 배지는 선택한 경로의 환승 노드에 붙는다. 환승 시간마다 한 경로씩 찾는다.
     for (final (id, key, label) in <(String, String, String)>[
       ('journey-oos-green', 'out-of-station-badge-green', '노외 환승 (여유)'),
       ('journey-oos-amber', 'out-of-station-badge-amber', '노외 환승 (주의)'),
       ('journey-oos-red', 'out-of-station-badge-red', '노외 환승 (시간 초과)'),
     ]) {
-      final candidate = find.byKey(Key('journey-candidate-$id'));
-      await tester.ensureVisible(candidate);
-      await tester.tap(candidate);
-      await tester.pumpAndSettle();
-      expect(find.byKey(Key(key)), findsOneWidget);
-      expect(find.text(label), findsOneWidget);
+      await _searchSingleJourney(tester, id);
+      expect(find.byKey(Key(key)), findsOneWidget, reason: id);
+      expect(find.text(label), findsOneWidget, reason: id);
     }
 
     // 재승차 운임은 금액 없이 사실만 표시한다. 금액은 여정 총운임(fare)에만 있다(backend#444).
@@ -770,31 +723,14 @@ void main() {
     tester,
   ) async {
     final handle = tester.ensureSemantics();
-    final repository = _Repository();
-    repository.journeyIds = <String>[
-      'journey-oos-green',
-      'journey-oos-amber',
-      'journey-oos-red',
-    ];
-    await _pumpScreen(tester, repository: repository);
-
-    await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
     const notice = Key('reboarding-fare-notice');
     for (final id in <String>['journey-oos-green', 'journey-oos-amber']) {
-      final candidate = find.byKey(Key('journey-candidate-$id'));
-      await tester.ensureVisible(candidate);
-      await tester.tap(candidate);
-      await tester.pumpAndSettle();
+      await _searchSingleJourney(tester, id);
       expect(find.byKey(notice), findsNothing, reason: '$id: 재승차 아님');
       expect(find.text('재승차 운임 발생'), findsNothing);
     }
 
-    final red = find.byKey(const Key('journey-candidate-journey-oos-red'));
-    await tester.ensureVisible(red);
-    await tester.tap(red);
-    await tester.pumpAndSettle();
+    await _searchSingleJourney(tester, 'journey-oos-red');
     expect(find.byKey(notice), findsOneWidget);
     expect(find.text('재승차 운임 발생'), findsOneWidget);
     expect(find.bySemanticsLabel('재승차 운임 발생'), findsOneWidget);
@@ -847,59 +783,63 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
       await tester.pumpAndSettle();
 
-      // 기본 선택(첫 후보 journey-2)의 탑승 노드는 모르는 노선 ID를 그대로 보여 준다.
-      expect(find.text('line-private'), findsOneWidget);
-      expect(find.text('2호선'), findsNothing);
+      // 기본 선택(최단시간 journey-2)의 승차 단계는 모르는 노선 ID를 그대로 보여 준다.
+      expect(find.text('line-private 시청역', findRichText: true), findsOneWidget);
+      expect(find.textContaining('2호선', findRichText: true), findsNothing);
 
-      await tester.tap(find.byKey(const Key('journey-candidate-journey-1')));
+      await tester.tap(
+        find.byKey(const Key('journey-criterion-fewestTransfers')),
+      );
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('selected-journey-detail')), findsOneWidget);
-      // 출발·환승·도착 노드가 역 이름에 바인딩된다.
+      // 승차 단계는 노선명과 승차역, 하차 단계는 하차역에 바인딩된다.
+      final ride = find.byKey(const Key('selected-journey-leg-1'));
+      expect(
+        find.descendant(
+          of: ride,
+          matching: find.text('2호선 시청역', findRichText: true),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: ride,
+          matching: find.text('종로3가역', findRichText: true),
+        ),
+        findsOneWidget,
+      );
+      // 출발·도착 도보와 환승은 걷는 시간 줄이다.
       expect(
         find.descendant(
           of: find.byKey(const Key('selected-journey-leg-0')),
-          matching: find.text('시청역'),
+          matching: find.text('승강장까지 도보 1분'),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
           of: find.byKey(const Key('selected-journey-leg-2')),
-          matching: find.text('종로3가역'),
+          matching: find.text('도보 1분'),
         ),
         findsOneWidget,
       );
       expect(
         find.descendant(
           of: find.byKey(const Key('selected-journey-leg-3')),
-          matching: find.text('동대문역'),
+          matching: find.text('출구까지 도보 1분'),
         ),
         findsOneWidget,
       );
-      // 탑승 노드가 노선명에 바인딩된다.
-      expect(
+      // 구간 막대의 노선 원은 공용 마크 위젯이 노선색 막대 위에 흰 면으로 그린다.
+      final mark = tester.widget<LineMark>(
         find.descendant(
-          of: find.byKey(const Key('selected-journey-leg-1')),
-          matching: find.text('2호선'),
+          of: find.byKey(const Key('journey-segment-bar')),
+          matching: find.byType(LineMark),
         ),
-        findsOneWidget,
       );
-      // 노선 마크는 공용 마크 위젯이 그리고 글자는 흰색이다.
-      final mark = find.descendant(
-        of: find.byKey(const Key('selected-journey-leg-1')),
-        matching: find.byType(LineMark),
-      );
-      expect(mark, findsOneWidget);
-      expect(
-        tester
-            .widget<Text>(
-              find.descendant(of: mark, matching: find.byType(Text)),
-            )
-            .style
-            ?.color,
-        Colors.white,
-      );
+      expect(mark.label, '2');
+      expect(mark.onLineColor, isTrue);
     },
   );
 
@@ -960,84 +900,29 @@ void main() {
     expect(repository.requests, isEmpty);
   });
 
-  testWidgets(
-    '특정 시간대 출발 대안 보기(departureWindow) 선택 시 Profile V1 DEPART_BETWEEN 쿼리를 실행한다',
-    (tester) async {
-      final repository = _Repository();
-      await _pumpScreen(tester, repository: repository);
-
-      final windowChip = find.byKey(const Key('journey-departure-window'));
-      expect(tester.getSize(windowChip).height, greaterThanOrEqualTo(48));
-      await tester.tap(windowChip);
-      await tester.pumpAndSettle();
-
-      expect(
-        tester.getSemantics(windowChip).flagsCollection.isSelected,
-        Tristate.isTrue,
-      );
-      expect(
-        tester
-            .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
-            .onPressed,
-        isNull,
-      );
-
-      await tester.tap(find.byKey(const Key('journey-window-time')));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'OK'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(TextButton, 'OK'));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('대안 시간대'), findsOneWidget);
-
-      await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-      await tester.pumpAndSettle();
-
-      expect(repository.profileRequests, hasLength(1));
-      final profileReq = repository.profileRequests.single;
-      expect(profileReq.originStationId, 'station-origin');
-      expect(profileReq.destinationStationId, 'station-destination');
-      expect(profileReq.temporalQuery, isA<JourneyDepartBetweenQuery>());
-      final temporal = profileReq.temporalQuery as JourneyDepartBetweenQuery;
-      expect(
-        temporal.latestReadyAt,
-        temporal.earliestReadyAt.add(const Duration(minutes: 30)),
-      );
-      expect(find.text('경로 후보 2개'), findsOneWidget);
-    },
-  );
-
-  testWidgets('교통약자 안심 막차 찾기 선택 시 Profile V1 LAST_CONNECTION 쿼리를 실행한다', (
+  testWidgets('출발 시각 시트의 막차는 Profile V1 LAST_CONNECTION 쿼리를 실행한다', (
     tester,
   ) async {
     final repository = _Repository();
     await _pumpScreen(tester, repository: repository);
 
-    final lastConnChip = find.byKey(
-      const Key('journey-departure-last-connection'),
-    );
-    expect(tester.getSize(lastConnChip).height, greaterThanOrEqualTo(48));
-    await tester.tap(lastConnChip);
+    await tester.tap(find.byKey(const Key('journey-departure-bar-time')));
     await tester.pumpAndSettle();
-
+    final lastTrain = find.byKey(
+      const Key('journey-departure-sheet-mode-lastTrain'),
+    );
+    expect(tester.getSize(lastTrain).height, greaterThanOrEqualTo(48));
+    await tester.tap(lastTrain);
+    await tester.pumpAndSettle();
     expect(
-      tester.getSemantics(lastConnChip).flagsCollection.isSelected,
+      tester.getSemantics(lastTrain).flagsCollection.isSelected,
       Tristate.isTrue,
     );
-    expect(
-      tester
-          .widget<FilledButton>(find.widgetWithText(FilledButton, '경로 찾기'))
-          .onPressed,
-      isNull,
-    );
-
-    await tester.tap(find.byKey(const Key('journey-last-connection-date')));
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(TextButton, 'OK'));
+    await tester.tap(find.byKey(const Key('journey-departure-sheet-confirm')));
     await tester.pumpAndSettle();
 
-    expect(find.textContaining('막차 운행일'), findsOneWidget);
+    expect(find.text('오늘 막차'), findsOneWidget);
+    expect(repository.profileRequests, isEmpty);
 
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
@@ -1049,10 +934,12 @@ void main() {
     expect(profileReq.temporalQuery, isA<JourneyLastConnectionQuery>());
     final temporal = profileReq.temporalQuery as JourneyLastConnectionQuery;
     expect(temporal.serviceDate, '2026-08-12');
-    expect(find.text('경로 후보 2개'), findsOneWidget);
+    expect(find.byKey(const Key('journey-summary')), findsOneWidget);
+    // 막차는 서버 기준 시각이 없는 프로필 검색이라 기준 시각 줄을 그리지 않는다.
+    expect(find.byKey(const Key('journey-basis-row')), findsNothing);
   });
 
-  testWidgets('경로 입력 카드는 출발·경유·도착 배지와 출발 기준 칩을 보여 준다', (tester) async {
+  testWidgets('경로 입력 카드는 출발·경유·도착 점과 시간 줄을 보여 준다', (tester) async {
     final repository = _Repository();
     var swapCount = 0;
     var clearWaypointCount = 0;
@@ -1064,9 +951,10 @@ void main() {
       onClearWaypoint: () => clearWaypointCount++,
     );
 
-    expect(find.text('출발'), findsOneWidget);
-    expect(find.text('경유'), findsOneWidget);
-    expect(find.text('도착'), findsOneWidget);
+    for (final role in ['origin', 'waypoint', 'destination']) {
+      expect(find.byKey(Key('journey-route-dot-$role')), findsOneWidget);
+    }
+    expect(find.text('출발'), findsNothing);
     expect(find.text('용산역'), findsOneWidget);
     expect(find.text('가평역'), findsOneWidget);
     expect(find.text('춘천역'), findsOneWidget);
@@ -1075,16 +963,8 @@ void main() {
     expect(find.bySemanticsLabel('도착 춘천역'), findsOneWidget);
     expect(find.byKey(const Key('journeyRouteSwapButton')), findsOneWidget);
     expect(find.byKey(const Key('journeyWaypointClearButton')), findsOneWidget);
-    expect(find.byKey(const Key('journey-departure-now')), findsOneWidget);
-    expect(
-      find.byKey(const Key('journey-departure-scheduled')),
-      findsOneWidget,
-    );
-    expect(find.byKey(const Key('journey-departure-window')), findsOneWidget);
-    expect(
-      find.byKey(const Key('journey-departure-last-connection')),
-      findsOneWidget,
-    );
+    expect(find.byKey(const Key('journey-departure-bar-time')), findsOneWidget);
+    expect(find.byKey(const Key('journey-departure-bar-next')), findsOneWidget);
 
     await tester.tap(find.byKey(const Key('journeyRouteSwapButton')));
     await tester.pumpAndSettle();
@@ -1094,7 +974,7 @@ void main() {
 
     await tester.tap(find.byKey(const Key('journeyWaypointClearButton')));
     await tester.pumpAndSettle();
-    expect(find.text('경유'), findsNothing);
+    expect(find.byKey(const Key('journey-route-dot-waypoint')), findsNothing);
     expect(find.byKey(const Key('journeyWaypointClearButton')), findsNothing);
     expect(clearWaypointCount, 1);
 
@@ -1122,7 +1002,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(clearWaypointCount, 2);
     expect(repository.requests, hasLength(3));
-    expect(find.text('경유'), findsNothing);
+    expect(find.byKey(const Key('journey-route-dot-waypoint')), findsNothing);
   });
 
   testWidgets('journey search는 다중 구간 환승 경로에서 계단 없는 경로 표시, 경강선 노선명을 지원한다', (
@@ -1140,8 +1020,8 @@ void main() {
 
     // 탭 라벨과 요약 표시 두 곳(#441 QA: 계단 없는 경로가 필요한 사용자에게만).
     expect(find.text('계단 없는 경로'), findsNWidgets(2));
-    expect(find.text('경강선'), findsOneWidget);
-    expect(find.text('2호선'), findsOneWidget);
+    expect(find.textContaining('경강선', findRichText: true), findsOneWidget);
+    expect(find.textContaining('2호선', findRichText: true), findsOneWidget);
 
     // 서버가 칸-문을 주지 않으면 탑승 위치 안내를 만들지 않는다.
     expect(find.textContaining('빠른 환승'), findsNothing);
@@ -1149,19 +1029,19 @@ void main() {
     expect(find.textContaining('빠른 하차'), findsNothing);
   });
 
-  testWidgets('환승 적은 경로 태그 및 방향역 ID가 없는 여정 레그가 정상 렌더링된다', (tester) async {
+  testWidgets('최소환승 탭과 방향역 ID가 없는 여정 레그가 정상 렌더링된다', (tester) async {
     final repository = _Repository()
       ..journeyIds = <String>['journey-1', 'journey-least-transfer'];
     await _pumpScreen(tester, repository: repository, mobilityType: 'STANDARD');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    expect(find.text('빠른 경로'), findsOneWidget);
-    expect(find.text('환승 적은 경로'), findsOneWidget);
+    expect(find.text('최단시간'), findsOneWidget);
+    expect(find.text('최소환승'), findsOneWidget);
     expect(find.textContaining('방면'), findsOneWidget);
 
     await tester.tap(
-      find.byKey(const Key('journey-candidate-journey-least-transfer')),
+      find.byKey(const Key('journey-criterion-fewestTransfers')),
     );
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('selected-journey-leg-1')), findsOneWidget);
@@ -1180,9 +1060,9 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    final specTab = find.byKey(const Key('journey-candidate-journey-spec'));
+    final specTab = find.byKey(const Key('journey-criterion-fastest'));
     final expressTab = find.byKey(
-      const Key('journey-candidate-journey-spec-express'),
+      const Key('journey-criterion-fewestTransfers'),
     );
     expect(
       tester.getSemantics(specTab).flagsCollection.isSelected,
@@ -1192,19 +1072,22 @@ void main() {
       tester.getSemantics(expressTab).flagsCollection.isSelected,
       isNot(Tristate.isTrue),
     );
-    expect(find.text('빠른 경로'), findsOneWidget);
-    expect(find.text('환승 적은 경로'), findsOneWidget);
+    expect(find.text('최단시간'), findsOneWidget);
+    expect(find.text('최소환승'), findsOneWidget);
+    expect(find.text('최저요금'), findsNothing);
     // 일반 이동 프로필이면 계단 없는 경로 표시를 하지 않는다(#441 QA).
     expect(find.text('계단 없는 경로'), findsNothing);
     final detail = find.byKey(const Key('selected-journey-detail'));
     expect(
-      find.descendant(of: detail, matching: find.text('35분')),
+      find.descendant(
+        of: detail,
+        matching: find.text('35분', findRichText: true),
+      ),
       findsOneWidget,
     );
-    expect(find.text('09:00 출발 → 09:35 도착'), findsOneWidget);
-    expect(find.text('환승 1회 · 카드 1,550원 · 도보 320m'), findsOneWidget);
-    expect(find.text('빠른 환승 3-2'), findsOneWidget);
-    expect(find.text('실시간 반영'), findsNothing);
+    expect(find.text('오전 9:00 - 오전 9:35'), findsOneWidget);
+    expect(find.text('1,550원'), findsOneWidget);
+    expect(find.text('빠른 환승: 3-2'), findsOneWidget);
     expect(find.textContaining('계단'), findsNothing);
 
     await tester.tap(expressTab);
@@ -1219,18 +1102,25 @@ void main() {
       isNot(Tristate.isTrue),
     );
     expect(
-      find.descendant(of: detail, matching: find.text('40분')),
+      find.descendant(
+        of: detail,
+        matching: find.text('40분', findRichText: true),
+      ),
       findsOneWidget,
     );
-    expect(find.text('09:01 출발 → 09:41 도착'), findsOneWidget);
-    expect(find.text('실시간 반영'), findsOneWidget);
-    // 운임이 없으면 운임 항목만 빠진다.
-    expect(find.text('환승 없음 · 도보 150m'), findsOneWidget);
-    expect(find.textContaining('카드'), findsNothing);
+    expect(find.text('오전 9:01 - 오전 9:41'), findsOneWidget);
+    // 운임이 없으면 운임 칸만 빠진다.
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('journey-summary')),
+        matching: find.textContaining('원'),
+      ),
+      findsNothing,
+    );
     expect(find.textContaining('계단'), findsNothing);
     expect(find.text('급행'), findsOneWidget);
-    expect(find.text('중앙보훈병원 방면'), findsOneWidget);
-    expect(find.text('빠른 환승 3-2'), findsNothing);
+    expect(find.text('중앙보훈병원역 방면'), findsOneWidget);
+    expect(find.text('빠른 환승: 3-2'), findsNothing);
     semantics.dispose();
   });
 
@@ -1252,7 +1142,7 @@ void main() {
       findsOneWidget,
     );
     expect(tester.getSize(toggle).height, greaterThanOrEqualTo(48));
-    expect(find.text('역삼'), findsNothing);
+    expect(find.text('역삼역'), findsNothing);
     var toggleSemantics = tester.getSemantics(toggle);
     expect(toggleSemantics.flagsCollection.isButton, isTrue);
     expect(toggleSemantics.flagsCollection.isExpanded, Tristate.isFalse);
@@ -1262,10 +1152,10 @@ void main() {
     await tester.pumpAndSettle();
 
     for (final (name, time) in <(String, String)>[
-      ('역삼', '09:05'),
-      ('선릉', '09:07'),
-      ('삼성', '09:09'),
-      ('종합운동장', '09:12'),
+      ('역삼역', '09:05'),
+      ('선릉역', '09:07'),
+      ('삼성역', '09:09'),
+      ('종합운동장역', '09:12'),
     ]) {
       expect(find.text(name), findsOneWidget);
       expect(find.text(time), findsOneWidget);
@@ -1275,7 +1165,7 @@ void main() {
 
     await tester.tap(toggle);
     await tester.pumpAndSettle();
-    expect(find.text('역삼'), findsNothing);
+    expect(find.text('역삼역'), findsNothing);
     expect(
       tester.getSemantics(toggle).flagsCollection.isExpanded,
       Tristate.isFalse,
@@ -1321,7 +1211,7 @@ void main() {
       await search(tester, guides);
 
       expect(guides.requested, [gyodaeKey]);
-      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(find.text('도보 3분'), findsOneWidget);
       final toggle = find.byKey(const Key('journey-transfer-guide-toggle-2'));
       expect(toggle, findsOneWidget);
       for (final step in steps) {
@@ -1334,7 +1224,7 @@ void main() {
       for (final step in steps) {
         expect(find.text(step), findsOneWidget);
       }
-      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(find.text('도보 3분'), findsOneWidget);
 
       await tester.tap(toggle);
       await tester.pumpAndSettle();
@@ -1374,7 +1264,7 @@ void main() {
         find.byKey(const Key('journey-transfer-guide-toggle-2')),
         findsNothing,
       );
-      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(find.text('도보 3분'), findsOneWidget);
     });
 
     testWidgets('행이 없으면 현재 환승 노드만 있고 추가 문구가 없다', (tester) async {
@@ -1382,7 +1272,7 @@ void main() {
       await search(tester, guides);
 
       expect(guides.requested, [gyodaeKey]);
-      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(find.text('도보 3분'), findsOneWidget);
       expect(
         find.byKey(const Key('journey-transfer-guide-toggle-2')),
         findsNothing,
@@ -1402,7 +1292,7 @@ void main() {
       expect(crashlytics.errors, hasLength(1));
       expect(crashlytics.fatalFlags, <bool>[false]);
 
-      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(find.text('도보 3분'), findsOneWidget);
       expect(
         find.byKey(const Key('journey-transfer-guide-toggle-2')),
         findsNothing,
@@ -1420,7 +1310,7 @@ void main() {
       await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
       await tester.pumpAndSettle();
 
-      expect(find.text('환승 · 도보 3분'), findsOneWidget);
+      expect(find.text('도보 3분'), findsOneWidget);
       expect(
         find.byKey(const Key('journey-transfer-guide-toggle-2')),
         findsNothing,
@@ -1441,7 +1331,7 @@ void main() {
           node.label,
       ];
       final indexes = [
-        labels.indexOf('교대 환승, 도보 3분'),
+        labels.indexOf('교대 환승, 도보 3분, 환승 대기 8분'),
         labels.indexOf('이동 방법 3단계'),
         for (final step in steps) labels.indexOf(step),
       ];
@@ -1464,47 +1354,44 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.bySemanticsLabel('구간: 도보 2분, 2호선 12분, 환승 도보 3분, 3호선 8분, 도보 1분'),
+      find.bySemanticsLabel(
+        '구간: 도보 2분, 2호선 강남 09:03 출발 12분, 환승 도보 3분, '
+        '3호선 교대 09:26 출발 8분, 도보 1분',
+      ),
       findsOneWidget,
     );
+    expect(find.bySemanticsLabel('최단시간'), findsOneWidget);
+    expect(find.bySemanticsLabel('최소환승'), findsOneWidget);
+    expect(find.bySemanticsLabel('막차'), findsOneWidget);
     expect(
-      find.bySemanticsLabel('빠른 경로, 35분, 환승 1회, 09:35 도착'),
-      findsOneWidget,
-    );
-    expect(
-      find.bySemanticsLabel('환승 적은 경로, 40분, 환승 없음, 09:41 도착'),
+      find.bySemanticsLabel('35분 소요, 오전 9시 0분 출발, 오전 9시 35분 도착, 환승 1회, 1,550원'),
       findsOneWidget,
     );
     expect(
       find.bySemanticsLabel(
-        '35분 소요, 09:00 출발, 09:35 도착, 환승 1회, 카드 1,550원, 도보 320m',
+        '2호선 교대역 방면 탑승, 09:03 출발, 빠른 환승 3호차 2번 문, 5개 역 이동, 12분',
       ),
       findsOneWidget,
     );
-    expect(
-      find.bySemanticsLabel(
-        '2호선 교대 방면 탑승, 09:03 출발, 빠른 환승 3호차 2번 문, 5개 역 이동, 12분',
-      ),
-      findsOneWidget,
-    );
+    expect(find.bySemanticsLabel('2호선 강남역'), findsOneWidget);
+    expect(find.bySemanticsLabel('교대역 하차, 09:15 도착'), findsOneWidget);
+    expect(find.bySemanticsLabel('09:03 출발 열차'), findsOneWidget);
     expect(find.bySemanticsLabel('강남, 09:00 출발, 승강장까지 도보 2분'), findsOneWidget);
-    expect(find.bySemanticsLabel('교대 환승, 도보 3분'), findsOneWidget);
+    expect(find.bySemanticsLabel('교대 환승, 도보 3분, 환승 대기 8분'), findsOneWidget);
     // 노드 원 안의 노선 번호는 장식이라 따로 읽지 않는다.
     expect(find.bySemanticsLabel('2'), findsNothing);
     expect(find.bySemanticsLabel('양재, 09:35 도착, 출구까지 도보 1분'), findsOneWidget);
 
     await tester.tap(
-      find.byKey(const Key('journey-candidate-journey-spec-express')),
+      find.byKey(const Key('journey-criterion-fewestTransfers')),
     );
     await tester.pumpAndSettle();
     expect(
-      find.bySemanticsLabel('9호선 급행 중앙보훈병원 방면 탑승, 09:04 출발, 2개 역 이동, 10분'),
+      find.bySemanticsLabel('9호선 급행 중앙보훈병원역 방면 탑승, 09:04 출발, 2개 역 이동, 10분'),
       findsOneWidget,
     );
     expect(
-      find.bySemanticsLabel(
-        '40분 소요, 09:01 출발, 09:41 도착, 환승 없음, 도보 150m, 실시간 반영',
-      ),
+      find.bySemanticsLabel('40분 소요, 오전 9시 1분 출발, 오전 9시 41분 도착, 환승 없음'),
       findsOneWidget,
     );
     semantics.dispose();
@@ -1533,10 +1420,24 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
 
-    for (final id in <String>['journey-spec', 'journey-spec-express']) {
-      final tab = find.byKey(Key('journey-candidate-$id'));
-      expect(tester.getSize(tab).height, greaterThanOrEqualTo(48));
-      expect(tester.getSize(tab).width, greaterThanOrEqualTo(48));
+    for (final key in <String>[
+      'journey-criterion-fastest',
+      'journey-criterion-fewestTransfers',
+      'journey-last-train-tab',
+      'journey-departure-bar-time',
+      'journey-departure-bar-next',
+    ]) {
+      final target = find.byKey(Key(key));
+      expect(
+        tester.getSize(target).height,
+        greaterThanOrEqualTo(48),
+        reason: key,
+      );
+      expect(
+        tester.getSize(target).width,
+        greaterThanOrEqualTo(48),
+        reason: key,
+      );
     }
     final toggle = find.byKey(const Key('journey-ride-stops-toggle-1'));
     await tester.ensureVisible(toggle);
@@ -1546,7 +1447,7 @@ void main() {
     expect(tester.takeException(), isNull);
 
     final expressTab = find.byKey(
-      const Key('journey-candidate-journey-spec-express'),
+      const Key('journey-criterion-fewestTransfers'),
     );
     await tester.ensureVisible(expressTab);
     await tester.tap(expressTab);
@@ -1554,10 +1455,10 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  // 탑승 노드 머리 줄은 마크·노선명·방면 묶음과 출발 시각을 한 줄에 놓는다. 좁은 폭과
-  // 큰 글자에서도 알약 마크는 자기 글자 폭 아래로 눌려 글자가 잘리면 안 된다.
+  // 구간 막대의 알약 마크(경의중앙)는 좁은 폭과 큰 글자에서도 자기 글자 폭 아래로
+  // 눌리지 않고, 막대는 줄을 바꿔 넘치지 않는다.
   for (final scale in [2.0, 3.0]) {
-    testWidgets('글자 $scale배 300dp 탑승 노드의 알약 마크는 글자 폭보다 눌리지 않는다', (
+    testWidgets('글자 $scale배 300dp 구간 막대의 알약 마크는 글자 폭보다 눌리지 않는다', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(300, 915) * 2;
@@ -1578,10 +1479,12 @@ void main() {
       await tester.tap(search);
       await tester.pumpAndSettle();
 
-      final mark = find.descendant(
-        of: find.byKey(const Key('selected-journey-leg-1')),
-        matching: find.byType(LineMark),
-      );
+      final mark = find
+          .descendant(
+            of: find.byKey(const Key('journey-segment-bar')),
+            matching: find.byType(LineMark),
+          )
+          .first;
       await tester.ensureVisible(mark);
       final pill = tester.renderObject<RenderBox>(mark);
       expect(pill.size.width, pill.getMinIntrinsicWidth(double.infinity));
@@ -1589,65 +1492,7 @@ void main() {
     });
   }
 
-  // 머리 줄의 시각은 1.0배에서 줄 오른쪽 끝에 붙는다. 이름·방면이 길어 한 줄에 다
-  // 못 담을 때만 시각이 다음 줄로 내려간다. Wrap은 부모에게 느슨한 폭을 받으면 자기
-  // 내용 폭으로 줄어 spaceBetween이 무효가 되므로 머리 Column이 폭을 채워야 한다.
-  for (final width in [360.0, 411.0]) {
-    for (final (nodeIndex, timeLabel) in [(0, '09:00 출발'), (1, '09:03 출발')]) {
-      testWidgets('글자 1.0배 ${width}dp $timeLabel 시각은 노드 칸 오른쪽 끝에 붙는다', (
-        tester,
-      ) async {
-        await _pumpFoundJourney(tester, width: width);
-
-        final node = find.byKey(Key('selected-journey-leg-$nodeIndex'));
-        await tester.ensureVisible(node);
-        final label = find.descendant(of: node, matching: find.text(timeLabel));
-        expect(
-          tester.getRect(label).right,
-          tester.getRect(node).right,
-          reason: '시각이 줄 오른쪽 끝에 있어야 한다',
-        );
-        expect(tester.takeException(), isNull);
-      });
-    }
-  }
-
-  // 테스트 글꼴은 글자 폭이 글자 크기와 같다. '신논현 방면'은 한 줄에 7dp 남기고
-  // 담기고, 한 글자 더한 '신논현역 방면'은 8dp 모자라 시각이 내려간다.
-  for (final (directionName, fitsOnOneLine) in [
-    ('신논현', true),
-    ('신논현역', false),
-  ]) {
-    testWidgets(
-      '방면 $directionName은 ${fitsOnOneLine ? '한 줄에 담겨 시각이 오른쪽 위에 남는다' : '한 줄에 못 담겨 시각이 다음 줄로 내려간다'}',
-      (tester) async {
-        await _pumpFoundJourney(
-          tester,
-          width: 360,
-          stationNameResolver: (id) async =>
-              id == 'st-gyodae' ? directionName : _specStationName(id),
-        );
-        final node = find.byKey(const Key('selected-journey-leg-1'));
-        await tester.ensureVisible(node);
-        final label = tester.getRect(
-          find.descendant(of: node, matching: find.text('09:03 출발')),
-        );
-        final direction = tester.getRect(
-          find.descendant(of: node, matching: find.text('$directionName 방면')),
-        );
-
-        if (fitsOnOneLine) {
-          expect(label.right, tester.getRect(node).right);
-          expect(label.top, lessThan(direction.bottom));
-        } else {
-          expect(label.top, greaterThanOrEqualTo(direction.bottom));
-        }
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
-
-  testWidgets('공유 문구는 운임이 있을 때만 카드 운임을 넣는다', (tester) async {
+  testWidgets('공유 문구는 운임이 있을 때만 운임을 넣는다', (tester) async {
     final repository = _Repository()
       ..journeyIds = <String>['journey-spec', 'journey-spec-express'];
     final shared = <String>[];
@@ -1664,10 +1509,10 @@ void main() {
     await tester.ensureVisible(shareButton);
     await tester.tap(shareButton);
     await tester.pump();
-    expect(shared.last, '용산역 → 춘천역\n35분 · 환승 1회 · 카드 1,550원 · 09:35 도착');
+    expect(shared.last, '용산역 → 춘천역\n35분 · 환승 1회 · 1,550원 · 09:35 도착');
 
     final expressTab = find.byKey(
-      const Key('journey-candidate-journey-spec-express'),
+      const Key('journey-criterion-fewestTransfers'),
     );
     await tester.ensureVisible(expressTab);
     await tester.tap(expressTab);
@@ -1696,10 +1541,10 @@ void main() {
     await tester.ensureVisible(shareButton);
     await tester.tap(shareButton);
     await tester.pump();
-    expect(shared.last, '용산역 → 춘천역\n35분 · 환승 1회 · 카드 1,550원 · 09:35 도착');
+    expect(shared.last, '용산역 → 춘천역\n35분 · 환승 1회 · 1,550원 · 09:35 도착');
 
     final expressTab = find.byKey(
-      const Key('journey-candidate-journey-spec-express'),
+      const Key('journey-criterion-fewestTransfers'),
     );
     await tester.ensureVisible(expressTab);
     await tester.tap(expressTab);
@@ -1711,25 +1556,14 @@ void main() {
   });
 }
 
-Future<void> _pumpFoundJourney(
-  WidgetTester tester, {
-  required double width,
-  Future<String> Function(String stationId) stationNameResolver =
-      _specStationName,
-}) async {
-  tester.view.physicalSize = Size(width, 915) * 2;
-  tester.view.devicePixelRatio = 2;
-  addTearDown(tester.view.resetPhysicalSize);
-  addTearDown(tester.view.resetDevicePixelRatio);
+/// 경로 하나만 돌려주는 서버 응답으로 새 화면을 열고 찾는다.
+Future<void> _searchSingleJourney(WidgetTester tester, String journeyId) async {
+  await tester.pumpWidget(const SizedBox.shrink());
   await _pumpScreen(
     tester,
-    repository: _Repository()..journeyIds = <String>['journey-spec'],
-    mobilityType: 'WHEELCHAIR',
-    stationNameResolver: stationNameResolver,
+    repository: _Repository()..journeyIds = <String>[journeyId],
   );
-  final search = find.widgetWithText(FilledButton, '경로 찾기');
-  await tester.ensureVisible(search);
-  await tester.tap(search);
+  await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
   await tester.pumpAndSettle();
 }
 
@@ -2253,6 +2087,13 @@ Journey _journey(
       status: JourneyFareStatus.unavailable,
       sourceSnapshotIds: <String>[],
     ),
+    // 기본 두 후보는 서버 대표 묶음으로 최단시간(journey-2)과 최소환승(journey-1)
+    // 탭에 하나씩 놓인다.
+    alternativeCategories: switch (id) {
+      'journey-2' => const [JourneyAlternativeCategory.fastest],
+      'journey-1' => const [JourneyAlternativeCategory.fewestTransfers],
+      _ => null,
+    },
   );
 }
 

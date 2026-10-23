@@ -130,7 +130,6 @@ Widget _home({
             onClearWaypoint: () {},
             onReorderDraft: (_, _) {},
             roleColorForSlot: (_) => Colors.black,
-            lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
           ),
           disruptionBanner: !noticeBar
               ? null
