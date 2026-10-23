@@ -199,8 +199,8 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
     // #2083 홈 편집 모드와 동일한 공용 검색 필드를 쓴다. pickSlot별 힌트는
     // hintText로 전달돼 placeholder이자 TalkBack 라벨 역할을 유지하고, 즉시
     // (디바운스) 검색은 _queryController를, 지우기는 onClear를 통해 보존된다.
-    // AppBar leading(자동 뒤로가기)은 title 왼쪽에 그대로 남아 "← + 40px 필드"
-    // 구성이 홈 편집 모드와 일치한다.
+    // 뒤로가기는 필드 안(onBack)에 들어가 높이 48px 페이지 필드 하나가 상단바
+    // 전체를 채운다.
     final searchInputField = EasySubwaySearchField(
       controller: _queryController,
       focusNode: _searchFocusNode,
