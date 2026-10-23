@@ -22,10 +22,6 @@ int debugNetworkMapChromeBuildCount = 0;
 /// 버튼·입력 영역은 줄 높이만큼 눌려 최소 터치 영역(48dp)을 채운다.
 const _draftRowHeight = EasySubwayTouchTarget.iconOnly;
 
-/// 입력 칸 안 노선 마크가 이름 줄에서 쓸 수 있는 폭 비율. 역 상세 머리와 같다.
-/// 이름은 한 줄 말줄임이라 마크가 이 폭보다 넓으면 마크를 감춘다.
-const _marksMaxFraction = 0.45;
-
 class NetworkMapChrome extends StatefulWidget {
   const NetworkMapChrome({
     required this.topBar,
@@ -727,7 +723,7 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
             name: name,
             marks: lineBadgeBuilder(filledStation, markSize),
             marksFirst: true,
-            maxMarksFraction: _marksMaxFraction,
+            maxMarksFraction: nameFirstMarksMaxFraction,
             hideMarksOverBudget: true,
           )
         : Row(children: [Expanded(child: name)]);

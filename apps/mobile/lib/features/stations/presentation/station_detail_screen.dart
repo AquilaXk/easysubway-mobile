@@ -218,7 +218,6 @@ class _StationDetailAppBarTitle extends StatelessWidget {
   // 줄로 쌓여 상단바 밖으로 나간다. 마크 묶음은 줄 폭의 45%를 넘지 않아 역 이름이
   // 나머지를 가진다.
   static const _maxMarkCount = 2;
-  static const _marksMaxFraction = 0.45;
 
   @override
   Widget build(BuildContext context) {
@@ -252,7 +251,7 @@ class _StationDetailAppBarTitle extends StatelessWidget {
     return NameWithMarks(
       name: name,
       marksFirst: true,
-      maxMarksFraction: _marksMaxFraction,
+      maxMarksFraction: nameFirstMarksMaxFraction,
       marks: StationLineBadges(
         lines: detail.lines,
         size: lineMarkDefaultSize,

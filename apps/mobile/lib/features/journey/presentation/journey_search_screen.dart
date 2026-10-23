@@ -566,7 +566,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
       label: semanticsLabel,
       child: ExcludeSemantics(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Wrap(
               alignment: WrapAlignment.spaceBetween,
@@ -615,7 +615,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           label: node.semanticsLabel,
           child: ExcludeSemantics(
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Wrap(
                   alignment: WrapAlignment.spaceBetween,

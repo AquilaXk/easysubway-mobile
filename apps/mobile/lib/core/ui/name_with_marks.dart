@@ -3,6 +3,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+/// 이름이 한 줄 말줄임이라 마크 묶음에 줄 폭을 이만큼만 주는 칸(역 상세 머리, 경로
+/// 입력 칸)이 함께 쓰는 [NameWithMarks.maxMarksFraction] 값이다.
+const nameFirstMarksMaxFraction = 0.45;
+
 /// 이름 한 줄과 노선 마크 묶음을 한 줄에 놓는다. 이름이 우선이라 마크 묶음은 줄
 /// 폭의 [maxMarksFraction]까지만 쓴다. 마크가 그보다 많으면 [marks]의 Wrap이
 /// 다음 줄로 접히고, 이름은 나머지 폭을 모두 가진다. 큰 글자에서 마크 하나가 그
@@ -34,8 +38,6 @@ class NameWithMarks extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final budgetedMarks = _MarksBudget(
-          // 간격이 마크의 어느 쪽에 붙는지는 상자가 만들어질 때 정해진다.
-          key: ValueKey(marksFirst),
           maxWidth: constraints.maxWidth * maxMarksFraction,
           gap: gap,
           gapAfterMarks: marksFirst,
@@ -59,7 +61,6 @@ class NameWithMarks extends StatelessWidget {
 /// 넓으면 자식과 간격이 함께 사라진다.
 class _MarksBudget extends SingleChildRenderObjectWidget {
   const _MarksBudget({
-    super.key,
     required this.maxWidth,
     required this.gap,
     required this.gapAfterMarks,
@@ -146,7 +147,9 @@ class _RenderMarksBudget extends RenderShiftedBox {
     if (_overBudget()) {
       return constraints.constrain(Size.zero);
     }
-    return _boxSize(child!.getDryLayout(_childConstraints(constraints)));
+    return constraints.constrain(
+      _boxSize(child!.getDryLayout(_childConstraints(constraints))),
+    );
   }
 
   @override

@@ -1589,6 +1589,64 @@ void main() {
     });
   }
 
+  // 머리 줄의 시각은 1.0배에서 줄 오른쪽 끝에 붙는다. 이름·방면이 길어 한 줄에 다
+  // 못 담을 때만 시각이 다음 줄로 내려간다. Wrap은 부모에게 느슨한 폭을 받으면 자기
+  // 내용 폭으로 줄어 spaceBetween이 무효가 되므로 머리 Column이 폭을 채워야 한다.
+  for (final width in [360.0, 411.0]) {
+    for (final (nodeIndex, timeLabel) in [(0, '09:00 출발'), (1, '09:03 출발')]) {
+      testWidgets('글자 1.0배 ${width}dp $timeLabel 시각은 노드 칸 오른쪽 끝에 붙는다', (
+        tester,
+      ) async {
+        await _pumpFoundJourney(tester, width: width);
+
+        final node = find.byKey(Key('selected-journey-leg-$nodeIndex'));
+        await tester.ensureVisible(node);
+        final label = find.descendant(of: node, matching: find.text(timeLabel));
+        expect(
+          tester.getRect(label).right,
+          tester.getRect(node).right,
+          reason: '시각이 줄 오른쪽 끝에 있어야 한다',
+        );
+        expect(tester.takeException(), isNull);
+      });
+    }
+  }
+
+  // 테스트 글꼴은 글자 폭이 글자 크기와 같다. '신논현 방면'은 한 줄에 7dp 남기고
+  // 담기고, 한 글자 더한 '신논현역 방면'은 8dp 모자라 시각이 내려간다.
+  for (final (directionName, fitsOnOneLine) in [
+    ('신논현', true),
+    ('신논현역', false),
+  ]) {
+    testWidgets(
+      '방면 $directionName은 ${fitsOnOneLine ? '한 줄에 담겨 시각이 오른쪽 위에 남는다' : '한 줄에 못 담겨 시각이 다음 줄로 내려간다'}',
+      (tester) async {
+        await _pumpFoundJourney(
+          tester,
+          width: 360,
+          stationNameResolver: (id) async =>
+              id == 'st-gyodae' ? directionName : _specStationName(id),
+        );
+        final node = find.byKey(const Key('selected-journey-leg-1'));
+        await tester.ensureVisible(node);
+        final label = tester.getRect(
+          find.descendant(of: node, matching: find.text('09:03 출발')),
+        );
+        final direction = tester.getRect(
+          find.descendant(of: node, matching: find.text('$directionName 방면')),
+        );
+
+        if (fitsOnOneLine) {
+          expect(label.right, tester.getRect(node).right);
+          expect(label.top, lessThan(direction.bottom));
+        } else {
+          expect(label.top, greaterThanOrEqualTo(direction.bottom));
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   testWidgets('공유 문구는 운임이 있을 때만 카드 운임을 넣는다', (tester) async {
     final repository = _Repository()
       ..journeyIds = <String>['journey-spec', 'journey-spec-express'];
@@ -1651,6 +1709,28 @@ void main() {
     await tester.pump();
     expect(shared.last, '용산역 → 춘천역\n40분 · 환승 없음 · 09:41 도착 · 계단 없는 경로');
   });
+}
+
+Future<void> _pumpFoundJourney(
+  WidgetTester tester, {
+  required double width,
+  Future<String> Function(String stationId) stationNameResolver =
+      _specStationName,
+}) async {
+  tester.view.physicalSize = Size(width, 915) * 2;
+  tester.view.devicePixelRatio = 2;
+  addTearDown(tester.view.resetPhysicalSize);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  await _pumpScreen(
+    tester,
+    repository: _Repository()..journeyIds = <String>['journey-spec'],
+    mobilityType: 'WHEELCHAIR',
+    stationNameResolver: stationNameResolver,
+  );
+  final search = find.widgetWithText(FilledButton, '경로 찾기');
+  await tester.ensureVisible(search);
+  await tester.tap(search);
+  await tester.pumpAndSettle();
 }
 
 Future<String> _specStationName(String stationId) async => switch (stationId) {
