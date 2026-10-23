@@ -529,6 +529,52 @@ void main() {
         });
       }
     }
+
+    for (final scale in [1.0, 1.5, 2.0]) {
+      testWidgets(
+        '최근 경로 행 마크는 글자 $scale배에서 상한 없이 ${_flexibleMarkSide[scale]}가 된다',
+        (tester) async {
+          await _pump360(
+            tester,
+            Scaffold(
+              body: StationRecentSearchSection(
+                entries: [
+                  RecentRouteSearchEntry(
+                    originStationId: 'station-hongdae',
+                    originStationName: '홍대입구',
+                    destinationStationId: 'station-gangnam',
+                    destinationStationName: '강남',
+                    region: '수도권',
+                    searchedAt: DateTime(2026, 10, 23),
+                    originLines: [_gyeonguiJungang],
+                    destinationLines: [_line2],
+                  ),
+                ],
+                enabled: true,
+                onStationSelected: (_) {},
+                onRouteSelected: (_) {},
+                onRemove: (_) {},
+                onClearAll: () {},
+              ),
+            ),
+            scale,
+          );
+
+          final side = _flexibleMarkSide[scale]!;
+          final pill = tester.getSize(
+            find.byKey(Key('stationLineBadge-${_gyeonguiJungang.id}')),
+          );
+          expect(pill.height, side, reason: '알약 한 변');
+          expect(pill.width, closeTo(_flexiblePillWidth[scale]!, 0.05));
+          expect(
+            tester.getSize(find.byKey(Key('stationLineBadge-${_line2.id}'))),
+            Size.square(side),
+            reason: '원 마크 한 변',
+          );
+          expect(tester.takeException(), isNull);
+        },
+      );
+    }
   });
 
   group('높이나 이름 폭이 정해진 칸의 마크는 1.3배에서 멈춘다', () {

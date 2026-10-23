@@ -9,6 +9,7 @@ Widget _host({
   required double width,
   required List<double> markWidths,
   double markHeight = 20,
+  bool hideMarksOverBudget = false,
 }) {
   return MaterialApp(
     home: Align(
@@ -18,6 +19,7 @@ Widget _host({
         child: NameWithMarks(
           marksFirst: true,
           gap: 8,
+          hideMarksOverBudget: hideMarksOverBudget,
           name: const SizedBox(key: _nameKey, height: 10),
           marks: Wrap(
             key: _marksKey,
@@ -30,6 +32,16 @@ Widget _host({
       ),
     ),
   );
+}
+
+class _CountingPainter extends CustomPainter {
+  int paintCount = 0;
+
+  @override
+  void paint(Canvas canvas, Size size) => paintCount += 1;
+
+  @override
+  bool shouldRepaint(_CountingPainter oldDelegate) => true;
 }
 
 void main() {
@@ -52,6 +64,55 @@ void main() {
     expect(tester.getSize(find.byKey(_nameKey)).width, 200 - 150 - 8);
   });
 
+  testWidgets('감춤을 켠 칸은 마크 하나가 예산보다 넓으면 마크와 간격을 함께 감춘다', (tester) async {
+    await tester.pumpWidget(
+      _host(width: 200, markWidths: [150, 30], hideMarksOverBudget: true),
+    );
+
+    expect(tester.getSize(find.byKey(_marksKey)), Size.zero);
+    expect(tester.getSize(find.byKey(_nameKey)).width, 200);
+    expect(
+      tester.getRect(find.byKey(_nameKey)).left,
+      0,
+      reason: '감춘 마크 자리에 간격이 남지 않는다',
+    );
+  });
+
+  testWidgets('감춤을 켠 칸도 마크가 예산 안이면 그대로 보이고 이름이 나머지를 쓴다', (tester) async {
+    await tester.pumpWidget(
+      _host(width: 200, markWidths: [60, 30], hideMarksOverBudget: true),
+    );
+
+    expect(tester.getSize(find.byKey(_marksKey)), const Size(60, 40));
+    expect(tester.getSize(find.byKey(_nameKey)).width, 200 - 60 - 8);
+  });
+
+  for (final (markWidth, painted) in [(150.0, false), (60.0, true)]) {
+    testWidgets('마크 폭 $markWidth는 ${painted ? '그려진다' : '예산을 넘어 그려지지 않는다'}', (
+      tester,
+    ) async {
+      final painter = _CountingPainter();
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Align(
+            alignment: Alignment.topLeft,
+            child: SizedBox(
+              width: 200,
+              child: NameWithMarks(
+                marksFirst: true,
+                hideMarksOverBudget: true,
+                name: const SizedBox(height: 10),
+                marks: CustomPaint(painter: painter, size: Size(markWidth, 20)),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      expect(painter.paintCount > 0, painted);
+    });
+  }
+
   testWidgets('건조 레이아웃과 기준선은 마크 묶음이 실제로 받는 폭을 기준으로 잰다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -63,9 +124,9 @@ void main() {
               marksFirst: true,
               name: const SizedBox(height: 10),
               marks: Wrap(
-                children: [
-                  for (final label in ['수인분당', '경의중앙'])
-                    Text(label, style: const TextStyle(fontSize: 24)),
+                children: const [
+                  Text('수인분당', style: TextStyle(fontSize: 24)),
+                  Text('경의중앙', style: TextStyle(fontSize: 12)),
                 ],
               ),
             ),
@@ -74,17 +135,26 @@ void main() {
       ),
     );
 
-    // 줄 폭 200의 40%인 예산 80보다 글자 한 개(96)가 넓어 96이 마크 묶음 폭이다.
+    // 줄 폭 200의 40%인 예산 80보다 큰 글자(96)가 마크 묶음 폭이라 둘째 마크는 둘째
+    // 줄로 접힌다. 큰 글자가 첫 줄이라 기준선은 큰 글자의 것이고, 폭을 풀어 한 줄에
+    // 놓으면 작은 글자의 기준선으로 바뀐다.
     final marks = tester.renderObject<RenderBox>(find.byType(Wrap));
     final budget = marks.parent! as RenderBox;
     const unbounded = BoxConstraints(maxWidth: double.infinity);
-    expect(budget.getDryLayout(unbounded), marks.size);
+    const budgeted = BoxConstraints(maxWidth: 96);
+    expect(budget.getDryLayout(unbounded), marks.size + const Offset(8, 0));
+    final budgetedBaseline = marks.getDryBaseline(
+      budgeted,
+      TextBaseline.alphabetic,
+    );
     expect(
       budget.getDryBaseline(unbounded, TextBaseline.alphabetic),
-      marks.getDryBaseline(
-        const BoxConstraints(maxWidth: 96),
-        TextBaseline.alphabetic,
-      ),
+      budgetedBaseline,
+    );
+    expect(
+      marks.getDryBaseline(unbounded, TextBaseline.alphabetic),
+      isNot(budgetedBaseline),
+      reason: '폭을 풀면 기준선이 달라져야 위 비교가 예산 적용을 증명한다',
     );
   });
 }

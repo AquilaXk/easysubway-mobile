@@ -9,6 +9,7 @@ import '../../../search_field.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../domain/network_map_models.dart';
 import '../domain/route_map_min_scale.dart';
+import '../../../core/ui/name_with_marks.dart';
 import '../../../core/ui/region_menu.dart';
 import 'network_map_overlay_inset.dart';
 
@@ -20,6 +21,10 @@ int debugNetworkMapChromeBuildCount = 0;
 /// 경로 입력 칸 한 줄의 높이. 시각 박스(40dp)는 이 줄 안에서 가운데에 그려지고,
 /// 버튼·입력 영역은 줄 높이만큼 눌려 최소 터치 영역(48dp)을 채운다.
 const _draftRowHeight = EasySubwayTouchTarget.iconOnly;
+
+/// 입력 칸 안 노선 마크가 이름 줄에서 쓸 수 있는 폭 비율. 역 상세 머리와 같다.
+/// 이름은 한 줄 말줄임이라 마크가 이 폭보다 넓으면 마크를 감춘다.
+const _marksMaxFraction = 0.45;
 
 class NetworkMapChrome extends StatefulWidget {
   const NetworkMapChrome({
@@ -704,30 +709,29 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
       ),
     );
 
-    final valueRow = Row(
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        if (showLineBadge) ...[
-          lineBadgeBuilder(filledStation, 26),
-          const SizedBox(width: 8),
-        ],
-        Expanded(
-          child: Text(
-            valueText,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-              color: filled
-                  ? EasySubwayAccessibleColors.text
-                  : EasySubwayAccessibleColors.mutedText,
-              fontSize: filled ? 17 : 15,
-              fontWeight: filled ? FontWeight.w700 : FontWeight.w600,
-              height: 1.2,
-            ),
-          ),
-        ),
-      ],
+    final valueName = Text(
+      valueText,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: TextStyle(
+        color: filled
+            ? EasySubwayAccessibleColors.text
+            : EasySubwayAccessibleColors.mutedText,
+        fontSize: filled ? 17 : 15,
+        fontWeight: filled ? FontWeight.w700 : FontWeight.w600,
+        height: 1.2,
+      ),
     );
+    Widget nameWithLineMark(Text name, double markSize) => showLineBadge
+        ? NameWithMarks(
+            name: name,
+            marks: lineBadgeBuilder(filledStation, markSize),
+            marksFirst: true,
+            maxMarksFraction: _marksMaxFraction,
+            hideMarksOverBudget: true,
+          )
+        : Row(children: [Expanded(child: name)]);
+    final valueRow = nameWithLineMark(valueName, 26);
 
     final Widget pickArea = onPick == null
         ? Semantics(
@@ -869,18 +873,17 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  if (showLineBadge) ...[
-                    lineBadgeBuilder(filledStation, 30),
-                    const SizedBox(width: 8),
-                  ],
                   Expanded(
-                    child: Text(
-                      filledStation!.displayName,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: EasySubwayAccessibleColors.text,
+                    child: nameWithLineMark(
+                      Text(
+                        filledStation!.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: EasySubwayAccessibleColors.text,
+                        ),
                       ),
+                      30,
                     ),
                   ),
                 ],

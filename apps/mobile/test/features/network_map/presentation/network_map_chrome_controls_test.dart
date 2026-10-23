@@ -736,7 +736,9 @@ void main() {
   });
 
   // 입력 칸 높이는 48dp(시각 박스 40dp)로 정해져 있어 칸 안 노선 마크는 1.3배에서
-  // 멈춘다. 26dp 기본 마크의 한 변은 26, 33.8, 33.8, 33.8이다.
+  // 멈춘다. 26dp 기본 마크의 한 변은 26, 33.8, 33.8, 33.8이다. 폭이 좁으면 이름을
+  // 위해 마크를 감추므로(network_map_route_draft_pill_mark_test) 마크가 모두 들어가는
+  // 600dp 폭에서 상한만 본다.
   for (final (scale, side) in [
     (1.0, 26.0),
     (1.3, 33.8),
@@ -746,7 +748,7 @@ void main() {
     testWidgets(
       'top-bar route draft 입력 칸 마크는 글자 $scale배에서 한 변 $side로 칸 안에 든다',
       (tester) async {
-        tester.view.physicalSize = const Size(360, 780) * 2;
+        tester.view.physicalSize = const Size(600, 780) * 2;
         tester.view.devicePixelRatio = 2;
         addTearDown(tester.view.resetPhysicalSize);
         addTearDown(tester.view.resetDevicePixelRatio);

@@ -568,20 +568,19 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            Wrap(
+              alignment: WrapAlignment.spaceBetween,
+              spacing: 8,
+              runSpacing: 2,
               children: [
-                Expanded(
-                  child: Text(
-                    stationName,
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w700,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
+                Text(
+                  stationName,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    color: EasySubwayAccessibleColors.text,
                   ),
                 ),
-                const SizedBox(width: 8),
                 Text(
                   timeLabel,
                   style: const TextStyle(
@@ -618,63 +617,62 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  spacing: 8,
+                  runSpacing: 2,
                   children: [
-                    Expanded(
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 2,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          LineMark(
-                            label: stationLineBadgeText(node.lineName),
-                            color: journeyLineColor(node.lineId),
+                    Wrap(
+                      spacing: 6,
+                      runSpacing: 2,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        LineMark(
+                          label: stationLineBadgeText(node.lineName),
+                          color: journeyLineColor(node.lineId),
+                        ),
+                        Text(
+                          node.lineName,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: EasySubwayAccessibleColors.text,
                           ),
+                        ),
+                        if (node.directionLabel case final direction?)
                           Text(
-                            node.lineName,
+                            direction,
                             style: const TextStyle(
                               fontSize: 15,
-                              fontWeight: FontWeight.w700,
+                              fontWeight: FontWeight.w600,
                               color: EasySubwayAccessibleColors.text,
                             ),
                           ),
-                          if (node.directionLabel case final direction?)
-                            Text(
-                              direction,
-                              style: const TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w600,
-                                color: EasySubwayAccessibleColors.text,
-                              ),
+                        if (node.isExpress)
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: EasySubwayAccessibleColors
+                                  .statusDangerSurface,
+                              borderRadius: BorderRadius.circular(4),
                             ),
-                          if (node.isExpress)
-                            DecoratedBox(
-                              decoration: BoxDecoration(
-                                color: EasySubwayAccessibleColors
-                                    .statusDangerSurface,
-                                borderRadius: BorderRadius.circular(4),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                horizontal: 5,
+                                vertical: 1,
                               ),
-                              child: const Padding(
-                                padding: EdgeInsets.symmetric(
-                                  horizontal: 5,
-                                  vertical: 1,
-                                ),
-                                child: Text(
-                                  '급행',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    fontWeight: FontWeight.w700,
-                                    color: EasySubwayAccessibleColors
-                                        .statusDangerContent,
-                                  ),
+                              child: Text(
+                                '급행',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: EasySubwayAccessibleColors
+                                      .statusDangerContent,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: 8),
                     Text(
                       '${node.departureTime} 출발',
                       style: const TextStyle(

@@ -1554,6 +1554,41 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
+  // 탑승 노드 머리 줄은 마크·노선명·방면 묶음과 출발 시각을 한 줄에 놓는다. 좁은 폭과
+  // 큰 글자에서도 알약 마크는 자기 글자 폭 아래로 눌려 글자가 잘리면 안 된다.
+  for (final scale in [2.0, 3.0]) {
+    testWidgets('글자 $scale배 300dp 탑승 노드의 알약 마크는 글자 폭보다 눌리지 않는다', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(300, 915) * 2;
+      tester.view.devicePixelRatio = 2;
+      addTearDown(tester.view.resetPhysicalSize);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      tester.platformDispatcher.textScaleFactorTestValue = scale;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await _pumpScreen(
+        tester,
+        repository: _Repository()
+          ..journeyIds = <String>['journey-spec-pill-line'],
+        mobilityType: 'WHEELCHAIR',
+        stationNameResolver: _specStationName,
+      );
+      final search = find.widgetWithText(FilledButton, '경로 찾기');
+      await tester.ensureVisible(search);
+      await tester.tap(search);
+      await tester.pumpAndSettle();
+
+      final mark = find.descendant(
+        of: find.byKey(const Key('selected-journey-leg-1')),
+        matching: find.byType(LineMark),
+      );
+      await tester.ensureVisible(mark);
+      final pill = tester.renderObject<RenderBox>(mark);
+      expect(pill.size.width, pill.getMinIntrinsicWidth(double.infinity));
+      expect(tester.takeException(), isNull);
+    });
+  }
+
   testWidgets('공유 문구는 운임이 있을 때만 카드 운임을 넣는다', (tester) async {
     final repository = _Repository()
       ..journeyIds = <String>['journey-spec', 'journey-spec-express'];
@@ -1936,6 +1971,14 @@ Journey _journey(
   String specLastStop = 'st-yangjae',
 }) {
   if (id == 'journey-spec') return _specJourney(now, lastStop: specLastStop);
+  if (id == 'journey-spec-pill-line') {
+    return _specJourney(
+      now,
+      lastStop: specLastStop,
+      journeyId: id,
+      firstRideLineId: 'gyeongui-jungang',
+    );
+  }
   if (id == 'journey-spec-express') return _specExpressJourney(now);
   final JourneyTransferLeg transferLeg;
   if (id == 'journey-oos-green') {
@@ -2148,10 +2191,15 @@ JourneyRideStop _stopAt(
 );
 
 /// 강남 → (2호선 교대 방면, 5개 역) → 교대 환승 → (3호선 오금 방면, 1개 역) → 양재
-Journey _specJourney(DateTime now, {String lastStop = 'st-yangjae'}) {
+Journey _specJourney(
+  DateTime now, {
+  String lastStop = 'st-yangjae',
+  String journeyId = 'journey-spec',
+  String firstRideLineId = 'line-2',
+}) {
   DateTime at(int minutes) => now.add(Duration(minutes: minutes));
   return Journey(
-    journeyId: 'journey-spec',
+    journeyId: journeyId,
     status: JourneyStatus.found,
     planSource: JourneyPlanSource.serverTimetableRaptor,
     plannedDepartureTime: now,
@@ -2170,7 +2218,7 @@ Journey _specJourney(DateTime now, {String lastStop = 'st-yangjae'}) {
     legs: <JourneyLeg>[
       const JourneyEntryLeg(fromStationId: 'st-gangnam', durationSeconds: 120),
       JourneyRideLeg(
-        lineId: 'line-2',
+        lineId: firstRideLineId,
         tripId: 'trip-2',
         directionStationId: 'st-gyodae',
         fromStationId: 'st-gangnam',
