@@ -440,7 +440,7 @@ void main() {
         find.byKey(const Key('journey-departure-sheet-confirm')),
       );
       await tester.pumpAndSettle();
-      expect(find.text('10월 23일(금) 막차'), findsOneWidget);
+      expect(find.text('오늘 막차'), findsOneWidget);
 
       await _search(tester);
       expect(repository.profileRequests, hasLength(1));
@@ -622,7 +622,7 @@ void main() {
           repository.profileRequests.single.temporalQuery
               as JourneyLastConnectionQuery;
       expect(query.serviceDate, '2026-10-23');
-      expect(find.text('10월 23일(금) 막차'), findsOneWidget);
+      expect(find.text('오늘 막차'), findsOneWidget);
     });
 
     testWidgets('요약은 큰 총시간, 오전 시각 범위와 운임 한 줄이다', (tester) async {
