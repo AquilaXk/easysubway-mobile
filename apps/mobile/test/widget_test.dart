@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:ui' show Tristate;
 
 import 'package:clock/clock.dart';
 import 'package:easysubway_mobile/accessible_design.dart';
@@ -2062,7 +2061,7 @@ void main() {
     expect(reportRepository.listMyReportsCount, greaterThanOrEqualTo(2));
   });
 
-  testWidgets('홈 검색바는 idle에서 active로 전환돼도 시각 박스 높이가 그대로 유지된다', (tester) async {
+  testWidgets('홈 검색바는 검색 모드에서 48px 페이지 검색 필드로 바뀐다', (tester) async {
     await tester.pumpWidget(
       buildEasySubwayTestApp(
         repository: FakeStationSearchRepository(),
@@ -2104,7 +2103,7 @@ void main() {
             as BoxDecoration;
 
     expect(idleHeight, easySubwaySearchFieldVisualHeight);
-    expect(activeHeight, easySubwaySearchFieldVisualHeight);
+    expect(activeHeight, easySubwayPageSearchFieldHeight);
     expect(
       activeSearchDecoration.color,
       EasySubwayAccessibleColors.searchFieldSurface,
@@ -2168,13 +2167,13 @@ void main() {
     expect(tester.getSize(inputTapTarget).height, greaterThanOrEqualTo(48.0));
 
     final clearButtonSize = tester.getSize(
-      find.widgetWithIcon(IconButton, Icons.close),
+      find.widgetWithIcon(IconButton, Icons.cancel),
     );
     expect(clearButtonSize.width, greaterThanOrEqualTo(48.0));
     expect(clearButtonSize.height, greaterThanOrEqualTo(48.0));
     expect(
       tester.getSize(find.byKey(const Key('heroStationSearchInputBox'))).height,
-      easySubwaySearchFieldVisualHeight,
+      easySubwayPageSearchFieldHeight,
     );
   });
 
@@ -2274,19 +2273,13 @@ void main() {
     );
     expect(menuIcon.size, 26.0);
 
-    // in-place 편집 검색 필드로 전환해도 시각 박스 높이가 idle과 동일하게
-    // 유지돼야 한다(박스 점프 없음, #1933 계약 확장).
-    final idleHeight = tester
-        .getSize(find.byKey(const Key('heroStationSearchButton')))
-        .height;
-
     await tester.tap(find.byKey(const Key('stationSearchButton')));
     await tester.pumpAndSettle();
 
-    final activeHeight = tester
-        .getSize(find.byKey(const Key('heroStationSearchInputBox')))
-        .height;
-    expect(activeHeight, idleHeight);
+    expect(
+      tester.getSize(find.byKey(const Key('heroStationSearchInputBox'))).height,
+      easySubwayPageSearchFieldHeight,
+    );
 
     // in-place 입력 TextField의 스타일을 검증한다(폰트 크기 17, w600). #2082:
     // 입력 style은 hint style과 동일 glyph 메트릭을 갖도록 height를 지정하지
@@ -2299,15 +2292,14 @@ void main() {
     expect(activeField.style?.height, isNull);
     expect(activeField.style?.fontWeight, FontWeight.w600);
 
-    // 검색 모드에서 뒤로가기 아이콘 크기는 26이어야 한다(메뉴 아이콘과 같은
-    // 슬롯이라 전환 시 크기 점프를 없애는 정합, #2003).
+    // 검색 모드의 뒤로가기는 흰 상단바 검색 필드 안에서 22 크기 셰브런이다.
     final backIcon = tester.widget<Icon>(
       find.descendant(
         of: find.byKey(const Key('networkMapSearchBackButton')),
-        matching: find.byIcon(Icons.arrow_back),
+        matching: find.byIcon(Icons.arrow_back_ios_new),
       ),
     );
-    expect(backIcon.size, 26.0);
+    expect(backIcon.size, easySubwaySearchFieldIconSize);
   });
 
   testWidgets('노선도 검색 중 타이핑은 지도 chrome을 재빌드하지 않는다', (tester) async {
@@ -11601,8 +11593,8 @@ void main() {
       final lineBadgeSize = tester.getSize(
         find.byKey(const Key('stationLineBadge-seoul-4')),
       );
-      expect(lineBadgeSize.width, 32);
-      expect(lineBadgeSize.height, 32);
+      expect(lineBadgeSize.width, 20);
+      expect(lineBadgeSize.height, 20);
 
       final lineBadgeImage = tester.widget<Image>(
         find.descendant(
@@ -12322,10 +12314,7 @@ void main() {
       final stationSearchAppBar = tester.widget<Material>(
         find.byKey(const Key('stationSearchAppBar')),
       );
-      expect(
-        stationSearchAppBar.color,
-        EasySubwayAccessibleColors.topBarSurface,
-      );
+      expect(stationSearchAppBar.color, EasySubwayAccessibleColors.surface);
       expect(
         tester
             .getSize(find.byKey(const Key('stationSearchTopBarContent')))
@@ -12428,143 +12417,22 @@ void main() {
       expect(find.text('출처 공식 파일'), findsNothing);
       expect(find.text('상록수역'), findsOneWidget);
       expect(find.bySemanticsLabel('상록수역, 수도권 2호선, 선택'), findsOneWidget);
+      expect(find.byIcon(Icons.star_border), findsNothing);
       expect(
-        find.byKey(
-          const Key('stationSearchFavorite-station-sangnoksu-seoul-2'),
+        find.descendant(
+          of: find.byKey(
+            const Key('stationSearchResult-station-sangnoksu-seoul-2'),
+          ),
+          matching: find.byType(IconButton),
         ),
-        findsOneWidget,
+        findsNothing,
       );
     } finally {
       semanticsHandle.dispose();
     }
   });
 
-  group('역 검색 결과의 즐겨찾기 토글 접근성', () {
-    const rowKey = Key('stationSearchResult-station-sangnoksu-seoul-2');
-    const toggleKey = Key('stationSearchFavorite-station-sangnoksu-seoul-2');
-    const toggleLabel = '상록수역, 수도권 2호선 즐겨찾기';
-
-    Future<FakeFavoriteStationRepository> pumpSearchResults(
-      WidgetTester tester,
-      String stationName,
-    ) async {
-      final favoriteRepository = FakeFavoriteStationRepository();
-      await tester.pumpWidget(
-        buildEasySubwayTestApp(
-          repository: FakeStationSearchRepository(
-            nextResults: [
-              _stationResult(id: 'station-sangnoksu', name: stationName),
-            ],
-            networkMapRegionNames: const ['수도권'],
-          ),
-          reportRepository: FakeFacilityReportRepository(),
-          favoriteRepository: favoriteRepository,
-          initialOnboardingState: _completedOnboardingState(),
-        ),
-      );
-      await _openStationSearchScreenViaMenu(tester);
-      await tester.enterText(
-        find.byKey(const Key('stationSearchInput')),
-        stationName,
-      );
-      await tester.pumpAndSettle();
-      await tester.testTextInput.receiveAction(TextInputAction.search);
-      await tester.pumpAndSettle();
-      return favoriteRepository;
-    }
-
-    testWidgets('토글은 행과 별개 노드이고 상태는 toggled로 알린다', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      try {
-        await pumpSearchResults(tester, '상록수');
-
-        final toggleFinder = find.bySemanticsLabel(toggleLabel);
-        expect(toggleFinder, findsOneWidget);
-        final toggleNode = tester.getSemantics(toggleFinder);
-        expect(
-          toggleNode.getSemanticsData().hasAction(SemanticsAction.tap),
-          isTrue,
-        );
-        expect(toggleNode.flagsCollection.isToggled, Tristate.isFalse);
-        expect(find.bySemanticsLabel('상록수역, 수도권 2호선, 선택'), findsOneWidget);
-
-        tester.semantics.tap(find.semantics.byLabel(toggleLabel));
-        await tester.pumpAndSettle();
-
-        // 라벨은 그대로이고 toggled만 바뀐다.
-        expect(
-          tester
-              .getSemantics(find.bySemanticsLabel(toggleLabel))
-              .flagsCollection
-              .isToggled,
-          Tristate.isTrue,
-        );
-
-        tester.semantics.tap(find.semantics.byLabel(toggleLabel));
-        await tester.pumpAndSettle();
-
-        expect(
-          tester
-              .getSemantics(find.bySemanticsLabel(toggleLabel))
-              .flagsCollection
-              .isToggled,
-          Tristate.isFalse,
-        );
-      } finally {
-        semanticsHandle.dispose();
-      }
-    });
-
-    testWidgets('스크린리더 순회는 행 다음에 토글이다', (tester) async {
-      final semanticsHandle = tester.ensureSemantics();
-      try {
-        await pumpSearchResults(tester, '상록수');
-
-        final traversedLabels = <String>[];
-        void visit(SemanticsNode node) {
-          final label = node.getSemanticsData().label;
-          if (label == toggleLabel || label == '상록수역, 수도권 2호선, 선택') {
-            traversedLabels.add(label);
-          }
-          node
-              .debugListChildrenInOrder(DebugSemanticsDumpOrder.traversalOrder)
-              .forEach(visit);
-        }
-
-        visit(tester.getSemantics(find.byType(MaterialApp)));
-
-        expect(traversedLabels, ['상록수역, 수도권 2호선, 선택', toggleLabel]);
-      } finally {
-        semanticsHandle.dispose();
-      }
-    });
-
-    testWidgets('역명이 줄바꿈된 행에서도 토글은 행 세로 중앙에 있다', (tester) async {
-      await pumpSearchResults(tester, '매우긴역이름' * 30);
-
-      final rowRect = tester.getRect(find.byKey(rowKey));
-      final toggleRect = tester.getRect(find.byKey(toggleKey));
-      expect(rowRect.height, greaterThan(72));
-      expect(toggleRect.center.dy, closeTo(rowRect.center.dy, 1));
-      expect(toggleRect.left, rowRect.left + 8);
-    });
-
-    testWidgets('포인터로 토글을 탭하면 즐겨찾기만 바뀌고 역은 선택되지 않는다', (tester) async {
-      final favoriteRepository = await pumpSearchResults(tester, '상록수');
-
-      await tester.tap(find.byKey(toggleKey));
-      await tester.pumpAndSettle();
-
-      expect(favoriteRepository.savedStationIds, ['station-sangnoksu']);
-      expect(find.byKey(const Key('stationSearchInput')), findsOneWidget);
-      expect(find.byKey(const Key('networkMapScreen')), findsNothing);
-    });
-  });
-
-  testWidgets('역 검색 결과는 쿼리 하이라이트와 즐겨찾기 우선 정렬을 제공한다', (tester) async {
-    final favoriteRepository = FakeFavoriteStationRepository(
-      favorites: [_favoriteStation(id: 'station-seoul-forest', name: '서울숲')],
-    );
+  testWidgets('역 검색 결과는 쿼리 하이라이트를 입히고 서버 순서를 그대로 둔다', (tester) async {
     final repository = FakeStationSearchRepository(
       nextResults: [
         _stationResult(id: 'station-gangbyeon', name: '강변'),
@@ -12578,7 +12446,11 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        favoriteRepository: favoriteRepository,
+        favoriteRepository: FakeFavoriteStationRepository(
+          favorites: [
+            _favoriteStation(id: 'station-seoul-forest', name: '서울숲'),
+          ],
+        ),
         initialOnboardingState: _completedOnboardingState(),
       ),
     );
@@ -12588,32 +12460,18 @@ void main() {
     await tester.testTextInput.receiveAction(TextInputAction.search);
     await tester.pumpAndSettle();
 
-    // 즐겨찾기 역이 결과 목록 상단에 온다.
-    final firstResultLabel = tester
-        .widgetList<Semantics>(
-          find.descendant(
-            of: find.byKey(
-              const Key('stationSearchResult-station-seoul-forest-seoul-2'),
-            ),
-            matching: find.byType(Semantics),
-          ),
-        )
-        .map((semantics) => semantics.properties.label)
-        .firstWhere((label) => label != null);
-    expect(firstResultLabel, contains('서울숲역'));
-
     final resultOrder = [
       for (final id in [
-        'station-seoul-forest',
         'station-gangbyeon',
         'station-seoul-univ',
+        'station-seoul-forest',
       ])
         tester
             .getTopLeft(find.byKey(Key('stationSearchResult-$id-seoul-2')))
             .dy,
     ];
     expect(resultOrder[0], lessThan(resultOrder[1]));
-    expect(resultOrder[0], lessThan(resultOrder[2]));
+    expect(resultOrder[1], lessThan(resultOrder[2]));
 
     // 쿼리 일치 구간은 브랜드 하이라이트 span을 갖는다.
     final richTexts = tester.widgetList<RichText>(find.byType(RichText));
@@ -12623,7 +12481,7 @@ void main() {
         if (span is TextSpan &&
             span.text == '서울' &&
             span.style?.color ==
-                EasySubwayAccessibleColors.interactionPrimary) {
+                EasySubwayAccessibleColors.searchMatchHighlight) {
           found = true;
         }
         return true;
@@ -12631,17 +12489,9 @@ void main() {
       return found;
     });
     expect(hasHighlight, isTrue);
-
-    await tester.tap(
-      find.byKey(const Key('stationSearchFavorite-station-seoul-univ-seoul-2')),
-    );
-    await tester.pumpAndSettle();
-    expect(favoriteRepository.savedStationIds, contains('station-seoul-univ'));
-    expect(favoriteRepository.savedLineIds, contains('seoul-2'));
   });
 
-  testWidgets('역 검색 결과는 호선 단위 즐겨찾기와 정렬을 제공한다', (tester) async {
-    final favoriteRepository = FakeFavoriteStationRepository();
+  testWidgets('역 검색 결과는 역·호선 쌍마다 한 행으로 서버 순서대로 보인다', (tester) async {
     final sadangLines = const [
       StationSearchLine(
         id: 'seoul-2',
@@ -12668,7 +12518,7 @@ void main() {
       buildEasySubwayTestApp(
         repository: repository,
         reportRepository: FakeFacilityReportRepository(),
-        favoriteRepository: favoriteRepository,
+        favoriteRepository: FakeFavoriteStationRepository(),
         initialOnboardingState: _completedOnboardingState(),
       ),
     );
@@ -12680,63 +12530,6 @@ void main() {
 
     double yOf(String key) => tester.getTopLeft(find.byKey(Key(key))).dy;
 
-    final originalSadang2Y = yOf('stationSearchResult-station-sadang-seoul-2');
-    final originalSadang4Y = yOf('stationSearchResult-station-sadang-seoul-4');
-    final originalSangnoksuY = yOf(
-      'stationSearchResult-station-sangnoksu-seoul-2',
-    );
-    expect(originalSadang2Y, lessThan(originalSadang4Y));
-    expect(originalSadang4Y, lessThan(originalSangnoksuY));
-
-    await tester.tap(
-      find.byKey(const Key('stationSearchFavorite-station-sadang-seoul-2')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(favoriteRepository.savedStationIds, ['station-sadang']);
-    expect(favoriteRepository.savedLineIds, ['seoul-2']);
-    expect(
-      tester
-          .widget<Icon>(
-            find.descendant(
-              of: find.byKey(
-                const Key('stationSearchFavorite-station-sadang-seoul-2'),
-              ),
-              matching: find.byType(Icon),
-            ),
-          )
-          .icon,
-      Icons.star,
-    );
-    expect(
-      tester
-          .widget<Icon>(
-            find.descendant(
-              of: find.byKey(
-                const Key('stationSearchFavorite-station-sadang-seoul-4'),
-              ),
-              matching: find.byType(Icon),
-            ),
-          )
-          .icon,
-      Icons.star_border,
-    );
-
-    final favoritedSadang2Y = yOf('stationSearchResult-station-sadang-seoul-2');
-    final afterSadang4Y = yOf('stationSearchResult-station-sadang-seoul-4');
-    final afterSangnoksuY = yOf(
-      'stationSearchResult-station-sangnoksu-seoul-2',
-    );
-    expect(favoritedSadang2Y, lessThan(afterSadang4Y));
-    expect(favoritedSadang2Y, lessThan(afterSangnoksuY));
-
-    await tester.tap(
-      find.byKey(const Key('stationSearchFavorite-station-sadang-seoul-2')),
-    );
-    await tester.pumpAndSettle();
-
-    expect(favoriteRepository.removedStationIds, ['station-sadang']);
-    expect(favoriteRepository.removedLineIds, ['seoul-2']);
     expect(
       yOf('stationSearchResult-station-sadang-seoul-2'),
       lessThan(yOf('stationSearchResult-station-sadang-seoul-4')),

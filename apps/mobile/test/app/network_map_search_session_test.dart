@@ -6,6 +6,7 @@ import 'package:easysubway_mobile/features/route_draft/application/route_draft_c
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -28,7 +29,6 @@ void main() {
           searchQueryController: queryController,
           stationSearchRepository: repository,
           searchHistoryRepository: null,
-          favoriteRepository: null,
           routeDraftController: routeDraftController,
           regionLabel: '수도권',
         ),
@@ -60,7 +60,6 @@ void main() {
         searchQueryController: queryController,
         stationSearchRepository: repository,
         searchHistoryRepository: null,
-        favoriteRepository: null,
         routeDraftController: routeDraftController,
         regionLabel: regionLabel,
       ),
@@ -271,12 +270,9 @@ void main() {
     expect(find.text('최근 검색을 지우지 못했어요.'), findsWidgets);
   });
 
-  testWidgets('favorite load와 toggle은 line identity로 remove와 save를 수행한다', (
-    tester,
-  ) async {
+  testWidgets('검색 결과 행은 즐겨찾기 토글 없이 역명과 노선 마크만 그린다', (tester) async {
     final queryController = TextEditingController();
     final routeDraftController = RouteDraftController();
-    final favorite = _FavoriteStationRepository(favorites: [_favoriteStation]);
     addTearDown(queryController.dispose);
     addTearDown(routeDraftController.dispose);
 
@@ -287,75 +283,34 @@ void main() {
         stationRepository: _RecordingStationSearchRepository(
           results: [_searchResult],
         ),
-        favoriteRepository: favorite,
       ),
     );
     await tester.pump();
     queryController.text = '서울';
     await tester.pump();
 
-    final button = find.byKey(
-      const Key('stationSearchFavorite-station-seoul-line-1'),
+    final row = find.byKey(
+      const Key('stationSearchResult-station-seoul-line-1'),
     );
-    await tester.tap(button);
-    await tester.pump();
-    await tester.tap(button);
-    await tester.pump();
-
-    expect(favorite.removed, [(stationId: 'station-seoul', lineId: 'line-1')]);
-    expect(favorite.saved, [(stationId: 'station-seoul', lineId: 'line-1')]);
+    expect(row, findsOneWidget);
+    expect(
+      find.descendant(of: row, matching: find.byType(StationLineBadge)),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.star_border), findsNothing);
+    expect(find.byIcon(Icons.star), findsNothing);
   });
 
-  testWidgets(
-    'favorite load와 toggle failures는 fallback 없이 report/snackbar로 끝난다',
-    (tester) async {
-      final queryController = TextEditingController();
-      final routeDraftController = RouteDraftController();
-      final favorite = _FavoriteStationRepository(
-        listError: StateError('favorite load failed'),
-        saveError: StateError('favorite save failed'),
-      );
-      addTearDown(queryController.dispose);
-      addTearDown(routeDraftController.dispose);
-
-      await tester.pumpWidget(
-        _session(
-          queryController: queryController,
-          routeDraftController: routeDraftController,
-          stationRepository: _RecordingStationSearchRepository(
-            results: [_searchResult],
-          ),
-          favoriteRepository: favorite,
-        ),
-      );
-      await tester.pump();
-      expect(tester.takeException(), isA<StateError>());
-      queryController.text = '서울';
-      await tester.pump();
-      await tester.tap(
-        find.byKey(const Key('stationSearchFavorite-station-seoul-line-1')),
-      );
-      await tester.pump();
-      expect(tester.takeException(), isA<StateError>());
-
-      expect(find.text('즐겨찾기를 추가하지 못했어요.'), findsOneWidget);
-    },
-  );
-
-  testWidgets('disposed session은 late history와 favorite completions를 무시한다', (
+  testWidgets('disposed session은 late history completion을 무시한다', (
     tester,
   ) async {
     final queryController = TextEditingController();
     final routeDraftController = RouteDraftController();
     final searchCompleter = Completer<List<StationSearchResult>>();
     final historyCompleter = Completer<List<RecentSearchEntry>>();
-    final favoriteCompleter = Completer<List<FavoriteStation>>();
     final history = _SearchHistoryRepository(
       entries: const [],
       listCompleter: historyCompleter,
-    );
-    final favorite = _FavoriteStationRepository(
-      listCompleter: favoriteCompleter,
     );
     final key = GlobalKey<NetworkMapSearchSessionState>();
     addTearDown(queryController.dispose);
@@ -370,14 +325,12 @@ void main() {
           searchCompleter: searchCompleter,
         ),
         historyRepository: history,
-        favoriteRepository: favorite,
       ),
     );
     key.currentState!.submitSearch('서울');
     await tester.pumpWidget(const SizedBox.shrink());
     searchCompleter.complete(const []);
     historyCompleter.complete([_recentStation]);
-    favoriteCompleter.complete([_favoriteStation]);
     await tester.pump();
 
     expect(tester.takeException(), isNull);
@@ -410,51 +363,6 @@ void main() {
 
     expect(tester.takeException(), isNull);
   });
-
-  for (final failAfterDispose in [false, true]) {
-    testWidgets(
-      'disposed session은 late favorite ${failAfterDispose ? 'error' : 'success'}를 무시한다',
-      (tester) async {
-        final queryController = TextEditingController();
-        final routeDraftController = RouteDraftController();
-        final saveCompleter = Completer<FavoriteStation>();
-        final favorite = _FavoriteStationRepository(
-          saveCompleter: saveCompleter,
-        );
-        addTearDown(queryController.dispose);
-        addTearDown(routeDraftController.dispose);
-
-        await tester.pumpWidget(
-          _session(
-            queryController: queryController,
-            routeDraftController: routeDraftController,
-            stationRepository: _RecordingStationSearchRepository(
-              results: [_searchResult],
-            ),
-            favoriteRepository: favorite,
-          ),
-        );
-        await tester.pump();
-        queryController.text = '서울';
-        await tester.pump();
-        await tester.tap(
-          find.byKey(const Key('stationSearchFavorite-station-seoul-line-1')),
-        );
-        await tester.pumpWidget(const SizedBox.shrink());
-        if (failAfterDispose) {
-          saveCompleter.completeError(StateError('late save failed'));
-        } else {
-          saveCompleter.complete(_favoriteStation);
-        }
-        await tester.pump();
-
-        expect(
-          tester.takeException(),
-          failAfterDispose ? isA<StateError>() : isNull,
-        );
-      },
-    );
-  }
 
   test('root는 public app owner를 쓰고 private session 선언을 갖지 않는다', () {
     final root = File('lib/app/network_map_screen.dart').readAsStringSync();
@@ -545,7 +453,6 @@ Widget _session({
   required RouteDraftController routeDraftController,
   required StationSearchRepository stationRepository,
   SearchHistoryRepository? historyRepository,
-  FavoriteStationRepository? favoriteRepository,
   String regionLabel = '수도권',
 }) {
   return MaterialApp(
@@ -556,7 +463,6 @@ Widget _session({
         searchQueryController: queryController,
         stationSearchRepository: stationRepository,
         searchHistoryRepository: historyRepository,
-        favoriteRepository: favoriteRepository,
         routeDraftController: routeDraftController,
         regionLabel: regionLabel,
       ),
@@ -597,19 +503,6 @@ const _searchResult = StationSearchResult(
   dataQualityLevel: 'VERIFIED',
   lastVerifiedAt: '2026-08-13T00:00:00Z',
   lines: [_line],
-);
-
-final _favoriteStation = FavoriteStation(
-  userId: 'user',
-  stationId: 'station-seoul',
-  lineId: 'line-1',
-  nameKo: '서울',
-  nameEn: 'Seoul',
-  region: '수도권',
-  dataQualityLevel: 'VERIFIED',
-  lastVerifiedAt: '2026-08-13T00:00:00Z',
-  lines: const [_line],
-  addedAt: '2026-08-13T00:00:00Z',
 );
 
 class _SearchHistoryRepository implements SearchHistoryRepository {
@@ -691,60 +584,5 @@ class _SearchHistoryRepository implements SearchHistoryRepository {
   @override
   Future<void> clearSearches() async {
     entries = [];
-  }
-}
-
-class _FavoriteStationRepository implements FavoriteStationRepository {
-  _FavoriteStationRepository({
-    this.favorites = const [],
-    this.listError,
-    this.saveError,
-    this.listCompleter,
-    this.saveCompleter,
-  });
-
-  List<FavoriteStation> favorites;
-  final Object? listError;
-  final Object? saveError;
-  final Completer<List<FavoriteStation>>? listCompleter;
-  final Completer<FavoriteStation>? saveCompleter;
-  final saved = <({String stationId, String? lineId})>[];
-  final removed = <({String stationId, String? lineId})>[];
-
-  @override
-  Future<List<FavoriteStation>> listFavoriteStations() async {
-    final completer = listCompleter;
-    if (completer != null) {
-      return completer.future;
-    }
-    final error = listError;
-    if (error != null) {
-      throw error;
-    }
-    return favorites;
-  }
-
-  @override
-  Future<FavoriteStation> saveFavoriteStation(
-    String stationId, {
-    String? lineId,
-  }) async {
-    saved.add((stationId: stationId, lineId: lineId));
-    final completer = saveCompleter;
-    if (completer != null) {
-      return completer.future;
-    }
-    final error = saveError;
-    if (error != null) {
-      throw error;
-    }
-    favorites = [_favoriteStation];
-    return _favoriteStation;
-  }
-
-  @override
-  Future<void> removeFavoriteStation(String stationId, {String? lineId}) async {
-    removed.add((stationId: stationId, lineId: lineId));
-    favorites = [];
   }
 }

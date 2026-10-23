@@ -254,16 +254,6 @@ class FavoriteStation {
 String favoriteStationLineKey(String stationId, [String? lineId]) =>
     '$stationId\u001f${lineId ?? ''}';
 
-bool isFavoriteStationLine(
-  Set<String> favoriteKeys,
-  String stationId, [
-  String? lineId,
-]) {
-  final concrete = favoriteStationLineKey(stationId, lineId);
-  final wholeStation = favoriteStationLineKey(stationId, '');
-  return favoriteKeys.contains(concrete) || favoriteKeys.contains(wholeStation);
-}
-
 class StationSearchResult {
   const StationSearchResult({
     required this.id,

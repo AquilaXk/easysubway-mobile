@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/semantics.dart' show OrdinalSortKey;
 
 import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
@@ -8,17 +7,18 @@ import '../domain/station_line.dart';
 import '../domain/station_models.dart';
 import 'station_line_badges.dart';
 
-/// 검색어 일치 구간 하이라이트는 primary interaction 역할색을 쓴다.
-const _searchMatchHighlight = EasySubwayAccessibleColors.interactionPrimary;
+const _searchMatchHighlight = EasySubwayAccessibleColors.searchMatchHighlight;
 
-/// 결과 행의 안쪽 여백이자, 즐겨찾기 토글이 행 시작에서 떨어진 거리.
-const _rowInset = 8.0;
+/// 결과 행 좌우 여백. 역명과 노선 마크가 같은 가장자리 간격을 갖는다.
+const _rowHorizontalPadding = 18.0;
 
-/// 즐겨찾기 채움 별빛.
-const _favoriteStarFilled = EasySubwayAccessibleColors.interactionPrimary;
+/// 결과 행 최소 높이.
+const _rowMinHeight = 52.0;
 
-typedef StationSearchFavoriteToggle =
-    void Function(StationSearchResult result, StationSearchLine? line);
+/// 결과 행 안 노선 마크 지름.
+const _rowLineMarkSize = 20.0;
+
+const _stationNameFontSize = 16.0;
 
 typedef StationSearchResultTap =
     void Function(StationSearchResult result, StationSearchLine? line);
@@ -29,17 +29,11 @@ class StationSearchBody extends StatelessWidget {
     required this.state,
     required this.onResultTap,
     this.query = '',
-    this.favoriteKeys = const <String>{},
-    this.onToggleFavorite,
   });
 
   final StationSearchState state;
   final StationSearchResultTap onResultTap;
   final String query;
-
-  /// [favoriteStationLineKey] 집합.
-  final Set<String> favoriteKeys;
-  final StationSearchFavoriteToggle? onToggleFavorite;
 
   @override
   Widget build(BuildContext context) {
@@ -88,7 +82,7 @@ class StationSearchBody extends StatelessWidget {
             liveRegion: true,
             child: const SizedBox(width: 1, height: 1),
           ),
-        for (final row in _sortedResultRows(state.results, favoriteKeys))
+        for (final row in _resultRows(state.results))
           _StationSearchResultLineRow(
             key: Key(
               'stationSearchResult-${row.result.id}-${row.line?.id ?? 'none'}',
@@ -96,22 +90,10 @@ class StationSearchBody extends StatelessWidget {
             stationName: _stationResultDisplayName(row.result.nameKo),
             query: query,
             line: row.line,
-            showFavorite: onToggleFavorite != null,
-            isFavorite: isFavoriteStationLine(
-              favoriteKeys,
-              row.result.id,
-              row.line?.id,
-            ),
             semanticLabel: row.line == null
                 ? '${_stationResultDisplayName(row.result.nameKo)}, 선택'
                 : '${_stationResultDisplayName(row.result.nameKo)}, ${row.line!.name}, 선택',
             onTap: () => onResultTap(row.result, row.line),
-            onToggleFavorite: onToggleFavorite == null
-                ? null
-                : () => onToggleFavorite!(row.result, row.line),
-            favoriteButtonKey: Key(
-              'stationSearchFavorite-${row.result.id}-${row.line?.id ?? 'none'}',
-            ),
           ),
       ],
     );
@@ -119,58 +101,22 @@ class StationSearchBody extends StatelessWidget {
 }
 
 class _StationSearchResultRow {
-  const _StationSearchResultRow({
-    required this.result,
-    required this.line,
-    required this.originalIndex,
-  });
+  const _StationSearchResultRow({required this.result, required this.line});
 
   final StationSearchResult result;
   final StationSearchLine? line;
-  final int originalIndex;
 }
 
-/// 호선 행으로 펼친 뒤, 즐겨찾기 행을 위로. 그룹 안·비즐겨찾기는 원래 순서를 유지한다.
-List<_StationSearchResultRow> _sortedResultRows(
-  List<StationSearchResult> results,
-  Set<String> favoriteKeys,
-) {
-  final rows = <_StationSearchResultRow>[];
-  var index = 0;
-  for (final result in results) {
-    final lines = result.lines;
-    if (lines.isEmpty) {
-      rows.add(
-        _StationSearchResultRow(
-          result: result,
-          line: null,
-          originalIndex: index++,
-        ),
-      );
-      continue;
-    }
-    for (final line in lines) {
-      rows.add(
-        _StationSearchResultRow(
-          result: result,
-          line: line,
-          originalIndex: index++,
-        ),
-      );
-    }
-  }
-  if (favoriteKeys.isEmpty || rows.length < 2) {
-    return rows;
-  }
-  rows.sort((a, b) {
-    final aFav = isFavoriteStationLine(favoriteKeys, a.result.id, a.line?.id);
-    final bFav = isFavoriteStationLine(favoriteKeys, b.result.id, b.line?.id);
-    if (aFav != bFav) {
-      return aFav ? -1 : 1;
-    }
-    return a.originalIndex.compareTo(b.originalIndex);
-  });
-  return rows;
+/// 역·호선 쌍마다 한 행으로 펼친다. 호선이 없는 역은 마크 없는 한 행이다.
+List<_StationSearchResultRow> _resultRows(List<StationSearchResult> results) {
+  return [
+    for (final result in results)
+      if (result.lines.isEmpty)
+        _StationSearchResultRow(result: result, line: null)
+      else
+        for (final line in result.lines)
+          _StationSearchResultRow(result: result, line: line),
+  ];
 }
 
 class _StationSearchEmptyState extends StatelessWidget {
@@ -267,170 +213,73 @@ class _StationSearchResultLineRow extends StatelessWidget {
     required this.stationName,
     required this.query,
     required this.line,
-    required this.showFavorite,
-    required this.isFavorite,
     required this.semanticLabel,
     required this.onTap,
-    this.onToggleFavorite,
-    this.favoriteButtonKey,
     super.key,
   });
 
   final String stationName;
   final String query;
   final StationSearchLine? line;
-  final bool showFavorite;
-  final bool isFavorite;
   final String semanticLabel;
   final VoidCallback onTap;
-  final VoidCallback? onToggleFavorite;
-  final Key? favoriteButtonKey;
-
-  /// 역·호선만 담아 같은 역의 다른 호선 행과 구분한다. 상태는 toggled로 전달한다.
-  String get _favoriteSemanticLabel {
-    final target = line == null ? stationName : '$stationName, ${line!.name}';
-    return '$target 즐겨찾기';
-  }
 
   @override
   Widget build(BuildContext context) {
     final line = this.line;
     const nameStyle = TextStyle(
       color: EasySubwayAccessibleColors.text,
-      fontSize: 17,
-      fontWeight: FontWeight.w600,
+      fontSize: _stationNameFontSize,
+      fontWeight: FontWeight.w400,
       height: 1.2,
     );
-    const highlightStyle = TextStyle(
-      color: _searchMatchHighlight,
-      fontSize: 17,
-      fontWeight: FontWeight.w700,
-      height: 1.2,
-    );
+    final highlightStyle = nameStyle.copyWith(color: _searchMatchHighlight);
     return DecoratedBox(
       decoration: const BoxDecoration(
         color: EasySubwayAccessibleColors.surface,
         border: Border(
-          bottom: BorderSide(color: EasySubwayAccessibleColors.line),
+          bottom: BorderSide(width: 0, color: EasySubwayAccessibleColors.line),
         ),
       ),
-      // 즐겨찾기 토글은 행 위에 얹은 형제 노드라, 행 노드는 역 선택만 맡고 토글은 따로 읽힌다.
       child: Semantics(
-        container: true,
-        explicitChildNodes: true,
-        child: Stack(
-          children: [
-            Semantics(
-              label: semanticLabel,
-              button: true,
-              // 읽는 순서는 행(역 선택) 다음에 토글이다.
-              sortKey: const OrdinalSortKey(0),
-              onTap: onTap,
-              child: ExcludeSemantics(
-                child: InkWell(
-                  onTap: onTap,
-                  splashColor: Colors.transparent,
-                  highlightColor: Colors.transparent,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 56),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(
-                        _rowInset,
-                        _rowInset,
-                        16,
-                        _rowInset,
-                      ),
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox.square(
-                            dimension: showFavorite
-                                ? EasySubwayTouchTarget.general
-                                : _rowInset,
+        label: semanticLabel,
+        button: true,
+        onTap: onTap,
+        child: ExcludeSemantics(
+          child: InkWell(
+            onTap: onTap,
+            splashColor: Colors.transparent,
+            highlightColor: Colors.transparent,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: _rowMinHeight),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: _rowHorizontalPadding,
+                  vertical: 8,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text.rich(
+                        TextSpan(
+                          children: _highlightedNameSpans(
+                            stationName,
+                            query,
+                            nameStyle,
+                            highlightStyle,
                           ),
-                          Expanded(
-                            child: Text.rich(
-                              TextSpan(
-                                children: _highlightedNameSpans(
-                                  stationName,
-                                  query,
-                                  nameStyle,
-                                  highlightStyle,
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (line != null) ...[
-                            const SizedBox(width: 12),
-                            StationLineBadge(line: line, size: 32),
-                          ],
-                        ],
+                        ),
                       ),
                     ),
-                  ),
+                    if (line != null) ...[
+                      const SizedBox(width: 12),
+                      StationLineBadge(line: line, size: _rowLineMarkSize),
+                    ],
+                  ],
                 ),
               ),
             ),
-            if (showFavorite)
-              PositionedDirectional(
-                start: _rowInset,
-                top: 0,
-                bottom: 0,
-                child: Center(
-                  widthFactor: 1,
-                  child: _FavoriteToggleButton(
-                    buttonKey: favoriteButtonKey,
-                    semanticLabel: _favoriteSemanticLabel,
-                    isFavorite: isFavorite,
-                    onPressed: onToggleFavorite,
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 행 탭과 따로 스크린리더가 짚을 수 있는 즐겨찾기 토글. 라벨은 역·호선이고 상태는 toggled로 전한다.
-class _FavoriteToggleButton extends StatelessWidget {
-  const _FavoriteToggleButton({
-    required this.buttonKey,
-    required this.semanticLabel,
-    required this.isFavorite,
-    required this.onPressed,
-  });
-
-  final Key? buttonKey;
-  final String semanticLabel;
-  final bool isFavorite;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Semantics(
-      label: semanticLabel,
-      button: true,
-      toggled: isFavorite,
-      sortKey: const OrdinalSortKey(1),
-      onTap: onPressed,
-      excludeSemantics: true,
-      child: IconButton(
-        key: buttonKey,
-        onPressed: onPressed,
-        tooltip: isFavorite ? '즐겨찾기 해제' : '즐겨찾기 추가',
-        style: IconButton.styleFrom(
-          minimumSize: const Size.square(EasySubwayTouchTarget.general),
-          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          padding: EdgeInsets.zero,
-        ),
-        icon: Icon(
-          isFavorite ? Icons.star : Icons.star_border,
-          size: 26,
-          color: isFavorite
-              ? _favoriteStarFilled
-              : EasySubwayAccessibleColors.disclosure,
+          ),
         ),
       ),
     );

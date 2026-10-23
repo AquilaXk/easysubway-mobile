@@ -288,13 +288,13 @@ void main() {
           1,
       // 의도 잔존: 좌측 메뉴 타이틀 1건 — #122 owner 이전.
       'lib/features/network_map/presentation/network_map_menu_panel.dart': 1,
-      // 주변역 패널 현재역 캡슐 역명 + 원형 노선 배지 번호 — 색/캡슐 위 시인성.
+      // 주변역 패널 현재역 캡슐 역명 — 색/캡슐 위 시인성.
       // — 오너 결정 2026-07-16, #2200
-      'lib/features/network_map/presentation/nearby_station_line_bar.dart': 2,
+      'lib/features/network_map/presentation/nearby_station_line_bar.dart': 1,
       // 의도 잔존: 온보딩 시작·프리셋·권한 화면 타이틀 (#1936 전면 재설계로 축소)
       'lib/features/onboarding/onboarding.dart': 4,
-      // 의도 잔존: 노선 배지 번호 — 색 배지 위 시인성 (w900은 w800로 강등)
-      'lib/features/stations/presentation/station_line_badges.dart': 2,
+      // 의도 잔존: 노선 배지 겹침 개수(+N) 1건.
+      'lib/features/stations/presentation/station_line_badges.dart': 1,
     }, rule: 'w800');
   });
 

@@ -202,33 +202,6 @@ class NetworkMapLine {
       region: json['region'] as String? ?? '',
     );
   }
-
-  String get shortName {
-    final withoutRegion = name.replaceFirst('수도권 ', '');
-    return withoutRegion.isEmpty ? name : withoutRegion;
-  }
-
-  String get badgeText {
-    final label = shortName.replaceAll('호선', '');
-    final numberMatch = RegExp(r'(\d+)').firstMatch(label);
-    if (numberMatch != null) {
-      return numberMatch.group(1)!;
-    }
-    if (label.contains('GTX-A')) {
-      return 'A';
-    }
-    final compact = label
-        .replaceAll('부산김해경전철', '김해')
-        .replaceAll('김포골드라인', '김포')
-        .replaceAll('경의중앙', '경의')
-        .replaceAll('수인분당', '수인')
-        .replaceAll('우이신설', '우이')
-        .replaceAll('신분당', '신분')
-        .replaceAll('에버라인', '에버')
-        .replaceAll('자기부상', '자기')
-        .replaceAll('의정부', '의정');
-    return compact.characters.take(2).toString();
-  }
 }
 
 class NetworkMapStation {

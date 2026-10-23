@@ -9,6 +9,8 @@ import '../../get_off_alarm/get_off_alarm_port.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
+import '../../stations/domain/station_line.dart';
+import '../../stations/presentation/station_line_badges.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import '../domain/transfer_guide.dart';
@@ -195,31 +197,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
 
   String _stationName(String stationId) =>
       _resolvedStationNames[stationId] ?? stationId;
-
-  String _lineBadgeNumber(String lineId) {
-    final clean = lineId.replaceAll(RegExp(r'^line-|^seoul-|^korail-'), '');
-    const knownShort = <String, String>{
-      'gyeongui-jungang': '경의',
-      'suin-bundang': '수인',
-      'shinbundang': '신분',
-      'arex': '공항',
-      'airport': '공항',
-      'gyeongchun': '경춘',
-      'gyeonggang': '경강',
-      'seohae': '서해',
-      'sillim': '신림',
-      'ui-sinseol': '우이',
-      'everline': '용인',
-      'gimpo-gold': '김포',
-    };
-    if (knownShort.containsKey(clean)) {
-      return knownShort[clean]!;
-    }
-    final numMatch = RegExp(r'\d+').firstMatch(clean);
-    if (numMatch != null) return numMatch.group(0)!;
-    if (clean.length > 2) return clean.substring(0, 2);
-    return clean;
-  }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
@@ -474,29 +451,17 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         final lineColor = journeyLineColor(node.lineId);
         trackColor = lineColor;
         trackThickness = 5;
-        marker = Container(
-          constraints: BoxConstraints(
-            minWidth: trackWidth,
-            minHeight: trackWidth,
-          ),
-          decoration: ShapeDecoration(
-            shape: const CircleBorder(
-              side: BorderSide(
-                color: EasySubwayColorPrimitives.neutralWhite,
-                width: 1.5,
+        marker = SizedBox.square(
+          dimension: trackWidth,
+          child: DecoratedBox(
+            decoration: ShapeDecoration(
+              shape: const CircleBorder(
+                side: BorderSide(
+                  color: EasySubwayColorPrimitives.neutralWhite,
+                  width: 1.5,
+                ),
               ),
-            ),
-            color: lineColor,
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            _lineBadgeNumber(node.lineId),
-            maxLines: 1,
-            softWrap: false,
-            style: const TextStyle(
-              color: EasySubwayColorPrimitives.neutralWhite,
-              fontWeight: FontWeight.w700,
-              fontSize: 10,
+              color: lineColor,
             ),
           ),
         );
@@ -665,6 +630,11 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                         runSpacing: 2,
                         crossAxisAlignment: WrapCrossAlignment.center,
                         children: [
+                          LineMark(
+                            label: stationLineBadgeText(node.lineName),
+                            color: journeyLineColor(node.lineId),
+                            size: 20,
+                          ),
                           Text(
                             node.lineName,
                             style: const TextStyle(

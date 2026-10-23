@@ -305,11 +305,15 @@ void main() {
     final backIcon = tester.widget<Icon>(
       find.descendant(
         of: find.byKey(const Key('networkMapSearchBackButton')),
-        matching: find.byIcon(Icons.arrow_back),
+        matching: find.byIcon(Icons.arrow_back_ios_new),
       ),
     );
-    expect(backIcon.color, EasySubwayAccessibleColors.interactionOnPrimary);
+    expect(backIcon.color, EasySubwayAccessibleColors.text);
     expect(find.byType(EasySubwaySearchField), findsOneWidget);
+    expect(
+      tester.widget<Material>(find.byKey(const Key('networkMapTopBar'))).color,
+      EasySubwayAccessibleColors.surface,
+    );
 
     await tester.tap(find.byKey(const Key('networkMapSearchBackButton')));
     expect(searchBackCount, 1);

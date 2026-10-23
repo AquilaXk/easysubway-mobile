@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../stations/presentation/station_line_badges.dart';
 
 /// 주변역 패널의 이전-현재-다음역 노선 표시 바 (오너 스펙 2026-07-16, #2200).
 ///
@@ -182,12 +183,15 @@ class NearbyStationLineBar extends StatelessWidget {
                             children: [
                               if (badgeText.isNotEmpty ||
                                   badgeBuilder != null) ...[
-                                _LineBadge(
-                                  diameter: badgeDiameter,
-                                  color: lineColor,
-                                  text: badgeText,
-                                  badgeBuilder: badgeBuilder,
-                                ),
+                                badgeBuilder?.call(badgeDiameter) ??
+                                    LineMark(
+                                      key: const Key(
+                                        'nearbyStationLineBarBadge',
+                                      ),
+                                      label: badgeText,
+                                      color: lineColor,
+                                      size: badgeDiameter,
+                                    ),
                                 const SizedBox(width: 7),
                               ],
                               Flexible(
@@ -341,75 +345,6 @@ class _SideName extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 2),
             child: content,
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LineBadge extends StatelessWidget {
-  const _LineBadge({
-    required this.diameter,
-    required this.color,
-    required this.text,
-    this.badgeBuilder,
-  });
-
-  final double diameter;
-  final Color color;
-  final String text;
-  final Widget Function(double diameter)? badgeBuilder;
-
-  @override
-  Widget build(BuildContext context) {
-    if (badgeBuilder != null) {
-      return badgeBuilder!(diameter);
-    }
-    final displayText = text;
-
-    final isSingleChar = displayText.length <= 1;
-
-    if (isSingleChar) {
-      return Container(
-        key: const Key('nearbyStationLineBarBadge'),
-        width: diameter,
-        height: diameter,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
-        child: Text(
-          displayText,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          style: TextStyle(
-            color: EasySubwayAccessibleColors.interactionOnPrimary,
-            fontSize: diameter * 0.58,
-            fontWeight: FontWeight.w800,
-            height: 1.0,
-          ),
-        ),
-      );
-    }
-
-    return Container(
-      key: const Key('nearbyStationLineBarBadge'),
-      height: diameter,
-      constraints: BoxConstraints(minWidth: diameter),
-      alignment: Alignment.center,
-      padding: EdgeInsets.symmetric(horizontal: diameter * 0.28),
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(diameter / 2),
-      ),
-      child: Text(
-        displayText,
-        textAlign: TextAlign.center,
-        maxLines: 1,
-        style: TextStyle(
-          color: EasySubwayAccessibleColors.interactionOnPrimary,
-          fontSize: diameter * 0.44,
-          fontWeight: FontWeight.w700,
-          letterSpacing: -0.3,
-          height: 1.0,
         ),
       ),
     );

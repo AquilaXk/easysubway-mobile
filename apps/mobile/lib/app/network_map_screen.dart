@@ -597,7 +597,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       searchQueryController: _searchQueryController,
       stationSearchRepository: searchRepository,
       searchHistoryRepository: widget.searchHistoryRepository,
-      favoriteRepository: widget.favoriteRepository,
       routeDraftController: widget.routeDraftController,
       regionLabel: routeMapDisplayRegionName(_selectedRegion ?? '수도권'),
     );

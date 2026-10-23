@@ -16,6 +16,7 @@ import 'package:easysubway_mobile/features/journey/presentation/journey_search_s
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
+import 'package:easysubway_mobile/features/stations/presentation/station_line_badges.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:easysubway_mobile/core/crashlytics/crash_report_redaction.dart';
 import 'package:easysubway_mobile/core/crashlytics/crashlytics_gateway.dart';
@@ -883,6 +884,21 @@ void main() {
           matching: find.text('2호선'),
         ),
         findsOneWidget,
+      );
+      // 노선 마크는 공용 마크 위젯이 그리고 글자는 흰색이다.
+      final mark = find.descendant(
+        of: find.byKey(const Key('selected-journey-leg-1')),
+        matching: find.byType(LineMark),
+      );
+      expect(mark, findsOneWidget);
+      expect(
+        tester
+            .widget<Text>(
+              find.descendant(of: mark, matching: find.byType(Text)),
+            )
+            .style
+            ?.color,
+        Colors.white,
       );
     },
   );

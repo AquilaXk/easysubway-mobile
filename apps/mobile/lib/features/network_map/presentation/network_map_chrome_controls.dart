@@ -75,8 +75,12 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
     // 지도를 상단바 아래로 약간 겹쳐 그리면, 구분선·짧은 드롭이 흰 배경이 아니라
     // 노선 색 위에 앉아 카카오처럼 닿는 부위가 하얗게 끊기지 않는다.
     const mapUnderTopBarPx = 10.0;
-    final mapTop =
-        topPadding + easySubwayTopBarContentHeight - mapUnderTopBarPx;
+    // 검색 모드는 흰 상단바와 옅은 띠 바로 아래에서 결과 목록이 시작한다.
+    final mapTop = inSearchMode
+        ? topPadding +
+              easySubwayTopBarContentHeight +
+              easySubwaySearchBarSeparatorHeight
+        : topPadding + easySubwayTopBarContentHeight - mapUnderTopBarPx;
     // 지도는 mapTop에서 시작하지만 오버레이는 측정 높이만큼 그 위를 덮는다. 그 차이가
     // 지도 본문에서 가려지는 높이다.
     final overlayHeight = _overlayHeight;
@@ -202,6 +206,30 @@ class NetworkMapTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (searchMode) {
+      return AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark,
+        child: Material(
+          key: const Key('networkMapTopBar'),
+          color: EasySubwayAccessibleColors.surface,
+          elevation: 0,
+          child: EasySubwaySearchBar(
+            field: EasySubwaySearchField(
+              controller: searchQueryController,
+              focusNode: searchFocusNode,
+              hintText: '역 이름을 입력해 주세요',
+              autofocus: true,
+              onSubmitted: onSearchSubmitted,
+              onClear: onSearchClear,
+              onBack: onSearchBack,
+              backButtonKey: const Key('networkMapSearchBackButton'),
+            ),
+            contentHeight: easySubwayTopBarContentHeight,
+            separatorKey: const Key('networkMapTopBarDivider'),
+          ),
+        ),
+      );
+    }
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Material(
@@ -248,15 +276,9 @@ class NetworkMapTopBar extends StatelessWidget {
               left: 0,
               right: 0,
               bottom: 0,
-              // 노선도 idle/draft만 mapChrome 드롭. 검색 모드(흰 검색 본문)는
-              // 역 검색 화면과 같이 선만 둔다.
-              child: searchMode
-                  ? const EasySubwayHeaderDivider(
-                      key: Key('networkMapTopBarDivider'),
-                    )
-                  : const EasySubwayHeaderDivider.mapChrome(
-                      key: Key('networkMapTopBarDivider'),
-                    ),
+              child: const EasySubwayHeaderDivider.mapChrome(
+                key: Key('networkMapTopBarDivider'),
+              ),
             ),
           ],
         ),
@@ -275,127 +297,94 @@ class NetworkMapTopBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(10, 6, 10, 6),
         child: Row(
           children: [
-            if (searchMode) ...[
-              IconButton(
-                key: const Key('networkMapSearchBackButton'),
-                tooltip: '뒤로',
-                onPressed: onSearchBack,
-                style: IconButton.styleFrom(
-                  minimumSize: const Size.square(EasySubwayTouchTarget.general),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: EdgeInsets.zero,
-                ),
-                icon: const Icon(
-                  Icons.arrow_back,
-                  size: 26,
-                  color: EasySubwayAccessibleColors.interactionOnPrimary,
-                ),
-              ),
-              const SizedBox(width: 4),
-            ],
-            if (!searchMode) ...[
-              Builder(
-                builder: (regionContext) {
-                  // 검색 행은 draft가 비었을 때만 렌더되지만, 경로 칸이 생기면
-                  // 지역 변경을 막고 ▾도 숨긴다(표시명만 유지).
-                  final canChangeRegion = routeDraft().isEmpty;
-                  final onRegionTap = canChangeRegion
-                      ? () => _showRegionMenu(regionContext, availableRegions)
-                      : null;
-                  return Semantics(
-                    key: const Key('mapRegionTabs'),
-                    container: true,
-                    button: canChangeRegion,
-                    label: canChangeRegion
-                        ? '지역: $currentRegion, 지역 변경'
-                        : '지역: $currentRegion',
-                    onTap: onRegionTap,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(
-                        minWidth: 48,
-                        minHeight: 48,
-                        maxWidth: 148,
-                      ),
-                      child: ExcludeSemantics(
-                        child: InkWell(
-                          key: const Key('networkMapRegionDropdown'),
-                          onTap: onRegionTap,
-                          borderRadius: BorderRadius.circular(8),
-                          child: Center(
-                            widthFactor: 1.0,
-                            child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 6,
-                                vertical: 8,
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      currentRegion,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        color: EasySubwayAccessibleColors
-                                            .interactionOnPrimary,
-                                        fontSize: 16,
-                                        fontWeight: FontWeight.w700,
-                                        letterSpacing: -0.2,
-                                      ),
-                                    ),
-                                  ),
-                                  if (canChangeRegion) ...[
-                                    const SizedBox(width: 2),
-                                    const Icon(
-                                      Icons.keyboard_arrow_down_rounded,
+            Builder(
+              builder: (regionContext) {
+                // 검색 행은 draft가 비었을 때만 렌더되지만, 경로 칸이 생기면
+                // 지역 변경을 막고 ▾도 숨긴다(표시명만 유지).
+                final canChangeRegion = routeDraft().isEmpty;
+                final onRegionTap = canChangeRegion
+                    ? () => _showRegionMenu(regionContext, availableRegions)
+                    : null;
+                return Semantics(
+                  key: const Key('mapRegionTabs'),
+                  container: true,
+                  button: canChangeRegion,
+                  label: canChangeRegion
+                      ? '지역: $currentRegion, 지역 변경'
+                      : '지역: $currentRegion',
+                  onTap: onRegionTap,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 48,
+                      minHeight: 48,
+                      maxWidth: 148,
+                    ),
+                    child: ExcludeSemantics(
+                      child: InkWell(
+                        key: const Key('networkMapRegionDropdown'),
+                        onTap: onRegionTap,
+                        borderRadius: BorderRadius.circular(8),
+                        child: Center(
+                          widthFactor: 1.0,
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 8,
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    currentRegion,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
                                       color: EasySubwayAccessibleColors
                                           .interactionOnPrimary,
-                                      size: 20,
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      letterSpacing: -0.2,
                                     ),
-                                  ],
+                                  ),
+                                ),
+                                if (canChangeRegion) ...[
+                                  const SizedBox(width: 2),
+                                  const Icon(
+                                    Icons.keyboard_arrow_down_rounded,
+                                    color: EasySubwayAccessibleColors
+                                        .interactionOnPrimary,
+                                    size: 20,
+                                  ),
                                 ],
-                              ),
+                              ],
                             ),
                           ),
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
-              const SizedBox(width: 8),
-            ],
-            Expanded(
-              child: searchMode
-                  ? EasySubwaySearchField(
-                      controller: searchQueryController,
-                      focusNode: searchFocusNode,
-                      hintText: '역 이름을 입력해 주세요',
-                      autofocus: true,
-                      onSubmitted: onSearchSubmitted,
-                      onClear: onSearchClear,
-                    )
-                  : NetworkMapSearchEntryButton(onTap: onSearchTap),
+                  ),
+                );
+              },
             ),
-            if (!searchMode) ...[
-              const SizedBox(width: 4),
-              IconButton(
-                key: const Key('networkMapMenuButton'),
-                tooltip: '메뉴',
-                onPressed: onMenuTap,
-                style: IconButton.styleFrom(
-                  minimumSize: const Size.square(EasySubwayTouchTarget.general),
-                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  padding: EdgeInsets.zero,
-                ),
-                icon: const Icon(
-                  Icons.menu,
-                  size: 26,
-                  color: EasySubwayAccessibleColors.interactionOnPrimary,
-                ),
+            const SizedBox(width: 8),
+            Expanded(child: NetworkMapSearchEntryButton(onTap: onSearchTap)),
+            const SizedBox(width: 4),
+            IconButton(
+              key: const Key('networkMapMenuButton'),
+              tooltip: '메뉴',
+              onPressed: onMenuTap,
+              style: IconButton.styleFrom(
+                minimumSize: const Size.square(EasySubwayTouchTarget.general),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: EdgeInsets.zero,
               ),
-            ],
+              icon: const Icon(
+                Icons.menu,
+                size: 26,
+                color: EasySubwayAccessibleColors.interactionOnPrimary,
+              ),
+            ),
           ],
         ),
       ),

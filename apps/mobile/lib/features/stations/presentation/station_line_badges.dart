@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
@@ -77,60 +79,57 @@ class StationLineBadge extends StatelessWidget {
       );
     }
 
-    final backgroundColor = line.badgeColor;
-    final foregroundColor = stationLineTextColor(backgroundColor);
-    final scale = size / 40;
-
-    if (isSingleChar) {
-      final badgeFontSize = RegExp(r'^\d+$').hasMatch(badgeText)
-          ? 25.0 * scale
-          : 15.0 * scale;
-
-      return Container(
-        key: Key('stationLineBadge-${line.id}'),
-        width: size,
-        height: size,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: backgroundColor,
-          shape: BoxShape.circle,
-        ),
-        child: Text(
-          badgeText,
-          textAlign: TextAlign.center,
-          maxLines: 1,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-            color: foregroundColor,
-            fontSize: badgeFontSize,
-            fontWeight: FontWeight.w800,
-            height: 1.05,
-          ),
-        ),
-      );
-    }
-
-    final badgeFontSize = 13.0 * scale;
-    final horizontalPadding = 8.0 * scale;
-
-    return Container(
+    return LineMark(
       key: Key('stationLineBadge-${line.id}'),
+      label: badgeText,
+      color: line.badgeColor,
+      size: size,
+    );
+  }
+}
+
+/// 노선 마크 단일 그림. 한 글자 라벨(호선 번호)은 노선색 원 안 흰 글자, 그 밖의
+/// 공식 약칭은 노선색 알약 안 흰 글자다. 글자는 배경색과 무관하게 항상 흰색이다.
+class LineMark extends StatelessWidget {
+  const LineMark({
+    required this.label,
+    required this.color,
+    this.size = 20,
+    super.key,
+  });
+
+  final String label;
+  final Color color;
+  final double size;
+
+  static const _minPillFontSize = 10.5;
+
+  @override
+  Widget build(BuildContext context) {
+    final isCircle = label.length <= 1;
+    final fontSize = isCircle
+        ? size * 0.6
+        : math.max(_minPillFontSize, size * 0.4);
+    return Container(
+      width: isCircle ? size : null,
       height: size,
       constraints: BoxConstraints(minWidth: size),
       alignment: Alignment.center,
-      padding: EdgeInsets.symmetric(horizontal: horizontalPadding),
+      padding: isCircle ? null : EdgeInsets.symmetric(horizontal: size * 0.4),
       decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(size / 2),
+        color: color,
+        shape: isCircle ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: isCircle ? null : BorderRadius.circular(size / 2),
       ),
       child: Text(
-        badgeText,
+        label,
         textAlign: TextAlign.center,
         maxLines: 1,
-        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-          color: foregroundColor,
-          fontSize: badgeFontSize,
-          fontWeight: FontWeight.bold,
-          height: 1.05,
+        style: TextStyle(
+          color: EasySubwayAccessibleColors.interactionOnPrimary,
+          fontSize: fontSize,
+          fontWeight: FontWeight.w700,
+          height: 1.0,
         ),
       ),
     );

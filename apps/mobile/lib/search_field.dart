@@ -29,6 +29,12 @@ const easySubwaySearchFieldBorderWidth = 1.0;
 const easySubwaySearchFieldBorderColor =
     EasySubwayAccessibleColors.interactionSecondaryBorder;
 
+/// 페이지 검색 필드([EasySubwaySearchField.onBack])의 시각 박스 높이(48).
+const easySubwayPageSearchFieldHeight = 48.0;
+
+/// 페이지 검색 상단바와 결과 목록 사이 옅은 띠의 높이(8).
+const easySubwaySearchBarSeparatorHeight = 8.0;
+
 /// 검색/지우기 아이콘 시각 크기(22).
 const easySubwaySearchFieldIconSize = 22.0;
 
@@ -73,6 +79,8 @@ class EasySubwaySearchField extends StatelessWidget {
     this.onSubmitted,
     this.onClear,
     this.semanticsLabel,
+    this.onBack,
+    this.backButtonKey,
     super.key,
   }) : assert(
          semanticsLabel == null || semanticsLabel == hintText,
@@ -98,6 +106,12 @@ class EasySubwaySearchField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final VoidCallback? onClear;
 
+  /// 주어지면 필드를 흰 상단바용 페이지 검색 모양으로 그린다. 뒤로가기 버튼이
+  /// 필드 안 왼쪽 끝에 놓이고, 지우기 아이콘은 채운 원이며, 높이는
+  /// [easySubwayPageSearchFieldHeight], 외곽선은 옅은 회색이다.
+  final VoidCallback? onBack;
+  final Key? backButtonKey;
+
   @override
   Widget build(BuildContext context) {
     final editController = controller;
@@ -119,9 +133,13 @@ class EasySubwaySearchField extends StatelessWidget {
     // 박스 중앙에 놓아, 절대값 비대칭 패딩(구 21/9) 없이 동일 정합을 얻는다.
     // 비대칭 패딩은 FlutterTest 테스트 폰트 기준으로 맞춰 실기기 폰트에서는
     // 편향됐다(#2082 실기기 QA). 시각 박스 높이: 기본 40, 배율에 비례해 확대.
+    final isPageField = onBack != null;
+    final baseVisualHeight = isPageField
+        ? easySubwayPageSearchFieldHeight
+        : easySubwaySearchFieldVisualHeight;
     final visualBoxHeight = math.max(
-      easySubwaySearchFieldVisualHeight,
-      scaler.scale(easySubwaySearchFieldVisualHeight),
+      baseVisualHeight,
+      scaler.scale(baseVisualHeight),
     );
     final field = ConstrainedBox(
       // 터치 타겟(≥48, 실제로는 56)을 만족시키기 위해 필드 자체가 전체 높이를
@@ -145,7 +163,9 @@ class EasySubwaySearchField extends StatelessWidget {
             decoration: BoxDecoration(
               color: EasySubwayAccessibleColors.searchFieldSurface,
               border: Border.all(
-                color: easySubwaySearchFieldBorderColor,
+                color: isPageField
+                    ? EasySubwayAccessibleColors.line
+                    : easySubwaySearchFieldBorderColor,
                 width: easySubwaySearchFieldBorderWidth,
               ),
               borderRadius: easySubwaySearchFieldRadius,
@@ -161,11 +181,30 @@ class EasySubwaySearchField extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  const Icon(
-                    Icons.search,
-                    size: easySubwaySearchFieldIconSize,
-                    color: EasySubwayAccessibleColors.iconMuted,
-                  ),
+                  if (isPageField)
+                    IconButton(
+                      key: backButtonKey,
+                      tooltip: '뒤로',
+                      onPressed: onBack,
+                      style: IconButton.styleFrom(
+                        minimumSize: const Size.square(
+                          EasySubwayTouchTarget.iconOnly,
+                        ),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        padding: EdgeInsets.zero,
+                      ),
+                      icon: const Icon(
+                        Icons.arrow_back_ios_new,
+                        size: easySubwaySearchFieldIconSize,
+                        color: EasySubwayAccessibleColors.text,
+                      ),
+                    )
+                  else
+                    const Icon(
+                      Icons.search,
+                      size: easySubwaySearchFieldIconSize,
+                      color: EasySubwayAccessibleColors.iconMuted,
+                    ),
                   const SizedBox(width: easySubwaySearchFieldIconGap),
                   Expanded(
                     // 바깥(56·배율확대)이 터치타겟 높이를 차지하고, 그 안 Center가
@@ -266,8 +305,8 @@ class EasySubwaySearchField extends StatelessWidget {
                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                             padding: EdgeInsets.zero,
                           ),
-                          icon: const Icon(
-                            Icons.close,
+                          icon: Icon(
+                            isPageField ? Icons.cancel : Icons.close,
                             size: easySubwaySearchFieldIconSize,
                             color: EasySubwayAccessibleColors.iconMuted,
                           ),
@@ -319,6 +358,51 @@ class EasySubwaySearchField extends StatelessWidget {
     }
     return MergeSemantics(
       child: Semantics(label: label, textField: true, child: child),
+    );
+  }
+}
+
+/// 역 검색 화면과 노선도 홈 검색 모드가 같이 쓰는 흰 상단바 내용. 외곽선 검색
+/// 필드 아래에 결과 목록과 나누는 옅은 띠를 붙인다.
+class EasySubwaySearchBar extends StatelessWidget {
+  const EasySubwaySearchBar({
+    required this.field,
+    required this.contentHeight,
+    this.contentKey,
+    this.separatorKey,
+    super.key,
+  });
+
+  final Widget field;
+  final double contentHeight;
+  final Key? contentKey;
+  final Key? separatorKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SafeArea(
+          bottom: false,
+          child: SizedBox(
+            key: contentKey,
+            height: contentHeight,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 6),
+              child: field,
+            ),
+          ),
+        ),
+        ColoredBox(
+          key: separatorKey,
+          color: EasySubwayAccessibleColors.surfaceSubtle,
+          child: const SizedBox(
+            width: double.infinity,
+            height: easySubwaySearchBarSeparatorHeight,
+          ),
+        ),
+      ],
     );
   }
 }
