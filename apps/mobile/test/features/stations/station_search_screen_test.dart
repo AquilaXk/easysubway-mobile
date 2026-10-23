@@ -135,6 +135,36 @@ void main() {
     expect(find.byIcon(Icons.close), findsNothing);
   });
 
+  testWidgets('역 검색 뒤로가기를 누르면 검색 화면이 닫힌다', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () => Navigator.of(context).push(
+              MaterialPageRoute<void>(
+                builder: (_) => StationSearchScreen(
+                  repository: _EmptyStationSearchRepository(),
+                  reportRepository: const UnavailableFacilityReportRepository(),
+                  regionLabel: '수도권',
+                ),
+              ),
+            ),
+            child: const Text('검색 열기'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('검색 열기'));
+    await tester.pumpAndSettle();
+    expect(find.byKey(const Key('stationSearchScreen')), findsOneWidget);
+
+    await tester.tap(find.byKey(const Key('stationSearchBackButton')));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const Key('stationSearchScreen')), findsNothing);
+    expect(find.text('검색 열기'), findsOneWidget);
+  });
+
   testWidgets('역 검색어를 지우면 결과를 닫고 최근 검색 상태로 돌아간다', (tester) async {
     final repository = _EmptyStationSearchRepository(
       queryResults: {

@@ -113,6 +113,35 @@ void main() {
       );
     });
 
+    testWidgets('호선이 없는 역은 노선 마크 없이 한 행이고 탭하면 호선 없이 선택된다', (tester) async {
+      final tapped = <(String, String?)>[];
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StationSearchBody(
+              state: StationSearchState(
+                status: StationSearchStatus.success,
+                results: [_station('no-line', '무호선', const [])],
+              ),
+              query: '무',
+              onResultTap: (result, line) => tapped.add((result.id, line?.id)),
+            ),
+          ),
+        ),
+      );
+
+      final row = find.byKey(const Key('stationSearchResult-no-line-none'));
+      expect(row, findsOneWidget);
+      expect(
+        find.descendant(of: row, matching: find.byType(StationLineBadge)),
+        findsNothing,
+      );
+      expect(find.bySemanticsLabel('무호선역, 선택'), findsOneWidget);
+
+      await tester.tap(row);
+      expect(tapped, [('no-line', null)]);
+    });
+
     testWidgets('즐겨찾기 별과 토글 버튼이 없다', (tester) async {
       await pumpBody(tester);
 
