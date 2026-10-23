@@ -459,9 +459,35 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
     }
 
     // 경로 상세의 `시간표` 칩. 역 상세의 `전체 시간표`와 같은 화면을 연다.
+    void showStationLookupFailure(String message) {
+      if (!context.mounted) return;
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.hideCurrentSnackBar();
+      messenger.showSnackBar(SnackBar(content: Text(message)));
+    }
+
     Future<void> openStationTimetable(String stationId) async {
-      final detail = await repository.getStationDetail(stationId);
-      if (!context.mounted || detail.id != stationId) return;
+      const lookupFailureMessage = '역 정보를 불러오지 못했어요.';
+      final StationDetail detail;
+      try {
+        detail = await repository.getStationDetail(stationId);
+      } on StationSearchException catch (error) {
+        showStationLookupFailure(error.message);
+        return;
+      } catch (error, stackTrace) {
+        reportMobileError(
+          error,
+          stackTrace,
+          context: '경로 상세 시간표 역 조회 중 예외가 발생했습니다.',
+        );
+        showStationLookupFailure(lookupFailureMessage);
+        return;
+      }
+      if (!context.mounted) return;
+      if (detail.id != stationId) {
+        showStationLookupFailure(lookupFailureMessage);
+        return;
+      }
       await Navigator.of(context).push<void>(
         MaterialPageRoute<void>(
           builder: (_) => StationTimetableScreen(

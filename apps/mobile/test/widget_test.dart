@@ -2641,6 +2641,36 @@ void main() {
     expect(repository.requestedDetailStationIds, contains('station-sadang'));
   });
 
+  for (final (name, repository) in <(String, FakeStationSearchRepository)>[
+    ('역 조회가 실패하면', _FailingStationDetailRepository()),
+    ('조회한 역이 요청한 역과 다르면', FakeStationSearchRepository()),
+  ]) {
+    testWidgets('경로 상세의 시간표 칩은 $name 안내를 보이고 시간표를 열지 않는다', (tester) async {
+      await tester.pumpWidget(
+        buildEasySubwayTestApp(
+          repository: repository,
+          reportRepository: FakeFacilityReportRepository(),
+          favoriteRepository: FakeFavoriteStationRepository(),
+          favoriteRouteRepository: FakeFavoriteRouteRepository(),
+          notificationRepository: FakeNotificationSettingsRepository(),
+          initialOnboardingState: _completedOnboardingState(),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _openJourneySearchScreen(tester);
+      final screen = tester.widget<JourneySearchScreen>(
+        find.byType(JourneySearchScreen),
+      );
+
+      screen.onOpenStationTimetable!('station-unknown');
+      await tester.pumpAndSettle();
+
+      expect(find.text('역 정보를 불러오지 못했어요.'), findsOneWidget);
+      expect(find.byType(StationTimetableScreen), findsNothing);
+      expect(find.byType(JourneySearchScreen), findsOneWidget);
+    });
+  }
+
   testWidgets('결과 화면에서 뒤로가기로 홈에 오면 상단바가 빈 검색바로 복귀한다', (tester) async {
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -17167,6 +17197,13 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
 }
 
 /// #2453: 로컬 시간표 Future를 완료하지 않아 패널 첫 프레임 골격을 검증한다.
+class _FailingStationDetailRepository extends FakeStationSearchRepository {
+  @override
+  Future<StationDetail> getStationDetail(String stationId) async {
+    throw const StationSearchException('역 정보를 불러오지 못했어요.');
+  }
+}
+
 class _HangingTimetableStationRepository extends FakeStationSearchRepository
     implements StationTimetableRepository {
   _HangingTimetableStationRepository({
