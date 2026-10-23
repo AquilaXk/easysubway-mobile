@@ -185,6 +185,23 @@ void main() {
     }
   });
 
+  testWidgets('주차장·유실물센터·물품보관소도 원천이 확인한 경우에만 있음으로 그린다', (tester) async {
+    await _pumpDetail(
+      tester,
+      facilities: [
+        _installed('PARKING', '환승 주차장'),
+        _installed('LOST_ITEM', '유실물 센터'),
+        _installed('LOCKER', '물품 보관함'),
+      ],
+    );
+
+    expect(_announced('환승주차장 있음'), findsOneWidget);
+    expect(_announced('유실물센터 있음'), findsOneWidget);
+    expect(_announced('물품보관소 있음'), findsOneWidget);
+    expect(find.text('자전거보관소'), findsNothing);
+    expect(find.text('교통약자 시설'), findsNothing);
+  });
+
   testWidgets('엘리베이터 연결이 확인되지 않은 출구는 엘리베이터 없음을 읽지 않는다', (tester) async {
     const exit = StationExitInfo(
       id: 'exit-geumnamno-1',
