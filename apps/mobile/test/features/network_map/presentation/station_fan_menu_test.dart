@@ -1,9 +1,10 @@
-import 'dart:ui' show SemanticsAction;
+import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show OrdinalSortKey;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -12,6 +13,7 @@ Future<void> _pump(
   double? width,
   Set<RouteDraftSlot> selected = const {},
   Set<RouteDraftSlot> disabled = const {},
+  String? stationName,
   required void Function(RouteDraftSlot) onAction,
   required VoidCallback onClose,
 }) async {
@@ -22,6 +24,7 @@ Future<void> _pump(
         body: Center(
           child: StationFanMenu(
             width: menuWidth,
+            stationName: stationName,
             selectedSlots: selected,
             disabledSlots: disabled,
             onAction: onAction,
@@ -112,7 +115,7 @@ void main() {
         hasEnabledState: true,
       ),
     );
-    node.owner!.performAction(node.id, SemanticsAction.tap);
+    node.owner!.performAction(node.id, ui.SemanticsAction.tap);
     await tester.pump();
     expect(actions, isEmpty);
     semantics.dispose();
@@ -124,6 +127,38 @@ void main() {
     expect(find.bySemanticsLabel('경유지로 추가'), findsOneWidget);
     expect(find.bySemanticsLabel('도착역으로 설정'), findsOneWidget);
     expect(find.bySemanticsLabel('메뉴 닫기'), findsOneWidget);
+  });
+
+  testWidgets('역명을 넘기면 메뉴 그룹 Semantics 라벨로 역명을 안내한다', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(
+      tester,
+      stationName: ' 가오리역 ',
+      onAction: (_) {},
+      onClose: () {},
+    );
+
+    expect(find.bySemanticsLabel('가오리역 메뉴'), findsOneWidget);
+    expect(find.bySemanticsLabel('출발역으로 설정'), findsOneWidget);
+    expect(find.bySemanticsLabel('메뉴 닫기'), findsOneWidget);
+    semantics.dispose();
+  });
+
+  testWidgets('이미 역으로 끝나는 표시명도 역을 두 번 읽지 않는다', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, stationName: '서울역', onAction: (_) {}, onClose: () {});
+
+    expect(find.bySemanticsLabel('서울역 메뉴'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('역 역')), findsNothing);
+    semantics.dispose();
+  });
+
+  testWidgets('역명이 없거나 공백이면 그룹 Semantics 라벨을 만들지 않는다', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await _pump(tester, stationName: '  ', onAction: (_) {}, onClose: () {});
+
+    expect(find.bySemanticsLabel(RegExp('메뉴\$')), findsNothing);
+    semantics.dispose();
   });
 
   testWidgets('Semantics 탐색 순서는 출발·경유·도착·닫기다', (tester) async {
@@ -250,5 +285,43 @@ void main() {
     await first.up();
     await tester.pump();
     expect(actions, [RouteDraftSlot.origin]);
+  });
+
+  testWidgets('역명을 넘겨도 가운데에 역명을 그리지 않는다', (tester) async {
+    const boundaryKey = ValueKey('station-fan-menu-pixel-boundary');
+    Future<List<int>> pumpAndCapture(String? stationName) async {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: StationFanMenu(
+                  width: kFanMenuDesignSize.width,
+                  stationName: stationName,
+                  selectedSlots: const {},
+                  disabledSlots: const {},
+                  onAction: (_) {},
+                  onClose: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final boundary =
+          tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        return image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      });
+      return bytes!.buffer.asUint8List();
+    }
+
+    final withoutName = await pumpAndCapture(null);
+    final withName = await pumpAndCapture('가오리');
+
+    expect(withName, orderedEquals(withoutName));
   });
 }
