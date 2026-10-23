@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:math' as math;
 
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_station_line_bar.dart';
@@ -346,8 +345,12 @@ void main() {
     },
   );
 
-  for (final scale in [1.0, 1.5, 2.0]) {
-    testWidgets('글자 $scale배에서 번들 PNG 마크와 알약 마크는 같은 높이로 자란다', (tester) async {
+  // 마크 한 변은 글자 배율을 따라 20, 26(1.3배 상한), 26으로 자란다. 기대값은
+  // 상수로 계산하지 않고 값 그대로 적어 상한이 바뀌면 이 표가 먼저 깨진다.
+  for (final (scale, side) in [(1.0, 20.0), (1.5, 26.0), (2.0, 26.0)]) {
+    testWidgets('글자 $scale배에서 번들 PNG 마크와 알약 마크는 한 변 $side로 같은 높이가 된다', (
+      tester,
+    ) async {
       const png = StationSearchLine(
         id: 'seoul-2',
         name: '수도권 2호선',
@@ -384,7 +387,6 @@ void main() {
         ),
       );
 
-      final markScale = math.min<double>(scale, lineMarkMaxTextScale);
       final pngMark = tester.getSize(
         find.byKey(const Key('stationLineBadge-seoul-2')).first,
       );
@@ -394,9 +396,9 @@ void main() {
       final overflowMark = tester.getSize(
         find.byKey(const Key('stationLineBadgeOverflow')),
       );
-      expect(pngMark, Size.square(20 * markScale));
-      expect(pillMark.height, 20 * markScale);
-      expect(overflowMark, Size.square(20 * markScale));
+      expect(pngMark, Size.square(side));
+      expect(pillMark.height, side);
+      expect(overflowMark, Size.square(side));
     });
   }
 

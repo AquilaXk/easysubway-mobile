@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -62,23 +60,40 @@ void main() {
   RenderParagraph paragraphOf(WidgetTester tester, String label) =>
       tester.renderObject<RenderParagraph>(find.text(label));
 
-  for (final scale in [1.0, 1.5, 2.0]) {
-    for (final label in ['2', '경의중앙']) {
-      testWidgets('글자 $scale배에서 $label 글자는 한 줄로 마크 안에 들어간다', (tester) async {
-        await _pump(
-          tester,
-          LineMark(label: label, color: color),
-          scale: scale,
-        );
+  // 실제 레이아웃에서 잰 값을 그대로 적었다. 기대값을 상한 상수로 계산하면 상한을
+  // 1.0으로 바꾸거나 글자만 배율을 놓쳐도 같이 따라가 통과한다. 글자 크기는
+  // 20 * 0.6 = 12, 20 * 0.58 = 11.6에 배율(최대 1.3)을 곱한 15.6과 15.08이다.
+  // 알약 폭은 4글자 알약의 글자 폭에 좌우 여백(높이의 0.33배씩)을 더한 값이다.
+  for (final (scale, label, side, width, fontSize) in [
+    (1.0, '2', 20.0, 20.0, 12.0),
+    (1.3, '2', 26.0, 26.0, 15.6),
+    (1.5, '2', 26.0, 26.0, 15.6),
+    (2.0, '2', 26.0, 26.0, 15.6),
+    (1.0, '경의중앙', 20.0, 60.6, 11.6),
+    (1.0, '수인분당', 20.0, 60.6, 11.6),
+    (1.3, '경의중앙', 26.0, 78.48, 15.08),
+    (1.5, '경의중앙', 26.0, 78.48, 15.08),
+    (2.0, '경의중앙', 26.0, 78.48, 15.08),
+    (2.0, '수인분당', 26.0, 78.48, 15.08),
+  ]) {
+    testWidgets('글자 $scale배에서 $label 마크는 한 변 $side, 폭 $width, 글자 $fontSize다', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        LineMark(label: label, color: color),
+        scale: scale,
+      );
 
-        final mark = tester.getSize(find.byType(LineMark));
-        final paragraph = paragraphOf(tester, label);
-        expect(paragraph.didExceedMaxLines, isFalse);
-        expect(paragraph.textSize.height, lessThanOrEqualTo(mark.height));
-        expect(paragraph.textSize.width, lessThanOrEqualTo(mark.width));
-        expect(mark.height, 20 * math.min(scale, lineMarkMaxTextScale));
-      });
-    }
+      final mark = tester.getSize(find.byType(LineMark));
+      final paragraph = paragraphOf(tester, label);
+      expect(mark.height, side);
+      expect(mark.width, closeTo(width, 0.05));
+      expect(paragraph.text.style!.fontSize, closeTo(fontSize, 0.001));
+      expect(paragraph.didExceedMaxLines, isFalse);
+      expect(paragraph.textSize.height, lessThanOrEqualTo(mark.height));
+      expect(paragraph.textSize.width, lessThanOrEqualTo(mark.width));
+    });
   }
 
   // 상용 서비스 역 검색 화면 3x 캡처 실측: 높이 18pt 알약의 폭은 수인분당 53.7pt,
