@@ -1,4 +1,6 @@
 import '../../../../generated/journey_v3/journey_v3_contract.dart';
+import '../../../route_draft/domain/route_draft.dart';
+import '../../../stations/domain/station_line.dart';
 
 /// 역 ID를 화면에 보일 역 이름으로 바꾼다.
 typedef JourneyStationNameLookup = String Function(String stationId);
@@ -9,25 +11,29 @@ class JourneyResultViewModel {
     required this.summary,
     required this.segments,
     required this.timeline,
+    required this.firstBoardingTime,
+    required this.basisLabel,
   });
 
+  /// [basis]는 서버가 검색에 쓴 기준 시각(`effectiveDepartureTime`)이다. 막차처럼
+  /// 앱이 기준 시각을 받지 못한 검색은 null이고, 그러면 기준 시각 줄과 열차의 남은
+  /// 분을 만들지 않는다.
   factory JourneyResultViewModel.fromJourney(
     Journey journey, {
     required JourneyStationNameLookup stationName,
+    DateTime? basis,
   }) {
-    final departureTime = journeyKstTime(
-      journey.realtimeDepartureTime ?? journey.plannedDepartureTime,
-    );
-    final arrivalTime = journeyKstTime(
-      journey.realtimeArrivalTime ?? journey.plannedArrivalTime,
-    );
+    final departure =
+        journey.realtimeDepartureTime ?? journey.plannedDepartureTime;
+    final arrival = journey.realtimeArrivalTime ?? journey.plannedArrivalTime;
     final segments = <JourneyResultSegment>[];
     final timeline = <JourneyTimelineNode>[];
-    for (var index = 0; index < journey.legs.length; index++) {
-      switch (journey.legs[index]) {
+    final legs = journey.legs;
+    for (var index = 0; index < legs.length; index++) {
+      switch (legs[index]) {
         case JourneyEntryLeg(:final fromStationId, :final durationSeconds):
           segments.add(
-            JourneyResultSegment._(
+            JourneyResultSegment._walk(
               JourneyResultSegmentKind.entry,
               durationSeconds,
             ),
@@ -36,23 +42,22 @@ class JourneyResultViewModel {
             JourneyDepartureNode._(
               legIndex: index,
               stationName: stationName(fromStationId),
-              departureTime: departureTime,
+              departureTime: journeyKstTime(departure),
               walkLabel: '승강장까지 도보 ${_minutesLabel(durationSeconds)}',
             ),
           );
         case final JourneyRideLeg leg:
-          final node = JourneyRideNode._fromLeg(index, leg, stationName);
-          segments.add(
-            JourneyResultSegment._(
-              JourneyResultSegmentKind.ride,
-              node.rideSeconds,
-              lineId: leg.lineId,
-            ),
+          final node = JourneyRideNode._fromLeg(
+            index,
+            leg,
+            stationName,
+            basis: basis,
           );
+          segments.add(JourneyResultSegment._ride(node));
           timeline.add(node);
         case final JourneyTransferLeg leg:
           segments.add(
-            JourneyResultSegment._(
+            JourneyResultSegment._walk(
               JourneyResultSegmentKind.transfer,
               leg.durationSeconds,
             ),
@@ -62,12 +67,13 @@ class JourneyResultViewModel {
               legIndex: index,
               stationName: stationName(leg.fromStationId),
               walkMinutesLabel: _minutesLabel(leg.durationSeconds),
+              waitSeconds: _transferWaitSeconds(legs, index),
               leg: leg,
             ),
           );
         case JourneyExitLeg(:final fromStationId, :final durationSeconds):
           segments.add(
-            JourneyResultSegment._(
+            JourneyResultSegment._walk(
               JourneyResultSegmentKind.exit,
               durationSeconds,
             ),
@@ -76,31 +82,46 @@ class JourneyResultViewModel {
             JourneyArrivalNode._(
               legIndex: index,
               stationName: stationName(fromStationId),
-              arrivalTime: arrivalTime,
+              arrivalTime: journeyKstTime(arrival),
               walkLabel: '출구까지 도보 ${_minutesLabel(durationSeconds)}',
             ),
           );
       }
     }
+    final firstBoarding = switch (legs
+        .whereType<JourneyRideLeg>()
+        .firstOrNull) {
+      final JourneyRideLeg ride => _effectiveDeparture(ride),
+      null => departure,
+    };
     return JourneyResultViewModel._(
       summary: JourneyResultSummary._(
         durationMinutes: _minutes(journey.durationSeconds),
-        departureTime: departureTime,
-        arrivalTime: arrivalTime,
+        departure: departure,
+        arrival: arrival,
         transferLabel: journeyTransferLabel(journey.transferCount),
         fareLabel: journeyFareLabel(journey.fare),
-        walkLabel: '도보 ${journey.walkingDistanceMeters}m',
-        isRealtime: journey.timeSource == JourneyTimeSource.realtime,
         isStairFree: journey.accessibility.stairFree,
       ),
       segments: List.unmodifiable(segments),
       timeline: List.unmodifiable(timeline),
+      firstBoardingTime: firstBoarding,
+      basisLabel: switch (basis) {
+        final DateTime value => _basisLabel(value, firstBoarding),
+        null => null,
+      },
     );
   }
 
   final JourneyResultSummary summary;
   final List<JourneyResultSegment> segments;
   final List<JourneyTimelineNode> timeline;
+
+  /// 첫 열차의 출발 시각(실시간 ?? 계획). `다음열차`는 이 시각 1분 뒤로 다시 찾는다.
+  final DateTime firstBoardingTime;
+
+  /// `오전 12:36 기준 (출발 대기 4시간 35분)`. 기준 시각이 없으면 null이다.
+  final String? basisLabel;
 
   /// 구간 막대 전체를 읽는 Semantics 라벨.
   String get segmentsSemanticsLabel {
@@ -109,7 +130,8 @@ class JourneyResultViewModel {
         JourneyResultSegmentKind.entry ||
         JourneyResultSegmentKind.exit => '도보 ${segment.minutesLabel}',
         JourneyResultSegmentKind.ride =>
-          '${journeyLineName(segment.lineId!)} ${segment.minutesLabel}',
+          '${journeyLineName(segment.lineId!)} ${segment.boardingStationName} '
+              '${segment.departureTime} 출발 ${segment.minutesLabel}',
         JourneyResultSegmentKind.transfer => '환승 도보 ${segment.minutesLabel}',
       },
     );
@@ -117,52 +139,104 @@ class JourneyResultViewModel {
   }
 }
 
+String _basisLabel(DateTime basis, DateTime firstBoarding) {
+  final waitSeconds = firstBoarding.difference(basis).inSeconds;
+  final label = '${journeyKstClock(basis)} 기준';
+  if (waitSeconds < Duration.secondsPerMinute) return label;
+  return '$label (출발 대기 ${journeyDurationLabel(_minutes(waitSeconds))})';
+}
+
+DateTime _effectiveDeparture(JourneyRideLeg leg) =>
+    leg.realtimeDepartureTime ?? leg.plannedDepartureTime;
+
+DateTime _effectiveArrival(JourneyRideLeg leg) =>
+    leg.realtimeArrivalTime ?? leg.plannedArrivalTime;
+
+/// 환승 대기: 다음 열차 출발 − 앞 열차 도착 − 환승 도보. 서버 RAPTOR가 환승
+/// 여유를 계산하는 식과 같다(backend `RouteTimetableRaptorPlanner`의 connection
+/// slack). 앞뒤가 탑승이 아니면 계산하지 않는다.
+int? _transferWaitSeconds(List<JourneyLeg> legs, int transferIndex) {
+  if (transferIndex == 0 || transferIndex + 1 >= legs.length) return null;
+  final (previous, next) = (legs[transferIndex - 1], legs[transferIndex + 1]);
+  if (previous is! JourneyRideLeg || next is! JourneyRideLeg) return null;
+  final transfer = legs[transferIndex] as JourneyTransferLeg;
+  return _effectiveDeparture(
+        next,
+      ).difference(_effectiveArrival(previous)).inSeconds -
+      transfer.durationSeconds;
+}
+
 class JourneyResultSummary {
   const JourneyResultSummary._({
     required this.durationMinutes,
-    required this.departureTime,
-    required this.arrivalTime,
+    required this.departure,
+    required this.arrival,
     required this.transferLabel,
     required this.fareLabel,
-    required this.walkLabel,
-    required this.isRealtime,
     required this.isStairFree,
   });
 
   final int durationMinutes;
-  final String departureTime;
-  final String arrivalTime;
+
+  /// 실시간 ?? 계획 출발·도착 시각.
+  final DateTime departure;
+  final DateTime arrival;
   final String transferLabel;
   final String? fareLabel;
-  final String walkLabel;
-  final bool isRealtime;
   final bool isStairFree;
 
-  String get durationLabel => '$durationMinutes분';
+  /// `2시간 17분`, 1시간 미만이면 `45분`.
+  String get durationLabel => journeyDurationLabel(durationMinutes);
 
-  String get timesLabel => '$departureTime 출발 → $arrivalTime 도착';
+  /// 숫자와 단위 쌍. 숫자만 크게 그리고 단위는 작게 그린다.
+  List<(String, String)> get durationParts =>
+      journeyDurationParts(durationMinutes);
 
-  String get detailLabel => [transferLabel, ?fareLabel, walkLabel].join(' · ');
+  /// `HH:mm` 도착 시각(공유 문구용).
+  String get arrivalTime => journeyKstTime(arrival);
+
+  /// `오전 5:11 - 오전 7:28`.
+  String get timesLabel =>
+      '${journeyKstClock(departure)} - ${journeyKstClock(arrival)}';
 
   String get semanticsLabel => [
-    '$durationMinutes분 소요',
-    '$departureTime 출발',
-    '$arrivalTime 도착',
+    '$durationLabel 소요',
+    '${journeyKstSpokenClock(departure)} 출발',
+    '${journeyKstSpokenClock(arrival)} 도착',
     transferLabel,
     ?fareLabel,
-    walkLabel,
-    if (isRealtime) '실시간 반영',
   ].join(', ');
 }
 
 enum JourneyResultSegmentKind { entry, ride, transfer, exit }
 
 class JourneyResultSegment {
-  const JourneyResultSegment._(this.kind, this.seconds, {this.lineId});
+  const JourneyResultSegment._walk(this.kind, this.seconds)
+    : lineId = null,
+      lineMarkLabel = null,
+      departureTime = null,
+      boardingStationName = null;
+
+  JourneyResultSegment._ride(JourneyRideNode node)
+    : kind = JourneyResultSegmentKind.ride,
+      seconds = node.rideSeconds,
+      lineId = node.lineId,
+      lineMarkLabel = stationLineBadgeText(node.lineName),
+      departureTime = node.departureTime,
+      boardingStationName = node.boardingStationName;
 
   final JourneyResultSegmentKind kind;
   final int seconds;
   final String? lineId;
+
+  /// 막대 안 흰 원의 노선 약칭(`1`, `수인분당`). 탑승 구간만 있다.
+  final String? lineMarkLabel;
+
+  /// 막대 위 출발 시각(`05:11`). 탑승 구간만 있다.
+  final String? departureTime;
+
+  /// 막대 아래 승차역 이름. 탑승 구간만 있다.
+  final String? boardingStationName;
 
   String get minutesLabel => _minutesLabel(seconds);
 }
@@ -196,47 +270,52 @@ final class JourneyRideNode extends JourneyTimelineNode {
     required this.lineName,
     required this.directionLabel,
     required this.departureTime,
+    required this.arrivalTime,
     required this.isExpress,
-    required this.carDoorLabel,
+    required this.carDoorLines,
     required this.carDoorSemanticsLabel,
     required this.stopCount,
     required this.rideMinutes,
     required this.intermediateStops,
+    required this.boardingStationId,
+    required this.alightingStationId,
     required this.boardingStationName,
     required this.alightingStationName,
     required this.boardingPlatformGaps,
     required this.alightingPlatformGaps,
     required this.rideSeconds,
+    required this.remainingMinutes,
   }) : super(legIndex);
 
   factory JourneyRideNode._fromLeg(
     int legIndex,
     JourneyRideLeg leg,
-    JourneyStationNameLookup stationName,
-  ) {
-    final departure = leg.realtimeDepartureTime ?? leg.plannedDepartureTime;
-    final arrival = leg.realtimeArrivalTime ?? leg.plannedArrivalTime;
+    JourneyStationNameLookup stationName, {
+    required DateTime? basis,
+  }) {
+    final departure = _effectiveDeparture(leg);
+    final arrival = _effectiveArrival(leg);
     final rideSeconds = arrival.difference(departure).inSeconds;
     final doors = leg.alightingCarDoors.take(2).toList(growable: false);
     final stops = leg.stops;
+    final realtimeDeparture = leg.realtimeDepartureTime;
     return JourneyRideNode._(
       legIndex: legIndex,
       lineId: leg.lineId,
       lineName: journeyLineName(leg.lineId),
       directionLabel: leg.directionStationId.isEmpty
           ? null
-          : '${stationName(leg.directionStationId)} 방면',
+          : '${stationNameWithSuffix(stationName(leg.directionStationId))} 방면',
       departureTime: journeyKstTime(departure),
+      arrivalTime: journeyKstTime(arrival),
       isExpress: leg.servicePattern == JourneyServicePattern.express,
-      carDoorLabel: doors.isEmpty
-          ? null
-          : doors
-                .map(
-                  (door) =>
-                      '${_carDoorPrefix(door.targetFacilityType)} '
-                      '${door.carNumber}-${door.doorNumber}',
-                )
-                .join(' · '),
+      carDoorLines: List.unmodifiable(
+        doors.map(
+          (door) =>
+              '${_carDoorPrefix(door.targetFacilityType)}: '
+              '${door.carNumber}-${door.doorNumber}',
+        ),
+      ),
       carDoorSemanticsLabel: doors.isEmpty
           ? null
           : doors
@@ -264,30 +343,43 @@ final class JourneyRideNode extends JourneyTimelineNode {
               ),
             ),
       ),
+      boardingStationId: leg.fromStationId,
+      alightingStationId: leg.toStationId,
       boardingStationName: stationName(leg.fromStationId),
       alightingStationName: stationName(leg.toStationId),
       boardingPlatformGaps: leg.boardingPlatformGaps,
       alightingPlatformGaps: leg.alightingPlatformGaps,
       rideSeconds: rideSeconds,
+      remainingMinutes: switch ((realtimeDeparture, basis)) {
+        (final DateTime realtime, final DateTime from)
+            when !realtime.isBefore(from) =>
+          _minutes(realtime.difference(from).inSeconds),
+        _ => null,
+      },
     );
   }
 
   final String lineId;
   final String lineName;
 
-  /// `○○ 방면`. 서버가 방면 역을 주지 않으면 null이다.
+  /// `○○역 방면`. 서버가 방면 역을 주지 않으면 null이다.
   final String? directionLabel;
   final String departureTime;
+
+  /// 하차역 도착 시각(`HH:mm`).
+  final String arrivalTime;
   final bool isExpress;
 
-  /// 탑승 위치 안내(`빠른 환승 3-2 · 엘리베이터 가까운 문 4-1`). 서버 순서 앞 2개.
-  final String? carDoorLabel;
+  /// 칸-문 안내 줄(`빠른 환승: 3-2`, `엘리베이터 가까운 문: 4-1`). 서버 순서 앞 2개.
+  final List<String> carDoorLines;
 
   /// 칸-문 안내의 스크린리더 문구(`빠른 환승 3호차 2번 문`).
   final String? carDoorSemanticsLabel;
   final int stopCount;
   final int rideMinutes;
   final List<JourneyIntermediateStop> intermediateStops;
+  final String boardingStationId;
+  final String alightingStationId;
   final String boardingStationName;
   final String alightingStationName;
   final List<JourneyPlatformGap> boardingPlatformGaps;
@@ -295,6 +387,24 @@ final class JourneyRideNode extends JourneyTimelineNode {
 
   /// (실시간 도착 ?? 계획 도착) − (실시간 출발 ?? 계획 출발).
   final int rideSeconds;
+
+  /// 서버가 실시간 출발을 준 열차만 기준 시각부터 출발까지 남은 분이 있다.
+  final int? remainingMinutes;
+
+  String get boardingHeading => stationNameWithSuffix(boardingStationName);
+
+  String get alightingHeading => stationNameWithSuffix(alightingStationName);
+
+  /// 열차 카드의 남은 분(`11분`).
+  String? get remainingLabel => switch (remainingMinutes) {
+    final int minutes => '$minutes분',
+    null => null,
+  };
+
+  String get trainSemanticsLabel => [
+    '$departureTime 출발 열차',
+    if (remainingLabel case final remaining?) '$remaining 남음',
+  ].join(', ');
 
   String get stopToggleLabel => '$stopCount개 역 이동 · $rideMinutes분';
 
@@ -312,11 +422,15 @@ final class JourneyTransferNode extends JourneyTimelineNode {
     required int legIndex,
     required this.stationName,
     required this.walkMinutesLabel,
+    required this.waitSeconds,
     required this.leg,
   }) : super(legIndex);
 
   final String stationName;
   final String walkMinutesLabel;
+
+  /// 다음 열차 출발 − 앞 열차 도착 − 환승 도보(초). 앞뒤가 탑승이 아니면 null이다.
+  final int? waitSeconds;
 
   /// 역 밖 환승 배지·재승차 안내가 읽는 원본 환승 구간.
   final JourneyTransferLeg leg;
@@ -324,9 +438,17 @@ final class JourneyTransferNode extends JourneyTimelineNode {
   /// 재승차가 있으면 환승 노드에 이 문구만 표시한다(금액은 표시하지 않는다).
   static const reboardingFareLabel = '재승차 운임 발생';
 
-  String get walkLabel => '환승 · 도보 $walkMinutesLabel';
+  String get walkLabel => '도보 $walkMinutesLabel';
 
-  String get semanticsLabel => '$stationName 환승, 도보 $walkMinutesLabel';
+  /// `환승 대기 3분`. 대기가 1분 미만이거나 앞뒤가 탑승이 아니면 null이다.
+  String? get waitLabel => switch (waitSeconds) {
+    final int seconds when seconds >= Duration.secondsPerMinute =>
+      '환승 대기 ${journeyDurationLabel(_minutes(seconds))}',
+    _ => null,
+  };
+
+  String get semanticsLabel =>
+      ['$stationName 환승', walkLabel, ?waitLabel].join(', ');
 }
 
 final class JourneyArrivalNode extends JourneyTimelineNode {
@@ -351,39 +473,30 @@ class JourneyIntermediateStop {
 
   /// 서버가 시각을 하나도 주지 않은 정차역이면 null이다.
   final String? time;
+
+  String get heading => stationNameWithSuffix(name);
 }
 
-/// 경로 탭 하나의 표시 값.
-class JourneyRouteTab {
-  const JourneyRouteTab._({
-    required this.journeyId,
-    required this.labels,
-    required this.durationLabel,
-    required this.transferLabel,
-    required this.arrivalTime,
-  });
+/// 결과 탭의 기준. 서버 대표 묶음(`alternativeCategories`)과 같은 순서다.
+enum JourneyCriterion { fastest, fewestTransfers, stairFree }
 
+/// 기준 탭 하나. 상용 지하철 서비스의 `최단시간`·`최소환승` 탭처럼 기준마다 한
+/// 탭이고, 탭은 그 기준을 대표하는 서버 여정 하나를 가리킨다.
+class JourneyCriterionTab {
+  const JourneyCriterionTab._(this.criterion, this.journeyId);
+
+  final JourneyCriterion criterion;
   final String journeyId;
-  final List<String> labels;
-  final String durationLabel;
-  final String transferLabel;
-  final String arrivalTime;
 
-  String get semanticsLabel =>
-      [...labels, durationLabel, transferLabel, '$arrivalTime 도착'].join(', ');
+  String get label => switch (criterion) {
+    JourneyCriterion.fastest => '최단시간',
+    JourneyCriterion.fewestTransfers => '최소환승',
+    JourneyCriterion.stairFree => journeyStairFreeCategoryLabel,
+  };
 }
 
 /// 계단 없는 경로 라벨. 상용 지하철 서비스의 계단 없는 경로 분류를 쉬운 말로 쓴다(#441 QA).
 const journeyStairFreeCategoryLabel = '계단 없는 경로';
-const _fastestLabel = '빠른 경로';
-const _fewestTransfersLabel = '환승 적은 경로';
-
-String _alternativeCategoryLabel(JourneyAlternativeCategory category) =>
-    switch (category) {
-      JourneyAlternativeCategory.fastest => _fastestLabel,
-      JourneyAlternativeCategory.fewestTransfers => _fewestTransfersLabel,
-      JourneyAlternativeCategory.stairFree => journeyStairFreeCategoryLabel,
-    };
 
 /// 계단 표시(계단 없는 경로 라벨, 계단 상태 안내)가 필요한 검색인지(#441 QA).
 /// 계단 없는 경로가 필요한 이동 프로필(NO_STAIRS·STEP_FREE)이거나 계단 없는 경로를
@@ -394,75 +507,62 @@ bool journeyShowsStairStatus(JourneyRequestPolicy policy) =>
     policy.mobilityProfile == MobilityProfile.noStairs ||
     policy.mobilityProfile == MobilityProfile.stepFree;
 
-/// 후보 목록(서버 순서)에서 경로 탭을 만든다. 라벨은 소요시간·환승 횟수·계단 없음
-/// 사실에서만 만들고, 순서만으로 라벨을 붙이지 않는다.
-///
-/// 서버가 여정마다 대표 묶음(`alternativeCategories`, backend #471)을 주면 그
-/// 묶음을 라벨로 쓴다. 묶음을 주지 않는 서버 응답이면 사실에서 라벨을 만든다.
-/// [showStairStatus]가 false면 계단 없는 경로 라벨을 붙이지 않는다.
-List<JourneyRouteTab> journeyRouteTabs(
+/// 서버 여정에서 기준 탭을 만든다. 모든 여정에 대표 묶음(`alternativeCategories`,
+/// backend #471)이 있으면 묶음을 대표하는 여정을 쓴다. 묶음이 없는 응답(프로필
+/// 검색 등)은 소요시간이 가장 짧은 여정, 환승이 가장 적은 여정, 계단 없는 첫
+/// 여정이라는 사실로 고른다. 최저요금은 서버 묶음이 없어 만들지 않는다.
+/// [showStairStatus]가 false면 계단 없는 경로 탭을 만들지 않는다.
+List<JourneyCriterionTab> journeyCriterionTabs(
   List<Journey> journeys, {
   required bool showStairStatus,
 }) {
-  if (journeys.isNotEmpty &&
-      journeys.every((journey) => journey.alternativeCategories != null)) {
-    return List.unmodifiable([
-      for (var index = 0; index < journeys.length; index++)
-        _routeTab(journeys[index], () {
-          final categories = [
-            for (final category in journeys[index].alternativeCategories!)
-              if (showStairStatus ||
-                  category != JourneyAlternativeCategory.stairFree)
-                category,
-          ];
-          return [
-            for (final category in categories)
-              _alternativeCategoryLabel(category),
-            if (categories.isEmpty) '경로 ${index + 1}',
-            if (showStairStatus &&
-                journeys[index].accessibility.stairFree &&
-                !categories.contains(JourneyAlternativeCategory.stairFree))
-              journeyStairFreeCategoryLabel,
-          ];
-        }()),
-    ]);
-  }
-  var fastest = 0;
-  var leastTransfers = 0;
-  for (var index = 1; index < journeys.length; index++) {
-    if (journeys[index].durationSeconds < journeys[fastest].durationSeconds) {
-      fastest = index;
-    }
-    if (journeys[index].transferCount <
-        journeys[leastTransfers].transferCount) {
-      leastTransfers = index;
-    }
-  }
+  if (journeys.isEmpty) return const [];
+  final criteria = [
+    JourneyCriterion.fastest,
+    JourneyCriterion.fewestTransfers,
+    if (showStairStatus) JourneyCriterion.stairFree,
+  ];
+  final grouped = journeys.every(
+    (journey) => journey.alternativeCategories != null,
+  );
+  Journey? pick(JourneyCriterion criterion) => grouped
+      ? journeys
+            .where(
+              (journey) => journey.alternativeCategories!.contains(
+                _categoryOf(criterion),
+              ),
+            )
+            .firstOrNull
+      : _factualPick(journeys, criterion);
   return List.unmodifiable([
-    for (var index = 0; index < journeys.length; index++)
-      _routeTab(journeys[index], [
-        if (index == fastest)
-          _fastestLabel
-        else if (index == leastTransfers)
-          _fewestTransfersLabel
-        else
-          '경로 ${index + 1}',
-        if (showStairStatus && journeys[index].accessibility.stairFree)
-          journeyStairFreeCategoryLabel,
-      ]),
+    for (final criterion in criteria)
+      if (pick(criterion) case final journey?)
+        JourneyCriterionTab._(criterion, journey.journeyId),
   ]);
 }
 
-JourneyRouteTab _routeTab(Journey journey, List<String> labels) =>
-    JourneyRouteTab._(
-      journeyId: journey.journeyId,
-      labels: List.unmodifiable(labels),
-      durationLabel: '${_minutes(journey.durationSeconds)}분',
-      transferLabel: journeyTransferLabel(journey.transferCount),
-      arrivalTime: journeyKstTime(
-        journey.realtimeArrivalTime ?? journey.plannedArrivalTime,
+JourneyAlternativeCategory _categoryOf(JourneyCriterion criterion) =>
+    switch (criterion) {
+      JourneyCriterion.fastest => JourneyAlternativeCategory.fastest,
+      JourneyCriterion.fewestTransfers =>
+        JourneyAlternativeCategory.fewestTransfers,
+      JourneyCriterion.stairFree => JourneyAlternativeCategory.stairFree,
+    };
+
+Journey? _factualPick(List<Journey> journeys, JourneyCriterion criterion) =>
+    switch (criterion) {
+      JourneyCriterion.fastest => journeys.reduce(
+        (best, next) =>
+            next.durationSeconds < best.durationSeconds ? next : best,
       ),
-    );
+      JourneyCriterion.fewestTransfers => journeys.reduce(
+        (best, next) => next.transferCount < best.transferCount ? next : best,
+      ),
+      JourneyCriterion.stairFree =>
+        journeys
+            .where((journey) => journey.accessibility.stairFree)
+            .firstOrNull,
+    };
 
 enum JourneyStairStatusNoticeKind { stairFreeNotFound }
 
@@ -533,21 +633,62 @@ JourneyFailureCopy journeyFailureCopy(JourneyErrorDisposition? disposition) {
   return JourneyFailureCopy._(message: disposition.canonicalKoreanCopy);
 }
 
+DateTime _kst(DateTime instant) =>
+    instant.toUtc().add(const Duration(hours: 9));
+
 /// 서울 표준시(KST) `HH:mm`.
 String journeyKstTime(DateTime instant) {
-  final value = instant.toUtc().add(const Duration(hours: 9));
+  final value = _kst(instant);
   return '${value.hour.toString().padLeft(2, '0')}:'
       '${value.minute.toString().padLeft(2, '0')}';
 }
 
+const _hoursPerHalfDay = 12;
+
+(String, int) _halfDayHour(DateTime instant) {
+  final hour = _kst(instant).hour;
+  final twelve = hour % _hoursPerHalfDay == 0
+      ? _hoursPerHalfDay
+      : hour % _hoursPerHalfDay;
+  return (hour < _hoursPerHalfDay ? '오전' : '오후', twelve);
+}
+
+/// 서울 표준시 12시간제 `오전 5:11`. 자정 시는 `오전 12:36`이다.
+String journeyKstClock(DateTime instant) {
+  final (half, hour) = _halfDayHour(instant);
+  return '$half $hour:${_kst(instant).minute.toString().padLeft(2, '0')}';
+}
+
+/// 스크린리더용 `오전 5시 11분`.
+String journeyKstSpokenClock(DateTime instant) {
+  final (half, hour) = _halfDayHour(instant);
+  return '$half $hour시 ${_kst(instant).minute}분';
+}
+
+/// 숫자와 단위 쌍(`[('2', '시간'), ('17', '분')]`). 1시간 미만은 분만, 정시는
+/// 시간만 쓴다.
+List<(String, String)> journeyDurationParts(int minutes) {
+  final hours = minutes ~/ Duration.minutesPerHour;
+  final rest = minutes % Duration.minutesPerHour;
+  return [
+    if (hours > 0) ('$hours', '시간'),
+    if (rest > 0 || hours == 0) ('$rest', '분'),
+  ];
+}
+
+/// `2시간 17분`, `45분`, `1시간`.
+String journeyDurationLabel(int minutes) => journeyDurationParts(
+  minutes,
+).map((part) => '${part.$1}${part.$2}').join(' ');
+
 String journeyTransferLabel(int transferCount) =>
     transferCount == 0 ? '환승 없음' : '환승 $transferCount회';
 
-/// 성인 카드 운임. 서버가 운임을 제공하지 않으면 null이다.
+/// 성인 카드 운임(`2,850원`). 서버가 운임을 제공하지 않으면 null이다.
 String? journeyFareLabel(JourneyFare fare) {
   final won = fare.adultCardWon;
   if (fare.status != JourneyFareStatus.available || won == null) return null;
-  return '카드 ${_groupThousands(won)}원';
+  return '${_groupThousands(won)}원';
 }
 
 /// 노선 ID를 사용자에게 보일 노선명으로 바꾼다. 모르는 ID는 그대로 둔다.

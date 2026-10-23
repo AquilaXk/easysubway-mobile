@@ -115,31 +115,25 @@ final sweepScreens = <SweepScreen>[
     find.widgetWithText(FilledButton, '경로 찾기'),
   ),
   SweepScreen(
-    '경로 검색(예약 모드)',
+    '경로 검색(출발 시각 시트)',
     (context) => _openJourney(
       context,
       search: false,
-      departureChip: 'journey-departure-scheduled',
+      taps: const ['journey-departure-bar-time'],
     ),
-    find.byKey(const Key('journey-scheduled-time')),
+    find.byKey(const Key('journey-departure-sheet-hour')),
   ),
   SweepScreen(
-    '경로 검색(구간 모드)',
+    '경로 검색(막차 시트)',
     (context) => _openJourney(
       context,
       search: false,
-      departureChip: 'journey-departure-window',
+      taps: const [
+        'journey-departure-bar-time',
+        'journey-departure-sheet-mode-lastTrain',
+      ],
     ),
-    find.byKey(const Key('journey-window-time')),
-  ),
-  SweepScreen(
-    '경로 검색(막차 모드)',
-    (context) => _openJourney(
-      context,
-      search: false,
-      departureChip: 'journey-departure-last-connection',
-    ),
-    find.byKey(const Key('journey-last-connection-date')),
+    find.byKey(const Key('journey-departure-sheet-date')),
   ),
   SweepScreen(
     '경로 결과·상세',
@@ -595,13 +589,13 @@ Future<void> _openMenu(SweepScreenContext context) async {
 Future<void> _openJourney(
   SweepScreenContext context, {
   required bool search,
-  String? departureChip,
+  List<String> taps = const [],
 }) => openSweepJourney(
   tester: context.tester,
   navigatorKey: context.navigatorKey,
   preferences: context.theme.preferences,
   search: search,
-  departureChip: departureChip,
+  taps: taps,
 );
 
 Future<void> _openStationDetail(SweepScreenContext context) async {

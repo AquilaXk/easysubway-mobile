@@ -34,13 +34,7 @@ class RouteDraftStation {
   final String lineColor;
   final String stationCode;
 
-  String get displayName {
-    final trimmedName = nameKo.trim();
-    if (trimmedName.endsWith('역')) {
-      return trimmedName;
-    }
-    return '$trimmedName역';
-  }
+  String get displayName => stationNameWithSuffix(nameKo);
 
   bool get hasLine => lineId.trim().isNotEmpty;
 }
@@ -93,4 +87,10 @@ extension RouteDraftSlotLabel on RouteDraftSlot {
     RouteDraftSlot.waypoint => '경유역',
     RouteDraftSlot.destination => '도착역',
   };
+}
+
+/// 화면에 쓰는 역 이름. 이름 끝에 `역`이 없으면 붙인다(`창동` → `창동역`).
+String stationNameWithSuffix(String name) {
+  final trimmed = name.trim();
+  return trimmed.endsWith('역') ? trimmed : '$trimmed역';
 }

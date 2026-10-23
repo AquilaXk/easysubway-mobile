@@ -1,9 +1,9 @@
 import 'dart:io';
 
 import 'package:easysubway_mobile/accessible_design.dart';
-import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:easysubway_mobile/features/ads/ad_slot.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
+import 'package:easysubway_mobile/core/ui/route_role_dot.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/search_field.dart';
@@ -188,10 +188,6 @@ void main() {
             onClearWaypoint: _noop,
             onReorderDraft: (_, _) {},
             roleColorForSlot: (_) => Colors.black,
-            lineBadgeBuilder: (_, size) => SizedBox.square(
-              key: const Key('networkMapTopBarLineBadge'),
-              dimension: size,
-            ),
           ),
         ),
       ),
@@ -257,7 +253,7 @@ void main() {
       find.byKey(const Key('networkMapRouteDraftOverlay')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('networkMapTopBarLineBadge')), findsWidgets);
+    expect(find.byType(RouteRoleDot), findsWidgets);
     expect(find.byKey(const Key('stationSearchButton')), findsNothing);
     semantics.dispose();
     draftChanges.dispose();
@@ -296,7 +292,6 @@ void main() {
             onClearWaypoint: _noop,
             onReorderDraft: (_, _) {},
             roleColorForSlot: (_) => Colors.black,
-            lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
           ),
         ),
       ),
@@ -347,7 +342,6 @@ void main() {
             onClearWaypoint: _noop,
             onReorderDraft: (_, _) {},
             roleColorForSlot: (_) => Colors.black,
-            lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
           ),
         ),
       ),
@@ -392,7 +386,6 @@ void main() {
               onClearWaypoint: _noop,
               onReorderDraft: (_, _) {},
               roleColorForSlot: (_) => Colors.black,
-              lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
             ),
           ),
         ),
@@ -591,8 +584,6 @@ void main() {
                   onClearWaypoint: _noop,
                   onReorderDraft: (_, _) {},
                   roleColorForSlot: (_) => Colors.black,
-                  lineBadgeBuilder: (_, size) =>
-                      SizedBox.square(dimension: size),
                 ),
                 disruptionBanner: const SizedBox(
                   key: Key('chromeSizedBanner'),
@@ -626,7 +617,6 @@ void main() {
     var addCount = 0;
     var clearOriginCount = 0;
     var pickDestinationCount = 0;
-    final badgeSizes = <double>[];
 
     await tester.pumpWidget(
       _host(
@@ -659,14 +649,6 @@ void main() {
               RouteDraftSlot.waypoint => Colors.orange,
               RouteDraftSlot.destination => Colors.red,
             },
-            lineBadgeBuilder: (station, size) {
-              badgeSizes.add(size);
-              return SizedBox(
-                key: Key('routeDraftBadge${size.toInt()}'),
-                width: size,
-                height: size,
-              );
-            },
           ),
         ),
       ),
@@ -688,9 +670,18 @@ void main() {
       find.byKey(const Key('networkMapRouteDraftAddWaypoint')),
       findsOneWidget,
     );
-    expect(find.byKey(const Key('routeDraftBadge26')), findsOneWidget);
-    expect(badgeSizes, containsAll(<double>[26, 30]));
-    expect(tester.widget<Text>(find.text('출발역')).style?.color, Colors.blue);
+    expect(
+      tester
+          .widget<RouteRoleDot>(
+            find.descendant(
+              of: find.byKey(const Key('networkMapRouteDraftOriginRow')),
+              matching: find.byType(RouteRoleDot),
+            ),
+          )
+          .color,
+      Colors.blue,
+    );
+    expect(find.text('출발역'), findsNothing);
 
     final draftBackIcon = tester.widget<Icon>(
       find.descendant(
@@ -735,89 +726,6 @@ void main() {
     semantics.dispose();
   });
 
-  // 입력 칸 높이는 48dp(시각 박스 40dp)로 정해져 있어 칸 안 노선 마크는 1.3배에서
-  // 멈춘다. 26dp 기본 마크의 한 변은 26, 33.8, 33.8, 33.8이다. 폭이 좁으면 이름을
-  // 위해 마크를 감추므로(network_map_route_draft_pill_mark_test) 마크가 모두 들어가는
-  // 600dp 폭에서 상한만 본다.
-  for (final (scale, side) in [
-    (1.0, 26.0),
-    (1.3, 33.8),
-    (1.5, 33.8),
-    (2.0, 33.8),
-  ]) {
-    testWidgets(
-      'top-bar route draft 입력 칸 마크는 글자 $scale배에서 한 변 $side로 칸 안에 든다',
-      (tester) async {
-        tester.view.physicalSize = const Size(600, 780) * 2;
-        tester.view.devicePixelRatio = 2;
-        addTearDown(tester.view.resetPhysicalSize);
-        addTearDown(tester.view.resetDevicePixelRatio);
-        await tester.pumpWidget(
-          MaterialApp(
-            builder: (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(scale)),
-              child: child!,
-            ),
-            home: Scaffold(
-              body: NetworkMapTopBarRouteDraft(
-                draft: const RouteDraft(
-                  origin: RouteDraftStation(
-                    id: 'origin',
-                    nameKo: '서울',
-                    lineId: 'seoul-2',
-                    lineName: '수도권 2호선',
-                    lineColor: '#00A84D',
-                    stationCode: '222',
-                  ),
-                  destination: RouteDraftStation(
-                    id: 'destination',
-                    nameKo: '강남',
-                    lineId: 'seoul-4',
-                    lineName: '수도권 4호선',
-                    lineColor: '#00A5DE',
-                    stationCode: '434',
-                  ),
-                  lastModifiedAt: null,
-                ),
-                showWaypointRow: false,
-                regionLabel: '수도권',
-                onClearDraft: _noop,
-                onOpenWaypointSlot: _noop,
-                onClearOrigin: _noop,
-                onClearDestination: _noop,
-                onClearWaypoint: _noop,
-                onReorderDraft: (_, _) {},
-                roleColorForSlot: (_) => Colors.black,
-                lineBadgeBuilder: routeDraftStationLineBadge,
-              ),
-            ),
-          ),
-        );
-
-        for (final (rowKey, lineId) in [
-          ('networkMapRouteDraftOriginRow', 'seoul-2'),
-          ('networkMapRouteDraftDestinationRow', 'seoul-4'),
-        ]) {
-          final row = tester.getRect(find.byKey(Key(rowKey)));
-          final mark = tester.getRect(
-            find.descendant(
-              of: find.byKey(Key(rowKey)),
-              matching: find.byKey(Key('stationLineBadge-$lineId')),
-            ),
-          );
-          expect(mark.width, closeTo(side, 0.001), reason: rowKey);
-          expect(mark.height, closeTo(side, 0.001), reason: rowKey);
-          expect(row.height, 48);
-          expect(mark.top, greaterThanOrEqualTo(row.top));
-          expect(mark.bottom, lessThanOrEqualTo(row.bottom));
-        }
-        expect(tester.takeException(), isNull);
-      },
-    );
-  }
-
   testWidgets('top-bar route draft는 waypoint row와 reorder Semantics를 보존한다', (
     tester,
   ) async {
@@ -846,7 +754,6 @@ void main() {
             onReorderDraft: (from, to) => reorderPairs.add((from, to)),
             onPickWaypoint: () => pickWaypointCount += 1,
             roleColorForSlot: (_) => Colors.black,
-            lineBadgeBuilder: (_, size) => SizedBox.square(dimension: size),
           ),
         ),
       ),

@@ -36,11 +36,12 @@ const _stairFreeNotFound = JourneyStairFreeAlternative(
 
 final _contracts = <_SemanticsContract>[
   const _SemanticsContract(
-    '경로 접근성 상태: 계단 없는 경로가 탭과 요약에서 읽힌다',
+    '경로 접근성 상태: 계단 없는 경로가 기준 탭과 요약에서 읽힌다',
     labels: [
-      '빠른 경로, 계단 없는 경로, 35분, 환승 1회, 09:35 도착',
-      '환승 적은 경로, 41분, 환승 1회, 09:41 도착',
+      '최단시간',
+      '최소환승',
       '계단 없는 경로',
+      '35분 소요, 오전 9시 0분 출발, 오전 9시 35분 도착, 환승 1회, 계단 없는 경로',
     ],
   ),
   const _SemanticsContract(
@@ -51,14 +52,18 @@ final _contracts = <_SemanticsContract>[
   const _SemanticsContract(
     '엘리베이터 안내: 엘리베이터와 가까운 하차 칸·문이 탑승 안내에서 읽힌다',
     labels: [
-      '2호선 교대 방면 탑승, 09:03 출발, 빠른 환승 3호차 2번 문, '
+      '2호선 교대역 방면 탑승, 09:03 출발, 빠른 환승 3호차 2번 문, '
           '엘리베이터 가까운 4호차 1번 문, 2개 역 이동, 12분',
     ],
   ),
   _SemanticsContract(
     '환승 안내: 환승역과 도보 시간, 펼친 이동 방법이 읽힌다',
     expandTransferGuide: true,
-    labels: ['교대 환승, 도보 3분', '이동 방법 3단계', ...fixtureTransferGuideSteps],
+    labels: [
+      '교대 환승, 도보 3분, 환승 대기 8분',
+      '이동 방법 3단계',
+      ...fixtureTransferGuideSteps,
+    ],
   ),
 ];
 

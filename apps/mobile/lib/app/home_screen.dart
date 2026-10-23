@@ -46,6 +46,7 @@ import '../features/stations/domain/station_models.dart';
 import '../features/stations/domain/station_repositories.dart';
 import '../features/stations/presentation/station_search_screen.dart';
 import '../features/stations/presentation/station_detail_screen.dart';
+import '../features/stations/presentation/station_timetable_screen.dart';
 import '../features/support/presentation/inquiry_screen.dart';
 import '../features/support/support_access.dart';
 import '../features/support/presentation/support_access_screen.dart';
@@ -457,6 +458,22 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
       );
     }
 
+    // 경로 상세의 `시간표` 칩. 역 상세의 `전체 시간표`와 같은 화면을 연다.
+    Future<void> openStationTimetable(String stationId) async {
+      final detail = await repository.getStationDetail(stationId);
+      if (!context.mounted || detail.id != stationId) return;
+      await Navigator.of(context).push<void>(
+        MaterialPageRoute<void>(
+          builder: (_) => StationTimetableScreen(
+            stationId: detail.id,
+            stationName: detail.nameKo,
+            lines: detail.lines,
+            repository: widget.timetableRepository,
+          ),
+        ),
+      );
+    }
+
     Future<void> openFacilityReport(FacilityReportTarget target) {
       return Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -785,6 +802,23 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
           getOffAlarmController: widget.getOffAlarmController,
           stationNameResolver: journeyAlarmStationNameResolver(repository),
           transferGuideRepository: widget.transferGuideRepository,
+          onOpenStation: (stationId) => unawaited(
+            showStationDetailSheet<void>(
+              context: context,
+              repository: repository,
+              reportRepository: reportRepository,
+              favoriteRepository: favoriteRepository,
+              bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
+              locationProvider: locationProvider,
+              realtimeRepository: realtimeRepository,
+              timetableRepository: widget.timetableRepository,
+              stationId: stationId,
+              facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+              onOpenFacilityReport: openFacilityReport,
+            ),
+          ),
+          onOpenStationTimetable: (stationId) =>
+              unawaited(openStationTimetable(stationId)),
         ),
       );
     }

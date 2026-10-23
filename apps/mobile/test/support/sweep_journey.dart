@@ -19,11 +19,11 @@ const _standardPreferences = OnboardingViewPreferences(
   simpleViewEnabled: false,
 );
 
-/// 기본 설정으로 전수 검사용 앱을 띄운 뒤 경로 검색 화면을 연다. [departureChip]이
-/// 있으면 그 출발 방식 칩까지 누른다.
+/// 기본 설정으로 전수 검사용 앱을 띄운 뒤 경로 검색 화면을 연다. [taps]의 키를
+/// 차례로 누른다(출발 시각 시트 열기, 시트의 막차 칩 등).
 Future<void> pumpSweepJourney(
   WidgetTester tester, {
-  String? departureChip,
+  List<String> taps = const [],
 }) async {
   useLogicalViewport(tester, const Size(360, 2000));
   final navigatorKey = GlobalKey<NavigatorState>();
@@ -44,7 +44,7 @@ Future<void> pumpSweepJourney(
     navigatorKey: navigatorKey,
     preferences: _standardPreferences,
     search: false,
-    departureChip: departureChip,
+    taps: taps,
   );
 }
 
@@ -55,7 +55,7 @@ Future<void> openSweepJourney({
   required GlobalKey<NavigatorState> navigatorKey,
   required OnboardingViewPreferences preferences,
   required bool search,
-  String? departureChip,
+  List<String> taps = const [],
 }) async {
   unawaited(
     navigatorKey.currentState!.push(
@@ -77,9 +77,9 @@ Future<void> openSweepJourney({
     ),
   );
   await tester.pumpAndSettle();
-  if (departureChip != null) {
-    await tester.ensureVisible(find.byKey(Key(departureChip)));
-    await tester.tap(find.byKey(Key(departureChip)));
+  for (final key in taps) {
+    await tester.ensureVisible(find.byKey(Key(key)));
+    await tester.tap(find.byKey(Key(key)));
     await tester.pumpAndSettle();
   }
   if (search) {

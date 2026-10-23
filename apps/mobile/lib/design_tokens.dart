@@ -247,6 +247,15 @@ abstract final class EasySubwayFanMenuColors {
   );
 }
 
+/// 출발·경유·도착 입력 칸의 역할 점(#509). 상용 지하철 서비스의 입력 칸처럼 출발은
+/// 초록, 도착은 빨강이다. 점은 글자가 아닌 그래픽이라 흰 바탕과 3:1 이상이면
+/// 되고(WCAG 2.1 1.4.11), 세 값 모두 4.5:1을 넘는 기존 토큰을 쓴다.
+abstract final class EasySubwayRouteDotColors {
+  static const origin = EasySubwayColorPrimitives.statusSuccess;
+  static const waypoint = EasySubwayFanMenuColors.waypointInk;
+  static const destination = EasySubwayFanMenuColors.arrival;
+}
+
 /// 출발·경유·도착 역할 하나의 색 묶음.
 @immutable
 class EasySubwayRoleColor {

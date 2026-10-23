@@ -166,4 +166,57 @@ void main() {
       expect(glyph, lessThanOrEqualTo(size));
     });
   }
+
+  group('노선색 막대 위 마크와 흰 바탕 노선 글자색(#509)', () {
+    double contrastOnWhite(Color color) =>
+        (1.05) / (color.computeLuminance() + 0.05);
+
+    test('흰 바탕과 4.5:1을 넘는 노선색은 그대로 쓴다', () {
+      const lineOne = Color(0xFF0052A4);
+      expect(contrastOnWhite(lineOne), greaterThan(4.5));
+      expect(lineInkOnWhite(lineOne), lineOne);
+    });
+
+    for (final (name, color) in const [
+      ('수인분당', Color(0xFFF5A200)),
+      ('4호선', Color(0xFF00A5DE)),
+      ('9호선', Color(0xFFBDB092)),
+    ]) {
+      test('$name 노선색은 같은 색상에서 명도만 낮춰 4.5:1을 넘긴다', () {
+        expect(contrastOnWhite(color), lessThan(4.5));
+        final ink = lineInkOnWhite(color);
+        expect(contrastOnWhite(ink), greaterThanOrEqualTo(4.5));
+        expect(
+          HSLColor.fromColor(ink).hue,
+          closeTo(HSLColor.fromColor(color).hue, 1.0),
+        );
+        // 필요한 만큼만 어둡게 한다. 한 단계 덜 어두우면 기준에 못 미친다.
+        final lighter = HSLColor.fromColor(
+          ink,
+        ).withLightness(HSLColor.fromColor(ink).lightness + 0.01).toColor();
+        expect(contrastOnWhite(lighter), lessThan(4.5));
+      });
+    }
+
+    testWidgets('막대 위 마크는 흰 면에 노선색 테두리와 노선색 글자를 쓴다', (tester) async {
+      await _pump(
+        tester,
+        const LineMark(label: '4', color: color, onLineColor: true),
+      );
+
+      expect(paragraphOf(tester, '4').text.style?.color, color);
+      final decoration =
+          tester
+                  .widget<DecoratedBox>(
+                    find.descendant(
+                      of: find.byType(LineMark),
+                      matching: find.byType(DecoratedBox),
+                    ),
+                  )
+                  .decoration
+              as BoxDecoration;
+      expect(decoration.color, Colors.white);
+      expect((decoration.border! as Border).top.color, color);
+    });
+  });
 }

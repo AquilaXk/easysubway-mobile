@@ -8,32 +8,23 @@ import '../../get_off_alarm/get_off_alarm_port.dart';
 import '../../route_draft/domain/route_draft.dart';
 import '../../mobility_profile/mobility_preset_labels.dart';
 import '../../mobility_profile/mobility_profile_policy.dart';
-import '../../stations/domain/station_line.dart';
-import '../../../core/ui/line_mark.dart';
+import '../../../core/ui/route_role_dot.dart';
 import '../application/journey_search_controller.dart';
 import '../domain/journey_repository.dart';
 import '../domain/transfer_guide.dart';
 import '../domain/transfer_guide_key.dart';
+import 'journey_departure_choice.dart';
+import 'journey_departure_sheet.dart';
 import 'journey_get_off_alarm_toggle.dart';
 import 'result/journey_result_view_model.dart';
 import 'result/journey_result_widgets.dart';
+import 'result/journey_timeline.dart';
 import '../../../generated/journey_v3/journey_v3_contract.dart';
 import '../../../core/crashlytics/mobile_crash_reporting.dart';
 import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
 
 typedef JourneyShareInvoker = Future<void> Function(String text, Rect origin);
-
-enum _JourneyDepartureSelection {
-  now,
-  scheduled,
-  departureWindow,
-  lastConnection,
-}
-
-/// 타임라인 트랙의 원 크기. 글자가 없는 장식이라 시작·탑승·환승·도착 원이 글자
-/// 크기와 무관하게 모두 같다. 노선 마크 글자는 탑승 노드 내용의 LineMark가 그린다.
-const _timelineTrackWidth = 24.0;
 
 class JourneySearchScreen extends StatefulWidget {
   const JourneySearchScreen({
@@ -53,6 +44,8 @@ class JourneySearchScreen extends StatefulWidget {
     this.transferGuideRepository,
     this.onSwapOriginDestination,
     this.onClearWaypoint,
+    this.onOpenStation,
+    this.onOpenStationTimetable,
     super.key,
   }) : assert(getOffAlarmController == null || stationNameResolver != null);
 
@@ -65,6 +58,12 @@ class JourneySearchScreen extends StatefulWidget {
   final VoidCallback onShellBackToHome;
   final VoidCallback? onSwapOriginDestination;
   final VoidCallback? onClearWaypoint;
+
+  /// 경로 상세의 역 이름 `>`와 `실시간` 칩이 여는 기존 역 상세 화면.
+  final ValueChanged<String>? onOpenStation;
+
+  /// 경로 상세의 `시간표` 칩이 여는 기존 역 시간표 화면.
+  final ValueChanged<String>? onOpenStationTimetable;
   final JourneyShareInvoker? shareInvoker;
   final GetOffAlarmPort? getOffAlarmController;
   final JourneyStationNameResolver? stationNameResolver;
@@ -88,11 +87,8 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
   bool _isAlarmTransitioning = false;
   String? _alarmTransitionError;
   WalkingPace _walkingPace = WalkingPace.standard;
-  _JourneyDepartureSelection _departureSelection =
-      _JourneyDepartureSelection.now;
-  DateTime? _scheduledRequestedAt;
-  DateTime? _windowRequestedAt;
-  DateTime? _lastConnectionDate;
+  JourneyDepartureChoice _departure = const JourneyDepartNow();
+  JourneyCriterion? _criterion;
 
   final Map<String, String> _resolvedStationNames = {};
   final Set<String> _expandedRideKeys = {};
@@ -249,17 +245,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     }
   }
 
-  DateTime _seoulWallTime(DateTime instant) {
-    final value = instant.toUtc().add(const Duration(hours: 9));
-    return DateTime(
-      value.year,
-      value.month,
-      value.day,
-      value.hour,
-      value.minute,
-    );
-  }
-
   Widget? _outOfStationTransferBadge(JourneyTransferLeg leg) {
     if (leg.transferType != 'OUT_OF_STATION') return null;
     final minutes = (leg.durationSeconds + 59) ~/ 60;
@@ -362,40 +347,51 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     final viewModel = JourneyResultViewModel.fromJourney(
       journey,
       stationName: _stationName,
+      // 막차는 프로필 검색이라 서버 기준 시각이 없다(응답 변환이 첫 여정 출발로 채운다).
+      basis: _departure is JourneyLastTrain
+          ? null
+          : snapshot.effectiveDepartureTime,
     );
-    final rideColors = [
-      for (final node in viewModel.timeline)
-        if (node is JourneyRideNode) journeyLineColor(node.lineId),
-    ];
-    final timeline = viewModel.timeline;
     return Column(
       key: const Key('selected-journey-detail'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         JourneyResultSummaryView(
+          key: Key('selected-journey-${journey.journeyId}'),
           summary: viewModel.summary,
           showStairStatus: journeyShowsStairStatus(snapshot.requestPolicy),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: EasySubwaySpacing.lg),
         JourneySegmentBar(
           segments: viewModel.segments,
           semanticsLabel: viewModel.segmentsSemanticsLabel,
         ),
-        const SizedBox(height: 20),
-        for (var index = 0; index < timeline.length; index++)
-          _timelineNode(
-            journey.journeyId,
-            timeline[index],
-            transferGuideKey: transferGuideKeyAt(
-              journey,
-              timeline[index].legIndex,
-            ),
-            isLast: index == timeline.length - 1,
-            departureColor:
-                rideColors.firstOrNull ?? EasySubwayAccessibleColors.primary,
-            arrivalColor:
-                rideColors.lastOrNull ?? EasySubwayAccessibleColors.primary,
+        const SizedBox(height: EasySubwaySpacing.lg),
+        if (viewModel.basisLabel case final basis?)
+          JourneyBasisRow(label: basis),
+        JourneyTimeline(
+          nodes: viewModel.timeline,
+          isRideExpanded: (legIndex) =>
+              _expandedRideKeys.contains('${journey.journeyId}:$legIndex'),
+          onToggleRide: (legIndex) => setState(() {
+            final key = '${journey.journeyId}:$legIndex';
+            if (!_expandedRideKeys.remove(key)) _expandedRideKeys.add(key);
+          }),
+          boardingExtras: (node) => _buildPlatformGapGuidance(
+            isBoarding: true,
+            gaps: node.boardingPlatformGaps,
+            stationName: node.boardingStationName,
           ),
+          alightingExtras: (node) => _buildPlatformGapGuidance(
+            isBoarding: false,
+            gaps: node.alightingPlatformGaps,
+            stationName: node.alightingStationName,
+          ),
+          transferExtras: (node) =>
+              _transferExtras(node, transferGuideKeyAt(journey, node.legIndex)),
+          onOpenStation: widget.onOpenStation,
+          onOpenStationTimetable: widget.onOpenStationTimetable,
+        ),
         if (widget.getOffAlarmController case final alarmController?) ...[
           const SizedBox(height: 8),
           JourneyGetOffAlarmToggle(
@@ -422,438 +418,14 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
     );
   }
 
-  /// 세로 선 + 원형 노드 한 줄. 탑승 구간 선은 노선 색, 도보 구간 선은 회색이다.
-  Widget _timelineNode(
-    String journeyId,
-    JourneyTimelineNode node, {
-    required TransferGuideKey? transferGuideKey,
-    required bool isLast,
-    required Color departureColor,
-    required Color arrivalColor,
-  }) {
-    final Widget marker;
-    final Widget content;
-    var trackColor = EasySubwayAccessibleColors.line;
-    var trackThickness = 3.0;
-    switch (node) {
-      case JourneyDepartureNode():
-        marker = _ringMarker(departureColor);
-        content = _stationNodeContent(
-          semanticsLabel: node.semanticsLabel,
-          stationName: node.stationName,
-          timeLabel: '${node.departureTime} 출발',
-          walkLabel: node.walkLabel,
-        );
-      case JourneyRideNode():
-        final lineColor = journeyLineColor(node.lineId);
-        trackColor = lineColor;
-        trackThickness = 5;
-        marker = SizedBox.square(
-          dimension: _timelineTrackWidth,
-          child: DecoratedBox(
-            decoration: ShapeDecoration(
-              shape: const CircleBorder(
-                side: BorderSide(
-                  color: EasySubwayColorPrimitives.neutralWhite,
-                  width: 1.5,
-                ),
-              ),
-              color: lineColor,
-            ),
-          ),
-        );
-        content = _rideNodeContent(journeyId, node);
-      case JourneyTransferNode():
-        marker = SizedBox.square(
-          dimension: _timelineTrackWidth,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: EasySubwayAccessibleColors.surface,
-              border: Border.all(
-                color: EasySubwayAccessibleColors.primary,
-                width: 1.5,
-              ),
-            ),
-            child: const Icon(
-              Icons.sync_alt_rounded,
-              size: 13,
-              color: EasySubwayAccessibleColors.primary,
-            ),
-          ),
-        );
-        content = _transferNodeContent(node, transferGuideKey);
-      case JourneyArrivalNode():
-        marker = SizedBox.square(
-          dimension: _timelineTrackWidth,
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: arrivalColor,
-            ),
-            child: const Icon(
-              Icons.place_rounded,
-              size: 14,
-              color: EasySubwayColorPrimitives.neutralWhite,
-            ),
-          ),
-        );
-        content = _stationNodeContent(
-          semanticsLabel: node.semanticsLabel,
-          stationName: node.stationName,
-          timeLabel: '${node.arrivalTime} 도착',
-          walkLabel: node.walkLabel,
-        );
-    }
-    return KeyedSubtree(
-      key: Key('selected-journey-leg-${node.legIndex}'),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            SizedBox(
-              width: _timelineTrackWidth,
-              // 노드 원·세로 선은 장식이다. 내용은 오른쪽 노드 라벨이 읽는다.
-              child: ExcludeSemantics(
-                child: Column(
-                  children: [
-                    marker,
-                    if (!isLast)
-                      Expanded(
-                        child: Container(
-                          width: trackThickness,
-                          color: trackColor,
-                          margin: const EdgeInsets.symmetric(vertical: 2),
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 4 : 16),
-                child: content,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _ringMarker(Color color) {
-    return SizedBox.square(
-      dimension: _timelineTrackWidth,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          shape: BoxShape.circle,
-          color: EasySubwayAccessibleColors.surface,
-          border: Border.all(color: color, width: 3),
-        ),
-      ),
-    );
-  }
-
-  Widget _stationNodeContent({
-    required String semanticsLabel,
-    required String stationName,
-    required String timeLabel,
-    required String walkLabel,
-  }) {
-    return Semantics(
-      label: semanticsLabel,
-      child: ExcludeSemantics(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Wrap(
-              alignment: WrapAlignment.spaceBetween,
-              spacing: 8,
-              runSpacing: 2,
-              children: [
-                Text(
-                  stationName,
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: EasySubwayFontWeight.emphasis,
-                    color: EasySubwayAccessibleColors.text,
-                  ),
-                ),
-                Text(
-                  timeLabel,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: EasySubwayFontWeight.regular,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              walkLabel,
-              style: const TextStyle(
-                fontSize: 13,
-                color: EasySubwayAccessibleColors.mutedText,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _rideNodeContent(String journeyId, JourneyRideNode node) {
-    final expandKey = '$journeyId:${node.legIndex}';
-    final expanded = _expandedRideKeys.contains(expandKey);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Semantics(
-          label: node.semanticsLabel,
-          child: ExcludeSemantics(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Wrap(
-                  alignment: WrapAlignment.spaceBetween,
-                  spacing: 8,
-                  runSpacing: 2,
-                  children: [
-                    Wrap(
-                      spacing: 6,
-                      runSpacing: 2,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        LineMark(
-                          label: stationLineBadgeText(node.lineName),
-                          color: journeyLineColor(node.lineId),
-                        ),
-                        Text(
-                          node.lineName,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: EasySubwayFontWeight.regular,
-                            color: EasySubwayAccessibleColors.text,
-                          ),
-                        ),
-                        if (node.directionLabel case final direction?)
-                          Text(
-                            direction,
-                            style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: EasySubwayFontWeight.regular,
-                              color: EasySubwayAccessibleColors.text,
-                            ),
-                          ),
-                        if (node.isExpress)
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: EasySubwayAccessibleColors
-                                  .statusDangerSurface,
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: const Padding(
-                              padding: EdgeInsets.symmetric(
-                                horizontal: 5,
-                                vertical: 1,
-                              ),
-                              child: Text(
-                                '급행',
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: EasySubwayFontWeight.emphasis,
-                                  color: EasySubwayAccessibleColors
-                                      .statusDangerContent,
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                    Text(
-                      '${node.departureTime} 출발',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        fontWeight: EasySubwayFontWeight.regular,
-                        color: EasySubwayAccessibleColors.secondaryText,
-                      ),
-                    ),
-                  ],
-                ),
-                if (node.carDoorLabel case final carDoor?) ...[
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Icon(
-                        Icons.directions_subway_outlined,
-                        size: 15,
-                        color: EasySubwayAccessibleColors.primary,
-                      ),
-                      const SizedBox(width: 4),
-                      Expanded(
-                        child: Text(
-                          carDoor,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: EasySubwayFontWeight.regular,
-                            color: EasySubwayAccessibleColors.primary,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-        _buildPlatformGapGuidance(
-          isBoarding: true,
-          gaps: node.boardingPlatformGaps,
-          stationName: node.boardingStationName,
-        ),
-        if (node.intermediateStops.isEmpty)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 6),
-            child: ExcludeSemantics(
-              child: Text(
-                node.stopToggleLabel,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: EasySubwayFontWeight.regular,
-                  color: EasySubwayAccessibleColors.secondaryText,
-                ),
-              ),
-            ),
-          )
-        else ...[
-          _rideStopsToggle(node, expandKey: expandKey, expanded: expanded),
-          if (expanded)
-            for (final stop in node.intermediateStops)
-              MergeSemantics(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Text(
-                          stop.name,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            color: EasySubwayAccessibleColors.text,
-                          ),
-                        ),
-                      ),
-                      if (stop.time case final time?)
-                        Text(
-                          time,
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: EasySubwayAccessibleColors.mutedText,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-        ],
-        _buildPlatformGapGuidance(
-          isBoarding: false,
-          gaps: node.alightingPlatformGaps,
-          stationName: node.alightingStationName,
-        ),
-      ],
-    );
-  }
-
-  Widget _rideStopsToggle(
-    JourneyRideNode node, {
-    required String expandKey,
-    required bool expanded,
-  }) {
-    void toggle() => setState(() {
-      if (!_expandedRideKeys.remove(expandKey)) {
-        _expandedRideKeys.add(expandKey);
-      }
-    });
-    return Semantics(
-      button: true,
-      expanded: expanded,
-      label: node.stopToggleLabel,
-      onTap: toggle,
-      excludeSemantics: true,
-      child: InkWell(
-        key: Key('journey-ride-stops-toggle-${node.legIndex}'),
-        onTap: toggle,
-        borderRadius: BorderRadius.circular(4),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: 48),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Flexible(
-                child: Text(
-                  node.stopToggleLabel,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: EasySubwayFontWeight.regular,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 2),
-              Icon(
-                expanded ? Icons.expand_less : Icons.expand_more,
-                size: 18,
-                color: EasySubwayAccessibleColors.secondaryText,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _transferNodeContent(
-    JourneyTransferNode node,
-    TransferGuideKey? guideKey,
-  ) {
+  /// 환승 줄 아래의 역 밖 환승 배지, 재승차 안내, 환승 이동 안내 단계.
+  Widget _transferExtras(JourneyTransferNode node, TransferGuideKey? guideKey) {
     final guideSteps = guideKey == null ? null : _transferGuideSteps[guideKey];
     final badge = _outOfStationTransferBadge(node.leg);
     final reboarding = _reboardingFareNotice(node.leg);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Semantics(
-          label: node.semanticsLabel,
-          child: ExcludeSemantics(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  node.stationName,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: EasySubwayFontWeight.emphasis,
-                    color: EasySubwayAccessibleColors.text,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  node.walkLabel,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    color: EasySubwayAccessibleColors.secondaryText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
         if (badge != null || reboarding != null) ...[
           const SizedBox(height: 4),
           Wrap(spacing: 6, runSpacing: 4, children: [?badge, ?reboarding]),
@@ -1197,13 +769,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         destination == null ||
         origin.id == destination.id ||
         (waypoint != null &&
-            (waypoint.id == origin.id || waypoint.id == destination.id)) ||
-        (_departureSelection == _JourneyDepartureSelection.scheduled &&
-            _scheduledRequestedAt == null) ||
-        (_departureSelection == _JourneyDepartureSelection.departureWindow &&
-            _windowRequestedAt == null) ||
-        (_departureSelection == _JourneyDepartureSelection.lastConnection &&
-            _lastConnectionDate == null)) {
+            (waypoint.id == origin.id || waypoint.id == destination.id))) {
       return null;
     }
     final preset =
@@ -1224,33 +790,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         ConstraintMode.requireStepFree,
       ),
     };
-    final JourneyTemporalQuery? temporalQuery;
-    final JourneyDeparture departure;
-    switch (_departureSelection) {
-      case _JourneyDepartureSelection.now:
-        departure = const JourneyDepartureNow();
-        temporalQuery = null;
-      case _JourneyDepartureSelection.scheduled:
-        departure = JourneyDepartureScheduled(_scheduledRequestedAt!);
-        temporalQuery = null;
-      case _JourneyDepartureSelection.departureWindow:
-        final start = _windowRequestedAt!;
-        final end = start.add(const Duration(minutes: 30));
-        departure = JourneyDepartureScheduled(start);
-        temporalQuery = JourneyDepartBetweenQuery(
-          earliestReadyAt: start,
-          latestReadyAt: end,
-        );
-      case _JourneyDepartureSelection.lastConnection:
-        final date = _lastConnectionDate!;
-        final seoul = date.toUtc().add(const Duration(hours: 9));
-        final serviceDateStr =
-            '${seoul.year.toString().padLeft(4, '0')}-'
-            '${seoul.month.toString().padLeft(2, '0')}-'
-            '${seoul.day.toString().padLeft(2, '0')}';
-        departure = JourneyDepartureScheduled(date);
-        temporalQuery = JourneyLastConnectionQuery(serviceDate: serviceDateStr);
-    }
+    final (departure, temporalQuery) = journeyDepartureRequest(_departure);
     return JourneySearchCommand(
       originStationId: origin.id,
       destinationStationId: destination.id,
@@ -1415,405 +955,136 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         await _disableAlarmBeforeTransition(alarmController);
   }
 
-  Future<void> _selectDepartureSelection(
-    _JourneyDepartureSelection selection,
-  ) async {
-    if (selection == _departureSelection || _isAlarmTransitioning) return;
-    if (!await _prepareForTemporalChange() || !mounted) return;
-    setState(() {
-      _departureSelection = selection;
-      if (selection == _JourneyDepartureSelection.now) {
-        _scheduledRequestedAt = null;
-        _windowRequestedAt = null;
-        _lastConnectionDate = null;
-      }
-    });
-    _controller.reset();
-  }
+  DateTime _now() => (widget.journeyNow ?? DateTime.now)();
 
-  Future<void> _selectScheduledTime() async {
+  /// 출발 기준을 바꾼다. 결과가 떠 있으면 상용 지하철 서비스처럼 바로 다시
+  /// 찾고, 아니면 이전 결과를 지운다.
+  Future<void> _applyDeparture(
+    JourneyDepartureChoice choice, {
+    bool search = false,
+  }) async {
     if (_isAlarmTransitioning) return;
-    final initial = _seoulWallTime(
-      _scheduledRequestedAt ?? (widget.journeyNow?.call() ?? DateTime.now()),
-    );
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(1, 1, 1),
-      lastDate: DateTime(9999, 12, 31),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-    );
-    if (time == null || !mounted) return;
-    final requestedAt = DateTime.utc(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    ).subtract(const Duration(hours: 9));
-    if (requestedAt == _scheduledRequestedAt) return;
     if (!await _prepareForTemporalChange() || !mounted) return;
-    setState(() => _scheduledRequestedAt = requestedAt);
-    _controller.reset();
+    final wasSuccess = _controller.state.status == JourneySearchStatus.success;
+    setState(() => _departure = choice);
+    if (search || wasSuccess) {
+      await _search();
+    } else {
+      _controller.reset();
+    }
   }
 
-  Future<void> _selectWindowTime() async {
-    if (_isAlarmTransitioning) return;
-    final initial = _seoulWallTime(
-      _windowRequestedAt ?? (widget.journeyNow?.call() ?? DateTime.now()),
+  Future<void> _openDepartureSheet() async {
+    final choice = await showJourneyDepartureSheet(
+      context,
+      initial: _departure,
+      now: _now(),
     );
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(1, 1, 1),
-      lastDate: DateTime(9999, 12, 31),
-    );
-    if (date == null || !mounted) return;
-    final time = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-    );
-    if (time == null || !mounted) return;
-    final requestedAt = DateTime.utc(
-      date.year,
-      date.month,
-      date.day,
-      time.hour,
-      time.minute,
-    ).subtract(const Duration(hours: 9));
-    if (requestedAt == _windowRequestedAt) return;
-    if (!await _prepareForTemporalChange() || !mounted) return;
-    setState(() => _windowRequestedAt = requestedAt);
-    _controller.reset();
+    if (choice == null || !mounted) return;
+    await _applyDeparture(choice);
   }
 
-  Future<void> _selectLastConnectionDate() async {
-    if (_isAlarmTransitioning) return;
-    final initial = _seoulWallTime(
-      _lastConnectionDate ?? (widget.journeyNow?.call() ?? DateTime.now()),
-    );
-    final date = await showDatePicker(
-      context: context,
-      initialDate: initial,
-      firstDate: DateTime(1, 1, 1),
-      lastDate: DateTime(9999, 12, 31),
-    );
-    if (date == null || !mounted) return;
-    final selectedDate = DateTime.utc(date.year, date.month, date.day);
-    if (selectedDate == _lastConnectionDate) return;
-    if (!await _prepareForTemporalChange() || !mounted) return;
-    setState(() => _lastConnectionDate = selectedDate);
-    _controller.reset();
-  }
-
-  Widget _departureControl(bool enabled) {
-    final isNow = _departureSelection == _JourneyDepartureSelection.now;
-    final isScheduled =
-        _departureSelection == _JourneyDepartureSelection.scheduled;
-    final isWindow =
-        _departureSelection == _JourneyDepartureSelection.departureWindow;
-    final isLastConnection =
-        _departureSelection == _JourneyDepartureSelection.lastConnection;
-
-    final requestedAt = _scheduledRequestedAt;
-    final selectedWallTime = requestedAt == null
-        ? null
-        : _seoulWallTime(requestedAt);
-    final selectedLabel = selectedWallTime == null
-        ? '출발 시간 선택'
-        : '출발 시간 ${selectedWallTime.year.toString().padLeft(4, '0')}-${selectedWallTime.month.toString().padLeft(2, '0')}-${selectedWallTime.day.toString().padLeft(2, '0')} ${selectedWallTime.hour.toString().padLeft(2, '0')}:${selectedWallTime.minute.toString().padLeft(2, '0')}';
-
-    final windowAt = _windowRequestedAt;
-    final windowWallTime = windowAt == null ? null : _seoulWallTime(windowAt);
-    final windowLabel = windowWallTime == null
-        ? '출발 대안 시간대 선택'
-        : '대안 시간대 ${windowWallTime.year.toString().padLeft(4, '0')}-${windowWallTime.month.toString().padLeft(2, '0')}-${windowWallTime.day.toString().padLeft(2, '0')} ${windowWallTime.hour.toString().padLeft(2, '0')}:${windowWallTime.minute.toString().padLeft(2, '0')} (+30분)';
-
-    final lastDate = _lastConnectionDate;
-    final lastDateWallTime = lastDate == null ? null : _seoulWallTime(lastDate);
-    final lastConnectionLabel = lastDateWallTime == null
-        ? '안심 막차 운행일 선택'
-        : '막차 운행일 ${lastDateWallTime.year.toString().padLeft(4, '0')}-${lastDateWallTime.month.toString().padLeft(2, '0')}-${lastDateWallTime.day.toString().padLeft(2, '0')}';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          '출발 기준',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: EasySubwayFontWeight.emphasis,
-            color: EasySubwayAccessibleColors.text,
-          ),
-        ),
-        const SizedBox(height: 8),
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: Row(
-            children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: ChoiceChip(
-                  key: const Key('journey-departure-now'),
-                  showCheckmark: false,
-                  selectedColor: EasySubwayAccessibleColors.surfaceBrand,
-                  backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(
-                      color: isNow
-                          ? EasySubwayAccessibleColors.primary
-                          : EasySubwayAccessibleColors.line,
-                      width: isNow ? 1.5 : 1.0,
-                    ),
-                  ),
-                  label: Text(
-                    '지금 출발',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isNow
-                          ? EasySubwayFontWeight.emphasis
-                          : EasySubwayFontWeight.regular,
-                      color: isNow
-                          ? EasySubwayAccessibleColors.interactionOnBrand
-                          : EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                  selected: isNow,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  onSelected: !enabled
-                      ? null
-                      : (selected) {
-                          if (selected) {
-                            unawaited(
-                              _selectDepartureSelection(
-                                _JourneyDepartureSelection.now,
-                              ),
-                            );
-                          }
-                        },
-                ),
-              ),
-              const SizedBox(width: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: ChoiceChip(
-                  key: const Key('journey-departure-scheduled'),
-                  showCheckmark: false,
-                  selectedColor: EasySubwayAccessibleColors.surfaceBrand,
-                  backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(
-                      color: isScheduled
-                          ? EasySubwayAccessibleColors.primary
-                          : EasySubwayAccessibleColors.line,
-                      width: isScheduled ? 1.5 : 1.0,
-                    ),
-                  ),
-                  label: Text(
-                    '출발 시간',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isScheduled
-                          ? EasySubwayFontWeight.emphasis
-                          : EasySubwayFontWeight.regular,
-                      color: isScheduled
-                          ? EasySubwayAccessibleColors.interactionOnBrand
-                          : EasySubwayAccessibleColors.secondaryText,
-                    ),
-                  ),
-                  selected: isScheduled,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  onSelected: !enabled
-                      ? null
-                      : (selected) {
-                          if (selected) {
-                            unawaited(
-                              _selectDepartureSelection(
-                                _JourneyDepartureSelection.scheduled,
-                              ),
-                            );
-                          }
-                        },
-                ),
-              ),
-              const SizedBox(width: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: ChoiceChip(
-                  key: const Key('journey-departure-window'),
-                  showCheckmark: false,
-                  selectedColor: EasySubwayAccessibleColors.surfaceBrand,
-                  backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(
-                      color: isWindow
-                          ? EasySubwayAccessibleColors.primary
-                          : EasySubwayAccessibleColors.line,
-                      width: isWindow ? 1.5 : 1.0,
-                    ),
-                  ),
-                  label: Text(
-                    '출발 대안',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isWindow
-                          ? EasySubwayFontWeight.emphasis
-                          : EasySubwayFontWeight.regular,
-                      color: isWindow
-                          ? EasySubwayAccessibleColors.interactionOnBrand
-                          : EasySubwayAccessibleColors.secondaryText,
-                    ),
-                    semanticsLabel: '특정 시간대 출발 대안 보기',
-                  ),
-                  selected: isWindow,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  onSelected: !enabled
-                      ? null
-                      : (selected) {
-                          if (selected) {
-                            unawaited(
-                              _selectDepartureSelection(
-                                _JourneyDepartureSelection.departureWindow,
-                              ),
-                            );
-                          }
-                        },
-                ),
-              ),
-              const SizedBox(width: 6),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minHeight: 48),
-                child: ChoiceChip(
-                  key: const Key('journey-departure-last-connection'),
-                  showCheckmark: false,
-                  selectedColor: EasySubwayAccessibleColors.surfaceBrand,
-                  backgroundColor: EasySubwayAccessibleColors.surfaceSubtle,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                    side: BorderSide(
-                      color: isLastConnection
-                          ? EasySubwayAccessibleColors.primary
-                          : EasySubwayAccessibleColors.line,
-                      width: isLastConnection ? 1.5 : 1.0,
-                    ),
-                  ),
-                  label: Text(
-                    '안심 막차',
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: isLastConnection
-                          ? EasySubwayFontWeight.emphasis
-                          : EasySubwayFontWeight.regular,
-                      color: isLastConnection
-                          ? EasySubwayAccessibleColors.interactionOnBrand
-                          : EasySubwayAccessibleColors.secondaryText,
-                    ),
-                    semanticsLabel: '교통약자 안심 막차 찾기',
-                  ),
-                  selected: isLastConnection,
-                  labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  onSelected: !enabled
-                      ? null
-                      : (selected) {
-                          if (selected) {
-                            unawaited(
-                              _selectDepartureSelection(
-                                _JourneyDepartureSelection.lastConnection,
-                              ),
-                            );
-                          }
-                        },
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (isScheduled) ...[
-          const SizedBox(height: 8),
-          _departureTimeButton(
-            key: const Key('journey-scheduled-time'),
-            icon: Icons.access_time_rounded,
-            label: selectedLabel,
-            onPressed: enabled ? _selectScheduledTime : null,
-          ),
-        ],
-        if (isWindow) ...[
-          const SizedBox(height: 8),
-          _departureTimeButton(
-            key: const Key('journey-window-time'),
-            icon: Icons.tune_rounded,
-            label: windowLabel,
-            onPressed: enabled ? _selectWindowTime : null,
-          ),
-        ],
-        if (isLastConnection) ...[
-          const SizedBox(height: 8),
-          _departureTimeButton(
-            key: const Key('journey-last-connection-date'),
-            icon: Icons.nightlight_round,
-            label: lastConnectionLabel,
-            onPressed: enabled ? _selectLastConnectionDate : null,
-          ),
-        ],
-      ],
+  /// `다음열차`: 고른 경로 첫 열차 출발 1분 뒤로 다시 찾는다.
+  Future<void> _nextTrain(JourneySelectedSnapshot snapshot) {
+    final firstBoarding = JourneyResultViewModel.fromJourney(
+      snapshot.journey,
+      stationName: _stationName,
+    ).firstBoardingTime;
+    return _applyDeparture(
+      JourneyDepartAt(firstBoarding.add(const Duration(minutes: 1))),
+      search: true,
     );
   }
 
-  Widget _departureTimeButton({
-    required Key key,
-    required IconData icon,
-    required String label,
-    required VoidCallback? onPressed,
+  /// 탭 줄의 `막차`: 지금 운행일의 막차를 찾는다.
+  Future<void> _lastTrainNow() => _applyDeparture(
+    JourneyLastTrain(journeyCurrentServiceDay(_now())),
+    search: true,
+  );
+
+  /// `오늘 00:36 출발 ▾ | 다음열차` 줄. 이전열차는 서버 요청 모드가 없어 두지 않는다.
+  Widget _departureBar({
+    required bool enabled,
+    required JourneySelectedSnapshot? snapshot,
   }) {
-    return OutlinedButton(
-      key: key,
-      style: OutlinedButton.styleFrom(
-        minimumSize: const Size.fromHeight(48),
-        backgroundColor: EasySubwayAccessibleColors.surfaceDefault,
-        side: const BorderSide(color: EasySubwayAccessibleColors.primary),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+    final canNext = enabled && _departure is! JourneyLastTrain;
+    final label = journeyDepartureBarLabel(_departure, _now());
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: EasySubwayAccessibleColors.surface,
+        border: Border.all(color: EasySubwayAccessibleColors.line),
+        borderRadius: BorderRadius.circular(EasySubwayRadius.control),
       ),
-      onPressed: onPressed,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, size: 18, color: EasySubwayAccessibleColors.primary),
-          const SizedBox(width: 8),
-          Text(
-            label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: EasySubwayFontWeight.regular,
-              color: EasySubwayAccessibleColors.primary,
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              flex: 2,
+              child: Semantics(
+                button: true,
+                label: '출발 시각 설정, $label',
+                excludeSemantics: true,
+                onTap: enabled ? _openDepartureSheet : null,
+                child: TextButton(
+                  key: const Key('journey-departure-bar-time'),
+                  onPressed: enabled ? _openDepartureSheet : null,
+                  style: _barButtonStyle,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Flexible(
+                        child: Text(
+                          label,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            fontSize: 17,
+                            fontWeight: EasySubwayFontWeight.emphasis,
+                            color: EasySubwayAccessibleColors.primary,
+                          ),
+                        ),
+                      ),
+                      const Icon(
+                        Icons.expand_more,
+                        color: EasySubwayAccessibleColors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
-          ),
-        ],
+            const VerticalDivider(
+              width: 1,
+              color: EasySubwayAccessibleColors.line,
+            ),
+            Expanded(
+              child: TextButton(
+                key: const Key('journey-departure-bar-next'),
+                onPressed: switch (snapshot) {
+                  final selected? when canNext => () => unawaited(
+                    _nextTrain(selected),
+                  ),
+                  _ => null,
+                },
+                style: _barButtonStyle,
+                child: const Text(
+                  '다음열차',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 17),
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
+
+  static final _barButtonStyle = TextButton.styleFrom(
+    minimumSize: const Size.fromHeight(EasySubwayTouchTarget.general),
+    foregroundColor: EasySubwayAccessibleColors.text,
+    disabledForegroundColor: EasySubwayAccessibleColors.mutedText,
+    shape: const RoundedRectangleBorder(),
+  );
 
   Future<void> _retry() async {
     if (_isAlarmTransitioning) return;
@@ -1900,9 +1171,10 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
         controlsEnabled && _draft.origin != null && _draft.destination != null;
 
     return Container(
+      key: const Key('journey-route-input-card'),
       decoration: BoxDecoration(
         color: EasySubwayAccessibleColors.surface,
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(EasySubwayRadius.card),
         border: Border.all(color: EasySubwayAccessibleColors.line),
       ),
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
@@ -1912,17 +1184,35 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              IconButton(
+                key: const Key('journeyRouteSwapButton'),
+                tooltip: '출발·도착역 바꾸기',
+                constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+                style: IconButton.styleFrom(
+                  minimumSize: const Size(48, 48),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  padding: EdgeInsets.zero,
+                ),
+                padding: EdgeInsets.zero,
+                onPressed: canSwap
+                    ? () => unawaited(_swapOriginAndDestination())
+                    : null,
+                icon: const Icon(
+                  Icons.swap_vert_rounded,
+                  size: 22,
+                  color: EasySubwayAccessibleColors.secondaryText,
+                ),
+              ),
+              const SizedBox(width: 4),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Row(
                       children: [
-                        const ExcludeSemantics(
-                          child: _RouteRoleBadge(
-                            label: '출발',
-                            role: EasySubwayFanMenuColors.departureRole,
-                          ),
+                        const RouteRoleDot(
+                          key: Key('journey-route-dot-origin'),
+                          color: EasySubwayRouteDotColors.origin,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -1946,11 +1236,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                       ),
                       Row(
                         children: [
-                          const ExcludeSemantics(
-                            child: _RouteRoleBadge(
-                              label: '경유',
-                              role: EasySubwayFanMenuColors.waypointRole,
-                            ),
+                          const RouteRoleDot(
+                            key: Key('journey-route-dot-waypoint'),
+                            color: EasySubwayRouteDotColors.waypoint,
                           ),
                           const SizedBox(width: 12),
                           Expanded(
@@ -1996,11 +1284,9 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                     ),
                     Row(
                       children: [
-                        const ExcludeSemantics(
-                          child: _RouteRoleBadge(
-                            label: '도착',
-                            role: EasySubwayFanMenuColors.arrivalRole,
-                          ),
+                        const RouteRoleDot(
+                          key: Key('journey-route-dot-destination'),
+                          color: EasySubwayRouteDotColors.destination,
                         ),
                         const SizedBox(width: 12),
                         Expanded(
@@ -2020,36 +1306,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
-              DecoratedBox(
-                decoration: BoxDecoration(
-                  color: EasySubwayAccessibleColors.surfaceSubtle,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: EasySubwayAccessibleColors.line),
-                ),
-                child: IconButton(
-                  key: const Key('journeyRouteSwapButton'),
-                  tooltip: '출발·도착역 바꾸기',
-                  constraints: const BoxConstraints(
-                    minWidth: 48,
-                    minHeight: 48,
-                  ),
-                  style: IconButton.styleFrom(
-                    minimumSize: const Size(48, 48),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    padding: EdgeInsets.zero,
-                  ),
-                  padding: EdgeInsets.zero,
-                  onPressed: canSwap
-                      ? () => unawaited(_swapOriginAndDestination())
-                      : null,
-                  icon: const Icon(
-                    Icons.swap_vert_rounded,
-                    size: 22,
-                    color: EasySubwayAccessibleColors.primary,
-                  ),
-                ),
-              ),
             ],
           ),
           if (!valid) ...[
@@ -2065,6 +1321,43 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
           ],
         ],
       ),
+    );
+  }
+
+  Widget _criterionTabs(JourneySearchState state) {
+    final response = state.response!;
+    final tabs = journeyCriterionTabs(
+      response.journeys,
+      showStairStatus: journeyShowsStairStatus(response.requestPolicy),
+    );
+    final selectedId = state.selectedJourneyId;
+    final selected =
+        tabs
+            .where(
+              (tab) =>
+                  tab.criterion == _criterion && tab.journeyId == selectedId,
+            )
+            .firstOrNull ??
+        tabs.where((tab) => tab.journeyId == selectedId).firstOrNull;
+    return JourneyCriterionTabBar(
+      tabs: tabs,
+      selected: selected?.criterion,
+      onSelect: _isAlarmTransitioning
+          ? null
+          : (tab) {
+              setState(() => _criterion = tab.criterion);
+              unawaited(
+                _selectJourney(
+                  response.journeys.singleWhere(
+                    (journey) => journey.journeyId == tab.journeyId,
+                  ),
+                ),
+              );
+            },
+      lastTrainSelected: _departure is JourneyLastTrain,
+      onLastTrain: _isAlarmTransitioning
+          ? null
+          : () => unawaited(_lastTrainNow()),
     );
   }
 
@@ -2102,7 +1395,12 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 controlsEnabled: controlsEnabled,
               ),
               const SizedBox(height: 8),
-              _departureControl(controlsEnabled),
+              _departureBar(
+                enabled: controlsEnabled,
+                snapshot: state.status == JourneySearchStatus.success
+                    ? state.selectedSnapshot
+                    : null,
+              ),
               const SizedBox(height: 8),
               _walkingPaceControl(controlsEnabled),
               const SizedBox(height: 8),
@@ -2205,18 +1503,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                 ),
               ],
               if (state.status == JourneySearchStatus.success) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    '경로 후보 ${state.response!.journeys.length}개',
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: EasySubwayFontWeight.emphasis,
-                      color: EasySubwayAccessibleColors.text,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 8),
                 if (journeyStairStatusNotices(
                       state.response!.stairFreeAlternative,
                     )
@@ -2231,24 +1517,7 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                   ),
                   const SizedBox(height: 8),
                 ],
-                JourneyRouteTabs(
-                  tabs: journeyRouteTabs(
-                    state.response!.journeys,
-                    showStairStatus: journeyShowsStairStatus(
-                      state.response!.requestPolicy,
-                    ),
-                  ),
-                  selectedJourneyId: state.selectedJourneyId,
-                  onSelect: _isAlarmTransitioning
-                      ? null
-                      : (journeyId) => unawaited(
-                          _selectJourney(
-                            state.response!.journeys.singleWhere(
-                              (journey) => journey.journeyId == journeyId,
-                            ),
-                          ),
-                        ),
-                ),
+                _criterionTabs(state),
                 if (state.selectedSnapshot case final snapshot?) ...[
                   const SizedBox(height: 16),
                   _selectedDetail(snapshot),
@@ -2256,36 +1525,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
               ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// 경로 입력 카드의 출발·경유·도착 역할 배지.
-///
-/// 출발·도착은 지도 팬 메뉴·핀과 같은 역할색 토큰 위에 흰 글자를 쓴다(대비는
-/// `design_tokens_test`가 고정). 밝은 경유 엠버는 색을 유지한 채 어두운 글자를 쓴다.
-class _RouteRoleBadge extends StatelessWidget {
-  const _RouteRoleBadge({required this.label, required this.role});
-
-  final String label;
-  final EasySubwayRoleColor role;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: role.face,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: EasySubwayFontWeight.emphasis,
-          color: role.onFace,
         ),
       ),
     );

@@ -72,10 +72,6 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    // 경로 후보 선택
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-1')));
-    await tester.pumpAndSettle();
-
     // (1) 칸·문 오름차순 앞 3개 (3-2, 5-1, 7-4) 형식 정확히 표시
     expect(find.text('틈이 좁은 문 3-2 · 5-1 · 7-4'), findsOneWidget);
     // 4번째인 8-1은 표시되지 않아야 함
@@ -124,9 +120,6 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-2')));
-    await tester.pumpAndSettle();
-
     // NARROW/LOW 위치가 없으므로 "틈이 좁은 문" 줄 없음
     expect(find.textContaining('틈이 좁은 문'), findsNothing);
     // WIDE 2곳 표시
@@ -143,9 +136,6 @@ void main() {
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-3')));
     await tester.pumpAndSettle();
 
     expect(find.textContaining('틈이 좁은 문'), findsNothing);
@@ -179,9 +169,6 @@ void main() {
     // 일반(STANDARD) 요청
     await _pumpScreen(tester, repository: repo, mobilityType: 'STANDARD');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-4')));
     await tester.pumpAndSettle();
 
     // 일반 요청에서는 아무것도 표시하지 않음
@@ -224,9 +211,6 @@ void main() {
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-5')));
     await tester.pumpAndSettle();
 
     // 안내 줄 탭하여 바텀시트 열기
@@ -283,9 +267,6 @@ void main() {
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-5b')));
     await tester.pumpAndSettle();
 
     // 서버 순서(3-4, 3-1)와 달리 같은 칸 안에서는 문 번호 오름차순이다.
@@ -392,9 +373,6 @@ void main() {
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
     await tester.pumpAndSettle();
 
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-6')));
-    await tester.pumpAndSettle();
-
     // 안내 줄 Semantics 검증
     expect(
       find.bySemanticsLabel('탑승 승강장, 틈이 좁은 문 3호차 2번, 5호차 1번, 7호차 4번'),
@@ -443,8 +421,6 @@ void main() {
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-6b')));
     await tester.pumpAndSettle();
 
     final sheetRow = find.text('3-2 · 틈 좁음 · 높이차 낮음');
@@ -500,9 +476,6 @@ void main() {
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
-    await tester.pumpAndSettle();
-
-    await tester.tap(find.byKey(const Key('journey-candidate-journey-gap-7')));
     await tester.pumpAndSettle();
 
     // 터치 영역 >= 48dp 검증

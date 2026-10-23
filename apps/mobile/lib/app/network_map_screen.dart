@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
-import '../core/ui/line_mark.dart';
 import '../features/ads/active_ad_banner.dart';
 import '../features/ads/ad_slot.dart';
 import '../design_tokens.dart';
@@ -45,6 +44,13 @@ import '../features/stations/domain/station_repositories.dart';
 import 'network_map_nearby_panel_composition.dart';
 import 'network_map_search_session.dart';
 
+/// 상단 출발·경유·도착 입력 칸의 역할 점 색(#509).
+Color routeDraftRoleDotColor(RouteDraftSlot slot) => switch (slot) {
+  RouteDraftSlot.origin => EasySubwayRouteDotColors.origin,
+  RouteDraftSlot.waypoint => EasySubwayRouteDotColors.waypoint,
+  RouteDraftSlot.destination => EasySubwayRouteDotColors.destination,
+};
+
 WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
   if (repository == null) return null;
   return (_) => ActiveAdBanner(
@@ -53,20 +59,6 @@ WidgetBuilder? _stationDetailBottomAdBuilder(AdRepository? repository) {
     placement: AdPlacement.stationDetailBottom,
   );
 }
-
-/// 상단 출발·경유·도착 입력 칸의 노선 마크. 칸 높이가 정해져 있어 마크는
-/// [lineMarkFixedChromeMaxTextScale]에서 멈춘다.
-Widget routeDraftStationLineBadge(RouteDraftStation station, double size) =>
-    StationLineBadge(
-      line: StationSearchLine(
-        id: station.lineId,
-        name: station.lineName,
-        color: station.lineColor,
-        stationCode: station.stationCode,
-      ),
-      size: size,
-      maxTextScale: lineMarkFixedChromeMaxTextScale,
-    );
 
 class NetworkMapScreen extends StatefulWidget {
   const NetworkMapScreen({
@@ -1689,12 +1681,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         onPickWaypoint: widget.onPickStationForSlot == null
             ? null
             : _pickWaypointStation,
-        roleColorForSlot: (slot) => switch (slot) {
-          RouteDraftSlot.origin => EasySubwayFanMenuColors.departureRole.ink,
-          RouteDraftSlot.waypoint => EasySubwayFanMenuColors.waypointRole.ink,
-          RouteDraftSlot.destination => EasySubwayFanMenuColors.arrivalRole.ink,
-        },
-        lineBadgeBuilder: routeDraftStationLineBadge,
+        roleColorForSlot: routeDraftRoleDotColor,
       ),
       disruptionBanner: widget.disruptionBanner,
       searchMode: inSearchMode,

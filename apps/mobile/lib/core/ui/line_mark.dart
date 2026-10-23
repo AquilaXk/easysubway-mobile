@@ -39,8 +39,36 @@ TextScaler _lineMarkScaler(BuildContext context, double? maxTextScale) {
       : scaler.clamp(maxScaleFactor: maxTextScale);
 }
 
+/// 흰 바탕 위 노선색 글자의 최소 대비(WCAG 2.1 1.4.3 본문 글자 4.5:1).
+const _minTextContrastOnWhite = 4.5;
+
+/// 흰 바탕 위에 노선색으로 글자를 쓸 때의 색. 노선색이 흰 바탕과 4.5:1을 넘으면
+/// 그대로 쓰고, 못 넘으면 같은 색상(hue)에서 명도만 낮춘다. 경로 역할색 토큰을
+/// 만든 방식(design_tokens.dart `EasySubwayFanMenuColors`)과 같다.
+Color lineInkOnWhite(Color lineColor) {
+  const white = EasySubwayAccessibleColors.surface;
+  const lightnessStep = 0.01;
+  final hsl = HSLColor.fromColor(lineColor);
+  var lightness = hsl.lightness;
+  var ink = lineColor;
+  while (_contrast(ink, white) < _minTextContrastOnWhite && lightness > 0) {
+    lightness = math.max(0, lightness - lightnessStep);
+    ink = hsl.withLightness(lightness).toColor();
+  }
+  return ink;
+}
+
+double _contrast(Color a, Color b) {
+  final (la, lb) = (a.computeLuminance(), b.computeLuminance());
+  return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+}
+
 /// 노선 마크 단일 그림. 한 글자 라벨(호선 번호)은 노선색 원 안 흰 글자, 그 밖의
 /// 공식 약칭은 노선색 알약 안 흰 글자다. 글자는 배경색과 무관하게 항상 흰색이다.
+///
+/// [onLineColor]는 노선색 막대 위에 얹는 마크다. 흰 면에 노선색 테두리와 노선색
+/// 글자를 쓴다(상용 지하철 서비스 경로 결과의 구간 막대). 흰색과 노선색의 대비는
+/// 방향과 무관하게 같다.
 ///
 /// [maxTextScale]은 높이가 정해진 칸 안의 마크만 [lineMarkFixedChromeMaxTextScale]로
 /// 넘긴다. 기본 null은 상한이 없어 시스템 글자 배율을 그대로 따른다.
@@ -53,6 +81,7 @@ class LineMark extends StatelessWidget {
     required this.color,
     this.size = lineMarkDefaultSize,
     this.maxTextScale,
+    this.onLineColor = false,
     super.key,
   });
 
@@ -60,11 +89,13 @@ class LineMark extends StatelessWidget {
   final Color color;
   final double size;
   final double? maxTextScale;
+  final bool onLineColor;
 
   static const _circleFontRatio = 0.6;
   static const _pillFontRatio = 0.58;
   static const _pillPaddingRatio = 0.33;
   static const _minPillFontSize = 10.5;
+  static const _onLineRingWidth = 2.0;
 
   @override
   Widget build(BuildContext context) {
@@ -82,16 +113,26 @@ class LineMark extends StatelessWidget {
       maxLines: 1,
       textScaler: TextScaler.noScaling,
       style: TextStyle(
-        color: EasySubwayAccessibleColors.interactionOnPrimary,
+        color: onLineColor
+            ? color
+            : EasySubwayAccessibleColors.interactionOnPrimary,
         fontSize: fontSize,
         fontWeight: EasySubwayFontWeight.boldForContrast,
         height: 1.0,
       ),
     );
 
+    final face = onLineColor ? EasySubwayAccessibleColors.surface : color;
+    final ring = onLineColor
+        ? Border.all(color: color, width: _onLineRingWidth)
+        : null;
     if (isCircle) {
       return DecoratedBox(
-        decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        decoration: BoxDecoration(
+          color: face,
+          shape: BoxShape.circle,
+          border: ring,
+        ),
         child: SizedBox.square(
           dimension: markSize,
           child: Center(child: text),
@@ -100,7 +141,8 @@ class LineMark extends StatelessWidget {
     }
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: color,
+        color: face,
+        border: ring,
         borderRadius: BorderRadius.circular(markSize / 2),
       ),
       child: ConstrainedBox(
