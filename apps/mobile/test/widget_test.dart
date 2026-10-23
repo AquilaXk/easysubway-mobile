@@ -12687,7 +12687,7 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('역정보'), findsOneWidget);
-        expect(find.text('시설정보'), findsOneWidget);
+        expect(find.text('교통약자 시설'), findsOneWidget);
 
         await tester.scrollUntilVisible(
           find.text('2번 출구 엘리베이터'),
@@ -13305,7 +13305,7 @@ void main() {
         reportRepository: FakeFacilityReportRepository(),
       );
 
-      await tester.drag(find.byType(ListView), const Offset(0, -520));
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
       await tester.pumpAndSettle();
 
       // 네이버 1:1 표준: 출구가 없으면 출구정보 섹션을 숨기고 역정보 섹션만 그린다.
@@ -13313,7 +13313,7 @@ void main() {
       expect(find.text('출구정보'), findsNothing);
       expect(find.text('출구 정보'), findsNothing);
       expect(find.text('역정보'), findsOneWidget);
-      expect(find.text('시설정보'), findsOneWidget);
+      expect(find.text('교통약자 시설'), findsOneWidget);
       expect(find.text('1번 출구 엘리베이터'), findsOneWidget);
     } finally {
       semanticsHandle.dispose();
@@ -14189,15 +14189,16 @@ void main() {
 
     expect(find.text('역정보'), findsOneWidget);
     expect(find.text('시설정보'), findsOneWidget);
-    expect(find.text('플랫폼'), findsOneWidget);
-    expect(find.text('-'), findsNWidgets(3));
+    expect(find.text('플랫폼'), findsNothing);
+    expect(find.text('-'), findsNothing);
     expect(find.text('화장실'), findsOneWidget);
     expect(find.text('개찰구 밖'), findsOneWidget);
-    expect(find.text('내리는문'), findsOneWidget);
-    expect(find.text('반대편'), findsOneWidget);
+    expect(find.text('내리는문'), findsNothing);
+    expect(find.text('반대편'), findsNothing);
 
-    expect(find.text('편의시설'), findsOneWidget);
-    expect(find.text('자전거보관소'), findsOneWidget);
+    // 원천에 행이 없는 편의시설은 없음으로 단정하지 않고 묶음째 뺀다.
+    expect(find.text('편의시설'), findsNothing);
+    expect(find.text('자전거보관소'), findsNothing);
     expect(find.text('교통약자 시설'), findsOneWidget);
     expect(find.text('엘리베이터'), findsWidgets);
   });

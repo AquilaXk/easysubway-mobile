@@ -288,6 +288,37 @@ class DriftStationRepository
       dataSourceType: summary.dataSourceType,
       lastVerifiedAt: summary.lastVerifiedAt,
       lines: List.unmodifiable(summary.lines),
+      confirmedAbsentFacilityTypes: await _confirmedAbsentFacilityTypes(
+        summary.id,
+      ),
+    );
+  }
+
+  /// 노선 하나라도 증거가 없거나 있다고 하면 그 유형은 역 단위로 없음이 아니다.
+  Future<Set<String>> _confirmedAbsentFacilityTypes(String stationId) async {
+    final rows = await database
+        .customSelect(
+          '''
+          SELECT e.facility_type
+          FROM station_lines sl
+          JOIN station_facility_evidence e
+            ON e.station_id = sl.station_id
+           AND e.line_id = sl.line_id
+           AND e.evidence_kind = 'NOT_EXISTS'
+          WHERE sl.station_id = ?
+          GROUP BY e.facility_type
+          HAVING COUNT(*) = (
+            SELECT COUNT(*) FROM station_lines WHERE station_id = ?
+          )
+          ''',
+          variables: [
+            Variable.withString(stationId),
+            Variable.withString(stationId),
+          ],
+        )
+        .get();
+    return Set.unmodifiable(
+      rows.map((row) => row.read<String>('facility_type')),
     );
   }
 
@@ -328,6 +359,7 @@ class DriftStationRepository
                 FROM facilities f
                 WHERE f.exit_id = e.id
                   AND UPPER(f.type) = 'ELEVATOR'
+                  AND f.installation_status <> 'NOT_INSTALLED'
               )
               THEN 1
               ELSE 0
@@ -409,6 +441,7 @@ class DriftStationRepository
           FROM facilities f
           JOIN stations s ON s.id = f.station_id
           WHERE f.station_id = ?
+            AND f.installation_status <> 'NOT_INSTALLED'
           ORDER BY f.type, f.name
           ''',
           variables: [Variable.withString(stationId)],

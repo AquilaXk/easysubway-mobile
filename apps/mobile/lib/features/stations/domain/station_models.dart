@@ -369,6 +369,7 @@ class StationDetail {
     this.dataSourceType = '',
     required this.lastVerifiedAt,
     required this.lines,
+    this.confirmedAbsentFacilityTypes = const {},
   });
 
   factory StationDetail.fromJson(Map<String, Object?> json) {
@@ -412,6 +413,10 @@ class StationDetail {
   final String dataSourceType;
   final String lastVerifiedAt;
   final List<StationSearchLine> lines;
+
+  /// 원천이 이 역의 모든 노선에서 없다고 확인한 시설 유형(`ELEVATOR` 등).
+  /// 시설 행도 없고 여기에도 없는 유형은 모름이므로 없음으로 보이지 않는다.
+  final Set<String> confirmedAbsentFacilityTypes;
 
   String get dataQualityLabel => _dataQualityLabel(dataQualityLevel);
 
@@ -495,8 +500,9 @@ class StationExitInfo {
 
   bool get hasCoordinate => latitude != null && longitude != null;
 
-  String get elevatorConnectionLabel {
-    return hasElevatorConnection ? '엘리베이터 연결' : '엘리베이터 없음';
+  /// 연결 여부 컬럼은 모름과 없음을 가르지 못하므로 연결이 확인된 경우에만 읽는다.
+  String? get elevatorConnectionLabel {
+    return hasElevatorConnection ? '엘리베이터 연결' : null;
   }
 
   String? get stairPathLabel {
@@ -523,7 +529,10 @@ class StationExitInfo {
     if (desc.isNotEmpty) {
       parts.add(desc);
     }
-    parts.add(elevatorConnectionLabel);
+    final elevatorLabel = elevatorConnectionLabel;
+    if (elevatorLabel != null) {
+      parts.add(elevatorLabel);
+    }
     final stairLabel = stairPathLabel;
     if (stairLabel != null) {
       parts.add(stairLabel);

@@ -213,28 +213,26 @@ void main() {
 
       expect(find.text('역정보'), findsOneWidget);
       expect(find.text('시설정보'), findsOneWidget);
-      expect(find.text('플랫폼'), findsOneWidget);
       expect(find.text('화장실'), findsOneWidget);
       expect(find.text('개찰구 안/밖'), findsOneWidget);
-      expect(find.text('내리는문'), findsOneWidget);
-      expect(find.text('반대편'), findsOneWidget);
-      // 승강장(플랫폼, 내리는문, 반대편) 데이터 부재 시 가짜 기본값 대신 '-'이 정직하게 표출됨
-      expect(find.text('-'), findsNWidgets(3));
+      // 원천에 값이 없는 승강장 칸(플랫폼, 내리는문, 반대편)은 `-`로 채우지 않고 뺀다.
+      expect(find.text('플랫폼'), findsNothing);
+      expect(find.text('내리는문'), findsNothing);
+      expect(find.text('반대편'), findsNothing);
+      expect(find.text('-'), findsNothing);
       expect(find.text('양쪽'), findsNothing);
       expect(find.text('오른쪽'), findsNothing);
       expect(find.text('연결됨'), findsNothing);
 
-      expect(find.text('편의시설'), findsOneWidget);
-      expect(find.text('자전거보관소'), findsOneWidget);
-      expect(find.text('환승주차장'), findsOneWidget);
-      expect(find.text('유실물센터'), findsOneWidget);
-      expect(find.text('물품보관소'), findsOneWidget);
+      // 원천에 행이 없는 편의시설은 없음으로 단정하지 않고 묶음째 뺀다.
+      expect(find.text('편의시설'), findsNothing);
+      expect(find.text('자전거보관소'), findsNothing);
 
       expect(find.text('교통약자 시설'), findsOneWidget);
       expect(find.text('장애인화장실'), findsOneWidget);
       expect(find.text('엘리베이터'), findsWidgets);
       expect(find.text('수유실'), findsWidgets);
-      expect(find.text('휠체어 리프트'), findsOneWidget);
+      expect(find.text('휠체어 리프트'), findsNothing);
 
       // 하단 고정 액션바 4종 버튼 검증
       expect(find.text('출발'), findsOneWidget);
@@ -314,9 +312,7 @@ void main() {
     expect(find.text('이동 불가'), findsOneWidget);
   });
 
-  testWidgets('화장실 정보가 전혀 없으면 임의로 개찰구 밖을 날조하지 않고 -으로 정직하게 표출한다', (
-    tester,
-  ) async {
+  testWidgets('화장실 정보가 전혀 없으면 개찰구 밖을 날조하지 않고 화장실 칸을 뺀다', (tester) async {
     tester.view.physicalSize = const Size(800, 2400);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
@@ -343,8 +339,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    expect(find.text('화장실'), findsOneWidget);
-    expect(find.text('-'), findsNWidgets(4)); // 플랫폼, 화장실, 내리는문, 반대편 모두 -
+    expect(find.text('시설정보'), findsNothing);
+    expect(find.text('화장실'), findsNothing);
+    expect(find.text('-'), findsNothing);
     expect(find.text('개찰구 밖'), findsNothing);
     expect(find.text('개찰구 안'), findsNothing);
   });
@@ -795,10 +792,7 @@ void main() {
         'hasStairOnlyPath': 'present',
         'dataConfidence': 'MEDIUM',
       });
-      expect(
-        withoutDesc.semanticLabel,
-        startsWith('2번 출구, 엘리베이터 없음, 계단만 있는 길 있음'),
-      );
+      expect(withoutDesc.semanticLabel, startsWith('2번 출구, 계단만 있는 길 있음'));
     },
   );
 
