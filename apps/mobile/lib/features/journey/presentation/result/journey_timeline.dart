@@ -609,7 +609,7 @@ class _Rail extends StatelessWidget {
           ? const SizedBox.expand()
           : Column(
               children: [
-                SizedBox(height: EasySubwaySpacing.md),
+                const SizedBox(height: EasySubwaySpacing.md),
                 _markerIcon(marker),
                 _markerTime(marker),
               ],
