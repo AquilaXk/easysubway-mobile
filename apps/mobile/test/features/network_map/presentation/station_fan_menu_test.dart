@@ -1,9 +1,11 @@
+import 'dart:ui' as ui;
 import 'dart:ui' show SemanticsAction;
 
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/semantics.dart' show OrdinalSortKey;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -270,5 +272,42 @@ void main() {
     await first.up();
     await tester.pump();
     expect(actions, [RouteDraftSlot.origin]);
+  });
+
+  testWidgets('역명을 넘겨도 가운데에 역명을 그리지 않는다', (tester) async {
+    const boundaryKey = ValueKey('station-fan-menu-pixel-boundary');
+    Future<List<int>> pumpAndCapture(String? stationName) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: Center(
+              child: RepaintBoundary(
+                key: boundaryKey,
+                child: StationFanMenu(
+                  width: kFanMenuDesignSize.width,
+                  stationName: stationName,
+                  selectedSlots: const {},
+                  disabledSlots: const {},
+                  onAction: (_) {},
+                  onClose: () {},
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      final boundary =
+          tester.renderObject(find.byKey(boundaryKey)) as RenderRepaintBoundary;
+      final bytes = await tester.runAsync(() async {
+        final image = await boundary.toImage();
+        return image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      });
+      return bytes!.buffer.asUint8List();
+    }
+
+    final withoutName = await pumpAndCapture(null);
+    final withName = await pumpAndCapture('가오리');
+
+    expect(withName, orderedEquals(withoutName));
   });
 }

@@ -1,12 +1,10 @@
 import 'dart:io' show File, Platform;
 import 'dart:typed_data' show ByteData;
-import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart' show FontLoader;
 import 'package:flutter_test/flutter_test.dart';
 
@@ -79,26 +77,6 @@ void main() {
       matchesGoldenFile('goldens/station_fan_menu_default.png'),
     );
   }, skip: skipReason);
-
-  testWidgets('역명을 넘겨도 가운데에 역명을 그리지 않는다', (tester) async {
-    Future<List<int>> capture() async {
-      final boundary =
-          tester.renderObject(find.byKey(_menuBoundaryKey))
-              as RenderRepaintBoundary;
-      final bytes = await tester.runAsync(() async {
-        final image = await boundary.toImage();
-        return image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      });
-      return bytes!.buffer.asUint8List();
-    }
-
-    await _pumpMenu(tester);
-    final withoutName = await capture();
-    await _pumpMenu(tester, stationName: '가오리');
-    final withName = await capture();
-
-    expect(withName, orderedEquals(withoutName));
-  });
 
   testWidgets('비교 너비 296dp 기본 상태', (tester) async {
     await _pumpMenu(tester, width: 296);
