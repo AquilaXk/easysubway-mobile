@@ -43,8 +43,6 @@ class NearbyStationLineBar extends StatelessWidget {
   /// 다음(오른쪽) 역 탭. null이면 표시만 한다.
   final VoidCallback? onRightNameTap;
 
-  static const _pillMarkSize = 20.0;
-
   @override
   Widget build(BuildContext context) {
     final openDetail = onStationNameTap;
@@ -107,7 +105,7 @@ class NearbyStationLineBar extends StatelessWidget {
         // 이름이 줄어들지 않게 알약만 더 낮게 그린다.
         final badgeSize = isLineMarkCircle(badgeText)
             ? badgeDiameter
-            : math.min(badgeDiameter, _pillMarkSize);
+            : math.min(badgeDiameter, lineMarkDefaultSize);
         final stationNameSize = (capsuleHeight * 0.42).clamp(16.0, 20.0);
         final openDetail = onStationNameTap;
         final currentLabel = badgeText.isEmpty

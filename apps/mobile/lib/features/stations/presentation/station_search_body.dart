@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/ui/line_mark.dart';
 import '../../../design_tokens.dart';
 import '../application/station_search_controller.dart';
 import '../domain/station_line.dart';
@@ -14,9 +15,6 @@ const _rowHorizontalPadding = 18.0;
 
 /// 결과 행 최소 높이.
 const _rowMinHeight = 52.0;
-
-/// 결과 행 안 노선 마크 지름.
-const _rowLineMarkSize = 20.0;
 
 const _stationNameFontSize = 16.0;
 
@@ -273,7 +271,7 @@ class _StationSearchResultLineRow extends StatelessWidget {
                     ),
                     if (line != null) ...[
                       const SizedBox(width: 12),
-                      StationLineBadge(line: line, size: _rowLineMarkSize),
+                      StationLineBadge(line: line, size: lineMarkDefaultSize),
                     ],
                   ],
                 ),

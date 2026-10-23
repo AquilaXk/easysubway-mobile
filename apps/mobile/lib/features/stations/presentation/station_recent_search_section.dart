@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/ui/line_mark.dart';
 import '../../../core/ui/name_with_marks.dart';
 import '../../../design_tokens.dart';
 import '../domain/station_line.dart';
@@ -302,9 +303,6 @@ class _RecentSearchItem extends StatelessWidget {
   }
 }
 
-/// 검색 결과 행의 마크 크기와 같다.
-const _recentMarkSize = 20.0;
-
 /// 최근 검색어와 그 역의 노선 마크. 검색어가 우선이라 마크는 줄 폭의 일부만 쓰고
 /// 넘치면 다음 줄로 접힌다.
 class _StationQueryLabel extends StatelessWidget {
@@ -322,7 +320,7 @@ class _StationQueryLabel extends StatelessWidget {
           )
         : StationLineBadges(
             lines: entry.lines,
-            size: _recentMarkSize,
+            size: lineMarkDefaultSize,
             maxBadgeCount: 3,
             runSpacing: 4,
           );
@@ -382,7 +380,7 @@ class _RouteStationsLabel extends StatelessWidget {
         if (lines.isNotEmpty) ...[
           StationLineBadges(
             lines: lines,
-            size: _recentMarkSize,
+            size: lineMarkDefaultSize,
             maxBadgeCount: 2,
           ),
           const SizedBox(width: 6),

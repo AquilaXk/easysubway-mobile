@@ -4,9 +4,18 @@ import 'package:flutter/material.dart';
 
 import '../../accessible_design.dart';
 
+/// 목록 행·상단바·검색 결과가 노선 마크를 그리는 기본 한 변(dp). 마크를 쓰는
+/// 화면이 각자 20을 따로 두지 않고 이 값 하나를 쓴다.
+const lineMarkDefaultSize = 20.0;
+
 /// 마크가 글자 크기 설정을 따라 커지는 상한. 마크는 이름 옆에 놓이는 기호라 그
 /// 이상 키우면 이름이 들어갈 폭을 먹는다. 마크 안 글자도 같은 비율로 커지므로
 /// 이 상한에서도 글자는 마크 안에 들어간다.
+///
+/// 1.3은 Flutter Material `NavigationBar`가 고정 크기 칸 안 라벨에 거는 상한
+/// (`_kMaxLabelTextScaleFactor = 1.3`, flutter/lib/src/material/navigation_bar.dart)과
+/// 같다. 그 주석처럼 큰 글자에서도 시각 위계를 유지하려는 값이다. 역 이름과
+/// 같은 본문 글자는 이 상한 없이 시스템 배율을 그대로 따른다.
 const lineMarkMaxTextScale = 1.3;
 
 /// 한 글자 라벨(호선 번호)은 원, 그 밖의 공식 약칭은 알약이다. 마크를 그리는
@@ -31,7 +40,7 @@ class LineMark extends StatelessWidget {
   const LineMark({
     required this.label,
     required this.color,
-    this.size = 20,
+    this.size = lineMarkDefaultSize,
     super.key,
   });
 

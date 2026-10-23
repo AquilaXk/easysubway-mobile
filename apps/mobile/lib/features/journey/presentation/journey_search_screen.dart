@@ -630,7 +630,6 @@ class _JourneySearchScreenState extends State<JourneySearchScreen>
                           LineMark(
                             label: stationLineBadgeText(node.lineName),
                             color: journeyLineColor(node.lineId),
-                            size: 20,
                           ),
                           Text(
                             node.lineName,
