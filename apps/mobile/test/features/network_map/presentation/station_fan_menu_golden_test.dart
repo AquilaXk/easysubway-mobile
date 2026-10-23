@@ -22,7 +22,6 @@ Future<void> _pumpMenu(
   double width = _menuWidth,
   Set<RouteDraftSlot> selected = const {},
   Set<RouteDraftSlot> disabled = const {},
-  String? stationName,
 }) async {
   await tester.pumpWidget(
     MaterialApp(
@@ -39,7 +38,6 @@ Future<void> _pumpMenu(
                   : _goldenBackground,
               child: StationFanMenu(
                 width: width,
-                stationName: stationName,
                 selectedSlots: selected,
                 disabledSlots: disabled,
                 fontFamily: _goldenFontFamily,
