@@ -347,6 +347,29 @@ void main() {
     expect(elevator.lastUpdatedAt, '2026-06-19');
   });
 
+  test('원천의 미설치 기록은 역 시설 목록에 넣지 않는다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO facilities (id, station_id, type, name, installation_status)
+      VALUES
+        ('facility-sangnoksu-lift-absent', 'station-sangnoksu',
+         'WHEELCHAIR_LIFT', '상록수역 휠체어리프트 설치 정보', 'NOT_INSTALLED'),
+        ('facility-sangnoksu-lift-installed', 'station-sangnoksu',
+         'WHEELCHAIR_LIFT', '상록수역 휠체어리프트', 'INSTALLED')
+      ''');
+    final repository = DriftStationRepository(database: database);
+
+    final facilityIds = (await repository.listStationFacilities(
+      'station-sangnoksu',
+    )).map((facility) => facility.id);
+
+    expect(facilityIds, contains('facility-sangnoksu-lift-installed'));
+    expect(facilityIds, contains('facility-sangnoksu-elevator-1'));
+    expect(facilityIds, isNot(contains('facility-sangnoksu-lift-absent')));
+  });
+
   test('흡수된 station ID로 상세·출구·시설을 요청해도 대표 역을 반환한다', () async {
     final database = CatalogDatabase.memory();
     addTearDown(database.close);
