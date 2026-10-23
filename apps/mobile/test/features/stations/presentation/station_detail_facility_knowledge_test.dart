@@ -214,6 +214,40 @@ void main() {
     expect(find.text('교통약자 시설'), findsNothing);
   });
 
+  testWidgets('칸은 이름을 한 번만 읽는다', (tester) async {
+    await _pumpDetail(
+      tester,
+      detail: _withAbsences(const {'WHEELCHAIR_LIFT'}),
+      facilities: [
+        _installed('ELEVATOR', '금남로4가역 엘리베이터 설치 정보'),
+        _installed('BICYCLE', '자전거 보관대'),
+        _installed('ACCESSIBLE_TOILET', '장애인 화장실'),
+        _installed('NURSING_ROOM', '수유실'),
+      ],
+    );
+
+    for (final label in ['엘리베이터', '자전거보관소', '장애인화장실', '수유실']) {
+      expect(_announced('$label 있음'), findsOneWidget, reason: label);
+      expect(_announced(label), findsNothing, reason: label);
+    }
+    expect(_announced('휠체어 리프트 없음'), findsOneWidget);
+    expect(_announced('휠체어 리프트'), findsNothing);
+  });
+
+  testWidgets('화면에 그릴 칸이 없는 미설치 증거만 있는 역은 역정보 구역과 여백을 두지 않는다', (tester) async {
+    await _pumpDetail(tester, facilities: const []);
+    final noEvidenceTop = tester.getTopLeft(find.text('안내')).dy;
+
+    await _pumpDetail(
+      tester,
+      detail: _withAbsences(const {'ESCALATOR'}),
+      facilities: const [],
+    );
+
+    expect(find.text('역정보'), findsNothing);
+    expect(tester.getTopLeft(find.text('안내')).dy, noEvidenceTop);
+  });
+
   testWidgets('엘리베이터 연결이 확인되지 않은 출구는 엘리베이터 없음을 읽지 않는다', (tester) async {
     const exit = StationExitInfo(
       id: 'exit-geumnamno-1',
