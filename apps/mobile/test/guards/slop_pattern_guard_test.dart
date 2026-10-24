@@ -409,6 +409,44 @@ final a = 1;
       expect(_count('final a = [Icons.add, Icons.close];', 'icon'), 2);
     });
 
+    test('side_border는 호출 밖에 이어지는 top: 같은 이름 때문에 놓치지 않는다', () {
+      expect(
+        _lines(
+          'final a = Border(left: BorderSide(width: 4));\n'
+              'final b = EdgeInsets.only(top: 8);\n',
+          'side_border',
+        ),
+        [1],
+      );
+      expect(
+        _lines(
+          'final a = Border(left: BorderSide(width: 4));\n'
+              'final b = Border(top: BorderSide(width: 1));\n',
+          'side_border',
+        ),
+        [1],
+      );
+    });
+
+    test('Border() 호출이 수만 번 반복되어도 입력 길이에 비례한 시간에 끝난다', () {
+      const repeats = 16000;
+      const budget = Duration(seconds: 5);
+      final stopwatch = Stopwatch()..start();
+      final empty = _count('final a = Border();\n' * repeats, 'side_border');
+      final accent = _count(
+        'final a = Border(left: BorderSide(width: 4));\n' * repeats,
+        'side_border',
+      );
+      stopwatch.stop();
+      expect(empty, 0);
+      expect(accent, repeats);
+      expect(
+        stopwatch.elapsed,
+        lessThan(budget),
+        reason: '호출마다 파일 끝까지 변 키를 찾으면 제곱 시간이 되어 이 입력에서 수십 초가 걸린다',
+      );
+    });
+
     test('히트는 1부터 시작하는 줄 번호를 돌려준다', () {
       expect(_lines('final a = 1;\n\nfinal b = Icons.add;\n', 'icon'), [3]);
       expect(_lines("final a = '''\n\u{2728}\n''';", 'emoji'), [1]);

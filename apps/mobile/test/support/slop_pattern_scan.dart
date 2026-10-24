@@ -159,22 +159,25 @@ _Side? _sideAt(SlopSource source, int side) {
   return width == null ? null : (width: width, end: close + 1);
 }
 
-/// `Border(` 호출의 바깥 인자에 적힌 변 키마다 폭을 읽는다. 변 값 안쪽의 `top:` 같은 이름은 건너뛴다.
-/// 변 값이 알 수 없는 형태이면 null.
+/// `Border(` 호출의 바깥 인자([open]+1부터 [close]까지)에 적힌 변 키마다 폭을 읽는다.
+/// 변 값 안쪽의 `top:` 같은 이름은 건너뛴다. 변 값이 알 수 없는 형태이면 null.
+/// 키 탐색은 이 호출의 인자 구간 안에서만 하므로 호출 전체 비용이 인자 길이에 비례한다.
 List<double>? _sideWidths(SlopSource source, int open, int close) {
+  final argumentsStart = open + 1;
+  final arguments = source.code.substring(argumentsStart, close);
   final widths = <double>[];
-  var cursor = open + 1;
+  var cursor = 0;
   while (true) {
-    final key = _sideKey.allMatches(source.code, cursor).firstOrNull;
-    if (key == null || key.start >= close) {
+    final key = _sideKey.allMatches(arguments, cursor).firstOrNull;
+    if (key == null) {
       return widths;
     }
-    final side = _sideAt(source, key.end);
+    final side = _sideAt(source, argumentsStart + key.end);
     if (side == null) {
       return null;
     }
     widths.add(side.width);
-    cursor = side.end;
+    cursor = side.end - argumentsStart;
   }
 }
 
