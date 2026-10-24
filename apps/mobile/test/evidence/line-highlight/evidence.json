@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "issue": 511,
+  "capturedAt": "2026-10-24",
+  "platform": "Android emulator easysubway_ps16k_api36(Pixel 6, Android 16 API 36, 글자 배율 1.5), adb screencap 1080x2400을 세로 1200으로 줄임. 운영 API 설정의 debug APK, 번들 데이터팩. 실기기 Galaxy A17(SM-A175N, 글자 배율 1.0) 2장은 같은 head의 profile APK를 adb install -r로 올렸다",
+  "assertions": [
+    "노선을 고르면 바탕 전체가 흐려지고 고른 노선의 선, 역 심벌, 환승 캡슐, 역명이 원래 진하기로 그려진다",
+    "전체 노선은 바탕을 흐리지 않는다",
+    "흐린 바탕 불투명도 0.22는 상용 지하철 서비스 노선 선택 화면 캡처에서 흐린 1·4·6호선 칸 색을 흰 바탕과 노선색 사이 비율로 역산한 9개 채널의 중앙값이다(범위 0.165~0.28). 캡처는 공개하지 않는다"
+  ],
+  "measurements": {
+    "overlayAssets": "노선 강조 레이어 36개 445,514 B와 색인 5,028 B를 더했다(gzip -9 159,458 B). 바탕 .vec 5개 364,520 B는 바뀌지 않았다",
+    "hostDecode": "수도권 1호선 레이어(37,635 B) vg.loadPicture 7회 p50 3.8 ms, 범위 3.0~14.4 ms(첫 회가 가장 느림). flutter test 호스트, route_map_basemap_perf_test.dart",
+    "hostRaster": "1080x1920 소프트웨어 래스터 25회 교대, 바탕만 p50 4.7 ms, 흐린 바탕+1호선 레이어 p50 7.3 ms. 같은 조건에서 saveLayer 대신 흰 막을 덮어도 p50 7.0 ms라 늘어난 시간은 대부분 레이어 그리기다",
+    "deviceRaster": "Galaxy A17 profile, 2호선을 맞춘 같은 카메라에서 좌우 팬 6회를 강조·전체 노선 순으로 5번 번갈아 잼. FrameTiming rasterMs 전체 노선 p50 12.95 ms p90 13.89 ms(888 프레임, 16.7 ms 초과 6), 강조 p50 14.86 ms p90 15.92 ms(786 프레임, 초과 31). 회차별 p50은 12.84~13.07 대 14.74~15.06 ms로 겹치지 않는다. 흰 막 변형은 강조 p50 14.64 ms로 0.2 ms 차이라 saveLayer를 유지했다"
+  },
+  "files": [
+    {
+      "path": "before-line2.png",
+      "sha256": "47e0e809c504cf00135ddd767f9b60c5e4f09d413eead6c89eda6ef7dcd3aa25",
+      "description": "수정 전(origin/main 0884c3ac)에 2호선 칩을 고른 노선도. 지도가 2호선 전체로 옮기지만 다른 노선과 역명이 모두 같은 진하기다"
+    },
+    {
+      "path": "before-uisinseol.png",
+      "sha256": "7d4de43470b0351d710d9915820303e097d24552f989a276f477662d1b43eaf4",
+      "description": "수정 전에 시트에서 우이신설을 고른 노선도. 4·6·1호선과 역명이 우이신설과 같은 진하기다"
+    },
+    {
+      "path": "after-all.png",
+      "sha256": "1a8e0be65fac0f3fe0b8175ceb3076a223fd1bb52d25bf2996767844007b51e6",
+      "description": "수정 후 전체 노선. 바탕을 흐리지 않고 수정 전과 같게 그린다"
+    },
+    {
+      "path": "after-line2.png",
+      "sha256": "d65c60e9709bfb68e9330781647d2dfec04e2a959564ebdb51e530c2b335c117",
+      "description": "수정 후 2호선을 고른 노선도. 다른 노선·역명·환승 캡슐은 흐리고 2호선 선, 역 심벌, 환승 캡슐, 역명만 원래 진하기다"
+    },
+    {
+      "path": "after-uisinseol.png",
+      "sha256": "f28d77f703c8e3abf7c552445a559a09d732b579b961c10637b4c4246c7bc14f",
+      "description": "수정 후 우이신설을 고른 노선도. 우이신설과 그 역명, 성신여대입구·보문·신설동 환승 캡슐이 진하고 4·6·1호선과 길음·안암 같은 역명은 흐리다"
+    },
+    {
+      "path": "after-device-line2.png",
+      "sha256": "b2d70e12c56bbf2c40699b8d76a5b4e9c563807c5cc8895a365d57e368aa8f0c",
+      "description": "실기기에서 2호선을 고른 노선도(같은 head의 profile APK, 글자 1.0배)"
+    },
+    {
+      "path": "after-device-uisinseol.png",
+      "sha256": "d88e3db0840904058fccd2cb5e558cbbfe96472a234de67db81c859d389cb02a",
+      "description": "실기기에서 우이신설을 고른 노선도"
+    }
+  ]
+}
