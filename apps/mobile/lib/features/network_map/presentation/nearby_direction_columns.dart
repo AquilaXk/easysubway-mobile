@@ -4,26 +4,39 @@ import '../../../accessible_design.dart';
 import '../../../design_tokens.dart';
 import 'nearby_direction_title.dart';
 
+/// 응답을 기다리는 동안 열차 행 자리에 쓰는 대시와 그 낭독 문장. 응답이 없다고
+/// 확정된 뒤의 [NearbyPanelColumn.emptyMessage]와 구분한다.
+const nearbyLoadingGlyph = ['-'];
+const nearbyLoadingLabel = '불러오는 중';
+
 /// 방면 카드 하나. 열차 행([rows])이 있으면 행을 그리고, 없으면 [emptyMessage]
 /// 줄을 가운데에 그린다(상용 지하철 서비스의 "실시간 정보 없음"·"운행종료" 자리).
-/// [rowsLabel]은 행 전체를 스크린리더가 한 번에 읽을 문장이다.
+/// 응답을 기다리는 중이면([loading]) 정보 없음 대신 대시를 그리고 "불러오는 중"으로
+/// 읽는다. [rowsLabel]은 행 전체를 스크린리더가 한 번에 읽을 문장이다.
 class NearbyPanelColumn {
   const NearbyPanelColumn({
     required this.title,
     this.rows = const <Widget>[],
     this.rowsLabel = '',
     this.emptyMessage = const <String>[],
+    this.loading = false,
   });
 
   final String title;
   final List<Widget> rows;
   final String rowsLabel;
   final List<String> emptyMessage;
+  final bool loading;
 
   bool get hasData => rows.isNotEmpty;
 
+  List<String> get placeholderLines =>
+      loading ? nearbyLoadingGlyph : emptyMessage;
+
   String get semanticsLabel {
-    final body = hasData ? rowsLabel : emptyMessage.join(' ');
+    final body = hasData
+        ? rowsLabel
+        : (loading ? nearbyLoadingLabel : emptyMessage.join(' '));
     return [title, body].where((part) => part.isNotEmpty).join(', ');
   }
 }
@@ -205,7 +218,7 @@ class _NearbyDirectionCard extends StatelessWidget {
                   ...column.rows
                 else
                   Expanded(
-                    child: NearbyPanelMessage(lines: column.emptyMessage),
+                    child: NearbyPanelMessage(lines: column.placeholderLines),
                   ),
               ],
             ),
@@ -243,21 +256,27 @@ class NearbyPanelMessage extends StatelessWidget {
   }
 }
 
-/// 방면을 하나도 유도할 수 없을 때 카드 없이 쓰는 안내.
+/// 방면을 하나도 유도할 수 없을 때 카드 없이 쓰는 안내. 응답을 기다리는 중이면
+/// ([loading]) 정보 없음 대신 대시를 그리고 "불러오는 중"으로 읽는다.
 class NearbyDataUnavailable extends StatelessWidget {
-  const NearbyDataUnavailable({required this.lines, super.key});
+  const NearbyDataUnavailable({
+    required this.lines,
+    this.loading = false,
+    super.key,
+  });
 
   final List<String> lines;
+  final bool loading;
 
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: lines.join(' '),
+      label: loading ? nearbyLoadingLabel : lines.join(' '),
       excludeSemantics: true,
       child: Padding(
         key: const Key('networkMapNearbyDataUnavailable'),
         padding: const EdgeInsets.symmetric(vertical: EasySubwaySpacing.md),
-        child: NearbyPanelMessage(lines: lines),
+        child: NearbyPanelMessage(lines: loading ? nearbyLoadingGlyph : lines),
       ),
     );
   }

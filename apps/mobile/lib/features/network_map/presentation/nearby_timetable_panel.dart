@@ -59,6 +59,7 @@ class NearbyTimetablePanel extends StatefulWidget {
     required this.leftName,
     required this.rightName,
     required this.expressBadgeBuilder,
+    this.loading = false,
     this.onOpenDirection,
     this.now,
     this.enableTicker,
@@ -66,13 +67,16 @@ class NearbyTimetablePanel extends StatefulWidget {
     super.key,
   });
 
-  /// 시간표를 아직 받지 못했거나 받을 수 없는 방면.
+  /// 시간표를 받았는데 그 방면에 줄 수 있는 시간이 없을 때.
   static const unavailableMessage = ['시간표 정보 없음'];
 
   /// 그 방면에 남은 출발이 없을 때. 상용 지하철 서비스의 표기를 따른다.
   static const serviceEndedMessage = ['운행종료'];
 
   final NearbyTimetablePanelData? data;
+
+  /// 시간표 응답을 기다리는 중. 이때 [data]가 없는 것은 정보 없음이 아니다.
+  final bool loading;
   final String? leftName;
   final String? rightName;
   final Widget Function() expressBadgeBuilder;
@@ -178,8 +182,9 @@ class _NearbyTimetablePanelState extends State<NearbyTimetablePanel>
       rightName: widget.rightName,
     );
     if (slots.isEmpty) {
-      return const NearbyDataUnavailable(
+      return NearbyDataUnavailable(
         lines: NearbyTimetablePanel.unavailableMessage,
+        loading: widget.loading,
       );
     }
 
@@ -189,6 +194,7 @@ class _NearbyTimetablePanelState extends State<NearbyTimetablePanel>
           null => NearbyPanelColumn(
             title: slot.title,
             emptyMessage: NearbyTimetablePanel.unavailableMessage,
+            loading: widget.loading,
           ),
           final index => _timetableColumn(slot.title, dataGroups[index]),
         },

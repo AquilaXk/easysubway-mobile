@@ -275,6 +275,39 @@ void main() {
     },
   );
 
+  testWidgets('loading은 정보 없음 대신 대시를 그리고 불러오는 중으로 읽는다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.loading,
+        ),
+      ),
+    );
+
+    expect(find.text('실시간 정보 없음'), findsNothing);
+    expect(find.text('(시간표를 확인해 주세요.)'), findsNothing);
+    expect(find.text('-'), findsNWidgets(2));
+    expect(find.bySemanticsLabel('건대입구 방면, 불러오는 중'), findsOneWidget);
+    expect(find.bySemanticsLabel('한양대 방면, 불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('loading에 방면 슬롯이 없으면 카드 없이 대시만 그리고 불러오는 중으로 읽는다', (tester) async {
+    await tester.pumpWidget(
+      subject(
+        data: const NearbyArrivalPanelData(
+          status: NearbyArrivalPanelStatus.loading,
+        ),
+        leftName: null,
+        rightName: null,
+      ),
+    );
+
+    expect(find.byType(NearbyDataUnavailable), findsOneWidget);
+    expect(find.text('실시간 정보 없음'), findsNothing);
+    expect(find.text('-'), findsOneWidget);
+    expect(find.bySemanticsLabel('불러오는 중'), findsOneWidget);
+  });
+
   testWidgets('공공 API rawDir(상행/하행) 판정을 최우선 적용하여 인접역 방면으로 정규화한다', (
     tester,
   ) async {

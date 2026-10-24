@@ -4,13 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Widget subject({NearbyTimetablePanelData? data}) {
+  Widget subject({
+    NearbyTimetablePanelData? data,
+    bool loading = false,
+    String? leftName = '건대입구',
+    String? rightName = '한양대',
+  }) {
     return MaterialApp(
       home: Scaffold(
         body: NearbyTimetablePanel(
           data: data,
-          leftName: '건대입구',
-          rightName: '한양대',
+          loading: loading,
+          leftName: leftName,
+          rightName: rightName,
           now: DateTime(2026, 8, 12, 10),
           expressBadgeBuilder: () =>
               const SizedBox(key: Key('testExpressBadge')),
@@ -111,6 +117,25 @@ void main() {
       find.bySemanticsLabel('왕십리 방면, 왕십리, 10시 04분 출발, 왕십리, 00시 01분 출발'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('시간표를 받는 중이면 정보 없음 대신 대시를 그리고 불러오는 중으로 읽는다', (tester) async {
+    await tester.pumpWidget(subject(loading: true));
+
+    expect(find.text('시간표 정보 없음'), findsNothing);
+    expect(find.text('-'), findsNWidgets(2));
+    expect(find.bySemanticsLabel('건대입구 방면, 불러오는 중'), findsOneWidget);
+    expect(find.bySemanticsLabel('한양대 방면, 불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('시간표를 받는 중이고 방면 슬롯이 없으면 카드 없이 대시만 그린다', (tester) async {
+    await tester.pumpWidget(
+      subject(loading: true, leftName: null, rightName: null),
+    );
+
+    expect(find.text('시간표 정보 없음'), findsNothing);
+    expect(find.text('-'), findsOneWidget);
+    expect(find.bySemanticsLabel('불러오는 중'), findsOneWidget);
   });
 
   testWidgets('시간표가 없으면 인접역 방면 카드에 시간표 정보 없음을 쓴다', (tester) async {

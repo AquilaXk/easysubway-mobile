@@ -110,6 +110,7 @@ void main() {
 
   test('realtime 조합은 line color·arrival·neighbor·시간표 callback을 보존한다', () {
     for (final entry in const [
+      (RealtimeSnapshotStatus.loading, NearbyArrivalPanelStatus.loading),
       (RealtimeSnapshotStatus.fresh, NearbyArrivalPanelStatus.fresh),
       (RealtimeSnapshotStatus.stale, NearbyArrivalPanelStatus.stale),
       (
@@ -174,6 +175,20 @@ void main() {
     expect(fallbackBar.onLeftNameTap, isNull);
     expect(fallbackBar.onRightNameTap, isNull);
     expect(emptyTimetable.data, isNull);
+    expect(emptyTimetable.loading, isFalse);
+
+    final loadingTimetable =
+        buildNetworkMapNearbyPanelSuccessContent(
+              results: [_station(const [])],
+              realtime: _realtime(RealtimeSnapshotStatus.loading),
+              selectedLineId: null,
+              dataSource: NetworkMapNearbyPanelDataSource.timetable,
+              timetable: null,
+              timetableLoading: true,
+              adjacentStations: const NearbyAdjacentStations(),
+            ).dataPanel
+            as NearbyTimetablePanel;
+    expect(loadingTimetable.loading, isTrue);
 
     final withTimetable = buildNetworkMapNearbyPanelSuccessContent(
       results: [

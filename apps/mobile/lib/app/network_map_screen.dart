@@ -217,7 +217,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   NetworkMapNearbyPanelDataSource _nearbyDataSource =
       NetworkMapNearbyPanelDataSource.realtime;
 
-  /// 요청 중복 방지용 in-flight. UI 렌더 분기에는 쓰지 않는다(#2453).
+  /// 요청 중복 방지용 in-flight. 응답을 기다리는 동안 카드가 정보 없음을 말하지
+  /// 않게 하는 데도 쓴다(스피너는 그리지 않는다, #2453).
   /// 채널별 generation을 함께 두어, stale 완료도 자기 generation의 플래그만 내린다
   /// (토글이 한쪽만 재조회해도 반대 채널이 고아 in-flight로 남지 않게).
   bool _nearbyRealtimeRequestInFlight = false;
@@ -512,7 +513,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         display.lineId == _nearbySelectedLineId;
   }
 
-  /// 현재 역·호선 키와 맞는 성공 캐시만 넘긴다. 없으면 loading → 방면 골격.
+  /// 현재 역·호선 키와 맞는 응답만 넘긴다. 없고 받는 중이면 loading, 받는 중도
+  /// 아니면 받은 응답이 없는 것이라 unavailable이다.
   RealtimeSnapshot get _nearbyRealtimeForDisplay {
     final display = _nearbyRealtimeDisplay;
     if (display != null &&
@@ -520,8 +522,14 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         display.lineId == _nearbySelectedLineId) {
       return display.snapshot;
     }
-    return const RealtimeSnapshot.loading();
+    return _nearbyRealtimeRequestInFlight
+        ? const RealtimeSnapshot.loading()
+        : const RealtimeSnapshot.unavailable();
   }
+
+  /// 시간표를 받는 중이라 아직 줄 시간표가 없는 상태.
+  bool get _nearbyTimetableLoading =>
+      _nearbyTimetableRequestInFlight && _nearbyTimetableForDisplay == null;
 
   StationTimetable? get _nearbyTimetableForDisplay {
     final display = _nearbyTimetableDisplay;
@@ -1841,6 +1849,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
           selectedLineId: _nearbySelectedLineId,
           dataSource: _nearbyDataSource,
           timetable: _nearbyTimetableForDisplay,
+          timetableLoading: _nearbyTimetableLoading,
           adjacentStations: adjacentStations,
           onOpenStationDetail: canExpandDetail
               ? null

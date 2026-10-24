@@ -6366,8 +6366,14 @@ void main() {
     );
     expect(
       find.descendant(of: panel, matching: find.text('시간표 정보 없음')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: panel, matching: find.text('-')),
       findsNWidgets(2),
     );
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsOneWidget);
+    expect(find.bySemanticsLabel('한대앞 방면, 불러오는 중'), findsOneWidget);
   });
 
   testWidgets('실시간 탭은 응답 전에도 스피너 없이 방면 골격을 표시한다', (tester) async {
@@ -6457,12 +6463,22 @@ void main() {
     );
     expect(
       find.descendant(of: panel, matching: find.text('실시간 정보 없음')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: panel, matching: find.text('-')),
       findsNWidgets(2),
     );
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsOneWidget);
 
-    // 실시간 .timeout(2s) FakeTimer가 dispose 전에 남아 있지 않게 비운다.
+    // 실시간 .timeout(2s)이 끝나 응답이 없다고 확정되면 그때 정보 없음을 쓴다.
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
+    expect(
+      find.descendant(of: panel, matching: find.text('실시간 정보 없음')),
+      findsNWidgets(2),
+    );
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsNothing);
   });
 
   testWidgets('실시간 성공 후 다시 실시간을 선택하면 직전 도착을 즉시 표시한다', (tester) async {

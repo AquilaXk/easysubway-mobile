@@ -4,7 +4,7 @@ import '../../../accessible_design.dart';
 import 'nearby_direction_columns.dart';
 import 'nearby_direction_title.dart';
 
-enum NearbyArrivalPanelStatus { fresh, stale, unavailable }
+enum NearbyArrivalPanelStatus { loading, fresh, stale, unavailable }
 
 class NearbyArrivalData {
   const NearbyArrivalData({
@@ -33,7 +33,8 @@ class NearbyArrivalPanelData {
 }
 
 /// 주변역 패널의 실시간 도착 정보. 열차 정보가 없어도 인접역에서 "○○ 방면"
-/// 제목을 유도해 방면 카드 두 개를 유지하고, 빈 카드에는 실시간 정보 없음을 쓴다.
+/// 제목을 유도해 방면 카드 두 개를 유지한다. 응답을 기다리는 중에는 빈 카드에 대시를,
+/// 받았는데 열차가 없으면 실시간 정보 없음을 쓴다.
 class NearbyArrivalPanel extends StatelessWidget {
   const NearbyArrivalPanel({
     required this.data,
@@ -84,8 +85,9 @@ class NearbyArrivalPanel extends StatelessWidget {
       leftName: leftName,
       rightName: rightName,
     );
+    final loading = data.status == NearbyArrivalPanelStatus.loading;
     if (slots.isEmpty) {
-      return const NearbyDataUnavailable(lines: unavailableMessage);
+      return NearbyDataUnavailable(lines: unavailableMessage, loading: loading);
     }
 
     final columns = [
@@ -94,6 +96,7 @@ class NearbyArrivalPanel extends StatelessWidget {
           null => NearbyPanelColumn(
             title: slot.title,
             emptyMessage: unavailableMessage,
+            loading: loading,
           ),
           final index => _arrivalColumn(slot.title, dataGroups[index]),
         },

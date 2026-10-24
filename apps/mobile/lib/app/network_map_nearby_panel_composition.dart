@@ -52,6 +52,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
   required NetworkMapNearbyPanelDataSource dataSource,
   required StationTimetable? timetable,
   required NearbyAdjacentStations adjacentStations,
+  bool timetableLoading = false,
   VoidCallback? onOpenStationDetail,
   ValueChanged<StationDetailNeighbor>? onSelectNeighbor,
   VoidCallback? onOpenTimetable,
@@ -109,6 +110,8 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
         ? NearbyArrivalPanel(
             data: NearbyArrivalPanelData(
               status: switch (realtime.status) {
+                RealtimeSnapshotStatus.loading =>
+                  NearbyArrivalPanelStatus.loading,
                 RealtimeSnapshotStatus.fresh => NearbyArrivalPanelStatus.fresh,
                 RealtimeSnapshotStatus.stale => NearbyArrivalPanelStatus.stale,
                 _ => NearbyArrivalPanelStatus.unavailable,
@@ -131,6 +134,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
           )
         : NearbyTimetablePanel(
             data: _networkMapNearbyTimetablePanelData(timetable),
+            loading: timetableLoading,
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
             expressBadgeBuilder: () => const ServicePatternBadge.express(),
