@@ -92,7 +92,11 @@ void main() {
 
     // 미내장 지역 '부산' 탭
     await tester.tap(find.byKey(const ValueKey('networkMapRegionMenuRow_부산')));
-    await tester.pumpAndSettle();
+    // 스낵바는 4초만 보인다. 바탕 타일 굽기가 프레임을 요청하는 동안 pumpAndSettle은
+    // 가짜 시계를 그만큼 밀어 스낵바가 사라진 뒤에 돌아오므로, 스낵바가 보이는 짧은
+    // 시간만 돌린다.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     // 안내 스낵바가 표시되어야 함
     expect(

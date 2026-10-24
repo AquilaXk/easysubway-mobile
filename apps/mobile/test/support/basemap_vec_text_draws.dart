@@ -56,7 +56,7 @@ class _TextPositionRecord {
   final Float64List? transform;
 }
 
-class _TextDrawListener extends VectorGraphicsCodecListener {
+class _TextDrawListener extends BasemapVecListener {
   final List<_TextPositionRecord> _positions = <_TextPositionRecord>[];
   final Map<int, ({String text, double fontSize})> _texts =
       <int, ({String text, double fontSize})>{};
@@ -133,8 +133,10 @@ class _TextDrawListener extends VectorGraphicsCodecListener {
       ),
     );
   }
+}
 
-  // ── 텍스트 대조에 쓰지 않는 명령 ───────────────────────────────────────────
+/// 모든 명령을 무시하는 `.vec` 디코드 리스너. 게이트는 필요한 명령만 덮어쓴다.
+class BasemapVecListener extends VectorGraphicsCodecListener {
   @override
   void onSize(double width, double height) {}
   @override
@@ -233,6 +235,32 @@ class _TextDrawListener extends VectorGraphicsCodecListener {
     double height,
     Float64List transform,
   ) {}
+  @override
+  void onTextPosition(
+    int textPositionId,
+    double? x,
+    double? y,
+    double? dx,
+    double? dy,
+    bool reset,
+    Float64List? transform,
+  ) {}
+  @override
+  void onUpdateTextPosition(int textPositionId) {}
+  @override
+  void onTextConfig(
+    String text,
+    String? fontFamily,
+    double xAnchorMultiplier,
+    int fontWeight,
+    double fontSize,
+    int decoration,
+    int decorationStyle,
+    int decorationColor,
+    int id,
+  ) {}
+  @override
+  void onDrawText(int textId, int? fillId, int? strokeId, int? patternId) {}
 }
 
 /// [path]의 `.vec`를 디코드해 텍스트 draw를 그리기 순서대로 돌려준다.

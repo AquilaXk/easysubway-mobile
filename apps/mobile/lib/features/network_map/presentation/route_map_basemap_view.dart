@@ -2,12 +2,16 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 
 import '../domain/map_camera.dart';
 import '../domain/route_map_line_overlay_index.dart';
+import 'route_map_basemap_tiles.dart';
+
+export 'route_map_basemap_tiles.dart' show kRouteMapFadedBasemapOpacity;
 
 // 하이브리드 노선도 바탕층(#2068 트랙 2번째 PR).
 //
@@ -37,10 +41,11 @@ String? routeMapBasemapAssetForRegion(String region) {
   return id == null ? null : '$kRouteMapBasemapAssetDir/$id.vec';
 }
 
-/// 노선을 고른 동안 바탕을 그리는 불투명도. 상용 지하철 서비스 노선 선택 화면
-/// 캡처(2026-10-24)에서 흐린 1·4·6호선 칸 색을 흰 바탕과 노선색 사이 비율로 역산한
-/// 값이다. 9개 채널 중앙값 0.22, 범위 0.165~0.28.
-const double kRouteMapFadedBasemapOpacity = 0.22;
+/// 배율이 이만큼 그대로이면 바탕 타일 격자를 만든다. 엔진 래스터 캐시가 같은 그림을
+/// 3프레임 본 뒤에 굽는 규칙(flow/raster_cache.h access_threshold 3)을 60 Hz 프레임
+/// 시간으로 옮긴 값이다. 핀치 중에는 매 프레임 배율이 바뀌어 굽지 않는다. 같은 배율의
+/// 팬은 격자를 그대로 쓰고 새로 드러난 타일을 바로 굽는다(#517).
+const Duration kRouteMapBasemapRasterSettleDelay = Duration(milliseconds: 50);
 
 const TextStyle _attributionStyle = TextStyle(
   color: Color(0xFF466467),
@@ -74,53 +79,23 @@ class RouteMapBasemapPainter extends CustomPainter {
   /// 재생 변환과 동일한 단일 수식이며, `camera.sourceToViewportPoint(P −
   /// sourceOrigin)`와 항등이다(#2068 정렬 회귀 방지).
   @visibleForTesting
-  Offset sourceToViewport(Offset viewBoxPoint) {
-    final vc = camera.viewportSize.center(Offset.zero);
-    return vc + (viewBoxPoint - sourceOrigin - camera.center) * camera.scale;
-  }
+  Offset sourceToViewport(Offset viewBoxPoint) =>
+      _viewBoxOriginInViewport(camera, sourceOrigin) +
+      viewBoxPoint * camera.scale;
 
   @override
   void paint(Canvas canvas, Size size) {
     final basemap = picture;
     if (basemap != null) {
       canvas.save();
-      final vc = camera.viewportSize.center(Offset.zero);
-      // viewport = vc + (viewBox − sourceOrigin − camera.center)·scale.
       // vec는 viewBox=source 좌표라 designScale 배율이 없다.
-      canvas.translate(
-        vc.dx - (camera.center.dx + sourceOrigin.dx) * camera.scale,
-        vc.dy - (camera.center.dy + sourceOrigin.dy) * camera.scale,
-      );
+      final origin = _viewBoxOriginInViewport(camera, sourceOrigin);
+      canvas.translate(origin.dx, origin.dy);
       canvas.scale(camera.scale);
       canvas.drawPicture(basemap);
       canvas.restore();
     }
-    _paintAttribution(canvas, size); // 화면 고정.
-  }
-
-  void _paintAttribution(Canvas canvas, Size size) {
-    final text = attributionText;
-    final painter = attributionPainter;
-    // painter는 State가 소유·재사용하는 캐시라 여기서 dispose하지 않는다(#1973).
-    if (text == null || text.isEmpty || painter == null) {
-      return;
-    }
-    const padding = 4.0;
-    final origin = Offset(
-      padding + 2,
-      math.max(padding, size.height - painter.height - padding - 2),
-    );
-    final background = Rect.fromLTWH(
-      origin.dx - 3,
-      origin.dy - 2,
-      painter.width + 6,
-      painter.height + 4,
-    );
-    canvas.drawRRect(
-      RRect.fromRectAndRadius(background, const Radius.circular(3)),
-      Paint()..color = const Color(0xCCFFFFFF),
-    );
-    painter.paint(canvas, origin);
+    _paintAttribution(canvas, size, attributionText, attributionPainter);
   }
 
   @override
@@ -131,6 +106,41 @@ class RouteMapBasemapPainter extends CustomPainter {
         oldDelegate.attributionText != attributionText ||
         !identical(oldDelegate.attributionPainter, attributionPainter);
   }
+}
+
+/// viewBox 원점이 놓이는 화면 좌표.
+/// viewport = vc + (viewBox − sourceOrigin − camera.center)·scale.
+Offset _viewBoxOriginInViewport(MapCameraState camera, Offset sourceOrigin) =>
+    camera.viewportSize.center(Offset.zero) -
+    (camera.center + sourceOrigin) * camera.scale;
+
+/// 화면 왼쪽 아래에 고정한 출처 표기.
+void _paintAttribution(
+  Canvas canvas,
+  Size size,
+  String? text,
+  TextPainter? painter,
+) {
+  // painter는 State가 소유·재사용하는 캐시라 여기서 dispose하지 않는다(#1973).
+  if (text == null || text.isEmpty || painter == null) {
+    return;
+  }
+  const padding = 4.0;
+  final origin = Offset(
+    padding + 2,
+    math.max(padding, size.height - painter.height - padding - 2),
+  );
+  final background = Rect.fromLTWH(
+    origin.dx - 3,
+    origin.dy - 2,
+    painter.width + 6,
+    painter.height + 4,
+  );
+  canvas.drawRRect(
+    RRect.fromRectAndRadius(background, const Radius.circular(3)),
+    Paint()..color = const Color(0xCCFFFFFF),
+  );
+  painter.paint(canvas, origin);
 }
 
 /// 하이브리드 노선도 바탕층 뷰. [region]에 매핑된 .vec를 런타임 디코드해
@@ -163,15 +173,15 @@ class RouteMapBasemapView extends StatefulWidget {
 }
 
 class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
-  static final Map<String, ui.Picture> _globalPictureCache = {};
-  static final Map<String, Future<ui.Picture>> _globalPendingLoads = {};
+  static final Map<String, PictureInfo> _globalPictureCache = {};
+  static final Map<String, Future<PictureInfo>> _globalPendingLoads = {};
   static Future<RouteMapLineOverlayIndex>? _overlayIndexLoad;
   static RouteMapLineOverlayIndex? _overlayIndex;
 
   @visibleForTesting
   static void clearPictureCacheForTest() {
-    for (final picture in _globalPictureCache.values) {
-      picture.dispose();
+    for (final info in _globalPictureCache.values) {
+      info.picture.dispose();
     }
     _globalPictureCache.clear();
     _globalPendingLoads.clear();
@@ -179,7 +189,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     _overlayIndex = null;
   }
 
-  ui.Picture? _picture;
+  PictureInfo? _basemap;
   String? _loadedAsset;
   // 진행 중 로드 토큰. region이 로드 완료 전에 바뀌면 stale 결과를 버린다.
   Object? _loadToken;
@@ -187,12 +197,20 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   Object? _overlayToken;
   TextPainter? _attributionPainter;
   String? _attributionPainterText;
+  // 지금 바탕 타일 격자와 구운 타일, 배율이 머물기를 기다리는 다음 내용(#517).
+  RouteMapBasemapTileGrid? _tileGrid;
+  final RouteMapBasemapTileCache _tiles = RouteMapBasemapTileCache();
+  ({RouteMapBasemapTileContent content, Timer timer})? _pendingTileGrid;
+  bool _bakeFrameScheduled = false;
 
   @visibleForTesting
-  Map<String, ui.Picture> get debugPictureCache => _globalPictureCache;
+  RouteMapBasemapTileCache get debugTiles => _tiles;
 
   @visibleForTesting
-  Map<String, Future<ui.Picture>> get debugPendingLoads => _globalPendingLoads;
+  Map<String, PictureInfo> get debugPictureCache => _globalPictureCache;
+
+  @visibleForTesting
+  Map<String, Future<PictureInfo>> get debugPendingLoads => _globalPendingLoads;
 
   @override
   void didChangeDependencies() {
@@ -221,15 +239,15 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     if (asset == null) {
       _loadToken = null;
       _loadedAsset = null;
-      if (_picture != null) {
+      if (_basemap != null) {
         setState(() {
-          _picture = null;
+          _basemap = null;
         });
       }
       return;
     }
 
-    if (_loadedAsset == asset && _picture != null) {
+    if (_loadedAsset == asset && _basemap != null) {
       return;
     }
 
@@ -237,9 +255,9 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     if (cached != null) {
       _loadToken = null;
       _loadedAsset = asset;
-      if (_picture != cached) {
+      if (_basemap != cached) {
         setState(() {
-          _picture = cached;
+          _basemap = cached;
         });
       }
       return;
@@ -253,14 +271,14 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   }
 
   /// [asset]을 한 번만 디코드한다. 같은 자산을 읽는 중이면 그 로드를 함께 기다린다.
-  static Future<ui.Picture> _decodePicture(String asset) {
+  static Future<PictureInfo> _decodePicture(String asset) {
     final pending = _globalPendingLoads[asset];
     if (pending != null) {
       return pending;
     }
     final load = vg
         .loadPicture(AssetBytesLoader(asset), null)
-        .then((info) => _globalPictureCache[asset] = info.picture)
+        .then((info) => _globalPictureCache[asset] = info)
         .whenComplete(() => unawaited(_globalPendingLoads.remove(asset)));
     _globalPendingLoads[asset] = load;
     return load;
@@ -268,12 +286,12 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
 
   Future<void> _loadBasemapAsset(String asset, Object token) async {
     try {
-      final picture = await _decodePicture(asset);
+      final basemap = await _decodePicture(asset);
       if (!mounted || !identical(_loadToken, token)) {
         return;
       }
       setState(() {
-        _picture = picture;
+        _basemap = basemap;
       });
     } catch (error, stack) {
       if (!mounted || !identical(_loadToken, token)) {
@@ -307,9 +325,10 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     }
     try {
       return _globalPictureCache[index.overlayAssetFor(
-        regionId: regionId,
-        lineId: lineId,
-      )];
+            regionId: regionId,
+            lineId: lineId,
+          )]
+          ?.picture;
     } on RouteMapLineOverlayMissing {
       return null;
     }
@@ -327,11 +346,11 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   ) async {
     try {
       final index = await _loadOverlayIndex();
-      final picture = await _decodePicture(
+      final overlay = await _decodePicture(
         index.overlayAssetFor(regionId: regionId, lineId: lineId),
       );
       if (mounted && identical(_overlayToken, token)) {
-        _showOverlay(picture);
+        _showOverlay(overlay.picture);
       }
     } catch (error, stack) {
       if (mounted && identical(_overlayToken, token)) {
@@ -380,10 +399,151 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     _attributionPainterText = text;
   }
 
+  /// [content]를 그리는 타일 격자. 내용이 바뀌면 타일을 모두 버리고, 새 내용이
+  /// [kRouteMapBasemapRasterSettleDelay] 동안 그대로이면 그때 카메라에서 격자를 만든다.
+  RouteMapBasemapTileGrid? _syncTileGrid(RouteMapBasemapTileContent? content) {
+    final grid = _tileGrid;
+    if (grid != null && content != null && grid.content.isSameAs(content)) {
+      return grid;
+    }
+    if (grid != null) {
+      _tiles.retainWithin(null);
+      _tileGrid = null;
+    }
+    _scheduleTileGrid(content);
+    return null;
+  }
+
+  void _scheduleTileGrid(RouteMapBasemapTileContent? content) {
+    final pending = _pendingTileGrid;
+    if (pending != null &&
+        content != null &&
+        pending.content.isSameAs(content)) {
+      return;
+    }
+    pending?.timer.cancel();
+    _pendingTileGrid = null;
+    if (content == null) {
+      return;
+    }
+    _pendingTileGrid = (
+      content: content,
+      timer: Timer(kRouteMapBasemapRasterSettleDelay, () {
+        if (!mounted || !identical(_pendingTileGrid?.content, content)) {
+          return;
+        }
+        final devicePixelRatio = content.devicePixelRatio;
+        setState(() {
+          _pendingTileGrid = null;
+          _tileGrid = RouteMapBasemapTileGrid.at(
+            content,
+            _viewBoxOriginPixels(
+              _viewportPixels(devicePixelRatio),
+              devicePixelRatio,
+            ),
+          );
+        });
+      }),
+    );
+  }
+
+  /// 이 위젯이 차지한 화면 영역(화면 픽셀, 지난 레이아웃 기준). 타일 경계를 화면 픽셀
+  /// 경계에 맞추려면 위젯이 화면에 놓인 위치까지 넣어야 한다. 논리 픽셀 정수 위치도
+  /// 2.8125배 같은 밀도에서는 화면 픽셀 사이에 놓인다.
+  Rect _viewportPixels(double devicePixelRatio) {
+    final screenOrigin = (context.findRenderObject()! as RenderBox)
+        .localToGlobal(Offset.zero);
+    return (screenOrigin * devicePixelRatio) &
+        (widget.camera.viewportSize * devicePixelRatio);
+  }
+
+  Offset _viewBoxOriginPixels(Rect viewportPixels, double devicePixelRatio) =>
+      viewportPixels.topLeft +
+      _viewBoxOriginInViewport(widget.camera, widget.sourceOrigin) *
+          devicePixelRatio;
+
+  /// 이번 프레임에 그릴 타일과, 타일이 아직 없어 벡터로 그릴 화면 영역(논리 좌표).
+  ({List<({ui.Image image, Rect pixels})> tiles, Offset gridOrigin, Path? gaps})
+  _tileFrame(RouteMapBasemapTileGrid grid) {
+    final devicePixelRatio = grid.content.devicePixelRatio;
+    final viewportPixels = _viewportPixels(devicePixelRatio);
+    final originPixels = _viewBoxOriginPixels(viewportPixels, devicePixelRatio);
+    final gridOrigin =
+        grid.gridOriginOnScreen(originPixels) - viewportPixels.topLeft;
+    final visible = grid.visibleRange(originPixels, viewportPixels);
+    if (visible == null) {
+      _tiles.retainWithin(null);
+      return (tiles: const [], gridOrigin: gridOrigin, gaps: null);
+    }
+    _tiles.retainWithin(visible);
+    final visibleKeys = visible.keysFromCenter();
+    _bakeTiles(grid, visibleKeys);
+    final tiles = <({ui.Image image, Rect pixels})>[];
+    Path? gaps;
+    for (final key in visibleKeys) {
+      final pixels = grid.tilePixels(key);
+      final image = _tiles[key];
+      if (image != null) {
+        tiles.add((image: image, pixels: pixels));
+      } else {
+        (gaps ??= Path()).addRect(
+          Rect.fromLTRB(
+            (gridOrigin.dx + pixels.left) / devicePixelRatio,
+            (gridOrigin.dy + pixels.top) / devicePixelRatio,
+            (gridOrigin.dx + pixels.right) / devicePixelRatio,
+            (gridOrigin.dy + pixels.bottom) / devicePixelRatio,
+          ),
+        );
+      }
+    }
+    return (tiles: tiles, gridOrigin: gridOrigin, gaps: gaps);
+  }
+
+  /// 보이는 타일 중 없는 것을 화면 가운데에서 가까운 순서로 이번 프레임에
+  /// [kRouteMapBasemapTilesPerFrame]장까지 굽고, 남으면 다음 프레임에 이어 굽는다.
+  /// 상한이 차면 더 굽지 않고 나머지는 벡터로 그린다.
+  void _bakeTiles(
+    RouteMapBasemapTileGrid grid,
+    List<RouteMapBasemapTileKey> visibleKeys,
+  ) {
+    var baked = 0;
+    for (final key in visibleKeys.where((key) => _tiles[key] == null)) {
+      if (baked == kRouteMapBasemapTilesPerFrame) {
+        _scheduleBakeFrame();
+        return;
+      }
+      final pixels = grid.tilePixels(key);
+      final bytes = routeMapTileBytes(
+        pixels.width.toInt(),
+        pixels.height.toInt(),
+      );
+      if (!_tiles.fits(bytes)) {
+        return;
+      }
+      _tiles.add(key, grid.rasterize(key), bytes);
+      baked++;
+    }
+  }
+
+  void _scheduleBakeFrame() {
+    if (_bakeFrameScheduled) {
+      return;
+    }
+    _bakeFrameScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _bakeFrameScheduled = false;
+      if (mounted) {
+        setState(() {});
+      }
+    });
+  }
+
   @override
   void dispose() {
+    _pendingTileGrid?.timer.cancel();
+    _tiles.retainWithin(null);
     _loadToken = null;
-    _picture = null;
+    _basemap = null;
     _overlayToken = null;
     _overlay = null;
     _attributionPainter?.dispose();
@@ -393,27 +553,79 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @override
   Widget build(BuildContext context) {
     _ensureAttributionPainter();
-    final highlight = _picture == null ? null : _overlay;
-    final basemap = _layerPaint(_picture, attributed: highlight == null);
-    // RepaintBoundary로 바탕 레이어를 형제 오버레이 rebuild와 분리한다.
-    // 노선을 고르면 바탕 전체를 Opacity 한 겹으로 흐려 겹친 선이 더 진해지지 않게
-    // 하고, 그 위에 고른 노선 레이어와 출처 표기를 원래 진하기로 그린다.
-    return RepaintBoundary(
-      child: highlight == null
-          ? basemap
-          : Stack(
-              children: [
-                Opacity(opacity: kRouteMapFadedBasemapOpacity, child: basemap),
-                _layerPaint(highlight, attributed: true),
-              ],
+    final basemapInfo = _basemap;
+    final highlight = basemapInfo == null ? null : _overlay;
+    final grid = _syncTileGrid(
+      basemapInfo == null
+          ? null
+          : RouteMapBasemapTileContent(
+              basemap: basemapInfo.picture,
+              basemapSize: basemapInfo.size,
+              overlay: highlight,
+              scale: widget.camera.scale,
+              devicePixelRatio: View.of(context).devicePixelRatio,
             ),
+    );
+    // RepaintBoundary로 바탕 레이어를 형제 오버레이 rebuild와 분리한다.
+    if (grid == null) {
+      return RepaintBoundary(
+        child: _vectorLayers(basemapInfo?.picture, highlight, attributed: true),
+      );
+    }
+    final frame = _tileFrame(grid);
+    final gaps = frame.gaps;
+    return RepaintBoundary(
+      child: Stack(
+        children: [
+          // 아직 굽지 않은 타일 자리만 벡터로 그린다.
+          if (gaps != null)
+            ClipPath(
+              clipper: _TileGapClipper(gaps),
+              clipBehavior: Clip.hardEdge,
+              child: _vectorLayers(
+                basemapInfo!.picture,
+                highlight,
+                attributed: false,
+              ),
+            ),
+          CustomPaint(
+            size: widget.camera.viewportSize,
+            painter: RouteMapBasemapTilePainter(
+              tiles: frame.tiles,
+              gridOrigin: frame.gridOrigin,
+              devicePixelRatio: grid.content.devicePixelRatio,
+            ),
+          ),
+          if (_attributionPainter != null) _layerPaint(null, attributed: true),
+        ],
+      ),
     );
   }
 
-  // isComplex=true는 이 레이어가 값비싼 그리기임을(래스터 캐시 가치 있음),
-  // willChange=true는 다음 프레임에 다시 바뀔 것임을(래스터 캐시를 유지하지
-  // 말라는 힌트 — isComplex 캐싱을 억제) 엔진에 알린다. 이 바탕은 카메라
-  // 팬/줌마다 매 프레임 repaint되는 레이어라 willChange가 적절하다.
+  /// 바탕을 벡터로 그리는 레이어. 노선을 고르면 바탕 전체를 Opacity 한 겹으로 흐려 겹친
+  /// 선이 더 진해지지 않게 하고, 그 위에 고른 노선 레이어를 원래 진하기로 그린다.
+  Widget _vectorLayers(
+    ui.Picture? basemap,
+    ui.Picture? highlight, {
+    required bool attributed,
+  }) {
+    if (highlight == null) {
+      return _layerPaint(basemap, attributed: attributed);
+    }
+    return Stack(
+      children: [
+        Opacity(
+          opacity: kRouteMapFadedBasemapOpacity,
+          child: _layerPaint(basemap, attributed: false),
+        ),
+        _layerPaint(highlight, attributed: attributed),
+      ],
+    );
+  }
+
+  // isComplex·willChange는 엔진 래스터 캐시 힌트라 Skia에서만 쓰인다. Impeller
+  // Vulkan 표면은 래스터 캐시를 끈다(shell/gpu/gpu_surface_vulkan_impeller.cc
+  // EnableRasterCache). 같은 배율의 팬은 위 바탕 타일이 대신 맡는다(#517).
   CustomPaint _layerPaint(ui.Picture? picture, {required bool attributed}) {
     return CustomPaint(
       size: widget.camera.viewportSize,
@@ -428,4 +640,19 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
       ),
     );
   }
+}
+
+/// 굽지 않은 타일 자리로 자른다. 타일 경계는 화면 픽셀 경계라 안티앨리어싱 없이 잘라도
+/// 걸치는 픽셀이 없다.
+class _TileGapClipper extends CustomClipper<Path> {
+  _TileGapClipper(this.gaps);
+
+  final Path gaps;
+
+  @override
+  Path getClip(Size size) => gaps;
+
+  @override
+  bool shouldReclip(_TileGapClipper oldClipper) =>
+      !identical(oldClipper.gaps, gaps);
 }

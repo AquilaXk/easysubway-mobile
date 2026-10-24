@@ -164,7 +164,7 @@ void main() {
 
       final customPaint = tester.widget<CustomPaint>(find.byType(CustomPaint));
       final painter = customPaint.painter as RouteMapBasemapPainter;
-      expect(identical(painter.picture, daejeonPicture), isTrue);
+      expect(identical(painter.picture, daejeonPicture!.picture), isTrue);
     });
 
     testWidgets('유효한 권역 로드 후 매핑에 없는 권역으로 변경되면 _picture가 null로 초기화된다', (

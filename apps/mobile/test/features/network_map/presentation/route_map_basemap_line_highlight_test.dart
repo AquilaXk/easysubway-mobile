@@ -63,10 +63,13 @@ Widget _map({
   ),
 );
 
+/// .vec 로드를 끝내고 벡터로 그린 프레임에서 멈춘다. 시계를 앞으로 돌리지 않아 카메라가
+/// 멈춘 뒤 굽는 바탕 이미지(#517)는 아직 만들지 않는다. 구운 이미지가 이 벡터 화면과
+/// 같은지는 route_map_basemap_raster_test.dart가 본다.
 Future<void> _settleLoads(WidgetTester tester) async {
   for (var attempt = 0; attempt < 5; attempt++) {
     await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pumpAndSettle();
+    await tester.pump();
   }
 }
 

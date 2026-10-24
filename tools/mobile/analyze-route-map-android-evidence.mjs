@@ -5,24 +5,43 @@ import process from "node:process";
 
 function usage() {
   return `Usage:
-  node tools/mobile/analyze-route-map-android-evidence.mjs --artifact-dir <dir> [--artifact-dir <dir> ...] [--format json|markdown]
+  node tools/mobile/analyze-route-map-android-evidence.mjs [--group <name>] --artifact-dir <dir> [--artifact-dir <dir> ...] [--format json|markdown] [--frames]
 
 Options:
   --artifact-dir <dir>  Evidence directory created by run-route-map-android-evidence.sh.
+  --group <name>        Put the following --artifact-dir runs in this group (A/B rounds).
+                        Each group reports per-round raster p50 (median and range) and
+                        pooled percentiles. Runs before the first --group go to "all".
   --format <format>     Output format. Defaults to markdown.
+  --frames              Include every parsed frame in the JSON output.
   -h, --help            Show this help.
+
+The frame budget is 1000 / refresh_rate_hz from metadata.env. A run without
+refresh_rate_hz has no budget, so its janky counts are null.
 `;
 }
 
 function parseArgs(argv) {
   const artifactDirs = [];
   let format = "markdown";
+  let group = "all";
+  let includeFrames = false;
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
     switch (arg) {
       case "--artifact-dir":
-        artifactDirs.push(argv[index + 1] ?? "");
+        artifactDirs.push({ dir: argv[index + 1] ?? "", group });
         index += 1;
+        break;
+      case "--group":
+        group = argv[index + 1] ?? "";
+        if (group.length === 0) {
+          throw new Error("--group needs a name.");
+        }
+        index += 1;
+        break;
+      case "--frames":
+        includeFrames = true;
         break;
       case "--format":
         format = argv[index + 1] ?? "";
@@ -30,18 +49,18 @@ function parseArgs(argv) {
         break;
       case "-h":
       case "--help":
-        return { help: true, artifactDirs, format };
+        return { help: true, artifactDirs, format, includeFrames };
       default:
         throw new Error(`Unknown argument: ${arg}`);
     }
   }
-  if (artifactDirs.length === 0 || artifactDirs.some((dir) => dir.length === 0)) {
+  if (artifactDirs.length === 0 || artifactDirs.some(({ dir }) => dir.length === 0)) {
     throw new Error("At least one --artifact-dir value is required.");
   }
   if (!["json", "markdown"].includes(format)) {
     throw new Error(`Unsupported format: ${format}`);
   }
-  return { help: false, artifactDirs, format };
+  return { help: false, artifactDirs, format, includeFrames };
 }
 
 function readRequired(filePath) {
@@ -98,12 +117,14 @@ function parseMeminfo(text) {
   const javaHeap = text.match(/Java Heap:\s*([\d,]+)/);
   const nativeHeap = text.match(/Native Heap:\s*([\d,]+)/);
   const graphics = text.match(/Graphics:\s*([\d,]+)/);
+  const glMtrack = text.match(/^\s*GL mtrack\s+([\d,]+)/m);
   return {
     totalPssKb: total ? parseNumber(total[1]) : null,
     totalRssKb: total ? parseNumber(total[2]) : null,
     javaHeapKb: javaHeap ? parseNumber(javaHeap[1]) : null,
     nativeHeapKb: nativeHeap ? parseNumber(nativeHeap[1]) : null,
     graphicsKb: graphics ? parseNumber(graphics[1]) : null,
+    glMtrackKb: glMtrack ? parseNumber(glMtrack[1]) : null,
   };
 }
 
@@ -129,28 +150,94 @@ function parseRendererCrashes(text) {
   return { crashSignatureCount: signatures.length };
 }
 
-// #1643 프레임 성능 정본: 앱이 로깅한 routeMapFrame build/raster/total(ms)에서
-// P50/P90 지연과 jank 비율(빌드 또는 래스터가 1 vsync=16.7ms 초과한 프레임)을 낸다.
-const FRAME_BUDGET_MS = 16.7;
+// #1643 프레임 성능 정본: 앱이 로깅한 routeMapFrame build/raster/total(ms).
+// frame·vsyncStartUs는 #517부터 붙는다. 이전 로그도 읽도록 선택 그룹으로 둔다.
+const FRAME_LINE =
+  /routeMapFrame buildMs=([\d.]+) rasterMs=([\d.]+) totalMs=([\d.]+)(?: frame=(\d+) vsyncStartUs=(\d+))?/g;
 
-function parseFrameTimings(text) {
-  const frames = [
-    ...text.matchAll(
-      /routeMapFrame buildMs=([\d.]+) rasterMs=([\d.]+) totalMs=([\d.]+)/g,
-    ),
-  ].map((match) => ({
+function parseFrames(text) {
+  return [...text.matchAll(FRAME_LINE)].map((match) => ({
     build: Number.parseFloat(match[1]),
     raster: Number.parseFloat(match[2]),
     total: Number.parseFloat(match[3]),
+    frame: match[4] == null ? null : Number.parseInt(match[4], 10),
+    vsyncStartUs: match[5] == null ? null : Number(match[5]),
   }));
+}
+
+// 프레임 예산은 그 run의 실제 화면 주사율에서 정한다(90 Hz면 11.1 ms). 주사율을 모르면
+// 예산도 모르므로 jank는 null이다. Flutter DevTools와 같이 build 또는 raster가 예산을
+// 넘은 프레임을 jank로 센다.
+function frameBudgetMs(metadata) {
+  const hz = Number.parseFloat(metadata.refresh_rate_hz ?? "");
+  return Number.isFinite(hz) && hz > 0 ? 1000 / hz : null;
+}
+
+function countJanky(frames, budgetMs) {
+  return budgetMs == null || frames.length === 0
+    ? null
+    : frames.filter((frame) => frame.build > budgetMs || frame.raster > budgetMs)
+        .length;
+}
+
+// 연속 번호 프레임 사이 vsync 간격의 중앙값. 기록된 주사율과 실제 vsync가 맞는지 본다.
+function medianVsyncIntervalMs(frames) {
+  const intervals = [];
+  for (let index = 1; index < frames.length; index += 1) {
+    const previous = frames[index - 1];
+    const current = frames[index];
+    if (
+      previous.frame != null &&
+      current.frame === previous.frame + 1 &&
+      current.vsyncStartUs != null
+    ) {
+      intervals.push((current.vsyncStartUs - previous.vsyncStartUs) / 1000);
+    }
+  }
+  return percentile(intervals, 50);
+}
+
+// 이만큼 이상 vsync가 비면 입력이 없어 그리지 않은 시간으로 본다. 2026-10-24 Galaxy
+// A17 run에서 스와이프마다 한 번 7~9 vsync 간격이 raster 시간과 무관하게 나왔다.
+const IDLE_GAP_VSYNCS = 5;
+
+// 그린 프레임 사이에서 프레임 없이 지나간 vsync 수. 래스터 스레드의 다른 작업(이미지
+// 굽기 등)은 그 프레임의 rasterMs에 잡히지 않지만 다음 프레임을 늦춰 여기에 드러난다.
+// 프레임 번호가 줄면 다른 run(프로세스)의 프레임이라 세지 않는다.
+function countMissedVsyncs(frames, budgetMs) {
+  if (budgetMs == null || frames.length === 0) {
+    return null;
+  }
+  let missed = 0;
+  for (let index = 1; index < frames.length; index += 1) {
+    const previous = frames[index - 1];
+    const current = frames[index];
+    if (
+      previous.frame == null ||
+      current.frame == null ||
+      current.frame <= previous.frame
+    ) {
+      continue;
+    }
+    const vsyncs = Math.round(
+      (current.vsyncStartUs - previous.vsyncStartUs) / 1000 / budgetMs,
+    );
+    if (vsyncs > 1 && vsyncs < IDLE_GAP_VSYNCS) {
+      missed += vsyncs - 1;
+    }
+  }
+  return missed;
+}
+
+function summarizeFrames(frames, budgetMs) {
   const builds = frames.map((frame) => frame.build);
   const rasters = frames.map((frame) => frame.raster);
   const totals = frames.map((frame) => frame.total);
-  const jankyFrames = frames.filter(
-    (frame) => frame.build > FRAME_BUDGET_MS || frame.raster > FRAME_BUDGET_MS,
-  ).length;
+  const jankyFrames = countJanky(frames, budgetMs);
   return {
     frameSampleCount: frames.length,
+    frameBudgetMs: budgetMs == null ? null : Math.round(budgetMs * 100) / 100,
+    medianVsyncIntervalMs: medianVsyncIntervalMs(frames),
     buildP50Ms: percentile(builds, 50),
     buildP90Ms: percentile(builds, 90),
     buildP99Ms: percentile(builds, 99),
@@ -158,15 +245,17 @@ function parseFrameTimings(text) {
     rasterP90Ms: percentile(rasters, 90),
     rasterP99Ms: percentile(rasters, 99),
     totalP90Ms: percentile(totals, 90),
+    totalP99Ms: percentile(totals, 99),
     jankyFrames,
+    missedVsyncs: countMissedVsyncs(frames, budgetMs),
     jankyPercent:
-      frames.length > 0
+      frames.length > 0 && jankyFrames != null
         ? Math.round((jankyFrames / frames.length) * 10000) / 100
         : null,
   };
 }
 
-function analyzeRun(artifactDir) {
+function analyzeRun({ dir: artifactDir, group }) {
   const dir = path.resolve(artifactDir);
   const metadata = parseMetadata(readRequired(path.join(dir, "metadata.env")));
   const gfxinfo = parseGfxinfo(readRequired(path.join(dir, "gfxinfo.txt")));
@@ -175,11 +264,23 @@ function analyzeRun(artifactDir) {
   const renderer = parseRendererCrashes(
     existsSync(crashesPath) ? readFileSync(crashesPath, "utf8") : "",
   );
-  const frameTiming = parseFrameTimings(
-    readRequired(path.join(dir, "route-map-frames.log")),
+  // release 빌드는 routeMapFrame 계측이 꺼져 있어(kReleaseMode) 프레임 로그가 비어도 된다.
+  // 그 밖의 빌드는 비면 측정이 안 된 것이므로 그대로 실패한다.
+  const framesPath = path.join(dir, "route-map-frames.log");
+  const frames = parseFrames(
+    metadata.build_mode === "release" && existsSync(framesPath)
+      ? readFileSync(framesPath, "utf8")
+      : readRequired(framesPath),
   );
+  const budgetMs = frameBudgetMs(metadata);
   return {
     artifactDir: dir,
+    group,
+    focusLine: metadata.focus_line ?? "",
+    thermalStatus: metadata.thermal_status ?? "unknown",
+    refreshRateHz: metadata.refresh_rate_hz == null
+      ? null
+      : Number.parseFloat(metadata.refresh_rate_hz),
     serial: metadata.serial ?? "",
     package: metadata.package ?? "",
     buildMode: metadata.build_mode ?? "",
@@ -192,8 +293,59 @@ function analyzeRun(artifactDir) {
     gfxinfo,
     meminfo,
     renderer,
-    frameTiming,
+    frameTiming: summarizeFrames(frames, budgetMs),
+    frames,
   };
+}
+
+function median(values) {
+  return percentile(values, 50);
+}
+
+// 측정하지 않은 값(null)을 0으로 바꾸면 "0 ms 측정됨"으로 읽히므로 걸러 낸다.
+function known(values) {
+  return values.filter((value) => value != null);
+}
+
+function range(values) {
+  const present = known(values);
+  return present.length === 0 ? null : [Math.min(...present), Math.max(...present)];
+}
+
+// A/B 비교 단위. 회차마다 raster p50을 내고 그 중앙값과 범위를 본다. 두 쪽 범위가 겹치면
+// 차이를 주장하지 않는다. 모든 회차 프레임을 합친 백분위와 jank 수도 같이 낸다.
+// 한 그룹 안 run들의 주사율이 다르면 예산이 섞이므로 null로 둔다.
+function summarizeGroups(runs) {
+  const groups = new Map();
+  for (const run of runs) {
+    groups.set(run.group, [...(groups.get(run.group) ?? []), run]);
+  }
+  return [...groups.entries()].map(([name, groupRuns]) => {
+    const roundRasterP50 = groupRuns.map((run) => run.frameTiming.rasterP50Ms);
+    const rates = new Set(groupRuns.map((run) => run.refreshRateHz));
+    const budgetMs =
+      rates.size === 1 ? frameBudgetMs({ refresh_rate_hz: String([...rates][0]) }) : null;
+    return {
+      group: name,
+      rounds: groupRuns.length,
+      refreshRatesHz: [...rates],
+      thermalStatuses: [...new Set(groupRuns.map((run) => run.thermalStatus))],
+      roundRasterP50Ms: roundRasterP50,
+      roundRasterP50MedianMs: median(known(roundRasterP50)),
+      roundRasterP50RangeMs: range(roundRasterP50),
+      totalPssRangeKb: range(groupRuns.map((run) => run.meminfo.totalPssKb)),
+      glMtrackRangeKb: range(groupRuns.map((run) => run.meminfo.glMtrackKb)),
+      pooled: summarizeFrames(
+        groupRuns.flatMap((run) => run.frames),
+        budgetMs,
+      ),
+    };
+  });
+}
+
+function maxKnown(values) {
+  const present = known(values);
+  return present.length === 0 ? null : Math.max(...present);
 }
 
 function aggregate(runs) {
@@ -219,14 +371,10 @@ function aggregate(runs) {
     maxJankyPercent: maxCapturedGfxinfo((gfxinfo) => gfxinfo.jankyPercent),
     maxP95FrameMs: maxCapturedGfxinfo((gfxinfo) => gfxinfo.p95Ms),
     maxP99FrameMs: maxCapturedGfxinfo((gfxinfo) => gfxinfo.p99Ms),
-    maxTotalPssKb: Math.max(...runs.map((run) => run.meminfo.totalPssKb ?? 0)),
-    maxFrameJankyPercent: Math.max(
-      ...runs.map((run) => run.frameTiming.jankyPercent ?? 0),
-    ),
-    maxBuildP90Ms: Math.max(...runs.map((run) => run.frameTiming.buildP90Ms ?? 0)),
-    maxRasterP90Ms: Math.max(
-      ...runs.map((run) => run.frameTiming.rasterP90Ms ?? 0),
-    ),
+    maxTotalPssKb: maxKnown(runs.map((run) => run.meminfo.totalPssKb)),
+    maxFrameJankyPercent: maxKnown(runs.map((run) => run.frameTiming.jankyPercent)),
+    maxBuildP90Ms: maxKnown(runs.map((run) => run.frameTiming.buildP90Ms)),
+    maxRasterP90Ms: maxKnown(runs.map((run) => run.frameTiming.rasterP90Ms)),
     totalCrashSignatures: runs.reduce(
       (sum, run) => sum + (run.renderer.crashSignatureCount ?? 0),
       0,
@@ -235,6 +383,10 @@ function aggregate(runs) {
       (run) => (run.renderer.crashSignatureCount ?? 0) === 0,
     ),
   };
+}
+
+function measured(value, unit = "") {
+  return value == null ? "측정 안 함" : `${value}${unit}`;
 }
 
 function markdownReport(result) {
@@ -246,37 +398,73 @@ function markdownReport(result) {
     `- max_janky_percent: ${result.aggregate.maxJankyPercent}`,
     `- max_p95_frame_ms: ${result.aggregate.maxP95FrameMs}`,
     `- max_p99_frame_ms_gfxinfo_hwui_only: ${result.aggregate.maxP99FrameMs}`,
-    `- max_total_pss_kb: ${result.aggregate.maxTotalPssKb}`,
+    `- max_total_pss_kb: ${measured(result.aggregate.maxTotalPssKb)}`,
     `- total_crash_signatures: ${result.aggregate.totalCrashSignatures}`,
     `- no_crashes_in_all_runs: ${result.aggregate.noCrashesInAllRuns}`,
     "",
     "FrameTiming(정본, Flutter canvas 프레임):",
     `- max_frame_janky_percent: ${result.aggregate.maxFrameJankyPercent}`,
-    `- max_build_p90_ms: ${result.aggregate.maxBuildP90Ms}`,
-    `- max_raster_p90_ms: ${result.aggregate.maxRasterP90Ms}`,
+    `- max_build_p90_ms: ${measured(result.aggregate.maxBuildP90Ms)}`,
+    `- max_raster_p90_ms: ${measured(result.aggregate.maxRasterP90Ms)}`,
     "",
     "> gfxinfo frame 지표는 HWUI 전용이라 Flutter canvas 노선도 프레임을 반영하지 않는다. 프레임 성능은 FrameTiming(build/raster p90·janky%)이 정본이다.",
     "",
-    "| run | scope | build | viewport | frame samples | frame janky | build p90 | raster p90 | total PSS | crashes | evidence |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| run | group | scope | focus line | build | viewport | Hz | budget | frame samples | frame janky | build p90 | raster p50 | raster p90 | raster p99 | total PSS | crashes | evidence |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   ];
   for (const [index, run] of result.runs.entries()) {
     const cells = [
       index + 1,
+      run.group,
       run.measurementScope,
+      run.focusLine || "none",
       run.buildMode,
       run.viewport,
+      run.refreshRateHz ?? "unknown",
+      run.frameTiming.frameBudgetMs == null ? "unknown" : `${run.frameTiming.frameBudgetMs}ms`,
       run.frameTiming.frameSampleCount ?? "",
       run.frameTiming.jankyPercent == null
         ? ""
         : `${run.frameTiming.jankyFrames} (${run.frameTiming.jankyPercent}%)`,
       run.frameTiming.buildP90Ms == null ? "" : `${run.frameTiming.buildP90Ms}ms`,
+      run.frameTiming.rasterP50Ms == null ? "" : `${run.frameTiming.rasterP50Ms}ms`,
       run.frameTiming.rasterP90Ms == null ? "" : `${run.frameTiming.rasterP90Ms}ms`,
+      run.frameTiming.rasterP99Ms == null ? "" : `${run.frameTiming.rasterP99Ms}ms`,
       run.meminfo.totalPssKb ?? "",
       run.renderer.crashSignatureCount ?? "",
       run.artifactDir,
     ];
     lines.push(`| ${cells.join(" | ")} |`);
+  }
+  lines.push(
+    "",
+    "Groups (raster p50 per round, pooled frames):",
+    "",
+    "| group | rounds | Hz | thermal | round raster p50 median | range | pooled raster p50 | p90 | p99 | janky / frames | missed vsyncs | vsync interval | PSS range | GL mtrack range |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+  );
+  for (const group of result.groups) {
+    const pooled = group.pooled;
+    lines.push(
+      `| ${[
+        group.group,
+        group.rounds,
+        group.refreshRatesHz.join("/"),
+        group.thermalStatuses.join("/"),
+        measured(group.roundRasterP50MedianMs, "ms"),
+        group.roundRasterP50RangeMs == null
+          ? measured(null)
+          : `${group.roundRasterP50RangeMs.join("~")}ms`,
+        measured(pooled.rasterP50Ms, "ms"),
+        measured(pooled.rasterP90Ms, "ms"),
+        measured(pooled.rasterP99Ms, "ms"),
+        `${pooled.jankyFrames ?? "unknown"} / ${pooled.frameSampleCount}`,
+        pooled.missedVsyncs ?? "unknown",
+        pooled.medianVsyncIntervalMs == null ? "" : `${pooled.medianVsyncIntervalMs}ms`,
+        group.totalPssRangeKb == null ? "" : group.totalPssRangeKb.join("~"),
+        group.glMtrackRangeKb == null ? "" : group.glMtrackRangeKb.join("~"),
+      ].join(" | ")} |`,
+    );
   }
   return `${lines.join("\n")}\n`;
 }
@@ -290,9 +478,12 @@ function main() {
     }
     const runs = args.artifactDirs.map(analyzeRun);
     const result = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       artifactKind: "route-map-android-evidence-summary",
-      runs,
+      runs: runs.map(({ frames, ...run }) =>
+        args.includeFrames ? { ...run, frames } : run,
+      ),
+      groups: summarizeGroups(runs),
       aggregate: aggregate(runs),
     };
     process.stdout.write(

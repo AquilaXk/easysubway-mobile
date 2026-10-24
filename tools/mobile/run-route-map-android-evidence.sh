@@ -11,8 +11,16 @@ Options:
   --artifact-dir <dir>      Required output directory for screenshots, UI trees, logs, and summaries.
   --package <package>       App package. Defaults to com.easysubway.app.
   --adb <path>              adb executable. Defaults to $ADB or PATH lookup.
-  --build-mode <mode>       Installed APK mode: debug or profile. Defaults to debug.
+  --build-mode <mode>       Installed APK mode: debug, profile or release. Defaults to debug.
+                            A release build has no routeMapFrame log (kReleaseMode), so the
+                            run keeps gfxinfo framestats and meminfo only. That is the
+                            evidence the release gate accepts for frame and memory budgets.
   --pan-count <count>       Number of map pan gestures after route map entry. Defaults to 5.
+  --pan-span-percent <n>    Swipe length as a percent of screen width, centered. Defaults
+                            to 40 (from 30% to 70% of the width).
+  --focus-line <label>      Tap the line chip with this accessibility label (for example
+                            2호선) before measuring, so the gesture runs on the highlighted
+                            line with its camera.
   --settle-seconds <sec>    Wait after app launch and tab changes. Defaults to 3.
   --measure-after-route-map-settle
                             Reset frame/log evidence after route map settles, so gfxinfo and
@@ -26,6 +34,10 @@ route map home. The route map uses the structured native canvas renderer
 signatures during pan/zoom instead. It fails when the device is unavailable,
 the route map cannot be driven, evidence files are empty, or a renderer crash
 signature is observed during the gesture window.
+
+The display refresh rate (dumpsys display renderFrameRate) is recorded right
+after the gestures as refresh_rate_hz. The analyzer derives the frame budget
+from it, so the run fails when it cannot be read.
 USAGE
 }
 
@@ -35,6 +47,8 @@ PACKAGE="com.easysubway.app"
 ADB="${ADB:-}"
 BUILD_MODE="debug"
 PAN_COUNT=5
+PAN_SPAN_PERCENT=40
+FOCUS_LINE=""
 SETTLE_SECONDS=3
 MEASURE_AFTER_ROUTE_MAP_SETTLE="false"
 
@@ -62,6 +76,14 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pan-count)
       PAN_COUNT="${2:-}"
+      shift 2
+      ;;
+    --pan-span-percent)
+      PAN_SPAN_PERCENT="${2:-}"
+      shift 2
+      ;;
+    --focus-line)
+      FOCUS_LINE="${2:-}"
       shift 2
       ;;
     --settle-seconds)
@@ -96,10 +118,10 @@ else
 fi
 
 case "$BUILD_MODE" in
-  debug|profile)
+  debug|profile|release)
     ;;
   *)
-    echo "Unsupported build mode: $BUILD_MODE. Use debug or profile." >&2
+    echo "Unsupported build mode: $BUILD_MODE. Use debug, profile or release." >&2
     exit 2
     ;;
 esac
@@ -157,8 +179,8 @@ HEIGHT="${BASH_REMATCH[2]}"
 # 노선도는 홈 화면이다(#1641 구조화 canvas 전환 이후 하단 탭 없음). 앱은 온보딩을
 # 마친 상태여야 하며, 실행 즉시 노선도가 표시된다.
 PAN_Y=$((HEIGHT / 2))
-PAN_LEFT_X=$((WIDTH * 3 / 10))
-PAN_RIGHT_X=$((WIDTH * 7 / 10))
+PAN_LEFT_X=$((WIDTH * (100 - PAN_SPAN_PERCENT) / 200))
+PAN_RIGHT_X=$((WIDTH * (100 + PAN_SPAN_PERCENT) / 200))
 
 {
   echo "serial=$SERIAL"
@@ -167,6 +189,8 @@ PAN_RIGHT_X=$((WIDTH * 7 / 10))
   echo "height=$HEIGHT"
   echo "build_mode=$BUILD_MODE"
   echo "pan_count=$PAN_COUNT"
+  echo "pan_span_percent=$PAN_SPAN_PERCENT"
+  echo "focus_line=$FOCUS_LINE"
   echo "settle_seconds=$SETTLE_SECONDS"
   echo "measurement_scope=$MEASUREMENT_SCOPE"
   echo "gfxinfo_reset_after_route_map_settle=$MEASURE_AFTER_ROUTE_MAP_SETTLE"
@@ -180,12 +204,33 @@ require_non_empty "$ARTIFACT_DIR/package.txt"
 adb_device logcat -c
 adb_device shell am force-stop "$PACKAGE"
 adb_device shell dumpsys gfxinfo "$PACKAGE" reset >/dev/null 2>&1 || true
-adb_device shell monkey -p "$PACKAGE" 1 > "$ARTIFACT_DIR/launch.txt"
+# 에뮬레이터(API 36)에서는 monkey -p 가 액티비티를 띄우지 못해(종료 코드 -5) 런처 액티비티를
+# 직접 찾아 am start 로 콜드 스타트한다.
+LAUNCH_COMPONENT="$(adb_device shell cmd package resolve-activity --brief \
+  -c android.intent.category.LAUNCHER "$PACKAGE" | tail -n 1 | tr -d '\r')"
+if [[ "$LAUNCH_COMPONENT" != */* ]]; then
+  echo "Launcher activity not found for $PACKAGE: $LAUNCH_COMPONENT" >&2
+  exit 1
+fi
+adb_device shell am start -W -n "$LAUNCH_COMPONENT" > "$ARTIFACT_DIR/launch.txt"
 sleep "$SETTLE_SECONDS"
 
 # 노선도는 홈 화면이라 실행 즉시 표시된다(별도 진입 탭 없음).
 capture_screen "route-map"
 capture_ui_tree "route-map"
+
+if [[ -n "$FOCUS_LINE" ]]; then
+  # 노선 칩은 Flutter semantics라 UI 트리에 content-desc로 나온다. 같은 이름이 없으면 멈춘다.
+  chip_bounds="$(grep -oE "content-desc=\"$FOCUS_LINE\"[^>]*bounds=\"\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]\"" "$ARTIFACT_DIR/route-map.xml" | head -n 1 || true)"
+  if [[ ! "$chip_bounds" =~ \[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]\"$ ]]; then
+    echo "Line chip not found in UI tree: $FOCUS_LINE" >&2
+    exit 1
+  fi
+  adb_device shell input tap \
+    $(((BASH_REMATCH[1] + BASH_REMATCH[3]) / 2)) $(((BASH_REMATCH[2] + BASH_REMATCH[4]) / 2))
+  sleep "$SETTLE_SECONDS"
+  capture_screen "route-map-focused"
+fi
 
 if [[ "$MEASURE_AFTER_ROUTE_MAP_SETTLE" == "true" ]]; then
   # 제스처 구간만 분리 측정: 노선도 안착 후 프레임/로그 증거를 리셋한다.
@@ -197,6 +242,18 @@ for ((i = 0; i < PAN_COUNT; i += 1)); do
   adb_device shell input swipe "$PAN_RIGHT_X" "$PAN_Y" "$PAN_LEFT_X" "$PAN_Y" 350
   adb_device shell input swipe "$PAN_LEFT_X" "$PAN_Y" "$PAN_RIGHT_X" "$PAN_Y" 350
 done
+
+# 측정 직후 화면 주사율을 남긴다. 분석기는 이 값으로 프레임 예산(1000/Hz ms)을 정한다.
+adb_device shell dumpsys display > "$ARTIFACT_DIR/display.txt"
+REFRESH_RATE_HZ="$(awk 'match($0, /renderFrameRate [0-9.]+/) { print substr($0, RSTART + 16, RLENGTH - 16); exit }' "$ARTIFACT_DIR/display.txt")"
+if [[ -z "$REFRESH_RATE_HZ" ]]; then
+  echo "Unable to read renderFrameRate from dumpsys display." >&2
+  exit 1
+fi
+echo "refresh_rate_hz=$REFRESH_RATE_HZ" >> "$ARTIFACT_DIR/metadata.env"
+# 발열 제한(0=없음)이 걸린 run은 같은 조건 비교에서 빼야 하므로 함께 남긴다.
+THERMAL_STATUS="$(adb_device shell dumpsys thermalservice | awk -F': ' '/^Thermal Status/ { print $2; exit }' | tr -d '\r')"
+echo "thermal_status=${THERMAL_STATUS:-unknown}" >> "$ARTIFACT_DIR/metadata.env"
 
 adb_device shell dumpsys gfxinfo "$PACKAGE" > "$ARTIFACT_DIR/gfxinfo.txt"
 adb_device shell dumpsys gfxinfo "$PACKAGE" framestats > "$ARTIFACT_DIR/gfxinfo-framestats.txt"
@@ -224,8 +281,9 @@ fi
 
 # #1643: FrameTiming 계측 로그(routeMapFrame buildMs/rasterMs/totalMs). 구조화
 # canvas는 dumpsys gfxinfo로 프레임이 안 잡혀 이 로그가 프레임 성능의 정본이다.
+# release 빌드는 계측을 켜지 않으므로(kReleaseMode) 이 로그가 없고, 메모리만 잰다.
 grep "routeMapFrame" "$ARTIFACT_DIR/logcat.txt" > "$ARTIFACT_DIR/route-map-frames.log" || true
-if [[ ! -s "$ARTIFACT_DIR/route-map-frames.log" ]]; then
+if [[ "$BUILD_MODE" != "release" && ! -s "$ARTIFACT_DIR/route-map-frames.log" ]]; then
   echo "No routeMapFrame timing logs captured. Use a debug/profile build and" >&2
   echo "ensure the route map was on screen during the gesture window." >&2
   exit 1
