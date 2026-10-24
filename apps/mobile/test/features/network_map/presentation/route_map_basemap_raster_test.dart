@@ -285,6 +285,24 @@ void main() {
     expect(_tilePainter(tester), isNotNull);
   });
 
+  testWidgets('카메라가 멈추면 보이는 타일 수만큼만 프레임을 요청하고 그 뒤로는 멈춘다', (tester) async {
+    await tester.pumpWidget(_map(_camera()));
+    await _settleLoads(tester);
+    await _rest(tester);
+
+    var frames = 0;
+    while (tester.binding.hasScheduledFrame && frames < 100) {
+      await tester.pump();
+      frames++;
+    }
+
+    final visible = _tilePainter(tester)!.tiles.length;
+    expect(visible, greaterThan(1));
+    expect(_tiles(tester).length, visible, reason: '보이는 타일을 모두 굽는다');
+    expect(frames, lessThanOrEqualTo(visible), reason: '프레임마다 한 장');
+    expect(tester.binding.hasScheduledFrame, isFalse, reason: '다 굽고 나면 요청 없음');
+  });
+
   testWidgets('보이는 타일이 상한을 넘는 큰 화면은 상한까지만 굽고 나머지는 벡터로 그린다', (tester) async {
     // 2100픽셀 화면은 256픽셀 타일 9×9장(약 28 MB)이 보여 상한 14 MiB를 넘는다.
     const viewport = Size(2100, 2100);
