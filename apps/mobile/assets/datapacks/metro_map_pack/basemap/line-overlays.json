@@ -1,173 +1,434 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "artifactKind": "route-map-basemap-line-overlays",
-  "regions": {
-    "busan": {
-      "baseVector": "busan.vec",
-      "lines": {
-        "line-ab1a041f6266": {
-          "svgLineSlug": "line1",
-          "vector": "busan.line-ab1a041f6266.vec"
+  "variants": {
+    "outlined": {
+      "labels": "outlined-into-vec",
+      "regions": {
+        "busan": {
+          "baseVector": "busan.vec",
+          "baseVectorSha256": "e06c9cd21c1f6e98c1a88e4ac3cb1e726f1f94dde339c0b198cd3f963c3a7931",
+          "lines": {
+            "line-ab1a041f6266": {
+              "svgLineSlug": "line1",
+              "vector": "busan.line-ab1a041f6266.vec",
+              "sha256": "3a34d0bb72e49b5799db188482ed5550da773f7b0a80b2e8191f1ae43664b8e8"
+            },
+            "line-d74614a04530": {
+              "svgLineSlug": "line3",
+              "vector": "busan.line-d74614a04530.vec",
+              "sha256": "e969ed7b8a6fa973c1de72d1c264cfd2a46cfe874afe266791c1c2f587438b5e"
+            },
+            "line-d812a5bc1e5f": {
+              "svgLineSlug": "line4",
+              "vector": "busan.line-d812a5bc1e5f.vec",
+              "sha256": "8b586d75b14c89b92557636aab77ae95c02e210ed4b9a92b476f174035adbadb"
+            },
+            "line-e4cce88f0d7f": {
+              "svgLineSlug": "bgl",
+              "vector": "busan.line-e4cce88f0d7f.vec",
+              "sha256": "11b42d1c1afa16037e71d13fbb87a097b685cf6411592ac3ed12f4f804b463be"
+            },
+            "line-eb7b47920390": {
+              "svgLineSlug": "line2",
+              "vector": "busan.line-eb7b47920390.vec",
+              "sha256": "526cc27029b2489ff5c6806aa4fed3381a4f97890945a6d7af9d57404e56524e"
+            },
+            "line-f52eb59d8497": {
+              "svgLineSlug": "donghae",
+              "vector": "busan.line-f52eb59d8497.vec",
+              "sha256": "5323520d3453cac0cadb2a80b626dad7d3cd4ec049e6a0cb4341b1864ccfcef4"
+            }
+          }
         },
-        "line-d74614a04530": {
-          "svgLineSlug": "line3",
-          "vector": "busan.line-d74614a04530.vec"
+        "daegu": {
+          "baseVector": "daegu.vec",
+          "baseVectorSha256": "8b653438f58e82c031bae772b33158a94abce4b268dc8aabd41b0ccbe756fa0f",
+          "lines": {
+            "line-0ffaa95b1b5d": {
+              "svgLineSlug": "line3",
+              "vector": "daegu.line-0ffaa95b1b5d.vec",
+              "sha256": "09af26c6d65c4a37f5d9c8f22aedc1ea635e170794f795a5eeb9c4e6d7a5109f"
+            },
+            "line-5b8d9b05e7e6": {
+              "svgLineSlug": "line1",
+              "vector": "daegu.line-5b8d9b05e7e6.vec",
+              "sha256": "72dd8a54ced2807ba0635e74f8446cc5bd7dd8ba51ee80c02c02ca1db42135d0"
+            },
+            "line-8f7ed01f290a": {
+              "svgLineSlug": "daegyeong",
+              "vector": "daegu.line-8f7ed01f290a.vec",
+              "sha256": "007dafa70c3dd8749cca326bb9f8b44af29b6b782a5c7dba61fac871eb99898a"
+            },
+            "line-e2938a4cc492": {
+              "svgLineSlug": "line2",
+              "vector": "daegu.line-e2938a4cc492.vec",
+              "sha256": "1f5e26b2098b94e9abc8bee7487df88485d6fef25b1436a3268575a363f7227e"
+            }
+          }
         },
-        "line-d812a5bc1e5f": {
-          "svgLineSlug": "line4",
-          "vector": "busan.line-d812a5bc1e5f.vec"
+        "daejeon": {
+          "baseVector": "daejeon.vec",
+          "baseVectorSha256": "67e1e1ff83acc006e7d48cef9de4bfe5236f7fad239c141769914742583d5784",
+          "lines": {
+            "line-7051a9c2525c": {
+              "svgLineSlug": "1",
+              "vector": "daejeon.line-7051a9c2525c.vec",
+              "sha256": "53e9cb29db4f5c94fc7bf0117b548eca2989e51021b8b32f07589c2f0f2e3dc5"
+            }
+          }
         },
-        "line-e4cce88f0d7f": {
-          "svgLineSlug": "bgl",
-          "vector": "busan.line-e4cce88f0d7f.vec"
+        "gwangju": {
+          "baseVector": "gwangju.vec",
+          "baseVectorSha256": "5766c73948f03edd530c69f5f8982807f8d6dfd848189cc5b184ca323b22312a",
+          "lines": {
+            "line-e57a361e8892": {
+              "svgLineSlug": "1",
+              "vector": "gwangju.line-e57a361e8892.vec",
+              "sha256": "645e6127394088a5533a60aa3f64d2137d890cbb5352b6387aa1c8572a515530"
+            }
+          }
         },
-        "line-eb7b47920390": {
-          "svgLineSlug": "line2",
-          "vector": "busan.line-eb7b47920390.vec"
-        },
-        "line-f52eb59d8497": {
-          "svgLineSlug": "donghae",
-          "vector": "busan.line-f52eb59d8497.vec"
+        "seoul": {
+          "baseVector": "seoul.vec",
+          "baseVectorSha256": "4bb44a0510ed4938eb1f7878be8df0cdc3a49222e5c8163e270896706a9004d6",
+          "lines": {
+            "line-051552e50435": {
+              "svgLineSlug": "seohae",
+              "vector": "seoul.line-051552e50435.vec",
+              "sha256": "6a09b572ba5ff2736e2aa81fb00d6655fff775c27e71cbf232e04ed7c2070155"
+            },
+            "line-15b3b8a93259": {
+              "svgLineSlug": "7",
+              "vector": "seoul.line-15b3b8a93259.vec",
+              "sha256": "2cd6dd769a5bfd69fd800590f097152f45908ae326bf92b5fa1eca4e6d49466f"
+            },
+            "line-2b2d9eaa53d0": {
+              "svgLineSlug": "8",
+              "vector": "seoul.line-2b2d9eaa53d0.vec",
+              "sha256": "3e49008691e4279c5632fae9be27589c381d7ee6b797539c5670e61ce8fbe0df"
+            },
+            "line-30886152e4f8": {
+              "svgLineSlug": "ui-sinseol",
+              "vector": "seoul.line-30886152e4f8.vec",
+              "sha256": "30cca358c12bbcb0da3d85649ff44f50dcc423043202ac3a412381d0a242605d"
+            },
+            "line-3f41718e0833": {
+              "svgLineSlug": "6",
+              "vector": "seoul.line-3f41718e0833.vec",
+              "sha256": "8a59038fdc7637ff0d093befa935da315fc1ba925abd533a770da9a7dd887a40"
+            },
+            "line-41a8c75ec9d8": {
+              "svgLineSlug": "3",
+              "vector": "seoul.line-41a8c75ec9d8.vec",
+              "sha256": "6dcd6d292458f210969909040db0f371a7dd141c3c108b9c8541ad6ecbf7db0e"
+            },
+            "line-42b5805f3b5a": {
+              "svgLineSlug": "incheon-2",
+              "vector": "seoul.line-42b5805f3b5a.vec",
+              "sha256": "083dab90f53e7efe5d93ef0949ab86d4c9d7445ae94dc415326f3fc23eb111b3"
+            },
+            "line-472a81add377": {
+              "svgLineSlug": "1",
+              "vector": "seoul.line-472a81add377.vec",
+              "sha256": "9e0332f8caaa6a65571f6cfbdf16a16043defe59f1316b3e615a011003a5c903"
+            },
+            "line-54a7b980b7c3": {
+              "svgLineSlug": "gyeongchun",
+              "vector": "seoul.line-54a7b980b7c3.vec",
+              "sha256": "39e3948948591036b3616a4e6f1fd7187fecded527e844fc483503aaeb99f873"
+            },
+            "line-5500c1600f71": {
+              "svgLineSlug": "gimpo-goldline",
+              "vector": "seoul.line-5500c1600f71.vec",
+              "sha256": "fd47b4d89e03d35ebaefa8cd6606ce2c3997344342a80368bca2db0abb044f4b"
+            },
+            "line-558d0bd8312d": {
+              "svgLineSlug": "suin-bundang",
+              "vector": "seoul.line-558d0bd8312d.vec",
+              "sha256": "d99c4ffcdf879b6f704ed5fdc238eaa2129ab40deebc8c0622f42d25ceb64b0c"
+            },
+            "line-62096860ab09": {
+              "svgLineSlug": "uijeongbu-lrt",
+              "vector": "seoul.line-62096860ab09.vec",
+              "sha256": "bd84dac0b0d1997472d61d7283fd1f31bbbba40c5afb51084ce9f3dde6fc46be"
+            },
+            "line-6e39be0cb6e2": {
+              "svgLineSlug": "gyeongui-jungang",
+              "vector": "seoul.line-6e39be0cb6e2.vec",
+              "sha256": "c001dcd0bd224b0401d9be7ec57a04a268c5f217fb8ba8d08f48d518d373cd4e"
+            },
+            "line-80fc4d5350d4": {
+              "svgLineSlug": "5",
+              "vector": "seoul.line-80fc4d5350d4.vec",
+              "sha256": "e2923a2761f65fb865e24b241a903ed4f14b33801458ed08738aceb73dd02119"
+            },
+            "line-828f04afc588": {
+              "svgLineSlug": "everline",
+              "vector": "seoul.line-828f04afc588.vec",
+              "sha256": "89337694293d4043740ed06b756d0baad56a9c51db4a72a2a5f7240efe2279ad"
+            },
+            "line-8604048b6430": {
+              "svgLineSlug": "gtx-a",
+              "vector": "seoul.line-8604048b6430.vec",
+              "sha256": "291e72570fe0348b47fd95690dd5fbcd784cd333078e23f211de81c8b8e588fe"
+            },
+            "line-98718184f016": {
+              "svgLineSlug": "incheon-1",
+              "vector": "seoul.line-98718184f016.vec",
+              "sha256": "feb0a6b9de8024b48404945d124054d50b268b61b672f176483a4642802ee27d"
+            },
+            "line-aefa08ccc0a9": {
+              "svgLineSlug": "sillim",
+              "vector": "seoul.line-aefa08ccc0a9.vec",
+              "sha256": "56eb6eb689646e6fc6dd71a2c3943dad08abb957df7b722ab5fce1d87432d420"
+            },
+            "line-e4939a4b4713": {
+              "svgLineSlug": "gyeonggang",
+              "vector": "seoul.line-e4939a4b4713.vec",
+              "sha256": "761a5dea722074f1c74f783fcb02d25d61a190436513f62356e4980117076d4a"
+            },
+            "line-e9e9a5b520a4": {
+              "svgLineSlug": "airport-railroad",
+              "vector": "seoul.line-e9e9a5b520a4.vec",
+              "sha256": "960c5e5806631801b7e128a579921ac4e73c57f30c71e2db22795d59c427d8e3"
+            },
+            "line-f0e747248a31": {
+              "svgLineSlug": "9",
+              "vector": "seoul.line-f0e747248a31.vec",
+              "sha256": "6973bcfb7a1215b7a920cd3f40f7862a24d4c3d2e5b8b4598be5385f47977d75"
+            },
+            "seoul-2": {
+              "svgLineSlug": "2",
+              "vector": "seoul.seoul-2.vec",
+              "sha256": "7632295720e70ced2f4192031bc39554fd171f62698e2cb34e9505661d2c7146"
+            },
+            "seoul-4": {
+              "svgLineSlug": "4",
+              "vector": "seoul.seoul-4.vec",
+              "sha256": "b8dd66f2ac7a0d73c8cf70b894d748246494753c180c360f4e3428f5616afe09"
+            },
+            "shinbundang": {
+              "svgLineSlug": "shinbundang",
+              "vector": "seoul.shinbundang.vec",
+              "sha256": "6855a7e53184c83daf04a487ec5d511d1bc50357ed77cd01b6216cc558710d36"
+            }
+          }
         }
       }
     },
-    "daegu": {
-      "baseVector": "daegu.vec",
-      "lines": {
-        "line-0ffaa95b1b5d": {
-          "svgLineSlug": "line3",
-          "vector": "daegu.line-0ffaa95b1b5d.vec"
+    "text": {
+      "labels": "text-into-vec",
+      "regions": {
+        "busan": {
+          "baseVector": "busan.text.vec",
+          "baseVectorSha256": "6a4cd64a6344a23d50c37f86374379a6c01c992153870a67d152dd96f9697019",
+          "lines": {
+            "line-ab1a041f6266": {
+              "svgLineSlug": "line1",
+              "vector": "busan.line-ab1a041f6266.text.vec",
+              "sha256": "712fe6c8b1552947c2095caeda05603415c91d2f7d240e43a34df2849d5910e4"
+            },
+            "line-d74614a04530": {
+              "svgLineSlug": "line3",
+              "vector": "busan.line-d74614a04530.text.vec",
+              "sha256": "981a5c7d7d05228924c01e92629b57ae631c8e525301e7c328f7a2f56bdd1dc2"
+            },
+            "line-d812a5bc1e5f": {
+              "svgLineSlug": "line4",
+              "vector": "busan.line-d812a5bc1e5f.text.vec",
+              "sha256": "a4805a6e993ef5643b656efe8a54d551ede60b93a844edf9f002454c34230609"
+            },
+            "line-e4cce88f0d7f": {
+              "svgLineSlug": "bgl",
+              "vector": "busan.line-e4cce88f0d7f.text.vec",
+              "sha256": "e2d4c0b176593f7b8565e34ab43ee2ccf1c6a6d28c265a213580dea79538e03c"
+            },
+            "line-eb7b47920390": {
+              "svgLineSlug": "line2",
+              "vector": "busan.line-eb7b47920390.text.vec",
+              "sha256": "6450ff687ed5ab2e5e1228dd0bd84aa8cd0c78749906ee0f5b3c2410dba5b2fc"
+            },
+            "line-f52eb59d8497": {
+              "svgLineSlug": "donghae",
+              "vector": "busan.line-f52eb59d8497.text.vec",
+              "sha256": "4e0809d106a45307ec4590bdd1f1538d75bd719d7a8d7f1bdee01f43fce1ade4"
+            }
+          }
         },
-        "line-5b8d9b05e7e6": {
-          "svgLineSlug": "line1",
-          "vector": "daegu.line-5b8d9b05e7e6.vec"
+        "daegu": {
+          "baseVector": "daegu.text.vec",
+          "baseVectorSha256": "e8c6237428d74647a4e84fb5115b64b27b59d4900d8aed324968fad3ec740297",
+          "lines": {
+            "line-0ffaa95b1b5d": {
+              "svgLineSlug": "line3",
+              "vector": "daegu.line-0ffaa95b1b5d.text.vec",
+              "sha256": "7ca0467034fabedaacb59e324c2221f4f169139535845c33143c826967761e27"
+            },
+            "line-5b8d9b05e7e6": {
+              "svgLineSlug": "line1",
+              "vector": "daegu.line-5b8d9b05e7e6.text.vec",
+              "sha256": "da90bd306695f96bfd7dda8383460c2560e7f9f79f2f24d872025ab0c0a782da"
+            },
+            "line-8f7ed01f290a": {
+              "svgLineSlug": "daegyeong",
+              "vector": "daegu.line-8f7ed01f290a.text.vec",
+              "sha256": "fca82bbef91e490ce8dc5aa9015c308897c8ef2af0a01d67ceae29bb192f6386"
+            },
+            "line-e2938a4cc492": {
+              "svgLineSlug": "line2",
+              "vector": "daegu.line-e2938a4cc492.text.vec",
+              "sha256": "e3c66a5204bda838f4a724744d8ff0dd160665f95759146d3d83fea2aa712c2d"
+            }
+          }
         },
-        "line-8f7ed01f290a": {
-          "svgLineSlug": "daegyeong",
-          "vector": "daegu.line-8f7ed01f290a.vec"
+        "daejeon": {
+          "baseVector": "daejeon.text.vec",
+          "baseVectorSha256": "8c8996de208e6ac42746d60c7a7de3f1efebdb20c40f03add34ae892b8dc1d70",
+          "lines": {
+            "line-7051a9c2525c": {
+              "svgLineSlug": "1",
+              "vector": "daejeon.line-7051a9c2525c.text.vec",
+              "sha256": "49e889a46be8b7171c57d2a8763f12bc85014de0ca168c452dcdd9e14910fab2"
+            }
+          }
         },
-        "line-e2938a4cc492": {
-          "svgLineSlug": "line2",
-          "vector": "daegu.line-e2938a4cc492.vec"
-        }
-      }
-    },
-    "daejeon": {
-      "baseVector": "daejeon.vec",
-      "lines": {
-        "line-7051a9c2525c": {
-          "svgLineSlug": "1",
-          "vector": "daejeon.line-7051a9c2525c.vec"
-        }
-      }
-    },
-    "gwangju": {
-      "baseVector": "gwangju.vec",
-      "lines": {
-        "line-e57a361e8892": {
-          "svgLineSlug": "1",
-          "vector": "gwangju.line-e57a361e8892.vec"
-        }
-      }
-    },
-    "seoul": {
-      "baseVector": "seoul.vec",
-      "lines": {
-        "line-051552e50435": {
-          "svgLineSlug": "seohae",
-          "vector": "seoul.line-051552e50435.vec"
+        "gwangju": {
+          "baseVector": "gwangju.text.vec",
+          "baseVectorSha256": "c91a39e325ac9ebe83c1dadd13358296be523c164387e620205561d5bf5307d7",
+          "lines": {
+            "line-e57a361e8892": {
+              "svgLineSlug": "1",
+              "vector": "gwangju.line-e57a361e8892.text.vec",
+              "sha256": "f12c32722fb534cc4d267587f41a503c6c9d3efbb1cd635be942ed221cc886ce"
+            }
+          }
         },
-        "line-15b3b8a93259": {
-          "svgLineSlug": "7",
-          "vector": "seoul.line-15b3b8a93259.vec"
-        },
-        "line-2b2d9eaa53d0": {
-          "svgLineSlug": "8",
-          "vector": "seoul.line-2b2d9eaa53d0.vec"
-        },
-        "line-30886152e4f8": {
-          "svgLineSlug": "ui-sinseol",
-          "vector": "seoul.line-30886152e4f8.vec"
-        },
-        "line-3f41718e0833": {
-          "svgLineSlug": "6",
-          "vector": "seoul.line-3f41718e0833.vec"
-        },
-        "line-41a8c75ec9d8": {
-          "svgLineSlug": "3",
-          "vector": "seoul.line-41a8c75ec9d8.vec"
-        },
-        "line-42b5805f3b5a": {
-          "svgLineSlug": "incheon-2",
-          "vector": "seoul.line-42b5805f3b5a.vec"
-        },
-        "line-472a81add377": {
-          "svgLineSlug": "1",
-          "vector": "seoul.line-472a81add377.vec"
-        },
-        "line-54a7b980b7c3": {
-          "svgLineSlug": "gyeongchun",
-          "vector": "seoul.line-54a7b980b7c3.vec"
-        },
-        "line-5500c1600f71": {
-          "svgLineSlug": "gimpo-goldline",
-          "vector": "seoul.line-5500c1600f71.vec"
-        },
-        "line-558d0bd8312d": {
-          "svgLineSlug": "suin-bundang",
-          "vector": "seoul.line-558d0bd8312d.vec"
-        },
-        "line-62096860ab09": {
-          "svgLineSlug": "uijeongbu-lrt",
-          "vector": "seoul.line-62096860ab09.vec"
-        },
-        "line-6e39be0cb6e2": {
-          "svgLineSlug": "gyeongui-jungang",
-          "vector": "seoul.line-6e39be0cb6e2.vec"
-        },
-        "line-80fc4d5350d4": {
-          "svgLineSlug": "5",
-          "vector": "seoul.line-80fc4d5350d4.vec"
-        },
-        "line-828f04afc588": {
-          "svgLineSlug": "everline",
-          "vector": "seoul.line-828f04afc588.vec"
-        },
-        "line-8604048b6430": {
-          "svgLineSlug": "gtx-a",
-          "vector": "seoul.line-8604048b6430.vec"
-        },
-        "line-98718184f016": {
-          "svgLineSlug": "incheon-1",
-          "vector": "seoul.line-98718184f016.vec"
-        },
-        "line-aefa08ccc0a9": {
-          "svgLineSlug": "sillim",
-          "vector": "seoul.line-aefa08ccc0a9.vec"
-        },
-        "line-e4939a4b4713": {
-          "svgLineSlug": "gyeonggang",
-          "vector": "seoul.line-e4939a4b4713.vec"
-        },
-        "line-e9e9a5b520a4": {
-          "svgLineSlug": "airport-railroad",
-          "vector": "seoul.line-e9e9a5b520a4.vec"
-        },
-        "line-f0e747248a31": {
-          "svgLineSlug": "9",
-          "vector": "seoul.line-f0e747248a31.vec"
-        },
-        "seoul-2": {
-          "svgLineSlug": "2",
-          "vector": "seoul.seoul-2.vec"
-        },
-        "seoul-4": {
-          "svgLineSlug": "4",
-          "vector": "seoul.seoul-4.vec"
-        },
-        "shinbundang": {
-          "svgLineSlug": "shinbundang",
-          "vector": "seoul.shinbundang.vec"
+        "seoul": {
+          "baseVector": "seoul.text.vec",
+          "baseVectorSha256": "46b9fc983ae0b199d8e82b51c9f3069e8ded7a8ba779f0e365aab516951e2540",
+          "lines": {
+            "line-051552e50435": {
+              "svgLineSlug": "seohae",
+              "vector": "seoul.line-051552e50435.text.vec",
+              "sha256": "2c82a08f2c1ad98c3c08c88276fc20fdb9c40029233ea020ce44b2dbe9103d2e"
+            },
+            "line-15b3b8a93259": {
+              "svgLineSlug": "7",
+              "vector": "seoul.line-15b3b8a93259.text.vec",
+              "sha256": "68e6213ee9a1eae93fdfb036b97553c4ae516f194c47f95eb50a2ff1980ffdc9"
+            },
+            "line-2b2d9eaa53d0": {
+              "svgLineSlug": "8",
+              "vector": "seoul.line-2b2d9eaa53d0.text.vec",
+              "sha256": "de657c119745466e60df051f4b07fc96f2d6e692bb971ddce84fe10b71d53263"
+            },
+            "line-30886152e4f8": {
+              "svgLineSlug": "ui-sinseol",
+              "vector": "seoul.line-30886152e4f8.text.vec",
+              "sha256": "b7e45f7aa87b8a414355790f098ca32a95619ea0f76f2765fbdd6223fa89a8ed"
+            },
+            "line-3f41718e0833": {
+              "svgLineSlug": "6",
+              "vector": "seoul.line-3f41718e0833.text.vec",
+              "sha256": "eb973a07a4c15da264ca07cd4c2d9dbafc520cb3c06f4b4a00262ec3669158b7"
+            },
+            "line-41a8c75ec9d8": {
+              "svgLineSlug": "3",
+              "vector": "seoul.line-41a8c75ec9d8.text.vec",
+              "sha256": "e86eb41f03dcf47c044653112d6b020312c5acb69e06fc63d1a9eb02618fae3f"
+            },
+            "line-42b5805f3b5a": {
+              "svgLineSlug": "incheon-2",
+              "vector": "seoul.line-42b5805f3b5a.text.vec",
+              "sha256": "15e0220df8b94fe692f169720eb91d1a9970965c209e46ceac2556aac9be20fc"
+            },
+            "line-472a81add377": {
+              "svgLineSlug": "1",
+              "vector": "seoul.line-472a81add377.text.vec",
+              "sha256": "1b5854b6ea4c2d95b25e76c16220df2797f561a75959ea9cf88a7c6e9a8e6cb4"
+            },
+            "line-54a7b980b7c3": {
+              "svgLineSlug": "gyeongchun",
+              "vector": "seoul.line-54a7b980b7c3.text.vec",
+              "sha256": "2567b6838030c8823f77a1d89de7c6c62c4b796d6c394860dfae9f19b4b2715f"
+            },
+            "line-5500c1600f71": {
+              "svgLineSlug": "gimpo-goldline",
+              "vector": "seoul.line-5500c1600f71.text.vec",
+              "sha256": "977d24ac518b24902b1966f85205ce43de625e615ccdd157646d0ab2bc748bba"
+            },
+            "line-558d0bd8312d": {
+              "svgLineSlug": "suin-bundang",
+              "vector": "seoul.line-558d0bd8312d.text.vec",
+              "sha256": "4253635a559bbda383d92412b381a44182ebcc5097717b4e9f081f1102c0009f"
+            },
+            "line-62096860ab09": {
+              "svgLineSlug": "uijeongbu-lrt",
+              "vector": "seoul.line-62096860ab09.text.vec",
+              "sha256": "732be8578e1a60942770f8f7ec61180a2550bac4b3b064afe19eacb3affc8477"
+            },
+            "line-6e39be0cb6e2": {
+              "svgLineSlug": "gyeongui-jungang",
+              "vector": "seoul.line-6e39be0cb6e2.text.vec",
+              "sha256": "009d2f665e6b4b12ebd716652576beb2145d0b5926d191649bf2daaaf0fd6286"
+            },
+            "line-80fc4d5350d4": {
+              "svgLineSlug": "5",
+              "vector": "seoul.line-80fc4d5350d4.text.vec",
+              "sha256": "f7b16bb0c533380e96e109944b547f85fee9feee35ffd2db6e19930a5e552bd9"
+            },
+            "line-828f04afc588": {
+              "svgLineSlug": "everline",
+              "vector": "seoul.line-828f04afc588.text.vec",
+              "sha256": "d480d9f639c9419f6797734dc68b4c8acb890748284c59e7b149dabd73707d55"
+            },
+            "line-8604048b6430": {
+              "svgLineSlug": "gtx-a",
+              "vector": "seoul.line-8604048b6430.text.vec",
+              "sha256": "5ae7bd8d2b86562f22db77e30541565b59895afa4dec996dc0c55454d14e5ab6"
+            },
+            "line-98718184f016": {
+              "svgLineSlug": "incheon-1",
+              "vector": "seoul.line-98718184f016.text.vec",
+              "sha256": "919fd8be54023875f739c9ef3983df32fa66331aaf8c72d825e73ba3ec25d340"
+            },
+            "line-aefa08ccc0a9": {
+              "svgLineSlug": "sillim",
+              "vector": "seoul.line-aefa08ccc0a9.text.vec",
+              "sha256": "27b154f0fe4413a4dfdd43655aed2c634b985c52b0613a8cd83400fe6af380ef"
+            },
+            "line-e4939a4b4713": {
+              "svgLineSlug": "gyeonggang",
+              "vector": "seoul.line-e4939a4b4713.text.vec",
+              "sha256": "cc993d7397148a34fc5dd3e04a1ce09fed9047dcdc117df08ef38aa5e963dd45"
+            },
+            "line-e9e9a5b520a4": {
+              "svgLineSlug": "airport-railroad",
+              "vector": "seoul.line-e9e9a5b520a4.text.vec",
+              "sha256": "ae770f5864e4b2f0dc0495e298b49e77cff0ef960c70ccbba588262e8af828d0"
+            },
+            "line-f0e747248a31": {
+              "svgLineSlug": "9",
+              "vector": "seoul.line-f0e747248a31.text.vec",
+              "sha256": "c8854db1c23e0b724edd9b1064fee8fdbcb29d0b2ed08294af7fbe2ce53c34ef"
+            },
+            "seoul-2": {
+              "svgLineSlug": "2",
+              "vector": "seoul.seoul-2.text.vec",
+              "sha256": "72525f00b94ee594d6fb8757123cb460c85351db9c2b1bf1d8ea6a21690272ec"
+            },
+            "seoul-4": {
+              "svgLineSlug": "4",
+              "vector": "seoul.seoul-4.text.vec",
+              "sha256": "1870433d3ff36a00def599a949a897ea8f9f525b62e136e7b988107d1608ea3e"
+            },
+            "shinbundang": {
+              "svgLineSlug": "shinbundang",
+              "vector": "seoul.shinbundang.text.vec",
+              "sha256": "bddd05d3f65469be1650cfc8b6e69a73d70ec17a4cca605258fcc86dc0474983"
+            }
+          }
         }
       }
     }

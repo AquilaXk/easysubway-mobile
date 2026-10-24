@@ -2,8 +2,11 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_tiles.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics/vector_graphics.dart';
+
+import '../../../support/basemap_index.dart';
 
 // #2068 하이브리드 바탕층 성능 계측(계측 위주, 느슨한 assert).
 //
@@ -11,11 +14,22 @@ import 'package:vector_graphics/vector_graphics.dart';
 // 셸 `time`으로 별도 측정하므로 여기에 넣지 않는다. structured recordRouteMapPicture
 // 대비 비교는 데이터 로드가 무거워 생략하고 vec 로드만 계측한다(범위 밖 노이즈 회피).
 //
-// 래스터 프레임 예산은 앱이 쓰는 렌더러인 Impeller에서만 건다. 앱은 Android(Vulkan)와
-// iOS(Metal)에서 Impeller로 그리고, `flutter test` 기본 실행은 Skia 소프트웨어
-// 래스터라(flutter_tools flutter_tester_device.dart --enable-software-rendering) 기기에
-// 없는 CPU 커버리지 계산을 잰다. CI는 이 파일을 `flutter test --enable-impeller`로 한 번
-// 더 돌려 예산을 건다(ci.yml "Raster frame budget (Impeller)"). 기본 실행 값은 기록만 한다.
+// 앱은 엔진 렌더러에 맞는 바탕 변형을 그린다(routeMapBasemapVariantOfEngine). Flutter 3.44
+// 엔진은 Android API 29 이상(Vivante GPU 제외)과 iOS에서 Impeller로, API 24~28과 Vivante
+// GPU에서 Skia OpenGLES로 그린다(flutter_main.cc SelectedRenderingAPI,
+// kMinimumAndroidApiLevelForImpeller = 29). 앱 minSdk는 24다. Impeller 기기군은 윤곽선 라벨
+// 변형을, Skia OpenGLES 기기군은 텍스트 라벨 변형을 쓴다. 이 파일도 같은 규칙으로 자산을 고른다.
+//
+// 래스터 프레임 예산은 Impeller로 그릴 때만 건다. 그래서 예산은 Impeller 기기군의 윤곽선
+// 변형만 대표한다. Skia OpenGLES 기기군의 텍스트 변형은 호스트에서 재지 못하므로 Impeller를
+// 끈 측정용 빌드의 실기기 교대 측정이 맡는다(test/evidence/perf-route-map-raster-517).
+//
+// 호스트 렌더러는 단계마다 다르다. `flutter test` 기본 실행은 Skia 소프트웨어 래스터라
+// (flutter_tools flutter_tester_device.dart --enable-software-rendering) 텍스트 변형을 고르고
+// 어느 기기에도 없는 CPU 커버리지 계산을 잰다. 이 값은 기록만 한다. CI는 이 파일을 `flutter test
+// --enable-impeller`로 한 번 더 돌려 예산을 건다(ci.yml "Raster frame budget (Impeller)").
+// 이때 flutter_tester는 SwiftShader 위 Impeller Vulkan으로 그리고(tester_main.cc), 예산이 재는
+// 값은 래스터 스레드가 명령을 만드는 시간이다. GPU를 포함한 프레임은 실기기 측정만 본다.
 //
 // flutter test cwd는 apps/mobile다 — 자산 경로를 그 기준 상대경로로 연다.
 
@@ -79,7 +93,9 @@ void _expectWithinFrameBudget(double p50, String reason) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const seoulAsset = 'assets/datapacks/metro_map_pack/basemap/seoul.vec';
+  // 앱처럼 엔진 렌더러에 맞는 변형을 잰다. Impeller 게이트는 윤곽선 변형을 잰다.
+  final files = bundledBasemapIndex.variant(routeMapBasemapVariantOfEngine());
+  final seoulAsset = files.baseAssetFor('seoul');
 
   test('Impeller 게이트 실행이면 엔진이 Impeller로 그린다', () {
     expect(
@@ -99,10 +115,7 @@ void main() {
     late final Duration loadDuration;
     await tester.runAsync(() async {
       final stopwatch = Stopwatch()..start();
-      final info = await vg.loadPicture(
-        const AssetBytesLoader(seoulAsset),
-        null,
-      );
+      final info = await vg.loadPicture(AssetBytesLoader(seoulAsset), null);
       stopwatch.stop();
       loadDuration = stopwatch.elapsed;
       info.picture.dispose();
@@ -110,7 +123,7 @@ void main() {
 
     // ignore: avoid_print
     print(
-      '[#2068 perf] seoul.vec 크기=${sizeBytes}B(${(sizeBytes / 1024).toStringAsFixed(1)}KB) '
+      '[#2068 perf] $_renderer $seoulAsset 크기=${sizeBytes}B(${(sizeBytes / 1024).toStringAsFixed(1)}KB) '
       '로드+디코드=${loadDuration.inMicroseconds}us(${loadDuration.inMilliseconds}ms)',
     );
 
@@ -125,9 +138,9 @@ void main() {
   // 프레임 시간을 크게 좌우한다(실측: 대전 p90 0.43ms → 1.93ms). 수도권 오버레이는
   // `opacity="0"`이라 사실상 무료다. 상한은 프레임 예산 기준의 느슨한 회귀 감지선이다.
   testWidgets('바탕 .vec 래스터 프레임 시간 p50/p90 계측', (tester) async {
-    const targets = <String, String>{
-      'seoul': 'assets/datapacks/metro_map_pack/basemap/seoul.vec',
-      'daejeon': 'assets/datapacks/metro_map_pack/basemap/daejeon.vec',
+    final targets = {
+      for (final regionId in ['seoul', 'daejeon'])
+        regionId: files.baseAssetFor(regionId),
     };
     await tester.runAsync(() async {
       for (final entry in targets.entries) {
@@ -141,7 +154,7 @@ void main() {
         final p50 = _percentile(samples, 0.5);
         // ignore: avoid_print
         print(
-          '[#2593 raster] $_renderer ${entry.key}.vec 1080x1920 '
+          '[#2593 raster] $_renderer ${entry.value} 1080x1920 '
           'p50=${p50.toStringAsFixed(2)}ms '
           'p90=${_percentile(samples, 0.9).toStringAsFixed(2)}ms',
         );
@@ -153,26 +166,22 @@ void main() {
   // 노선 강조(#511): 가장 큰 노선 레이어(수도권 1호선) 디코드 시간과, 흐린 바탕
   // saveLayer + 레이어 그리기가 바탕만 그릴 때보다 래스터를 얼마나 늘리는지 잰다.
   testWidgets('노선 강조 레이어 디코드와 흐린 바탕 래스터 시간 계측', (tester) async {
-    const overlayAsset =
-        'assets/datapacks/metro_map_pack/basemap/seoul.line-472a81add377.vec';
+    final overlayAsset = files.overlayAssetFor(
+      regionId: 'seoul',
+      lineId: 'line-472a81add377',
+    );
     await tester.runAsync(() async {
       final decodeMs = <double>[];
       for (var run = 0; run < 7; run += 1) {
         final stopwatch = Stopwatch()..start();
-        final info = await vg.loadPicture(
-          const AssetBytesLoader(overlayAsset),
-          null,
-        );
+        final info = await vg.loadPicture(AssetBytesLoader(overlayAsset), null);
         stopwatch.stop();
         decodeMs.add(stopwatch.elapsedMicroseconds / 1000.0);
         info.picture.dispose();
       }
-      final base = await vg.loadPicture(
-        const AssetBytesLoader(seoulAsset),
-        null,
-      );
+      final base = await vg.loadPicture(AssetBytesLoader(seoulAsset), null);
       final overlay = await vg.loadPicture(
-        const AssetBytesLoader(overlayAsset),
+        AssetBytesLoader(overlayAsset),
         null,
       );
       final fadePaint = ui.Paint()
@@ -222,10 +231,7 @@ void main() {
   // 그린다. 넓게 본 노선도에서 사용자가 보는 프레임이 이 합성이다. 타일은 앱의 격자로 굽는다.
   testWidgets('구운 바탕 타일 합성 프레임 시간 계측', (tester) async {
     await tester.runAsync(() async {
-      final base = await vg.loadPicture(
-        const AssetBytesLoader(seoulAsset),
-        null,
-      );
+      final base = await vg.loadPicture(AssetBytesLoader(seoulAsset), null);
       final grid = RouteMapBasemapTileGrid(
         content: RouteMapBasemapTileContent(
           basemap: base.picture,

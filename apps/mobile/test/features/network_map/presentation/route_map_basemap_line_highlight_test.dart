@@ -123,15 +123,13 @@ Future<Uint8List> _reference(
   }))!;
 }
 
-Future<String> _overlayAsset(String lineId) async {
-  final json = await rootBundle.loadString(
-    kRouteMapLineOverlayIndexAssetPath,
-    cache: false,
-  );
-  return RouteMapLineOverlayIndex.parse(
-    json,
-  ).overlayAssetFor(regionId: 'seoul', lineId: lineId);
-}
+/// 엔진 렌더러가 고른 변형. 화면은 이 변형으로 그려지므로 기준 이미지도 같은 변형으로 그린다.
+final RouteMapBasemapVariantFiles _engineFiles = RouteMapLineOverlayIndex.parse(
+  File(kRouteMapLineOverlayIndexAssetPath).readAsStringSync(),
+).variant(routeMapBasemapVariantOfEngine());
+
+String _overlayAsset(String lineId) =>
+    _engineFiles.overlayAssetFor(regionId: 'seoul', lineId: lineId);
 
 int _maxChannelDiff(Uint8List a, Uint8List b) {
   var max = 0;
@@ -194,8 +192,8 @@ double _median(List<double> values) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const seoulBase = 'assets/datapacks/metro_map_pack/basemap/seoul.vec';
-  const busanBase = 'assets/datapacks/metro_map_pack/basemap/busan.vec';
+  final seoulBase = _engineFiles.baseAssetFor('seoul');
+  final busanBase = _engineFiles.baseAssetFor('busan');
 
   tearDown(RouteMapBasemapViewState.clearPictureCacheForTest);
 
@@ -213,9 +211,7 @@ void main() {
       await tester.pumpWidget(_map(region: '수도권', lineId: lineId));
       await _settleLoads(tester);
 
-      final overlayAsset = (await tester.runAsync(
-        () => _overlayAsset(lineId),
-      ))!;
+      final overlayAsset = _overlayAsset(lineId);
       final counts = _classify(
         screen: await _screen(tester),
         base: await _reference(tester, [seoulBase]),
@@ -277,9 +273,7 @@ void main() {
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
     await _settleLoads(tester);
     final highlighted = await _screen(tester);
-    final overlayAsset = (await tester.runAsync(
-      () => _overlayAsset(_uiSinseolLineId),
-    ))!;
+    final overlayAsset = _overlayAsset(_uiSinseolLineId);
     final state = tester.state<RouteMapBasemapViewState>(
       find.byType(RouteMapBasemapView),
     );
@@ -330,10 +324,10 @@ void main() {
 
     Future<void> expectPlainBase(
       WidgetTester tester, {
-      String baseAsset = seoulBase,
+      String? baseAsset,
     }) async {
       final screen = await _screen(tester);
-      final base = await _reference(tester, [baseAsset]);
+      final base = await _reference(tester, [baseAsset ?? seoulBase]);
       expect(
         _maxChannelDiff(screen, base),
         lessThanOrEqualTo(_channelTolerance),
@@ -380,15 +374,13 @@ void main() {
       final errors = await pumpCapturingErrors(tester, _uiSinseolLineId);
 
       expect(errors, hasLength(1));
-      expect(errors.single.context.toString(), contains('seoul.vec'));
+      expect(errors.single.context.toString(), contains(seoulBase));
       final blank = await _reference(tester, const []);
       expect(_maxChannelDiff(await _screen(tester), blank), 0);
     });
 
     testWidgets('레이어 .vec를 읽지 못함', (tester) async {
-      final overlayAsset = (await tester.runAsync(
-        () => _overlayAsset(_uiSinseolLineId),
-      ))!;
+      final overlayAsset = _overlayAsset(_uiSinseolLineId);
       TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
           .setMockMessageHandler('flutter/assets', (message) async {
             final key = Uri.decodeFull(

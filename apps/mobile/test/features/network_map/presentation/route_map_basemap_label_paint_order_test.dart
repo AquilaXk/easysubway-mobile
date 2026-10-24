@@ -1,8 +1,10 @@
 import 'dart:io';
 
+import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/basemap_index.dart';
 import '../../../support/basemap_vec_draws.dart';
 
 // #2068 바탕층 라벨 paint-order 회귀 게이트(컴파일 .vec 그리기 순서 실측).
@@ -13,7 +15,13 @@ import '../../../support/basemap_vec_draws.dart';
 // 그려지면 글자 속을 덮어 속이 빈 유령 글자가 된다 — 오너 실기기 실측에서 대구는
 // 역명이 화면에서 사실상 소멸했고 부산은 일반역명이 파편화됐다.
 //
-// [라벨이 윤곽선이 된 뒤] data #1488이 라벨 `<text>`를 참조 서체의 글리프 윤곽선
+// 앱은 렌더러에 맞는 변형 하나를 그리므로(route_map_line_overlay_index.dart) 두 변형을
+// 모두 본다. 텍스트 변형은 텍스트 draw의 그리기 순서로, 윤곽선 변형은 윤곽 좌표로 본다.
+//
+// [텍스트 변형] 같은 글자·같은 펜 위치에 stroke 전용 draw와 fill 전용 draw가 짝으로
+// 있으면 stroke가 먼저여야 한다.
+//
+// [윤곽선 변형] data #1488이 라벨 `<text>`를 참조 서체의 글리프 윤곽선
 // path로 굽고, data #1495가 같은 paint의 인접 path를 한 path로 이었다. `.vec`에는
 // 텍스트 draw가 없고(route_map_basemap_draw_budget_test가 0건으로 못 박는다), 라벨은
 // path draw 안의 윤곽(subpath)이다. halo(stroke)와 글자(fill)는 **같은 윤곽 좌표**를
@@ -32,7 +40,59 @@ import '../../../support/basemap_vec_draws.dart';
 // tools/route-map/basemap-paint-order-gate.test.mjs가 따로 고정한다. 이 게이트는
 // 그 분해가 **배포 바이트까지 순서 그대로 살아남았는지**를 본다.
 
-const _basemapDir = 'assets/datapacks/metro_map_pack/basemap';
+String _basemapAsset(RouteMapBasemapVariant variant, String regionId) =>
+    bundledBasemapIndex.variant(variant).baseAssetFor(regionId);
+
+// 텍스트 변형 실측 기준선(data pipelineRevision 7). halo/글자 짝의 수이며 세는 단위는
+// 텍스트 런이다. 다줄 라벨은 tspan마다 draw가 하나씩 나와 `<text>` 요소 수(부산 147·
+// 대구 97)보다 크다. seoul은 라벨 CSS가 stroke를 주지 않아 짝이 없다.
+const _expectedTextHaloPairs = <String, int>{
+  'seoul': 0,
+  'busan': 155,
+  'daegu': 104,
+  'daejeon': 22,
+  'gwangju': 20,
+};
+
+/// 같은 글자·같은 펜 위치를 가리키는 키(부동소수 흔들림을 흡수한다).
+String _penKey(BasemapVecTextDraw draw) =>
+    '${draw.text}@${draw.x.toStringAsFixed(3)},${draw.y.toStringAsFixed(3)}';
+
+/// 텍스트 변형 한 권역의 halo/글자 짝 수와, halo가 글자보다 뒤에 그려진 라벨.
+({int pairs, List<String> haloAfterGlyph}) _textHaloOrder(
+  List<BasemapVecTextDraw> draws,
+) {
+  final byPen = <String, List<BasemapVecTextDraw>>{};
+  for (final draw in draws) {
+    byPen.putIfAbsent(_penKey(draw), () => <BasemapVecTextDraw>[]).add(draw);
+  }
+  var pairs = 0;
+  final haloAfterGlyph = <String>[];
+  for (final group in byPen.values) {
+    final halos = group.where((draw) => draw.hasStroke && !draw.hasFill);
+    final glyphs = group.where((draw) => draw.hasFill && !draw.hasStroke);
+    if (halos.isEmpty || glyphs.isEmpty) continue;
+    pairs += 1;
+    final firstHalo = halos.first.index;
+    final firstGlyph = glyphs.first.index;
+    if (firstHalo > firstGlyph) {
+      haloAfterGlyph.add(
+        '"${group.first.text}": halo draw #$firstHalo이 글자 draw #$firstGlyph보다 뒤다.',
+      );
+    }
+  }
+  return (pairs: pairs, haloAfterGlyph: haloAfterGlyph);
+}
+
+BasemapVecTextDraw _textDraw(int index, {required bool stroke}) =>
+    BasemapVecTextDraw(
+      index: index,
+      text: '가',
+      x: 10,
+      y: 20,
+      hasFill: !stroke,
+      hasStroke: stroke,
+    );
 
 // 라벨 상자 계수. 글자 폭 상한은 글자 수 × 글자 크기 × 1.15(전각 + 자간), 높이는
 // 기준선 위 1.15em·아래 0.35em, 가로 여유는 0.3em이다. 상자가 넓어 이웃 라벨이나
@@ -43,7 +103,7 @@ const _ascentEm = 1.15;
 const _descentEm = 0.35;
 const _slackEm = 0.3;
 
-// 실측 기준선(data 54e2e7c99, pipelineRevision 6). halo가 붙은 라벨 런의 수다.
+// 윤곽선 변형 실측 기준선(data pipelineRevision 7). halo가 붙은 라벨 런의 수다.
 // 라벨 런은 `<text>` 한 줄이며 다줄 라벨은 줄마다 센다(busan 147개 중 8개가 2줄 → 155).
 //   busan·daegu     : `.station-name`/`.transfer-name` 클래스 규칙이 stroke를 준다.
 //   daejeon·gwangju : `#station-name-labels-layer text` **자손 결합자** 규칙이
@@ -206,13 +266,53 @@ const _white = 0xffffffff;
 const _ink = 0xff14293d;
 
 void main() {
-  test('#2068 halo(stroke) 사본이 글자(fill) 사본보다 먼저 그려진다 — 5권역 전수', () {
+  test('#2068 텍스트 변형 halo(stroke) 사본이 글자(fill) 사본보다 먼저 그려진다 — 5권역 전수', () {
+    final failures = <String>[];
+    final summary = <String>[];
+
+    for (final MapEntry(key: region, value: expectedPairs)
+        in _expectedTextHaloPairs.entries) {
+      final draws = basemapVecTextDraws(
+        _basemapAsset(RouteMapBasemapVariant.text, region),
+      );
+      expect(
+        draws,
+        isNotEmpty,
+        reason: '$region: .vec에서 텍스트 draw를 하나도 못 읽었다 — 디코더가 죽었다',
+      );
+      final order = _textHaloOrder(draws);
+      failures.addAll(
+        order.haloAfterGlyph.map(
+          (message) => '$region/$message 흰 halo가 글자를 덮어 유령 글자가 된다.',
+        ),
+      );
+      if (order.pairs != expectedPairs) {
+        failures.add(
+          '$region: halo/글자 짝 ${order.pairs}건(기준 $expectedPairs). 라벨 halo가 '
+          '빠졌는지·중복인지 먼저 규명하고 정당한 변화면 기준선을 실측으로 갱신하세요.',
+        );
+      }
+      summary.add('$region: 짝 ${order.pairs}건 / 텍스트 draw ${draws.length}건');
+    }
+
+    // ignore: avoid_print
+    print('[label-paint-order text] ${summary.join(' · ')}');
+    expect(
+      failures,
+      isEmpty,
+      reason: '텍스트 변형 라벨 그리기 순서가 어긋났다:\n${failures.join('\n')}',
+    );
+  });
+
+  test('#2068 윤곽선 변형 halo(stroke) 윤곽이 글자(fill) 윤곽보다 먼저 그려진다 — 5권역 전수', () {
     final failures = <String>[];
     final summary = <String>[];
 
     for (final entry in _expectedHaloedRuns.entries) {
       final region = entry.key;
-      final draws = basemapVecPathDraws('$_basemapDir/$region.vec');
+      final draws = basemapVecPathDraws(
+        _basemapAsset(RouteMapBasemapVariant.outlined, region),
+      );
       expect(
         draws,
         isNotEmpty,
@@ -246,7 +346,7 @@ void main() {
     }
 
     // ignore: avoid_print
-    print('[label-paint-order] ${summary.join(' · ')}');
+    print('[label-paint-order outlined] ${summary.join(' · ')}');
     expect(
       failures,
       isEmpty,
@@ -254,7 +354,32 @@ void main() {
     );
   });
 
-  group('순서 판독', () {
+  group('텍스트 변형 순서 판독', () {
+    test('halo가 글자보다 먼저면 짝으로 세고 위반이 없다', () {
+      final order = _textHaloOrder([
+        _textDraw(0, stroke: true),
+        _textDraw(1, stroke: false),
+      ]);
+
+      expect(order.pairs, 1);
+      expect(order.haloAfterGlyph, isEmpty);
+    });
+
+    test('글자가 halo보다 먼저면 흰 halo가 글자를 덮는 위반으로 잡는다', () {
+      final order = _textHaloOrder([
+        _textDraw(0, stroke: false),
+        _textDraw(1, stroke: true),
+      ]);
+
+      expect(order.haloAfterGlyph, hasLength(1));
+    });
+
+    test('halo 없이 글자만 있으면 짝으로 세지 않는다', () {
+      expect(_textHaloOrder([_textDraw(0, stroke: false)]).pairs, 0);
+    });
+  });
+
+  group('윤곽선 변형 순서 판독', () {
     test('halo가 글자보다 먼저면 halo 라벨로 세고 위반이 없다', () {
       final order = _LabelPaintOrder(
         [

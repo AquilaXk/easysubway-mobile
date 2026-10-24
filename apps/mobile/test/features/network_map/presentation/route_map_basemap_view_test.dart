@@ -1,7 +1,52 @@
+import 'dart:convert';
+import 'dart:io';
+import 'dart:ui' as ui;
+
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
+import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../support/basemap_index.dart';
+
+const _uiSinseolLineId = 'line-30886152e4f8';
+
+/// 엔진 렌더러가 고른 변형의 [regionId] 권역 바탕.
+String _engineBase(String regionId) => bundledBasemapIndex
+    .variant(routeMapBasemapVariantOfEngine())
+    .baseAssetFor(regionId);
+
+/// 바탕 뷰가 지금 그리는 그림. 노선을 골랐으면 흐린 바탕, 노선 레이어 순이다.
+List<ui.Picture?> _paintedPictures(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(
+      find.descendant(
+        of: find.byType(RouteMapBasemapView),
+        matching: find.byType(CustomPaint),
+      ),
+    )
+    .map((paint) => (paint.painter! as RouteMapBasemapPainter).picture)
+    .toList();
+
+/// 자산을 읽고 벡터로 그린 프레임에서 멈춘다. 시계를 돌리지 않아 바탕 타일은 굽지 않는다.
+Future<void> _settleLoads(WidgetTester tester) async {
+  for (var attempt = 0; attempt < 5; attempt++) {
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
+    await tester.pump();
+  }
+}
+
+/// [assets]에 든 키는 그 바이트로, 나머지 자산 키는 번들 파일 그대로 답한다. 값이 null이면
+/// 읽기 실패다.
+void _serveAssets(Map<String, ByteData?> assets) {
+  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+      .setMockMessageHandler('flutter/assets', (message) async {
+        final key = Uri.decodeFull(utf8.decode(message!.buffer.asUint8List()));
+        if (assets.containsKey(key)) return assets[key];
+        return ByteData.sublistView(File(key).readAsBytesSync());
+      });
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -16,30 +61,75 @@ void main() {
     revision: 1,
   );
 
-  group('routeMapBasemapAssetForRegion', () {
-    test('5개 전 권역을 올바른 .vec 자산 경로로 매핑한다', () {
-      expect(
-        routeMapBasemapAssetForRegion('수도권'),
-        'assets/datapacks/metro_map_pack/basemap/seoul.vec',
+  test('엔진이 Impeller로 그리면 윤곽선 변형, Skia로 그리면 텍스트 변형을 고른다', () {
+    expect(
+      routeMapBasemapVariantOfEngine(),
+      ui.ImageFilter.isShaderFilterSupported
+          ? RouteMapBasemapVariant.outlined
+          : RouteMapBasemapVariant.text,
+    );
+  });
+
+  group('렌더러 변형', () {
+    tearDown(RouteMapBasemapViewState.clearPictureCacheForTest);
+
+    Widget seoul(RouteMapBasemapVariant? variant) => Directionality(
+      textDirection: TextDirection.ltr,
+      child: RouteMapBasemapView(
+        region: '수도권',
+        camera: camera,
+        highlightedLineId: _uiSinseolLineId,
+        variant: variant,
+      ),
+    );
+
+    for (final variant in RouteMapBasemapVariant.values) {
+      testWidgets('${variant.name} 변형은 바탕과 노선 레이어를 모두 그 변형 파일로 그린다', (
+        tester,
+      ) async {
+        await tester.pumpWidget(seoul(variant));
+        await _settleLoads(tester);
+
+        final state = tester.state<RouteMapBasemapViewState>(
+          find.byType(RouteMapBasemapView),
+        );
+        final files = bundledBasemapIndex.variant(variant);
+        final base = state.debugPictureCache[files.baseAssetFor('seoul')];
+        final overlay =
+            state.debugPictureCache[files.overlayAssetFor(
+              regionId: 'seoul',
+              lineId: _uiSinseolLineId,
+            )];
+        expect(_paintedPictures(tester), [base?.picture, overlay?.picture]);
+        expect(base, isNotNull);
+        expect(overlay, isNotNull);
+        expect(state.debugPictureCache, hasLength(2));
+      });
+    }
+
+    testWidgets('변형을 바꾸면 이전 변형 바탕 위에 새 변형 레이어를 겹치지 않고 새 변형으로 다시 그린다', (
+      tester,
+    ) async {
+      await tester.pumpWidget(seoul(RouteMapBasemapVariant.outlined));
+      await _settleLoads(tester);
+
+      await tester.pumpWidget(seoul(RouteMapBasemapVariant.text));
+      expect(_paintedPictures(tester), [null]);
+
+      await _settleLoads(tester);
+      final state = tester.state<RouteMapBasemapViewState>(
+        find.byType(RouteMapBasemapView),
       );
-      expect(
-        routeMapBasemapAssetForRegion('부산'),
-        'assets/datapacks/metro_map_pack/basemap/busan.vec',
-      );
-      expect(
-        routeMapBasemapAssetForRegion('광주'),
-        'assets/datapacks/metro_map_pack/basemap/gwangju.vec',
-      );
-      expect(
-        routeMapBasemapAssetForRegion('대구'),
-        'assets/datapacks/metro_map_pack/basemap/daegu.vec',
-      );
-      expect(
-        routeMapBasemapAssetForRegion('대전'),
-        'assets/datapacks/metro_map_pack/basemap/daejeon.vec',
-      );
-      expect(routeMapBasemapAssetForRegion('제주'), isNull);
-      expect(routeMapBasemapAssetForRegion(''), isNull);
+      final text = bundledBasemapIndex.variant(RouteMapBasemapVariant.text);
+      expect(_paintedPictures(tester), [
+        state.debugPictureCache[text.baseAssetFor('seoul')]!.picture,
+        state
+            .debugPictureCache[text.overlayAssetFor(
+              regionId: 'seoul',
+              lineId: _uiSinseolLineId,
+            )]!
+            .picture,
+      ]);
     });
   });
 
@@ -131,7 +221,7 @@ void main() {
       final state = tester.state<RouteMapBasemapViewState>(
         find.byType(RouteMapBasemapView),
       );
-      final daejeonAsset = routeMapBasemapAssetForRegion('대전')!;
+      final daejeonAsset = _engineBase('daejeon');
       expect(state.debugPictureCache.containsKey(daejeonAsset), isTrue);
       final daejeonPicture = state.debugPictureCache[daejeonAsset];
       expect(daejeonPicture, isNotNull);
@@ -145,7 +235,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final gwangjuAsset = routeMapBasemapAssetForRegion('광주')!;
+      final gwangjuAsset = _engineBase('gwangju');
       expect(state.debugPictureCache.containsKey(gwangjuAsset), isTrue);
       expect(state.debugPictureCache.containsKey(daejeonAsset), isTrue);
 
@@ -222,40 +312,85 @@ void main() {
       expect(identical(p1.picture, p2.picture), isTrue);
     });
 
-    testWidgets('바탕 .vec 로드 실패 시 pendingLoads를 정리하고 FlutterError를 보고한다', (
-      tester,
-    ) async {
-      final errors = <FlutterErrorDetails>[];
-      final previousOnError = FlutterError.onError;
-      FlutterError.onError = errors.add;
-
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', (message) async => null);
-
-      try {
-        await tester.pumpWidget(
-          const Directionality(
-            textDirection: TextDirection.ltr,
-            child: RouteMapBasemapView(region: '부산', camera: camera),
-          ),
-        );
-        await tester.pumpAndSettle();
-      } finally {
-        FlutterError.onError = previousOnError;
+    group('바탕을 읽지 못하면 그리지 않고 FlutterError를 보고한다', () {
+      tearDown(() {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMessageHandler('flutter/assets', null);
+      });
+
+      Future<List<FlutterErrorDetails>> pumpBusan(WidgetTester tester) async {
+        final errors = <FlutterErrorDetails>[];
+        final previousOnError = FlutterError.onError;
+        FlutterError.onError = errors.add;
+        try {
+          await tester.pumpWidget(
+            const Directionality(
+              textDirection: TextDirection.ltr,
+              child: RouteMapBasemapView(region: '부산', camera: camera),
+            ),
+          );
+          await tester.pumpAndSettle();
+        } finally {
+          FlutterError.onError = previousOnError;
+        }
+        return errors;
       }
 
-      final state = tester.state<RouteMapBasemapViewState>(
-        find.byType(RouteMapBasemapView),
-      );
-      final busanAsset = routeMapBasemapAssetForRegion('부산')!;
-      expect(state.debugPendingLoads.containsKey(busanAsset), isFalse);
-      expect(state.debugPictureCache.containsKey(busanAsset), isFalse);
+      testWidgets('바탕 .vec를 읽지 못하면 pendingLoads를 정리한다', (tester) async {
+        final busanAsset = _engineBase('busan');
+        _serveAssets({busanAsset: null});
 
-      expect(errors, hasLength(1));
-      expect(errors.first.library, 'network_map');
-      expect(errors.first.context.toString(), contains('로드 실패'));
+        final errors = await pumpBusan(tester);
+
+        final state = tester.state<RouteMapBasemapViewState>(
+          find.byType(RouteMapBasemapView),
+        );
+        expect(state.debugPendingLoads.containsKey(busanAsset), isFalse);
+        expect(state.debugPictureCache.containsKey(busanAsset), isFalse);
+        expect(_paintedPictures(tester), [null]);
+        expect(errors, hasLength(1));
+        expect(errors.single.library, 'network_map');
+        expect(errors.single.context.toString(), contains(busanAsset));
+      });
+
+      testWidgets('바탕 색인을 읽지 못함', (tester) async {
+        _serveAssets({kRouteMapLineOverlayIndexAssetPath: null});
+
+        final errors = await pumpBusan(tester);
+
+        expect(_paintedPictures(tester), [null]);
+        expect(errors, hasLength(1));
+        expect(errors.single.context.toString(), contains('busan 바탕 색인'));
+      });
+
+      testWidgets('바탕 색인에 권역이 없음', (tester) async {
+        final index =
+            jsonDecode(
+                  File(kRouteMapLineOverlayIndexAssetPath).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        for (final variant in (index['variants'] as Map).values) {
+          ((variant as Map)['regions'] as Map).remove('busan');
+        }
+        _serveAssets({
+          kRouteMapLineOverlayIndexAssetPath: ByteData.sublistView(
+            utf8.encode(jsonEncode(index)),
+          ),
+        });
+
+        final errors = await pumpBusan(tester);
+
+        expect(_paintedPictures(tester), [null]);
+        expect(errors, hasLength(1));
+        expect(
+          errors.single.exception,
+          isA<RouteMapBasemapRegionMissing>().having(
+            (error) => error.regionId,
+            'regionId',
+            'busan',
+          ),
+        );
+      });
     });
   });
 }

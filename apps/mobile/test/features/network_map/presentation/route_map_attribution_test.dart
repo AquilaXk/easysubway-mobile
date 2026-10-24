@@ -21,6 +21,7 @@ import 'dart:io';
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_attribution_cache.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
+import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_owner_labels.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
@@ -29,6 +30,8 @@ import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../support/basemap_index.dart';
 
 class _FakeNetworkMapRepository implements NetworkMapRepository {
   _FakeNetworkMapRepository({required this.selectedRegion});
@@ -210,13 +213,11 @@ void main() {
       // 무효화는 _loadAttributionText의 catch 블록이 담당하므로, 그 무효화가
       // 사라지면(=재시도 안 됨) manifestLoadAttempts가 2에 도달하지 못한다.
       final manifestBytes = await rootBundle.load(networkMapManifestAssetPath);
-      // 광주 바탕 .vec를 실제 번들 바이트로 미리 로드해 mock 핸들러가 서빙한다
-      // (#2068). 이 테스트가 가로채는 대상은 manifest 로드 재시도이며, 바탕 .vec
-      // 로드 실패는 이 불변식과 무관한 노이즈다 — 실제 바이트로 서빙해 basemap이
-      // 조용히 로드되게 하고 takeException이 manifest 실패만 관측하게 유지한다.
-      const basemapAssetPath =
-          'assets/datapacks/metro_map_pack/basemap/gwangju.vec';
-      final basemapBytes = await rootBundle.load(basemapAssetPath);
+      // 바탕 색인과 광주 바탕 .vec는 실제 번들 바이트로 서빙한다(#2068). 이 테스트가
+      // 가로채는 대상은 manifest 로드 재시도이며, 바탕 로드 실패는 이 불변식과 무관한
+      // 노이즈다 — basemap이 조용히 로드되게 하고 takeException이 manifest 실패만
+      // 관측하게 유지한다.
+      final basemapAssets = _gwangjuBasemapAssets();
       // rootBundle은 loadString(cache:true)을 프로세스 생애주기 동안 캐시한다. 앞선
       // 테스트가 이미 이 키를 성공 로드해 rootBundle 자체의 _stringCache에 남아
       // 있으므로, induced failure를 실제로 겪으려면 그 캐시를 먼저 비운다.
@@ -230,8 +231,9 @@ void main() {
         ByteData? message,
       ) async {
         final key = utf8.decode(message!.buffer.asUint8List());
-        if (key == basemapAssetPath) {
-          return basemapBytes; // 바탕 .vec는 항상 실제 바이트로 성공 로드.
+        final basemap = basemapAssets[key];
+        if (basemap != null) {
+          return basemap; // 바탕은 항상 실제 바이트로 성공 로드.
         }
         if (key != networkMapManifestAssetPath) {
           return null;
@@ -312,11 +314,7 @@ void main() {
     final manifestBytes = ByteData.sublistView(
       File(networkMapManifestAssetPath).readAsBytesSync(),
     );
-    const basemapAssetPath =
-        'assets/datapacks/metro_map_pack/basemap/gwangju.vec';
-    final basemapBytes = ByteData.sublistView(
-      File(basemapAssetPath).readAsBytesSync(),
-    );
+    final basemapAssets = _gwangjuBasemapAssets();
     final binaryMessenger =
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     var ownerLabelLoadAttempts = 0;
@@ -324,8 +322,9 @@ void main() {
       ByteData? message,
     ) async {
       final key = utf8.decode(message!.buffer.asUint8List());
-      if (key == basemapAssetPath) {
-        return basemapBytes;
+      final basemap = basemapAssets[key];
+      if (basemap != null) {
+        return basemap;
       }
       if (key == networkMapManifestAssetPath) {
         return manifestBytes;
@@ -378,6 +377,17 @@ void main() {
     expect(tester.takeException(), isNotNull);
   });
 }
+
+/// 바탕 뷰가 광주에서 읽는 색인과 엔진 렌더러 변형의 바탕 .vec 번들 바이트.
+Map<String, ByteData> _gwangjuBasemapAssets() => {
+  for (final key in [
+    kRouteMapLineOverlayIndexAssetPath,
+    bundledBasemapIndex
+        .variant(routeMapBasemapVariantOfEngine())
+        .baseAssetFor('gwangju'),
+  ])
+    key: ByteData.sublistView(File(key).readAsBytesSync()),
+};
 
 /// #2011 계약 전환 테스트용 최소 manifest JSON. 광주 한 권역만 담고
 /// license.attributionRequired를 인자로 토글해 parseNetworkMapAttributionByRegion의

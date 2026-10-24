@@ -38,7 +38,7 @@ class BasemapVecContour {
 
 /// 컴파일 산출 `.vec`에서 **path draw 명령**을 문서 순서대로 뽑는다.
 ///
-/// 바탕 라벨은 글리프 윤곽선 path로 구워져(data #1488) `.vec`에 텍스트 draw가 없다.
+/// 윤곽선 변형 바탕의 라벨은 글리프 윤곽선 path로 구워져(data #1488) 텍스트 draw가 없다.
 /// 라벨의 그리기 순서는 path draw의 paint(채움/선, 색, 선 굵기)와 윤곽 좌표로 읽는다.
 /// 래스터라이즈에 의존하지 않아 배경·안티에일리어싱과 무관하게 결정적이다.
 class BasemapVecPathDraw {
@@ -284,6 +284,134 @@ class BasemapVecListener extends VectorGraphicsCodecListener {
 List<BasemapVecPathDraw> basemapVecPathDraws(String path) {
   final bytes = File(path).readAsBytesSync();
   final listener = _PathDrawListener();
+  const VectorGraphicsCodec().decode(ByteData.sublistView(bytes), listener);
+  return listener.draws;
+}
+
+/// 텍스트 라벨 변형 `.vec`의 텍스트 draw 하나. [x]·[y]는 그리기 직전 펜 위치다.
+///
+/// 런타임 vector_graphics 1.2.3 lib/src/listener.dart onUpdateTextPosition(630행)의
+/// 펜 이동 규칙을 그대로 따른다. 앵커 정렬 전 위치라 글자 폭과 무관하고, 같은 줄의
+/// halo(stroke)와 글자(fill) 사본은 같은 위치 레코드를 써서 같은 값을 갖는다.
+class BasemapVecTextDraw {
+  BasemapVecTextDraw({
+    required this.index,
+    required this.text,
+    required this.x,
+    required this.y,
+    required this.hasFill,
+    required this.hasStroke,
+  });
+
+  /// .vec 안에서의 텍스트 draw 순서(0부터).
+  final int index;
+  final String text;
+  final double x;
+  final double y;
+
+  /// fill paint로 그려지는 draw인가(paint-order 분해의 글자 사본).
+  final bool hasFill;
+
+  /// stroke paint로 그려지는 draw인가(paint-order 분해의 halo 사본).
+  final bool hasStroke;
+}
+
+typedef _TextPosition = ({
+  double? x,
+  double? y,
+  double? dx,
+  double? dy,
+  bool reset,
+  Float64List? transform,
+});
+
+class _TextDrawListener extends BasemapVecListener {
+  final List<_TextPosition> _positions = <_TextPosition>[];
+  final Map<int, String> _texts = <int, String>{};
+  final List<BasemapVecTextDraw> draws = <BasemapVecTextDraw>[];
+
+  double? _penX;
+  double _penY = 0;
+  Float64List? _transform;
+
+  @override
+  void onTextPosition(
+    int textPositionId,
+    double? x,
+    double? y,
+    double? dx,
+    double? dy,
+    bool reset,
+    Float64List? transform,
+  ) {
+    _positions.add((
+      x: x,
+      y: y,
+      dx: dx,
+      dy: dy,
+      reset: reset,
+      transform: transform,
+    ));
+  }
+
+  @override
+  void onUpdateTextPosition(int textPositionId) {
+    final position = _positions[textPositionId];
+    if (position.reset) {
+      _penX = 0;
+      _penY = 0;
+    }
+    if (position.x != null) _penX = position.x;
+    if (position.y != null) _penY = position.y!;
+    if (position.dx != null) _penX = (_penX ?? 0) + position.dx!;
+    if (position.dy != null) _penY = _penY + position.dy!;
+    _transform = position.transform;
+  }
+
+  @override
+  void onTextConfig(
+    String text,
+    String? fontFamily,
+    double xAnchorMultiplier,
+    int fontWeight,
+    double fontSize,
+    int decoration,
+    int decorationStyle,
+    int decorationColor,
+    int id,
+  ) {
+    _texts[id] = text;
+  }
+
+  @override
+  void onDrawText(int textId, int? fillId, int? strokeId, int? patternId) {
+    var x = _penX ?? 0;
+    var y = _penY;
+    final transform = _transform;
+    if (transform != null) {
+      // 런타임은 그리기 직전 canvas.transform(4x4 열 우선)을 적용한다.
+      (x, y) = (
+        transform[0] * x + transform[4] * y + transform[12],
+        transform[1] * x + transform[5] * y + transform[13],
+      );
+    }
+    draws.add(
+      BasemapVecTextDraw(
+        index: draws.length,
+        text: _texts[textId]!,
+        x: x,
+        y: y,
+        hasFill: fillId != null,
+        hasStroke: strokeId != null,
+      ),
+    );
+  }
+}
+
+/// [path]의 `.vec`를 디코드해 텍스트 draw를 그리기 순서대로 돌려준다.
+List<BasemapVecTextDraw> basemapVecTextDraws(String path) {
+  final bytes = File(path).readAsBytesSync();
+  final listener = _TextDrawListener();
   const VectorGraphicsCodec().decode(ByteData.sublistView(bytes), listener);
   return listener.draws;
 }

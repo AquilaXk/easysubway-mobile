@@ -1,10 +1,12 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics_codec/vector_graphics_codec.dart';
 
+import '../../../support/basemap_index.dart';
 import '../../../support/basemap_vec_draws.dart';
 
 // 노선도 바탕 .vec의 그리기 명령 수 상한(#517). 넓게 본 노선도의 팬 프레임은 화면에 든
@@ -14,19 +16,31 @@ import '../../../support/basemap_vec_draws.dart';
 // 상한을 올린다. 벽시계 시간을 재지 않으므로 CI에서 흔들리지 않는다.
 //
 // 상한은 실측 개수와 같다(여유 0). 줄어도 실패하므로 바탕을 새로 들여와 개수가 줄면 같은
-// PR에서 상한을 내린다(AI 슬롭 가드 기준선과 같은 규칙). data 54e2e7c99(pipelineRevision 6)
-// 바탕에 맞췄다. 역명을 글리프 윤곽선으로 구우면서(data #1488) 텍스트 그리기는 사라졌고
-// (texts 0), 같은 paint의 인접 path를 이어(data #1495) path 그리기 수가 줄었다. 대신
-// 윤곽 좌표가 늘어 그리기 한 번이 처리하는 path 선분 수(segments)가 커지므로 이것도
-// 같은 규칙으로 못 박는다. 그리기 수만으로는 비용을 더 못 본다.
-const _ceilings =
-    <String, ({int paths, int texts, int invisible, int segments})>{
-      '수도권': (paths: 1652, texts: 0, invisible: 0, segments: 67501),
-      '부산': (paths: 562, texts: 0, invisible: 0, segments: 12599),
-      '대구': (paths: 283, texts: 0, invisible: 0, segments: 9370),
-      '대전': (paths: 66, texts: 0, invisible: 0, segments: 2074),
-      '광주': (paths: 61, texts: 0, invisible: 0, segments: 2378),
-    };
+// PR에서 상한을 내린다(AI 슬롭 가드 기준선과 같은 규칙). 앱은 렌더러에 맞는 변형 하나를
+// 그리므로 변형마다 따로 못 박는다(data pipelineRevision 7).
+//   outlined : 역명을 글리프 윤곽선으로 구워(data #1488) 텍스트 그리기가 없고(texts 0),
+//     같은 paint의 인접 path를 이어(data #1495) path 그리기 수가 줄었다. 대신 윤곽 좌표가
+//     늘어 그리기 한 번이 처리하는 path 선분 수(segments)가 커진다.
+//   text     : 역명이 텍스트 그리기로 남는다. halo와 글자가 한 줄마다 두 번 그려진다.
+// 그리기 수만으로는 비용을 더 못 보므로 선분 수도 같은 규칙으로 못 박는다.
+typedef _Ceiling = ({int paths, int texts, int invisible, int segments});
+
+const _ceilings = <RouteMapBasemapVariant, Map<String, _Ceiling>>{
+  RouteMapBasemapVariant.outlined: {
+    '수도권': (paths: 1652, texts: 0, invisible: 0, segments: 67501),
+    '부산': (paths: 562, texts: 0, invisible: 0, segments: 12599),
+    '대구': (paths: 283, texts: 0, invisible: 0, segments: 9370),
+    '대전': (paths: 66, texts: 0, invisible: 0, segments: 2074),
+    '광주': (paths: 61, texts: 0, invisible: 0, segments: 2378),
+  },
+  RouteMapBasemapVariant.text: {
+    '수도권': (paths: 1035, texts: 1057, invisible: 0, segments: 7625),
+    '부산': (paths: 282, texts: 342, invisible: 0, segments: 1346),
+    '대구': (paths: 135, texts: 226, invisible: 0, segments: 866),
+    '대전': (paths: 37, texts: 47, invisible: 0, segments: 418),
+    '광주': (paths: 33, texts: 42, invisible: 0, segments: 399),
+  },
+};
 
 const _raise =
     '상한보다 늘었다. tools/mobile/run-route-map-frame-ab.sh로 실기기 팬 프레임을 '
@@ -100,32 +114,39 @@ class _DrawCounter extends BasemapVecListener {
 }
 
 void main() {
-  test('상한표는 노선도 바탕이 있는 모든 권역을 다룬다', () {
-    expect(_ceilings.keys.toSet(), kRouteMapBasemapRegionToId.keys.toSet());
+  test('상한표는 모든 변형의 노선도 바탕이 있는 모든 권역을 다룬다', () {
+    expect(_ceilings.keys.toSet(), RouteMapBasemapVariant.values.toSet());
+    for (final regions in _ceilings.values) {
+      expect(regions.keys.toSet(), kRouteMapBasemapRegionToId.keys.toSet());
+    }
   });
 
-  for (final MapEntry(key: region, value: ceiling) in _ceilings.entries) {
-    test('$region 바탕 그리기 명령 수가 상한과 같다', () {
-      final asset = routeMapBasemapAssetForRegion(region)!;
-      final counter = _DrawCounter();
-      final response = const VectorGraphicsCodec().decode(
-        ByteData.sublistView(File(asset).readAsBytesSync()),
-        counter,
-      );
+  for (final MapEntry(key: variant, value: regions) in _ceilings.entries) {
+    for (final MapEntry(key: region, value: ceiling) in regions.entries) {
+      test('${variant.name} $region 바탕 그리기 명령 수가 상한과 같다', () {
+        final asset = bundledBasemapIndex
+            .variant(variant)
+            .baseAssetFor(kRouteMapBasemapRegionToId[region]!);
+        final counter = _DrawCounter();
+        final response = const VectorGraphicsCodec().decode(
+          ByteData.sublistView(File(asset).readAsBytesSync()),
+          counter,
+        );
 
-      expect(response.complete, isTrue);
-      final mismatches = [
-        _ceilingMismatch('경로 그리기', counter.paths, ceiling.paths),
-        _ceilingMismatch('글자 그리기', counter.texts, ceiling.texts),
-        _ceilingMismatch('path 선분', counter.segments, ceiling.segments),
-      ].nonNulls;
-      expect(mismatches, isEmpty, reason: mismatches.join('\n'));
-      expect(
-        counter.invisible,
-        ceiling.invisible,
-        reason: '보이지 않는 그리기도 매 프레임 비용이다. 바탕 원본에서 지운다.',
-      );
-    });
+        expect(response.complete, isTrue);
+        final mismatches = [
+          _ceilingMismatch('경로 그리기', counter.paths, ceiling.paths),
+          _ceilingMismatch('글자 그리기', counter.texts, ceiling.texts),
+          _ceilingMismatch('path 선분', counter.segments, ceiling.segments),
+        ].nonNulls;
+        expect(mismatches, isEmpty, reason: mismatches.join('\n'));
+        expect(
+          counter.invisible,
+          ceiling.invisible,
+          reason: '보이지 않는 그리기도 매 프레임 비용이다. 바탕 원본에서 지운다.',
+        );
+      });
+    }
   }
 
   group('상한 판정', () {
