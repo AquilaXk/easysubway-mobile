@@ -119,6 +119,7 @@ bool _overshoots(Match match) {
 final _sideKey = RegExp(
   r'\b(left|right|top|bottom|start|end)\s*:\s*(?:const\s+)?',
 );
+final _noBorderSide = RegExp(r'BorderSide\.none\b');
 final _borderCall = RegExp(r'\b(?:Border|BorderDirectional)\(');
 final _widthKey = RegExp(r'\bwidth\s*:');
 final _width = RegExp(r'\bwidth\s*:\s*(-?(?:\d+\.?\d*|\.\d+))');
@@ -139,30 +140,46 @@ double? _sideWidth(String sideArguments) {
   return match == null ? null : double.parse(match.group(1)!);
 }
 
-/// 각 변의 폭. 변 값이 `BorderSide(` 리터럴이 아니거나 폭을 알 수 없는 변이 있으면 null.
-List<double>? _sideWidths(SlopSource source, int open, int close) {
-  final arguments = source.code.substring(open + 1, close);
-  final widths = <double>[];
-  for (final key in _sideKey.allMatches(arguments)) {
-    final side = open + 1 + key.end;
-    final sideClose =
-        source.parenPairs[side + _borderSideConstructor.length - 1];
-    if (!source.code.startsWith(_borderSideConstructor, side) ||
-        sideClose == null) {
-      return null;
-    }
-    final width = _sideWidth(
-      source.code.substring(side + _borderSideConstructor.length, sideClose),
-    );
-    if (width == null) {
-      return null;
-    }
-    widths.add(width);
+typedef _Side = ({double width, int end});
+
+/// [side]에서 시작하는 변 값의 폭과 끝 위치. `BorderSide.none`은 폭 0이다.
+/// `BorderSide(` 리터럴이 아니거나 폭을 알 수 없으면 null.
+_Side? _sideAt(SlopSource source, int side) {
+  final none = _noBorderSide.matchAsPrefix(source.code, side);
+  if (none != null) {
+    return (width: 0, end: none.end);
   }
-  return widths;
+  final close = source.parenPairs[side + _borderSideConstructor.length - 1];
+  if (!source.code.startsWith(_borderSideConstructor, side) || close == null) {
+    return null;
+  }
+  final width = _sideWidth(
+    source.code.substring(side + _borderSideConstructor.length, close),
+  );
+  return width == null ? null : (width: width, end: close + 1);
 }
 
-/// pixelslop #15: 굵은 변이 정확히 하나이고 나머지 변은 모두 얇다. 적지 않은 변은 얇다.
+/// `Border(` 호출의 바깥 인자에 적힌 변 키마다 폭을 읽는다. 변 값 안쪽의 `top:` 같은 이름은 건너뛴다.
+/// 변 값이 알 수 없는 형태이면 null.
+List<double>? _sideWidths(SlopSource source, int open, int close) {
+  final widths = <double>[];
+  var cursor = open + 1;
+  while (true) {
+    final key = _sideKey.allMatches(source.code, cursor).firstOrNull;
+    if (key == null || key.start >= close) {
+      return widths;
+    }
+    final side = _sideAt(source, key.end);
+    if (side == null) {
+      return null;
+    }
+    widths.add(side.width);
+    cursor = side.end;
+  }
+}
+
+/// pixelslop #15(`thick.length === 1 && thin.length >= 2`): 폭 3 이상인 변이 정확히 하나이고
+/// 폭 2 미만인 변이 둘 이상이다. 적지 않은 변은 기본 폭 1이라 얇다.
 bool _isAccentBorder(List<double> widths) {
   final thick = widths.where((width) => width >= _thickBorderWidth).length;
   final thin =
@@ -234,7 +251,7 @@ final slopRules = <SlopRule>[
       ),
       _codePattern(
         RegExp(
-          'Cubic\\(\\s*$_number\\s*,\\s*$_number\\s*,\\s*$_number\\s*,\\s*$_number\\s*\\)',
+          'Cubic\\(\\s*$_number\\s*,\\s*$_number\\s*,\\s*$_number\\s*,\\s*$_number\\s*,?\\s*\\)',
         ),
         accept: _overshoots,
       ),
@@ -244,7 +261,7 @@ final slopRules = <SlopRule>[
     id: 'side_border',
     label: '한쪽만 굵은 강조 테두리',
     counts:
-        'Border(·BorderDirectional( 중 폭 3 이상인 변이 정확히 하나이고 나머지가 모두 폭 2 미만인 호출 횟수. 폭이 리터럴이 아닌 호출은 세지 않는다',
+        'Border(·BorderDirectional( 중 폭 3 이상인 변이 정확히 하나이고 폭 2 미만인 변이 둘 이상인 호출 횟수. 적지 않은 변과 BorderSide.none은 얇은 변이다. 폭이 리터럴이 아닌 호출은 세지 않는다',
     fix: '한쪽만 굵은 강조 테두리는 쓰지 않는다. 1dp 구분선이나 배경색으로 구분한다.',
     find: _accentBorders,
   ),
@@ -252,11 +269,11 @@ final slopRules = <SlopRule>[
     id: 'emoji',
     label: '문자열 속 이모지',
     counts:
-        '문자열 리터럴(이스케이프를 푼 뒤)의 이모지·딩뱃 문자 U+1F000-1FAFF, U+2600-27BF, U+2B50, U+2B55, 시계·재생 기호, 변형 선택자 개수. 주석은 세지 않는다',
+        '문자열 리터럴(이스케이프를 푼 뒤)의 이모지·딩뱃 문자 U+1F000-1FAFF, U+2600-27BF, U+2B50, U+2B55, 화살표·사각형·재생 기호(U+2B05-2B07, U+2B1B, U+2B1C, U+25FD, U+25FE, U+25B6, U+2139 등), 시계 기호, 변형 선택자 개수. 주석은 세지 않는다',
     fix: '이모지와 장식 기호는 문구에 넣지 않는다. 롤모델이 같은 자리에 아이콘을 쓸 때만 Icon을 쓴다.',
     find: _literalPattern(
       RegExp(
-        '[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B55}\u{231A}\u{231B}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{FE0F}\u{20E3}]',
+        '[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B50}\u{2B55}\u{2B05}-\u{2B07}\u{2B1B}\u{2B1C}\u{25FD}\u{25FE}\u{25B6}\u{2139}\u{231A}\u{231B}\u{23E9}-\u{23F3}\u{23F8}-\u{23FA}\u{FE0F}\u{20E3}]',
         unicode: true,
       ),
     ),
@@ -264,9 +281,9 @@ final slopRules = <SlopRule>[
   SlopRule(
     id: 'long_dash',
     label: '문자열 속 긴 대시',
-    counts: '문자열 리터럴(이스케이프를 푼 뒤)의 U+2013, U+2014, U+2015 개수. 주석은 세지 않는다',
-    fix: '문구에 긴 대시(U+2013, U+2014)를 쓰지 않는다. 쉼표나 마침표로 문장을 나눈다.',
-    find: _literalPattern(RegExp('[\u{2013}\u{2014}\u{2015}]')),
+    counts: '문자열 리터럴(이스케이프를 푼 뒤)의 U+2012-U+2015, U+2212 개수. 주석은 세지 않는다',
+    fix: '문구에 긴 대시(U+2012-U+2015)와 빼기 기호(U+2212)를 쓰지 않는다. 쉼표나 마침표로 문장을 나눈다.',
+    find: _literalPattern(RegExp('[\u{2012}-\u{2015}\u{2212}]')),
   ),
   SlopRule(
     id: 'raw_radius',
@@ -284,12 +301,12 @@ final slopRules = <SlopRule>[
     id: 'raw_color',
     label: '원시 색',
     counts:
-        'Colors.이름(transparent 제외), Color(0x...), Color.fromARGB, Color.fromRGBO 횟수. 토큰 정의 파일은 제외한다',
+        'Colors.이름(transparent 제외), 숫자 리터럴로 만드는 Color(0x...)·Color(4278190080), Color.from(, Color.fromARGB(, Color.fromRGBO( 횟수. 토큰 정의 파일은 제외한다',
     fix: '원시 색 대신 design_tokens.dart와 accessible_design.dart의 색 토큰을 쓴다.',
     excludedPaths: _tokenFiles,
     find: _codePattern(
       RegExp(
-        r'\bColors\.(?!transparent\b)[A-Za-z]\w*|\bColor\(\s*0[xX]|\bColor\.from(?:ARGB|RGBO)\(',
+        r'\bColors\.(?!transparent\b)[A-Za-z]\w*|\bColor\(\s*\d|\bColor\.from(?:ARGB|RGBO)?\(',
       ),
     ),
   ),

@@ -195,6 +195,16 @@ final a = 1;
           'curve: Curves.easeOutBack',
           'curve: ElasticOutCurve()',
           'curve: Cubic(0.68, -0.55, 0.265, 1.55)',
+          'curve: Cubic(0.1, -0.5, 0.2, 1.0)',
+          'curve: Cubic(0.1, 1.5, 0.2, 1.0)',
+          'curve: Cubic(0.1, 0.5, 0.2, -0.5)',
+          'curve: Cubic(0.1, 0.5, 0.2, 1.5)',
+          'curve: Cubic(0.1, -0.11, 0.2, 1.0)',
+          'curve: Cubic(0.1, 1.11, 0.2, 1.0)',
+          'curve: Cubic(0.1, 0.5, 0.2, -0.11)',
+          'curve: Cubic(0.1, 0.5, 0.2, 1.11)',
+          'curve: Cubic(0.1, -0.5, 0.2, 1.5,)',
+          'curve: Cubic(0.1, 1.5, 0.2, 1.0,\n)',
           'SpringDescription(mass: 1, stiffness: 1, damping: 1)',
         ],
         clean: [
@@ -203,6 +213,10 @@ final a = 1;
           'curve: Curves.fastOutSlowIn',
           'curve: Cubic(0.4, 0.0, 0.2, 1.0)',
           'curve: Cubic(0.2, 0, 0, 1.1)',
+          'curve: Cubic(0.1, -0.1, 0.2, 1.0)',
+          'curve: Cubic(0.1, 1.1, 0.2, 1.0)',
+          'curve: Cubic(0.1, 0.5, 0.2, -0.1)',
+          'curve: Cubic(0.1, 0.5, 0.2, 1.1,)',
           '// Curves.bounceOut 금지',
         ],
       ),
@@ -213,6 +227,12 @@ final a = 1;
           'BorderDirectional(start: BorderSide(width: 4))',
           'Border(left: BorderSide(width: 4), bottom: BorderSide(width: 1))',
           'Border(\n  right: BorderSide(\n    color: c,\n    width: 5,\n  ),\n)',
+          'Border(left: BorderSide(width: 4), right: BorderSide.none)',
+          'Border(left: BorderSide(width: 4), right: BorderSide.none, top: BorderSide.none, bottom: BorderSide.none)',
+          'Border(left: const BorderSide(width: 4), right: const BorderSide(width: 1))',
+          'Border(left: BorderSide(width: 4, color: tone(top: x)))',
+          'Border(left: BorderSide(width: 4), right: BorderSide(width: 1.9), top: BorderSide(width: 1.9), bottom: BorderSide(width: 2.5))',
+          'Border(left: BorderSide(width: 3), right: BorderSide(width: 1), top: BorderSide(width: 1), bottom: BorderSide(width: 2))',
         ],
         clean: [
           'Border(bottom: BorderSide(color: c))',
@@ -220,6 +240,12 @@ final a = 1;
           'Border.all(width: 4)',
           'Border(left: BorderSide(width: 3), right: BorderSide(width: 3))',
           'Border(top: BorderSide(width: 2))',
+          'Border(top: BorderSide(width: 2.9))',
+          'Border(left: BorderSide(width: 4), right: BorderSide(width: 2.5), top: BorderSide(width: 2.5), bottom: BorderSide(width: 2.5))',
+          'Border(left: BorderSide(width: 4), right: BorderSide(width: 2), top: BorderSide(width: 2), bottom: BorderSide(width: 2))',
+          'Border(left: BorderSide(width: 4), right: BorderSide(width: 1), top: BorderSide(width: 2.5), bottom: BorderSide(width: 2.5))',
+          'Border(left: BorderSide(width: 4), right: BorderSide(width: 4), top: BorderSide.none)',
+          'Border(left: BorderSide(width: 4), right: sideToken)',
           'Border(left: BorderSide(width: EasySubwayStroke.thick))',
           'Border(left: someSide)',
           'RoundedRectangleBorder(side: BorderSide(width: 4))',
@@ -228,14 +254,23 @@ final a = 1;
       ),
       'emoji': (
         hits: [
-          "final a = '✨ 새 기능';",
-          "final a = '🚇 지하철';",
+          "final a = '\u{2728} 새 기능';",
+          "final a = '\u{1F687} 지하철';",
           r"final a = '\u{1F680}';",
           "final a = '${_bs}u2728';",
           "final a = '\u{2B50}';",
+          "final a = '\u{2B05}';",
+          "final a = '\u{2B06}';",
+          "final a = '\u{2B07}';",
+          "final a = '\u{2B1B}';",
+          "final a = '\u{2B1C}';",
+          "final a = '\u{25FD}';",
+          "final a = '\u{25FE}';",
+          "final a = '\u{25B6}';",
+          "final a = '\u{2139}';",
         ],
         clean: [
-          '// ✨ 주석은 화면에 보이지 않는다',
+          '// \u{2728} 주석은 화면에 보이지 않는다',
           "final a = '가까운 역';",
           "final a = '→ 다음';",
           "final a = '© 2026';",
@@ -244,13 +279,16 @@ final a = 1;
       ),
       'long_dash': (
         hits: [
-          "final a = '가 — 나';",
-          "final a = '9–10';",
+          "final a = '가 \u{2014} 나';",
+          "final a = '9\u{2013}10';",
+          "final a = '9\u{2012}10';",
+          "final a = '9\u{2212}10';",
+          "final a = '${_bs}u2212';",
           "final a = '${_bs}u2014';",
         ],
         clean: [
-          '// 주석 — 설명',
-          '/// 문서 — 설명',
+          '// 주석 \u{2014} 설명',
+          '/// 문서 \u{2014} 설명',
           "final a = '가-나';",
           "final a = 'a -- b';",
           r"final a = '\\u2014';",
@@ -277,12 +315,17 @@ final a = 1;
           'final c = Color(0xFF112233);',
           'final c = Color.fromARGB(255, 0, 0, 0);',
           'final c = Color.fromRGBO(0, 0, 0, 0.5);',
+          'final c = Color.from(alpha: 1, red: 0, green: 0, blue: 0);',
+          'final c = const Color(4278190080);',
+          'final c = ui.Color( 4278190080 );',
         ],
         clean: [
           'final c = Colors.transparent;',
           'final c = EasySubwayColors.ink;',
           'final c = MyColors.red;',
           'final c = Color(value);',
+          'final c = MyColor(4278190080);',
+          'final c = Color.fromJson(json);',
           '// Colors.red',
         ],
       ),
@@ -366,7 +409,7 @@ final a = 1;
 
     test('히트는 1부터 시작하는 줄 번호를 돌려준다', () {
       expect(_lines('final a = 1;\n\nfinal b = Icons.add;\n', 'icon'), [3]);
-      expect(_lines("final a = '''\n✨\n''';", 'emoji'), [1]);
+      expect(_lines("final a = '''\n\u{2728}\n''';", 'emoji'), [1]);
     });
   });
 
