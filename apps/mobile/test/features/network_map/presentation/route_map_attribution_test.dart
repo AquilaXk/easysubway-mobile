@@ -11,10 +11,10 @@
 // 값)은 그대로이며, 검증 대상 위젯·painter만 새 바탕 위젯 기준으로 정합 갱신한다
 // (무력화 아님 — 동일 attribution 불변식을 새 위젯에서 검증).
 //
-// RouteMapBasemapPainter는 화면 좌하단에 attributionText를 직접 Canvas로 그리므로
+// 바탕 painter는 화면 좌하단에 attributionText를 직접 Canvas로 그리므로
 // find.text()로는 찾을 수 없다(route_map_basemap_view.dart _paintAttribution 참고).
-// 대신 CustomPaint의 painter를 RouteMapBasemapPainter로 캐스팅해 attributionText
-// 필드를 직접 assert한다 — 이 방식이 렌더 방식과 가장 정합적이고 신뢰성 있다.
+// 대신 지금 바탕을 그리는 painter(벡터 RouteMapBasemapPainter 또는 구운 이미지
+// RouteMapBasemapRasterPainter, #517)의 attributionText를 직접 assert한다.
 import 'dart:convert';
 import 'dart:io';
 
@@ -108,16 +108,20 @@ class _FakeNetworkMapRepository implements NetworkMapRepository {
   }
 }
 
-RouteMapBasemapPainter _findRouteMapPainter(WidgetTester tester) {
-  final customPaintFinder = find.descendant(
-    of: find.byType(RouteMapBasemapView),
-    matching: find.byWidgetPredicate(
-      (widget) =>
-          widget is CustomPaint && widget.painter is RouteMapBasemapPainter,
-    ),
-  );
-  final painter = tester.widget<CustomPaint>(customPaintFinder).painter;
-  return painter as RouteMapBasemapPainter;
+String? _drawnAttributionText(WidgetTester tester) {
+  final painter = tester
+      .widget<CustomPaint>(
+        find.descendant(
+          of: find.byType(RouteMapBasemapView),
+          matching: find.byType(CustomPaint),
+        ),
+      )
+      .painter;
+  return switch (painter) {
+    RouteMapBasemapPainter(:final attributionText) => attributionText,
+    RouteMapBasemapRasterPainter(:final attributionText) => attributionText,
+    _ => throw StateError('바탕 painter가 아니다: $painter'),
+  };
 }
 
 void main() {
@@ -140,8 +144,7 @@ void main() {
     // 오너 자작 도식으로 전환돼 CC-BY-SA(kiwitree) attribution 체인이 배포
     // 렌더링에 부착되지 않는다 — 수도권 등과 동일하게 미표시.
     expect(find.byType(RouteMapBasemapView), findsOneWidget);
-    final painter = _findRouteMapPainter(tester);
-    expect(painter.attributionText, isNull);
+    expect(_drawnAttributionText(tester), isNull);
   });
 
   test('manifest 파싱: 자작 전환 후 어떤 권역도 attribution을 요구하지 않는다(#2011)', () {
@@ -193,8 +196,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(RouteMapBasemapView), findsOneWidget);
-    final painter = _findRouteMapPainter(tester);
-    expect(painter.attributionText, isNull);
+    expect(_drawnAttributionText(tester), isNull);
   });
 
   testWidgets(
@@ -273,7 +275,7 @@ void main() {
       // 예외임을 확인한다. 자작 전환 후 attribution은 성공/실패 무관하게 null이므로
       // 표시 여부가 아니라 시도 횟수와 예외로 실패를 관측한다.
       expect(find.byType(RouteMapBasemapView), findsOneWidget);
-      expect(_findRouteMapPainter(tester).attributionText, isNull);
+      expect(_drawnAttributionText(tester), isNull);
       expect(manifestLoadAttempts, 1);
       expect(tester.takeException(), isNotNull);
 
@@ -301,7 +303,7 @@ void main() {
       // 2차에는 예외가 남지 않는다(성공 파싱). 캐시 무효화가 없었다면 실패 Future가
       // 붙들려 재시도가 일어나지 않고 attempts는 1에 머문다.
       expect(find.byType(RouteMapBasemapView), findsOneWidget);
-      expect(_findRouteMapPainter(tester).attributionText, isNull);
+      expect(_drawnAttributionText(tester), isNull);
       expect(manifestLoadAttempts, 2);
       expect(tester.takeException(), isNull);
     },
