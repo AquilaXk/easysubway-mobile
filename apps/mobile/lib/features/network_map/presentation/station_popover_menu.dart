@@ -93,7 +93,7 @@ class StationPopoverMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final design = kStationPopoverDesignSize;
+    const design = kStationPopoverDesignSize;
     final name = stationName?.trim();
     return Semantics(
       container: true,

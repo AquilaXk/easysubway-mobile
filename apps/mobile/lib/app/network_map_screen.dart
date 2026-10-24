@@ -838,15 +838,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                     selectionClearRevision: _selectionClearRevision,
                     onSelectionDismissed: _dismissSearchPopover,
                     onStationTapped: _handleCanvasStationTapped,
-                    onOpenStationRealtime: _nearbyPanelHasStation
-                        ? _openNearbyRealtime
-                        : null,
-                    onOpenStationTimetable: _nearbyPanelHasStation
-                        ? () => _openNearbyStationTimetable(
-                            _nearbyPanelData.results.first,
-                            _adjacentStationsFor(data),
-                          )
-                        : null,
+                    onOpenStationRealtime: _popoverRealtimeAction(),
+                    onOpenStationTimetable: _popoverTimetableAction(data),
                     originStationId:
                         widget.routeDraftController.draft.origin?.id,
                     waypointStationId:
@@ -878,7 +871,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     );
   }
 
-  Future<void> _showNearestStationPopover() async {
+  Future<void> _showNearestStationFanMenu() async {
     final requestToken = ++_nearestStationRequestToken;
     _nearbyLookupMessageTimer?.cancel();
     _nearbyLookupMessageTimer = null;
@@ -1469,6 +1462,21 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   bool get _nearbyPanelHasStation =>
       _nearbyPanelVisible && _nearbyPanelData.results.isNotEmpty;
 
+  /// 역 말풍선의 실시간 칸. 하단 시트에 역이 있을 때만 둔다.
+  VoidCallback? _popoverRealtimeAction() =>
+      _nearbyPanelHasStation ? _openNearbyRealtime : null;
+
+  /// 역 말풍선의 전체 시간표 칸. 하단 시트에 역이 있을 때만 둔다.
+  VoidCallback? _popoverTimetableAction(NetworkMapData data) {
+    if (!_nearbyPanelHasStation) {
+      return null;
+    }
+    return () => _openNearbyStationTimetable(
+      _nearbyPanelData.results.first,
+      _adjacentStationsFor(data),
+    );
+  }
+
   /// 역 말풍선의 실시간. 하단 패널을 실시간으로 바꾸고 역 상세로 펼친다.
   void _openNearbyRealtime() {
     if (_nearbyDataSource != NetworkMapNearbyPanelDataSource.realtime) {
@@ -1753,7 +1761,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       nearbyPanelExpanded: _nearbyPanelExpanded,
       nearbyPanel: _buildNetworkMapNearbyStationPanel(adjacentStations),
       nearbyLookupMessage: _nearbyLookupMessage,
-      onCurrentLocationTap: _showNearestStationPopover,
+      onCurrentLocationTap: _showNearestStationFanMenu,
       child: child,
     );
   }
