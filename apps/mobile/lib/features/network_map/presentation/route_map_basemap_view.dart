@@ -54,7 +54,6 @@ class RouteMapBasemapPainter extends CustomPainter {
   RouteMapBasemapPainter({
     required this.picture,
     required this.camera,
-    this.overlay,
     this.sourceOrigin = Offset.zero,
     this.attributionText,
     this.attributionPainter,
@@ -62,9 +61,6 @@ class RouteMapBasemapPainter extends CustomPainter {
 
   /// 디코드된 바탕 Picture. 로드 완료 전에는 null이라 바탕을 그리지 않는다.
   final ui.Picture? picture;
-
-  /// 고른 노선의 강조 레이어. 있으면 바탕을 흐리게 그리고 그 위에 이 레이어를 그린다.
-  final ui.Picture? overlay;
   final MapCameraState camera;
 
   /// 오버레이·카메라의 geometry origin(#1970). Picture 재생을 origin-뺀 공간으로
@@ -96,25 +92,10 @@ class RouteMapBasemapPainter extends CustomPainter {
         vc.dy - (camera.center.dy + sourceOrigin.dy) * camera.scale,
       );
       canvas.scale(camera.scale);
-      _paintLayers(canvas, basemap);
+      canvas.drawPicture(basemap);
       canvas.restore();
     }
     _paintAttribution(canvas, size); // 화면 고정.
-  }
-
-  static final Paint _fadedBasemapPaint = Paint()
-    ..color = const Color.fromRGBO(0, 0, 0, kRouteMapFadedBasemapOpacity);
-
-  void _paintLayers(Canvas canvas, ui.Picture basemap) {
-    final highlight = overlay;
-    if (highlight == null) {
-      canvas.drawPicture(basemap);
-      return;
-    }
-    canvas.saveLayer(null, _fadedBasemapPaint);
-    canvas.drawPicture(basemap);
-    canvas.restore();
-    canvas.drawPicture(highlight);
   }
 
   void _paintAttribution(Canvas canvas, Size size) {
@@ -146,7 +127,6 @@ class RouteMapBasemapPainter extends CustomPainter {
   bool shouldRepaint(RouteMapBasemapPainter oldDelegate) {
     return oldDelegate.camera != camera ||
         !identical(oldDelegate.picture, picture) ||
-        !identical(oldDelegate.overlay, overlay) ||
         oldDelegate.sourceOrigin != sourceOrigin ||
         oldDelegate.attributionText != attributionText ||
         !identical(oldDelegate.attributionPainter, attributionPainter);
@@ -413,24 +393,38 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @override
   Widget build(BuildContext context) {
     _ensureAttributionPainter();
+    final highlight = _picture == null ? null : _overlay;
+    final basemap = _layerPaint(_picture, attributed: highlight == null);
     // RepaintBoundary로 바탕 레이어를 형제 오버레이 rebuild와 분리한다.
-    // isComplex=true는 이 레이어가 값비싼 그리기임을(래스터 캐시 가치 있음),
-    // willChange=true는 다음 프레임에 다시 바뀔 것임을(래스터 캐시를 유지하지
-    // 말라는 힌트 — isComplex 캐싱을 억제) 엔진에 알린다. 이 바탕은 카메라
-    // 팬/줌마다 매 프레임 repaint되는 레이어라 willChange가 적절하다.
+    // 노선을 고르면 바탕 전체를 Opacity 한 겹으로 흐려 겹친 선이 더 진해지지 않게
+    // 하고, 그 위에 고른 노선 레이어와 출처 표기를 원래 진하기로 그린다.
     return RepaintBoundary(
-      child: CustomPaint(
-        size: widget.camera.viewportSize,
-        isComplex: true,
-        willChange: true,
-        painter: RouteMapBasemapPainter(
-          picture: _picture,
-          overlay: _overlay,
-          camera: widget.camera,
-          sourceOrigin: widget.sourceOrigin,
-          attributionText: widget.attributionText,
-          attributionPainter: _attributionPainter,
-        ),
+      child: highlight == null
+          ? basemap
+          : Stack(
+              children: [
+                Opacity(opacity: kRouteMapFadedBasemapOpacity, child: basemap),
+                _layerPaint(highlight, attributed: true),
+              ],
+            ),
+    );
+  }
+
+  // isComplex=true는 이 레이어가 값비싼 그리기임을(래스터 캐시 가치 있음),
+  // willChange=true는 다음 프레임에 다시 바뀔 것임을(래스터 캐시를 유지하지
+  // 말라는 힌트 — isComplex 캐싱을 억제) 엔진에 알린다. 이 바탕은 카메라
+  // 팬/줌마다 매 프레임 repaint되는 레이어라 willChange가 적절하다.
+  CustomPaint _layerPaint(ui.Picture? picture, {required bool attributed}) {
+    return CustomPaint(
+      size: widget.camera.viewportSize,
+      isComplex: true,
+      willChange: true,
+      painter: RouteMapBasemapPainter(
+        picture: picture,
+        camera: widget.camera,
+        sourceOrigin: widget.sourceOrigin,
+        attributionText: attributed ? widget.attributionText : null,
+        attributionPainter: attributed ? _attributionPainter : null,
       ),
     );
   }

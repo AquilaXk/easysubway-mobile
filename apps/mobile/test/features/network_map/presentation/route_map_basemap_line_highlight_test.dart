@@ -31,7 +31,11 @@ const _white = 255;
 const _channelTolerance = 2;
 final _boundaryKey = GlobalKey();
 
-Widget _map({required String region, String? lineId}) => Directionality(
+Widget _map({
+  required String region,
+  String? lineId,
+  String? attributionText,
+}) => Directionality(
   textDirection: TextDirection.ltr,
   child: Align(
     alignment: Alignment.topLeft,
@@ -45,6 +49,7 @@ Widget _map({required String region, String? lineId}) => Directionality(
             region: region,
             camera: _camera,
             highlightedLineId: lineId,
+            attributionText: attributionText,
           ),
         ),
       ),
@@ -210,6 +215,34 @@ void main() {
     });
   }
 
+  testWidgets('노선을 골라도 출처 표기는 흐린 바탕 밖에서 원래 진하기로 그린다', (tester) async {
+    const attribution = '노선도 출처';
+    await tester.pumpWidget(
+      _map(
+        region: '수도권',
+        lineId: _uiSinseolLineId,
+        attributionText: attribution,
+      ),
+    );
+    await _settleLoads(tester);
+
+    String? attributionOf(Finder paint) =>
+        (tester.widget<CustomPaint>(paint).painter! as RouteMapBasemapPainter)
+            .attributionText;
+    final faded = find.descendant(
+      of: find.byType(Opacity),
+      matching: find.byType(CustomPaint),
+    );
+    final all = find.descendant(
+      of: find.byType(RouteMapBasemapView),
+      matching: find.byType(CustomPaint),
+    );
+    expect(faded, findsOneWidget);
+    expect(attributionOf(faded), isNull);
+    expect(all, findsNWidgets(2));
+    expect(attributionOf(all.last), attribution);
+  });
+
   testWidgets('레이어를 읽는 동안에는 고른 척 흐리지 않고 바탕을 그대로 둔다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
     await _settleLoads(tester);
@@ -312,6 +345,24 @@ void main() {
       expect(errors, hasLength(1));
       expect(errors.single.exception, isA<RouteMapLineOverlayMissing>());
       await expectPlainBase(tester, baseAsset: busanBase);
+    });
+
+    testWidgets('바탕 .vec를 읽지 못하면 고른 노선 레이어만 따로 그리지 않는다', (tester) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMessageHandler('flutter/assets', (message) async {
+            final key = Uri.decodeFull(
+              utf8.decode(message!.buffer.asUint8List()),
+            );
+            if (key == seoulBase) return null;
+            return ByteData.sublistView(File(key).readAsBytesSync());
+          });
+
+      final errors = await pumpCapturingErrors(tester, _uiSinseolLineId);
+
+      expect(errors, hasLength(1));
+      expect(errors.single.context.toString(), contains('seoul.vec'));
+      final blank = await _reference(tester, const []);
+      expect(_maxChannelDiff(await _screen(tester), blank), 0);
     });
 
     testWidgets('레이어 .vec를 읽지 못함', (tester) async {
