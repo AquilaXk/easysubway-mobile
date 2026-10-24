@@ -86,6 +86,38 @@ final a = 1;
       expect(masked.literals[2].text, '${_bs}u2014');
     });
 
+    test('쉼표 없이 붙어 있는 문자열은 하나의 리터럴로 잇고 쉼표로 나뉜 문자열은 따로 둔다', () {
+      const source =
+          "final a = '가' // 줄 끝 주석\n    /* 블록 */ '나' \"다\";\n"
+          "final b = ['라', '마'];\n";
+      final masked = maskDartSource(source);
+      expect(masked.literals.map((literal) => literal.text), ['가나다', '라', '마']);
+      expect(masked.literals.first.line, 1);
+      expect(masked.literals.first.start, source.indexOf("'가'"));
+    });
+
+    test('코드 한 글자라도 끼면 붙은 문자열이 아니고, 보간식 안에서도 붙은 문자열을 잇는다', () {
+      final apart = maskDartSource("final a = 'x' + 'y';");
+      expect(apart.literals.map((literal) => literal.text), ['x', 'y']);
+      final nested = maskDartSource(r"final a = '바깥 ${f('안' '쪽')} 끝' '뒤';");
+      expect(nested.literals.map((literal) => literal.text), ['안쪽', '바깥  끝뒤']);
+    });
+
+    test('블록 주석은 중첩되어 안쪽 */ 뒤의 따옴표가 문자열을 열지 않는다', () {
+      final masked = maskDartSource(
+        "/* a /* b */ it's */ final y = '계단'; final z = Icons.add;",
+      );
+      expect(masked.literals.map((literal) => literal.text), ['계단']);
+      expect(masked.code, contains('Icons.add'));
+    });
+
+    test('줄바꿈과 탭 이스케이프는 실제 문자로 풀리고 나머지 이스케이프는 문자 그대로 남는다', () {
+      final masked = maskDartSource(
+        "final a = 'x${_bs}ny${_bs}tz$_bs'w$_bs\$v';",
+      );
+      expect(masked.literals.single.text, "x\ny\tz'w\$v");
+    });
+
     test('보간식 안의 중첩 문자열과 중괄호도 코드로 읽고 바깥 문자열 본문은 지운다', () {
       final masked = maskDartSource(
         r"final a = '그림 ${f({'k': Icons.add})} 끝'; final b = Icons.close;",

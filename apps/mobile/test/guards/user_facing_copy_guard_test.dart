@@ -10,9 +10,12 @@
 // 테스트가 실패해 목록에서 지우게 한다.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../support/dart_code_mask.dart';
 
 /// 금지어. 한글이 포함된 리터럴에서만 찾는다. 영문은 대소문자를 구분하지 않는다.
 const _bannedTerms = <String>[
@@ -141,121 +144,19 @@ class _Literal {
   final String context;
 }
 
-/// 주석을 건너뛰며 Dart 문자열 리터럴 본문을 뽑는다.
+const _contextLength = 60;
+
+/// 주석을 건너뛰며 Dart 문자열 리터럴 본문을 뽑는다. 렉서는 support/dart_code_mask.dart 하나를 함께 쓴다.
 /// - `${...}` 보간식 안의 리터럴은 별도 리터럴로 뽑는다.
 /// - 사이에 쉼표 등 없이 붙어 있는 리터럴(`'계단' '회피'`)은 하나로 잇는다.
-List<_Literal> _extractStringLiterals(String source) {
-  final scanner = _Scanner(source);
-  scanner.scanCode(untilCloseBrace: false);
-  return scanner.out;
-}
+List<_Literal> _extractStringLiterals(String source) => [
+  for (final literal in maskDartSource(source).literals)
+    _Literal(literal.line, literal.text, _contextBefore(source, literal.start)),
+];
 
-class _Scanner {
-  _Scanner(this.s);
-
-  final String s;
-  final out = <_Literal>[];
-  int i = 0;
-  int line = 1;
-
-  bool _isQuoteAt(int index) {
-    if (index >= s.length) return false;
-    final c = s[index];
-    if (c == "'" || c == '"') return true;
-    return c == 'r' &&
-        index + 1 < s.length &&
-        (s[index + 1] == "'" || s[index + 1] == '"') &&
-        (index == 0 || !RegExp(r'[A-Za-z0-9_$]').hasMatch(s[index - 1]));
-  }
-
-  void _skipTrivia() {
-    while (i < s.length) {
-      final c = s[i];
-      if (c == '\n') {
-        line++;
-        i++;
-      } else if (c == ' ' || c == '\t' || c == '\r') {
-        i++;
-      } else if (s.startsWith('//', i)) {
-        while (i < s.length && s[i] != '\n') {
-          i++;
-        }
-      } else if (s.startsWith('/*', i)) {
-        final end = s.indexOf('*/', i + 2);
-        final stop = end < 0 ? s.length : end + 2;
-        line += '\n'.allMatches(s.substring(i, stop)).length;
-        i = stop;
-      } else {
-        break;
-      }
-    }
-  }
-
-  /// 코드 모드로 읽는다. [untilCloseBrace]면 짝이 맞는 `}`에서 멈춘다.
-  void scanCode({required bool untilCloseBrace}) {
-    var depth = 0;
-    while (i < s.length) {
-      _skipTrivia();
-      if (i >= s.length) return;
-      final c = s[i];
-      if (_isQuoteAt(i)) {
-        _scanLiteralRun();
-      } else if (c == '{') {
-        depth++;
-        i++;
-      } else if (c == '}') {
-        if (untilCloseBrace && depth == 0) {
-          i++;
-          return;
-        }
-        depth--;
-        i++;
-      } else {
-        i++;
-      }
-    }
-  }
-
-  /// 붙어 있는 리터럴 묶음을 읽어 하나로 잇는다.
-  void _scanLiteralRun() {
-    final startLine = line;
-    final context = s
-        .substring(i < 60 ? 0 : i - 60, i)
-        .replaceAll(RegExp(r'\s+'), ' ');
-    final buffer = StringBuffer();
-    while (_isQuoteAt(i)) {
-      buffer.write(_scanOneLiteral());
-      _skipTrivia();
-    }
-    out.add(_Literal(startLine, buffer.toString(), context));
-  }
-
-  String _scanOneLiteral() {
-    final raw = s[i] == 'r';
-    if (raw) i++;
-    final c = s[i];
-    final triple = s.startsWith(c * 3, i);
-    final quote = triple ? c * 3 : c;
-    i += quote.length;
-    final buffer = StringBuffer();
-    while (i < s.length && !s.startsWith(quote, i)) {
-      final ch = s[i];
-      if (ch == '\n') line++;
-      if (!raw && ch == r'\' && i + 1 < s.length) {
-        buffer.write(s.substring(i, i + 2));
-        i += 2;
-      } else if (!raw && s.startsWith(r'${', i)) {
-        i += 2;
-        scanCode(untilCloseBrace: true);
-      } else {
-        buffer.write(ch);
-        i++;
-      }
-    }
-    i += quote.length;
-    return buffer.toString();
-  }
-}
+String _contextBefore(String source, int offset) => source
+    .substring(max(0, offset - _contextLength), offset)
+    .replaceAll(RegExp(r'\s+'), ' ');
 
 final _hangul = RegExp('[가-힣]');
 
@@ -359,6 +260,17 @@ final b = const [
       expect(texts, ['계단회피 경로', '정보를 반영하지 못했어요']);
       expect(_bannedTermsIn(texts.first), ['계단회피']);
       expect(_bannedTermsIn(texts.last), ['반영하지 못']);
+    });
+
+    test('중첩된 블록 주석은 바깥 주석이 끝날 때까지 건너뛴다', () {
+      const source = '''
+/* a /* b */ it's */ final y = '계단회피';
+/* 바깥 /* 안쪽 '무단차' */ 아직 주석 '미확정' */
+final z = Text('일반 문구');
+''';
+      final texts = _extractStringLiterals(source).map((l) => l.text).toList();
+      expect(texts, ['계단회피', '일반 문구']);
+      expect(_bannedTermsIn(texts.first), ['계단회피']);
     });
 
     test('한글 없는 리터럴도 화면에 쓰이는 자리면 영문 금지어를 찾는다', () {
