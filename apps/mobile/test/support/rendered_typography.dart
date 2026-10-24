@@ -14,15 +14,16 @@ final _allowedWeights = <FontWeight>{
   EasySubwayFontWeight.boldForContrast,
 };
 
-/// 대비용 700이 정당한 글자색이다. 노선색 면 위 흰 글자거나, 흰 바탕 위 노선색 글자(또는
-/// 그 노선색을 4.5:1로 어둡게 한 글자색)다.
+/// 700(대비용 [EasySubwayFontWeight.boldForContrast]와 모양 유지용
+/// [EasySubwayFontWeight.markGlyph])이 정당한 글자색이다. 노선색 면 위 흰 글자거나,
+/// 흰 바탕 위 노선색 글자(또는 그 노선색을 4.5:1로 어둡게 한 글자색)다.
 /// 노선색 글자는 노선마다 굵기가 달라 보이지 않게 모든 노선을 700으로 맞춘다. 굵게
 /// 하면 흰 바탕 위 대비 기준이 4.5:1에서 큰 글자 기준 3:1로 내려가 2·5·6·7·8호선과
 /// 공항철도를 구한다. 3·4·9호선, 경의중앙선, 수인분당선은 굵게 해도 3:1에 못 미치며 이는
 /// 별도로 추적하는 기존 문제다. 대비율은 여기서 따지지 않는다. 호스트별 대비는
 /// `expectHostTextContrast`가 보고, 어느 호스트가 700을 쓸 수 있는지는 소스 쪽
 /// `design_guard_test`의 허용 목록이 정한다.
-bool _isContrastBoldColor(Color? color) =>
+bool _isBoldAllowedTextColor(Color? color) =>
     color != null &&
     (color == EasySubwayColorPrimitives.neutralWhite ||
         datapackLineColors.contains(color) ||
@@ -41,7 +42,7 @@ final Set<Color> _datapackLineInks = {
 /// 그려진 결과를 본다. 규칙은 다음과 같다.
 /// - family는 테마 기본 서체거나 아이콘 글꼴이다. 앱 번들 글꼴은 없다.
 /// - 굵기는 본문 400, 강조 500, 대비용 700 중 하나다. 700은 흰색이나 데이터팩 노선색
-///   글자(`_isContrastBoldColor`)에만 쓰고, 본문색 같은 다른 색에는 쓰지 않는다.
+///   글자(`_isBoldAllowedTextColor`)에만 쓰고, 본문색 같은 다른 색에는 쓰지 않는다.
 ///   어느 호스트가 쓸 수 있는지는 소스 쪽 `design_guard_test`의 허용 목록이 정한다.
 /// - 글자는 가변 글꼴 축(`fontVariations`)을 따로 지정하지 않는다. 아이콘 글꼴의 축은 제외한다.
 ///
@@ -72,7 +73,7 @@ List<String> renderedTypographyViolations(WidgetTester tester) {
         violations.add('"$text" 굵기 $weight');
       }
       if (weight == EasySubwayFontWeight.boldForContrast &&
-          !_isContrastBoldColor(style.color)) {
+          !_isBoldAllowedTextColor(style.color)) {
         violations.add('"$text" 대비용 700이 흰색도 노선색도 아닌 글자색 ${style.color}');
       }
       final isIcon = family == _materialIconsFamily;

@@ -277,7 +277,7 @@ class JourneySegmentBar extends StatelessWidget {
 
   static const _minutesStyle = TextStyle(
     fontSize: 13,
-    fontWeight: EasySubwayFontWeight.boldForContrast,
+    fontWeight: EasySubwayFontWeight.markGlyph,
     color: EasySubwayColorPrimitives.neutralWhite,
   );
   static const _timeStyle = TextStyle(

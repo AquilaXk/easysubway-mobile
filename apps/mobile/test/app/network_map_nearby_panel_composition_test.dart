@@ -108,8 +108,9 @@ void main() {
     );
   });
 
-  test('realtime 조합은 line color·arrival·neighbor callback을 보존한다', () {
+  test('realtime 조합은 line color·arrival·neighbor·시간표 callback을 보존한다', () {
     for (final entry in const [
+      (RealtimeSnapshotStatus.loading, NearbyArrivalPanelStatus.loading),
       (RealtimeSnapshotStatus.fresh, NearbyArrivalPanelStatus.fresh),
       (RealtimeSnapshotStatus.stale, NearbyArrivalPanelStatus.stale),
       (
@@ -131,7 +132,7 @@ void main() {
         adjacentStations: _adjacentStations,
         onOpenStationDetail: () => detailTaps += 1,
         onSelectNeighbor: (neighbor) => selectedNeighbors.add(neighbor.nameKo),
-        onSelectTimetable: () => timetableTaps += 1,
+        onOpenTimetable: () => timetableTaps += 1,
       );
 
       final stationBar = content.stationBar as NearbyStationLineBar;
@@ -140,7 +141,6 @@ void main() {
       expect(stationBar.badgeText, '1');
       expect(stationBar.lineColor, stationLineColor('#0052A4'));
       expect(arrivalPanel.data.status, entry.$2);
-      expect(arrivalPanel.data.receivedAt, '2026-08-13T00:01:00Z');
       expect(arrivalPanel.data.arrivals.single.direction, '상행');
       expect(arrivalPanel.data.arrivals.single.destination, '종점');
       expect(arrivalPanel.data.arrivals.single.etaSeconds, 90);
@@ -150,7 +150,7 @@ void main() {
       stationBar.onStationNameTap?.call();
       stationBar.onLeftNameTap?.call();
       stationBar.onRightNameTap?.call();
-      arrivalPanel.onSelectTimetable?.call();
+      arrivalPanel.onOpenDirection?.call();
       expect(detailTaps, 1);
       expect(timetableTaps, 1);
       expect(selectedNeighbors, ['이전', '다음']);
@@ -175,6 +175,20 @@ void main() {
     expect(fallbackBar.onLeftNameTap, isNull);
     expect(fallbackBar.onRightNameTap, isNull);
     expect(emptyTimetable.data, isNull);
+    expect(emptyTimetable.loading, isFalse);
+
+    final loadingTimetable =
+        buildNetworkMapNearbyPanelSuccessContent(
+              results: [_station(const [])],
+              realtime: _realtime(RealtimeSnapshotStatus.loading),
+              selectedLineId: null,
+              dataSource: NetworkMapNearbyPanelDataSource.timetable,
+              timetable: null,
+              timetableLoading: true,
+              adjacentStations: const NearbyAdjacentStations(),
+            ).dataPanel
+            as NearbyTimetablePanel;
+    expect(loadingTimetable.loading, isTrue);
 
     final withTimetable = buildNetworkMapNearbyPanelSuccessContent(
       results: [

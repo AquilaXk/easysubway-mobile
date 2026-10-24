@@ -11,28 +11,27 @@ void main() {
         station: _station,
         exits: const [],
         mapLauncher: _RecordingMapLauncher(),
-        locationProvider: null,
       ),
       throwsAssertionError,
     );
   });
 
-  testWidgets('첫 출구가 기본 선택되고 가로 알약 탭 터치로 선택된 출구가 갱신된다', (tester) async {
+  testWidgets('첫 출구가 기본 선택되고 선택기의 다음 버튼과 목록으로 선택된 출구가 갱신된다', (tester) async {
     await _pumpSection(tester);
 
     expect(find.text('preview-exit-1'), findsOneWidget);
     expect(find.byKey(const ValueKey('exit-1')), findsOneWidget);
-    expect(find.byKey(const Key('stationExitPill-exit-1')), findsOneWidget);
-    expect(find.byKey(const Key('stationExitPill-exit-2')), findsOneWidget);
-    expect(find.byKey(const Key('stationExitPill-exit-3')), findsOneWidget);
+    expect(find.byKey(const Key('stationExitSelector')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('stationExitPill-exit-2')));
+    await tester.tap(find.byTooltip('다음 출구'));
     await tester.pumpAndSettle();
 
     expect(find.text('preview-exit-2'), findsOneWidget);
     expect(find.byKey(const ValueKey('exit-2')), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('stationExitPill-exit-3')));
+    await tester.tap(find.byKey(const Key('stationExitSelectorCurrent')));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('3번 출구'));
     await tester.pumpAndSettle();
 
     expect(find.text('preview-exit-3'), findsOneWidget);
@@ -45,7 +44,7 @@ void main() {
     final launcher = _RecordingMapLauncher();
     await _pumpSection(tester, launcher: launcher);
 
-    await tester.tap(find.byKey(const Key('stationExitPill-exit-2')));
+    await tester.tap(find.byTooltip('다음 출구'));
     await tester.pumpAndSettle();
 
     await tester.tap(find.byKey(const Key('stationExitMapExpandButton')));
@@ -60,7 +59,7 @@ void main() {
     final launcher = _RecordingMapLauncher();
     await _pumpSection(tester, launcher: launcher);
 
-    await tester.tap(find.byKey(const Key('stationExitPill-exit-2')));
+    await tester.tap(find.byTooltip('다음 출구'));
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('fakeMapPreviewButton')));
     await tester.pump();
@@ -72,7 +71,7 @@ void main() {
 
   testWidgets('출구 목록이 바뀌면 새 목록의 첫 출구로 돌아간다', (tester) async {
     await _pumpSection(tester);
-    await tester.tap(find.byKey(const Key('stationExitPill-exit-2')));
+    await tester.tap(find.byTooltip('다음 출구'));
     await tester.pumpAndSettle();
     expect(find.text('preview-exit-2'), findsOneWidget);
 
@@ -83,7 +82,7 @@ void main() {
     expect(find.byKey(const ValueKey('exit-3')), findsOneWidget);
   });
 
-  testWidgets('출구 알약 탭은 접근성 가이드에 따라 최소 48dp 터치 영역을 유지한다', (tester) async {
+  testWidgets('출구 선택기는 글자 2.0배에서도 최소 48dp 터치 영역을 유지한다', (tester) async {
     tester.view.physicalSize = const Size(400, 800);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.resetPhysicalSize);
@@ -97,7 +96,9 @@ void main() {
 
     expect(tester.takeException(), isNull);
     expect(
-      tester.getSize(find.byKey(const Key('stationExitPill-exit-1'))).height,
+      tester
+          .getSize(find.byKey(const Key('stationExitSelectorCurrent')))
+          .height,
       greaterThanOrEqualTo(48),
     );
   });
@@ -209,7 +210,6 @@ Future<void> _pumpSection(
               station: _station,
               exits: exits,
               mapLauncher: launcher ?? _RecordingMapLauncher(),
-              locationProvider: null,
               mapPreviewBuilder:
                   ({
                     required station,

@@ -153,7 +153,7 @@ class EasySubwayTokens extends ThemeExtension<EasySubwayTokens> {
   }
 }
 
-/// 경로 역할색(팬메뉴·출발/경유/도착 라벨·물방울 핀 공통).
+/// 경로 역할색(출발·경유·도착 물방울 핀).
 ///
 /// Palette A — City Sophistication (2026-07-22):
 /// 흰 노선도·교통약자 UX에 맞춰 원색 힘을 빼고 선명도만 남긴 시티 톤.
@@ -162,25 +162,18 @@ class EasySubwayTokens extends ThemeExtension<EasySubwayTokens> {
 /// [EasySubwayTokens] 의미 토큰으로 수렴하지 않는다(design_guard 로컬 상수).
 abstract final class EasySubwayFanMenuColors {
   static const disabledOpacity = 0.40;
-  static const pressedOpacity = 0.84;
 
   /// City Sky — 맑고 살짝 보랏빛 도는 모던 스카이 블루. 흰 글자 대비 4.5:1을
   /// 넘기도록 같은 색상(hue 210)에서 명도만 낮췄다(#464, 이전 `0A84FF`는 3.65).
   static const departure = Color(0xFF0070E0);
-  static const departureSurface = Color(0xFFF2F8FF);
-  static const departurePressed = Color(0xFFE1F0FF);
 
   /// Amber Gold — 갈색 없는 선명한 엠버. 경유 역할이 한눈에 구분되게.
   /// 밝은 면이라 흰 글자(2.06:1) 대신 어두운 글자를 얹는다([waypointRole]).
   static const waypoint = Color(0xFFFF9F0A);
-  static const waypointSurface = Color(0xFFFFF8ED);
-  static const waypointPressed = Color(0xFFFFEFCC);
 
   /// Coral Burst — 화사한 코랄 레드. 도착 주목도↑·답답함↓. 흰 글자 대비 4.5:1을
   /// 넘기도록 같은 색상(hue 3)에서 명도만 낮췄다(#464, 이전 `FF3B30`은 3.55).
   static const arrival = Color(0xFFD92B20);
-  static const arrivalSurface = Color(0xFFFFF5F4);
-  static const arrivalPressed = Color(0xFFFFE8E6);
 
   /// 물방울 핀 soft drop — rgba(0,0,0,0.25), Y:3, Blur:6.
   static const pinShadow = Color(0x40000000);
@@ -204,19 +197,8 @@ abstract final class EasySubwayFanMenuColors {
 
   /// ✕ soft drop — rgba(0,0,0,0.15), Y:2, Blur:4.
   static const pinClearShadow = Color(0x26000000);
-  static const closeSurface = Color(0xFFF5F7FA);
-  static const closePressed = Color(0xFFE9EDF2);
-  static const closeInk = Color(0xFF475467);
-  // 세그먼트 사이 내부 구분선 색. QA 결과 외곽선과 옅기 차이를 두면 위계가
-  // 흐릿해 보여, 외곽선(outline)과 동일 톤으로 통일한다(#2200 절충안, 오너
-  // 확정 2026-07-17). 굵기 차이(structuralStrokeWidth vs dividerStrokeWidth,
-  // station_fan_menu.dart 참고)로만 내부/외곽 위계를 만든다.
-  static const border = Color(0xE8404445);
-  // 팬 메뉴 도입 전(#2109/PR #2112) 사각형 역 액션 시트가 쓰던 외곽 색을 그대로
-  // 계승한다(구 시트 Material color 0xE8404445, 오너 지시 2026-07-16).
-  static const outline = Color(0xE8404445);
 
-  /// 팬 메뉴 앵커 역명 라벨의 텍스트 잉크.
+  /// 밝은 경유 면 위에 얹는 어두운 글자.
   static const ink = Color(0xFF20262E);
 
   /// 역할별 면과 글자 쌍. 면 색에 따라 얹는 글자색이 달라지므로(출발·도착은
@@ -224,27 +206,30 @@ abstract final class EasySubwayFanMenuColors {
   static const departureRole = EasySubwayRoleColor(
     face: departure,
     onFace: EasySubwayAccessibleColors.interactionOnPrimary,
-    ink: departure,
-    surface: departureSurface,
-    pressedSurface: departurePressed,
     pinEdge: pinEdgeDeparture,
   );
   static const waypointRole = EasySubwayRoleColor(
     face: waypoint,
     onFace: ink,
-    ink: waypointInk,
-    surface: waypointSurface,
-    pressedSurface: waypointPressed,
     pinEdge: pinEdgeWaypoint,
   );
   static const arrivalRole = EasySubwayRoleColor(
     face: arrival,
     onFace: EasySubwayAccessibleColors.interactionOnPrimary,
-    ink: arrival,
-    surface: arrivalSurface,
-    pressedSurface: arrivalPressed,
     pinEdge: pinEdgeArrival,
   );
+}
+
+/// 노선도에서 역을 누르면 역 위에 뜨는 어두운 말풍선(#511). 값은 상용 지하철 서비스
+/// 캡처에서 잰 색이다. 핀은 글자 옆 장식이지만 바탕과 3:1을 넘는다(초록 6.8,
+/// 회색 4.6, 빨강 3.7). 흰 글자는 바탕과 14:1 이상이다.
+abstract final class EasySubwayPopoverColors {
+  static const surface = Color(0xFF282828);
+  static const actionSurface = Color(0xFF3A3B3D);
+  static const onSurface = EasySubwayColorPrimitives.neutralWhite;
+  static const originPin = Color(0xFF5AC466);
+  static const waypointPin = Color(0xFF8F949D);
+  static const destinationPin = Color(0xFFE0482F);
 }
 
 /// 출발·경유·도착 입력 칸의 역할 점(#509). 상용 지하철 서비스의 입력 칸처럼 출발은
@@ -262,24 +247,14 @@ class EasySubwayRoleColor {
   const EasySubwayRoleColor({
     required this.face,
     required this.onFace,
-    required this.ink,
-    required this.surface,
-    required this.pressedSurface,
     required this.pinEdge,
   });
 
-  /// 역할을 채우는 면(선택된 팬 메뉴 면, 배지, 핀).
+  /// 역할을 채우는 면(배지, 핀).
   final Color face;
 
   /// [face] 위에 얹는 글자·아이콘.
   final Color onFace;
-
-  /// 흰색·연한 면 위에 놓는 역할색 글자.
-  final Color ink;
-
-  /// 선택되지 않은 팬 메뉴 면.
-  final Color surface;
-  final Color pressedSurface;
 
   /// 지도 핀 외곽선. [face]보다 진해 핀 윤곽이 구분된다.
   final Color pinEdge;

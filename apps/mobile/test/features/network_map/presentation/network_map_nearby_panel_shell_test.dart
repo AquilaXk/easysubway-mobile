@@ -11,10 +11,9 @@ Widget _host(NetworkMapNearbyPanelShell shell) => MaterialApp(
 );
 
 void main() {
-  testWidgets('collapsed shell은 border·tabs·toggle·close·body를 보존한다', (
+  testWidgets('collapsed shell은 border·tabs·close·body를 보존하고 토글은 머리 줄에 없다', (
     tester,
   ) async {
-    var toggleCount = 0;
     var closeCount = 0;
     await tester.pumpWidget(
       _host(
@@ -23,11 +22,6 @@ void main() {
           lineTabs: const [
             SizedBox(key: Key('lineTab1'), width: 48, height: 48),
           ],
-          dataSourceToggle: NearbyDataSourceToggle(
-            isRealtime: true,
-            enabled: true,
-            onToggle: () => toggleCount += 1,
-          ),
           onClose: () => closeCount += 1,
           body: const SizedBox(key: Key('nearbyBody'), height: 132),
           surfaceColor: EasySubwayAccessibleColors.surfaceDefault,
@@ -68,11 +62,9 @@ void main() {
     );
     expect(find.byKey(const Key('lineTab1')), findsOneWidget);
     expect(find.byKey(const Key('nearbyBody')), findsOneWidget);
-    expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
+    expect(find.byType(NearbyDataSourceToggle), findsNothing);
 
-    await tester.tap(find.bySemanticsLabel('시간표로 전환'));
     await tester.tap(find.byKey(const Key('networkMapNearbyPanelCloseButton')));
-    expect(toggleCount, 1);
     expect(closeCount, 1);
   });
 
@@ -87,11 +79,6 @@ void main() {
             SizedBox(key: Key('lineTab1'), width: 48, height: 48),
             SizedBox(key: Key('lineTab2'), width: 48, height: 48),
           ],
-          dataSourceToggle: NearbyDataSourceToggle(
-            isRealtime: false,
-            enabled: false,
-            onToggle: () {},
-          ),
           onClose: () {},
           body: const SizedBox(key: Key('nearbyBody'), height: 132),
           surfaceColor: EasySubwayAccessibleColors.surfaceDefault,

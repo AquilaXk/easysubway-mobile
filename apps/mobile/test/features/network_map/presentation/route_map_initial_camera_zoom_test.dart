@@ -419,7 +419,7 @@ void main() {
   });
 
   group('역 focus 카메라는 확대된 초기 배율 위에서 다시 확대된다 (#2062 · 프로덕션 배선)', () {
-    // seam이 아니라 프로덕션 배선(focusStationRequestId → _searchFanMenuStationId
+    // seam이 아니라 프로덕션 배선(focusStationRequestId → _searchPopoverStationId
     // → NetworkMapCanvas.focusedStationId → _stationFocusBoundsFor)을 그대로
     // 태운다. canvas owner의 focus 분기가 초기 카메라 bounds 대신 geometry의
     // 원 initialBounds를 다시 넘기면 이 테스트가 red가 된다(수도권 실측: 비율이

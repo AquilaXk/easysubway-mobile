@@ -231,7 +231,7 @@ void main() {
       });
     }
 
-    testWidgets('팬 메뉴를 열면 3줄 상단바 + 알림 바 아래로 내려온다', (tester) async {
+    testWidgets('역 말풍선을 열면 3줄 상단바 + 알림 바 아래로 내려온다', (tester) async {
       await _show(tester, _home(selectedStationId: _topStation.id));
 
       final menu = tester.getRect(
@@ -750,10 +750,10 @@ void main() {
     });
   });
 
-  group('팬 메뉴 topInset', () {
+  group('역 말풍선 topInset', () {
     test('reveal offset은 메뉴 위 끝을 오버레이 아래 여백까지 내린다', () {
       expect(
-        fanMenuRevealOffset(
+        stationPopoverRevealOffset(
           menuRect: const Rect.fromLTWH(90, 100, 220, 120),
           viewport: const Size(400, 800),
           topInset: 150,
@@ -761,7 +761,7 @@ void main() {
         const Offset(0, 62),
       );
       expect(
-        fanMenuRevealOffset(
+        stationPopoverRevealOffset(
           menuRect: const Rect.fromLTWH(90, 200, 220, 120),
           viewport: const Size(400, 800),
           topInset: 150,
@@ -771,13 +771,13 @@ void main() {
     });
 
     test('클램프된 배치도 오버레이 아래에 둔다', () {
-      final placement = fanMenuPlacement(
+      final placement = stationPopoverPlacement(
         stationPoint: const Offset(200, 20),
         viewport: const Size(400, 800),
         clampPosition: true,
         topInset: 150,
       );
-      expect(placement.top, 150 + kFanMenuViewportMargin);
+      expect(placement.top, 150 + kStationPopoverViewportMargin);
     });
   });
 }

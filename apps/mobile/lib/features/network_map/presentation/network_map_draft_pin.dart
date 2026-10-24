@@ -10,7 +10,7 @@ import '../domain/network_map_models.dart';
 
 /// 출발/경유/도착으로 지정된 역 위에 표시하는 route-draft 핀이다.
 ///
-/// 실루엣 에셋 + 내부 팬 메뉴색 + 외곽선은 상단바 '수도권' 글자색(#606060).
+/// 실루엣 에셋 + 내부 역할색 + 외곽선은 상단바 '수도권' 글자색(#606060).
 /// 뾰족한 끝은 [anchorSource](일반 노드/환승 캡슐 중심) 정중앙에 둔다.
 class NetworkMapDraftPin extends StatelessWidget {
   const NetworkMapDraftPin({

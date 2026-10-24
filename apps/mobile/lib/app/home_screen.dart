@@ -214,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   Timer? _autoRouteDebounce;
 
   // #2109 Fix: 풀페이지 검색(햄버거 메뉴 경유) 결과 탭으로 반환된 역. 노선도에
-  // focus + 팬 메뉴 + 해당 역 하단 패널을 요청하는 채널이다.
+  // focus + 역 말풍선 + 해당 역 하단 패널을 요청하는 채널이다.
   StationSearchResult? _mapFocusStationRequest;
 
   /// 풀페이지 역 검색 ↔ 홈 노선도 지역 동기화용.

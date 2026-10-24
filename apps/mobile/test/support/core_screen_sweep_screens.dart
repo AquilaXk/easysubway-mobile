@@ -9,7 +9,7 @@ import 'package:easysubway_mobile/features/attribution/presentation/data_source_
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_target.dart';
 import 'package:easysubway_mobile/features/facility_report/presentation/facility_report_screen.dart';
 import 'package:easysubway_mobile/features/mobility_profile/mobility_profile_policy.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/station_popover_menu.dart';
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:easysubway_mobile/features/notifications/presentation/notification_inbox_screen.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
@@ -82,7 +82,7 @@ class SweepScreen {
   final Finder shown;
 
   /// 역 검색 포트가 돌려줄 결과. 지도에서 역을 누르면 같은 포트로 역 정보 패널을
-  /// 함께 여므로, 팬 메뉴 행은 비워 두어 팬 메뉴만 검사한다.
+  /// 함께 여므로, 역 말풍선 행은 비워 두어 역 말풍선만 검사한다.
   final List<StationSearchResult> stationResults;
 
   /// false면 온보딩을 마치지 않은 첫 실행 상태로 앱을 연다.
@@ -319,11 +319,11 @@ final sweepScreens = <SweepScreen>[
     );
     await context.tester.pumpAndSettle();
   }, find.byKey(const Key('errorReferenceExpansion'))),
-  SweepScreen('지도 역 팬 메뉴', _openFanMenu, find.byType(StationFanMenu)),
+  SweepScreen('지도 역 역 말풍선', _openFanMenu, find.byType(StationPopoverMenu)),
   // 역을 지정하면 상단바가 경로 입력 칸으로 바뀌므로 이 행들은 그 상단바도 함께 검사한다.
-  for (final role in _fanMenuRoles)
+  for (final role in _stationPopoverRoles)
     SweepScreen(
-      '지도 역 팬 메뉴(${role.name} 지정됨, 경로 입력 상단바)',
+      '지도 역 역 말풍선(${role.name} 지정됨, 경로 입력 상단바)',
       (context) async {
         await _openFanMenuWithSelected(context, role);
         _expectNoticeBarBelowTopBar(context.tester);
@@ -337,7 +337,7 @@ final sweepScreens = <SweepScreen>[
   }, find.byKey(_waypointRole.clearKey)),
 ];
 
-/// 팬 메뉴 섹터. 낭독 라벨로 섹터를 눌러 지정 상태를 만든다.
+/// 역 말풍선 섹터. 낭독 라벨로 섹터를 눌러 지정 상태를 만든다.
 class _FanMenuRole {
   const _FanMenuRole(this.slot, this.name, this.semanticsLabel, this.clearKey);
 
@@ -356,7 +356,7 @@ const _waypointRole = _FanMenuRole(
   Key('networkMapRouteDraftClearWaypoint'),
 );
 
-const _fanMenuRoles = <_FanMenuRole>[
+const _stationPopoverRoles = <_FanMenuRole>[
   _FanMenuRole(
     RouteDraftSlot.origin,
     '출발',
@@ -376,14 +376,14 @@ const _sweepMapStationKey = Key('networkMapStation-gangnam-seoul-2');
 
 /// 지정된 역의 핀은 역 중심 바로 위에서 끝난다. 중심을 누르면 핀 가장자리와 부동소수 오차로
 /// 겹쳐 화면 밀도에 따라 탭이 핀에 먹히므로, 핀 아래 역 노드 안쪽을 누른다.
-const _fanMenuTapOffset = Offset(0, 8);
+const _stationPopoverTapOffset = Offset(0, 8);
 
-/// 지도의 역을 눌러 팬 메뉴를 연다. 지도는 탭 좌표를 캔버스 제스처에서 역으로
+/// 지도의 역을 눌러 역 말풍선을 연다. 지도는 탭 좌표를 캔버스 제스처에서 역으로
 /// 해석하므로 히트 타깃 위젯이 직접 맞지 않아도 정상이다.
 Future<void> _openFanMenu(SweepScreenContext context) async {
   await context.tester.tapAt(
     context.tester.getCenter(find.byKey(_sweepMapStationKey)) +
-        _fanMenuTapOffset,
+        _stationPopoverTapOffset,
   );
   await context.tester.pumpAndSettle();
 }
@@ -401,7 +401,7 @@ void _expectNoticeBarBelowTopBar(WidgetTester tester) {
   );
 }
 
-/// 팬 메뉴를 열고 낭독 기술이 쓰는 접근성 탭으로 [role]에 역을 지정한다. 지정하면
+/// 역 말풍선을 열고 낭독 기술이 쓰는 접근성 탭으로 [role]에 역을 지정한다. 지정하면
 /// 상단바가 경로 입력 칸으로 바뀐다.
 Future<void> _selectFanMenuRole(
   SweepScreenContext context,
@@ -413,17 +413,17 @@ Future<void> _selectFanMenuRole(
 }
 
 /// [role]에 역을 지정한 뒤 같은 역을 다시 눌러, 지정된 섹터가 채워진 면으로
-/// 그려지는 팬 메뉴를 연다.
+/// 그려지는 역 말풍선을 연다.
 Future<void> _openFanMenuWithSelected(
   SweepScreenContext context,
   _FanMenuRole role,
 ) async {
   await _selectFanMenuRole(context, role);
   await _openFanMenu(context);
-  // 다시 연 팬 메뉴가 지정한 역할을 채워진 면으로 그리는지 확인한다.
+  // 다시 연 역 말풍선이 지정한 역할을 채워진 면으로 그리는지 확인한다.
   expect(
     context.tester
-        .widget<StationFanMenu>(find.byType(StationFanMenu))
+        .widget<StationPopoverMenu>(find.byType(StationPopoverMenu))
         .selectedSlots,
     contains(role.slot),
   );

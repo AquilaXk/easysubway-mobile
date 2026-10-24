@@ -158,14 +158,8 @@ void main() {
       },
       'lib/design_tokens.dart': {
         '0xFF0070E0',
-        '0xFFF2F8FF',
-        '0xFFE1F0FF',
         '0xFFFF9F0A',
-        '0xFFFFF8ED',
-        '0xFFFFEFCC',
         '0xFFD92B20',
-        '0xFFFFF5F4',
-        '0xFFFFE8E6',
         '0x40000000',
         '0xFF0654A1',
         '0xFFA16506',
@@ -174,11 +168,13 @@ void main() {
         '0xFFE5E5E5',
         '0xFF666666',
         '0x26000000',
-        '0xFFF5F7FA',
-        '0xFFE9EDF2',
-        '0xFF475467',
-        '0xE8404445',
         '0xFF20262E',
+        // 역 말풍선(#511). 상용 지하철 서비스 캡처에서 잰 바탕·핀 색이다.
+        '0xFF282828',
+        '0xFF3A3B3D',
+        '0xFF5AC466',
+        '0xFF8F949D',
+        '0xFFE0482F',
       },
       'lib/features/stations/domain/station_line.dart': {
         '0xFF006D77',
@@ -289,19 +285,26 @@ void main() {
     expectRatchet(actual, {
       // 대비용: 노선 마크 알약·원 위 흰 글자.
       'lib/core/ui/line_mark.dart': 1,
-      // 대비용 아님: 11px 구간 막대 분 표시는 굵게 해도 큰 글자 기준을 못 받아 어느
-      // 굵기든 4.5:1이 필요하다. 노선 배지는 굵게 읽는 기존 모양을 지키려 700을 쓴다.
-      'lib/features/journey/presentation/result/journey_result_widgets.dart': 1,
-      // 대비용: 주변역 바 이전·다음역 이름(좌·우 두 곳), 노선색 면 위 흰 글자.
-      'lib/features/network_map/presentation/nearby_station_line_bar.dart': 2,
-      // 대비용: 주변역 패널 "○○ 방면" 제목의 노선색 이름, 흰 바탕 위 노선색 글자.
-      'lib/features/network_map/presentation/nearby_direction_title.dart': 1,
-      // 대비용 아님: 노선도 배지는 굵게 읽는 기존 모양을 지키려 700을 쓴다.
-      'lib/features/network_map/presentation/structured_route_map_painter.dart':
-          1,
+      // 대비용: 주변역 바 이전·다음역 이름, 노선색 면 위 14pt 흰 글자.
+      'lib/features/network_map/presentation/nearby_station_line_bar.dart': 1,
       // 대비용: 역 시간표의 선택된 호선 칩, 노선색 면 위 흰 글자.
       'lib/features/stations/presentation/station_timetable_screen.dart': 1,
     }, rule: 'boldForContrast 허용 목록');
+  });
+
+  test('모양 유지용 700(markGlyph)은 검토를 거친 호스트에만 쓴다', () {
+    final actual = countPerFile(
+      RegExp(r'EasySubwayFontWeight\.markGlyph\b'),
+      exclude: {'accessible_design.dart'},
+    );
+    expectRatchet(actual, {
+      // 11px 구간 막대 분 표시. 굵게 해도 큰 글자 기준을 못 받아 어느 굵기든 4.5:1이
+      // 필요하다(에픽 7-48의 기존 미달 행).
+      'lib/features/journey/presentation/result/journey_result_widgets.dart': 1,
+      // 노선도 배지. 캔버스에 직접 그려 대비 검사 밖에 있다.
+      'lib/features/network_map/presentation/structured_route_map_painter.dart':
+          1,
+    }, rule: 'markGlyph 허용 목록');
   });
 
   test('장식 Soft 틴트 ratchet — 상태 의미 없는 배경 틴트 제거', () {
@@ -515,12 +518,6 @@ void main() {
     const fixedHeightTextAllowlist = <String, String>{
       'lib/app/app_components.dart | AppInfoRow.build | SizedBox(width: 32, height: 32':
           'Icon 전용 32dp 리딩 박스로 Text를 포함하지 않음 (후속 Column 텍스트 정적 스캔 오탐)',
-      'lib/features/network_map/presentation/nearby_direction_columns.dart | NearbyPanelColumns._buildColumn | SizedBox(height: 46':
-          '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
-      'lib/features/network_map/presentation/nearby_direction_columns.dart | NearbyDataUnavailable.build | SizedBox(height: 46':
-          '- 한 글자는 2.0배(46dp) 및 3.0배에서도 46dp 안에 들어감',
-      'lib/features/network_map/presentation/nearby_timetable_panel.dart | _NearbyTimetableDepartureView.build | SizedBox(height: 46':
-          '운행 종료 텍스트(15sp)는 2.0배에서도 43dp로 46dp 안에 들어감',
     };
 
     final scan = scanFixedHeightTextBoxes(sources);

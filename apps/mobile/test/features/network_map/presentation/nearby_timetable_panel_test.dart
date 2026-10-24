@@ -4,14 +4,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  Widget subject({NearbyTimetablePanelData? data}) {
+  Widget subject({
+    NearbyTimetablePanelData? data,
+    bool loading = false,
+    String? leftName = '건대입구',
+    String? rightName = '한양대',
+  }) {
     return MaterialApp(
       home: Scaffold(
         body: NearbyTimetablePanel(
           data: data,
-          lineColor: Colors.green,
-          leftName: '건대입구',
-          rightName: '한양대',
+          loading: loading,
+          leftName: leftName,
+          rightName: rightName,
           now: DateTime(2026, 8, 12, 10),
           expressBadgeBuilder: () =>
               const SizedBox(key: Key('testExpressBadge')),
@@ -105,23 +110,43 @@ void main() {
     expect(find.text('노출 금지 방면'), findsNothing);
     expect(find.byKey(const Key('testExpressBadge')), findsOneWidget);
     expect(
-      find.bySemanticsLabel(
-        '성수, 10시 01분 출발, 성수, 급행, 10시 02분 출발, '
-        '왕십리, 10시 04분 출발, 왕십리, 00시 01분 출발',
-      ),
+      find.bySemanticsLabel('성수 방면, 성수, 10시 01분 출발, 성수, 급행, 10시 02분 출발'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('왕십리 방면, 왕십리, 10시 04분 출발, 왕십리, 00시 01분 출발'),
       findsOneWidget,
     );
   });
 
-  testWidgets('시간표가 없으면 인접역 기반 대시 skeleton을 유지한다', (tester) async {
+  testWidgets('시간표를 받는 중이면 정보 없음 대신 대시를 그리고 불러오는 중으로 읽는다', (tester) async {
+    await tester.pumpWidget(subject(loading: true));
+
+    expect(find.text('시간표 정보 없음'), findsNothing);
+    expect(find.text('-'), findsNWidgets(2));
+    expect(find.bySemanticsLabel('건대입구 방면, 불러오는 중'), findsOneWidget);
+    expect(find.bySemanticsLabel('한양대 방면, 불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('시간표를 받는 중이고 방면 슬롯이 없으면 카드 없이 대시만 그린다', (tester) async {
+    await tester.pumpWidget(
+      subject(loading: true, leftName: null, rightName: null),
+    );
+
+    expect(find.text('시간표 정보 없음'), findsNothing);
+    expect(find.text('-'), findsOneWidget);
+    expect(find.bySemanticsLabel('불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('시간표가 없으면 인접역 방면 카드에 시간표 정보 없음을 쓴다', (tester) async {
     await tester.pumpWidget(subject());
 
     expect(
       find.byKey(const Key('networkMapNearbyTimetableSkeleton')),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('건대입구 방면 정보 없음'), findsOneWidget);
-    expect(find.bySemanticsLabel('한양대 방면 정보 없음'), findsOneWidget);
+    expect(find.bySemanticsLabel('건대입구 방면, 시간표 정보 없음'), findsOneWidget);
+    expect(find.bySemanticsLabel('한양대 방면, 시간표 정보 없음'), findsOneWidget);
   });
 
   testWidgets('01:28 심야 시간대에 남은 심야 열차(01:30)만 표시하고 첫차(05:48)를 섞지 않는다', (
@@ -154,7 +179,6 @@ void main() {
                 ),
               ],
             ),
-            lineColor: Colors.blue,
             leftName: '반월',
             rightName: '한대앞',
             now: DateTime(2026, 9, 27, 1, 28), // 01:28
@@ -170,7 +194,7 @@ void main() {
     expect(find.text('첫차 05:48'), findsNothing);
   });
 
-  testWidgets('01:35 당일 심야 운행 종료 시 새벽 4시 전에는 첫차를 띄우지 않고 "운행 종료"를 표시한다', (
+  testWidgets('01:35 당일 심야 운행 종료 시 새벽 4시 전에는 첫차를 띄우지 않고 "운행종료"를 표시한다', (
     tester,
   ) async {
     await tester.pumpWidget(
@@ -200,7 +224,6 @@ void main() {
                 ),
               ],
             ),
-            lineColor: Colors.blue,
             leftName: '반월',
             rightName: '한대앞',
             now: DateTime(2026, 9, 27, 1, 35), // 01:35
@@ -210,12 +233,13 @@ void main() {
       ),
     );
 
-    // 운행 종료 후이므로 첫차(05:48)를 띄우지 않고 "운행 종료"가 표시되어야 함
-    expect(find.text('운행 종료'), findsOneWidget);
+    // 운행 종료 후이므로 첫차(05:48)를 띄우지 않고 "운행종료"가 표시되어야 함
+    expect(find.text('운행종료'), findsOneWidget);
     expect(find.text('첫차 05:48'), findsNothing);
     expect(find.text('05:48'), findsNothing);
     expect(find.text('01:30'), findsNothing);
-    expect(find.bySemanticsLabel('오이도 방면 운행 종료, 한대앞 방면 정보 없음'), findsOneWidget);
+    expect(find.bySemanticsLabel('오이도 방면, 운행종료'), findsOneWidget);
+    expect(find.bySemanticsLabel('한대앞 방면, 시간표 정보 없음'), findsOneWidget);
   });
 
   testWidgets('04:30 첫차 운행 개시 전 시간대에는 첫차(05:48)를 "첫차 05:48"로 명확히 표시한다', (
@@ -248,7 +272,6 @@ void main() {
                 ),
               ],
             ),
-            lineColor: Colors.blue,
             leftName: '반월',
             rightName: '한대앞',
             now: DateTime(2026, 9, 27, 4, 30), // 04:30
@@ -260,12 +283,10 @@ void main() {
 
     expect(find.text('첫차 05:48'), findsOneWidget);
     expect(find.text('06:00'), findsOneWidget);
-    expect(find.text('운행 종료'), findsNothing);
+    expect(find.text('운행종료'), findsNothing);
   });
 
-  testWidgets('23:50 당일 모든 열차 종료 시 익일 첫차를 띄우지 않고 "운행 종료"를 표시한다', (
-    tester,
-  ) async {
+  testWidgets('23:50 당일 모든 열차 종료 시 익일 첫차를 띄우지 않고 "운행종료"를 표시한다', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(
@@ -293,7 +314,6 @@ void main() {
                 ),
               ],
             ),
-            lineColor: Colors.blue,
             leftName: '반월',
             rightName: '한대앞',
             now: DateTime(2026, 9, 27, 23, 50), // 23:50
@@ -303,10 +323,11 @@ void main() {
       ),
     );
 
-    expect(find.text('운행 종료'), findsOneWidget);
+    expect(find.text('운행종료'), findsOneWidget);
     expect(find.text('첫차 05:48'), findsNothing);
     expect(find.text('05:48'), findsNothing);
-    expect(find.bySemanticsLabel('오이도 방면 운행 종료, 한대앞 방면 정보 없음'), findsOneWidget);
+    expect(find.bySemanticsLabel('오이도 방면, 운행종료'), findsOneWidget);
+    expect(find.bySemanticsLabel('한대앞 방면, 시간표 정보 없음'), findsOneWidget);
   });
 
   testWidgets('시간표 모드에서 Ticker가 돌아 1분이 지나면 이전 열차가 사라지고 다음 열차가 롤오버된다', (
@@ -347,7 +368,6 @@ void main() {
                 ),
               ],
             ),
-            lineColor: Colors.green,
             leftName: '건대입구',
             rightName: '한양대',
             now: DateTime(2026, 8, 12, 10, 0, 50),
@@ -359,11 +379,11 @@ void main() {
       ),
     );
 
-    // 최초: 10:01(10초 남음 -> 곧 도착), 10:03(2분 뒤 도착) 노출
+    // 최초: 10:01(10초 남음 -> 곧 도착), 10:03(2분) 노출
     expect(find.text('10:01'), findsOneWidget);
     expect(find.text('곧 도착'), findsOneWidget);
     expect(find.text('10:03'), findsOneWidget);
-    expect(find.text('2분 뒤 도착'), findsOneWidget);
+    expect(find.text('2분'), findsOneWidget);
     expect(find.text('10:05'), findsNothing);
 
     // 15초 경과 (10:01:05) -> Ticker 3회 틱 실행
@@ -372,78 +392,71 @@ void main() {
     // 롤오버: 10:01 열차는 지나가서 사라지고, 다음 열차 10:03과 10:05가 노출되며 카운트다운 갱신
     expect(find.text('10:01'), findsNothing);
     expect(find.text('10:03'), findsOneWidget);
-    expect(find.text('2분 뒤 도착'), findsOneWidget);
+    expect(find.text('2분'), findsOneWidget);
     expect(find.text('10:05'), findsOneWidget);
-    expect(find.text('4분 뒤 도착'), findsOneWidget);
+    expect(find.text('4분'), findsOneWidget);
 
     // 위젯 unmount 시 타이머 정상 해제
     await tester.pumpWidget(const SizedBox());
     expect(tester.hasRunningAnimations, isFalse);
   });
 
-  testWidgets(
-    '도착 임박 상태 강조: 행선지 선두 배치, 빨간글씨 곧 도착, 띄어쓰기 1분 뒤 도착, 중앙점 및 정적 시각 금지',
-    (tester) async {
-      await tester.pumpWidget(
-        MaterialApp(
-          home: Scaffold(
-            body: NearbyTimetablePanel(
-              data: const NearbyTimetablePanelData(
-                directions: [
-                  NearbyTimetableDirectionData(
-                    name: '오이도 방면',
-                    departures: [
-                      NearbyTimetableDepartureData(
-                        directionName: '오이도 방면',
-                        destination: '오이도',
-                        seconds: 36030, // 30초 남음 -> 곧 도착
-                        timeLabel: '10:00',
-                        semanticLabel: '오이도, 10시 00분 출발',
-                        isExpress: false,
-                      ),
-                      NearbyTimetableDepartureData(
-                        directionName: '오이도 방면',
-                        destination: '오이도',
-                        seconds: 36080, // 80초 남음 -> 1분 뒤 도착
-                        timeLabel: '10:01',
-                        semanticLabel: '오이도, 10시 01분 출발',
-                        isExpress: false,
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-              lineColor: Colors.blue,
-              leftName: '반월',
-              rightName: '한대앞',
-              now: DateTime(2026, 8, 12, 10, 0, 0),
-              expressBadgeBuilder: () => const SizedBox(),
+  testWidgets('행선지 선두 배치, 남은 시간 빨강 강조, 중앙점 및 정적 시각 금지', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NearbyTimetablePanel(
+            data: const NearbyTimetablePanelData(
+              directions: [
+                NearbyTimetableDirectionData(
+                  name: '오이도 방면',
+                  departures: [
+                    NearbyTimetableDepartureData(
+                      directionName: '오이도 방면',
+                      destination: '오이도',
+                      seconds: 36030, // 30초 남음 -> 곧 도착
+                      timeLabel: '10:00',
+                      semanticLabel: '오이도, 10시 00분 출발',
+                      isExpress: false,
+                    ),
+                    NearbyTimetableDepartureData(
+                      directionName: '오이도 방면',
+                      destination: '오이도',
+                      seconds: 36080, // 80초 남음 -> 1분
+                      timeLabel: '10:01',
+                      semanticLabel: '오이도, 10시 01분 출발',
+                      isExpress: false,
+                    ),
+                  ],
+                ),
+              ],
             ),
+            leftName: '반월',
+            rightName: '한대앞',
+            now: DateTime(2026, 8, 12, 10, 0, 0),
+            expressBadgeBuilder: () => const SizedBox(),
           ),
         ),
-      );
+      ),
+    );
 
-      // 행선지 '오이도행'이 선두에 배치됨
-      expect(find.text('오이도행'), findsNWidgets(2));
+    // 행선지 '오이도'가 선두에 배치됨
+    expect(find.text('오이도'), findsNWidgets(2));
 
-      // 60초 미만은 빨간색 강조 굵기 statusDanger '곧 도착'
-      expect(find.text('곧 도착'), findsOneWidget);
-      final soonText = tester.widget<Text>(find.text('곧 도착'));
-      expect(soonText.style?.color, EasySubwayColorPrimitives.statusDanger);
-      expect(soonText.style?.fontWeight, EasySubwayFontWeight.emphasis);
+    // 남은 시간은 상용 지하철 서비스처럼 모두 빨강 강조다.
+    expect(find.text('곧 도착'), findsOneWidget);
+    expect(find.text('1분'), findsOneWidget);
+    for (final eta in ['곧 도착', '1분']) {
+      final text = tester.widget<Text>(find.text(eta));
+      expect(text.style?.color, EasySubwayAccessibleColors.statusDestructive);
+      expect(text.style?.fontWeight, EasySubwayFontWeight.emphasis);
+    }
 
-      // 1분은 띄어쓰기를 철저히 준수한 '1분 뒤 도착' (1~3분 뒤 도착은 amber 강조 굵기로 탑승 임박 강조)
-      expect(find.text('1분 뒤 도착'), findsOneWidget);
-      final oneMinText = tester.widget<Text>(find.text('1분 뒤 도착'));
-      expect(oneMinText.style?.color, EasySubwayAccessibleColors.amber);
-      expect(oneMinText.style?.fontWeight, EasySubwayFontWeight.emphasis);
-
-      // 중앙점(·, .)이나 불필요한 정적 시각(10:00, 10:01) 절대 노출 금지
-      expect(find.textContaining('·'), findsNothing);
-      expect(find.text('10:00'), findsNothing);
-      expect(find.text('10:01'), findsNothing);
-    },
-  );
+    // 중앙점(·, .)이나 불필요한 정적 시각(10:00, 10:01) 절대 노출 금지
+    expect(find.textContaining('·'), findsNothing);
+    expect(find.text('10:00'), findsNothing);
+    expect(find.text('10:01'), findsNothing);
+  });
 
   testWidgets(
     'NearbyTimetablePanel은 앱 라이프사이클 paused/resumed 및 didUpdateWidget을 정상 처리한다',
@@ -471,7 +484,6 @@ void main() {
           home: Scaffold(
             body: NearbyTimetablePanel(
               data: data,
-              lineColor: Colors.blue,
               leftName: '반월',
               rightName: '한대앞',
               now: DateTime(2026, 8, 12, 10, 0, 0),
@@ -500,7 +512,6 @@ void main() {
           home: Scaffold(
             body: NearbyTimetablePanel(
               data: data,
-              lineColor: Colors.blue,
               leftName: '반월',
               rightName: '한대앞',
               now: DateTime(2026, 8, 12, 10, 0, 10),
@@ -518,7 +529,6 @@ void main() {
           home: Scaffold(
             body: NearbyTimetablePanel(
               data: data,
-              lineColor: Colors.blue,
               leftName: '반월',
               rightName: '한대앞',
               now: DateTime(2026, 8, 12, 10, 0, 10),

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
+import '../core/format/date_time_labels.dart';
 import '../core/ui/line_mark.dart';
 import '../features/network_map/application/network_map_nearby_panel_state.dart';
 import '../features/network_map/domain/nearby_adjacent_stations.dart';
 import '../features/network_map/presentation/nearby_arrival_panel.dart';
+import '../features/network_map/presentation/nearby_panel_control_row.dart';
 import '../features/network_map/presentation/nearby_station_line_bar.dart';
 import '../features/network_map/presentation/network_map_nearby_panel_content.dart';
 import '../features/network_map/presentation/nearby_timetable_panel.dart';
@@ -50,9 +52,13 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
   required NetworkMapNearbyPanelDataSource dataSource,
   required StationTimetable? timetable,
   required NearbyAdjacentStations adjacentStations,
+  bool timetableLoading = false,
   VoidCallback? onOpenStationDetail,
   ValueChanged<StationDetailNeighbor>? onSelectNeighbor,
-  VoidCallback? onSelectTimetable,
+  VoidCallback? onOpenTimetable,
+  Widget dataSourceToggle = const SizedBox.shrink(),
+  void Function(StationSearchResult station, StationSearchLine line)?
+  onRefreshRealtime,
   DateTime? now,
 }) {
   final primary = results.first;
@@ -63,7 +69,17 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
     adjacentStations.previousNeighbor,
   );
   final next = networkMapStationDetailNeighbor(adjacentStations.nextNeighbor);
+  final isRealtime = dataSource == NetworkMapNearbyPanelDataSource.realtime;
   return (
+    controlRow: NearbyPanelControlRow(
+      toggle: dataSourceToggle,
+      receivedAtLabel: isRealtime ? _receivedAtLabel(realtime) : null,
+      onRefresh: _refreshAction(
+        isRealtime ? onRefreshRealtime : null,
+        primary,
+        selectedLine,
+      ),
+    ),
     stationBar: NearbyStationLineBar(
       leftName: adjacentStations.leftName,
       rightName: adjacentStations.rightName,
@@ -86,15 +102,16 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
           ? null
           : () => selectNeighbor(next),
     ),
-    dataPanel: dataSource == NetworkMapNearbyPanelDataSource.realtime
+    dataPanel: isRealtime
         ? NearbyArrivalPanel(
             data: NearbyArrivalPanelData(
               status: switch (realtime.status) {
+                RealtimeSnapshotStatus.loading =>
+                  NearbyArrivalPanelStatus.loading,
                 RealtimeSnapshotStatus.fresh => NearbyArrivalPanelStatus.fresh,
                 RealtimeSnapshotStatus.stale => NearbyArrivalPanelStatus.stale,
                 _ => NearbyArrivalPanelStatus.unavailable,
               },
-              receivedAt: realtime.receivedAt,
               arrivals: [
                 for (final arrival in realtime.arrivals)
                   NearbyArrivalData(
@@ -106,21 +123,46 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
                   ),
               ],
             ),
-            lineColor: lineColor,
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
-            onSelectTimetable: onSelectTimetable,
+            onOpenDirection: onOpenTimetable,
             now: now,
           )
         : NearbyTimetablePanel(
             data: _networkMapNearbyTimetablePanelData(timetable),
-            lineColor: lineColor,
+            loading: timetableLoading,
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
             expressBadgeBuilder: () => const ServicePatternBadge.express(),
+            onOpenDirection: onOpenTimetable,
             now: now,
           ),
   );
+}
+
+/// 실시간 줄의 새로고침. 다시 받을 노선이 있을 때만 버튼을 둔다.
+VoidCallback? _refreshAction(
+  void Function(StationSearchResult station, StationSearchLine line)? refresh,
+  StationSearchResult station,
+  StationSearchLine? line,
+) {
+  if (refresh == null || line == null) {
+    return null;
+  }
+  return () => refresh(station, line);
+}
+
+/// 실시간을 받은 시각. 받은 실시간이 없거나 시각을 해석할 수 없으면 null이라 줄에서 빠진다.
+({String visible, String spoken})? _receivedAtLabel(RealtimeSnapshot realtime) {
+  final received =
+      realtime.status == RealtimeSnapshotStatus.fresh ||
+          realtime.status == RealtimeSnapshotStatus.stale
+      ? parseServerDateTime(realtime.receivedAt.trim())
+      : null;
+  if (received == null) {
+    return null;
+  }
+  return (visible: kstClock(received), spoken: kstSpokenClock(received));
 }
 
 Color _networkMapNearbySelectedLineColor(StationSearchLine? line) {

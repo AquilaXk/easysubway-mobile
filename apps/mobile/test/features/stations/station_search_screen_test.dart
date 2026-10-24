@@ -560,10 +560,12 @@ void main() {
         find.byKey(const Key('stationRecentSearchQuery-상록수')),
         findsOneWidget,
       );
-      expect(find.bySemanticsLabel('최근 검색어 상록수 검색'), findsOneWidget);
+      // 검색한 날짜도 함께 읽는다(`최근 검색어 상록수 검색, 10월 24일 검색`).
+      final recentLabel = RegExp(r'^최근 검색어 상록수 검색, .+ 검색$');
+      expect(find.bySemanticsLabel(recentLabel), findsOneWidget);
       expect(
         tester
-            .getSemantics(find.bySemanticsLabel('최근 검색어 상록수 검색'))
+            .getSemantics(find.bySemanticsLabel(recentLabel))
             .getSemanticsData()
             .hasAction(SemanticsAction.tap),
         isTrue,

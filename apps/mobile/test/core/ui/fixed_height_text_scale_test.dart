@@ -4,8 +4,6 @@ import 'package:easysubway_mobile/features/journey/domain/journey_profile_models
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
 import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_columns.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/nearby_timetable_panel.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/application/station_detail_controller.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
@@ -270,93 +268,6 @@ class _BadgeRepository implements JourneyRepository {
 
 void main() {
   group('후보 10곳 큰 글자(2.0배) 고정 높이 텍스트 잘림 측정', () {
-    testWidgets('1. nearby_timetable_panel: 운행 종료', (tester) async {
-      await pumpAtScale(
-        tester,
-        NearbyTimetablePanel(
-          data: const NearbyTimetablePanelData(
-            directions: [
-              NearbyTimetableDirectionData(
-                name: '오이도',
-                departures: [
-                  NearbyTimetableDepartureData(
-                    directionName: '오이도',
-                    seconds: 20880,
-                    timeLabel: '05:48',
-                    semanticLabel: '오이도, 05시 48분 출발',
-                    isExpress: false,
-                  ),
-                  NearbyTimetableDepartureData(
-                    directionName: '오이도',
-                    seconds: 84600,
-                    timeLabel: '23:30',
-                    semanticLabel: '오이도, 23시 30분 출발',
-                    isExpress: false,
-                  ),
-                ],
-              ),
-            ],
-          ),
-          lineColor: Colors.blue,
-          leftName: '반월',
-          rightName: '한대앞',
-          now: DateTime(2026, 9, 27, 23, 50),
-          expressBadgeBuilder: () => const SizedBox(),
-        ),
-      );
-
-      final textFinder = find.text('운행 종료');
-      expect(textFinder, findsOneWidget);
-      final boxFinder = find.ancestor(
-        of: textFinder,
-        matching: find.byWidgetPredicate(
-          (w) => w is SizedBox && w.height == 46,
-        ),
-      );
-      final boxHeight = tester.getSize(boxFinder.first).height;
-      expectTextFits(tester, textFinder, boxHeight: boxHeight);
-    });
-
-    testWidgets('2. nearby_direction_columns: 데이터 없는 열 대시(-)', (tester) async {
-      await pumpAtScale(
-        tester,
-        const NearbyPanelColumns(
-          columns: [NearbyPanelColumn(title: '건대입구 방면')],
-          lineColor: Colors.blue,
-        ),
-      );
-
-      final textFinder = find.text('-');
-      expect(textFinder, findsOneWidget);
-      final boxFinder = find.ancestor(
-        of: textFinder,
-        matching: find.byWidgetPredicate(
-          (w) => w is SizedBox && w.height == 46,
-        ),
-      );
-      final boxHeight = tester.getSize(boxFinder.first).height;
-      expectTextFits(tester, textFinder, boxHeight: boxHeight);
-    });
-
-    testWidgets('3. nearby_direction_columns: standalone no-data 대시(-)', (
-      tester,
-    ) async {
-      await pumpAtScale(tester, const NearbyDataUnavailable());
-
-      final textFinder = find.byKey(
-        const Key('networkMapNearbyDataUnavailable'),
-      );
-      expect(textFinder, findsOneWidget);
-      final boxFinder = find.ancestor(
-        of: textFinder,
-        matching: find.byWidgetPredicate(
-          (w) => w is SizedBox && w.height == 46,
-        ),
-      );
-      final boxHeight = tester.getSize(boxFinder.first).height;
-      expectTextFits(tester, textFinder, boxHeight: boxHeight);
-    });
-
     testWidgets('6. station_detail_body: [출발] 버튼 Container(height: 48)', (
       tester,
     ) async {

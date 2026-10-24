@@ -21,8 +21,7 @@ import 'support/rendered_typography.dart';
 /// 같은 코드에서도 macOS와 Linux 결과가 갈린다. 테스트 기본 폰트(Ahem)는 글자가
 /// 단색 사각형이라 색 추정이 플랫폼과 무관하게 같다.
 ///
-/// 팬 메뉴의 글자는 CustomPaint로 그려져 `textContrastGuideline`이 볼 수 없다.
-/// 팬 메뉴 역할색의 글자 대비는 `design_tokens_test`가 단언한다.
+/// 역 말풍선의 글자와 핀 색 대비는 `design_tokens_test`도 단언한다.
 ///
 /// 한계: 이 테스트는 기기 시스템 서체의 글자 대비와 오버플로를 검증하지
 /// 않는다. Ahem은 글자 폭이 달라 1.5배 줄바꿈과 넘침도 근사치다. 실제 폰트의

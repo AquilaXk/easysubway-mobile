@@ -3,7 +3,7 @@ import 'package:easysubway_mobile/features/network_map/data/network_map_owner_no
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/station_popover_menu.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
@@ -213,7 +213,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      tester.widget<StationFanMenu>(find.byType(StationFanMenu)).onAction(slot);
+      tester
+          .widget<StationPopoverMenu>(find.byType(StationPopoverMenu))
+          .onAction(slot);
       await tester.pump();
 
       expect(waypointClears, slot == RouteDraftSlot.waypoint ? 1 : 0);

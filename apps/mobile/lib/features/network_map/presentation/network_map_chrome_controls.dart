@@ -71,6 +71,34 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
     }
   }
 
+  // design_tokens의 간격(lg 16, sm 8)과 같은 값. 이 파일은 경로 역할색을 품은
+  // design_tokens를 직접 가져오지 않는다(network_map_chrome_controls_test).
+  static const _floatingControlGap = 16.0;
+  static const _toastGap = 8.0;
+
+  /// 접힌 시트 위에 쌓는 안내 토스트와 현재 위치 버튼.
+  List<Widget> _floatingControls() {
+    final message = widget.nearbyLookupMessage;
+    return [
+      if (message != null) ...[
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: NetworkMapLookupToast(message: message),
+        ),
+        const SizedBox(height: _toastGap),
+      ],
+      Align(
+        alignment: Alignment.centerRight,
+        child: Padding(
+          padding: const EdgeInsets.only(right: 20),
+          child: NetworkMapCurrentLocationButton(
+            onTap: widget.onCurrentLocationTap,
+          ),
+        ),
+      ),
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
     debugNetworkMapChromeBuildCount++;
@@ -127,21 +155,33 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
             right: 0,
             top: widget.nearbyPanelExpanded ? 0 : null,
             bottom: 0,
-            child: widget.nearbyPanel,
+            // 접힌 시트는 높이가 방면 카드·글자 배율에 따라 달라, 현재 위치 버튼과
+            // 안내 토스트를 고정 오프셋 대신 같은 열에서 시트 바로 위에 쌓는다.
+            child: widget.nearbyPanelExpanded
+                ? widget.nearbyPanel
+                : Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ..._floatingControls(),
+                      const SizedBox(height: _floatingControlGap),
+                      widget.nearbyPanel,
+                    ],
+                  ),
           ),
-        if (widget.nearbyLookupMessage != null &&
-            !inSearchMode &&
-            !widget.nearbyPanelExpanded)
+        if (!widget.nearbyPanelVisible &&
+            widget.nearbyLookupMessage != null &&
+            !inSearchMode)
           Positioned(
             left: 24,
             right: 24,
-            bottom: widget.nearbyPanelVisible ? 318 : 132,
+            bottom: 132,
             child: NetworkMapLookupToast(message: widget.nearbyLookupMessage!),
           ),
-        if (!inSearchMode && !widget.nearbyPanelExpanded)
+        if (!widget.nearbyPanelVisible && !inSearchMode)
           Positioned(
             right: 20,
-            bottom: widget.nearbyPanelVisible ? 280 : 32,
+            bottom: 32,
             child: NetworkMapCurrentLocationButton(
               onTap: widget.onCurrentLocationTap,
             ),

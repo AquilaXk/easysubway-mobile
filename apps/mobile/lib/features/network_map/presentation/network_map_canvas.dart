@@ -28,10 +28,14 @@ import 'network_map_overlay_inset.dart';
 import 'network_map_unavailable_states.dart';
 import 'route_map_basemap_view.dart';
 import 'route_map_owner_label_bounds.dart';
-import 'station_fan_menu.dart';
+import 'station_popover_menu.dart';
 import 'station_fan_menu_policy.dart';
 import 'station_hit_target.dart';
 import 'structured_route_map_painter.dart';
+
+/// 역 말풍선이 가리키는 [station]에서 할 동작. 줄 수 없으면 null이다.
+typedef StationPopoverActionFor =
+    VoidCallback? Function(NetworkMapStation station);
 
 class NetworkMapCanvas extends StatefulWidget {
   const NetworkMapCanvas({
@@ -51,6 +55,8 @@ class NetworkMapCanvas extends StatefulWidget {
     required this.onViewportChanged,
     required this.onSelectionDismissed,
     required this.onStationTapped,
+    this.realtimeActionFor,
+    this.timetableActionFor,
     this.originStationId,
     this.waypointStationId,
     this.destinationStationId,
@@ -72,22 +78,28 @@ class NetworkMapCanvas extends StatefulWidget {
   final ValueChanged<NetworkMapStation> onSetWaypoint;
   final ValueChanged<NetworkMapStation> onSetDestination;
 
-  /// #2109: 팬 메뉴에서 이미 지정된 슬롯을 재탭하면 해당 슬롯을 비운다. clear는
+  /// #2109: 역 말풍선에서 이미 지정된 슬롯을 재탭하면 해당 슬롯을 비운다. clear는
   /// 슬롯 단위라 역 인자가 불필요(컨트롤러가 슬롯을 비운다).
   final VoidCallback onClearOrigin;
   final VoidCallback onClearWaypoint;
   final VoidCallback onClearDestination;
   final ValueChanged<Rect> onViewportChanged;
 
-  /// #2109 팬 메뉴가 부모(검색 결과 탭 등)에서 [selectedStationId]로 열린 경우,
+  /// #2109 역 말풍선이 부모(검색 결과 탭 등)에서 [selectedStationId]로 열린 경우,
   /// 메뉴가 닫힐 때(액션 선택·닫기·배경 탭) 부모의 선택 상태도 비워야 한다.
   /// 내부 [_selectedStation]만 null로 두면 prop이 다시 메뉴를 띄운다.
   final VoidCallback onSelectionDismissed;
 
-  /// #2200 캔버스에서 역 노드를 탭하면(팬 메뉴 표시와 동시에) 부모가 그 역을
+  /// #2200 캔버스에서 역 노드를 탭하면(역 말풍선 표시와 동시에) 부모가 그 역을
   /// 해석해 하단 역 정보 패널을 함께 열도록 통지한다. 검색·focus 채널로 열린
-  /// 팬 메뉴([selectedStationId] prop 경로)는 이 콜백을 태우지 않는다.
+  /// 역 말풍선([selectedStationId] prop 경로)는 이 콜백을 태우지 않는다.
   final ValueChanged<NetworkMapStation> onStationTapped;
+
+  /// 역 말풍선 아랫줄의 실시간·전체 시간표. 말풍선이 가리키는 역마다 부모에게 묻고,
+  /// 부모가 그 역의 하단 패널을 열어 둔 동안만 동작을 돌려준다. null이면 그 칸을
+  /// 그리지 않는다.
+  final StationPopoverActionFor? realtimeActionFor;
+  final StationPopoverActionFor? timetableActionFor;
 
   @override
   State<NetworkMapCanvas> createState() => _NetworkMapCanvasState();
@@ -124,7 +136,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   (String, bool)? _cameraFocusedStationKey;
   MapCameraState? _gestureStartCamera;
   Offset? _gestureStartFocalPoint;
-  // 상단 오버레이(상단바·알림 바)에 가려지는 지도 위쪽 높이. 핀과 팬 메뉴는 이 아래에
+  // 상단 오버레이(상단바·알림 바)에 가려지는 지도 위쪽 높이. 핀과 역 말풍선은 이 아래에
   // 둔다. 측정 전에는 0이다.
   NetworkMapTopInset _topInset = const NetworkMapTopInsetUnmeasured();
 
@@ -146,7 +158,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   Map<String, Color>? _structuredLineColorsCache;
   Map<String, String>? _structuredLabelTextCache;
   Map<String, String>? _structuredLineBadgeLabelCache;
-  // 팬 메뉴 환승 앵커(#2192): 렌더 캡슐 중심 유도에 쓰는 파생값. structured 캐시와
+  // 역 말풍선 환승 앵커(#2192): 렌더 캡슐 중심 유도에 쓰는 파생값. structured 캐시와
   // 같은 키로 무효화한다. designScale은 렌더러 모드 판정과 동일 값이어야 한다.
   double? _structuredDesignScaleCache;
   Map<String, RouteMapTransferGroup>? _structuredTransferGroupCache;
@@ -305,7 +317,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     // 자동 패닝은 사용자가 방금 지정한 대상에만 한다.
     // - 줄어드는 변화는 되돌리지 않는다(패닝이 한쪽으로 쌓이지 않는다).
     // - 커지는 변화는 마지막 지정 뒤 사용자가 지도를 움직이지 않았을 때만, 마지막 지정
-    //   핀과 열린 팬 메뉴를 기준으로 패닝한다. 팬 메뉴는 제스처가 시작되면 닫히므로
+    //   핀과 열린 역 말풍선을 기준으로 패닝한다. 역 말풍선은 제스처가 시작되면 닫히므로
     //   열려 있다면 사용자가 움직이지 않은 것이다.
     // - 저장된 viewport를 복원해 처음 열릴 때는 지정한 대상이 없고(핀은 didUpdateWidget의
     //   변화로만 지정으로 친다) 첫 측정(0에서 늘어남)도 움직일 대상이 없어 패닝하지 않는다.
@@ -321,7 +333,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   }
 
   /// #2109 Fix: 검색 채널(인플레이스 `_focusStationFromSearch` + 풀페이지
-  /// `focusStationRequestId` 소비)로 팬 메뉴가 [selectedStationId] prop을 통해
+  /// `focusStationRequestId` 소비)로 역 말풍선이 [selectedStationId] prop을 통해
   /// 열릴 때도, 지도 탭(`_selectStation`)과 동일하게 화면 경계에서 메뉴가 잘리면
   /// 카메라를 최소 패닝해 전부 노출한다. prop이 null→역 id로 전이하는 순간을
   /// 감지해 카메라 focus가 확정되는 다음 프레임에 패닝을 예약한다.
@@ -347,7 +359,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         final data = _alignedData(widget.data);
         final station = networkMapStationById(data.stations, selectedId);
         if (station != null) {
-          _panCameraToRevealFanMenu(station);
+          _panCameraToRevealStationPopover(station);
         }
       });
     }
@@ -606,15 +618,18 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                       onTap: () => _selectStation(station),
                     ),
                   ),
-              // 드래프트 핀은 줌/팬 중에도 유지한다(역 hit·팬 메뉴와 달리 상태
+              // 드래프트 핀은 줌/팬 중에도 유지한다(역 hit·역 말풍선과 달리 상태
               // 표시). Positioned는 Stack 직접 자식이어야 하므로, 제스처 중
               // 포인터 통과는 핀 위젯 내부 IgnorePointer로 처리한다.
               if (originStation != null)
                 NetworkMapDraftPin(
                   key: const Key('networkMapDraftPin-origin'),
                   station: originStation,
-                  // 환승역은 캡슐 중심, 일반역은 노드 중심(팬 메뉴와 동일 앵커).
-                  anchorSource: _fanMenuAnchorSource(originStation, geometry),
+                  // 환승역은 캡슐 중심, 일반역은 노드 중심(역 말풍선과 동일 앵커).
+                  anchorSource: _stationPopoverAnchorSource(
+                    originStation,
+                    geometry,
+                  ),
                   camera: camera,
                   label: '출발',
                   role: EasySubwayFanMenuColors.departureRole,
@@ -627,7 +642,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                 NetworkMapDraftPin(
                   key: const Key('networkMapDraftPin-waypoint'),
                   station: waypointStation,
-                  anchorSource: _fanMenuAnchorSource(waypointStation, geometry),
+                  anchorSource: _stationPopoverAnchorSource(
+                    waypointStation,
+                    geometry,
+                  ),
                   camera: camera,
                   label: '경유',
                   role: EasySubwayFanMenuColors.waypointRole,
@@ -640,7 +658,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                 NetworkMapDraftPin(
                   key: const Key('networkMapDraftPin-destination'),
                   station: destinationStation,
-                  anchorSource: _fanMenuAnchorSource(
+                  anchorSource: _stationPopoverAnchorSource(
                     destinationStation,
                     geometry,
                   ),
@@ -658,11 +676,14 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                 Builder(
                   builder: (context) {
                     final stationPoint = camera.sourceToViewportPoint(
-                      _fanMenuTailAnchorSource(selectedStation, geometry),
+                      _stationPopoverTailAnchorSource(
+                        selectedStation,
+                        geometry,
+                      ),
                     );
-                    // #2109: 배치 규칙은 fanMenuPlacement 단일 함수가 소유한다
-                    // (카메라 최소 패닝 _panCameraToRevealFanMenu와 동일 규칙 소비).
-                    final placement = fanMenuPlacement(
+                    // #2109: 배치 규칙은 stationPopoverPlacement 단일 함수가 소유한다
+                    // (카메라 최소 패닝 _panCameraToRevealStationPopover와 동일 규칙 소비).
+                    final placement = stationPopoverPlacement(
                       stationPoint: stationPoint,
                       viewport: Size(
                         constraints.maxWidth,
@@ -674,7 +695,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                     final left = placement.left;
                     final menuWidth = placement.menuWidth;
                     final top = placement.top;
-                    final selectedSlots = fanMenuSelectedSlots(
+                    final selectedSlots = stationPopoverSelectedSlots(
                       stationId: selectedStation.id,
                       originStationId: widget.originStationId,
                       waypointStationId: widget.waypointStationId,
@@ -685,18 +706,18 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                       left: left,
                       top: top,
                       width: menuWidth,
-                      child: StationFanMenu(
+                      child: StationPopoverMenu(
                         width: menuWidth,
                         stationName: selectedStation.displayName,
                         selectedSlots: selectedSlots,
-                        disabledSlots: fanMenuDisabledSlots(
+                        disabledSlots: stationPopoverDisabledSlots(
                           stationId: selectedStation.id,
                           originStationId: widget.originStationId,
                           waypointStationId: widget.waypointStationId,
                           destinationStationId: widget.destinationStationId,
                         ),
                         onAction: (slot) {
-                          if (fanMenuShouldClear(slot, selectedSlots)) {
+                          if (stationPopoverShouldClear(slot, selectedSlots)) {
                             // 재탭 → 해당 슬롯 해제.
                             switch (slot) {
                               case RouteDraftSlot.origin:
@@ -719,6 +740,12 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                           _dismissSelection();
                         },
                         onClose: _dismissSelection,
+                        onRealtime: _dismissingAfter(
+                          widget.realtimeActionFor?.call(selectedStation),
+                        ),
+                        onTimetable: _dismissingAfter(
+                          widget.timetableActionFor?.call(selectedStation),
+                        ),
                       ),
                     );
                   },
@@ -730,7 +757,18 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     );
   }
 
-  /// 팬 메뉴가 열려 있는 역. 지도에서 직접 고른 역이 부모가 지정한 역보다 우선한다.
+  /// 말풍선 칸을 누르면 동작을 부른 뒤 말풍선을 닫는다(출발·경유·도착과 같다).
+  VoidCallback? _dismissingAfter(VoidCallback? action) {
+    if (action == null) {
+      return null;
+    }
+    return () {
+      action();
+      _dismissSelection();
+    };
+  }
+
+  /// 역 말풍선이 열려 있는 역. 지도에서 직접 고른 역이 부모가 지정한 역보다 우선한다.
   NetworkMapStation? _selectedStationIn(NetworkMapData data) =>
       networkMapStationByIdentity(data.stations, _selectedStation) ??
       networkMapStationById(data.stations, widget.selectedStationId);
@@ -911,7 +949,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     _selectStation(station);
   }
 
-  /// 팬 메뉴를 닫는다: 내부 선택과 함께, prop([selectedStationId])으로 열린
+  /// 역 말풍선을 닫는다: 내부 선택과 함께, prop([selectedStationId])으로 열린
   /// 경우 부모 선택 상태도 비우도록 알린다(그렇지 않으면 prop이 다시 띄운다).
   void _clearSelectionAndNotify() {
     _selectedStation = null;
@@ -922,20 +960,20 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
 
   void _selectStation(NetworkMapStation station) {
     setState(() => _selectedStation = station);
-    // #2200: 캔버스 역 탭은 팬 메뉴와 함께 하단 역 정보 패널도 열도록 부모에
+    // #2200: 캔버스 역 탭은 역 말풍선과 함께 하단 역 정보 패널도 열도록 부모에
     // 통지한다(부모가 역을 StationSearchResult로 해석해 패널을 연다).
     widget.onStationTapped(station);
-    // #2109: 화면 경계에서 팬 메뉴가 잘리면 카메라를 최소 거리만 패닝해 전체
+    // #2109: 화면 경계에서 역 말풍선이 잘리면 카메라를 최소 거리만 패닝해 전체
     // 노출한다. 다음 프레임(레이아웃 확정 후) 뷰포트 대비 메뉴 bbox를 계산한다.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _selectedStation?.id != station.id) {
         return;
       }
-      _panCameraToRevealFanMenu(station);
+      _panCameraToRevealStationPopover(station);
     });
   }
 
-  void _panCameraToRevealFanMenu(NetworkMapStation station) {
+  void _panCameraToRevealStationPopover(NetworkMapStation station) {
     final camera = _pendingCamera ?? _camera;
     if (camera == null) {
       return;
@@ -945,22 +983,22 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     final alignedStation =
         networkMapStationById(data.stations, station.id) ?? station;
     final stationPoint = camera.sourceToViewportPoint(
-      _fanMenuTailAnchorSource(alignedStation, geometry),
+      _stationPopoverTailAnchorSource(alignedStation, geometry),
     );
-    const margin = kFanMenuViewportMargin;
-    // #2109: 배치 bbox는 build와 동일하게 fanMenuPlacement가 계산한다
+    const margin = kStationPopoverViewportMargin;
+    // #2109: 배치 bbox는 build와 동일하게 stationPopoverPlacement가 계산한다
     // (규칙 중복 제거 — 한쪽만 바뀌어 패닝 bbox와 렌더 위치가 어긋나는 것 방지).
     // 패닝은 같은 viewport의 클램프 없는 이상적 배치로 최대한 노출을 시도하고,
     // 패닝이 .clamped() 한계로 다 못 드러내는 잔여는 build 경로의 viewport 클램프
     // 폴백이 처리한다.
-    final placement = fanMenuPlacement(
+    final placement = stationPopoverPlacement(
       stationPoint: stationPoint,
       viewport: camera.viewportSize,
       clampPosition: false,
       topInset: _obscuredTop,
     );
     final menuRect = placement.revealBounds;
-    final revealOffset = fanMenuRevealOffset(
+    final revealOffset = stationPopoverRevealOffset(
       menuRect: menuRect,
       viewport: camera.viewportSize,
       topInset: _obscuredTop,
@@ -1012,7 +1050,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           ? _selectedStationIn(_alignedData(widget.data))
           : null;
       if (menuStation != null) {
-        _panCameraToRevealFanMenu(menuStation);
+        _panCameraToRevealStationPopover(menuStation);
       }
     });
   }
@@ -1035,7 +1073,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         if (currentPinIds.contains(id))
           if (networkMapStationById(data.stations, id) case final station?)
             camera.sourceToViewportPoint(
-              _fanMenuAnchorSource(station, geometry),
+              _stationPopoverAnchorSource(station, geometry),
             ),
     ];
     final revealDy = networkMapRevealOffsetBelowObscuredTop(
@@ -1127,21 +1165,21 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     };
   }
 
-  /// 팬 메뉴 꼬리 팁이 닿을 앵커의 source 좌표(#2068 QA). 노드 바닥에서
-  /// 노드 높이의 2/3만큼 위, 즉 ([_fanMenuAnchorSource])에서 높이의 1/6만큼
+  /// 역 말풍선 꼬리 팁이 닿을 앵커의 source 좌표(#2068 QA). 노드 바닥에서
+  /// 노드 높이의 2/3만큼 위, 즉 ([_stationPopoverAnchorSource])에서 높이의 1/6만큼
   /// 위로 올라간 지점이다.
-  /// build(렌더)와 [_panCameraToRevealFanMenu](카메라)가 같은 앵커를 소비하도록
-  /// 단일 헬퍼로 둔다. **팬 메뉴 전용** — 드래프트 핀은 이동 없이
-  /// [_fanMenuAnchorSource](정중앙)를 그대로 쓴다.
-  Offset _fanMenuTailAnchorSource(
+  /// build(렌더)와 [_panCameraToRevealStationPopover](카메라)가 같은 앵커를 소비하도록
+  /// 단일 헬퍼로 둔다. **역 말풍선 전용** — 드래프트 핀은 이동 없이
+  /// [_stationPopoverAnchorSource](정중앙)를 그대로 쓴다.
+  Offset _stationPopoverTailAnchorSource(
     NetworkMapStation station,
     NetworkMapGeometry geometry,
   ) {
-    final center = _fanMenuAnchorSource(station, geometry);
+    final center = _stationPopoverAnchorSource(station, geometry);
     final group = _structuredTransferGroupCache?[station.id];
-    return fanMenuTailAnchorPoint(
+    return stationPopoverTailAnchorPoint(
       nodeCenter: center,
-      nodeHeight: fanMenuAnchorNodeHeight(
+      nodeHeight: stationPopoverAnchorNodeHeight(
         memberPositions: group?.memberPositions ?? const <Offset>[],
         designScale: _structuredDesignScaleCache ?? 1.0,
       ),
@@ -1151,9 +1189,9 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   /// 노드 **정중앙**의 source 좌표(#2192). 환승역은 렌더 캡슐의 시각 중심으로,
   /// 일반역은 노드 좌표 그대로 유도한 뒤 [NetworkMapGeometry] 원점을 빼
   /// [MapCameraState.sourceToViewportPoint] 입력 좌표계로 맞춘다.
-  /// 드래프트 핀(출발·경유·도착)이 이 좌표를 그대로 앵커로 쓴다. 팬 메뉴는
-  /// 여기서 한 번 더 올린 [_fanMenuTailAnchorSource]를 쓴다(#2068 QA).
-  Offset _fanMenuAnchorSource(
+  /// 드래프트 핀(출발·경유·도착)이 이 좌표를 그대로 앵커로 쓴다. 역 말풍선은
+  /// 여기서 한 번 더 올린 [_stationPopoverTailAnchorSource]를 쓴다(#2068 QA).
+  Offset _stationPopoverAnchorSource(
     NetworkMapStation station,
     NetworkMapGeometry geometry,
   ) {
@@ -1168,7 +1206,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     final group = _structuredTransferGroupCache?[alignedStation.id];
     final center = group == null
         ? tapped
-        : fanMenuTransferAnchor(
+        : stationPopoverTransferAnchor(
             memberPositions: group.memberPositions,
             tappedPosition: tapped,
             designScale: _structuredDesignScaleCache ?? 1.0,

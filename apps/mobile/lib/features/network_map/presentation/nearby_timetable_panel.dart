@@ -2,8 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
-import '../../../accessible_design.dart';
 import 'nearby_direction_columns.dart';
+import 'nearby_direction_title.dart';
 
 class NearbyTimetablePanelData {
   const NearbyTimetablePanelData({required this.directions});
@@ -56,21 +56,31 @@ class NearbyTimetableDepartureData {
 class NearbyTimetablePanel extends StatefulWidget {
   const NearbyTimetablePanel({
     required this.data,
-    required this.lineColor,
     required this.leftName,
     required this.rightName,
     required this.expressBadgeBuilder,
+    this.loading = false,
+    this.onOpenDirection,
     this.now,
     this.enableTicker,
     this.tickerInterval = const Duration(seconds: 5),
     super.key,
   });
 
+  /// 시간표를 받았는데 그 방면에 줄 수 있는 시간이 없을 때.
+  static const unavailableMessage = ['시간표 정보 없음'];
+
+  /// 그 방면에 남은 출발이 없을 때. 상용 지하철 서비스의 표기를 따른다.
+  static const serviceEndedMessage = ['운행종료'];
+
   final NearbyTimetablePanelData? data;
-  final Color lineColor;
+
+  /// 시간표 응답을 기다리는 중. 이때 [data]가 없는 것은 정보 없음이 아니다.
+  final bool loading;
   final String? leftName;
   final String? rightName;
   final Widget Function() expressBadgeBuilder;
+  final VoidCallback? onOpenDirection;
   final DateTime? now;
   final bool? enableTicker;
   final Duration tickerInterval;
@@ -155,9 +165,8 @@ class _NearbyTimetablePanelState extends State<NearbyTimetablePanel>
 
   @override
   Widget build(BuildContext context) {
-    // 로컬 조회 중이어도 스피너 대신 인접역 방면·대시 골격을 즉시 그린다(#2453).
+    // 로컬 조회 중이어도 스피너 대신 인접역 방면 카드를 즉시 그린다(#2453).
     final departures = _nextTimetableDepartures(widget.data, _effectiveNow);
-    // 방면별로 그룹핑(실시간과 동일한 열 구성 원칙 적용).
     final dataGroups = <List<_NextTimetableDeparture>>[];
     for (final departure in departures) {
       if (dataGroups.isEmpty ||
@@ -167,70 +176,67 @@ class _NearbyTimetablePanelState extends State<NearbyTimetablePanel>
         dataGroups.last.add(departure);
       }
     }
-    final dataTitles = [
-      for (final group in dataGroups) group.first.directionLabel,
-    ];
     final slots = resolveNearbyColumnSlots(
-      dataTitles: dataTitles,
+      dataTitles: [for (final group in dataGroups) group.first.directionLabel],
       leftName: widget.leftName,
       rightName: widget.rightName,
     );
     if (slots.isEmpty) {
-      return const NearbyDataUnavailable();
+      return NearbyDataUnavailable(
+        lines: NearbyTimetablePanel.unavailableMessage,
+        loading: widget.loading,
+      );
     }
 
-    final columns = <NearbyPanelColumn>[];
-    final semanticParts = <String>[];
-    for (final slot in slots) {
-      final dataIndex = slot.dataIndex;
-      if (dataIndex == null) {
-        // 대시 열 의미는 NearbyPanelColumns 열 단위 Semantics가 담당한다.
-        columns.add(NearbyPanelColumn(title: slot.title));
-        continue;
-      }
-      final group = dataGroups[dataIndex];
-      final rows = <Widget>[];
-      for (var row = 0; row < group.length; row++) {
-        if (row > 0) {
-          rows.add(const SizedBox(height: 4));
-        }
-        rows.add(
-          _NearbyTimetableDepartureView(
-            data: group[row],
-            expressBadgeBuilder: widget.expressBadgeBuilder,
-            now: _effectiveNow,
-          ),
-        );
-        final departureItem = group[row];
-        final departureSemantic = departureItem.isServiceEnded
-            ? '${slot.title} 운행 종료'
-            : (departureItem.isFirstTrain
-                  ? '${departureItem.departure!.directionName} 방면, 첫차 ${departureItem.departure!.timeLabel} 출발'
-                  : departureItem.departure!.semanticLabel);
-        semanticParts.add(departureSemantic);
-      }
-      columns.add(NearbyPanelColumn(title: slot.title, rows: rows));
-    }
-
-    final hasData = departures.isNotEmpty;
-    final columnsView = KeyedSubtree(
-      key: hasData ? null : const Key('networkMapNearbyTimetableSkeleton'),
-      child: NearbyPanelColumns(columns: columns, lineColor: widget.lineColor),
-    );
-    // 골격↔데이터 갱신 시 liveRegion 재발화를 피한다.
-    // 순수 골격은 열 단위 Semantics, 데이터 혼재 시 부모 라벨에 대시 열도 합친다.
-    if (semanticParts.isEmpty) {
-      return columnsView;
-    }
-    final dashLabels = [
+    final columns = [
       for (final slot in slots)
-        if (slot.dataIndex == null)
-          slot.title.isEmpty ? '정보 없음' : '${slot.title} 정보 없음',
+        switch (slot.dataIndex) {
+          null => NearbyPanelColumn(
+            title: slot.title,
+            emptyMessage: NearbyTimetablePanel.unavailableMessage,
+            loading: widget.loading,
+          ),
+          final index => _timetableColumn(slot.title, dataGroups[index]),
+        },
     ];
-    return Semantics(
-      excludeSemantics: true,
-      label: [...semanticParts, ...dashLabels].join(', '),
-      child: columnsView,
+    return KeyedSubtree(
+      key: departures.isEmpty
+          ? const Key('networkMapNearbyTimetableSkeleton')
+          : null,
+      child: NearbyPanelColumns(
+        columns: columns,
+        onOpenDirection: widget.onOpenDirection,
+      ),
+    );
+  }
+
+  NearbyPanelColumn _timetableColumn(
+    String title,
+    List<_NextTimetableDeparture> group,
+  ) {
+    if (group.first.isServiceEnded) {
+      return NearbyPanelColumn(
+        title: title,
+        emptyMessage: NearbyTimetablePanel.serviceEndedMessage,
+      );
+    }
+    final now = _effectiveNow;
+    return NearbyPanelColumn(
+      title: title,
+      rows: [
+        for (final departure in group)
+          _NearbyTimetableDepartureView(
+            data: departure,
+            expressBadgeBuilder: widget.expressBadgeBuilder,
+            now: now,
+          ),
+      ],
+      rowsLabel: [
+        for (final item in group)
+          item.isFirstTrain
+              ? '${item.departure!.directionName} 방면, 첫차 ${item.departure!.timeLabel} 출발'
+              : item.departure!.semanticLabel,
+      ].join(', '),
     );
   }
 }
@@ -378,93 +384,27 @@ class _NearbyTimetableDepartureView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (data.isServiceEnded) {
-      return const SizedBox(
-        height: 46,
-        child: Center(
-          child: Text(
-            '운행 종료',
-            style: TextStyle(
-              color: EasySubwayAccessibleColors.contentSecondary,
-              fontSize: 15,
-              fontWeight: EasySubwayFontWeight.regular,
-            ),
-          ),
-        ),
-      );
-    }
     final departure = data.departure!;
-    final countdown = _formatDepartureCountdown(departure, now);
-    final isImminent = countdown == '곧 도착' || countdown == '진입';
-    final isWarning =
-        !isImminent &&
-        (countdown == '1분 뒤 도착' ||
-            countdown == '2분 뒤 도착' ||
-            countdown == '3분 뒤 도착' ||
-            countdown.startsWith('1분') ||
-            countdown.startsWith('2분') ||
-            countdown.startsWith('3분'));
-    final countdownColor = isImminent
-        ? EasySubwayColorPrimitives.statusDanger
-        : (isWarning
-              ? EasySubwayAccessibleColors.amber
-              : EasySubwayAccessibleColors.secondaryText);
-    final countdownWeight = (isImminent || isWarning)
-        ? EasySubwayFontWeight.emphasis
-        : EasySubwayFontWeight.regular;
-
     final destinationLabel = departure.destinationLabel;
-    final bool hasDestination = destinationLabel.isNotEmpty;
-    final bool showFirstTrain = data.isFirstTrain;
-
-    final Widget leadingText;
-    if (showFirstTrain) {
-      leadingText = Text(
-        '첫차 ${departure.timeLabel}',
-        style: const TextStyle(
-          color: EasySubwayAccessibleColors.contentPrimary,
-          fontSize: 15,
-          fontWeight: EasySubwayFontWeight.regular,
-        ),
-      );
-    } else if (hasDestination) {
-      leadingText = Text(
-        destinationLabel,
-        style: const TextStyle(
-          color: EasySubwayAccessibleColors.contentPrimary,
-          fontSize: 14,
-          fontWeight: EasySubwayFontWeight.regular,
-        ),
-      );
-    } else {
-      leadingText = Text(
-        departure.timeLabel,
-        style: const TextStyle(
-          color: EasySubwayAccessibleColors.contentPrimary,
-          fontSize: 15,
-          fontWeight: EasySubwayFontWeight.regular,
-        ),
-      );
-    }
-
-    final countdownText = Text(
-      countdown,
-      style: TextStyle(
-        color: countdownColor,
-        fontSize: 13,
-        fontWeight: countdownWeight,
+    final leading = data.isFirstTrain
+        ? '첫차 ${departure.timeLabel}'
+        : (destinationLabel.isNotEmpty
+              ? nearbyDestinationName(destinationLabel)
+              : departure.timeLabel);
+    return NearbyDirectionRowLayout(
+      leading: Wrap(
+        spacing: 6,
+        runSpacing: 2,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        children: [
+          Text(leading, style: NearbyArrivalRow.destinationStyle),
+          if (departure.isExpress) expressBadgeBuilder(),
+        ],
       ),
-    );
-
-    return Wrap(
-      spacing: 6,
-      runSpacing: 2,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: [
-        leadingText,
-        countdownText,
-        if (departure.isExpress) expressBadgeBuilder(),
-      ],
+      trailing: Text(
+        _formatDepartureCountdown(departure, now),
+        style: NearbyArrivalRow.etaStyle,
+      ),
     );
   }
 }
@@ -495,9 +435,9 @@ String _formatDepartureCountdown(
     return '곧 도착';
   }
   if (minutes < 60) {
-    return '$minutes분 뒤 도착';
+    return '$minutes분';
   }
   final hours = minutes ~/ 60;
   final remMin = minutes % 60;
-  return remMin == 0 ? '$hours시간 뒤 도착' : '$hours시간 $remMin분 뒤 도착';
+  return remMin == 0 ? '$hours시간' : '$hours시간 $remMin분';
 }

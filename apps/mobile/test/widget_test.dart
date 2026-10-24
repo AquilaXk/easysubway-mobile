@@ -70,8 +70,7 @@ import 'package:easysubway_mobile/search_field.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/structured_route_map_painter.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_geometry.dart'
-    show kFanMenuDesignSize, kFanMenuTailTip;
+import 'package:easysubway_mobile/features/network_map/presentation/station_popover_menu.dart';
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:easysubway_mobile/features/notifications/presentation/notification_inbox_screen.dart';
 import 'package:easysubway_mobile/features/onboarding/onboarding.dart';
@@ -375,24 +374,29 @@ Future<void> _pumpNetworkMapForGpsTest(
   await tester.pumpAndSettle();
 }
 
-// #2109: 노선도 역 액션 메뉴가 다크 텍스트 팝오버에서 부채꼴(방사형) 팬 메뉴로
-// 교체됐다. 라벨은 CustomPaint로 그려져 find.text로는 잡히지 않으므로, 각 섹터의
-// 접근성 Semantics 라벨로 존재를 확인하고, 히트테스트는 섹터 아이콘 중심(design
-// 좌표)에 menu 스케일(260/700)을 곱한 지점을 tapAt으로 눌러 활성화한다.
-const _fanOriginLabel = '출발역으로 설정';
-const _fanWaypointLabel = '경유지로 추가';
-const _fanDestinationLabel = '도착역으로 설정';
-const _fanCloseLabel = '메뉴 닫기';
+// #511: 노선도에서 역을 누르면 역 위에 어두운 말풍선이 뜬다. 칸은 낭독 라벨로
+// 찾고 접근성 tap 액션으로 누른다. 이미 정한 칸은 `출발역 해제`처럼 읽는다.
+const _popoverOriginLabel = '출발역으로 설정';
+const _popoverOriginClearLabel = '출발역 해제';
+const _popoverWaypointLabel = '경유지로 추가';
+const _popoverDestinationLabel = '도착역으로 설정';
 
-/// 팬 메뉴의 특정 섹터를 접근성 Semantics onTap 액션으로 활성화한다.
-/// 섹터 라벨(투명 버튼)에 걸린 onTap을 직접 트리거하므로, 노선도 상단바 등
-/// 다른 오버레이가 좌표를 가로채는 문제 없이 안정적으로 활성화된다.
-Future<void> _tapFanMenuSector(WidgetTester tester, String label) async {
+/// 역 말풍선의 칸을 접근성 Semantics onTap 액션으로 누른다. 노선도 상단바 등
+/// 다른 오버레이가 좌표를 가로채는 문제 없이 칸을 누른 효과를 낸다.
+Future<void> _tapStationPopoverItem(WidgetTester tester, String label) async {
   final handle = tester.ensureSemantics();
   await tester.pump();
-  // 접근성 tap 액션으로 직접 활성화한다: 노선도 상단바 등 다른 오버레이가 좌표를
-  // 가로채는 문제 없이 섹터를 누른 효과를 낸다(섹터 Semantics onTap → onAction).
   tester.semantics.tap(find.semantics.byLabel(label));
+  handle.dispose();
+  await tester.pump();
+}
+
+/// 역 말풍선을 스크린리더의 닫기 동작으로 닫는다. 말풍선에는 닫기 칸이 없다.
+Future<void> _dismissStationPopover(WidgetTester tester) async {
+  final handle = tester.ensureSemantics();
+  await tester.pump();
+  final node = tester.getSemantics(find.byType(StationPopoverMenu));
+  node.owner!.performAction(node.id, SemanticsAction.dismiss);
   handle.dispose();
   await tester.pump();
 }
@@ -411,7 +415,7 @@ Future<void> _tapStationByLabel(WidgetTester tester, String label) async {
 
 /// #2109: 풀페이지 검색 결과 탭이 focusStationRequestId(null→역 id)를 전이시키는
 /// 프로덕션 시퀀스를 모사하기 위한 host. NetworkMapScreen을 마운트한 뒤 setState로
-/// id를 채워 부모 didUpdateWidget → 팬 메뉴 채널 수렴 경로를 태운다.
+/// id를 채워 부모 didUpdateWidget → 역 말풍선 채널 수렴 경로를 태운다.
 class _FocusRequestHost extends StatefulWidget {
   const _FocusRequestHost({
     required this.repository,
@@ -461,11 +465,11 @@ Future<void> _openJourneySearchScreen(
   await tester.pumpAndSettle();
   await tester.tapAt(tester.getCenter(find.byKey(Key(originStationKey))));
   await tester.pumpAndSettle();
-  await _tapFanMenuSector(tester, _fanOriginLabel);
+  await _tapStationPopoverItem(tester, _popoverOriginLabel);
   await tester.pumpAndSettle();
   await tester.tapAt(tester.getCenter(find.byKey(Key(destinationStationKey))));
   await tester.pumpAndSettle();
-  await _tapFanMenuSector(tester, _fanDestinationLabel);
+  await _tapStationPopoverItem(tester, _popoverDestinationLabel);
   // 출발·도착이 모두 차면 셸이 자동으로 결과 타임라인 탭으로 전환한다. 전환은
   // 120ms 디바운스 Timer로 예약되므로 프레임만 도는 pumpAndSettle 전에 Timer를
   // 흘려보낸다.
@@ -2956,11 +2960,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanDestinationLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverDestinationLabel), findsOneWidget);
   });
 
-  testWidgets('#2200 노선도 역 탭은 팬 메뉴와 함께 하단 역 정보 패널을 연다', (tester) async {
+  testWidgets('#2200 노선도 역 탭은 역 말풍선과 함께 하단 역 정보 패널을 연다', (tester) async {
     final repository = FakeStationSearchRepository(
       queryResults: {
         '상록수': [_stationResult(id: 'station-sangnoksu', name: '상록수')],
@@ -2981,9 +2985,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 팬 메뉴는 그대로 뜬다(기존 동작 보존).
+    // 역 말풍선은 그대로 뜬다(기존 동작 보존).
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
 
     // 하단 역 정보 패널이 탭한 역 기준으로 함께 열린다.
     final panel = find.byKey(const Key('networkMapNearbyStationPanel'));
@@ -2999,9 +3003,9 @@ void main() {
     );
   });
 
-  testWidgets('#2200 검색 결과가 없는 역 탭은 크래시 없이 팬 메뉴만 유지한다', (tester) async {
+  testWidgets('#2200 검색 결과가 없는 역 탭은 크래시 없이 역 말풍선만 유지한다', (tester) async {
     // 탭한 역을 StationSearchResult로 해석하지 못하면(데이터 없음) 하단 패널을
-    // 열지 않고 기존 팬 메뉴 동작을 그대로 유지한다.
+    // 열지 않고 기존 역 말풍선 동작을 그대로 유지한다.
     final repository = FakeStationSearchRepository();
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -3019,15 +3023,15 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
     expect(find.byKey(const Key('networkMapNearbyStationPanel')), findsNothing);
   });
 
   testWidgets(
-    '#2109 검색 채널(focusStationRequestId)로 열린 팬 메뉴도 지도 탭과 같은 앵커·패닝 경로를 탄다',
+    '#2109 검색 채널(focusStationRequestId)로 열린 역 말풍선도 지도 탭과 같은 앵커·패닝 경로를 탄다',
     (tester) async {
       // 회귀 방지: 검색 결과 탭 → focusStationRequestId(null→역 id) 소비 → 팬
-      // 메뉴 채널로 수렴할 때, 지도 탭(_selectStation)과 동일하게 팬 메뉴가
+      // 메뉴 채널로 수렴할 때, 지도 탭(_selectStation)과 동일하게 역 말풍선이
       // 뜨고 카메라 anti-clip 패닝 콜백
       // (_NetworkMapCanvas.didUpdateWidget)이 예외 없이 도는지 검증한다. 이전엔
       // 패닝이 _selectStation 경로에서만 예약돼 검색 채널로 열린 메뉴는 경계에서
@@ -3046,7 +3050,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // 초기엔 요청 없음 → 팬 메뉴 미표시.
+      // 초기엔 요청 없음 → 역 말풍선 미표시.
       expect(handled, isFalse);
       expect(find.byKey(const Key('networkMapStationSheet')), findsNothing);
 
@@ -3057,11 +3061,11 @@ void main() {
       hostState.requestFocus('station-sangnoksu');
       await tester.pumpAndSettle();
 
-      // 검색 채널 요청이 소비되고(부모 통지) 팬 메뉴가 떴다.
+      // 검색 채널 요청이 소비되고(부모 통지) 역 말풍선이 떴다.
       expect(handled, isTrue);
       expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
       expect(find.bySemanticsLabel('상록수역 상세 보기'), findsNothing);
-      expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+      expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
     },
   );
 
@@ -3093,7 +3097,7 @@ void main() {
       find.byKey(const Key('networkMapStation-sangnoksu-seoul-4')),
     );
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
 
     expect(routeDraftController.draft.origin?.nameKo, '상록수');
@@ -3192,7 +3196,7 @@ void main() {
       find.byKey(const Key('networkMapStation-sangnoksu-seoul-4')),
     );
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
 
     // 출발 지정 후 출발 핀이 그 역 위에 뜬다.
@@ -3206,7 +3210,7 @@ void main() {
     // 다른 역 탭 → "경유" 선택 → 경유 핀이 뜬다.
     await tester.tap(find.byKey(const Key('networkMapStation-sadang-seoul-2')));
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanWaypointLabel);
+    await _tapStationPopoverItem(tester, _popoverWaypointLabel);
     await tester.pumpAndSettle();
 
     expect(
@@ -3230,7 +3234,7 @@ void main() {
     );
   });
 
-  testWidgets('#2109 팬 메뉴에서 출발 설정한 역을 재탭 → 같은 섹터 재탭하면 출발이 해제된다', (
+  testWidgets('#2109 역 말풍선에서 출발 설정한 역을 다시 열어 출발 해제를 누르면 출발이 해제된다', (
     tester,
   ) async {
     final routeDraftController = RouteDraftController();
@@ -3245,18 +3249,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 역 탭 → 팬 메뉴 → "출발" 선택 → draft.origin 설정 + 메뉴 닫힘.
+    // 역 탭 → 역 말풍선 → "출발" 선택 → draft.origin 설정 + 메뉴 닫힘.
     await tester.tap(
       find.byKey(const Key('networkMapStation-sangnoksu-seoul-4')),
     );
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
 
     expect(routeDraftController.draft.origin?.nameKo, '상록수');
     expect(find.byKey(const Key('networkMapStationSheet')), findsNothing);
 
-    // 같은 역을 다시 탭 → 팬 메뉴가 다시 뜬다(출발 섹터는 selected 상태).
+    // 같은 역을 다시 탭 → 역 말풍선이 다시 뜬다(출발 섹터는 selected 상태).
     // 주의: 이 시점엔 출발 draft pin이 역 노드 바로 위에 겹쳐 그려져 있어
     // 좌표 tap(tester.tap)이 draft pin의 Material에 가로채인다. 접근성
     // Semantics onTap 경로(_tapStationByLabel)로 직접 활성화한다.
@@ -3264,20 +3268,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
 
-    // 이미 배정된 출발 섹터를 재탭 → 해제(clear)되고 set은 일어나지 않는다.
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    // 이미 정한 출발 칸은 해제로 읽고, 누르면 해제(clear)되고 set은 일어나지 않는다.
+    await _tapStationPopoverItem(tester, _popoverOriginClearLabel);
     await tester.pumpAndSettle();
 
     expect(routeDraftController.draft.origin, isNull);
   });
 
-  testWidgets('#2068 팬 메뉴 꼬리 팁은 노드 바닥에서 높이 2/3 위에 닿는다', (tester) async {
-    // 배선 가드: app/network_map_screen.dart의 팬 메뉴 호출부를 _fanMenuTailAnchorSource에서
-    // _fanMenuAnchorSource(정중앙)로 되돌리면 이 delta가 0이 되어 red가 된다.
+  testWidgets('#2068 역 말풍선 꼬리 팁은 노드 바닥에서 높이 2/3 위에 닿는다', (tester) async {
+    // 배선 가드: app/network_map_screen.dart의 역 말풍선 호출부를 _stationPopoverTailAnchorSource에서
+    // _stationPopoverAnchorSource(정중앙)로 되돌리면 이 delta가 0이 되어 red가 된다.
     // 기준점은 같은 역의 draft pin이다 — pin은 정중앙 앵커를 그대로 쓰고
     // (_NetworkMapDraftPin: pinTop = anchor.dy - 52, hitPadTop 10 · hitPadBottom 0)
     // 히트박스 하단이 곧 노드 정중앙의 뷰포트 y다.
-    // 세로로 넉넉한 서피스: 기본 800x600에서는 팬 메뉴가 viewport 하단 클램프에
+    // 세로로 넉넉한 서피스: 기본 800x600에서는 역 말풍선이 viewport 하단 클램프에
     // 걸려(maxTop) 앵커 변화가 배치에 반영되지 않는다.
     tester.view.physicalSize = const Size(400, 1200);
     tester.view.devicePixelRatio = 1.0;
@@ -3298,10 +3302,10 @@ void main() {
       find.byKey(const Key('networkMapStation-sangnoksu-seoul-4')),
     );
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
 
-    // 같은 역을 다시 탭해 팬 메뉴를 띄운다(핀은 그대로 남는다). 두 rect는 팬 메뉴
+    // 같은 역을 다시 탭해 역 말풍선을 띄운다(핀은 그대로 남는다). 두 rect는 역 말풍선
     // 노출용 카메라 패닝이 끝난 **같은 프레임**에서 읽어야 한다 — 탭 전에 읽은
     // 핀 위치는 패닝 이전 좌표라 기준점이 어긋난다.
     await _tapStationByLabel(tester, '상록수역');
@@ -3317,7 +3321,8 @@ void main() {
     );
     final tipY =
         menuRect.top +
-        menuRect.height * (kFanMenuTailTip.dy / kFanMenuDesignSize.height);
+        menuRect.height *
+            (kStationPopoverTailTip.dy / kStationPopoverDesignSize.height);
 
     // 팁은 노드 정중앙보다 위다(정중앙 앵커로 회귀하면 delta = 0 → red).
     // 팁은 노드 정중앙보다 위다. 이 fixture 실측 이동량은 0.70px
@@ -3372,7 +3377,7 @@ void main() {
       find.byKey(const Key('networkMapStation-sangnoksu-seoul-4')),
     );
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
     expect(routeDraftController.draft.origin?.nameKo, '상록수');
 
@@ -3449,7 +3454,7 @@ void main() {
       find.byKey(const Key('networkMapStation-sangnoksu-seoul-4')),
     );
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
     expect(routeDraftController.draft.origin, isNotNull);
     expect(routeDraftController.draft.destination, isNull);
@@ -3723,7 +3728,9 @@ void main() {
     );
   });
 
-  testWidgets('#1948 노선도 팝오버는 [출발][경유][도착][닫기] 순서로 경유 탭을 제공한다', (tester) async {
+  testWidgets('#1948 노선도 말풍선은 [출발][경유][도착] 순서로 경유 탭을 제공하고 닫기 칸이 없다', (
+    tester,
+  ) async {
     final routeDraftController = RouteDraftController();
     await tester.pumpWidget(
       MaterialApp(
@@ -3742,37 +3749,29 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // #2109: 팬 메뉴에 출발/경유/도착/닫기 섹터가 모두 존재한다(접근성 라벨로
-    // 확인 — 라벨은 CustomPaint로 그려져 find.text로는 잡히지 않는다).
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanWaypointLabel), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanDestinationLabel), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanCloseLabel), findsOneWidget);
+    // #511: 말풍선 윗줄은 출발·경유·도착이고 닫기 칸은 없다(지도 빈 곳·닫기 동작).
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverWaypointLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverDestinationLabel), findsOneWidget);
+    expect(find.bySemanticsLabel('메뉴 닫기'), findsNothing);
 
-    // 방사형 배치에서 출발(좌하)·경유(상중)·도착(우하)의 좌→우 순서가 유지되고,
-    // 닫기는 중앙 노치다(경유와 도착 사이 x 범위).
     final originDx = tester
-        .getRect(find.bySemanticsLabel(_fanOriginLabel))
+        .getRect(find.bySemanticsLabel(_popoverOriginLabel))
         .center
         .dx;
     final waypointDx = tester
-        .getRect(find.bySemanticsLabel(_fanWaypointLabel))
+        .getRect(find.bySemanticsLabel(_popoverWaypointLabel))
         .center
         .dx;
     final destinationDx = tester
-        .getRect(find.bySemanticsLabel(_fanDestinationLabel))
-        .center
-        .dx;
-    final closeDx = tester
-        .getRect(find.bySemanticsLabel(_fanCloseLabel))
+        .getRect(find.bySemanticsLabel(_popoverDestinationLabel))
         .center
         .dx;
     expect(originDx < waypointDx, isTrue);
     expect(waypointDx < destinationDx, isTrue);
-    expect(originDx < closeDx && closeDx < destinationDx, isTrue);
 
     // 경유 탭을 누르면 draft.waypoint가 채워진다.
-    await _tapFanMenuSector(tester, _fanWaypointLabel);
+    await _tapStationPopoverItem(tester, _popoverWaypointLabel);
     await tester.pumpAndSettle();
     expect(routeDraftController.draft.waypoint?.nameKo, '상록수');
   });
@@ -4670,7 +4669,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-      expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+      expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
     } finally {
       semanticsHandle.dispose();
     }
@@ -4695,8 +4694,8 @@ void main() {
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
     expect(find.bySemanticsLabel('상록수역 메뉴'), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanDestinationLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverDestinationLabel), findsOneWidget);
     // #1933 요구 3: 별도 길찾기 폼 페이지를 없앴으므로 팝오버의 "길찾기" 액션도
     // 제거했다. 출발/도착 지정이 곧 흐름이며, 둘 다 차면 자동으로 결과가 열린다.
     expect(
@@ -4706,10 +4705,10 @@ void main() {
       ),
       findsNothing,
     );
-    expect(find.bySemanticsLabel(_fanCloseLabel), findsOneWidget);
+    expect(find.bySemanticsLabel('메뉴 닫기'), findsNothing);
   });
 
-  testWidgets('노선도에서 출발을 지정한 뒤 다른 역을 누르면 팬 메뉴의 도착 섹터를 쓸 수 있다', (tester) async {
+  testWidgets('노선도에서 출발을 지정한 뒤 다른 역을 누르면 역 말풍선의 도착 섹터를 쓸 수 있다', (tester) async {
     final routeDraftController = RouteDraftController();
     await tester.pumpWidget(
       MaterialApp(
@@ -4729,7 +4728,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
     expect(routeDraftController.draft.origin?.nameKo, '상록수');
 
@@ -4739,11 +4738,11 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // #2109: 출발이 이미 정해진 상태에서 다른 역의 팬 메뉴를 열면, 그 역은
+    // #2109: 출발이 이미 정해진 상태에서 다른 역의 역 말풍선을 열면, 그 역은
     // 어느 슬롯에도 아직 없으므로 도착 섹터가 활성화(dim 아님)돼 탭으로 도착을
     // 지정할 수 있다.
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    await _tapFanMenuSector(tester, _fanDestinationLabel);
+    await _tapStationPopoverItem(tester, _popoverDestinationLabel);
     await tester.pumpAndSettle();
     expect(routeDraftController.draft.destination?.nameKo, '사당');
   });
@@ -4778,8 +4777,8 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-      expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
-      expect(find.bySemanticsLabel(_fanDestinationLabel), findsOneWidget);
+      expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
+      expect(find.bySemanticsLabel(_popoverDestinationLabel), findsOneWidget);
     } finally {
       semanticsHandle.dispose();
     }
@@ -4956,7 +4955,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
   });
 
   testWidgets('노선도 역명 label polygon 영역을 탭하면 해당 역을 선택한다', (tester) async {
@@ -5028,7 +5027,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
   });
 
   testWidgets('노선도 배경을 탭하면 가까운 역 sheet를 열지 않는다', (tester) async {
@@ -5288,7 +5287,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
     expect(find.text('가라벨역'), findsNothing);
   });
 
@@ -5388,7 +5387,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
     expect(find.text('먼역역'), findsNothing);
   });
 
@@ -5634,7 +5633,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-      expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+      expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
     } finally {
       semanticsHandle.dispose();
     }
@@ -5768,7 +5767,7 @@ void main() {
     expect(find.text('최근 경로를 불러오지 못했어요'), findsNothing);
   });
 
-  testWidgets('노선도 현재위치 버튼은 최근접 역 팬 메뉴와 하단 패널을 보여준다', (tester) async {
+  testWidgets('노선도 현재위치 버튼은 최근접 역 역 말풍선과 하단 패널을 보여준다', (tester) async {
     final locationProvider = FakeCurrentLocationProvider(
       location: _freshCurrentLocation(),
       needsPermissionRequest: false,
@@ -5802,7 +5801,7 @@ void main() {
     );
     expect(find.text('상록수'), findsOneWidget);
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
-    expect(find.bySemanticsLabel(_fanOriginLabel), findsOneWidget);
+    expect(find.bySemanticsLabel(_popoverOriginLabel), findsOneWidget);
     expect(find.byKey(const Key('networkMapBottomAdBanner')), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));
@@ -5935,7 +5934,7 @@ void main() {
       expect(timeFinder, findsOneWidget);
       expect(
         tester.widget<Text>(timeFinder).style?.color,
-        EasySubwayAccessibleColors.contentPrimary,
+        EasySubwayAccessibleColors.contentSecondary,
       );
       expect(
         find.bySemanticsLabel(RegExp(RegExp.escape(item.semanticLabel))),
@@ -6287,36 +6286,7 @@ void main() {
         );
       }
     });
-    final repository = _HangingTimetableStationRepository(
-      completer: timetableCompleter,
-      stationDetail: _stationDetail(
-        id: 'station-sangnoksu',
-        name: '상록수',
-        lines: const [
-          StationSearchLine(
-            id: 'seoul-4',
-            name: '수도권 4호선',
-            color: '#00A5DE',
-            stationCode: '448',
-          ),
-        ],
-      ),
-      networkMapRegionNames: const ['수도권'],
-      nearbyResults: [
-        _stationResult(
-          id: 'station-sangnoksu',
-          name: '상록수',
-          lines: const [
-            StationSearchLine(
-              id: 'seoul-4',
-              name: '수도권 4호선',
-              color: '#00A5DE',
-              stationCode: '448',
-            ),
-          ],
-        ),
-      ],
-    );
+    final repository = _sangnoksuHangingTimetableRepository(timetableCompleter);
     await _pumpNetworkMapForGpsTest(
       tester,
       repository: repository,
@@ -6366,9 +6336,57 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.descendant(of: panel, matching: find.text('시간표 정보 없음')),
+      findsNothing,
+    );
+    expect(
       find.descendant(of: panel, matching: find.text('-')),
       findsNWidgets(2),
     );
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsOneWidget);
+    expect(find.bySemanticsLabel('한대앞 방면, 불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('GPS 하단 패널 시간표 조회가 실패하면 불러오는 중이 끝나고 정보 없음으로 바뀐다', (tester) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final timetableCompleter = Completer<StationTimetable>();
+    final repository = _sangnoksuHangingTimetableRepository(timetableCompleter);
+    await _pumpNetworkMapForGpsTest(
+      tester,
+      repository: repository,
+      locationProvider: FakeCurrentLocationProvider(
+        location: _freshCurrentLocation(),
+        needsPermissionRequest: false,
+      ),
+      realtimeRepository: _FreshRealtimeRepository(),
+    );
+
+    await tester.tap(find.byKey(const Key('nearbyStationButton')));
+    await tester.pump();
+    await tester.pump();
+    final panel = find.byKey(const Key('networkMapNearbyStationPanel'));
+    expect(
+      find.descendant(of: panel, matching: find.text('-')),
+      findsNWidgets(2),
+    );
+
+    timetableCompleter.completeError(
+      const StationTimetableUnavailable('timetable-unavailable'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: panel, matching: find.text('시간표 정보 없음')),
+      findsNWidgets(2),
+    );
+    expect(find.descendant(of: panel, matching: find.text('-')), findsNothing);
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsNothing);
+    expect(find.bySemanticsLabel('한대앞 방면, 불러오는 중'), findsNothing);
   });
 
   testWidgets('실시간 탭은 응답 전에도 스피너 없이 방면 골격을 표시한다', (tester) async {
@@ -6457,13 +6475,23 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.descendant(of: panel, matching: find.text('실시간 정보 없음')),
+      findsNothing,
+    );
+    expect(
       find.descendant(of: panel, matching: find.text('-')),
       findsNWidgets(2),
     );
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsOneWidget);
 
-    // 실시간 .timeout(2s) FakeTimer가 dispose 전에 남아 있지 않게 비운다.
+    // 실시간 .timeout(2s)이 끝나 응답이 없다고 확정되면 그때 정보 없음을 쓴다.
     await tester.pump(const Duration(seconds: 2));
     await tester.pump();
+    expect(
+      find.descendant(of: panel, matching: find.text('실시간 정보 없음')),
+      findsNWidgets(2),
+    );
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsNothing);
   });
 
   testWidgets('실시간 성공 후 다시 실시간을 선택하면 직전 도착을 즉시 표시한다', (tester) async {
@@ -6520,7 +6548,7 @@ void main() {
     final panel = find.byKey(const Key('networkMapNearbyStationPanel'));
     expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
     expect(
-      find.descendant(of: panel, matching: find.text('오이도행')),
+      find.descendant(of: panel, matching: find.text('오이도')),
       findsOneWidget,
     );
 
@@ -6544,7 +6572,7 @@ void main() {
 
     expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
     expect(
-      find.descendant(of: panel, matching: find.text('오이도행')),
+      find.descendant(of: panel, matching: find.text('오이도')),
       findsOneWidget,
     );
     expect(
@@ -7144,7 +7172,7 @@ void main() {
     await tester.pump();
     expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
     expect(
-      find.descendant(of: panel, matching: find.text('오이도행')),
+      find.descendant(of: panel, matching: find.text('오이도')),
       findsOneWidget,
     );
 
@@ -7153,7 +7181,7 @@ void main() {
     expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
     expect(find.bySemanticsLabel('시간표 선택됨'), findsNothing);
     expect(
-      find.descendant(of: panel, matching: find.text('오이도행')),
+      find.descendant(of: panel, matching: find.text('오이도')),
       findsNothing,
     );
 
@@ -7176,11 +7204,11 @@ void main() {
     );
     await tester.pump();
     expect(
-      find.descendant(of: panel, matching: find.text('성수행')),
+      find.descendant(of: panel, matching: find.text('성수')),
       findsOneWidget,
     );
     expect(
-      find.descendant(of: panel, matching: find.text('오이도행')),
+      find.descendant(of: panel, matching: find.text('오이도')),
       findsNothing,
     );
   });
@@ -7272,10 +7300,7 @@ void main() {
 
     final panel = find.byKey(const Key('networkMapNearbyStationPanel'));
     expect(panel, findsOneWidget);
-    expect(
-      find.descendant(of: panel, matching: find.text('성수행')),
-      findsNothing,
-    );
+    expect(find.descendant(of: panel, matching: find.text('성수')), findsNothing);
     expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
 
     line4Completer.complete(
@@ -7298,13 +7323,10 @@ void main() {
     await tester.pump();
 
     expect(
-      find.descendant(of: panel, matching: find.text('오이도행')),
+      find.descendant(of: panel, matching: find.text('오이도')),
       findsOneWidget,
     );
-    expect(
-      find.descendant(of: panel, matching: find.text('성수행')),
-      findsNothing,
-    );
+    expect(find.descendant(of: panel, matching: find.text('성수')), findsNothing);
   });
 
   testWidgets('이전 호선의 실시간 실패는 현재 호선을 시간표로 전환하지 않는다', (tester) async {
@@ -7505,7 +7527,7 @@ void main() {
     await tester.pump();
 
     expect(find.byKey(const Key('networkMapNearbyStationPanel')), findsNothing);
-    expect(find.text('오이도행'), findsNothing);
+    expect(find.text('오이도'), findsNothing);
   });
 
   testWidgets('닫힌 최근접 패널은 늦은 시간표 typed·generic failure를 모두 무시한다', (
@@ -7777,9 +7799,7 @@ void main() {
     }
   });
 
-  testWidgets('GPS 하단 패널은 열차 정보가 없어도 인접역 두 방면 스켈레톤(제목+대시+구분선)을 유지한다', (
-    tester,
-  ) async {
+  testWidgets('GPS 하단 패널은 열차 정보가 없어도 인접역 두 방면 카드에 정보 없음을 쓴다', (tester) async {
     // #2200 QA: 실시간/시간표 데이터가 전무해도 인접역이 둘이면 "○○ 방면" 제목
     // 두 열 + 1×46 구분선을 유지하고, 데이터 없는 열에는 대시('-')만 그린다.
     final repository = FakeTimetableStationRepository(
@@ -7810,32 +7830,29 @@ void main() {
       findsNWidgets(2),
     );
     expect(
-      find.descendant(of: panel, matching: find.text('-')),
+      find.descendant(of: panel, matching: find.text('시간표 정보 없음')),
       findsNWidgets(2),
     );
     expect(
       tester
           .widget<Text>(
-            find.descendant(of: panel, matching: find.text('-')).first,
+            find.descendant(of: panel, matching: find.text('시간표 정보 없음')).first,
           )
           .style
           ?.color,
-      EasySubwayAccessibleColors.contentPrimary,
-    );
-    expect(
-      find.descendant(of: panel, matching: find.byType(VerticalDivider)),
-      findsOneWidget,
+      EasySubwayAccessibleColors.contentMuted,
     );
 
-    await tester.tap(find.byKey(const Key('networkMapNearbyDataSourceToggle')));
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('networkMapNearbyDataSourceToggle')),
+        matching: find.text('실시간'),
+      ),
+    );
     await tester.pumpAndSettle();
     expect(
-      find.descendant(of: panel, matching: find.text('-')),
+      find.descendant(of: panel, matching: find.text('실시간 정보 없음')),
       findsNWidgets(2),
-    );
-    expect(
-      find.descendant(of: panel, matching: find.byType(VerticalDivider)),
-      findsOneWidget,
     );
   });
 
@@ -7946,8 +7963,9 @@ void main() {
     expect(closed.initialScale, isNot(focused.initialScale));
   });
 
-  testWidgets('GPS 패널과 팬 메뉴를 닫으면 다음 layout은 초기 카메라를 다시 계산한다', (tester) async {
-    tester.view.physicalSize = const Size(1200, 600);
+  testWidgets('GPS 패널과 역 말풍선을 닫으면 다음 layout은 초기 카메라를 다시 계산한다', (tester) async {
+    // 가로로 긴 화면에서도 접힌 시트(방면 카드 포함)가 다 보이는 높이로 시작한다.
+    tester.view.physicalSize = const Size(1500, 1200);
     addTearDown(tester.view.resetPhysicalSize);
     final repository = FakeStationSearchRepository(
       networkMapData: _gpsNetworkMapData(
@@ -7970,7 +7988,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const Key('networkMapNearbyPanelCloseButton')));
     await tester.pumpAndSettle();
-    await _tapFanMenuSector(tester, _fanCloseLabel);
+    await _dismissStationPopover(tester);
     final beforeLayoutChange = tester
         .widget<RouteMapBasemapView>(find.byType(RouteMapBasemapView))
         .camera;
@@ -8041,7 +8059,7 @@ void main() {
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
   });
 
-  testWidgets('GPS 다른 지역 결과는 지도와 역을 검증한 뒤에만 팬 메뉴를 연다', (tester) async {
+  testWidgets('GPS 다른 지역 결과는 지도와 역을 검증한 뒤에만 역 말풍선을 연다', (tester) async {
     final busanMap = Completer<NetworkMapData>();
     final viewportRepository = FakeNetworkMapViewportRepository(
       viewports: const {'부산권': Rect.fromLTWH(0, 0, 80, 80)},
@@ -8086,7 +8104,7 @@ void main() {
     expect(camera.scale, camera.initialScale);
   });
 
-  testWidgets('GPS 지역 지도 load 실패는 팬 메뉴를 열지 않는다', (tester) async {
+  testWidgets('GPS 지역 지도 load 실패는 역 말풍선을 열지 않는다', (tester) async {
     final busanMap = Completer<NetworkMapData>();
     final repository = FakeStationSearchRepository(
       networkMapRegionNames: const ['수도권', '부산권'],
@@ -8114,7 +8132,7 @@ void main() {
     expect(find.text('주변 역을 불러오지 못했어요.'), findsOneWidget);
   });
 
-  testWidgets('GPS 지역 지도에 최근접 역 ID가 없으면 팬 메뉴를 열지 않는다', (tester) async {
+  testWidgets('GPS 지역 지도에 최근접 역 ID가 없으면 역 말풍선을 열지 않는다', (tester) async {
     final repository = FakeStationSearchRepository(
       networkMapRegionNames: const ['수도권', '부산권'],
       networkMapDataByRegion: {
@@ -11810,13 +11828,13 @@ void main() {
     // 품질 문구 "일부 정보는 확인 중이에요"는 별도 semantic label 테스트에서 유지한다.
   });
 
-  testWidgets('#2109 홈 in-place 검색 결과 탭은 역을 지도에서 포커스하고 팬 메뉴를 연다', (
+  testWidgets('#2109 홈 in-place 검색 결과 탭은 역을 지도에서 포커스하고 역 말풍선을 연다', (
     tester,
   ) async {
     // #2109: 홈 노선도 상단바 인플레이스 검색에서는 결과 행에 인라인 출발/도착
     // 역할 버튼을 두지 않는다. 결과 행을 탭하면 상세를 밀지 않고 검색을 닫은 뒤
-    // 해당 역을 지도에서 포커스하고 부채꼴 팬 메뉴(역 액션 메뉴)를 띄운다. 출발/
-    // 도착 지정은 이 팬 메뉴로 수렴한다(역할 버튼 IA는 결과 행에서 제거됨).
+    // 해당 역을 지도에서 포커스하고 부채꼴 역 말풍선(역 액션 메뉴)를 띄운다. 출발/
+    // 도착 지정은 이 역 말풍선로 수렴한다(역할 버튼 IA는 결과 행에서 제거됨).
     final repository = FakeStationSearchRepository(
       networkMapRegionNames: const ['수도권'],
       queryResults: {
@@ -11855,7 +11873,7 @@ void main() {
     );
     expect(find.bySemanticsLabel('상록수역을 출발역으로 설정'), findsNothing);
 
-    // 결과 행 탭 = 검색 종료 + 역 포커스 + 팬 메뉴.
+    // 결과 행 탭 = 검색 종료 + 역 포커스 + 역 말풍선.
     await tester.tap(
       find.byKey(const Key('stationSearchResult-station-sangnoksu-seoul-2')),
     );
@@ -11865,7 +11883,7 @@ void main() {
     expect(find.byKey(const Key('stationSearchInput')), findsNothing);
     expect(find.byType(StationDetailScreen), findsNothing);
     expect(find.byKey(const Key('networkMapScreen')), findsOneWidget);
-    // 포커스한 역의 부채꼴 팬 메뉴와 해당 역 하단 정보 패널이 함께 나타난다.
+    // 포커스한 역의 부채꼴 역 말풍선과 해당 역 하단 정보 패널이 함께 나타난다.
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
     expect(
       find.byKey(const Key('networkMapNearbyStationPanel')),
@@ -12015,13 +12033,13 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await _tapFanMenuSector(tester, _fanOriginLabel);
+    await _tapStationPopoverItem(tester, _popoverOriginLabel);
     await tester.pumpAndSettle();
     expect(find.bySemanticsLabel('사당역, 출발 지정됨'), findsOneWidget);
     expect(find.bySemanticsLabel('상록수역, 출발 지정됨'), findsNothing);
   });
 
-  testWidgets('#2109 팬 메뉴에 역명 라벨과 상세 진입이 없다', (tester) async {
+  testWidgets('#2109 역 말풍선에 역명 라벨과 상세 진입이 없다', (tester) async {
     final repository = FakeStationSearchRepository(
       queryResults: {
         '상록수': [_stationResult(id: 'station-sangnoksu', name: '상록수')],
@@ -12167,7 +12185,7 @@ void main() {
   });
 
   testWidgets('#2109 GPS 패널 뒤 in-place 검색 결과 탭은 해당 역 패널로 교체한다', (tester) async {
-    // GPS와 홈 in-place 검색은 팬 메뉴·하단 패널 채널로 수렴한다. GPS가 먼저
+    // GPS와 홈 in-place 검색은 역 말풍선·하단 패널 채널로 수렴한다. GPS가 먼저
     // 연 상록수 패널 뒤 사당 검색 결과를 탭하면 같은 패널이 사당 정보로 바뀐다.
     final locationProvider = FakeCurrentLocationProvider(
       location: _freshCurrentLocation(),
@@ -12198,7 +12216,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // GPS는 최근접 역 하나의 팬 메뉴와 하단 패널을 함께 연다.
+    // GPS는 최근접 역 하나의 역 말풍선과 하단 패널을 함께 연다.
     await tester.tap(find.byKey(const Key('nearbyStationButton')));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
@@ -12219,7 +12237,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 검색 결과도 같은 단일 팬 메뉴로 수렴하고 하단 패널은 사당으로 교체된다.
+    // 검색 결과도 같은 단일 역 말풍선로 수렴하고 하단 패널은 사당으로 교체된다.
     expect(find.byKey(const Key('networkMapStationSheet')), findsOneWidget);
     expect(
       find.byKey(const Key('networkMapNearbyStationPanel')),
@@ -12770,21 +12788,7 @@ void main() {
           find.bySemanticsLabel('상록수역 자세한 안내, 수도권 2호선, 마지막 확인 2일 전'),
           findsOneWidget,
         );
-        // 네이버식 IA: 지금 열차 → 역정보 → 교통약자 시설 → 출구정보 → 하단 액션바
-        await tester.scrollUntilVisible(
-          find.text('출구정보'),
-          120,
-          scrollable: find.byType(Scrollable).first,
-        );
-        await tester.pumpAndSettle();
-        expect(find.text('출구정보'), findsOneWidget);
-        expect(find.text('1번 출구'), findsWidgets);
-        expect(find.text('엘리베이터 연결'), findsOneWidget);
-        expect(find.text('계단 없는 이동 가능'), findsOneWidget);
-        expect(
-          find.bySemanticsLabel('1번 출구, 엘리베이터 연결, 계단 없는 이동 가능'),
-          findsOneWidget,
-        );
+        // 상용 지하철 서비스 IA: 지금 열차 → 역정보(교통약자 시설) → 출구정보 → 하단 액션바
         await tester.scrollUntilVisible(
           find.text('역정보'),
           120,
@@ -12793,6 +12797,18 @@ void main() {
         await tester.pumpAndSettle();
         expect(find.text('역정보'), findsOneWidget);
         expect(find.text('교통약자 시설'), findsOneWidget);
+        await tester.scrollUntilVisible(
+          find.text('출구정보'),
+          120,
+          scrollable: find.byType(Scrollable).first,
+        );
+        await tester.pumpAndSettle();
+        expect(find.text('출구정보'), findsOneWidget);
+        expect(find.bySemanticsLabel('1번 출구, 출구 목록 열기'), findsOneWidget);
+        // 출구와 엘리베이터 연결은 원천 확인 근거가 없어 쓰지 않는다(#511).
+        expect(find.text('엘리베이터 연결'), findsNothing);
+        expect(find.text('계단 없는 이동 가능'), findsOneWidget);
+        expect(find.bySemanticsLabel('1번 출구, 계단 없는 이동 가능'), findsOneWidget);
 
         await tester.scrollUntilVisible(
           find.text('2번 출구 엘리베이터'),
@@ -13413,7 +13429,7 @@ void main() {
       await tester.drag(find.byType(ListView), const Offset(0, -400));
       await tester.pumpAndSettle();
 
-      // 네이버 1:1 표준: 출구가 없으면 출구정보 섹션을 숨기고 역정보 섹션만 그린다.
+      // 출구가 없으면 출구정보 섹션을 숨기고 역정보 섹션만 그린다.
       expect(find.text('출구 안내를 준비 중이에요.'), findsNothing);
       expect(find.text('출구정보'), findsNothing);
       expect(find.text('출구 정보'), findsNothing);
@@ -14086,16 +14102,9 @@ void main() {
           find.byKey(const Key('stationExitMapExpandButton')),
           findsOneWidget,
         );
-        expect(
-          find.byKey(const Key('stationExitPill-exit-sangnoksu-1')),
-          findsOneWidget,
-        );
-        expect(
-          find.byKey(const Key('stationExitPill-exit-sangnoksu-2')),
-          findsOneWidget,
-        );
+        expect(find.byKey(const Key('stationExitSelector')), findsOneWidget);
         expect(find.text('출구정보'), findsOneWidget);
-        expect(find.text('장소 정보'), findsOneWidget);
+        expect(find.text('장소 정보'), findsNothing);
         expect(find.text('출구와 가까운 하차문'), findsOneWidget);
 
         // 슬롭 버튼 완전 삭제 검증
@@ -14117,7 +14126,7 @@ void main() {
     });
   });
 
-  testWidgets('역 상세는 가로 알약 탭 터치 시 해당 출구 상세 및 하차문 정보를 갱신한다', (tester) async {
+  testWidgets('역 상세는 출구 선택기 다음 버튼으로 해당 출구 상세 및 하차문 정보를 갱신한다', (tester) async {
     final mapLauncher = _FakeKakaoMapLauncher();
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
@@ -14166,7 +14175,7 @@ void main() {
     await tester.pumpAndSettle();
 
     await tester.scrollUntilVisible(
-      find.byKey(const Key('stationExitPill-exit-sangnoksu-2')),
+      find.byKey(const Key('stationExitSelector')),
       500,
       scrollable: find.byType(Scrollable).first,
     );
@@ -14174,7 +14183,7 @@ void main() {
 
     expect(find.text('1번 출구 공영주차장 방면'), findsOneWidget);
 
-    await tester.tap(find.byKey(const Key('stationExitPill-exit-sangnoksu-2')));
+    await tester.tap(find.byTooltip('다음 출구'));
     await tester.pumpAndSettle();
 
     expect(find.text('2번 출구 버스환승센터 방면'), findsOneWidget);
@@ -14246,9 +14255,7 @@ void main() {
     expect(find.text('카카오맵을 열었습니다.'), findsOneWidget);
   });
 
-  testWidgets('역 상세는 네이버 지도 1:1 표준 역정보(시설정보, 편의시설, 교통약자 시설 2x2 그리드)를 노출한다', (
-    tester,
-  ) async {
+  testWidgets('역 상세는 역정보(시설정보, 편의시설, 교통약자 시설 2열 격자)를 노출한다', (tester) async {
     final stationRepository = FakeStationSearchRepository(
       stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
       stationFacilities: const [
@@ -14296,10 +14303,9 @@ void main() {
     expect(find.text('시설정보'), findsOneWidget);
     expect(find.text('플랫폼'), findsNothing);
     expect(find.text('-'), findsNothing);
-    expect(find.text('화장실'), findsOneWidget);
-    expect(find.text('개찰구 밖'), findsOneWidget);
-    expect(find.text('내리는문'), findsNothing);
-    expect(find.text('반대편'), findsNothing);
+    expect(find.text('화장실 개찰구 밖'), findsOneWidget);
+    expect(find.textContaining('내리는문'), findsNothing);
+    expect(find.textContaining('반대편'), findsNothing);
 
     // 원천에 행이 없는 편의시설은 없음으로 단정하지 않고 묶음째 뺀다.
     expect(find.text('편의시설'), findsNothing);
@@ -16566,6 +16572,302 @@ void main() {
     );
     expect(submitButton.onPressed, isNotNull);
   });
+
+  group('#511 역 말풍선과 시트 동작', () {
+    Future<_CountingRealtimeRepository> pumpGpsStation(
+      WidgetTester tester, {
+      bool hangRealtime = false,
+    }) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final realtime = _CountingRealtimeRepository(hang: hangRealtime);
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+          timetables: const {},
+        ),
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: realtime,
+      );
+      await tester.tap(find.byKey(const Key('nearbyStationButton')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      return realtime;
+    }
+
+    testWidgets('말풍선의 전체 시간표는 역 시간표 화면을 열고 말풍선을 닫는다', (tester) async {
+      await pumpGpsStation(tester);
+      expect(find.byType(StationPopoverMenu), findsOneWidget);
+
+      await _tapStationPopoverItem(tester, '전체 시간표');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StationTimetableScreen), findsOneWidget);
+      expect(
+        tester
+            .widget<StationTimetableScreen>(find.byType(StationTimetableScreen))
+            .stationId,
+        'station-sangnoksu',
+      );
+      Navigator.of(tester.element(find.byType(StationTimetableScreen))).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(StationPopoverMenu), findsNothing);
+    });
+
+    testWidgets('말풍선의 실시간은 시트를 실시간으로 바꾸고 역 상세로 펼친다', (tester) async {
+      await pumpGpsStation(tester);
+      expect(find.bySemanticsLabel('시간표 선택됨'), findsOneWidget);
+
+      await _tapStationPopoverItem(tester, '실시간');
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
+      expect(
+        find.byKey(const Key('networkMapNearbyStationPanelExpanded')),
+        findsOneWidget,
+      );
+      expect(find.byType(StationPopoverMenu), findsNothing);
+    });
+
+    testWidgets('방면 카드를 누르면 역 시간표 화면을 연다', (tester) async {
+      await pumpGpsStation(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('반월 방면'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StationTimetableScreen), findsOneWidget);
+    });
+
+    testWidgets('새로고침은 같은 역·노선의 실시간을 다시 받는다', (tester) async {
+      final realtime = await pumpGpsStation(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('networkMapNearbyDataSourceToggle')),
+          matching: find.text('실시간'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final beforeRefresh = realtime.calls;
+
+      await tester.tap(find.byTooltip('새로고침'));
+      await tester.pumpAndSettle();
+
+      expect(realtime.calls, beforeRefresh + 1);
+      expect(realtime.lastStationId, 'station-sangnoksu');
+    });
+
+    testWidgets('실시간을 받는 중에는 새로고침을 겹쳐 보내지 않는다', (tester) async {
+      final realtime = await pumpGpsStation(tester, hangRealtime: true);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('networkMapNearbyDataSourceToggle')),
+          matching: find.text('실시간'),
+        ),
+      );
+      await tester.pump();
+      final beforeRefresh = realtime.calls;
+
+      await tester.tap(find.byTooltip('새로고침'));
+      await tester.pump();
+
+      expect(realtime.calls, beforeRefresh);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 10));
+    });
+
+    testWidgets('캐시가 없고 받는 중도 아닌 실시간 선택은 실시간을 다시 받는다', (tester) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final realtime = _CountingRealtimeRepository(hang: true);
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+          timetables: const {},
+          timetableError: const StationTimetableUnavailable(
+            'TIMETABLE_NOT_COVERED',
+          ),
+        ),
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: realtime,
+      );
+      await tester.tap(find.byKey(const Key('nearbyStationButton')));
+      await tester.pump();
+      await tester.pump();
+      Future<void> select(String label) async {
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(const Key('networkMapNearbyDataSourceToggle')),
+            matching: find.text(label),
+          ),
+        );
+        await tester.pump();
+      }
+
+      expect(realtime.calls, 1);
+      await select('실시간');
+      expect(realtime.calls, 1);
+      await select('시간표');
+      await select('실시간');
+
+      expect(realtime.calls, 2);
+      expect(realtime.lastStationId, 'station-sangnoksu');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 10));
+    });
+  });
+
+  group('#511 역 말풍선 실시간·전체 시간표는 말풍선의 역을 따른다', () {
+    final sangnoksu = _stationResult(id: 'station-sangnoksu', name: '상록수');
+    final sadang = _stationResult(id: 'station-sadang', name: '사당');
+
+    Finder popoverCell(String label) => find.descendant(
+      of: find.byType(StationPopoverMenu),
+      matching: find.bySemanticsLabel(label),
+    );
+
+    Future<void> pumpMap(
+      WidgetTester tester,
+      FakeTimetableStationRepository repository,
+    ) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: repository,
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: _CountingRealtimeRepository(hang: false),
+      );
+    }
+
+    testWidgets('시트와 같은 역의 말풍선은 전체 시간표로 그 역 시간표를 연다', (tester) async {
+      await pumpMap(
+        tester,
+        FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          queryResults: {
+            '상록수': [sangnoksu],
+          },
+          timetables: const {},
+        ),
+      );
+      await _tapStationByLabel(tester, '상록수역');
+      await tester.pumpAndSettle();
+
+      expect(popoverCell('전체 시간표'), findsOneWidget);
+      expect(popoverCell('실시간'), findsOneWidget);
+      await _tapStationPopoverItem(tester, '전체 시간표');
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<StationTimetableScreen>(find.byType(StationTimetableScreen))
+            .stationId,
+        'station-sangnoksu',
+      );
+    });
+
+    testWidgets('시트가 바뀌지 않은 채 다른 역 말풍선이 뜨면 실시간·전체 시간표 칸을 두지 않는다', (
+      tester,
+    ) async {
+      await pumpMap(
+        tester,
+        FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          queryResults: {
+            '상록수': [sangnoksu],
+          },
+          timetables: const {},
+        ),
+      );
+      await _tapStationByLabel(tester, '상록수역');
+      await tester.pumpAndSettle();
+
+      await _tapStationByLabel(tester, '사당역');
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<StationPopoverMenu>(find.byType(StationPopoverMenu))
+            .stationName,
+        contains('사당'),
+      );
+      expect(popoverCell('전체 시간표'), findsNothing);
+      expect(popoverCell('실시간'), findsNothing);
+      expect(find.byType(StationTimetableScreen), findsNothing);
+    });
+
+    testWidgets('말풍선 역을 시트가 아직 받는 중이면 칸이 없다가 시트가 따라오면 그 역을 연다', (tester) async {
+      final sadangLookup = Completer<List<StationSearchResult>>();
+      addTearDown(() {
+        if (!sadangLookup.isCompleted) {
+          sadangLookup.complete(const []);
+        }
+      });
+      await pumpMap(
+        tester,
+        _GatedSearchRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          queryResults: {
+            '상록수': [sangnoksu],
+          },
+          gates: {'사당': sadangLookup},
+        ),
+      );
+      await _tapStationByLabel(tester, '상록수역');
+      await tester.pumpAndSettle();
+      await _tapStationByLabel(tester, '사당역');
+      await tester.pump();
+
+      expect(popoverCell('전체 시간표'), findsNothing);
+      expect(popoverCell('실시간'), findsNothing);
+
+      sadangLookup.complete([sadang]);
+      await tester.pumpAndSettle();
+
+      expect(popoverCell('전체 시간표'), findsOneWidget);
+      await _tapStationPopoverItem(tester, '전체 시간표');
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<StationTimetableScreen>(find.byType(StationTimetableScreen))
+            .stationId,
+        'station-sadang',
+      );
+    });
+  });
 }
 
 Future<void> _showFacilityReportTypeOption(
@@ -17150,6 +17452,7 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     required super.stationDetail,
     super.nearbyResults,
     super.networkMapRegionNames,
+    super.queryResults,
     required this.timetables,
     this.timetableLineId = 'seoul-2',
     this.unavailableLineId,
@@ -17226,6 +17529,29 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
   );
 }
 
+class _GatedSearchRepository extends FakeTimetableStationRepository {
+  _GatedSearchRepository({
+    required super.stationDetail,
+    super.networkMapRegionNames,
+    super.queryResults,
+    required this.gates,
+  }) : super(timetables: const {});
+
+  final Map<String, Completer<List<StationSearchResult>>> gates;
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    final gate = gates[query];
+    if (gate != null) {
+      return gate.future;
+    }
+    return super.searchStations(query, region: region);
+  }
+}
+
 /// #2453: 로컬 시간표 Future를 완료하지 않아 패널 첫 프레임 골격을 검증한다.
 class _FailingStationDetailRepository extends FakeStationSearchRepository {
   _FailingStationDetailRepository([
@@ -17238,6 +17564,29 @@ class _FailingStationDetailRepository extends FakeStationSearchRepository {
   Future<StationDetail> getStationDetail(String stationId) async {
     throw error;
   }
+}
+
+_HangingTimetableStationRepository _sangnoksuHangingTimetableRepository(
+  Completer<StationTimetable> completer,
+) {
+  const line = StationSearchLine(
+    id: 'seoul-4',
+    name: '수도권 4호선',
+    color: '#00A5DE',
+    stationCode: '448',
+  );
+  return _HangingTimetableStationRepository(
+    completer: completer,
+    stationDetail: _stationDetail(
+      id: 'station-sangnoksu',
+      name: '상록수',
+      lines: const [line],
+    ),
+    networkMapRegionNames: const ['수도권'],
+    nearbyResults: [
+      _stationResult(id: 'station-sangnoksu', name: '상록수', lines: const [line]),
+    ],
+  );
 }
 
 class _HangingTimetableStationRepository extends FakeStationSearchRepository
@@ -18147,6 +18496,30 @@ class _FreshRealtimeRepository implements RealtimeRepository {
           etaSeconds: 90,
         ),
       ],
+    );
+  }
+}
+
+class _CountingRealtimeRepository implements RealtimeRepository {
+  _CountingRealtimeRepository({required this.hang});
+
+  final bool hang;
+  var calls = 0;
+  String? lastStationId;
+
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) {
+    calls += 1;
+    lastStationId = query.stationId;
+    if (hang) {
+      return Completer<RealtimeSnapshot>().future;
+    }
+    return Future.value(
+      const RealtimeSnapshot(
+        status: RealtimeSnapshotStatus.fresh,
+        receivedAt: '2026-10-24T03:37:00Z',
+        arrivals: [],
+      ),
     );
   }
 }

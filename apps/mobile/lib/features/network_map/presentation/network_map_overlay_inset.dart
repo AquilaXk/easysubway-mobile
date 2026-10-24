@@ -34,7 +34,7 @@ final class NetworkMapTopInsetMeasured extends NetworkMapTopInset {
 ///
 /// 지도는 상단바 바로 아래에서 시작하지만 상단바는 입력 칸 수에 따라 1~3줄로
 /// 커지고 알림 바까지 붙는다. 이 값은 그 오버레이의 측정 높이에서 나오므로
-/// 카메라가 핀·팬 메뉴를 가려지지 않는 영역에 둘 수 있다.
+/// 카메라가 핀·역 말풍선을 가려지지 않는 영역에 둘 수 있다.
 class NetworkMapObscuredTop extends InheritedWidget {
   const NetworkMapObscuredTop({
     required this.inset,

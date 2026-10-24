@@ -24,8 +24,8 @@ const double kRouteMapDesignLabelGapPx = 4.0;
 // (선 장애물 반폭). 오너 결정("글자도 복붙")으로 바탕층 모드에서 앱이 역명을
 // 그리지 않게 되면서 이 값들을 쓰던 라벨 솔버의 basemap 분기가 사라져 참조가
 // 0이 됐다. public const는 analyzer가 미사용 경고를 내지 않으므로 명시적으로
-// 걷어낸다. 나머지 basemap 상수(환승 캡슐 3종·역 노드 반경)는 팬 메뉴 앵커
-// (fanMenuAnchorNodeHeight)가 계속 쓰므로 남긴다.
+// 걷어낸다. 나머지 basemap 상수(환승 캡슐 3종·역 노드 반경)는 역 말풍선 앵커
+// (stationPopoverAnchorNodeHeight)가 계속 쓰므로 남긴다.
 
 /// SVG 바탕층(#2068) 환승 캡슐의 design px 반폭. basemap 모드에서는 구조화 캡슐
 /// 대신 오너 SVG 캡슐이 화면에 그려지고 실측 반폭이 훨씬 크므로, 라벨 장애물·
@@ -67,8 +67,8 @@ const double kRouteMapBasemapTransferCapsuleBaseHalfWidthPx = 9.0;
 /// ([kRouteMapBasemapTransferCapsuleHalfWidthPx])를 써야 한다 — 가로 캡슐에 이
 /// 값을 세로로 적용하면 세로 크기를 크게 과대평가한다.
 ///
-/// 라벨 장애물(`routeMapTransferObstacleRects`)과 팬 메뉴 앵커
-/// (`fanMenuAnchorNodeHeight`)가 같은 캡슐 모델을 소비하도록 단일 출처로 둔다.
+/// 라벨 장애물(`routeMapTransferObstacleRects`)과 역 말풍선 앵커
+/// (`stationPopoverAnchorNodeHeight`)가 같은 캡슐 모델을 소비하도록 단일 출처로 둔다.
 double routeMapBasemapTransferCapsuleHalfWidthFor(int memberCount) => math.max(
   kRouteMapBasemapTransferCapsuleHalfWidthPx,
   (memberCount - 1) * kRouteMapBasemapTransferSlotHalfWidthPx +

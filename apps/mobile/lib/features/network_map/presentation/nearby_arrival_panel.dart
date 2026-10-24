@@ -4,7 +4,7 @@ import '../../../accessible_design.dart';
 import 'nearby_direction_columns.dart';
 import 'nearby_direction_title.dart';
 
-enum NearbyArrivalPanelStatus { fresh, stale, unavailable }
+enum NearbyArrivalPanelStatus { loading, fresh, stale, unavailable }
 
 class NearbyArrivalData {
   const NearbyArrivalData({
@@ -25,33 +25,33 @@ class NearbyArrivalData {
 class NearbyArrivalPanelData {
   const NearbyArrivalPanelData({
     required this.status,
-    this.receivedAt = '',
     this.arrivals = const [],
   });
 
   final NearbyArrivalPanelStatus status;
-  final String receivedAt;
   final List<NearbyArrivalData> arrivals;
 }
 
 /// 주변역 패널의 실시간 도착 정보. 열차 정보가 없어도 인접역에서 "○○ 방면"
-/// 제목을 유도해 두 열과 대시 skeleton을 유지한다.
+/// 제목을 유도해 방면 카드 두 개를 유지한다. 응답을 기다리는 중에는 빈 카드에 대시를,
+/// 받았는데 열차가 없으면 실시간 정보 없음을 쓴다.
 class NearbyArrivalPanel extends StatelessWidget {
   const NearbyArrivalPanel({
     required this.data,
-    required this.lineColor,
     required this.leftName,
     required this.rightName,
-    this.onSelectTimetable,
+    this.onOpenDirection,
     this.now,
     super.key,
   });
 
+  /// 상용 지하철 서비스가 실시간 도착이 없는 방면에 쓰는 문구.
+  static const unavailableMessage = ['실시간 정보 없음', '(시간표를 확인해 주세요.)'];
+
   final NearbyArrivalPanelData data;
-  final Color lineColor;
   final String? leftName;
   final String? rightName;
-  final VoidCallback? onSelectTimetable;
+  final VoidCallback? onOpenDirection;
   final DateTime? now;
 
   @override
@@ -71,87 +71,46 @@ class NearbyArrivalPanel extends StatelessWidget {
         );
         groups.putIfAbsent(dir, () => []).add(arrival);
       }
-      for (final key in groups.keys) {
-        dataGroups.add(groups[key]!);
-      }
+      dataGroups.addAll(groups.values);
     }
-    final dataTitles = [
-      for (final group in dataGroups)
-        _arrivalDirectionLabel(
-          group.first,
-          leftName: leftName,
-          rightName: rightName,
-        ),
-    ];
     final slots = resolveNearbyColumnSlots(
-      dataTitles: dataTitles,
-      leftName: leftName,
-      rightName: rightName,
-    );
-    if (slots.isEmpty) {
-      return const NearbyDataUnavailable();
-    }
-
-    final columns = <NearbyPanelColumn>[];
-    final semanticParts = <String>[];
-    for (final slot in slots) {
-      final dataIndex = slot.dataIndex;
-      if (dataIndex == null) {
-        columns.add(NearbyPanelColumn(title: slot.title));
-        continue;
-      }
-      final visible = dataGroups[dataIndex].take(2).toList(growable: false);
-      columns.add(
-        NearbyPanelColumn(
-          title: slot.title,
-          rows: [
-            for (final arrival in visible)
-              NearbyArrivalRow(
-                destination: arrival.destination.trim().isNotEmpty
-                    ? arrival.destination.trim()
-                    : _fallbackDestination(arrival.direction),
-                eta: _formatArrivalEta(arrival, now: now),
-              ),
-          ],
-        ),
-      );
-      for (final arrival in visible) {
-        final rawDest = arrival.destination.trim().isNotEmpty
-            ? arrival.destination.trim()
-            : _fallbackDestination(arrival.direction);
-        final destLabel = rawDest.isEmpty
-            ? ''
-            : (rawDest.endsWith('행') ? rawDest : '$rawDest행');
-        final part = [
-          _arrivalDirectionLabel(
-            arrival,
+      dataTitles: [
+        for (final group in dataGroups)
+          _resolveNearbyArrivalDirection(
+            group.first,
             leftName: leftName,
             rightName: rightName,
           ),
-          destLabel,
-          _formatArrivalEta(arrival, now: now),
-        ].where((part) => part.isNotEmpty).join(' ');
-        if (part.isNotEmpty) {
-          semanticParts.add(part);
-        }
-      }
+      ],
+      leftName: leftName,
+      rightName: rightName,
+    );
+    final loading = data.status == NearbyArrivalPanelStatus.loading;
+    if (slots.isEmpty) {
+      return NearbyDataUnavailable(lines: unavailableMessage, loading: loading);
     }
 
+    final columns = [
+      for (final slot in slots)
+        switch (slot.dataIndex) {
+          null => NearbyPanelColumn(
+            title: slot.title,
+            emptyMessage: unavailableMessage,
+            loading: loading,
+          ),
+          final index => _arrivalColumn(slot.title, dataGroups[index]),
+        },
+    ];
+
     final isStale = data.status == NearbyArrivalPanelStatus.stale && hasData;
-    final columnsView = NearbyPanelColumns(
-      columns: columns,
-      lineColor: lineColor,
-    );
-    final body = Column(
+    return Column(
       key: hasData ? null : const Key('networkMapNearbyArrivalSkeleton'),
       mainAxisSize: MainAxisSize.min,
       children: [
         if (isStale) ...[
-          Text(
-            data.receivedAt.trim().isEmpty
-                ? '최근 도착 정보'
-                : '최근 도착 정보 · ${data.receivedAt.trim()}',
-            style: const TextStyle(
+          const Text(
+            '최근 도착 정보',
+            style: TextStyle(
               color: EasySubwayAccessibleColors.mutedText,
               fontSize: 12,
               fontWeight: EasySubwayFontWeight.regular,
@@ -159,23 +118,58 @@ class NearbyArrivalPanel extends StatelessWidget {
           ),
           const SizedBox(height: 6),
         ],
-        columnsView,
+        NearbyPanelColumns(columns: columns, onOpenDirection: onOpenDirection),
       ],
     );
-    if (semanticParts.isEmpty) {
-      return body;
-    }
-    final dashLabels = [
-      for (final slot in slots)
-        if (slot.dataIndex == null)
-          slot.title.isEmpty ? '정보 없음' : '${slot.title} 정보 없음',
+  }
+
+  NearbyPanelColumn _arrivalColumn(
+    String title,
+    List<NearbyArrivalData> arrivals,
+  ) {
+    final visible = arrivals.take(2).toList(growable: false);
+    final rows = [
+      for (final arrival in visible)
+        (
+          destination: _destinationOf(arrival),
+          eta: _formatArrivalEta(arrival, now: now),
+        ),
     ];
-    return Semantics(
-      excludeSemantics: true,
-      label: [...semanticParts, ...dashLabels].join(', '),
-      child: body,
+    return NearbyPanelColumn(
+      title: title,
+      rows: [
+        for (final row in rows)
+          NearbyArrivalRow(
+            destination: nearbyDestinationName(row.destination),
+            eta: row.eta,
+          ),
+      ],
+      rowsLabel: [
+        for (final row in rows)
+          [
+            _destinationSpoken(row.destination),
+            row.eta,
+          ].where((part) => part.isNotEmpty).join(' '),
+      ].join(', '),
     );
   }
+}
+
+String _destinationOf(NearbyArrivalData arrival) {
+  final destination = arrival.destination.trim();
+  return destination.isNotEmpty
+      ? destination
+      : _fallbackDestination(arrival.direction);
+}
+
+/// 스크린리더는 `약수행`처럼 행선지임을 읽는다.
+String _destinationSpoken(String destination) {
+  if (destination.isEmpty ||
+      nearbyDirectionWords.contains(destination) ||
+      destination.endsWith('행')) {
+    return destination;
+  }
+  return '$destination행';
 }
 
 String _formatArrivalEta(NearbyArrivalData arrival, {DateTime? now}) {
@@ -189,11 +183,11 @@ String _formatArrivalEta(NearbyArrivalData arrival, {DateTime? now}) {
     }
     if (eta <= 3600) {
       final minutes = (eta / 60).round();
-      return minutes <= 0 ? '곧 도착' : '$minutes분 뒤 도착';
+      return minutes <= 0 ? '곧 도착' : '$minutes분';
     }
     final hours = eta ~/ 3600;
     final minutes = (eta % 3600) ~/ 60;
-    return minutes == 0 ? '$hours시간 뒤 도착' : '$hours시간 $minutes분 뒤 도착';
+    return minutes == 0 ? '$hours시간' : '$hours시간 $minutes분';
   }
 
   if (msg == '곧 도착' && pos.isNotEmpty) {
@@ -275,16 +269,4 @@ String _resolveNearbyArrivalDirection(
     return cleanDest.endsWith('방면') ? cleanDest : '$cleanDest 방면';
   }
   return '';
-}
-
-String _arrivalDirectionLabel(
-  NearbyArrivalData arrival, {
-  String? leftName,
-  String? rightName,
-}) {
-  return _resolveNearbyArrivalDirection(
-    arrival,
-    leftName: leftName,
-    rightName: rightName,
-  );
 }

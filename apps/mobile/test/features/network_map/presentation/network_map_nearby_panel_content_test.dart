@@ -130,6 +130,7 @@ void main() {
               successBuildCount += 1;
               return (
                 stationBar: const SizedBox(key: Key('stationBar')),
+                controlRow: const SizedBox(key: Key('controlRow')),
                 dataPanel: const SizedBox(key: Key('dataPanel')),
               );
             },
@@ -158,9 +159,7 @@ void main() {
     }
   });
 
-  testWidgets('success는 station bar·gap·padded data panel을 한 번 조합한다', (
-    tester,
-  ) async {
+  testWidgets('success는 노선 바, 토글 줄, 방면 카드를 위에서부터 한 번 조합한다', (tester) async {
     var successBuildCount = 0;
     await tester.pumpWidget(
       _host(
@@ -170,6 +169,7 @@ void main() {
             successBuildCount += 1;
             return (
               stationBar: const SizedBox(key: Key('stationBar'), height: 48),
+              controlRow: const SizedBox(key: Key('controlRow'), height: 48),
               dataPanel: const SizedBox(key: Key('dataPanel'), height: 72),
             );
           },
@@ -178,17 +178,11 @@ void main() {
     );
 
     expect(successBuildCount, 1);
-    expect(find.byKey(const Key('stationBar')), findsOneWidget);
-    expect(find.byKey(const Key('dataPanel')), findsOneWidget);
-    final gapFinder = find.descendant(
-      of: find.byType(NetworkMapNearbyPanelContent),
-      matching: find.byWidgetPredicate(
-        (widget) => widget is SizedBox && widget.height == 17,
-      ),
-    );
-    expect(gapFinder, findsOneWidget);
-    final gap = tester.widget<SizedBox>(gapFinder);
-    expect(gap.height, 17);
+    final barBottom = tester.getBottomLeft(find.byKey(const Key('stationBar')));
+    final rowRect = tester.getRect(find.byKey(const Key('controlRow')));
+    final panelTop = tester.getTopLeft(find.byKey(const Key('dataPanel')));
+    expect(rowRect.top, greaterThan(barBottom.dy));
+    expect(panelTop.dy, greaterThan(rowRect.bottom));
     final padding = tester.widget<Padding>(
       find.ancestor(
         of: find.byKey(const Key('dataPanel')),
@@ -285,11 +279,11 @@ void main() {
     // 실시간 / 시간표 토글 버튼 탭
     final toggle = find.byKey(const Key('networkMapNearbyDataSourceToggle'));
     if (toggle.evaluate().isNotEmpty) {
-      await tester.tap(find.text('시간표'));
+      await tester.tap(find.descendant(of: toggle, matching: find.text('시간표')));
       await tester.pumpAndSettle();
 
       // 다시 토글
-      await tester.tap(find.text('실시간'));
+      await tester.tap(find.descendant(of: toggle, matching: find.text('실시간')));
       await tester.pumpAndSettle();
     }
   });
