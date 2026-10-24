@@ -117,12 +117,14 @@ function parseMeminfo(text) {
   const javaHeap = text.match(/Java Heap:\s*([\d,]+)/);
   const nativeHeap = text.match(/Native Heap:\s*([\d,]+)/);
   const graphics = text.match(/Graphics:\s*([\d,]+)/);
+  const glMtrack = text.match(/^\s*GL mtrack\s+([\d,]+)/m);
   return {
     totalPssKb: total ? parseNumber(total[1]) : null,
     totalRssKb: total ? parseNumber(total[2]) : null,
     javaHeapKb: javaHeap ? parseNumber(javaHeap[1]) : null,
     nativeHeapKb: nativeHeap ? parseNumber(nativeHeap[1]) : null,
     graphicsKb: graphics ? parseNumber(graphics[1]) : null,
+    glMtrackKb: glMtrack ? parseNumber(glMtrack[1]) : null,
   };
 }
 
@@ -195,6 +197,38 @@ function medianVsyncIntervalMs(frames) {
   return percentile(intervals, 50);
 }
 
+// 이만큼 이상 vsync가 비면 입력이 없어 그리지 않은 시간으로 본다. 2026-10-24 Galaxy
+// A17 run에서 스와이프마다 한 번 7~9 vsync 간격이 raster 시간과 무관하게 나왔다.
+const IDLE_GAP_VSYNCS = 5;
+
+// 그린 프레임 사이에서 프레임 없이 지나간 vsync 수. 래스터 스레드의 다른 작업(이미지
+// 굽기 등)은 그 프레임의 rasterMs에 잡히지 않지만 다음 프레임을 늦춰 여기에 드러난다.
+// 프레임 번호가 줄면 다른 run(프로세스)의 프레임이라 세지 않는다.
+function countMissedVsyncs(frames, budgetMs) {
+  if (budgetMs == null) {
+    return null;
+  }
+  let missed = 0;
+  for (let index = 1; index < frames.length; index += 1) {
+    const previous = frames[index - 1];
+    const current = frames[index];
+    if (
+      previous.frame == null ||
+      current.frame == null ||
+      current.frame <= previous.frame
+    ) {
+      continue;
+    }
+    const vsyncs = Math.round(
+      (current.vsyncStartUs - previous.vsyncStartUs) / 1000 / budgetMs,
+    );
+    if (vsyncs > 1 && vsyncs < IDLE_GAP_VSYNCS) {
+      missed += vsyncs - 1;
+    }
+  }
+  return missed;
+}
+
 function summarizeFrames(frames, budgetMs) {
   const builds = frames.map((frame) => frame.build);
   const rasters = frames.map((frame) => frame.raster);
@@ -213,6 +247,7 @@ function summarizeFrames(frames, budgetMs) {
     totalP90Ms: percentile(totals, 90),
     totalP99Ms: percentile(totals, 99),
     jankyFrames,
+    missedVsyncs: countMissedVsyncs(frames, budgetMs),
     jankyPercent:
       frames.length > 0 && jankyFrames != null
         ? Math.round((jankyFrames / frames.length) * 10000) / 100
@@ -273,6 +308,10 @@ function summarizeGroups(runs) {
     const rates = new Set(groupRuns.map((run) => run.refreshRateHz));
     const budgetMs =
       rates.size === 1 ? frameBudgetMs({ refresh_rate_hz: String([...rates][0]) }) : null;
+    const range = (values) => {
+      const known = values.filter((value) => value != null);
+      return known.length === 0 ? null : [Math.min(...known), Math.max(...known)];
+    };
     return {
       group: name,
       rounds: groupRuns.length,
@@ -281,6 +320,8 @@ function summarizeGroups(runs) {
       roundRasterP50Ms: roundRasterP50,
       roundRasterP50MedianMs: median(roundRasterP50),
       roundRasterP50RangeMs: [Math.min(...roundRasterP50), Math.max(...roundRasterP50)],
+      totalPssRangeKb: range(groupRuns.map((run) => run.meminfo.totalPssKb)),
+      glMtrackRangeKb: range(groupRuns.map((run) => run.meminfo.glMtrackKb)),
       pooled: summarizeFrames(
         groupRuns.flatMap((run) => run.frames),
         budgetMs,
@@ -384,8 +425,8 @@ function markdownReport(result) {
     "",
     "Groups (raster p50 per round, pooled frames):",
     "",
-    "| group | rounds | Hz | thermal | round raster p50 median | range | pooled raster p50 | p90 | p99 | janky / frames | vsync interval |",
-    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+    "| group | rounds | Hz | thermal | round raster p50 median | range | pooled raster p50 | p90 | p99 | janky / frames | missed vsyncs | vsync interval | PSS range | GL mtrack range |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |",
   );
   for (const group of result.groups) {
     const pooled = group.pooled;
@@ -401,7 +442,10 @@ function markdownReport(result) {
         `${pooled.rasterP90Ms}ms`,
         `${pooled.rasterP99Ms}ms`,
         `${pooled.jankyFrames ?? "unknown"} / ${pooled.frameSampleCount}`,
+        pooled.missedVsyncs ?? "unknown",
         pooled.medianVsyncIntervalMs == null ? "" : `${pooled.medianVsyncIntervalMs}ms`,
+        group.totalPssRangeKb == null ? "" : group.totalPssRangeKb.join("~"),
+        group.glMtrackRangeKb == null ? "" : group.glMtrackRangeKb.join("~"),
       ].join(" | ")} |`,
     );
   }

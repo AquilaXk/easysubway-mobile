@@ -104,3 +104,52 @@ test("--frames keeps every parsed frame for the raw JSON artifact", async () => 
     [[10, 100], [12, 101]],
   );
 });
+
+async function writeVsyncRun(root, name, vsyncStartsUs, meminfo = "TOTAL PSS: 1 TOTAL RSS: 2\n") {
+  const dir = await writeRun(root, name, { refreshRateHz: "90.0", rasters: [] });
+  const lines = vsyncStartsUs.map((vsyncStartUs, index) =>
+    frameLine({ build: 2, raster: 3, frame: 100 + index, vsyncStartUs }),
+  );
+  await writeFile(path.join(dir, "route-map-frames.log"), `${lines.join("\n")}\n`);
+  await writeFile(path.join(dir, "meminfo.txt"), meminfo);
+  return dir;
+}
+
+test("work outside the frame's raster time shows up as vsyncs with no frame", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  // 11.1 ms 간격 3장, 한 vsync를 건너뛴 22.2 ms, 두 vsync를 건너뛴 33.3 ms,
+  // 입력이 없어 그리지 않은 88.9 ms(8 vsync)와 400 ms를 둔다.
+  const dir = await writeVsyncRun(root, "r1", [
+    0, 11_111, 22_222, 44_444, 77_777, 166_666, 566_666, 577_777,
+  ]);
+
+  const { runs, groups } = await analyze(["--group", "tiles", "--artifact-dir", dir]);
+
+  assert.equal(runs[0].frameTiming.missedVsyncs, 3);
+  assert.equal(groups[0].pooled.missedVsyncs, 3);
+});
+
+test("pooled runs do not count the gap between two runs as missed vsyncs", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  const a = await writeVsyncRun(root, "a", [5_000_000, 5_011_111]);
+  const b = await writeVsyncRun(root, "b", [1_000_000, 1_011_111, 1_033_333]);
+
+  const { groups } = await analyze(["--group", "g", "--artifact-dir", a, "--artifact-dir", b]);
+
+  assert.equal(groups[0].pooled.missedVsyncs, 1);
+});
+
+test("groups report the PSS and GL mtrack range over rounds", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  const meminfo = (pss, gl) =>
+    `    GL mtrack    ${gl}    ${gl}        0        0    ${gl}\n` +
+    `           TOTAL PSS:   ${pss}            TOTAL RSS:   353705\n`;
+  const a = await writeVsyncRun(root, "a", [0, 11_111], meminfo(229647, 25828));
+  const b = await writeVsyncRun(root, "b", [0, 11_111], meminfo(238325, 26100));
+
+  const { runs, groups } = await analyze(["--group", "g", "--artifact-dir", a, "--artifact-dir", b]);
+
+  assert.equal(runs[0].meminfo.glMtrackKb, 25828);
+  assert.deepEqual(groups[0].totalPssRangeKb, [229647, 238325]);
+  assert.deepEqual(groups[0].glMtrackRangeKb, [25828, 26100]);
+});

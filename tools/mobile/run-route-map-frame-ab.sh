@@ -23,7 +23,9 @@ Options:
 
 Every round measures the sides in the order given (A, B, A, B, ...) so warmup,
 heat and drift favor no side (benchmark checklist: at least 5 runs per side,
-alternating). Both APKs must be
+alternating). The script first copies itself, the evidence script and the
+analyzer to <artifact-root>/harness and reruns from that copy, so editing the
+working tree during a batch cannot change the harness mid-run. Both APKs must be
 profile builds of the same package signed with the same key. The script only
 installs with adb install -r. It never uninstalls, so a failed install stops
 the run, and it leaves the last installed side on the device.
@@ -40,6 +42,7 @@ PAN_SPAN_PERCENT=40
 FOCUS_LINE=""
 SETTLE_SECONDS=5
 ADB="${ADB:-}"
+ORIGINAL_ARGS=("$@")
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -90,6 +93,15 @@ fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p "$ARTIFACT_ROOT"
+HARNESS_DIR="$(cd "$ARTIFACT_ROOT" && pwd)/harness"
+if [[ "$SCRIPT_DIR" != "$HARNESS_DIR" ]]; then
+  mkdir -p "$HARNESS_DIR"
+  for script in run-route-map-frame-ab.sh run-route-map-android-evidence.sh \
+    analyze-route-map-android-evidence.mjs; do
+    cp "$SCRIPT_DIR/$script" "$HARNESS_DIR/$script"
+  done
+  exec bash "$HARNESS_DIR/run-route-map-frame-ab.sh" "${ORIGINAL_ARGS[@]}"
+fi
 
 install_side() {
   local apk="$1" output
