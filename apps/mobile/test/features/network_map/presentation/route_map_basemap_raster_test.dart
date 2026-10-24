@@ -209,6 +209,80 @@ void main() {
     _expectEdgeOnlyDiff(await _screen(tester), expected, '다시 구운 프레임');
   });
 
+  testWidgets('노선을 고르면 이전 이미지를 버리고 벡터로 그린 뒤, 멈추면 강조한 바탕을 굽는다', (tester) async {
+    final expected = await _vectorScreen(
+      tester,
+      _camera(),
+      lineId: _uiSinseolLineId,
+    );
+
+    final key = UniqueKey();
+    await tester.pumpWidget(_map(_camera(), key: key));
+    await _settleLoads(tester);
+    await _rest(tester);
+    final plain = _rasterPainter(tester)!.image;
+
+    await tester.pumpWidget(
+      _map(_camera(), lineId: _uiSinseolLineId, key: key),
+    );
+    await _settleLoads(tester);
+    expect(_rasterPainter(tester), isNull);
+    expect(plain.debugDisposed, isTrue);
+
+    await _rest(tester);
+    expect(_rasterPainter(tester)!.image, isNot(same(plain)));
+    _expectEdgeOnlyDiff(await _screen(tester), expected, '강조한 바탕');
+  });
+
+  testWidgets('구운 바탕 painter는 그리는 입력이 바뀔 때만 다시 그린다', (tester) async {
+    final image = (await tester.runAsync(() async {
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawRect(
+        const Rect.fromLTWH(0, 0, 4, 4),
+        Paint()..color = const Color(0xFF000000),
+      );
+      final picture = recorder.endRecording();
+      final result = await picture.toImage(4, 4);
+      picture.dispose();
+      return result;
+    }))!;
+    final camera = _camera();
+    RouteMapBasemapRasterPainter painter({
+      MapCameraState? movedCamera,
+      Rect sourceRect = const Rect.fromLTWH(0, 0, 4, 4),
+      double devicePixelRatio = 1,
+      Offset sourceOrigin = Offset.zero,
+      String? attributionText,
+    }) => RouteMapBasemapRasterPainter(
+      image: image,
+      sourceRect: sourceRect,
+      devicePixelRatio: devicePixelRatio,
+      camera: movedCamera ?? camera,
+      sourceOrigin: sourceOrigin,
+      attributionText: attributionText,
+    );
+    final base = painter();
+
+    expect(painter().shouldRepaint(base), isFalse);
+    expect(
+      painter(
+        movedCamera: _camera(pan: const Offset(1, 0)),
+      ).shouldRepaint(base),
+      isTrue,
+    );
+    expect(
+      painter(sourceRect: const Rect.fromLTWH(1, 0, 4, 4)).shouldRepaint(base),
+      isTrue,
+    );
+    expect(painter(devicePixelRatio: 2).shouldRepaint(base), isTrue);
+    expect(
+      painter(sourceOrigin: const Offset(1, 0)).shouldRepaint(base),
+      isTrue,
+    );
+    expect(painter(attributionText: '출처').shouldRepaint(base), isTrue);
+    image.dispose();
+  });
+
   testWidgets('배율이 바뀌는 동안은 굽지 않고 벡터로 그린다', (tester) async {
     await tester.pumpWidget(_map(_camera()));
     await _settleLoads(tester);

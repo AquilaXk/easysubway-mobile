@@ -176,20 +176,9 @@ class RouteMapBasemapRasterInput {
     }
   }
 
-  @override
-  bool operator ==(Object other) =>
-      other is RouteMapBasemapRasterInput &&
-      hasSameContent(other) &&
-      other.sourceRect == sourceRect;
-
-  @override
-  int get hashCode => Object.hash(
-    identityHashCode(basemap),
-    identityHashCode(overlay),
-    scale,
-    devicePixelRatio,
-    sourceRect,
-  );
+  /// 같은 내용을 같은 영역으로 굽는 입력인지.
+  bool isSameRaster(RouteMapBasemapRasterInput other) =>
+      hasSameContent(other) && other.sourceRect == sourceRect;
 }
 
 const TextStyle _attributionStyle = TextStyle(
@@ -614,10 +603,11 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   }
 
   void _scheduleRaster(RouteMapBasemapRasterInput? input) {
-    if (_pendingRaster?.input == input) {
+    final pending = _pendingRaster;
+    if (pending != null && input != null && pending.input.isSameRaster(input)) {
       return;
     }
-    _pendingRaster?.timer.cancel();
+    pending?.timer.cancel();
     _pendingRaster = null;
     if (input == null || !input.canRasterize) {
       return;
@@ -625,7 +615,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     _pendingRaster = (
       input: input,
       timer: Timer(kRouteMapBasemapRasterSettleDelay, () {
-        if (!mounted || _pendingRaster?.input != input) {
+        if (!mounted || !identical(_pendingRaster?.input, input)) {
           return;
         }
         setState(() {
