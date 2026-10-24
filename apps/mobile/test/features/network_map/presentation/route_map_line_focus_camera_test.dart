@@ -3,9 +3,13 @@ import 'package:easysubway_mobile/features/network_map/data/network_map_owner_no
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+// 노선을 고르면 바탕 위에 그 노선 강조 레이어를 그리므로 데이터팩 노선 id를 쓴다.
+const _line1 = 'line-472a81add377';
+const _lineWithoutStations = 'line-30886152e4f8';
 const _initialBounds = Rect.fromLTWH(1000, 800, 1200, 900);
 const _sourceWidth = 3688.0;
 const _sourceHeight = 2972.0;
@@ -22,7 +26,7 @@ const _station = NetworkMapStation(
   nameKo: '포커스',
   nameEn: 'Focus',
   region: '수도권',
-  lineId: 'seoul-1',
+  lineId: _line1,
   stationCode: '100',
   sequence: 1,
   position: NetworkMapPosition(
@@ -47,7 +51,7 @@ Widget _canvas({
         selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
-            id: 'seoul-1',
+            id: _line1,
             name: '수도권 1호선',
             color: '#0052A4',
             region: '수도권',
@@ -85,6 +89,7 @@ void main() {
   tearDown(() {
     resetNetworkMapOwnerLabelsCacheForTest();
     resetNetworkMapOwnerNodesCacheForTest();
+    RouteMapBasemapViewState.clearPictureCacheForTest();
   });
 
   testWidgets('지도에 역이 없는 노선을 고르면 카메라를 옮기지 않는다', (tester) async {
@@ -96,7 +101,7 @@ void main() {
 
     await tester.pumpWidget(
       _canvas(
-        focusedLine: (lineId: 'missing', revision: 1),
+        focusedLine: (lineId: _lineWithoutStations, revision: 1),
         onViewportChanged: viewports.add,
       ),
     );
@@ -105,7 +110,7 @@ void main() {
 
     await tester.pumpWidget(
       _canvas(
-        focusedLine: (lineId: 'seoul-1', revision: 2),
+        focusedLine: (lineId: _line1, revision: 2),
         onViewportChanged: viewports.add,
       ),
     );
