@@ -113,9 +113,12 @@ class StationPopoverMenu extends StatelessWidget {
                 child: Column(
                   children: [
                     Expanded(child: _body()),
-                    const CustomPaint(
-                      size: Size(double.infinity, kStationPopoverTailHeight),
-                      painter: _TailPainter(),
+                    CustomPaint(
+                      size: const Size(
+                        double.infinity,
+                        kStationPopoverTailHeight,
+                      ),
+                      painter: _TailPainter(EasySubwayPopoverColors.surface),
                     ),
                   ],
                 ),
@@ -221,7 +224,9 @@ class StationPopoverMenu extends StatelessWidget {
 
 /// 몸통 아래 가운데에서 역을 가리키는 꼬리.
 class _TailPainter extends CustomPainter {
-  const _TailPainter();
+  _TailPainter(this.color);
+
+  final Color color;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -232,9 +237,9 @@ class _TailPainter extends CustomPainter {
       ..lineTo(center + halfBase, 0)
       ..lineTo(center, size.height)
       ..close();
-    canvas.drawPath(path, Paint()..color = EasySubwayPopoverColors.surface);
+    canvas.drawPath(path, Paint()..color = color);
   }
 
   @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+  bool shouldRepaint(_TailPainter oldDelegate) => oldDelegate.color != color;
 }

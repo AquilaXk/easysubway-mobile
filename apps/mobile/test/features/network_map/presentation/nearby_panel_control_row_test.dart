@@ -53,7 +53,7 @@ Widget _controlRow({
       enabled: true,
       onToggle: () {},
     ),
-    onRefreshRealtime: onRefresh,
+    onRefreshRealtime: onRefresh == null ? null : (_, _) => onRefresh(),
   );
   return MaterialApp(home: Scaffold(body: content.controlRow));
 }

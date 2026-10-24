@@ -114,6 +114,16 @@ void main() {
     handle.dispose();
   });
 
+  testWidgets('정한 슬롯이 바뀌면 같은 말풍선을 다시 그려 해제로 바꾼다', (tester) async {
+    await _pump(tester);
+    expect(find.text('출발'), findsOneWidget);
+
+    await _pump(tester, selected: {RouteDraftSlot.origin});
+
+    expect(find.text('출발 해제'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('다른 칸에 이미 있는 역의 칸은 비활성이고 누르지 않는다', (tester) async {
     final handle = tester.ensureSemantics();
     final calls = await _pump(tester, disabled: {RouteDraftSlot.destination});

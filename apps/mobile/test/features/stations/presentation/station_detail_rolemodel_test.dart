@@ -211,7 +211,7 @@ void main() {
       );
     });
 
-    testWidgets('다음을 누르면 다음 출구의 정보로 바뀐다', (tester) async {
+    testWidgets('다음·이전을 누르면 그 출구의 정보로 바뀐다', (tester) async {
       await _pump(tester);
 
       await tester.tap(find.byTooltip('다음 출구'));
@@ -220,6 +220,10 @@ void main() {
       expect(_currentExitNumber(tester), '2');
       expect(find.text('대한극장'), findsOneWidget);
       expect(find.text('필동주민센터, 남산골한옥마을'), findsNothing);
+
+      await tester.tap(find.byTooltip('이전 출구'));
+      await tester.pumpAndSettle();
+      expect(_currentExitNumber(tester), '1');
     });
 
     testWidgets('출구 번호를 누르면 목록에서 고를 수 있다', (tester) async {

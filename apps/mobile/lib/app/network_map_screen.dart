@@ -843,6 +843,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                         : null,
                     onOpenStationTimetable: _nearbyPanelHasStation
                         ? () => _openNearbyStationTimetable(
+                            _nearbyPanelData.results.first,
                             _adjacentStationsFor(data),
                           )
                         : null,
@@ -1409,7 +1410,19 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       if (_nearbyRealtimeRequestInFlight) {
         return;
       }
-      _requestNearbyRealtime(station, line);
+      final request = NearbyPanelRequestKey(
+        stationId: station.id,
+        lineId: line.id,
+        generation: ++_nearbyDataRequestToken,
+      );
+      setState(() {
+        _markNearbyRealtimeInFlight(request);
+        // generation을 올린 뒤 반대 채널 이전 요청은 무효 — 고아 in-flight로
+        // 재요청이 영구 스킵되지 않게 플래그를 함께 정리한다.
+        _nearbyTimetableRequestInFlight = false;
+        _nearbyTimetableInFlightGeneration = null;
+      });
+      unawaited(_loadNearbyRealtime(station, line, request: request));
       return;
     }
     if (_nearbyTimetableDisplayMatchesCurrent()) {
@@ -1431,10 +1444,15 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     unawaited(_loadNearbyTimetable(station, line, request: request));
   }
 
-  void _requestNearbyRealtime(
+  /// 실시간 줄의 새로고침. 같은 역·노선을 다시 받는다. 받는 중이면 겹쳐 보내지 않는다.
+  /// 받는 방식은 실시간 토글이 캐시 없이 다시 받을 때와 같다.
+  void _refreshNearbyRealtime(
     StationSearchResult station,
     StationSearchLine line,
   ) {
+    if (_nearbyRealtimeRequestInFlight) {
+      return;
+    }
     final request = NearbyPanelRequestKey(
       stationId: station.id,
       lineId: line.id,
@@ -1442,24 +1460,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     );
     setState(() {
       _markNearbyRealtimeInFlight(request);
-      // generation을 올린 뒤 반대 채널 이전 요청은 무효 — 고아 in-flight로
-      // 재요청이 영구 스킵되지 않게 플래그를 함께 정리한다.
       _nearbyTimetableRequestInFlight = false;
       _nearbyTimetableInFlightGeneration = null;
     });
     unawaited(_loadNearbyRealtime(station, line, request: request));
-  }
-
-  /// 실시간 줄의 새로고침. 같은 역·노선을 다시 받는다. 받는 중이면 겹쳐 보내지 않는다.
-  void _refreshNearbyRealtime() {
-    final station = _nearbyPanelData.results.firstOrNull;
-    final line = station?.lines
-        .where((candidate) => candidate.id == _nearbySelectedLineId)
-        .firstOrNull;
-    if (station == null || line == null || _nearbyRealtimeRequestInFlight) {
-      return;
-    }
-    _requestNearbyRealtime(station, line);
   }
 
   bool get _nearbyPanelHasStation =>
@@ -1474,11 +1478,10 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 
   /// 방면 카드·역 말풍선의 전체 시간표. 역 상세 하단 줄과 같은 역 시간표 화면을 연다.
-  void _openNearbyStationTimetable(NearbyAdjacentStations adjacent) {
-    final station = _nearbyPanelData.results.firstOrNull;
-    if (station == null) {
-      return;
-    }
+  void _openNearbyStationTimetable(
+    StationSearchResult station,
+    NearbyAdjacentStations adjacent,
+  ) {
     unawaited(
       Navigator.of(context).push(
         MaterialPageRoute<void>(
@@ -1828,7 +1831,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
               ? null
               : _nearbyStationDetailAction,
           onSelectNeighbor: _selectNearbyNeighborStation,
-          onOpenTimetable: () => _openNearbyStationTimetable(adjacentStations),
+          onOpenTimetable: () =>
+              _openNearbyStationTimetable(data.results.first, adjacentStations),
           dataSourceToggle: NearbyDataSourceToggle(
             isRealtime:
                 _nearbyDataSource == NetworkMapNearbyPanelDataSource.realtime,

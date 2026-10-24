@@ -16543,6 +16543,122 @@ void main() {
     );
     expect(submitButton.onPressed, isNotNull);
   });
+
+  group('#511 역 말풍선과 시트 동작', () {
+    Future<_CountingRealtimeRepository> pumpGpsStation(
+      WidgetTester tester, {
+      bool hangRealtime = false,
+    }) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final realtime = _CountingRealtimeRepository(hang: hangRealtime);
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+          timetables: const {},
+        ),
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: realtime,
+      );
+      await tester.tap(find.byKey(const Key('nearbyStationButton')));
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      return realtime;
+    }
+
+    testWidgets('말풍선의 전체 시간표는 역 시간표 화면을 열고 말풍선을 닫는다', (tester) async {
+      await pumpGpsStation(tester);
+      expect(find.byType(StationPopoverMenu), findsOneWidget);
+
+      await _tapStationPopoverItem(tester, '전체 시간표');
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StationTimetableScreen), findsOneWidget);
+      expect(
+        tester
+            .widget<StationTimetableScreen>(find.byType(StationTimetableScreen))
+            .stationId,
+        'station-sangnoksu',
+      );
+      Navigator.of(tester.element(find.byType(StationTimetableScreen))).pop();
+      await tester.pumpAndSettle();
+      expect(find.byType(StationPopoverMenu), findsNothing);
+    });
+
+    testWidgets('말풍선의 실시간은 시트를 실시간으로 바꾸고 역 상세로 펼친다', (tester) async {
+      await pumpGpsStation(tester);
+      expect(find.bySemanticsLabel('시간표 선택됨'), findsOneWidget);
+
+      await _tapStationPopoverItem(tester, '실시간');
+      await tester.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('실시간 선택됨'), findsOneWidget);
+      expect(
+        find.byKey(const Key('networkMapNearbyStationPanelExpanded')),
+        findsOneWidget,
+      );
+      expect(find.byType(StationPopoverMenu), findsNothing);
+    });
+
+    testWidgets('방면 카드를 누르면 역 시간표 화면을 연다', (tester) async {
+      await pumpGpsStation(tester);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('반월 방면'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(StationTimetableScreen), findsOneWidget);
+    });
+
+    testWidgets('새로고침은 같은 역·노선의 실시간을 다시 받는다', (tester) async {
+      final realtime = await pumpGpsStation(tester);
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('networkMapNearbyDataSourceToggle')),
+          matching: find.text('실시간'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      final beforeRefresh = realtime.calls;
+
+      await tester.tap(find.byTooltip('새로고침'));
+      await tester.pumpAndSettle();
+
+      expect(realtime.calls, beforeRefresh + 1);
+      expect(realtime.lastStationId, 'station-sangnoksu');
+    });
+
+    testWidgets('실시간을 받는 중에는 새로고침을 겹쳐 보내지 않는다', (tester) async {
+      final realtime = await pumpGpsStation(tester, hangRealtime: true);
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('networkMapNearbyDataSourceToggle')),
+          matching: find.text('실시간'),
+        ),
+      );
+      await tester.pump();
+      final beforeRefresh = realtime.calls;
+
+      await tester.tap(find.byTooltip('새로고침'));
+      await tester.pump();
+
+      expect(realtime.calls, beforeRefresh);
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 10));
+    });
+  });
 }
 
 Future<void> _showFacilityReportTypeOption(
@@ -18124,6 +18240,30 @@ class _FreshRealtimeRepository implements RealtimeRepository {
           etaSeconds: 90,
         ),
       ],
+    );
+  }
+}
+
+class _CountingRealtimeRepository implements RealtimeRepository {
+  _CountingRealtimeRepository({required this.hang});
+
+  final bool hang;
+  var calls = 0;
+  String? lastStationId;
+
+  @override
+  Future<RealtimeSnapshot> arrivals(RealtimeStationQuery query) {
+    calls += 1;
+    lastStationId = query.stationId;
+    if (hang) {
+      return Completer<RealtimeSnapshot>().future;
+    }
+    return Future.value(
+      const RealtimeSnapshot(
+        status: RealtimeSnapshotStatus.fresh,
+        receivedAt: '2026-10-24T03:37:00Z',
+        arrivals: [],
+      ),
     );
   }
 }

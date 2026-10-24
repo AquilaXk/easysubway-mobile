@@ -56,7 +56,8 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
   ValueChanged<StationDetailNeighbor>? onSelectNeighbor,
   VoidCallback? onOpenTimetable,
   Widget dataSourceToggle = const SizedBox.shrink(),
-  VoidCallback? onRefreshRealtime,
+  void Function(StationSearchResult station, StationSearchLine line)?
+  onRefreshRealtime,
   DateTime? now,
 }) {
   final primary = results.first;
@@ -76,7 +77,11 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
     controlRow: NearbyPanelControlRow(
       toggle: dataSourceToggle,
       receivedAtLabel: isRealtime ? _receivedAtLabel(realtime) : null,
-      onRefresh: isRealtime ? onRefreshRealtime : null,
+      onRefresh: _refreshAction(
+        isRealtime ? onRefreshRealtime : null,
+        primary,
+        selectedLine,
+      ),
     ),
     stationBar: NearbyStationLineBar(
       leftName: adjacentStations.leftName,
@@ -133,6 +138,18 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             now: now,
           ),
   );
+}
+
+/// 실시간 줄의 새로고침. 다시 받을 노선이 있을 때만 버튼을 둔다.
+VoidCallback? _refreshAction(
+  void Function(StationSearchResult station, StationSearchLine line)? refresh,
+  StationSearchResult station,
+  StationSearchLine? line,
+) {
+  if (refresh == null || line == null) {
+    return null;
+  }
+  return () => refresh(station, line);
 }
 
 /// 실시간을 받은 시각. 받은 실시간이 없거나 시각을 해석할 수 없으면 null이라 줄에서 빠진다.
