@@ -1,13 +1,21 @@
+import 'dart:math' as math;
+
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-/// 상단바와 알림 바가 지도 위를 덮는 영역의 아래 끝(화면 좌표).
+/// 상단바, 노선 줄, 알림 바가 지도 위를 덮는 영역의 아래 끝(화면 좌표).
 double networkMapOverlayBottomOf(WidgetTester tester) {
-  final noticeBar = find.byKey(const Key('newNotificationBar'));
-  return noticeBar.evaluate().isEmpty
-      ? tester.getRect(find.byKey(const Key('networkMapTopBar'))).bottom
-      : tester.getRect(noticeBar).bottom;
+  const overlayKeys = [
+    Key('networkMapTopBar'),
+    Key('routeMapLineStrip'),
+    Key('newNotificationBar'),
+  ];
+  return [
+    for (final key in overlayKeys)
+      if (find.byKey(key).evaluate().isNotEmpty)
+        tester.getRect(find.byKey(key)).bottom,
+  ].reduce(math.max);
 }
 
 /// 지도 본문 위쪽이 상단바·알림 바에 가려지는 실제 높이(화면에 그려진 사각형 기준).

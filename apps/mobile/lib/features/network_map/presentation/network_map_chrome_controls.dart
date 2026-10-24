@@ -37,10 +37,14 @@ class NetworkMapChrome extends StatefulWidget {
     required this.nearbyLookupMessage,
     required this.onCurrentLocationTap,
     required this.child,
+    this.lineStrip,
     super.key,
   });
 
   final Widget topBar;
+
+  /// 상단바 바로 아래 노선 줄. 노선도를 아직 불러오지 못했으면 null이다.
+  final Widget? lineStrip;
   final Widget? disruptionBanner;
   final bool searchMode;
   final Widget? searchBody;
@@ -68,6 +72,16 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
   void _onOverlayHeight(double height) {
     if (mounted && height != _overlayHeight) {
       setState(() => _overlayHeight = height);
+    }
+  }
+
+  /// 노선 줄은 노선도를 불러온 프레임에 지도와 함께 나타난다. 이전 측정값을 그대로 두면
+  /// 지도가 노선 줄 높이를 빼고 초기 카메라를 정하므로, 다시 잴 때까지 측정 전으로 둔다.
+  @override
+  void didUpdateWidget(NetworkMapChrome oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((oldWidget.lineStrip == null) != (widget.lineStrip == null)) {
+      _overlayHeight = null;
     }
   }
 
@@ -142,6 +156,8 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 widget.topBar,
+                if (widget.lineStrip != null && !inSearchMode)
+                  widget.lineStrip!,
                 if (widget.disruptionBanner != null && !inSearchMode)
                   widget.disruptionBanner!,
               ],

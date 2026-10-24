@@ -20,6 +20,7 @@ import '../features/network_map/data/network_map_owner_nodes_cache.dart';
 import '../features/network_map/domain/nearby_adjacent_stations.dart';
 import '../features/network_map/domain/network_map_edge_topology.dart';
 import '../features/network_map/domain/network_map_models.dart';
+import '../features/network_map/domain/route_map_line_choices.dart';
 import '../features/network_map/domain/route_map_min_scale.dart';
 import '../features/network_map/domain/route_map_owner_labels.dart';
 import '../features/network_map/domain/route_map_owner_nodes.dart';
@@ -30,6 +31,7 @@ import '../features/network_map/presentation/network_map_menu_panel.dart';
 import '../features/network_map/presentation/network_map_nearby_panel_content.dart';
 import '../features/network_map/presentation/network_map_nearby_panel_shell.dart';
 import '../features/network_map/presentation/network_map_unavailable_states.dart';
+import '../features/network_map/presentation/route_map_line_selector.dart';
 import '../features/realtime/realtime_repository.dart';
 import '../features/route_draft/application/route_draft_controller.dart';
 import '../features/stations/data/server_station_timetable_repository.dart';
@@ -189,6 +191,12 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       const NetworkMapNearbyPanelData<StationSearchResult>.idle();
   String? _nearbySelectedStationId;
   String? _nearbySelectedLineId;
+
+  /// 노선 줄과 노선 선택 시트가 함께 보는 고른 노선. 지역을 바꾸면 비운다.
+  String? _routeMapLineId;
+
+  /// 노선을 고를 때마다 올려, 같은 노선을 다시 골라도 카메라가 그 노선으로 간다.
+  int _routeMapLineFocusRevision = 0;
   // #2109: 인플레이스 검색 결과 탭으로 연 역 말풍선의 대상 역 id. 캔버스의
   // selectedStationId(역 말풍선)와 focusedStationId(카메라 이동)에 함께 실린다.
   String? _searchPopoverStationId;
@@ -770,6 +778,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     _nearestStationRequestToken++;
     setState(() {
       _selectedRegion = region ?? _selectedRegion;
+      _routeMapLineId = null;
       _resetNearbyPanelState();
       _initialNearbyFocusStarted = false;
       _future = _startMapLoad();
@@ -825,10 +834,18 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             // 렌더한다(운행종별 필터 없음).
             _startInitialNearbyFocus();
             _latestMapData = data;
+            final lineChoices = routeMapLineChoices(data.lines);
+            final selectedLine = routeMapSelectedLineChoice(
+              lineChoices,
+              _routeMapLineId,
+            );
             return _buildNetworkMapChrome(
               regions: _mergeWithDefaultRegions(data.regions),
               selectedRegion: data.selectedRegion,
               adjacentStations: _adjacentStationsFor(data),
+              lineStrip: lineChoices.isEmpty
+                  ? null
+                  : _buildRouteMapLineStrip(lineChoices, selectedLine?.lineId),
               // #1933: _setOriginStation은 routeDraftController만 갱신하고 이
               // State에서 setState를 호출하지 않으므로, canvas를 좁게
               // ListenableBuilder로 감싸 draft 변경 시 하위 트리가 다시
@@ -861,6 +878,12 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                     onClearOrigin: _clearOriginStation,
                     onClearWaypoint: _clearWaypointStation,
                     onClearDestination: _clearDestinationStation,
+                    focusedLine: selectedLine == null
+                        ? null
+                        : (
+                            lineId: selectedLine.lineId,
+                            revision: _routeMapLineFocusRevision,
+                          ),
                     onViewportChanged: (viewport) {
                       _saveRecentViewport(data.selectedRegion, viewport);
                     },
@@ -1723,11 +1746,38 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     );
   }
 
+  void _selectRouteMapLine(String? lineId) {
+    setState(() {
+      _routeMapLineId = lineId;
+      if (lineId != null) {
+        _routeMapLineFocusRevision++;
+      }
+    });
+  }
+
+  Widget _buildRouteMapLineStrip(
+    List<RouteMapLineChoice> choices,
+    String? selectedLineId,
+  ) {
+    return RouteMapLineStrip(
+      choices: choices,
+      selectedLineId: selectedLineId,
+      onSelected: _selectRouteMapLine,
+      onOpenSheet: () => showRouteMapLineSheet(
+        context,
+        choices: choices,
+        selectedLineId: selectedLineId,
+        onSelected: _selectRouteMapLine,
+      ),
+    );
+  }
+
   Widget _buildNetworkMapChrome({
     required List<NetworkMapRegion> regions,
     required String selectedRegion,
     required NearbyAdjacentStations adjacentStations,
     required Widget child,
+    Widget? lineStrip,
   }) {
     final searchBody = _buildSearchBody();
     final inSearchMode = _searchMode && searchBody != null;
@@ -1765,6 +1815,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
             : _pickWaypointStation,
         roleColorForSlot: routeDraftRoleDotColor,
       ),
+      lineStrip: lineStrip,
       disruptionBanner: widget.disruptionBanner,
       searchMode: inSearchMode,
       searchBody: searchBody,
