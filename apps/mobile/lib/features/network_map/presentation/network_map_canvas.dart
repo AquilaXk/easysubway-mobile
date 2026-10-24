@@ -37,6 +37,10 @@ import 'structured_route_map_painter.dart';
 typedef StationPopoverActionFor =
     VoidCallback? Function(NetworkMapStation station);
 
+/// 노선 선택이 카메라에 보내는 요청. 같은 노선을 다시 골라도 [revision]이 달라
+/// 카메라가 다시 그 노선 역 전체로 간다.
+typedef NetworkMapLineFocusRequest = ({String lineId, int revision});
+
 class NetworkMapCanvas extends StatefulWidget {
   const NetworkMapCanvas({
     super.key,
@@ -60,6 +64,7 @@ class NetworkMapCanvas extends StatefulWidget {
     this.originStationId,
     this.waypointStationId,
     this.destinationStationId,
+    this.focusedLine,
   });
 
   final NetworkMapData data;
@@ -101,6 +106,10 @@ class NetworkMapCanvas extends StatefulWidget {
   final StationPopoverActionFor? realtimeActionFor;
   final StationPopoverActionFor? timetableActionFor;
 
+  /// 노선 줄·노선 선택 시트에서 고른 노선. 요청이 바뀔 때마다 카메라가 그 노선
+  /// 역이 모두 보이게 옮긴다.
+  final NetworkMapLineFocusRequest? focusedLine;
+
   @override
   State<NetworkMapCanvas> createState() => _NetworkMapCanvasState();
 }
@@ -134,6 +143,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   bool _cameraFrameCallbackScheduled = false;
   bool _gestureActive = false;
   (String, bool)? _cameraFocusedStationKey;
+  NetworkMapLineFocusRequest? _cameraFocusedLine;
   MapCameraState? _gestureStartCamera;
   Offset? _gestureStartFocalPoint;
   // 상단 오버레이(상단바·알림 바)에 가려지는 지도 위쪽 높이. 핀과 역 말풍선은 이 아래에
@@ -457,6 +467,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
             _pendingCamera = null;
             _gestureActive = false;
             _cameraFocusedStationKey = null;
+            _cameraFocusedLine = null;
             _camera = preserveCamera
                 ? previousCamera
                       .copyWith(
@@ -551,6 +562,15 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           } else if (focusedStation == null) {
             _cameraFocusedStationKey = null;
           }
+          camera = _focusCameraOnLine(
+            camera,
+            data,
+            geometry,
+            constraints,
+            initialBounds: initialCameraBounds,
+            minScale: minScale,
+            obscuredTop: obscuredTop,
+          );
           if (data.stations.isEmpty) {
             return const OriginalRouteMapUnavailable();
           }
@@ -1133,6 +1153,51 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         ),
       ],
     );
+  }
+
+  /// [NetworkMapCanvas.focusedLine] 요청이 새로 오면 그 노선 역이 모두 보이게 카메라를
+  /// 옮긴다. 제스처 중이면 손을 뗀 뒤 다음 build에서 옮긴다.
+  MapCameraState _focusCameraOnLine(
+    MapCameraState camera,
+    NetworkMapData data,
+    NetworkMapGeometry geometry,
+    BoxConstraints constraints, {
+    required Rect initialBounds,
+    required double minScale,
+    required double obscuredTop,
+  }) {
+    final request = widget.focusedLine;
+    if (request == null || _gestureActive || request == _cameraFocusedLine) {
+      return camera;
+    }
+    _cameraFocusedLine = request;
+    final bounds = networkMapLineFocusBounds(
+      stationCenters: [
+        for (final station in data.stations)
+          if (station.lineId == request.lineId)
+            Offset(geometry.x(station), geometry.y(station)),
+      ],
+      initialBounds: initialBounds,
+      sourceWidth: geometry.width,
+      sourceHeight: geometry.height,
+    );
+    if (bounds == null) {
+      return camera;
+    }
+    final focused = networkMapCameraForBounds(
+      bounds,
+      constraints,
+      sourceBounds: Offset.zero & Size(geometry.width, geometry.height),
+      contain: true,
+      minScale: minScale,
+      revision: camera.revision + 1,
+      initialScaleOverride: camera.initialScale,
+      obscuredTop: obscuredTop,
+    );
+    _pendingCamera = null;
+    _camera = focused;
+    widget.onViewportChanged(focused.visibleSourceRect);
+    return focused;
   }
 
   void _ensureStructuredRouteMap([NetworkMapData? dataOverride]) {

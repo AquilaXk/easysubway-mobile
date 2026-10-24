@@ -11,6 +11,7 @@ import 'network_map_draft_pin.dart';
 const _fallbackMinMapScale = 0.08;
 const _maxMapScale = 4.8;
 const _stationFocusInitialBoundsFraction = 0.72;
+const _lineFocusPaddingFraction = 0.08;
 const double _initialCameraReadableLabelScreenPx = kRouteMapDesignLabelFontPx;
 
 /// 카메라 center가 source 경계 밖으로 나갈 수 있는 화면 여유(dp). 제스처와
@@ -406,6 +407,42 @@ Rect networkMapStationFocusBounds({
     center: center,
     width: width,
     height: height,
+    sourceWidth: sourceWidth,
+    sourceHeight: sourceHeight,
+  );
+}
+
+/// 노선을 고르면 그 노선 역이 모두 들어오게 맞출 bounds. 역 둘레를 긴 변의
+/// [_lineFocusPaddingFraction]만큼 넓히고, 짧은 노선이 역 하나를 고를 때보다 더
+/// 확대되지 않도록 [networkMapStationFocusBounds] 크기보다 작아지지 않게 한다.
+/// 역이 없으면 null이다.
+Rect? networkMapLineFocusBounds({
+  required Iterable<Offset> stationCenters,
+  required Rect initialBounds,
+  required double sourceWidth,
+  required double sourceHeight,
+}) {
+  if (stationCenters.isEmpty) {
+    return null;
+  }
+  final first = stationCenters.first;
+  final extent = stationCenters.fold(
+    Rect.fromPoints(first, first),
+    (bounds, center) => bounds.expandToInclude(Rect.fromPoints(center, center)),
+  );
+  final padded = extent.inflate(
+    math.max(extent.width, extent.height) * _lineFocusPaddingFraction,
+  );
+  return _sourceCenteredBounds(
+    center: padded.center,
+    width: math.max(
+      padded.width,
+      initialBounds.width * _stationFocusInitialBoundsFraction,
+    ),
+    height: math.max(
+      padded.height,
+      initialBounds.height * _stationFocusInitialBoundsFraction,
+    ),
     sourceWidth: sourceWidth,
     sourceHeight: sourceHeight,
   );
