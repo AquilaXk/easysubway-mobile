@@ -172,8 +172,7 @@ class RouteMapBasemapView extends StatefulWidget {
   State<RouteMapBasemapView> createState() => RouteMapBasemapViewState();
 }
 
-class RouteMapBasemapViewState extends State<RouteMapBasemapView>
-    with WidgetsBindingObserver {
+class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   static final Map<String, PictureInfo> _globalPictureCache = {};
   static final Map<String, Future<PictureInfo>> _globalPendingLoads = {};
   static Future<RouteMapLineOverlayIndex>? _overlayIndexLoad;
@@ -212,19 +211,6 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView>
 
   @visibleForTesting
   Map<String, Future<PictureInfo>> get debugPendingLoads => _globalPendingLoads;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-  }
-
-  /// 메모리가 부족하면 타일을 모두 버리고 벡터로 그린다. 다음 프레임부터 다시 굽는다.
-  /// MapLibre Native TilePyramid::reduceMemoryUse가 타일 캐시를 비우는 것과 같다.
-  @override
-  void didHaveMemoryPressure() {
-    setState(() => _tiles.retainWithin(null));
-  }
 
   @override
   void didChangeDependencies() {
@@ -554,7 +540,6 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView>
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
     _pendingTileGrid?.timer.cancel();
     _tiles.retainWithin(null);
     _loadToken = null;

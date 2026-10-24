@@ -455,19 +455,27 @@ void main() {
     expect(tester.binding.hasScheduledFrame, isFalse, reason: '더 굽지 않는다');
   });
 
-  testWidgets('메모리가 부족하면 타일을 버리고 벡터로 그린 뒤 다시 굽는다', (tester) async {
+  testWidgets('메모리가 부족해도 보이는 타일은 그대로 두고 다시 굽지 않는다', (tester) async {
+    // MapLibre Native TilePyramid::reduceMemoryUse는 렌더하지 않는 캐시만 비운다. 이 캐시에는
+    // 보이는 타일만 있으니 버릴 것이 없다. 버리면 같은 타일을 곧바로 다시 굽는다.
     await tester.pumpWidget(_map(_camera()));
     await _settleLoads(tester);
     await _rest(tester);
     await _bakeAll(tester);
-    final images = _tilePainter(tester)!.tiles.map((tile) => tile.image);
+    final images = _tilePainter(
+      tester,
+    )!.tiles.map((tile) => tile.image).toList();
 
     tester.binding.handleMemoryPressure();
     await tester.pump();
 
-    expect(images.every((image) => image.debugDisposed), isTrue);
-    expect(_drawsGaps(tester), isTrue);
-    await _bakeAll(tester);
+    expect(images.any((image) => image.debugDisposed), isFalse);
+    expect(_drawsGaps(tester), isFalse);
+    expect(
+      _tilePainter(tester)!.tiles.map((tile) => tile.image),
+      orderedEquals(images),
+    );
+    expect(tester.binding.hasScheduledFrame, isFalse, reason: '다시 굽지 않는다');
   });
 
   testWidgets('바탕이 화면을 벗어나면 타일을 모두 버리고 아무것도 그리지 않는다', (tester) async {
