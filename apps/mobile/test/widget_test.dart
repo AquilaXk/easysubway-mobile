@@ -16674,6 +16674,56 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(seconds: 10));
     });
+
+    testWidgets('캐시가 없고 받는 중도 아닌 실시간 선택은 실시간을 다시 받는다', (tester) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      final realtime = _CountingRealtimeRepository(hang: true);
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          nearbyResults: [_stationResult(id: 'station-sangnoksu', name: '상록수')],
+          timetables: const {},
+          timetableError: const StationTimetableUnavailable(
+            'TIMETABLE_NOT_COVERED',
+          ),
+        ),
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: realtime,
+      );
+      await tester.tap(find.byKey(const Key('nearbyStationButton')));
+      await tester.pump();
+      await tester.pump();
+      Future<void> select(String label) async {
+        await tester.tap(
+          find.descendant(
+            of: find.byKey(const Key('networkMapNearbyDataSourceToggle')),
+            matching: find.text(label),
+          ),
+        );
+        await tester.pump();
+      }
+
+      expect(realtime.calls, 1);
+      await select('실시간');
+      expect(realtime.calls, 1);
+      await select('시간표');
+      await select('실시간');
+
+      expect(realtime.calls, 2);
+      expect(realtime.lastStationId, 'station-sangnoksu');
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(seconds: 10));
+    });
   });
 
   group('#511 역 말풍선 실시간·전체 시간표는 말풍선의 역을 따른다', () {

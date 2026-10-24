@@ -1412,19 +1412,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       if (_nearbyRealtimeRequestInFlight) {
         return;
       }
-      final request = NearbyPanelRequestKey(
-        stationId: station.id,
-        lineId: line.id,
-        generation: ++_nearbyDataRequestToken,
-      );
-      setState(() {
-        _markNearbyRealtimeInFlight(request);
-        // generation을 올린 뒤 반대 채널 이전 요청은 무효 — 고아 in-flight로
-        // 재요청이 영구 스킵되지 않게 플래그를 함께 정리한다.
-        _nearbyTimetableRequestInFlight = false;
-        _nearbyTimetableInFlightGeneration = null;
-      });
-      unawaited(_loadNearbyRealtime(station, line, request: request));
+      _requestNearbyRealtime(station, line);
       return;
     }
     if (_nearbyTimetableDisplayMatchesCurrent()) {
@@ -1447,7 +1435,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   }
 
   /// 실시간 줄의 새로고침. 같은 역·노선을 다시 받는다. 받는 중이면 겹쳐 보내지 않는다.
-  /// 받는 방식은 실시간 토글이 캐시 없이 다시 받을 때와 같다.
   void _refreshNearbyRealtime(
     StationSearchResult station,
     StationSearchLine line,
@@ -1455,6 +1442,15 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (_nearbyRealtimeRequestInFlight) {
       return;
     }
+    _requestNearbyRealtime(station, line);
+  }
+
+  /// 새 generation으로 실시간만 다시 받는다. generation을 올리면 반대 채널의 이전
+  /// 요청은 무효라, 고아 in-flight로 재요청이 영구 스킵되지 않게 그 플래그도 정리한다.
+  void _requestNearbyRealtime(
+    StationSearchResult station,
+    StationSearchLine line,
+  ) {
     final request = NearbyPanelRequestKey(
       stationId: station.id,
       lineId: line.id,
