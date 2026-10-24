@@ -11,7 +11,10 @@ Options:
   --artifact-dir <dir>      Required output directory for screenshots, UI trees, logs, and summaries.
   --package <package>       App package. Defaults to com.easysubway.app.
   --adb <path>              adb executable. Defaults to $ADB or PATH lookup.
-  --build-mode <mode>       Installed APK mode: debug or profile. Defaults to debug.
+  --build-mode <mode>       Installed APK mode: debug, profile or release. Defaults to debug.
+                            A release build has no routeMapFrame log (kReleaseMode), so the
+                            run keeps gfxinfo framestats and meminfo only. That is the
+                            evidence the release gate accepts for frame and memory budgets.
   --pan-count <count>       Number of map pan gestures after route map entry. Defaults to 5.
   --pan-span-percent <n>    Swipe length as a percent of screen width, centered. Defaults
                             to 40 (from 30% to 70% of the width).
@@ -115,10 +118,10 @@ else
 fi
 
 case "$BUILD_MODE" in
-  debug|profile)
+  debug|profile|release)
     ;;
   *)
-    echo "Unsupported build mode: $BUILD_MODE. Use debug or profile." >&2
+    echo "Unsupported build mode: $BUILD_MODE. Use debug, profile or release." >&2
     exit 2
     ;;
 esac
@@ -201,7 +204,15 @@ require_non_empty "$ARTIFACT_DIR/package.txt"
 adb_device logcat -c
 adb_device shell am force-stop "$PACKAGE"
 adb_device shell dumpsys gfxinfo "$PACKAGE" reset >/dev/null 2>&1 || true
-adb_device shell monkey -p "$PACKAGE" 1 > "$ARTIFACT_DIR/launch.txt"
+# 에뮬레이터(API 36)에서는 monkey -p 가 액티비티를 띄우지 못해(종료 코드 -5) 런처 액티비티를
+# 직접 찾아 am start 로 콜드 스타트한다.
+LAUNCH_COMPONENT="$(adb_device shell cmd package resolve-activity --brief \
+  -c android.intent.category.LAUNCHER "$PACKAGE" | tail -n 1 | tr -d '\r')"
+if [[ "$LAUNCH_COMPONENT" != */* ]]; then
+  echo "Launcher activity not found for $PACKAGE: $LAUNCH_COMPONENT" >&2
+  exit 1
+fi
+adb_device shell am start -W -n "$LAUNCH_COMPONENT" > "$ARTIFACT_DIR/launch.txt"
 sleep "$SETTLE_SECONDS"
 
 # 노선도는 홈 화면이라 실행 즉시 표시된다(별도 진입 탭 없음).
@@ -270,8 +281,9 @@ fi
 
 # #1643: FrameTiming 계측 로그(routeMapFrame buildMs/rasterMs/totalMs). 구조화
 # canvas는 dumpsys gfxinfo로 프레임이 안 잡혀 이 로그가 프레임 성능의 정본이다.
+# release 빌드는 계측을 켜지 않으므로(kReleaseMode) 이 로그가 없고, 메모리만 잰다.
 grep "routeMapFrame" "$ARTIFACT_DIR/logcat.txt" > "$ARTIFACT_DIR/route-map-frames.log" || true
-if [[ ! -s "$ARTIFACT_DIR/route-map-frames.log" ]]; then
+if [[ "$BUILD_MODE" != "release" && ! -s "$ARTIFACT_DIR/route-map-frames.log" ]]; then
   echo "No routeMapFrame timing logs captured. Use a debug/profile build and" >&2
   echo "ensure the route map was on screen during the gesture window." >&2
   exit 1

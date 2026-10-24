@@ -153,3 +153,32 @@ test("groups report the PSS and GL mtrack range over rounds", async () => {
   assert.deepEqual(groups[0].totalPssRangeKb, [229647, 238325]);
   assert.deepEqual(groups[0].glMtrackRangeKb, [25828, 26100]);
 });
+
+async function writeEmptyFrameRun(root, buildMode) {
+  const dir = await writeRun(root, buildMode, { refreshRateHz: "60.0", rasters: [5] });
+  await writeFile(
+    path.join(dir, "metadata.env"),
+    `serial=test\nbuild_mode=${buildMode}\nrefresh_rate_hz=60.0\n`,
+  );
+  await writeFile(path.join(dir, "route-map-frames.log"), "");
+  await writeFile(path.join(dir, "meminfo.txt"), "TOTAL PSS: 150000 TOTAL RSS: 250000\n");
+  return dir;
+}
+
+test("a release run has no frame log and still reports its PSS", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  const dir = await writeEmptyFrameRun(root, "release");
+
+  const { runs } = await analyze(["--artifact-dir", dir]);
+
+  assert.equal(runs[0].buildMode, "release");
+  assert.equal(runs[0].frameTiming.frameSampleCount, 0);
+  assert.equal(runs[0].meminfo.totalPssKb, 150000);
+});
+
+test("a profile run without frame logs fails instead of reporting no frames", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  const dir = await writeEmptyFrameRun(root, "profile");
+
+  await assert.rejects(analyze(["--artifact-dir", dir]), /Expected non-empty file/);
+});

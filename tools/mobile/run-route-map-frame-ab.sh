@@ -16,6 +16,8 @@ Options:
   --rounds <n>            Rounds. Each round measures every side once. Defaults to 5.
   --pan-count <n>         Pans per run. Defaults to 6.
   --pan-span-percent <n>  Swipe length as a percent of screen width. Defaults to 40.
+  --build-mode <mode>     profile or release. Defaults to profile. A release run has no
+                          frame log and reports PSS and GL mtrack only.
   --focus-line <label>    Line chip to select before the pans (for example 2호선).
   --settle-seconds <sec>  Wait after launch and after the line tap. Defaults to 5.
   --adb <path>            adb executable. Defaults to $ADB or PATH lookup.
@@ -25,8 +27,8 @@ Every round measures the sides in the order given (A, B, A, B, ...) so warmup,
 heat and drift favor no side (benchmark checklist: at least 5 runs per side,
 alternating). The script first copies itself, the evidence script and the
 analyzer to <artifact-root>/harness and reruns from that copy, so editing the
-working tree during a batch cannot change the harness mid-run. Both APKs must be
-profile builds of the same package signed with the same key. The script only
+working tree during a batch cannot change the harness mid-run. Every APK must be
+a build of --build-mode for the same package, signed with the same key. The script only
 installs with adb install -r. It never uninstalls, so a failed install stops
 the run, and it leaves the last installed side on the device.
 USAGE
@@ -39,6 +41,7 @@ SIDE_APKS=()
 ROUNDS=5
 PAN_COUNT=6
 PAN_SPAN_PERCENT=40
+BUILD_MODE="profile"
 FOCUS_LINE=""
 SETTLE_SECONDS=5
 ADB="${ADB:-}"
@@ -61,6 +64,7 @@ while [[ $# -gt 0 ]]; do
     --rounds) ROUNDS="${2:-}"; shift 2 ;;
     --pan-count) PAN_COUNT="${2:-}"; shift 2 ;;
     --pan-span-percent) PAN_SPAN_PERCENT="${2:-}"; shift 2 ;;
+    --build-mode) BUILD_MODE="${2:-}"; shift 2 ;;
     --focus-line) FOCUS_LINE="${2:-}"; shift 2 ;;
     --settle-seconds) SETTLE_SECONDS="${2:-}"; shift 2 ;;
     --adb) ADB="${2:-}"; shift 2 ;;
@@ -120,7 +124,7 @@ measure_side() {
     --serial "$SERIAL"
     --artifact-dir "$ARTIFACT_ROOT/$label-r$round"
     --adb "$ADB"
-    --build-mode profile
+    --build-mode "$BUILD_MODE"
     --pan-count "$PAN_COUNT"
     --pan-span-percent "$PAN_SPAN_PERCENT"
     --settle-seconds "$SETTLE_SECONDS"

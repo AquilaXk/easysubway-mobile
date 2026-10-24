@@ -264,7 +264,14 @@ function analyzeRun({ dir: artifactDir, group }) {
   const renderer = parseRendererCrashes(
     existsSync(crashesPath) ? readFileSync(crashesPath, "utf8") : "",
   );
-  const frames = parseFrames(readRequired(path.join(dir, "route-map-frames.log")));
+  // release 빌드는 routeMapFrame 계측이 꺼져 있어(kReleaseMode) 프레임 로그가 비어도 된다.
+  // 그 밖의 빌드는 비면 측정이 안 된 것이므로 그대로 실패한다.
+  const framesPath = path.join(dir, "route-map-frames.log");
+  const frames = parseFrames(
+    metadata.build_mode === "release" && existsSync(framesPath)
+      ? readFileSync(framesPath, "utf8")
+      : readRequired(framesPath),
+  );
   const budgetMs = frameBudgetMs(metadata);
   return {
     artifactDir: dir,
