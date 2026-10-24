@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
-import '../../../core/ui/fitting_text_scaler.dart';
 import '../../../core/ui/line_mark.dart';
 
 /// 주변역 패널의 이전-현재-다음역 노선 표시 바 (오너 스펙 2026-07-16, #2200).
@@ -296,13 +295,7 @@ class _SideName extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           textAlign: isLeft ? TextAlign.left : TextAlign.right,
-          // 이름이 넘치면 배율을 맞는 만큼 낮추고, 14pt 아래에서는 말줄임표로 자른다.
-          textScaler: fittingTextScaler(
-            context,
-            text: value,
-            style: _style,
-            maxWidth: constraints.maxWidth,
-          ),
+          textScaler: _fittingScaler(context, value, constraints.maxWidth),
           style: _style,
         ),
       ),
@@ -353,4 +346,34 @@ class _SideName extends StatelessWidget {
       ),
     );
   }
+
+  /// 기기 글자 배율을 따르되, 이름이 [maxWidth]를 넘으면 배율을 맞는 만큼 낮춘다.
+  /// 14pt 아래로는 내리지 않고 그때는 말줄임표로 자른다.
+  static TextScaler _fittingScaler(
+    BuildContext context,
+    String value,
+    double maxWidth,
+  ) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final scale = scaler.scale(_style.fontSize!) / _style.fontSize!;
+    if (scale <= 1 || !maxWidth.isFinite) {
+      return scaler;
+    }
+    final painter = TextPainter(
+      text: TextSpan(text: value, style: _style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    final scaledWidth = painter.width;
+    painter.dispose();
+    if (scaledWidth <= maxWidth) {
+      return scaler;
+    }
+    // 글자 폭은 배율에 정확히 비례하지 않아(자간·반올림) 약간 여유를 둔다.
+    final fitting = scale * maxWidth / scaledWidth * _fitMargin;
+    return scaler.clamp(maxScaleFactor: fitting < 1 ? 1 : fitting);
+  }
+
+  static const _fitMargin = 0.97;
 }

@@ -232,7 +232,9 @@ void main() {
   group('노선 선택 시트', () {
     testWidgets('제목, 닫기, 전체 노선 줄, 3열 격자와 원형 마크를 보인다', (tester) async {
       useLogicalViewport(tester, const Size(393, 852));
-      await tester.pumpWidget(_sheetHost(picks: []));
+      await tester.pumpWidget(
+        _sheetHost(picks: [], fontFamily: koreanTestFontFamily),
+      );
       await _openSheet(tester);
 
       expect(find.text('노선 선택'), findsOneWidget);
@@ -389,23 +391,75 @@ void main() {
       );
     });
 
-    testWidgets('글자 1.5배에서 칸 이름은 단어 중간에서 줄을 바꾸지 않는다', (tester) async {
-      // Pixel 6 논리 폭. 증거 에뮬레이터와 같은 화면이다.
-      useLogicalViewport(tester, const Size(411, 914));
-      await tester.pumpWidget(
-        _sheetHost(picks: [], textScale: 1.5, fontFamily: koreanTestFontFamily),
-      );
-      await _openSheet(tester);
+    // 칸 이름은 사용자의 글자 배율을 그대로 따르고 한 줄에 그린다. 모자란 폭은 배율을
+    // 줄여서가 아니라 열 수를 줄여서(3, 2, 1) 채운다. 크기는 Pixel 6(411dp)과 작은
+    // 폰(360dp)이다.
+    const columnScenarios = [
+      (name: '411dp 글자 1.0배', size: Size(411, 914), scale: 1.0, columns: 3),
+      (name: '411dp 글자 1.5배', size: Size(411, 914), scale: 1.5, columns: 2),
+      (name: '411dp 글자 2.0배', size: Size(411, 914), scale: 2.0, columns: 1),
+      (name: '360dp 글자 1.0배', size: Size(360, 800), scale: 1.0, columns: 2),
+      (name: '360dp 글자 2.0배', size: Size(360, 800), scale: 2.0, columns: 1),
+    ];
+    for (final scenario in columnScenarios) {
+      testWidgets(
+        '${scenario.name}에서 모든 칸 이름이 같은 배율로 한 줄이고 ${scenario.columns}열이다',
+        (tester) async {
+          useLogicalViewport(tester, scenario.size);
+          await tester.pumpWidget(
+            _sheetHost(
+              picks: [],
+              textScale: scenario.scale,
+              fontFamily: koreanTestFontFamily,
+            ),
+          );
+          await _openSheet(tester);
 
-      final oneLine = tester.getSize(find.text('1호선')).height;
-      for (final name in ['경의중앙', '수인분당', '에버라인', '우이신설', '김포골드']) {
-        expect(
-          tester.getSize(find.text(name)).height,
-          lessThanOrEqualTo(oneLine),
-          reason: name,
-        );
-      }
-    });
+          for (final choice in _choices) {
+            final name = find.descendant(
+              of: _cell(choice.lineId),
+              matching: find.text(choice.name),
+            );
+            final context = tester.element(name);
+            final oneLine = TextPainter(
+              text: TextSpan(
+                text: choice.name,
+                style: DefaultTextStyle.of(
+                  context,
+                ).style.merge(tester.widget<Text>(name).style),
+              ),
+              textDirection: TextDirection.ltr,
+              textScaler: TextScaler.linear(scenario.scale),
+            )..layout();
+            final rendered = tester.getSize(name);
+            expect(
+              rendered.width,
+              moreOrLessEquals(oneLine.width, epsilon: 0.01),
+              reason: '${choice.name} 폭은 사용자 배율 그대로',
+            );
+            expect(
+              rendered.height,
+              moreOrLessEquals(oneLine.height, epsilon: 0.01),
+              reason: '${choice.name}은 한 줄',
+            );
+            oneLine.dispose();
+          }
+          final firstRowTop = tester.getTopLeft(_cell('seoul-1')).dy;
+          final columns = _choices
+              .where(
+                (choice) =>
+                    tester.getTopLeft(_cell(choice.lineId)).dy == firstRowTop,
+              )
+              .length;
+          expect(columns, scenario.columns);
+          expect(
+            tester.getSize(_allCell).width,
+            tester.getSize(find.byType(Table)).width,
+            reason: '전체 노선 줄은 열 수와 무관하게 전체 폭',
+          );
+        },
+      );
+    }
 
     testWidgets('글자 2.0배에서도 넘치지 않고 터치 영역이 48dp다', (tester) async {
       useLogicalViewport(tester, const Size(360, 800));

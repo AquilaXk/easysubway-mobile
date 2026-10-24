@@ -1,9 +1,9 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
-import '../../../core/ui/fitting_text_scaler.dart';
 import '../../../core/ui/line_mark.dart';
 import '../../../design_tokens.dart';
 import '../domain/route_map_line_choices.dart';
@@ -20,7 +20,8 @@ const _sheetButtonVisualSize = 28.0;
 
 const _revealDuration = Duration(milliseconds: 200);
 
-const _sheetColumns = 3;
+/// 시트 격자의 가장 큰 열 수. 이름이 한 줄에 안 들어가면 2열, 1열로 줄인다.
+const _maxSheetColumns = 3;
 const _sheetTitleFontSize = 18.0;
 const _sheetCellFontSize = 16.0;
 
@@ -340,7 +341,8 @@ class _SheetHeader extends StatelessWidget {
   }
 }
 
-/// 얇은 선으로 칸을 나눈 표. 노선 수가 3의 배수가 아니면 마지막 줄 남는 칸은 비운다.
+/// 얇은 선으로 칸을 나눈 표. 열 수는 글자 배율에서도 가장 긴 이름이 한 줄에 들어가는
+/// 가장 큰 값(3, 2, 1)이다. 노선 수가 열 수의 배수가 아니면 마지막 줄 남는 칸은 비운다.
 class _LineTable extends StatelessWidget {
   const _LineTable({
     required this.choices,
@@ -379,26 +381,22 @@ class _LineTable extends StatelessWidget {
           ),
           LayoutBuilder(
             builder: (context, constraints) {
-              final nameMaxWidth =
-                  constraints.maxWidth / _sheetColumns -
-                  2 * EasySubwaySpacing.md -
-                  scaledLineMarkSize(context, lineMarkDefaultSize) -
-                  EasySubwaySpacing.sm;
+              final columns = _sheetColumnCount(
+                context,
+                choices,
+                constraints.maxWidth,
+              );
               return Table(
                 border: const TableBorder.symmetric(inside: hairline),
                 defaultVerticalAlignment:
                     TableCellVerticalAlignment.intrinsicHeight,
                 children: [
-                  for (
-                    var start = 0;
-                    start < choices.length;
-                    start += _sheetColumns
-                  )
+                  for (var start = 0; start < choices.length; start += columns)
                     TableRow(
                       children: [
-                        for (var column = 0; column < _sheetColumns; column++)
+                        for (var column = 0; column < columns; column++)
                           start + column < choices.length
-                              ? _lineCell(choices[start + column], nameMaxWidth)
+                              ? _lineCell(choices[start + column])
                               : const SizedBox.shrink(),
                       ],
                     ),
@@ -411,15 +409,60 @@ class _LineTable extends StatelessWidget {
     );
   }
 
-  Widget _lineCell(RouteMapLineChoice choice, double nameMaxWidth) =>
-      _SheetCell(
-        key: Key('routeMapLineSheetCell-${choice.lineId}'),
-        label: choice.name,
-        nameMaxWidth: nameMaxWidth,
-        selected: choice.lineId == selectedLineId,
-        leading: LineMark(label: choice.markLabel, color: choice.color),
-        onTap: () => onSelected(choice.lineId),
-      );
+  Widget _lineCell(RouteMapLineChoice choice) => _SheetCell(
+    key: Key('routeMapLineSheetCell-${choice.lineId}'),
+    label: choice.name,
+    selected: choice.lineId == selectedLineId,
+    leading: LineMark(label: choice.markLabel, color: choice.color),
+    onTap: () => onSelected(choice.lineId),
+  );
+}
+
+TextStyle _cellTextStyle({required bool selected}) => TextStyle(
+  fontSize: _sheetCellFontSize,
+  fontWeight: selected
+      ? EasySubwayFontWeight.emphasis
+      : EasySubwayFontWeight.regular,
+  color: selected
+      ? EasySubwayAccessibleColors.text
+      : EasySubwayAccessibleColors.secondaryText,
+);
+
+/// 가장 긴 이름이 사용자의 글자 배율 그대로 한 줄에 들어가는 가장 큰 열 수. 1열에서도
+/// 모자라면 1열이고, 그때 이름은 칸 안에서 줄을 바꾼다. 칸 폭은 [tableWidth]를 열 수로
+/// 나눈 값이고, 이름이 쓰는 폭은 칸 가로 여백, 노선 마크, 마크와 이름 사이 간격을 뺀 나머지다.
+/// 고른 칸은 굵어 더 넓으므로 굵은 글씨로 재서 고른 노선이 바뀌어도 열 수가 그대로다.
+int _sheetColumnCount(
+  BuildContext context,
+  List<RouteMapLineChoice> choices,
+  double tableWidth,
+) {
+  final style = DefaultTextStyle.of(
+    context,
+  ).style.merge(_cellTextStyle(selected: true));
+  final scaler = MediaQuery.textScalerOf(context);
+  final direction = Directionality.of(context);
+  var longestName = 0.0;
+  for (final choice in choices) {
+    final painter = TextPainter(
+      text: TextSpan(text: choice.name, style: style),
+      textDirection: direction,
+      textScaler: scaler,
+      maxLines: 1,
+    )..layout();
+    longestName = math.max(longestName, painter.width);
+    painter.dispose();
+  }
+  final chrome =
+      2 * EasySubwaySpacing.md +
+      scaledLineMarkSize(context, lineMarkDefaultSize) +
+      EasySubwaySpacing.sm;
+  for (var columns = _maxSheetColumns; columns > 1; columns--) {
+    if (tableWidth / columns - chrome >= longestName) {
+      return columns;
+    }
+  }
+  return 1;
 }
 
 class _SheetCell extends StatelessWidget {
@@ -429,7 +472,6 @@ class _SheetCell extends StatelessWidget {
     required this.onTap,
     this.leading,
     this.centered = false,
-    this.nameMaxWidth = double.infinity,
     super.key,
   });
 
@@ -439,22 +481,9 @@ class _SheetCell extends StatelessWidget {
   final Widget? leading;
   final bool centered;
 
-  /// 이름 칸의 폭. 큰 글자에서 이름이 단어 중간에서 끊기지 않게 이 폭에 맞춰 배율을
-  /// 낮춘다([fittingTextScaler]).
-  final double nameMaxWidth;
-
   @override
   Widget build(BuildContext context) {
     final leading = this.leading;
-    final style = TextStyle(
-      fontSize: _sheetCellFontSize,
-      fontWeight: selected
-          ? EasySubwayFontWeight.emphasis
-          : EasySubwayFontWeight.regular,
-      color: selected
-          ? EasySubwayAccessibleColors.text
-          : EasySubwayAccessibleColors.secondaryText,
-    );
     return Semantics(
       container: true,
       button: true,
@@ -488,13 +517,7 @@ class _SheetCell extends StatelessWidget {
                     Flexible(
                       child: Text(
                         label,
-                        style: style,
-                        textScaler: fittingTextScaler(
-                          context,
-                          text: label,
-                          style: style,
-                          maxWidth: nameMaxWidth,
-                        ),
+                        style: _cellTextStyle(selected: selected),
                       ),
                     ),
                   ],
