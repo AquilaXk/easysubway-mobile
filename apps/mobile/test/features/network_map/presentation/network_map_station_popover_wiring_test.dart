@@ -7,8 +7,6 @@ import 'package:flutter_test/flutter_test.dart';
 // 이 테스트는 StationPopoverMenu가 노선도에 마운트됨을 보장하기보다, production이
 // 직접 소비하는 station_popover_policy의 placement/anchor/set-clear 규칙을 검증한다.
 
-import 'package:easysubway_mobile/features/network_map/presentation/station_popover_geometry.dart'
-    show kStationPopoverDesignSize, kStationPopoverTailTip;
 import 'package:easysubway_mobile/features/network_map/domain/route_map_design_space.dart'
     show routeMapBasemapTransferCapsuleHalfWidthFor;
 

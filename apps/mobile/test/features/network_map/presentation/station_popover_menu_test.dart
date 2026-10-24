@@ -1,5 +1,4 @@
 import 'package:easysubway_mobile/design_tokens.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/station_popover_geometry.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/station_popover_menu.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';

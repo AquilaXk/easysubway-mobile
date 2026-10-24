@@ -7,7 +7,7 @@ import 'package:flutter/material.dart' show Colors;
 import '../../route_draft/domain/route_draft.dart';
 import '../domain/route_map_design_space.dart';
 import 'route_map_transfer_marker.dart';
-import 'station_popover_geometry.dart';
+import 'station_popover_menu.dart';
 
 /// #2109 역 말풍선 배치 결과. build 경로(라벨·메뉴 Positioned)와 카메라 최소
 /// 패닝이 같은 규칙을 소비하도록 단일 함수로 계산한다.

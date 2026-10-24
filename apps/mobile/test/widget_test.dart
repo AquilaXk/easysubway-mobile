@@ -70,8 +70,6 @@ import 'package:easysubway_mobile/search_field.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/nearby_direction_title.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/structured_route_map_painter.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/station_popover_geometry.dart'
-    show kStationPopoverDesignSize, kStationPopoverTailTip;
 import 'package:easysubway_mobile/features/network_map/presentation/station_popover_menu.dart';
 import 'package:easysubway_mobile/features/notifications/notification_settings.dart';
 import 'package:easysubway_mobile/features/notifications/presentation/notification_inbox_screen.dart';
