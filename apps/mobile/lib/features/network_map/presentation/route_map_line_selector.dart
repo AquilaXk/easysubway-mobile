@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/ui/fitting_text_scaler.dart';
 import '../../../core/ui/line_mark.dart';
 import '../../../design_tokens.dart';
 import '../domain/route_map_line_choices.dart';
@@ -376,38 +377,49 @@ class _LineTable extends StatelessWidget {
             thickness: 1,
             color: EasySubwayAccessibleColors.line,
           ),
-          Table(
-            border: const TableBorder.symmetric(inside: hairline),
-            defaultVerticalAlignment:
-                TableCellVerticalAlignment.intrinsicHeight,
-            children: [
-              for (
-                var start = 0;
-                start < choices.length;
-                start += _sheetColumns
-              )
-                TableRow(
-                  children: [
-                    for (var column = 0; column < _sheetColumns; column++)
-                      start + column < choices.length
-                          ? _lineCell(choices[start + column])
-                          : const SizedBox.shrink(),
-                  ],
-                ),
-            ],
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final nameMaxWidth =
+                  constraints.maxWidth / _sheetColumns -
+                  2 * EasySubwaySpacing.md -
+                  scaledLineMarkSize(context, lineMarkDefaultSize) -
+                  EasySubwaySpacing.sm;
+              return Table(
+                border: const TableBorder.symmetric(inside: hairline),
+                defaultVerticalAlignment:
+                    TableCellVerticalAlignment.intrinsicHeight,
+                children: [
+                  for (
+                    var start = 0;
+                    start < choices.length;
+                    start += _sheetColumns
+                  )
+                    TableRow(
+                      children: [
+                        for (var column = 0; column < _sheetColumns; column++)
+                          start + column < choices.length
+                              ? _lineCell(choices[start + column], nameMaxWidth)
+                              : const SizedBox.shrink(),
+                      ],
+                    ),
+                ],
+              );
+            },
           ),
         ],
       ),
     );
   }
 
-  Widget _lineCell(RouteMapLineChoice choice) => _SheetCell(
-    key: Key('routeMapLineSheetCell-${choice.lineId}'),
-    label: choice.name,
-    selected: choice.lineId == selectedLineId,
-    leading: LineMark(label: choice.markLabel, color: choice.color),
-    onTap: () => onSelected(choice.lineId),
-  );
+  Widget _lineCell(RouteMapLineChoice choice, double nameMaxWidth) =>
+      _SheetCell(
+        key: Key('routeMapLineSheetCell-${choice.lineId}'),
+        label: choice.name,
+        nameMaxWidth: nameMaxWidth,
+        selected: choice.lineId == selectedLineId,
+        leading: LineMark(label: choice.markLabel, color: choice.color),
+        onTap: () => onSelected(choice.lineId),
+      );
 }
 
 class _SheetCell extends StatelessWidget {
@@ -417,6 +429,7 @@ class _SheetCell extends StatelessWidget {
     required this.onTap,
     this.leading,
     this.centered = false,
+    this.nameMaxWidth = double.infinity,
     super.key,
   });
 
@@ -426,9 +439,22 @@ class _SheetCell extends StatelessWidget {
   final Widget? leading;
   final bool centered;
 
+  /// 이름 칸의 폭. 큰 글자에서 이름이 단어 중간에서 끊기지 않게 이 폭에 맞춰 배율을
+  /// 낮춘다([fittingTextScaler]).
+  final double nameMaxWidth;
+
   @override
   Widget build(BuildContext context) {
     final leading = this.leading;
+    final style = TextStyle(
+      fontSize: _sheetCellFontSize,
+      fontWeight: selected
+          ? EasySubwayFontWeight.emphasis
+          : EasySubwayFontWeight.regular,
+      color: selected
+          ? EasySubwayAccessibleColors.text
+          : EasySubwayAccessibleColors.secondaryText,
+    );
     return Semantics(
       container: true,
       button: true,
@@ -462,14 +488,12 @@ class _SheetCell extends StatelessWidget {
                     Flexible(
                       child: Text(
                         label,
-                        style: TextStyle(
-                          fontSize: _sheetCellFontSize,
-                          fontWeight: selected
-                              ? EasySubwayFontWeight.emphasis
-                              : EasySubwayFontWeight.regular,
-                          color: selected
-                              ? EasySubwayAccessibleColors.text
-                              : EasySubwayAccessibleColors.secondaryText,
+                        style: style,
+                        textScaler: fittingTextScaler(
+                          context,
+                          text: label,
+                          style: style,
+                          maxWidth: nameMaxWidth,
                         ),
                       ),
                     ),

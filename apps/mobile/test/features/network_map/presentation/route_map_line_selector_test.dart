@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/datapack_line_colors.dart';
 import '../../../support/host_text_contrast.dart';
+import '../../../support/korean_test_font.dart';
 import '../../../support/test_viewport.dart';
 
 RouteMapLineChoice _choice(String id, String name, String mark, int argb) =>
@@ -51,15 +52,17 @@ double _contrast(Color a, Color b) {
   return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
 }
 
-Widget _app(Widget child, {double textScale = 1.0}) => MaterialApp(
-  builder: (context, home) => MediaQuery(
-    data: MediaQuery.of(
-      context,
-    ).copyWith(textScaler: TextScaler.linear(textScale)),
-    child: home!,
-  ),
-  home: Scaffold(body: child),
-);
+Widget _app(Widget child, {double textScale = 1.0, String? fontFamily}) =>
+    MaterialApp(
+      theme: ThemeData(fontFamily: fontFamily),
+      builder: (context, home) => MediaQuery(
+        data: MediaQuery.of(
+          context,
+        ).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: home!,
+      ),
+      home: Scaffold(body: child),
+    );
 
 Widget _strip({
   List<RouteMapLineChoice>? choices,
@@ -82,6 +85,7 @@ Widget _sheetHost({
   String? selectedLineId,
   List<RouteMapLineChoice>? choices,
   double textScale = 1.0,
+  String? fontFamily,
 }) => _app(
   Builder(
     builder: (context) => TextButton(
@@ -95,6 +99,7 @@ Widget _sheetHost({
     ),
   ),
   textScale: textScale,
+  fontFamily: fontFamily,
 );
 
 Future<void> _openSheet(WidgetTester tester) async {
@@ -103,6 +108,8 @@ Future<void> _openSheet(WidgetTester tester) async {
 }
 
 void main() {
+  setUpAll(loadKoreanTestFont);
+
   group('노선 줄', () {
     testWidgets('노선을 받은 순서대로 칩으로 보이고 고른 칩만 선택 상태다', (tester) async {
       final semantics = tester.ensureSemantics();
@@ -380,6 +387,24 @@ void main() {
         ),
         findsNWidgets(4),
       );
+    });
+
+    testWidgets('글자 1.5배에서 칸 이름은 단어 중간에서 줄을 바꾸지 않는다', (tester) async {
+      // Pixel 6 논리 폭. 증거 에뮬레이터와 같은 화면이다.
+      useLogicalViewport(tester, const Size(411, 914));
+      await tester.pumpWidget(
+        _sheetHost(picks: [], textScale: 1.5, fontFamily: koreanTestFontFamily),
+      );
+      await _openSheet(tester);
+
+      final oneLine = tester.getSize(find.text('1호선')).height;
+      for (final name in ['경의중앙', '수인분당', '에버라인', '우이신설', '김포골드']) {
+        expect(
+          tester.getSize(find.text(name)).height,
+          lessThanOrEqualTo(oneLine),
+          reason: name,
+        );
+      }
     });
 
     testWidgets('글자 2.0배에서도 넘치지 않고 터치 영역이 48dp다', (tester) async {
