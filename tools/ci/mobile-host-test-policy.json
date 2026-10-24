@@ -265,6 +265,13 @@
       "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
       "reason": "Fan sector paths were removed with the radial menu; the popover keeps only its design size and tail tip, covered by station_popover_menu_test.dart and the placement tests in network_map_station_popover_wiring_test.dart.",
       "reviewTrigger": "Mobile #511 station fan menu replacement"
+    },
+    {
+      "path": "apps/mobile/test/features/network_map/presentation/station_fan_menu_golden_test.dart",
+      "classification": "OBSOLETE_DELETE",
+      "owner": "https://github.com/AquilaXk/easysubway-mobile/issues/511",
+      "reason": "Fan menu goldens were removed with the radial menu; station_popover_menu_golden_test.dart is the new golden suite and Mobile Golden CI mutation probe.",
+      "reviewTrigger": "Mobile #511 station fan menu replacement"
     }
   ]
 }
