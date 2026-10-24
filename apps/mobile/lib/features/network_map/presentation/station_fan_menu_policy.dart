@@ -9,6 +9,9 @@ import '../domain/route_map_design_space.dart';
 import 'route_map_transfer_marker.dart';
 import 'station_popover_menu.dart';
 
+// 파일 이름은 부채꼴 메뉴 때의 것이다. 내용을 바꾼 채 이름까지 바꾸면 커버리지 ratchet이
+// 90% 미만 이름 변경으로 막아, 이름만 바꾸는 변경은 #511 체크리스트로 따로 낸다.
+
 /// #2109 역 말풍선 배치 결과. build 경로(라벨·메뉴 Positioned)와 카메라 최소
 /// 패닝이 같은 규칙을 소비하도록 단일 함수로 계산한다.
 /// 두 경로가 배치식을 각각 하드코딩하면 한쪽만 바뀌었을 때 패닝 bbox와 실제

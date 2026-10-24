@@ -1,11 +1,11 @@
 import 'package:easysubway_mobile/features/network_map/presentation/station_popover_menu.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/station_popover_policy.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_policy.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 // NOTE: 노선도 캔버스는 app/network_map_screen.dart의 private 위젯이라 직접 pump가 어렵다.
 // 이 테스트는 StationPopoverMenu가 노선도에 마운트됨을 보장하기보다, production이
-// 직접 소비하는 station_popover_policy의 placement/anchor/set-clear 규칙을 검증한다.
+// 직접 소비하는 station_fan_menu_policy.dart의 placement/anchor/set-clear 규칙을 검증한다.
 
 import 'package:easysubway_mobile/features/network_map/domain/route_map_design_space.dart'
     show routeMapBasemapTransferCapsuleHalfWidthFor;

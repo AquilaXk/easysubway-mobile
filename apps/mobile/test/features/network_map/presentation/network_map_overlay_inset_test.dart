@@ -7,7 +7,7 @@ import 'package:easysubway_mobile/features/network_map/presentation/network_map_
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_chrome_controls.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_draft_pin.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_overlay_inset.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/station_popover_policy.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/station_fan_menu_policy.dart';
 import 'package:easysubway_mobile/features/notifications/presentation/new_notification_bar.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:flutter/material.dart';

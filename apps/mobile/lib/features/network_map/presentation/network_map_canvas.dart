@@ -29,7 +29,7 @@ import 'network_map_unavailable_states.dart';
 import 'route_map_basemap_view.dart';
 import 'route_map_owner_label_bounds.dart';
 import 'station_popover_menu.dart';
-import 'station_popover_policy.dart';
+import 'station_fan_menu_policy.dart';
 import 'station_hit_target.dart';
 import 'structured_route_map_painter.dart';
 
