@@ -41,7 +41,7 @@ const _ascentEm = 1.15;
 const _descentEm = 0.35;
 const _slackEm = 0.3;
 
-// 실측 기준선(data d82f1e2a, pipelineRevision 5). halo가 붙은 라벨 런의 수다.
+// 실측 기준선(data 54e2e7c99, pipelineRevision 6). halo가 붙은 라벨 런의 수다.
 // 라벨 런은 `<text>` 한 줄이며 다줄 라벨은 줄마다 센다(busan 147개 중 8개가 2줄 → 155).
 //   busan·daegu     : `.station-name`/`.transfer-name` 클래스 규칙이 stroke를 준다.
 //   daejeon·gwangju : `#station-name-labels-layer text` **자손 결합자** 규칙이

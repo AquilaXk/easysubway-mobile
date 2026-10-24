@@ -13,7 +13,7 @@ import '../../../support/basemap_vec_draws.dart';
 // tools/mobile/run-route-map-frame-ab.sh로 실기기 프레임을 이전 바탕과 번갈아 잰 뒤
 // 상한을 올린다. 벽시계 시간을 재지 않으므로 CI에서 흔들리지 않는다.
 //
-// 상한은 실측 개수와 같다(여유 0). 같은 규칙으로 data d82f1e2a(pipelineRevision 5) 바탕에
+// 상한은 실측 개수와 같다(여유 0). 같은 규칙으로 data 54e2e7c99(pipelineRevision 6) 바탕에
 // 맞췄다. 역명을 글리프 윤곽선으로 구우면서(data #1488) 텍스트 그리기는 사라졌고
 // (texts 0), 같은 paint의 인접 path를 이어(data #1495) path 그리기 수가 줄었다. 대신
 // 윤곽 좌표가 늘어 그리기 한 번이 처리하는 path 선분 수(segments)가 커지므로 이것도
@@ -21,8 +21,8 @@ import '../../../support/basemap_vec_draws.dart';
 const _ceilings =
     <String, ({int paths, int texts, int invisible, int segments})>{
       '수도권': (paths: 1652, texts: 0, invisible: 0, segments: 67501),
-      '부산': (paths: 561, texts: 0, invisible: 0, segments: 12876),
-      '대구': (paths: 284, texts: 0, invisible: 0, segments: 10004),
+      '부산': (paths: 562, texts: 0, invisible: 0, segments: 12599),
+      '대구': (paths: 283, texts: 0, invisible: 0, segments: 9370),
       '대전': (paths: 66, texts: 0, invisible: 0, segments: 2074),
       '광주': (paths: 61, texts: 0, invisible: 0, segments: 2378),
     };
