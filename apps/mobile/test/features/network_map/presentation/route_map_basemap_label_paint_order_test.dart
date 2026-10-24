@@ -23,7 +23,8 @@ import '../../../support/basemap_vec_draws.dart';
 // [무엇을 보나] 라벨 위치의 진실은 labels.json이다(접근성·히트 테스트도 이 sidecar와
 // 구조화 데이터에서 온다). 라벨 런마다 앵커 주변 상자 안에 든 흰색 아닌 fill 윤곽을
 // 그 라벨의 글자로 보고,
-//   1) 글자 윤곽이 하나도 없는 라벨 런이 없어야 하고(라벨이 빠지지 않았다),
+//   1) 상자 안 윤곽 수가 라벨 글자 수(공백 제외) 이상이어야 하고(라벨이 빠지지 않았다.
+//      글자 하나는 윤곽 하나 이상이다),
 //   2) 글자 윤곽과 같은 좌표의 흰 stroke(halo)는 글자보다 먼저 그려져야 한다.
 // 래스터·폰트·배경과 무관하고 맞춘 상수는 권역별 halo 라벨 런 수뿐이다.
 //
@@ -34,8 +35,9 @@ import '../../../support/basemap_vec_draws.dart';
 const _basemapDir = 'assets/datapacks/metro_map_pack/basemap';
 
 // 라벨 상자 계수. 글자 폭 상한은 글자 수 × 글자 크기 × 1.15(전각 + 자간), 높이는
-// 기준선 위 1.15em·아래 0.35em, 가로 여유는 0.3em이다. 이웃 라벨의 윤곽이 걸려도
-// 모두 라벨 글자이므로 판정에는 영향이 없다.
+// 기준선 위 1.15em·아래 0.35em, 가로 여유는 0.3em이다. 상자가 넓어 이웃 라벨이나
+// 기호의 윤곽이 걸릴 수 있다. 그래서 1)은 윤곽이 있는지가 아니라 글자 수만큼 있는지를
+// 본다. halo 순서 판정은 걸린 윤곽도 라벨 글자라 영향이 없다.
 const _widthPerEm = 1.15;
 const _ascentEm = 1.15;
 const _descentEm = 0.35;
@@ -92,6 +94,10 @@ class _LabelRun {
   }
 
   final String text;
+
+  /// 공백을 뺀 글자 수. 글자 하나는 윤곽 하나 이상으로 그려진다.
+  int get glyphCount => text.replaceAll(RegExp(r'\s'), '').runes.length;
+
   final double left;
   final double right;
   final double top;
@@ -143,8 +149,8 @@ class _LabelPaintOrder {
 
     for (final run in runs) {
       final ink = inkContours.where(run.contains).toList();
-      if (ink.isEmpty) {
-        runsWithoutInk.add(run.text);
+      if (ink.length < run.glyphCount) {
+        runsMissingGlyphs.add(run.text);
         continue;
       }
       var haloed = false;
@@ -166,8 +172,8 @@ class _LabelPaintOrder {
   final List<BasemapVecPathDraw> draws;
   final List<_LabelRun> runs;
 
-  /// 앵커 상자 안에 글자 윤곽이 하나도 없는 라벨 런.
-  final List<String> runsWithoutInk = <String>[];
+  /// 앵커 상자 안 글자 윤곽이 라벨 글자 수보다 적은 라벨 런.
+  final List<String> runsMissingGlyphs = <String>[];
 
   /// 글자 윤곽과 같은 좌표의 흰 stroke(halo)가 있는 라벨 런 수.
   int haloedRuns = 0;
@@ -218,8 +224,9 @@ void main() {
 
       failures
         ..addAll(
-          order.runsWithoutInk.map(
-            (text) => '$region/"$text": 앵커 주변에 글자 윤곽이 없다 — 라벨이 .vec에서 빠졌다.',
+          order.runsMissingGlyphs.map(
+            (text) =>
+                '$region/"$text": 앵커 주변 글자 윤곽이 글자 수보다 적다. 라벨 글자가 .vec에서 빠졌다.',
           ),
         )
         ..addAll(
@@ -259,7 +266,7 @@ void main() {
 
       expect(order.haloedRuns, 1);
       expect(order.haloAfterGlyph, isEmpty);
-      expect(order.runsWithoutInk, isEmpty);
+      expect(order.runsMissingGlyphs, isEmpty);
     });
 
     test('글자가 halo보다 먼저면 흰 halo가 글자를 덮는 위반으로 잡는다', () {
@@ -287,7 +294,24 @@ void main() {
         [_syntheticRun],
       );
 
-      expect(order.runsWithoutInk, ['가']);
+      expect(order.runsMissingGlyphs, ['가']);
+    });
+
+    test('상자 안 윤곽이 글자 수보다 적으면 다른 윤곽이 걸려 있어도 라벨이 빠진 것으로 잡는다', () {
+      final order = _LabelPaintOrder(
+        [_syntheticDraw(0, stroke: false, color: _ink)],
+        [
+          _LabelRun(
+            text: '가나',
+            left: _syntheticRun.left,
+            right: _syntheticRun.right,
+            top: _syntheticRun.top,
+            bottom: _syntheticRun.bottom,
+          ),
+        ],
+      );
+
+      expect(order.runsMissingGlyphs, ['가나']);
     });
   });
 }
