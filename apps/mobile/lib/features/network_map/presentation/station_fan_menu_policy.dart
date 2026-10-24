@@ -205,7 +205,7 @@ Offset stationPopoverTailAnchorPoint({
 /// × designScale). 상수(노드 반경 4.5 · 캡슐 반폭 13)는 실측보다 보수적으로 크지만
 /// 이동량이 `height/6`이라 팁은 전 권역에서 실제 노드 안에 머문다(최악 대전
 /// 일반역: 이동 1.5 vs 실측 반높이 2.40 design px). 회귀 가드는
-/// `network_map_fan_menu_wiring_test.dart`의 권역 실측 표 테스트다.
+/// `network_map_station_popover_wiring_test.dart`의 권역 실측 표 테스트다.
 double stationPopoverAnchorNodeHeight({
   required List<Offset> memberPositions,
   required double designScale,

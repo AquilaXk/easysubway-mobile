@@ -80,7 +80,7 @@ class NearbyTimetablePanel extends StatefulWidget {
   final String? leftName;
   final String? rightName;
   final Widget Function() expressBadgeBuilder;
-  final ValueChanged<String>? onOpenDirection;
+  final VoidCallback? onOpenDirection;
   final DateTime? now;
   final bool? enableTicker;
   final Duration tickerInterval;

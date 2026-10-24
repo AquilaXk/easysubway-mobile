@@ -143,7 +143,7 @@ class NearbyPanelColumns extends StatelessWidget {
   });
 
   final List<NearbyPanelColumn> columns;
-  final ValueChanged<String>? onOpenDirection;
+  final VoidCallback? onOpenDirection;
 
   @override
   Widget build(BuildContext context) {
@@ -170,7 +170,7 @@ class _NearbyDirectionCard extends StatelessWidget {
   const _NearbyDirectionCard({required this.column, required this.onOpen});
 
   final NearbyPanelColumn column;
-  final ValueChanged<String>? onOpen;
+  final VoidCallback? onOpen;
 
   static const _shape = RoundedRectangleBorder(
     side: BorderSide(color: EasySubwayAccessibleColors.borderSubtle),
@@ -179,9 +179,8 @@ class _NearbyDirectionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final open = onOpen;
     final title = column.title;
-    final onTap = open == null || title.isEmpty ? null : () => open(title);
+    final onTap = title.isEmpty ? null : onOpen;
     return Semantics(
       container: true,
       button: onTap != null,

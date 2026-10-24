@@ -51,7 +51,7 @@ class NearbyArrivalPanel extends StatelessWidget {
   final NearbyArrivalPanelData data;
   final String? leftName;
   final String? rightName;
-  final ValueChanged<String>? onOpenDirection;
+  final VoidCallback? onOpenDirection;
   final DateTime? now;
 
   @override

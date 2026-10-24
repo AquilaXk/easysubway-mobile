@@ -69,10 +69,6 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
     adjacentStations.previousNeighbor,
   );
   final next = networkMapStationDetailNeighbor(adjacentStations.nextNeighbor);
-  final openTimetable = onOpenTimetable;
-  final ValueChanged<String>? openDirection = openTimetable == null
-      ? null
-      : (_) => openTimetable();
   final isRealtime = dataSource == NetworkMapNearbyPanelDataSource.realtime;
   return (
     controlRow: NearbyPanelControlRow(
@@ -129,7 +125,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             ),
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
-            onOpenDirection: openDirection,
+            onOpenDirection: onOpenTimetable,
             now: now,
           )
         : NearbyTimetablePanel(
@@ -138,7 +134,7 @@ NetworkMapNearbyPanelSuccessContent buildNetworkMapNearbyPanelSuccessContent({
             leftName: adjacentStations.leftName,
             rightName: adjacentStations.rightName,
             expressBadgeBuilder: () => const ServicePatternBadge.express(),
-            onOpenDirection: openDirection,
+            onOpenDirection: onOpenTimetable,
             now: now,
           ),
   );

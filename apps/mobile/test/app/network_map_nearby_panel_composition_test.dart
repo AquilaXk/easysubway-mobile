@@ -150,7 +150,7 @@ void main() {
       stationBar.onStationNameTap?.call();
       stationBar.onLeftNameTap?.call();
       stationBar.onRightNameTap?.call();
-      arrivalPanel.onOpenDirection?.call('이전 방면');
+      arrivalPanel.onOpenDirection?.call();
       expect(detailTaps, 1);
       expect(timetableTaps, 1);
       expect(selectedNeighbors, ['이전', '다음']);

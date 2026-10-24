@@ -32,7 +32,7 @@ Widget _host(Widget child, {double width = 390, double textScale = 1}) {
 NearbyArrivalPanel _realtime({
   List<NearbyArrivalData> arrivals = const [],
   NearbyArrivalPanelStatus status = NearbyArrivalPanelStatus.fresh,
-  ValueChanged<String>? onOpenDirection,
+  VoidCallback? onOpenDirection,
 }) {
   return NearbyArrivalPanel(
     data: NearbyArrivalPanelData(status: status, arrivals: arrivals),
@@ -98,12 +98,14 @@ void main() {
     });
 
     testWidgets('카드를 누르면 그 방면을 연다. 콜백이 없으면 꺽쇠도 없다', (tester) async {
-      final opened = <String>[];
-      await tester.pumpWidget(_host(_realtime(onOpenDirection: opened.add)));
+      var opened = 0;
+      await tester.pumpWidget(
+        _host(_realtime(onOpenDirection: () => opened += 1)),
+      );
 
       expect(find.byIcon(Icons.chevron_right), findsNWidgets(2));
       await tester.tap(find.text('동대입구 방면'));
-      expect(opened, ['동대입구 방면']);
+      expect(opened, 1);
 
       await tester.pumpWidget(_host(_realtime()));
       expect(find.byIcon(Icons.chevron_right), findsNothing);
@@ -235,7 +237,7 @@ void main() {
       await tester.pumpWidget(
         _host(
           _realtime(
-            onOpenDirection: (_) {},
+            onOpenDirection: () {},
             arrivals: const [
               NearbyArrivalData(
                 direction: '하행',
@@ -302,7 +304,7 @@ void main() {
         await tester.pumpWidget(
           _host(
             _realtime(
-              onOpenDirection: (_) {},
+              onOpenDirection: () {},
               arrivals: const [
                 NearbyArrivalData(
                   direction: '하행',
