@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 
@@ -96,6 +97,97 @@ void main() {
           reason: '${entry.key}: 래스터 p50이 프레임 예산을 넘었다',
         );
       }
+    });
+  });
+
+  // 노선 강조(#511): 가장 큰 노선 레이어(수도권 1호선) 디코드 시간과, 흐린 바탕
+  // saveLayer + 레이어 그리기가 바탕만 그릴 때보다 래스터를 얼마나 늘리는지 잰다.
+  // 두 쪽을 번갈아 그려 워밍업·캐시 편차가 한쪽으로 쏠리지 않게 한다.
+  testWidgets('노선 강조 레이어 디코드와 흐린 바탕 래스터 시간 계측', (tester) async {
+    const overlayAsset =
+        'assets/datapacks/metro_map_pack/basemap/seoul.line-472a81add377.vec';
+    await tester.runAsync(() async {
+      final decodeMs = <double>[];
+      for (var run = 0; run < 7; run += 1) {
+        final stopwatch = Stopwatch()..start();
+        final info = await vg.loadPicture(
+          const AssetBytesLoader(overlayAsset),
+          null,
+        );
+        stopwatch.stop();
+        decodeMs.add(stopwatch.elapsedMicroseconds / 1000.0);
+        info.picture.dispose();
+      }
+      final base = await vg.loadPicture(
+        const AssetBytesLoader(seoulAsset),
+        null,
+      );
+      final overlay = await vg.loadPicture(
+        const AssetBytesLoader(overlayAsset),
+        null,
+      );
+      final fadePaint = ui.Paint()
+        ..color = const ui.Color.fromRGBO(
+          0,
+          0,
+          0,
+          kRouteMapFadedBasemapOpacity,
+        );
+      Future<double> rasterMs({required bool highlighted}) async {
+        final recorder = ui.PictureRecorder();
+        final canvas = ui.Canvas(recorder);
+        canvas.scale(0.35);
+        if (highlighted) {
+          canvas.saveLayer(null, fadePaint);
+          canvas.drawPicture(base.picture);
+          canvas.restore();
+          canvas.drawPicture(overlay.picture);
+        } else {
+          canvas.drawPicture(base.picture);
+        }
+        final frame = recorder.endRecording();
+        final stopwatch = Stopwatch()..start();
+        final image = await frame.toImage(1080, 1920);
+        stopwatch.stop();
+        image.dispose();
+        frame.dispose();
+        return stopwatch.elapsedMicroseconds / 1000.0;
+      }
+
+      const warmup = 5;
+      final plain = <double>[];
+      final highlighted = <double>[];
+      for (var index = 0; index < warmup + 25; index += 1) {
+        final plainMs = await rasterMs(highlighted: false);
+        final highlightedMs = await rasterMs(highlighted: true);
+        if (index >= warmup) {
+          plain.add(plainMs);
+          highlighted.add(highlightedMs);
+        }
+      }
+      base.picture.dispose();
+      overlay.picture.dispose();
+      double percentile(List<double> samples, double q) =>
+          (samples.toList()..sort())[(samples.length * q).floor()];
+      // ignore: avoid_print
+      print(
+        '[#511 overlay] seoul 1호선 레이어 '
+        '${File(overlayAsset).lengthSync()}B 디코드 '
+        'p50=${percentile(decodeMs, 0.5).toStringAsFixed(2)}ms '
+        '범위=${percentile(decodeMs, 0).toStringAsFixed(2)}~'
+        '${(decodeMs.toList()..sort()).last.toStringAsFixed(2)}ms(7회) | '
+        '1080x1920 래스터 바탕만 p50=${percentile(plain, 0.5).toStringAsFixed(2)}'
+        ' p90=${percentile(plain, 0.9).toStringAsFixed(2)}ms, '
+        '강조 p50=${percentile(highlighted, 0.5).toStringAsFixed(2)}'
+        ' p90=${percentile(highlighted, 0.9).toStringAsFixed(2)}ms(25회 교대)',
+      );
+      final maxBudget = Platform.environment['CI'] != null ? 33.3 : 16.7;
+      expect(percentile(decodeMs, 0.5), lessThan(2000));
+      expect(
+        percentile(highlighted, 0.5),
+        lessThan(maxBudget),
+        reason: '강조 래스터 p50이 프레임 예산을 넘었다',
+      );
     });
   });
 }

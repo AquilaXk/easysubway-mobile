@@ -2,10 +2,12 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 
 import '../domain/map_camera.dart';
+import '../domain/route_map_line_overlay_index.dart';
 
 // 하이브리드 노선도 바탕층(#2068 트랙 2번째 PR).
 //
@@ -32,8 +34,13 @@ const Map<String, String> kRouteMapBasemapRegionToId = {
 /// region → .vec 자산 경로. 매핑에 없으면 null(바탕 미표시 폴백).
 String? routeMapBasemapAssetForRegion(String region) {
   final id = kRouteMapBasemapRegionToId[region];
-  return id == null ? null : 'assets/datapacks/metro_map_pack/basemap/$id.vec';
+  return id == null ? null : '$kRouteMapBasemapAssetDir/$id.vec';
 }
+
+/// 노선을 고른 동안 바탕을 그리는 불투명도. 상용 지하철 서비스 노선 선택 화면
+/// 캡처(2026-10-24)에서 흐린 1·4·6호선 칸 색을 흰 바탕과 노선색 사이 비율로 역산한
+/// 값이다. 9개 채널 중앙값 0.22, 범위 0.165~0.28.
+const double kRouteMapFadedBasemapOpacity = 0.22;
 
 const TextStyle _attributionStyle = TextStyle(
   color: Color(0xFF466467),
@@ -135,12 +142,16 @@ class RouteMapBasemapView extends StatefulWidget {
     required this.camera,
     this.sourceOrigin = Offset.zero,
     this.attributionText,
+    this.highlightedLineId,
     super.key,
   });
 
   /// 앱 region(한글). 매핑에 없으면 바탕 미표시(빈 화면).
   final String region;
   final MapCameraState camera;
+
+  /// 노선 줄·노선 선택 시트에서 고른 데이터팩 노선 id. null이면 전체 노선이다.
+  final String? highlightedLineId;
 
   /// 오버레이·카메라의 geometry origin(#1970).
   final Offset sourceOrigin;
@@ -153,7 +164,9 @@ class RouteMapBasemapView extends StatefulWidget {
 
 class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   static final Map<String, ui.Picture> _globalPictureCache = {};
-  static final Map<String, Future<ui.Picture?>> _globalPendingLoads = {};
+  static final Map<String, Future<ui.Picture>> _globalPendingLoads = {};
+  static Future<RouteMapLineOverlayIndex>? _overlayIndexLoad;
+  static RouteMapLineOverlayIndex? _overlayIndex;
 
   @visibleForTesting
   static void clearPictureCacheForTest() {
@@ -162,12 +175,16 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     }
     _globalPictureCache.clear();
     _globalPendingLoads.clear();
+    _overlayIndexLoad = null;
+    _overlayIndex = null;
   }
 
   ui.Picture? _picture;
   String? _loadedAsset;
   // 진행 중 로드 토큰. region이 로드 완료 전에 바뀌면 stale 결과를 버린다.
   Object? _loadToken;
+  ui.Picture? _overlay;
+  Object? _overlayToken;
   TextPainter? _attributionPainter;
   String? _attributionPainterText;
 
@@ -175,7 +192,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   Map<String, ui.Picture> get debugPictureCache => _globalPictureCache;
 
   @visibleForTesting
-  Map<String, Future<ui.Picture?>> get debugPendingLoads => _globalPendingLoads;
+  Map<String, Future<ui.Picture>> get debugPendingLoads => _globalPendingLoads;
 
   @override
   void didChangeDependencies() {
@@ -183,6 +200,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     // initState가 아닌 여기서 로드한다(로드가 inherited widget에 의존할 수 있으므로).
     // region 미변경 시 _ensureBasemap이 조기 반환해 중복 로드가 없다.
     _ensureBasemap();
+    _ensureOverlay();
   }
 
   @override
@@ -190,6 +208,10 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.region != widget.region) {
       _ensureBasemap();
+    }
+    if (oldWidget.region != widget.region ||
+        oldWidget.highlightedLineId != widget.highlightedLineId) {
+      _ensureOverlay();
     }
   }
 
@@ -230,32 +252,23 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     unawaited(_loadBasemapAsset(asset, token));
   }
 
-  Future<void> _loadBasemapAsset(String asset, Object token) async {
-    final existingLoad = _globalPendingLoads[asset];
-    if (existingLoad != null) {
-      try {
-        final picture = await existingLoad;
-        if (picture == null || !mounted || !identical(_loadToken, token)) {
-          return;
-        }
-        setState(() {
-          _picture = picture;
-        });
-      } catch (_) {
-        // 이미 진행 중인 로드 실패는 원래 핸들러가 처리한다.
-      }
-      return;
+  /// [asset]을 한 번만 디코드한다. 같은 자산을 읽는 중이면 그 로드를 함께 기다린다.
+  static Future<ui.Picture> _decodePicture(String asset) {
+    final pending = _globalPendingLoads[asset];
+    if (pending != null) {
+      return pending;
     }
+    final load = vg
+        .loadPicture(AssetBytesLoader(asset), null)
+        .then((info) => _globalPictureCache[asset] = info.picture)
+        .whenComplete(() => unawaited(_globalPendingLoads.remove(asset)));
+    _globalPendingLoads[asset] = load;
+    return load;
+  }
 
-    final completer = Completer<ui.Picture?>();
-    _globalPendingLoads[asset] = completer.future;
-
+  Future<void> _loadBasemapAsset(String asset, Object token) async {
     try {
-      final info = await vg.loadPicture(AssetBytesLoader(asset), null);
-      final picture = info.picture;
-      unawaited(_globalPendingLoads.remove(asset));
-      _globalPictureCache[asset] = picture;
-      completer.complete(picture);
+      final picture = await _decodePicture(asset);
       if (!mounted || !identical(_loadToken, token)) {
         return;
       }
@@ -263,21 +276,87 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
         _picture = picture;
       });
     } catch (error, stack) {
-      unawaited(_globalPendingLoads.remove(asset));
-      unawaited(completer.future.catchError((Object _) => null));
-      completer.completeError(error, stack);
       if (!mounted || !identical(_loadToken, token)) {
         return;
       }
-      FlutterError.reportError(
-        FlutterErrorDetails(
-          exception: error,
-          stack: stack,
-          library: 'network_map',
-          context: ErrorDescription('노선도 바탕 .vec 로드 실패($asset)'),
-        ),
-      );
+      _reportLoadFailure(error, stack, '노선도 바탕 .vec 로드 실패($asset)');
     }
+  }
+
+  /// 고른 노선 레이어를 맞춘다. 레이어가 준비되기 전에는 바탕을 흐리지 않는다.
+  void _ensureOverlay() {
+    final regionId = kRouteMapBasemapRegionToId[widget.region];
+    final lineId = widget.highlightedLineId;
+    _overlayToken = null;
+    if (regionId == null || lineId == null) {
+      _showOverlay(null);
+      return;
+    }
+    final cached = _cachedOverlay(regionId, lineId);
+    _showOverlay(cached);
+    if (cached == null) {
+      final token = _overlayToken = Object();
+      unawaited(_loadOverlay(regionId, lineId, token));
+    }
+  }
+
+  static ui.Picture? _cachedOverlay(String regionId, String lineId) {
+    final index = _overlayIndex;
+    if (index == null) {
+      return null;
+    }
+    try {
+      return _globalPictureCache[index.overlayAssetFor(
+        regionId: regionId,
+        lineId: lineId,
+      )];
+    } on RouteMapLineOverlayMissing {
+      return null;
+    }
+  }
+
+  static Future<RouteMapLineOverlayIndex> _loadOverlayIndex() =>
+      _overlayIndexLoad ??= rootBundle
+          .loadString(kRouteMapLineOverlayIndexAssetPath, cache: false)
+          .then((json) => _overlayIndex = RouteMapLineOverlayIndex.parse(json));
+
+  Future<void> _loadOverlay(
+    String regionId,
+    String lineId,
+    Object token,
+  ) async {
+    try {
+      final index = await _loadOverlayIndex();
+      final picture = await _decodePicture(
+        index.overlayAssetFor(regionId: regionId, lineId: lineId),
+      );
+      if (mounted && identical(_overlayToken, token)) {
+        _showOverlay(picture);
+      }
+    } catch (error, stack) {
+      if (mounted && identical(_overlayToken, token)) {
+        _reportLoadFailure(error, stack, '노선 강조 레이어 로드 실패($regionId/$lineId)');
+      }
+    }
+  }
+
+  void _showOverlay(ui.Picture? overlay) {
+    if (!identical(_overlay, overlay)) {
+      setState(() {
+        _overlay = overlay;
+      });
+    }
+  }
+
+  void _reportLoadFailure(Object error, StackTrace stack, String context) {
+    FlutterError.reportError(
+      FlutterErrorDetails(
+        exception: error,
+        stack: stack,
+        library: 'network_map',
+        context: ErrorDescription(context),
+      ),
+    );
   }
 
   void _ensureAttributionPainter() {
@@ -305,6 +384,8 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   void dispose() {
     _loadToken = null;
     _picture = null;
+    _overlayToken = null;
+    _overlay = null;
     _attributionPainter?.dispose();
     super.dispose();
   }
@@ -312,23 +393,38 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @override
   Widget build(BuildContext context) {
     _ensureAttributionPainter();
+    final highlight = _picture == null ? null : _overlay;
+    final basemap = _layerPaint(_picture, attributed: highlight == null);
     // RepaintBoundary로 바탕 레이어를 형제 오버레이 rebuild와 분리한다.
-    // isComplex=true는 이 레이어가 값비싼 그리기임을(래스터 캐시 가치 있음),
-    // willChange=true는 다음 프레임에 다시 바뀔 것임을(래스터 캐시를 유지하지
-    // 말라는 힌트 — isComplex 캐싱을 억제) 엔진에 알린다. 이 바탕은 카메라
-    // 팬/줌마다 매 프레임 repaint되는 레이어라 willChange가 적절하다.
+    // 노선을 고르면 바탕 전체를 Opacity 한 겹으로 흐려 겹친 선이 더 진해지지 않게
+    // 하고, 그 위에 고른 노선 레이어와 출처 표기를 원래 진하기로 그린다.
     return RepaintBoundary(
-      child: CustomPaint(
-        size: widget.camera.viewportSize,
-        isComplex: true,
-        willChange: true,
-        painter: RouteMapBasemapPainter(
-          picture: _picture,
-          camera: widget.camera,
-          sourceOrigin: widget.sourceOrigin,
-          attributionText: widget.attributionText,
-          attributionPainter: _attributionPainter,
-        ),
+      child: highlight == null
+          ? basemap
+          : Stack(
+              children: [
+                Opacity(opacity: kRouteMapFadedBasemapOpacity, child: basemap),
+                _layerPaint(highlight, attributed: true),
+              ],
+            ),
+    );
+  }
+
+  // isComplex=true는 이 레이어가 값비싼 그리기임을(래스터 캐시 가치 있음),
+  // willChange=true는 다음 프레임에 다시 바뀔 것임을(래스터 캐시를 유지하지
+  // 말라는 힌트 — isComplex 캐싱을 억제) 엔진에 알린다. 이 바탕은 카메라
+  // 팬/줌마다 매 프레임 repaint되는 레이어라 willChange가 적절하다.
+  CustomPaint _layerPaint(ui.Picture? picture, {required bool attributed}) {
+    return CustomPaint(
+      size: widget.camera.viewportSize,
+      isComplex: true,
+      willChange: true,
+      painter: RouteMapBasemapPainter(
+        picture: picture,
+        camera: widget.camera,
+        sourceOrigin: widget.sourceOrigin,
+        attributionText: attributed ? widget.attributionText : null,
+        attributionPainter: attributed ? _attributionPainter : null,
       ),
     );
   }

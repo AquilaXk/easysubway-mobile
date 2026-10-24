@@ -107,7 +107,7 @@ class NetworkMapCanvas extends StatefulWidget {
   final StationPopoverActionFor? timetableActionFor;
 
   /// 노선 줄·노선 선택 시트에서 고른 노선. 요청이 바뀔 때마다 카메라가 그 노선
-  /// 역이 모두 보이게 옮긴다.
+  /// 역이 모두 보이게 옮기고, 바탕을 흐린 채 그 노선을 진하게 그린다.
   final NetworkMapLineFocusRequest? focusedLine;
 
   @override
@@ -1140,6 +1140,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           camera: camera,
           sourceOrigin: sourceOrigin,
           attributionText: attribution,
+          highlightedLineId: widget.focusedLine?.lineId,
         ),
         StructuredRouteMapView(
           map: map,
