@@ -29,6 +29,12 @@ const _camera = MapCameraState(
 );
 const _white = 255;
 const _channelTolerance = 2;
+// 이 값보다 흰색에서 덜 떨어진 채널은 8비트 반올림 오차가 비율을 흔들어 센 값에서 뺀다.
+const _minInkDistance = 40;
+// 상용 지하철 서비스 노선 선택 화면 캡처의 흐린 칸 색을 흰 바탕과 노선색 사이 비율로
+// 역산한 9개 채널의 범위(중앙값 0.22). 구현 상수를 가져오지 않고 따로 적는다.
+const _roleModelFadeLow = 0.165;
+const _roleModelFadeHigh = 0.28;
 final _boundaryKey = GlobalKey();
 
 Widget _map({
@@ -133,16 +139,32 @@ int _maxChannelDiff(Uint8List a, Uint8List b) {
   return max;
 }
 
-/// 바탕만 흐려진 칸과 레이어가 덮은 칸을 나눠 센다.
-({int faded, int overlay, int wrongFaded, int wrongOverlay}) _classify({
+/// 흐려진 칸의 한 채널이 바탕 기준 이미지의 진하기에서 얼마만큼 남았는지의 비율
+/// `(255 - 화면) / (255 - 바탕)`. 흰색에 가까운 채널은 비율이 흔들려 넣지 않는다.
+Iterable<double> _observedOpacities(Uint8List screen, Uint8List base, int p) =>
+    [0, 1, 2]
+        .where((c) => _white - base[p + c] >= _minInkDistance)
+        .map((c) => (_white - screen[p + c]) / (_white - base[p + c]));
+
+double _median(List<double> values) {
+  final sorted = [...values]..sort();
+  final mid = sorted.length ~/ 2;
+  return sorted.length.isOdd
+      ? sorted[mid]
+      : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+/// 바탕만 흐려진 칸과 레이어가 덮은 칸을 나눠 센다. 흐려진 칸은 관측한 불투명도의
+/// 중앙값을 함께 낸다.
+({int faded, double fadedOpacity, int overlay, int wrongOverlay}) _classify({
   required Uint8List screen,
   required Uint8List base,
   required Uint8List overlayAlone,
 }) {
   var faded = 0;
   var overlay = 0;
-  var wrongFaded = 0;
   var wrongOverlay = 0;
+  final opacities = <double>[];
   for (var p = 0; p < screen.length; p += 4) {
     final overlayAlpha = overlayAlone[p + 3];
     if (overlayAlpha == 255) {
@@ -153,25 +175,16 @@ int _maxChannelDiff(Uint8List a, Uint8List b) {
           break;
         }
       }
-      continue;
-    }
-    if (overlayAlpha != 0) continue;
-    final inked = [0, 1, 2].any((c) => base[p + c] < _white - 40);
-    if (!inked) continue;
-    faded++;
-    for (var c = 0; c < 3; c++) {
-      final expected =
-          _white - kRouteMapFadedBasemapOpacity * (_white - base[p + c]);
-      if ((screen[p + c] - expected).abs() > _channelTolerance) {
-        wrongFaded++;
-        break;
-      }
+    } else if (overlayAlpha == 0 &&
+        [0, 1, 2].any((c) => base[p + c] < _white - _minInkDistance)) {
+      faded++;
+      opacities.addAll(_observedOpacities(screen, base, p));
     }
   }
   return (
     faded: faded,
+    fadedOpacity: opacities.isEmpty ? double.nan : _median(opacities),
     overlay: overlay,
-    wrongFaded: wrongFaded,
     wrongOverlay: wrongOverlay,
   );
 }
@@ -209,7 +222,11 @@ void main() {
       );
 
       expect(counts.faded, greaterThan(5000), reason: '흐려진 다른 노선 칸 수');
-      expect(counts.wrongFaded, 0, reason: '흐려지지 않은 다른 노선 칸 수');
+      expect(
+        counts.fadedOpacity,
+        inInclusiveRange(_roleModelFadeLow, _roleModelFadeHigh),
+        reason: '흐려진 다른 노선 칸에서 관측한 불투명도 중앙값',
+      );
       expect(counts.overlay, greaterThan(1000), reason: '고른 노선 칸 수');
       expect(counts.wrongOverlay, 0, reason: '흐려진 고른 노선 칸 수');
     });
