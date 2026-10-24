@@ -366,6 +366,14 @@ jobs:
             --inventory "${RUNNER_TEMP}/mobile-host-test-inventory.json" \
             --report "${RUNNER_TEMP}/mobile-host-test-events.json" \
             --summary "${RUNNER_TEMP}/mobile-host-test-parity.json"
+      # 앱은 Impeller로 그리므로 노선도 바탕 래스터 프레임 예산은 Impeller에서 건다.
+      # 위 전체 실행(Skia 소프트웨어)의 같은 테스트 값은 기록만 남는다.
+      - name: Raster frame budget (Impeller)
+        working-directory: apps/mobile
+        run: >-
+          flutter test --enable-impeller
+          --dart-define=ROUTE_MAP_RASTER_GATE_IMPELLER=true
+          test/features/network_map/presentation/route_map_basemap_perf_test.dart
       - name: Filter mobile coverage
         run: |
           node tools/ci/filter-mobile-lcov.mjs normalize \
