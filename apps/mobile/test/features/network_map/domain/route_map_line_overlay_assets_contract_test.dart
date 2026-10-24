@@ -8,9 +8,9 @@ import 'package:easysubway_mobile/features/network_map/presentation/route_map_ba
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
-// 노선 강조 레이어는 data 레포 바탕 컴파일러가 굽고 build manifest에 sha256을 남긴다.
-// 이 레코드는 그 manifest에서 옮겨 적은 값이라, 자산을 다시 가져올 때 data 커밋과
-// 함께 바꾼다.
+// 권역 바탕·노선 강조 레이어·오너 라벨 sidecar는 data 레포 바탕 컴파일러가 굽고 build
+// manifest에 sha256을 남긴다. 이 레코드는 그 manifest에서 옮겨 적은 값이라, 자산을
+// 다시 가져올 때 data 커밋과 함께 바꾼다.
 const _buildRecordPath =
     'test/features/network_map/fixtures/route_map_line_overlays_build_record.json';
 const _packPath = 'assets/datapacks/nationwide.sqlite.gz';
@@ -46,6 +46,7 @@ void main() {
       jsonDecode(File(_buildRecordPath).readAsStringSync())
           as Map<String, dynamic>;
   final pinnedOverlays = (record['overlays'] as Map).cast<String, String>();
+  final pinnedBasemaps = (record['basemaps'] as Map).cast<String, String>();
 
   test('번들 색인은 고정한 data 커밋 manifest의 sha256과 같다', () {
     final indexRecord = record['lineOverlayIndex'] as Map<String, dynamic>;
@@ -54,6 +55,30 @@ void main() {
       _sha256Of(kRouteMapLineOverlayIndexAssetPath),
       indexRecord['sha256'],
     );
+  });
+
+  test('번들 오너 라벨 sidecar는 고정한 data 커밋 manifest의 sha256과 같다', () {
+    final labelsRecord = record['ownerLabels'] as Map<String, dynamic>;
+
+    expect(
+      _sha256Of('$kRouteMapBasemapAssetDir/${labelsRecord['file']}'),
+      labelsRecord['sha256'],
+    );
+  });
+
+  test('권역 바탕 .vec는 5권역 전부 manifest sha256과 같다', () {
+    expect(
+      pinnedBasemaps.keys.toSet(),
+      kRouteMapBasemapRegionToId.values.map((id) => '$id.vec').toSet(),
+    );
+    for (final MapEntry(key: fileName, value: sha256)
+        in pinnedBasemaps.entries) {
+      expect(
+        _sha256Of('$kRouteMapBasemapAssetDir/$fileName'),
+        sha256,
+        reason: '$fileName sha256',
+      );
+    }
   });
 
   test('데이터팩 노선도의 모든 노선이 자기 권역의 강조 레이어를 갖고, 레이어는 manifest sha256과 같다', () {
