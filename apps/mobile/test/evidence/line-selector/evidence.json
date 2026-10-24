@@ -5,7 +5,7 @@
   "platform": "Android emulator easysubway_ps16k_api36 (Pixel 6, Android 16 API 36, 글자 배율 1.5), adb screencap 1080x2400을 세로 1200으로 줄임. 운영 API 설정의 debug APK, 번들 데이터팩. 실기기 Galaxy A17(SM-A175N, 글자 배율 1.0) 2장은 같은 APK를 adb install -r로 올렸다",
   "assertions": [
     "노선도 상단바 아래에 데이터팩 노선이 상용 지하철 서비스 시트 순서의 칩으로 보인다",
-    "노선 선택 시트는 전체 노선 줄과 3열 격자, 번호·첫 글자 원형 마크를 쓴다",
+    "노선 선택 시트는 전체 노선 줄과 격자, 번호·첫 글자 원형 마크를 쓴다. 칸 이름은 사용자 글자 배율을 그대로 따르고 가장 긴 이름이 한 줄에 들어가는 열 수(3, 2, 1)를 고른다",
     "고른 노선은 칩 테두리, 시트 칸 회색 바탕으로 같이 보이고 지도가 그 노선 역으로 옮긴다"
   ],
   "files": [
@@ -21,8 +21,13 @@
     },
     {
       "path": "after-sheet.png",
-      "sha256": "b0590c3183ff4a167a031398e62478cd0e0a3eecc1aa29e0c6158f25d7ad8fb9",
-      "description": "노선 선택 시트. 제목과 닫기, 전체 노선 줄(고른 노선이 없어 선택 상태), 3열 격자와 번호·첫 글자 원형 마크. 글자 1.5배에서 긴 이름은 한 줄에 맞춘다"
+      "sha256": "1a8a4b360c89001349c03e31a8d23a712b61ee334efd6d79fb3d781b44406018",
+      "description": "노선 선택 시트(글자 1.5배). 제목과 닫기, 전체 노선 줄(고른 노선이 없어 선택 상태), 2열 격자와 번호·첫 글자 원형 마크. 모든 칸 이름이 같은 배율로 한 줄이다"
+    },
+    {
+      "path": "after-sheet-2x.png",
+      "sha256": "bc6f33e84b5c2b456d85005bbc862c53f402d162918355858693c75900404c76",
+      "description": "노선 선택 시트(글자 2.0배). 같은 2열 격자에서 이름이 단어 중간에서 끊기지 않고 모든 칸이 같은 배율이다"
     },
     {
       "path": "after-map-selected.png",
@@ -31,8 +36,8 @@
     },
     {
       "path": "after-sheet-selected.png",
-      "sha256": "d15849e5dc16e0417e56f52f53c5dd4b278e61016cb8ea5ac34ea1fd84c4bb4c",
-      "description": "우이신설을 고른 상태로 다시 연 시트. 우이신설 칸만 회색 바탕과 강조 굵기다"
+      "sha256": "b5704ad371f7281ccd176cfd95576c1d66d690c85400db0e3e5cad5f9ac53fad",
+      "description": "우이신설을 고른 상태로 다시 연 시트(글자 1.5배). 우이신설 칸만 회색 바탕과 강조 굵기이고 열 수는 그대로다"
     },
     {
       "path": "after-device-map-selected.png",
@@ -42,7 +47,7 @@
     {
       "path": "after-device-sheet.png",
       "sha256": "63d5ffd14ddd18b8099dd33a22f440a9f6c8d90ce3ea95699c19b047afe323e6",
-      "description": "실기기에서 우이신설을 고른 상태의 노선 선택 시트"
+      "description": "실기기(글자 1.0배)에서 우이신설을 고른 상태의 노선 선택 시트. 이전 head(243704d6)에서 찍은 캡처다"
     }
   ]
 }
