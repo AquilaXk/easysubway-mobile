@@ -13,8 +13,9 @@ import '../../../support/basemap_vec_draws.dart';
 // tools/mobile/run-route-map-frame-ab.sh로 실기기 프레임을 이전 바탕과 번갈아 잰 뒤
 // 상한을 올린다. 벽시계 시간을 재지 않으므로 CI에서 흔들리지 않는다.
 //
-// 상한은 실측 개수와 같다(여유 0). 같은 규칙으로 data 54e2e7c99(pipelineRevision 6) 바탕에
-// 맞췄다. 역명을 글리프 윤곽선으로 구우면서(data #1488) 텍스트 그리기는 사라졌고
+// 상한은 실측 개수와 같다(여유 0). 줄어도 실패하므로 바탕을 새로 들여와 개수가 줄면 같은
+// PR에서 상한을 내린다(AI 슬롭 가드 기준선과 같은 규칙). data 54e2e7c99(pipelineRevision 6)
+// 바탕에 맞췄다. 역명을 글리프 윤곽선으로 구우면서(data #1488) 텍스트 그리기는 사라졌고
 // (texts 0), 같은 paint의 인접 path를 이어(data #1495) path 그리기 수가 줄었다. 대신
 // 윤곽 좌표가 늘어 그리기 한 번이 처리하는 path 선분 수(segments)가 커지므로 이것도
 // 같은 규칙으로 못 박는다. 그리기 수만으로는 비용을 더 못 본다.
@@ -27,9 +28,19 @@ const _ceilings =
       '광주': (paths: 61, texts: 0, invisible: 0, segments: 2378),
     };
 
-const _remeasure =
-    '바탕 그리기 명령이 상한을 넘었다. tools/mobile/run-route-map-frame-ab.sh로 '
-    '실기기 팬 프레임을 이전 바탕과 번갈아 잰 뒤 상한을 올린다.';
+const _raise =
+    '상한보다 늘었다. tools/mobile/run-route-map-frame-ab.sh로 실기기 팬 프레임을 '
+    '이전 바탕과 번갈아 잰 뒤 상한을 올린다.';
+
+const _lower = '상한보다 줄었다. 여유를 남기지 않도록 이 파일 _ceilings의 값을 실측으로 내린다.';
+
+/// [actual]이 상한 [ceiling]과 다르면 고치는 방법을 담은 실패 문구, 같으면 null.
+String? _ceilingMismatch(String metric, int actual, int ceiling) =>
+    switch (actual - ceiling) {
+      0 => null,
+      > 0 => '$metric $actual (상한 $ceiling): $_raise',
+      _ => '$metric $actual (상한 $ceiling): $_lower',
+    };
 
 /// 경로·글자 그리기 수와 path 선분 수, 알파 0 paint로 그려 화면에 아무것도 남기지 않는 그리기 수.
 class _DrawCounter extends BasemapVecListener {
@@ -94,7 +105,7 @@ void main() {
   });
 
   for (final MapEntry(key: region, value: ceiling) in _ceilings.entries) {
-    test('$region 바탕 그리기 명령 수가 상한 안이다', () {
+    test('$region 바탕 그리기 명령 수가 상한과 같다', () {
       final asset = routeMapBasemapAssetForRegion(region)!;
       final counter = _DrawCounter();
       final response = const VectorGraphicsCodec().decode(
@@ -103,26 +114,34 @@ void main() {
       );
 
       expect(response.complete, isTrue);
-      expect(
-        counter.paths,
-        lessThanOrEqualTo(ceiling.paths),
-        reason: _remeasure,
-      );
-      expect(
-        counter.texts,
-        lessThanOrEqualTo(ceiling.texts),
-        reason: _remeasure,
-      );
-      expect(
-        counter.segments,
-        lessThanOrEqualTo(ceiling.segments),
-        reason: _remeasure,
-      );
+      final mismatches = [
+        _ceilingMismatch('경로 그리기', counter.paths, ceiling.paths),
+        _ceilingMismatch('글자 그리기', counter.texts, ceiling.texts),
+        _ceilingMismatch('path 선분', counter.segments, ceiling.segments),
+      ].nonNulls;
+      expect(mismatches, isEmpty, reason: mismatches.join('\n'));
       expect(
         counter.invisible,
-        lessThanOrEqualTo(ceiling.invisible),
+        ceiling.invisible,
         reason: '보이지 않는 그리기도 매 프레임 비용이다. 바탕 원본에서 지운다.',
       );
     });
   }
+
+  group('상한 판정', () {
+    test('실측이 상한과 같으면 통과한다', () {
+      expect(_ceilingMismatch('path 선분', 100, 100), isNull);
+    });
+
+    test('상한보다 늘면 실패하고 실기기로 다시 잰 뒤 올리라고 한다', () {
+      expect(
+        _ceilingMismatch('path 선분', 101, 100),
+        contains('run-route-map-frame-ab.sh'),
+      );
+    });
+
+    test('상한보다 줄어도 실패하고 상한을 실측으로 내리라고 한다', () {
+      expect(_ceilingMismatch('path 선분', 99, 100), contains('_ceilings'));
+    });
+  });
 }
