@@ -14,13 +14,13 @@ import 'package:flutter_test/flutter_test.dart';
 // 그려 최대 0.5픽셀 어긋날 수 있다.
 //
 // 같은 그림도 화면 픽셀 정수만큼 옮겨 그리면 안티앨리어싱 표본이 경계에 걸린 픽셀이 조금
-// 달라진다. 2026-10-25 실측(화면 밀도 1·2·2.625·2.8125·3배): 벡터를 정수 픽셀 옮겨 그린
-// 화면끼리 채널 차 1 초과 픽셀이 최대 0.74%, 채널 차 64 초과가 1~2픽셀(최대 99)이고, 구운
-// 타일과 벡터는 최대 0.92%, 64 초과 5픽셀 이하다. 격자가 화면 픽셀에서 소수만큼 어긋나면
-// 1.85% 이상, 64 초과 7000픽셀 이상으로 벌어진다. 그래서 같은 화면인지는 다른 픽셀의
-// 비율과, 표본 4개 중 1개(채널 차 64)를 넘게 다른 픽셀의 비율로 본다.
-const _maxDifferingShare = 0.01;
-const _maxBeyondOneSampleShare = 0.0001;
+// 달라진다. 채널 차 1~32의 작은 차이는 렌더러 플랫폼마다 양이 달라(같은 비교가 macOS
+// 0.59%, CI Linux 1.10%) 판정에 쓰지 않는다. 2026-10-25 macOS 실측(화면 밀도
+// 1·2·2.625·2.8125·3배, 전체·고른 노선): 구운 타일과 벡터는 채널 차 32 초과 최대 0.047%,
+// 64 초과 최대 0.001%다. 격자가 화면 픽셀에서 0.25픽셀 이상 어긋나면 32 초과가 0.248%
+// 이상, 64 초과가 0.017% 이상이다.
+const _maxBeyondEighthShare = 0.001;
+const _maxBeyondQuarterShare = 0.0001;
 const _viewport = Size(400, 400);
 const _uiSinseolLineId = 'line-30886152e4f8';
 
@@ -99,26 +99,26 @@ Future<Uint8List> _screen(WidgetTester tester) async {
   }))!;
 }
 
-/// 채널 차가 1을 넘는 픽셀과 64(표본 4개 중 1개)를 넘는 픽셀의 비율.
-({double differing, double beyondOneSample}) _pixelDiff(
+/// 채널 차가 32(덮임 1/8)와 64(덮임 1/4)를 넘는 픽셀의 비율.
+({double beyondEighth, double beyondQuarter}) _pixelDiff(
   Uint8List a,
   Uint8List b,
 ) {
-  var differing = 0;
-  var beyondOneSample = 0;
+  var beyondEighth = 0;
+  var beyondQuarter = 0;
   for (var p = 0; p < a.length; p += 4) {
     var pixelMax = 0;
     for (var c = 0; c < 4; c++) {
       final diff = (a[p + c] - b[p + c]).abs();
       if (diff > pixelMax) pixelMax = diff;
     }
-    if (pixelMax > 1) differing++;
-    if (pixelMax > 64) beyondOneSample++;
+    if (pixelMax > 32) beyondEighth++;
+    if (pixelMax > 64) beyondQuarter++;
   }
   final pixels = a.length ~/ 4;
   return (
-    differing: differing / pixels,
-    beyondOneSample: beyondOneSample / pixels,
+    beyondEighth: beyondEighth / pixels,
+    beyondQuarter: beyondQuarter / pixels,
   );
 }
 
@@ -171,10 +171,14 @@ Future<Uint8List> _vectorScreen(
 
 void _expectSameScreen(Uint8List actual, Uint8List expected, String reason) {
   final diff = _pixelDiff(actual, expected);
-  expect(diff.differing, lessThanOrEqualTo(_maxDifferingShare), reason: reason);
   expect(
-    diff.beyondOneSample,
-    lessThanOrEqualTo(_maxBeyondOneSampleShare),
+    diff.beyondEighth,
+    lessThanOrEqualTo(_maxBeyondEighthShare),
+    reason: reason,
+  );
+  expect(
+    diff.beyondQuarter,
+    lessThanOrEqualTo(_maxBeyondQuarterShare),
     reason: reason,
   );
 }
