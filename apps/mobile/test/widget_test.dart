@@ -6286,36 +6286,7 @@ void main() {
         );
       }
     });
-    final repository = _HangingTimetableStationRepository(
-      completer: timetableCompleter,
-      stationDetail: _stationDetail(
-        id: 'station-sangnoksu',
-        name: '상록수',
-        lines: const [
-          StationSearchLine(
-            id: 'seoul-4',
-            name: '수도권 4호선',
-            color: '#00A5DE',
-            stationCode: '448',
-          ),
-        ],
-      ),
-      networkMapRegionNames: const ['수도권'],
-      nearbyResults: [
-        _stationResult(
-          id: 'station-sangnoksu',
-          name: '상록수',
-          lines: const [
-            StationSearchLine(
-              id: 'seoul-4',
-              name: '수도권 4호선',
-              color: '#00A5DE',
-              stationCode: '448',
-            ),
-          ],
-        ),
-      ],
-    );
+    final repository = _sangnoksuHangingTimetableRepository(timetableCompleter);
     await _pumpNetworkMapForGpsTest(
       tester,
       repository: repository,
@@ -6374,6 +6345,48 @@ void main() {
     );
     expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsOneWidget);
     expect(find.bySemanticsLabel('한대앞 방면, 불러오는 중'), findsOneWidget);
+  });
+
+  testWidgets('GPS 하단 패널 시간표 조회가 실패하면 불러오는 중이 끝나고 정보 없음으로 바뀐다', (tester) async {
+    tester.view.physicalSize = const Size(320, 1200);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    final timetableCompleter = Completer<StationTimetable>();
+    final repository = _sangnoksuHangingTimetableRepository(timetableCompleter);
+    await _pumpNetworkMapForGpsTest(
+      tester,
+      repository: repository,
+      locationProvider: FakeCurrentLocationProvider(
+        location: _freshCurrentLocation(),
+        needsPermissionRequest: false,
+      ),
+      realtimeRepository: _FreshRealtimeRepository(),
+    );
+
+    await tester.tap(find.byKey(const Key('nearbyStationButton')));
+    await tester.pump();
+    await tester.pump();
+    final panel = find.byKey(const Key('networkMapNearbyStationPanel'));
+    expect(
+      find.descendant(of: panel, matching: find.text('-')),
+      findsNWidgets(2),
+    );
+
+    timetableCompleter.completeError(
+      const StationTimetableUnavailable('timetable-unavailable'),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.descendant(of: panel, matching: find.text('시간표 정보 없음')),
+      findsNWidgets(2),
+    );
+    expect(find.descendant(of: panel, matching: find.text('-')), findsNothing);
+    expect(find.bySemanticsLabel('반월 방면, 불러오는 중'), findsNothing);
+    expect(find.bySemanticsLabel('한대앞 방면, 불러오는 중'), findsNothing);
   });
 
   testWidgets('실시간 탭은 응답 전에도 스피너 없이 방면 골격을 표시한다', (tester) async {
@@ -17551,6 +17564,29 @@ class _FailingStationDetailRepository extends FakeStationSearchRepository {
   Future<StationDetail> getStationDetail(String stationId) async {
     throw error;
   }
+}
+
+_HangingTimetableStationRepository _sangnoksuHangingTimetableRepository(
+  Completer<StationTimetable> completer,
+) {
+  const line = StationSearchLine(
+    id: 'seoul-4',
+    name: '수도권 4호선',
+    color: '#00A5DE',
+    stationCode: '448',
+  );
+  return _HangingTimetableStationRepository(
+    completer: completer,
+    stationDetail: _stationDetail(
+      id: 'station-sangnoksu',
+      name: '상록수',
+      lines: const [line],
+    ),
+    networkMapRegionNames: const ['수도권'],
+    nearbyResults: [
+      _stationResult(id: 'station-sangnoksu', name: '상록수', lines: const [line]),
+    ],
+  );
 }
 
 class _HangingTimetableStationRepository extends FakeStationSearchRepository
