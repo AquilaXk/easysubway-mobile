@@ -182,3 +182,54 @@ test("a profile run without frame logs fails instead of reporting no frames", as
 
   await assert.rejects(analyze(["--artifact-dir", dir]), /Expected non-empty file/);
 });
+
+async function writeReleaseRun(root, name, meminfo) {
+  const dir = await writeEmptyFrameRun(path.join(root, name), "release");
+  if (meminfo != null) {
+    await writeFile(path.join(dir, "meminfo.txt"), meminfo);
+  }
+  return dir;
+}
+
+test("release groups without frames report unmeasured frame values as null, not 0", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  const a = await writeReleaseRun(root, "a");
+  const b = await writeReleaseRun(root, "b");
+
+  const { groups, aggregate } = await analyze([
+    "--group", "tiles", "--artifact-dir", a, "--artifact-dir", b,
+  ]);
+
+  assert.equal(groups[0].roundRasterP50MedianMs, null);
+  assert.equal(groups[0].roundRasterP50RangeMs, null);
+  assert.equal(groups[0].pooled.missedVsyncs, null);
+  assert.equal(groups[0].pooled.jankyFrames, null);
+  assert.deepEqual(groups[0].totalPssRangeKb, [150000, 150000]);
+  assert.equal(aggregate.maxRasterP90Ms, null);
+  assert.equal(aggregate.maxBuildP90Ms, null);
+  assert.equal(aggregate.maxTotalPssKb, 150000);
+});
+
+test("a missing TOTAL PSS stays unmeasured instead of becoming 0 kB", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  const dir = await writeReleaseRun(root, "a", "no meminfo totals\n");
+
+  const { aggregate } = await analyze(["--artifact-dir", dir]);
+
+  assert.equal(aggregate.maxTotalPssKb, null);
+});
+
+test("the markdown table says a frame value was not measured instead of printing 0 or null", async () => {
+  const root = await mkdtemp(path.join(tmpdir(), "route-map-frames-"));
+  const a = await writeReleaseRun(root, "a");
+  const b = await writeReleaseRun(root, "b");
+
+  const { stdout } = await execFileAsync("node", [
+    analyzer, "--group", "tiles", "--artifact-dir", a, "--artifact-dir", b,
+  ]);
+
+  const groupRow = stdout.split("\n").find((line) => line.startsWith("| tiles |"));
+  assert.match(groupRow, /측정 안 함/);
+  assert.doesNotMatch(groupRow, /0~0ms|nullms/);
+  assert.match(stdout, /- max_raster_p90_ms: 측정 안 함/);
+});

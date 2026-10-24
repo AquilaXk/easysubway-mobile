@@ -174,7 +174,7 @@ function frameBudgetMs(metadata) {
 }
 
 function countJanky(frames, budgetMs) {
-  return budgetMs == null
+  return budgetMs == null || frames.length === 0
     ? null
     : frames.filter((frame) => frame.build > budgetMs || frame.raster > budgetMs)
         .length;
@@ -205,7 +205,7 @@ const IDLE_GAP_VSYNCS = 5;
 // 굽기 등)은 그 프레임의 rasterMs에 잡히지 않지만 다음 프레임을 늦춰 여기에 드러난다.
 // 프레임 번호가 줄면 다른 run(프로세스)의 프레임이라 세지 않는다.
 function countMissedVsyncs(frames, budgetMs) {
-  if (budgetMs == null) {
+  if (budgetMs == null || frames.length === 0) {
     return null;
   }
   let missed = 0;
@@ -302,6 +302,16 @@ function median(values) {
   return percentile(values, 50);
 }
 
+// 측정하지 않은 값(null)을 0으로 바꾸면 "0 ms 측정됨"으로 읽히므로 걸러 낸다.
+function known(values) {
+  return values.filter((value) => value != null);
+}
+
+function range(values) {
+  const present = known(values);
+  return present.length === 0 ? null : [Math.min(...present), Math.max(...present)];
+}
+
 // A/B 비교 단위. 회차마다 raster p50을 내고 그 중앙값과 범위를 본다. 두 쪽 범위가 겹치면
 // 차이를 주장하지 않는다. 모든 회차 프레임을 합친 백분위와 jank 수도 같이 낸다.
 // 한 그룹 안 run들의 주사율이 다르면 예산이 섞이므로 null로 둔다.
@@ -315,18 +325,14 @@ function summarizeGroups(runs) {
     const rates = new Set(groupRuns.map((run) => run.refreshRateHz));
     const budgetMs =
       rates.size === 1 ? frameBudgetMs({ refresh_rate_hz: String([...rates][0]) }) : null;
-    const range = (values) => {
-      const known = values.filter((value) => value != null);
-      return known.length === 0 ? null : [Math.min(...known), Math.max(...known)];
-    };
     return {
       group: name,
       rounds: groupRuns.length,
       refreshRatesHz: [...rates],
       thermalStatuses: [...new Set(groupRuns.map((run) => run.thermalStatus))],
       roundRasterP50Ms: roundRasterP50,
-      roundRasterP50MedianMs: median(roundRasterP50),
-      roundRasterP50RangeMs: [Math.min(...roundRasterP50), Math.max(...roundRasterP50)],
+      roundRasterP50MedianMs: median(known(roundRasterP50)),
+      roundRasterP50RangeMs: range(roundRasterP50),
       totalPssRangeKb: range(groupRuns.map((run) => run.meminfo.totalPssKb)),
       glMtrackRangeKb: range(groupRuns.map((run) => run.meminfo.glMtrackKb)),
       pooled: summarizeFrames(
@@ -338,8 +344,8 @@ function summarizeGroups(runs) {
 }
 
 function maxKnown(values) {
-  const known = values.filter((value) => value != null);
-  return known.length === 0 ? null : Math.max(...known);
+  const present = known(values);
+  return present.length === 0 ? null : Math.max(...present);
 }
 
 function aggregate(runs) {
@@ -365,12 +371,10 @@ function aggregate(runs) {
     maxJankyPercent: maxCapturedGfxinfo((gfxinfo) => gfxinfo.jankyPercent),
     maxP95FrameMs: maxCapturedGfxinfo((gfxinfo) => gfxinfo.p95Ms),
     maxP99FrameMs: maxCapturedGfxinfo((gfxinfo) => gfxinfo.p99Ms),
-    maxTotalPssKb: Math.max(...runs.map((run) => run.meminfo.totalPssKb ?? 0)),
+    maxTotalPssKb: maxKnown(runs.map((run) => run.meminfo.totalPssKb)),
     maxFrameJankyPercent: maxKnown(runs.map((run) => run.frameTiming.jankyPercent)),
-    maxBuildP90Ms: Math.max(...runs.map((run) => run.frameTiming.buildP90Ms ?? 0)),
-    maxRasterP90Ms: Math.max(
-      ...runs.map((run) => run.frameTiming.rasterP90Ms ?? 0),
-    ),
+    maxBuildP90Ms: maxKnown(runs.map((run) => run.frameTiming.buildP90Ms)),
+    maxRasterP90Ms: maxKnown(runs.map((run) => run.frameTiming.rasterP90Ms)),
     totalCrashSignatures: runs.reduce(
       (sum, run) => sum + (run.renderer.crashSignatureCount ?? 0),
       0,
@@ -379,6 +383,10 @@ function aggregate(runs) {
       (run) => (run.renderer.crashSignatureCount ?? 0) === 0,
     ),
   };
+}
+
+function measured(value, unit = "") {
+  return value == null ? "측정 안 함" : `${value}${unit}`;
 }
 
 function markdownReport(result) {
@@ -390,14 +398,14 @@ function markdownReport(result) {
     `- max_janky_percent: ${result.aggregate.maxJankyPercent}`,
     `- max_p95_frame_ms: ${result.aggregate.maxP95FrameMs}`,
     `- max_p99_frame_ms_gfxinfo_hwui_only: ${result.aggregate.maxP99FrameMs}`,
-    `- max_total_pss_kb: ${result.aggregate.maxTotalPssKb}`,
+    `- max_total_pss_kb: ${measured(result.aggregate.maxTotalPssKb)}`,
     `- total_crash_signatures: ${result.aggregate.totalCrashSignatures}`,
     `- no_crashes_in_all_runs: ${result.aggregate.noCrashesInAllRuns}`,
     "",
     "FrameTiming(정본, Flutter canvas 프레임):",
     `- max_frame_janky_percent: ${result.aggregate.maxFrameJankyPercent}`,
-    `- max_build_p90_ms: ${result.aggregate.maxBuildP90Ms}`,
-    `- max_raster_p90_ms: ${result.aggregate.maxRasterP90Ms}`,
+    `- max_build_p90_ms: ${measured(result.aggregate.maxBuildP90Ms)}`,
+    `- max_raster_p90_ms: ${measured(result.aggregate.maxRasterP90Ms)}`,
     "",
     "> gfxinfo frame 지표는 HWUI 전용이라 Flutter canvas 노선도 프레임을 반영하지 않는다. 프레임 성능은 FrameTiming(build/raster p90·janky%)이 정본이다.",
     "",
@@ -443,11 +451,13 @@ function markdownReport(result) {
         group.rounds,
         group.refreshRatesHz.join("/"),
         group.thermalStatuses.join("/"),
-        `${group.roundRasterP50MedianMs}ms`,
-        `${group.roundRasterP50RangeMs[0]}~${group.roundRasterP50RangeMs[1]}ms`,
-        `${pooled.rasterP50Ms}ms`,
-        `${pooled.rasterP90Ms}ms`,
-        `${pooled.rasterP99Ms}ms`,
+        measured(group.roundRasterP50MedianMs, "ms"),
+        group.roundRasterP50RangeMs == null
+          ? measured(null)
+          : `${group.roundRasterP50RangeMs.join("~")}ms`,
+        measured(pooled.rasterP50Ms, "ms"),
+        measured(pooled.rasterP90Ms, "ms"),
+        measured(pooled.rasterP99Ms, "ms"),
         `${pooled.jankyFrames ?? "unknown"} / ${pooled.frameSampleCount}`,
         pooled.missedVsyncs ?? "unknown",
         pooled.medianVsyncIntervalMs == null ? "" : `${pooled.medianVsyncIntervalMs}ms`,
