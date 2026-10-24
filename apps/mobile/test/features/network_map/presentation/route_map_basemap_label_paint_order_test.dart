@@ -185,7 +185,6 @@ BasemapVecPathDraw _syntheticDraw(
   index: index,
   isStroke: stroke,
   color: color,
-  strokeWidth: stroke ? 5 : null,
   contours: [BasemapVecContour(glyphPoints)],
 );
 

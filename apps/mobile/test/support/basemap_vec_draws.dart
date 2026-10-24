@@ -46,7 +46,6 @@ class BasemapVecPathDraw {
     required this.index,
     required this.isStroke,
     required this.color,
-    required this.strokeWidth,
     required this.contours,
   });
 
@@ -59,22 +58,16 @@ class BasemapVecPathDraw {
   /// paint 색(ARGB 32비트).
   final int color;
 
-  /// stroke 굵기. fill이면 null.
-  final double? strokeWidth;
-
   final List<BasemapVecContour> contours;
 
   bool get isOpaqueWhite => color == 0xffffffff;
-
-  late final double maxY = contours.map((c) => c.maxY).reduce(math.max);
 }
 
 class _PaintRecord {
-  _PaintRecord(this.color, this.isStroke, this.strokeWidth);
+  _PaintRecord(this.color, this.isStroke);
 
   final int color;
   final bool isStroke;
-  final double? strokeWidth;
 }
 
 class _PathDrawListener extends BasemapVecListener {
@@ -99,11 +92,7 @@ class _PathDrawListener extends BasemapVecListener {
     required int id,
     required int? shaderId,
   }) {
-    _paints[id] = _PaintRecord(
-      color,
-      paintStyle == _paintStyleStroke,
-      strokeWidth,
-    );
+    _paints[id] = _PaintRecord(color, paintStyle == _paintStyleStroke);
   }
 
   @override
@@ -154,7 +143,6 @@ class _PathDrawListener extends BasemapVecListener {
         index: draws.length,
         isStroke: paint.isStroke,
         color: paint.color,
-        strokeWidth: paint.strokeWidth,
         contours: contours,
       ),
     );
