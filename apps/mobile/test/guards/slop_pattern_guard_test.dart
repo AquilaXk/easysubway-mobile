@@ -13,6 +13,8 @@ import '../support/slop_ratchet.dart';
 // 줄이면 기준선도 같은 PR에서 내린다:
 //   flutter test test/guards/slop_pattern_guard_test.dart --dart-define=TIGHTEN_SLOP_BASELINE=true
 // 이 명령은 기준선을 내리기만 한다. 올리려면 JSON을 손으로 고치고 PR에서 이유를 적는다.
+// 코드를 다른 파일로 옮기면 새 파일은 늘어난 것으로 잡힌다. 기준선 JSON에서 원래 파일 건수를 옮긴 만큼
+// 내리고 새 파일 항목을 같은 건수로 추가한다. 범주 합계가 그대로이므로 기준선을 올리는 것이 아니다.
 
 const _testPath = 'test/guards/slop_pattern_guard_test.dart';
 const _baselinePath = 'test/guards/slop_pattern_baseline.json';
@@ -525,7 +527,7 @@ final a = 1;
       expect(() => parseSlopBaseline(jsonEncode(zero)), throwsFormatException);
     });
 
-    test('실패 메시지는 파일, 범주, 건수 대 기준선, 줄, 고치는 방법을 말한다', () {
+    test('실패 메시지는 파일, 범주, 건수 대 기준선, 줄, 세는 대상, 고치는 방법을 말한다', () {
       final rule = slopRules.firstWhere((rule) => rule.id == 'raw_radius');
       final message = describeSlopDelta(
         const SlopDelta(
@@ -536,12 +538,84 @@ final a = 1;
         ),
         lines: [10, 44, 90],
       );
-      expect(message, contains('lib/a.dart'));
-      expect(message, contains(rule.label));
-      expect(message, contains('3'));
-      expect(message, contains('기준선 2'));
-      expect(message, contains('10, 44, 90'));
-      expect(message, contains(rule.fix));
+      expect(
+        message,
+        'lib/a.dart: ${rule.label} 3건 (기준선 2), 줄 10, 44, 90\n'
+        '  세는 대상: ${rule.counts}\n'
+        '  고치는 방법: ${rule.fix}',
+      );
+    });
+
+    test('줄어든 파일의 메시지는 건수와 기준선을 그대로 말한다', () {
+      final rule = slopRules.firstWhere((rule) => rule.id == 'icon');
+      expect(
+        describeSlopDelta(
+          const SlopDelta(
+            ruleId: 'icon',
+            path: 'lib/a.dart',
+            actual: 1,
+            baseline: 4,
+          ),
+        ),
+        'lib/a.dart: ${rule.label} 1건으로 줄었다 (기준선 4)',
+      );
+    });
+
+    test('차이는 파일 읽은 순서와 상관없이 범주와 경로 순서로 나온다', () {
+      SlopCounts ordered(List<MapEntry<String, Map<String, int>>> entries) => {
+        for (final entry in entries) entry.key: entry.value,
+      };
+      final forward = ordered([
+        const MapEntry('icon', {'lib/b.dart': 2, 'lib/a.dart': 2}),
+        const MapEntry('blur', {'lib/z.dart': 1}),
+      ]);
+      final backward = ordered([
+        const MapEntry('blur', {'lib/z.dart': 1}),
+        const MapEntry('icon', {'lib/a.dart': 2, 'lib/b.dart': 2}),
+      ]);
+      String key(SlopDelta delta) => '${delta.ruleId} ${delta.path}';
+      final expected = [
+        'blur lib/z.dart',
+        'icon lib/a.dart',
+        'icon lib/b.dart',
+      ];
+      expect(slopRatchetDeltas(forward, {}).map(key), expected);
+      expect(slopRatchetDeltas(backward, {}).map(key), expected);
+    });
+
+    test('히트 줄 번호는 규칙 안에서 오름차순이다', () {
+      final lines = _lines(
+        'final a = Cubic(0.1, 1.5, 0.2, 1.0);\n'
+            'final b = Curves.bounceOut;\n',
+        'bounce',
+      );
+      expect(lines, [1, 2]);
+    });
+
+    test('증가 실패 메시지는 코드를 옮긴 경우의 기준선 고치는 방법을 알려준다', () {
+      final message = describeSlopIncreases(['lib/new.dart: 아이콘 1건 (기준선 0)']);
+      expect(message, contains('lib/new.dart: 아이콘 1건 (기준선 0)'));
+      expect(message, contains('기준선을 올리지 말고'));
+      expect(message, contains('다른 파일로 옮긴'));
+      expect(message, contains('원래 파일 건수를 옮긴 만큼 내리고'));
+      expect(message, contains('새 파일 항목을 같은 건수로 추가'));
+      expect(message, contains('범주 합계'));
+    });
+
+    test('코드를 옮기면 새 파일은 증가로, 옛 파일은 낡은 기준선으로 잡히고 tighten은 새 파일을 더하지 않는다', () {
+      final baseline = counts({
+        'icon': {'lib/old.dart': 3, 'lib/keep.dart': 1},
+      });
+      final afterMove = counts({
+        'icon': {'lib/old.dart': 2, 'lib/new.dart': 1, 'lib/keep.dart': 1},
+      });
+      expect(
+        slopRatchetDeltas(afterMove, baseline).map((delta) => delta.kind),
+        unorderedEquals([SlopDeltaKind.increase, SlopDeltaKind.stale]),
+      );
+      expect(tightenSlopBaseline(afterMove, baseline), {
+        'icon': {'lib/old.dart': 2, 'lib/keep.dart': 1},
+      });
     });
   });
 
@@ -572,10 +646,7 @@ final a = 1;
           if (delta.kind == SlopDeltaKind.stale) describeSlopDelta(delta),
       ];
       if (increases.isNotEmpty) {
-        fail(
-          'AI 슬롭 패턴이 기준선보다 늘었다. 기준선을 올리지 말고 안내대로 고쳐라.\n'
-          '${increases.join('\n')}',
-        );
+        fail(describeSlopIncreases(increases));
       }
       if (stale.isNotEmpty) {
         fail(

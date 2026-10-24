@@ -342,6 +342,6 @@ List<SlopHit> scanSlopSource(String source, {required String path}) {
   return [
     for (final rule in slopRules)
       if (!rule.excludedPaths.contains(path))
-        for (final line in rule.find(scanned)) SlopHit(rule.id, line),
+        for (final line in rule.find(scanned)..sort()) SlopHit(rule.id, line),
   ];
 }

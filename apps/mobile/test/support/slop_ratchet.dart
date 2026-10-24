@@ -31,11 +31,15 @@ int _countOf(SlopCounts counts, String ruleId, String path) =>
 
 /// 실제 건수와 기준선이 다른 (규칙, 파일)만 돌려준다. 늘면 증가, 줄면 낡은 기준선이다.
 /// 파일 단위로 세므로 코드를 다른 파일로 옮겨도 늘어난 쪽이 새 파일로 잡힌다.
+/// 디렉터리를 읽은 순서와 상관없이 범주, 경로 순서로 돌려준다.
 List<SlopDelta> slopRatchetDeltas(SlopCounts actual, SlopCounts baseline) {
   final deltas = <SlopDelta>[];
-  final ruleIds = {...actual.keys, ...baseline.keys};
+  final ruleIds = {...actual.keys, ...baseline.keys}.toList()..sort();
   for (final ruleId in ruleIds) {
-    final paths = {...?actual[ruleId]?.keys, ...?baseline[ruleId]?.keys};
+    final paths = {
+      ...?actual[ruleId]?.keys,
+      ...?baseline[ruleId]?.keys,
+    }.toList()..sort();
     for (final path in paths) {
       final now = _countOf(actual, ruleId, path);
       final limit = _countOf(baseline, ruleId, path);
@@ -119,3 +123,10 @@ String describeSlopDelta(SlopDelta delta, {List<int> lines = const []}) {
       '  세는 대상: ${rule?.counts}\n'
       '  고치는 방법: ${rule?.fix}';
 }
+
+/// 늘어난 파일 메시지들의 실패 본문. 코드를 옮긴 경우에 기준선을 고치는 방법도 말한다.
+String describeSlopIncreases(Iterable<String> messages) =>
+    'AI 슬롭 패턴이 기준선보다 늘었다. 기준선을 올리지 말고 안내대로 고쳐라.\n'
+    '코드를 다른 파일로 옮긴 것이라면 기준선 JSON에서 원래 파일 건수를 옮긴 만큼 내리고(0이 되면 항목을 지운다) '
+    '새 파일 항목을 같은 건수로 추가한다. 범주 합계는 그대로여야 한다.\n'
+    '${messages.join('\n')}';
