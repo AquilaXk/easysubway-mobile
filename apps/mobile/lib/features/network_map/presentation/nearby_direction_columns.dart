@@ -33,12 +33,15 @@ class NearbyPanelColumn {
   List<String> get placeholderLines =>
       loading ? nearbyLoadingGlyph : emptyMessage;
 
-  String get semanticsLabel {
-    final body = hasData
-        ? rowsLabel
-        : (loading ? nearbyLoadingLabel : emptyMessage.join(' '));
-    return [title, body].where((part) => part.isNotEmpty).join(', ');
+  String get _bodyLabel {
+    if (hasData) {
+      return rowsLabel;
+    }
+    return loading ? nearbyLoadingLabel : emptyMessage.join(' ');
   }
+
+  String get semanticsLabel =>
+      [title, _bodyLabel].where((part) => part.isNotEmpty).join(', ');
 }
 
 /// 주변역 패널 열 배치 계획. [dataIndex]가 null이면 인접역에서 유도한 빈 카드다.
