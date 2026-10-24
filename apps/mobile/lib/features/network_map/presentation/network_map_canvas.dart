@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' show FramePhase;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -114,23 +115,29 @@ class NetworkMapCanvas extends StatefulWidget {
   State<NetworkMapCanvas> createState() => _NetworkMapCanvasState();
 }
 
-/// #1643 성능 QA: 노선도 프레임의 build/raster/total 시간을 logcat에 기록한다.
-/// run-route-map-android-evidence.sh가 'routeMapFrame' 라인을 grep해 jank·P90를
+/// #1643 성능 QA: 노선도 프레임 한 장의 [FrameTiming]을 logcat 한 줄로 만든다.
+/// `tools/mobile/analyze-route-map-android-evidence.mjs`가 이 줄을 읽는다.
+/// frame과 vsyncStartUs로 빠진 프레임 번호와 vsync 간격을 센다(#517).
+@visibleForTesting
+String routeMapFrameTimingLine(FrameTiming timing) {
+  String ms(Duration duration) =>
+      (duration.inMicroseconds / 1000.0).toStringAsFixed(2);
+  return 'routeMapFrame '
+      'buildMs=${ms(timing.buildDuration)} '
+      'rasterMs=${ms(timing.rasterDuration)} '
+      'totalMs=${ms(timing.totalSpan)} '
+      'frame=${timing.frameNumber} '
+      'vsyncStartUs=${timing.timestampInMicroseconds(FramePhase.vsyncStart)}';
+}
+
+/// run-route-map-android-evidence.sh가 'routeMapFrame' 라인을 grep해 jank·백분위를
 /// 산출한다(Flutter는 dumpsys gfxinfo로 프레임이 안 잡혀 FrameTiming으로 계측).
 void _logRouteMapFrameTimings(List<FrameTiming> timings) {
   for (final timing in timings) {
-    final buildMs = timing.buildDuration.inMicroseconds / 1000.0;
-    final rasterMs = timing.rasterDuration.inMicroseconds / 1000.0;
-    final totalMs = timing.totalSpan.inMicroseconds / 1000.0;
     // debugPrint는 throttle(debugPrintThrottled)이라 pan 중 다량의 프레임 로그를
     // 큐잉·드롭해 janky burst 구간을 undercount할 수 있다(jank% 하향 편향). 측정
     // 정확도를 위해 unthrottled synchronous 출력으로 모든 프레임을 남긴다.
-    debugPrintSynchronously(
-      'routeMapFrame '
-      'buildMs=${buildMs.toStringAsFixed(2)} '
-      'rasterMs=${rasterMs.toStringAsFixed(2)} '
-      'totalMs=${totalMs.toStringAsFixed(2)}',
-    );
+    debugPrintSynchronously(routeMapFrameTimingLine(timing));
   }
 }
 

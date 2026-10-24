@@ -13,6 +13,9 @@ Options:
   --adb <path>              adb executable. Defaults to $ADB or PATH lookup.
   --build-mode <mode>       Installed APK mode: debug or profile. Defaults to debug.
   --pan-count <count>       Number of map pan gestures after route map entry. Defaults to 5.
+  --focus-line <label>      Tap the line chip with this accessibility label (for example
+                            2호선) before measuring, so the gesture runs on the highlighted
+                            line with its camera.
   --settle-seconds <sec>    Wait after app launch and tab changes. Defaults to 3.
   --measure-after-route-map-settle
                             Reset frame/log evidence after route map settles, so gfxinfo and
@@ -26,6 +29,10 @@ route map home. The route map uses the structured native canvas renderer
 signatures during pan/zoom instead. It fails when the device is unavailable,
 the route map cannot be driven, evidence files are empty, or a renderer crash
 signature is observed during the gesture window.
+
+The display refresh rate (dumpsys display renderFrameRate) is recorded right
+after the gestures as refresh_rate_hz. The analyzer derives the frame budget
+from it, so the run fails when it cannot be read.
 USAGE
 }
 
@@ -35,6 +42,7 @@ PACKAGE="com.easysubway.app"
 ADB="${ADB:-}"
 BUILD_MODE="debug"
 PAN_COUNT=5
+FOCUS_LINE=""
 SETTLE_SECONDS=3
 MEASURE_AFTER_ROUTE_MAP_SETTLE="false"
 
@@ -62,6 +70,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pan-count)
       PAN_COUNT="${2:-}"
+      shift 2
+      ;;
+    --focus-line)
+      FOCUS_LINE="${2:-}"
       shift 2
       ;;
     --settle-seconds)
@@ -167,6 +179,7 @@ PAN_RIGHT_X=$((WIDTH * 7 / 10))
   echo "height=$HEIGHT"
   echo "build_mode=$BUILD_MODE"
   echo "pan_count=$PAN_COUNT"
+  echo "focus_line=$FOCUS_LINE"
   echo "settle_seconds=$SETTLE_SECONDS"
   echo "measurement_scope=$MEASUREMENT_SCOPE"
   echo "gfxinfo_reset_after_route_map_settle=$MEASURE_AFTER_ROUTE_MAP_SETTLE"
@@ -187,6 +200,19 @@ sleep "$SETTLE_SECONDS"
 capture_screen "route-map"
 capture_ui_tree "route-map"
 
+if [[ -n "$FOCUS_LINE" ]]; then
+  # 노선 칩은 Flutter semantics라 UI 트리에 content-desc로 나온다. 같은 이름이 없으면 멈춘다.
+  chip_bounds="$(grep -oE "content-desc=\"$FOCUS_LINE\"[^>]*bounds=\"\[[0-9]+,[0-9]+\]\[[0-9]+,[0-9]+\]\"" "$ARTIFACT_DIR/route-map.xml" | head -n 1 || true)"
+  if [[ ! "$chip_bounds" =~ \[([0-9]+),([0-9]+)\]\[([0-9]+),([0-9]+)\]\"$ ]]; then
+    echo "Line chip not found in UI tree: $FOCUS_LINE" >&2
+    exit 1
+  fi
+  adb_device shell input tap \
+    $(((BASH_REMATCH[1] + BASH_REMATCH[3]) / 2)) $(((BASH_REMATCH[2] + BASH_REMATCH[4]) / 2))
+  sleep "$SETTLE_SECONDS"
+  capture_screen "route-map-focused"
+fi
+
 if [[ "$MEASURE_AFTER_ROUTE_MAP_SETTLE" == "true" ]]; then
   # 제스처 구간만 분리 측정: 노선도 안착 후 프레임/로그 증거를 리셋한다.
   adb_device shell dumpsys gfxinfo "$PACKAGE" reset >/dev/null
@@ -197,6 +223,18 @@ for ((i = 0; i < PAN_COUNT; i += 1)); do
   adb_device shell input swipe "$PAN_RIGHT_X" "$PAN_Y" "$PAN_LEFT_X" "$PAN_Y" 350
   adb_device shell input swipe "$PAN_LEFT_X" "$PAN_Y" "$PAN_RIGHT_X" "$PAN_Y" 350
 done
+
+# 측정 직후 화면 주사율을 남긴다. 분석기는 이 값으로 프레임 예산(1000/Hz ms)을 정한다.
+adb_device shell dumpsys display > "$ARTIFACT_DIR/display.txt"
+REFRESH_RATE_HZ="$(awk 'match($0, /renderFrameRate [0-9.]+/) { print substr($0, RSTART + 16, RLENGTH - 16); exit }' "$ARTIFACT_DIR/display.txt")"
+if [[ -z "$REFRESH_RATE_HZ" ]]; then
+  echo "Unable to read renderFrameRate from dumpsys display." >&2
+  exit 1
+fi
+echo "refresh_rate_hz=$REFRESH_RATE_HZ" >> "$ARTIFACT_DIR/metadata.env"
+# 발열 제한(0=없음)이 걸린 run은 같은 조건 비교에서 빼야 하므로 함께 남긴다.
+THERMAL_STATUS="$(adb_device shell dumpsys thermalservice | awk -F': ' '/^Thermal Status/ { print $2; exit }' | tr -d '\r')"
+echo "thermal_status=${THERMAL_STATUS:-unknown}" >> "$ARTIFACT_DIR/metadata.env"
 
 adb_device shell dumpsys gfxinfo "$PACKAGE" > "$ARTIFACT_DIR/gfxinfo.txt"
 adb_device shell dumpsys gfxinfo "$PACKAGE" framestats > "$ARTIFACT_DIR/gfxinfo-framestats.txt"

@@ -25,7 +25,7 @@ set -euo pipefail
 #   [4] 성능 재측정(profile 빌드, Galaxy A17급 실기기):
 #         tools/mobile/run-route-map-android-evidence.sh … --measure-after-route-map-settle
 #         node  tools/mobile/analyze-route-map-android-evidence.mjs --artifact-dir <dir>
-#       기준: frame P90 < 16.7ms, jank < 5%, pan 중 crash 0.
+#       기준: frame P90 < 화면 주사율 예산(1000/Hz ms, 90 Hz면 11.1ms), jank < 5%, pan 중 crash 0.
 #       신규 2종(cold start 첫 표시·지역 전환):
 #         tools/mobile/run-route-map-launch-region-evidence.sh …
 #   [5] 오프라인 QA — adb 비행기 모드 토글 후 5개 권역 표시·역 tap·지역 전환.
@@ -50,7 +50,7 @@ Options:
   --skip-device            실기기 단계 스킵(flutter 게이트만).
   -h, --help                Show this help.
 
-프레임 P90<16.7ms·jank<5%·crash 0 판정은 analyze 스크립트 출력의 FrameTiming
+프레임 P90<주사율 예산(1000/Hz ms)·jank<5%·crash 0 판정은 analyze 스크립트 출력의 FrameTiming
 (build/raster p90·janky%) 을 정본으로 읽는다.
 USAGE
 }
@@ -115,6 +115,6 @@ echo "== [4b] 신규 측정: cold start 첫 표시 · 지역 전환 =="
   --cold-start-iterations 3 --region-target 부산 ${ADB_ARGS[@]+"${ADB_ARGS[@]}"}
 
 echo
-echo "완료. 판정은 각 산출 summary 를 열어 P90<16.7ms·jank<5%·crash 0 및"
+echo "완료. 판정은 각 산출 summary 를 열어 P90<주사율 예산·jank<5%·crash 0 및"
 echo "cold start·지역 전환 수치를 확인하라. 오프라인([5])·스케일 매트릭스([2])는"
 echo "이 스크립트가 진입한 권역 스크린샷과 함께 수동 판독한다."
