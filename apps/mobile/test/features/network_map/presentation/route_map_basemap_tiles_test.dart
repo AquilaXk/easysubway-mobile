@@ -70,7 +70,18 @@ void main() {
 
       final range = grid.visibleRange(
         const Offset(-300, 100),
-        const Size(400, 400),
+        const Rect.fromLTWH(0, 0, 400, 400),
+      )!;
+
+      expect((range.left, range.top, range.right, range.bottom), (1, 0, 2, 1));
+    });
+
+    test('화면 영역이 화면 위쪽에서 떨어져 있으면 그 영역에 보이는 칸을 고른다', () {
+      final grid = _grid();
+
+      final range = grid.visibleRange(
+        const Offset(-300, 400),
+        const Rect.fromLTWH(0, 300.5, 400, 400),
       )!;
 
       expect((range.left, range.top, range.right, range.bottom), (1, 0, 2, 1));
@@ -78,7 +89,10 @@ void main() {
 
     test('바탕이 화면 밖이면 보이는 타일이 없다', () {
       expect(
-        _grid().visibleRange(const Offset(500, 0), const Size(400, 400)),
+        _grid().visibleRange(
+          const Offset(500, 0),
+          const Rect.fromLTWH(0, 0, 400, 400),
+        ),
         isNull,
       );
     });

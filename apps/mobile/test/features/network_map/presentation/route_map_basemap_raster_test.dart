@@ -10,18 +10,30 @@ import 'package:flutter_test/flutter_test.dart';
 
 // 같은 배율로 팬하는 동안 바탕을 구운 타일로 그려도 화면은 벡터로 그린 것과 같아야
 // 한다(#517). 타일 이음매와, 아직 굽지 않아 벡터로 채운 칸도 같은 화면이어야 한다.
-// 팬 거리는 화면 픽셀 단위로 둔다. 소수 픽셀 위치는 타일을 가장 가까운 픽셀로 옮겨
-// 그려 최대 0.5픽셀 어긋날 수 있고, 그 차이는 실기기 비교가 맡는다.
+// 팬 거리는 화면 픽셀 단위로 둔다. 소수 픽셀 위치는 타일을 가장 가까운 화면 픽셀로 옮겨
+// 그려 최대 0.5픽셀 어긋날 수 있다.
 //
-// 같은 경로라도 화면 위치가 다르면 곡선·꺾임 경계 픽셀의 안티앨리어싱이 조금 달라진다
-// (2026-10-24 실측: 400x400 화면에서 791픽셀(0.49%), 최대 채널 차 36). 경계 픽셀만
-// 다르다는 것을 아래 두 허용치로 확인한다.
-const _maxEdgePixelShare = 0.01;
-const _maxEdgeChannelDiff = 64;
+// 같은 그림도 화면 픽셀 정수만큼 옮겨 그리면 안티앨리어싱 표본이 경계에 걸린 픽셀이 조금
+// 달라진다. 2026-10-25 실측(화면 밀도 1·2·2.625·2.8125·3배): 벡터를 정수 픽셀 옮겨 그린
+// 화면끼리 채널 차 1 초과 픽셀이 최대 0.74%, 채널 차 64 초과가 1~2픽셀(최대 99)이고, 구운
+// 타일과 벡터는 최대 0.92%, 64 초과 5픽셀 이하다. 격자가 화면 픽셀에서 소수만큼 어긋나면
+// 1.85% 이상, 64 초과 7000픽셀 이상으로 벌어진다. 그래서 같은 화면인지는 다른 픽셀의
+// 비율과, 표본 4개 중 1개(채널 차 64)를 넘게 다른 픽셀의 비율로 본다.
+const _maxDifferingShare = 0.01;
+const _maxBeyondOneSampleShare = 0.0001;
 const _viewport = Size(400, 400);
 const _uiSinseolLineId = 'line-30886152e4f8';
+
+/// 확인할 화면 밀도. 2.625와 3은 흔한 안드로이드 밀도(420·480dpi)다.
+const _devicePixelRatios = [1.0, 2.0, 2.625, 3.0];
+
+/// Galaxy A17 화면 밀도(450dpi). 논리 픽셀 정수 위치가 화면 픽셀 사이에 놓인다.
+const _galaxyA17DevicePixelRatio = 2.8125;
 final _boundaryKey = GlobalKey();
 
+var _devicePixelRatio = 1.0;
+
+/// [pan]은 화면 픽셀 거리다.
 MapCameraState _camera({
   double scale = 0.5,
   Offset pan = Offset.zero,
@@ -29,20 +41,28 @@ MapCameraState _camera({
 }) => MapCameraState(
   sourceBounds: const Rect.fromLTWH(0, 0, 3688, 2972),
   viewportSize: viewport,
-  center: const Offset(2230, 880) + pan / scale,
+  center: const Offset(2230, 880) + pan / _devicePixelRatio / scale,
   scale: scale,
   minScale: 0.1,
   maxScale: 4,
   revision: 1,
 );
 
-Widget _map(MapCameraState camera, {String? lineId, Key? key}) =>
-    Directionality(
-      textDirection: TextDirection.ltr,
-      child: Align(
-        alignment: Alignment.topLeft,
-        child: RepaintBoundary(
-          key: _boundaryKey,
+/// [top]은 지도 위 여백(논리 픽셀)이다. 앱처럼 지도 밖은 잘라 그린다.
+Widget _map(
+  MapCameraState camera, {
+  String? lineId,
+  Key? key,
+  double top = 0,
+}) => Directionality(
+  textDirection: TextDirection.ltr,
+  child: Align(
+    alignment: Alignment.topLeft,
+    child: RepaintBoundary(
+      key: _boundaryKey,
+      child: Padding(
+        padding: EdgeInsets.only(top: top),
+        child: ClipRect(
           child: SizedBox.fromSize(
             size: camera.viewportSize,
             child: ColoredBox(
@@ -57,7 +77,9 @@ Widget _map(MapCameraState camera, {String? lineId, Key? key}) =>
           ),
         ),
       ),
-    );
+    ),
+  ),
+);
 
 Future<void> _settleLoads(WidgetTester tester) async {
   for (var attempt = 0; attempt < 5; attempt++) {
@@ -70,17 +92,20 @@ Future<Uint8List> _screen(WidgetTester tester) async {
   final boundary =
       _boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
   return (await tester.runAsync(() async {
-    final image = await boundary.toImage();
+    final image = await boundary.toImage(pixelRatio: _devicePixelRatio);
     final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
     image.dispose();
     return bytes!.buffer.asUint8List();
   }))!;
 }
 
-/// 채널 차가 1을 넘는 픽셀의 비율과 가장 큰 채널 차.
-({double share, int max}) _pixelDiff(Uint8List a, Uint8List b) {
+/// 채널 차가 1을 넘는 픽셀과 64(표본 4개 중 1개)를 넘는 픽셀의 비율.
+({double differing, double beyondOneSample}) _pixelDiff(
+  Uint8List a,
+  Uint8List b,
+) {
   var differing = 0;
-  var max = 0;
+  var beyondOneSample = 0;
   for (var p = 0; p < a.length; p += 4) {
     var pixelMax = 0;
     for (var c = 0; c < 4; c++) {
@@ -88,9 +113,13 @@ Future<Uint8List> _screen(WidgetTester tester) async {
       if (diff > pixelMax) pixelMax = diff;
     }
     if (pixelMax > 1) differing++;
-    if (pixelMax > max) max = pixelMax;
+    if (pixelMax > 64) beyondOneSample++;
   }
-  return (share: differing / (a.length ~/ 4), max: max);
+  final pixels = a.length ~/ 4;
+  return (
+    differing: differing / pixels,
+    beyondOneSample: beyondOneSample / pixels,
+  );
 }
 
 RouteMapBasemapTilePainter? _tilePainter(WidgetTester tester) => tester
@@ -140,16 +169,30 @@ Future<Uint8List> _vectorScreen(
   return _screen(tester);
 }
 
-void _expectEdgeOnlyDiff(Uint8List actual, Uint8List expected, String reason) {
+void _expectSameScreen(Uint8List actual, Uint8List expected, String reason) {
   final diff = _pixelDiff(actual, expected);
-  expect(diff.share, lessThanOrEqualTo(_maxEdgePixelShare), reason: reason);
-  expect(diff.max, lessThanOrEqualTo(_maxEdgeChannelDiff), reason: reason);
+  expect(diff.differing, lessThanOrEqualTo(_maxDifferingShare), reason: reason);
+  expect(
+    diff.beyondOneSample,
+    lessThanOrEqualTo(_maxBeyondOneSampleShare),
+    reason: reason,
+  );
 }
 
-void _setView(Size physicalSize) {
+/// 위 여백 [top]을 뺀 지도 화면. 여백은 양쪽 모두 비어 있어 다른 픽셀 비율을 묽게 한다.
+Uint8List _belowTop(Uint8List screen, double top) => Uint8List.sublistView(
+  screen,
+  (top * _devicePixelRatio).ceil() *
+      (_viewport.width * _devicePixelRatio).ceil() *
+      4,
+);
+
+/// [logicalSize] 논리 픽셀 화면을 [devicePixelRatio]배 밀도로 둔다.
+void _setView(Size logicalSize, {double devicePixelRatio = 1}) {
+  _devicePixelRatio = devicePixelRatio;
   TestWidgetsFlutterBinding.instance.platformDispatcher.views.first
-    ..devicePixelRatio = 1
-    ..physicalSize = physicalSize;
+    ..devicePixelRatio = devicePixelRatio
+    ..physicalSize = logicalSize * devicePixelRatio;
 }
 
 void main() {
@@ -163,47 +206,149 @@ void main() {
     RouteMapBasemapViewState.clearPictureCacheForTest();
   });
 
-  for (final lineId in [null, _uiSinseolLineId]) {
-    final label = lineId == null ? '전체 노선' : '고른 노선';
-    testWidgets('$label: 멈추면 타일을 한 프레임에 한 장씩 굽고, 팬한 화면은 벡터와 같다', (
-      tester,
-    ) async {
-      // 400픽셀 화면에 256픽셀 타일이라 화면 안에 이음매가 있다. 두 번째 팬은 새 타일을
-      // 드러내고, 그 프레임은 아직 없는 타일 칸을 벡터로 채운다.
-      const pans = [Offset.zero, Offset(37, -21), Offset(300, 64)];
-      final expected = <Uint8List>[
-        for (final pan in pans)
-          await _vectorScreen(tester, _camera(pan: pan), lineId: lineId),
-      ];
+  for (final devicePixelRatio in _devicePixelRatios) {
+    group('화면 밀도 $devicePixelRatio배', () {
+      setUp(() => _setView(_viewport, devicePixelRatio: devicePixelRatio));
 
-      final key = UniqueKey();
-      await tester.pumpWidget(_map(_camera(), lineId: lineId, key: key));
-      await _settleLoads(tester);
-      await _rest(tester);
-      final counts = await _bakeAll(tester);
-      expect(counts.first, 1, reason: '격자를 만든 프레임에 한 장');
-      expect(
-        [for (var i = 1; i < counts.length; i++) counts[i] - counts[i - 1]],
-        everyElement(1),
-        reason: '프레임마다 한 장',
-      );
+      for (final lineId in [null, _uiSinseolLineId]) {
+        final label = lineId == null ? '전체 노선' : '고른 노선';
+        testWidgets('$label: 멈추면 타일을 한 프레임에 한 장씩 굽고, 팬한 화면은 벡터와 같다', (
+          tester,
+        ) async {
+          // 256픽셀 타일이라 화면 안에 이음매가 있다. 세 번째 팬은 새 타일을 드러내고, 그
+          // 프레임은 아직 없는 타일 칸을 벡터로 채운다.
+          const pans = [Offset.zero, Offset(37, -21), Offset(300, 64)];
+          final expected = <Uint8List>[
+            for (final pan in pans)
+              await _vectorScreen(tester, _camera(pan: pan), lineId: lineId),
+          ];
 
-      for (var i = 0; i < pans.length; i++) {
-        await tester.pumpWidget(
-          _map(
-            _camera(pan: pans[i]),
-            lineId: lineId,
-            key: key,
-          ),
-        );
-        _expectEdgeOnlyDiff(await _screen(tester), expected[i], '팬 ${pans[i]}');
+          final key = UniqueKey();
+          await tester.pumpWidget(_map(_camera(), lineId: lineId, key: key));
+          await _settleLoads(tester);
+          await _rest(tester);
+          final counts = await _bakeAll(tester);
+          expect(counts.first, 1, reason: '격자를 만든 프레임에 한 장');
+          expect(
+            [for (var i = 1; i < counts.length; i++) counts[i] - counts[i - 1]],
+            everyElement(1),
+            reason: '프레임마다 한 장',
+          );
+
+          for (var i = 0; i < pans.length; i++) {
+            await tester.pumpWidget(
+              _map(
+                _camera(pan: pans[i]),
+                lineId: lineId,
+                key: key,
+              ),
+            );
+            _expectSameScreen(
+              await _screen(tester),
+              expected[i],
+              '팬 ${pans[i]}',
+            );
+          }
+          expect(_drawsGaps(tester), isTrue, reason: '새로 드러난 타일은 아직 벡터');
+
+          await _bakeAll(tester);
+          _expectSameScreen(await _screen(tester), expected.last, '다 구운 팬');
+        });
       }
-      expect(_drawsGaps(tester), isTrue, reason: '새로 드러난 타일은 아직 벡터');
 
-      await _bakeAll(tester);
-      _expectEdgeOnlyDiff(await _screen(tester), expected.last, '다 구운 팬');
+      testWidgets('카메라가 픽셀 사이에 멈춰도 구운 화면은 벡터와 같은 픽셀에 놓인다', (tester) async {
+        const between = Offset(0.37, 0.61);
+        final expected = await _vectorScreen(tester, _camera(pan: between));
+
+        await tester.pumpWidget(_map(_camera(pan: between), key: UniqueKey()));
+        await _settleLoads(tester);
+        await _rest(tester);
+        await _bakeAll(tester);
+
+        _expectSameScreen(await _screen(tester), expected, '픽셀 사이 카메라');
+      });
     });
   }
+
+  group('지도가 화면 픽셀 사이에 놓인 화면(Galaxy A17 밀도)', () {
+    // 위 여백 183 논리 픽셀은 2.8125배에서 514.6875 화면 픽셀이다.
+    const top = 183.0;
+    setUp(
+      () => _setView(
+        _viewport + const Offset(0, top),
+        devicePixelRatio: _galaxyA17DevicePixelRatio,
+      ),
+    );
+
+    for (final lineId in [null, _uiSinseolLineId]) {
+      final label = lineId == null ? '전체 노선' : '고른 노선';
+      testWidgets('$label: 구운 화면은 벡터와 같다', (tester) async {
+        // 세 번째 팬은 새 타일을 드러내 아직 없는 칸을 벡터로 채운다.
+        const pans = [Offset.zero, Offset(37, -21), Offset(300, 64)];
+        final expected = <Uint8List>[];
+        for (final pan in pans) {
+          await tester.pumpWidget(
+            _map(
+              _camera(pan: pan),
+              lineId: lineId,
+              key: UniqueKey(),
+              top: top,
+            ),
+          );
+          await _settleLoads(tester);
+          expect(_tilePainter(tester), isNull);
+          expected.add(await _screen(tester));
+        }
+
+        final key = UniqueKey();
+        await tester.pumpWidget(
+          _map(_camera(), lineId: lineId, key: key, top: top),
+        );
+        await _settleLoads(tester);
+        await _rest(tester);
+        await _bakeAll(tester);
+        for (var i = 0; i < pans.length; i++) {
+          await tester.pumpWidget(
+            _map(
+              _camera(pan: pans[i]),
+              lineId: lineId,
+              key: key,
+              top: top,
+            ),
+          );
+          _expectSameScreen(
+            _belowTop(await _screen(tester), top),
+            _belowTop(expected[i], top),
+            '팬 ${pans[i]}',
+          );
+        }
+        expect(_drawsGaps(tester), isTrue, reason: '새로 드러난 타일은 아직 벡터');
+      });
+    }
+
+    testWidgets('팬이 화면 픽셀 사이에서 멈춰도 타일은 화면 정수 픽셀에 놓인다', (tester) async {
+      final key = UniqueKey();
+      await tester.pumpWidget(_map(_camera(), key: key, top: top));
+      await _settleLoads(tester);
+      await _rest(tester);
+      await _bakeAll(tester);
+
+      for (final pan in const [Offset(0.37, 0.61), Offset(-41.2, 17.5)]) {
+        await tester.pumpWidget(
+          _map(
+            _camera(pan: pan),
+            key: key,
+            top: top,
+          ),
+        );
+        final onScreen =
+            _tilePainter(tester)!.gridOrigin +
+            const Offset(0, top) * _galaxyA17DevicePixelRatio;
+        expect(onScreen.dx, onScreen.dx.roundToDouble(), reason: '팬 $pan');
+        expect(onScreen.dy, onScreen.dy.roundToDouble(), reason: '팬 $pan');
+      }
+    });
+  });
 
   testWidgets('같은 배율의 팬은 남은 타일을 다시 굽지 않고, 화면을 벗어난 타일은 버린다', (tester) async {
     final key = UniqueKey();
@@ -232,18 +377,6 @@ void main() {
     }
   });
 
-  testWidgets('카메라가 픽셀 사이에 멈춰도 구운 화면은 벡터와 같은 픽셀에 놓인다', (tester) async {
-    const between = Offset(0.37, 0.61);
-    final expected = await _vectorScreen(tester, _camera(pan: between));
-
-    await tester.pumpWidget(_map(_camera(pan: between), key: UniqueKey()));
-    await _settleLoads(tester);
-    await _rest(tester);
-    await _bakeAll(tester);
-
-    _expectEdgeOnlyDiff(await _screen(tester), expected, '픽셀 사이 카메라');
-  });
-
   testWidgets('노선을 고르면 타일을 버리고 벡터로 그린 뒤, 멈추면 강조한 바탕을 굽는다', (tester) async {
     final expected = await _vectorScreen(
       tester,
@@ -268,7 +401,7 @@ void main() {
 
     await _rest(tester);
     await _bakeAll(tester);
-    _expectEdgeOnlyDiff(await _screen(tester), expected, '강조한 바탕');
+    _expectSameScreen(await _screen(tester), expected, '강조한 바탕');
   });
 
   testWidgets('배율이 바뀌는 동안은 굽지 않고 벡터로 그린다', (tester) async {

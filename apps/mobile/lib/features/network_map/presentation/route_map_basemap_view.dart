@@ -446,31 +446,45 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView>
         if (!mounted || !identical(_pendingTileGrid?.content, content)) {
           return;
         }
+        final devicePixelRatio = content.devicePixelRatio;
         setState(() {
           _pendingTileGrid = null;
           _tileGrid = RouteMapBasemapTileGrid.at(
             content,
-            _viewBoxOriginPixels(content.devicePixelRatio),
+            _viewBoxOriginPixels(
+              _viewportPixels(devicePixelRatio),
+              devicePixelRatio,
+            ),
           );
         });
       }),
     );
   }
 
-  Offset _viewBoxOriginPixels(double devicePixelRatio) =>
+  /// 이 위젯이 차지한 화면 영역(화면 픽셀, 지난 레이아웃 기준). 타일 경계를 화면 픽셀
+  /// 경계에 맞추려면 위젯이 화면에 놓인 위치까지 넣어야 한다. 논리 픽셀 정수 위치도
+  /// 2.8125배 같은 밀도에서는 화면 픽셀 사이에 놓인다.
+  Rect _viewportPixels(double devicePixelRatio) {
+    final screenOrigin = (context.findRenderObject()! as RenderBox)
+        .localToGlobal(Offset.zero);
+    return (screenOrigin * devicePixelRatio) &
+        (widget.camera.viewportSize * devicePixelRatio);
+  }
+
+  Offset _viewBoxOriginPixels(Rect viewportPixels, double devicePixelRatio) =>
+      viewportPixels.topLeft +
       _viewBoxOriginInViewport(widget.camera, widget.sourceOrigin) *
-      devicePixelRatio;
+          devicePixelRatio;
 
   /// 이번 프레임에 그릴 타일과, 타일이 아직 없어 벡터로 그릴 화면 영역(논리 좌표).
   ({List<({ui.Image image, Rect pixels})> tiles, Offset gridOrigin, Path? gaps})
   _tileFrame(RouteMapBasemapTileGrid grid) {
     final devicePixelRatio = grid.content.devicePixelRatio;
-    final originPixels = _viewBoxOriginPixels(devicePixelRatio);
-    final gridOrigin = grid.gridOriginOnScreen(originPixels);
-    final visible = grid.visibleRange(
-      originPixels,
-      widget.camera.viewportSize * devicePixelRatio,
-    );
+    final viewportPixels = _viewportPixels(devicePixelRatio);
+    final originPixels = _viewBoxOriginPixels(viewportPixels, devicePixelRatio);
+    final gridOrigin =
+        grid.gridOriginOnScreen(originPixels) - viewportPixels.topLeft;
+    final visible = grid.visibleRange(originPixels, viewportPixels);
     if (visible == null) {
       _tiles.retainWithin(null);
       return (tiles: const [], gridOrigin: gridOrigin, gaps: null);
@@ -582,6 +596,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView>
           if (gaps != null)
             ClipPath(
               clipper: _TileGapClipper(gaps),
+              clipBehavior: Clip.hardEdge,
               child: _vectorLayers(
                 basemapInfo!.picture,
                 highlight,
@@ -642,7 +657,8 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView>
   }
 }
 
-/// 굽지 않은 타일 자리로 자른다. 타일 경계는 화면 픽셀 경계라 안티앨리어싱 없이 자른다.
+/// 굽지 않은 타일 자리로 자른다. 타일 경계는 화면 픽셀 경계라 안티앨리어싱 없이 잘라도
+/// 걸치는 픽셀이 없다.
 class _TileGapClipper extends CustomClipper<Path> {
   _TileGapClipper(this.gaps);
 

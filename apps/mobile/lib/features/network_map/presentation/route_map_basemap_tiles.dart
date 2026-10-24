@@ -100,10 +100,11 @@ class RouteMapBasemapTileContent {
 /// [content]를 [kRouteMapBasemapTileSize] 픽셀 칸으로 나눈 격자.
 ///
 /// 격자 픽셀 g = viewBox 좌표 × pixelScale + [phase]이고, 타일 (열, 행)은 g가 그 칸에
-/// 드는 영역이다. [phase]는 격자를 만든 순간 viewBox 원점의 화면 픽셀 소수부라서, 그
-/// 카메라에서는 타일 경계가 화면 픽셀 경계에 놓인다. 같은 배율에서 팬하면 격자를
-/// 가장 가까운 화면 픽셀로 옮겨 그려 최대 0.5픽셀 어긋난다. 엔진 래스터 캐시가
-/// 변환의 이동을 정수로 맞추는 것과 같다(flow/raster_cache_util.h GetIntegralTransCTM).
+/// 드는 영역이다. 화면 픽셀은 위젯 안이 아니라 화면 전체 기준의 실제 픽셀이다. [phase]는
+/// 격자를 만든 순간 viewBox 원점의 화면 픽셀 소수부라서, 그 카메라에서는 타일 경계가
+/// 화면 픽셀 경계에 놓인다. 같은 배율에서 팬하면 격자를 가장 가까운 화면 픽셀로 옮겨
+/// 그려 최대 0.5픽셀 어긋난다. 엔진 래스터 캐시가 화면까지의 변환 전체에서 이동을
+/// 정수로 맞추는 것과 같다(flow/raster_cache_util.h GetIntegralTransCTM).
 @immutable
 class RouteMapBasemapTileGrid {
   const RouteMapBasemapTileGrid({required this.content, required this.phase});
@@ -137,13 +138,13 @@ class RouteMapBasemapTileGrid {
     (viewBoxOriginPixels.dy - phase.dy).roundToDouble(),
   );
 
-  /// 화면 [viewportPixels]에 보이는 바탕 타일. 바탕이 화면 밖이면 null이다.
+  /// 화면 픽셀 영역 [viewportPixels]에 보이는 바탕 타일. 바탕이 화면 밖이면 null이다.
   RouteMapBasemapTileRange? visibleRange(
     Offset viewBoxOriginPixels,
-    Size viewportPixels,
+    Rect viewportPixels,
   ) {
     final origin = gridOriginOnScreen(viewBoxOriginPixels);
-    final visible = (-origin & viewportPixels).intersect(_contentPixels);
+    final visible = viewportPixels.shift(-origin).intersect(_contentPixels);
     if (visible.isEmpty) {
       return null;
     }
@@ -258,7 +259,7 @@ class RouteMapBasemapTileCache {
 }
 
 /// 구운 타일을 카메라 위치에 그린다. 이미지 픽셀 하나가 화면 픽셀 하나라 확대·축소
-/// 없이 정수 픽셀로 옮기기만 한다.
+/// 없이 화면 정수 픽셀로 옮기기만 한다.
 class RouteMapBasemapTilePainter extends CustomPainter {
   RouteMapBasemapTilePainter({
     required this.tiles,
@@ -269,7 +270,8 @@ class RouteMapBasemapTilePainter extends CustomPainter {
   /// 그릴 타일과 그 격자 픽셀 영역.
   final List<({ui.Image image, Rect pixels})> tiles;
 
-  /// 격자 픽셀 (0, 0)이 놓이는 화면 픽셀.
+  /// 격자 픽셀 (0, 0)이 놓이는 자리. 이 painter 원점에서 잰 화면 픽셀 거리다. 위젯이
+  /// 화면 픽셀 사이에 놓이면 소수가 되고, 화면에서는 정수 픽셀이 된다.
   final Offset gridOrigin;
   final double devicePixelRatio;
 
