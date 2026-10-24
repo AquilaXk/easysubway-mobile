@@ -1,0 +1,175 @@
+{
+  "schemaVersion": 1,
+  "artifactKind": "route-map-basemap-line-overlays",
+  "regions": {
+    "busan": {
+      "baseVector": "busan.vec",
+      "lines": {
+        "line-ab1a041f6266": {
+          "svgLineSlug": "line1",
+          "vector": "busan.line-ab1a041f6266.vec"
+        },
+        "line-d74614a04530": {
+          "svgLineSlug": "line3",
+          "vector": "busan.line-d74614a04530.vec"
+        },
+        "line-d812a5bc1e5f": {
+          "svgLineSlug": "line4",
+          "vector": "busan.line-d812a5bc1e5f.vec"
+        },
+        "line-e4cce88f0d7f": {
+          "svgLineSlug": "bgl",
+          "vector": "busan.line-e4cce88f0d7f.vec"
+        },
+        "line-eb7b47920390": {
+          "svgLineSlug": "line2",
+          "vector": "busan.line-eb7b47920390.vec"
+        },
+        "line-f52eb59d8497": {
+          "svgLineSlug": "donghae",
+          "vector": "busan.line-f52eb59d8497.vec"
+        }
+      }
+    },
+    "daegu": {
+      "baseVector": "daegu.vec",
+      "lines": {
+        "line-0ffaa95b1b5d": {
+          "svgLineSlug": "line3",
+          "vector": "daegu.line-0ffaa95b1b5d.vec"
+        },
+        "line-5b8d9b05e7e6": {
+          "svgLineSlug": "line1",
+          "vector": "daegu.line-5b8d9b05e7e6.vec"
+        },
+        "line-8f7ed01f290a": {
+          "svgLineSlug": "daegyeong",
+          "vector": "daegu.line-8f7ed01f290a.vec"
+        },
+        "line-e2938a4cc492": {
+          "svgLineSlug": "line2",
+          "vector": "daegu.line-e2938a4cc492.vec"
+        }
+      }
+    },
+    "daejeon": {
+      "baseVector": "daejeon.vec",
+      "lines": {
+        "line-7051a9c2525c": {
+          "svgLineSlug": "1",
+          "vector": "daejeon.line-7051a9c2525c.vec"
+        }
+      }
+    },
+    "gwangju": {
+      "baseVector": "gwangju.vec",
+      "lines": {
+        "line-e57a361e8892": {
+          "svgLineSlug": "1",
+          "vector": "gwangju.line-e57a361e8892.vec"
+        }
+      }
+    },
+    "seoul": {
+      "baseVector": "seoul.vec",
+      "lines": {
+        "line-051552e50435": {
+          "svgLineSlug": "seohae",
+          "vector": "seoul.line-051552e50435.vec"
+        },
+        "line-15b3b8a93259": {
+          "svgLineSlug": "7",
+          "vector": "seoul.line-15b3b8a93259.vec"
+        },
+        "line-2b2d9eaa53d0": {
+          "svgLineSlug": "8",
+          "vector": "seoul.line-2b2d9eaa53d0.vec"
+        },
+        "line-30886152e4f8": {
+          "svgLineSlug": "ui-sinseol",
+          "vector": "seoul.line-30886152e4f8.vec"
+        },
+        "line-3f41718e0833": {
+          "svgLineSlug": "6",
+          "vector": "seoul.line-3f41718e0833.vec"
+        },
+        "line-41a8c75ec9d8": {
+          "svgLineSlug": "3",
+          "vector": "seoul.line-41a8c75ec9d8.vec"
+        },
+        "line-42b5805f3b5a": {
+          "svgLineSlug": "incheon-2",
+          "vector": "seoul.line-42b5805f3b5a.vec"
+        },
+        "line-472a81add377": {
+          "svgLineSlug": "1",
+          "vector": "seoul.line-472a81add377.vec"
+        },
+        "line-54a7b980b7c3": {
+          "svgLineSlug": "gyeongchun",
+          "vector": "seoul.line-54a7b980b7c3.vec"
+        },
+        "line-5500c1600f71": {
+          "svgLineSlug": "gimpo-goldline",
+          "vector": "seoul.line-5500c1600f71.vec"
+        },
+        "line-558d0bd8312d": {
+          "svgLineSlug": "suin-bundang",
+          "vector": "seoul.line-558d0bd8312d.vec"
+        },
+        "line-62096860ab09": {
+          "svgLineSlug": "uijeongbu-lrt",
+          "vector": "seoul.line-62096860ab09.vec"
+        },
+        "line-6e39be0cb6e2": {
+          "svgLineSlug": "gyeongui-jungang",
+          "vector": "seoul.line-6e39be0cb6e2.vec"
+        },
+        "line-80fc4d5350d4": {
+          "svgLineSlug": "5",
+          "vector": "seoul.line-80fc4d5350d4.vec"
+        },
+        "line-828f04afc588": {
+          "svgLineSlug": "everline",
+          "vector": "seoul.line-828f04afc588.vec"
+        },
+        "line-8604048b6430": {
+          "svgLineSlug": "gtx-a",
+          "vector": "seoul.line-8604048b6430.vec"
+        },
+        "line-98718184f016": {
+          "svgLineSlug": "incheon-1",
+          "vector": "seoul.line-98718184f016.vec"
+        },
+        "line-aefa08ccc0a9": {
+          "svgLineSlug": "sillim",
+          "vector": "seoul.line-aefa08ccc0a9.vec"
+        },
+        "line-e4939a4b4713": {
+          "svgLineSlug": "gyeonggang",
+          "vector": "seoul.line-e4939a4b4713.vec"
+        },
+        "line-e9e9a5b520a4": {
+          "svgLineSlug": "airport-railroad",
+          "vector": "seoul.line-e9e9a5b520a4.vec"
+        },
+        "line-f0e747248a31": {
+          "svgLineSlug": "9",
+          "vector": "seoul.line-f0e747248a31.vec"
+        },
+        "seoul-2": {
+          "svgLineSlug": "2",
+          "vector": "seoul.seoul-2.vec"
+        },
+        "seoul-4": {
+          "svgLineSlug": "4",
+          "vector": "seoul.seoul-4.vec"
+        },
+        "shinbundang": {
+          "svgLineSlug": "shinbundang",
+          "vector": "seoul.shinbundang.vec"
+        }
+      }
+    }
+  }
+}
