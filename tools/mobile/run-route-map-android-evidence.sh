@@ -13,6 +13,8 @@ Options:
   --adb <path>              adb executable. Defaults to $ADB or PATH lookup.
   --build-mode <mode>       Installed APK mode: debug or profile. Defaults to debug.
   --pan-count <count>       Number of map pan gestures after route map entry. Defaults to 5.
+  --pan-span-percent <n>    Swipe length as a percent of screen width, centered. Defaults
+                            to 40 (from 30% to 70% of the width).
   --focus-line <label>      Tap the line chip with this accessibility label (for example
                             2호선) before measuring, so the gesture runs on the highlighted
                             line with its camera.
@@ -42,6 +44,7 @@ PACKAGE="com.easysubway.app"
 ADB="${ADB:-}"
 BUILD_MODE="debug"
 PAN_COUNT=5
+PAN_SPAN_PERCENT=40
 FOCUS_LINE=""
 SETTLE_SECONDS=3
 MEASURE_AFTER_ROUTE_MAP_SETTLE="false"
@@ -70,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --pan-count)
       PAN_COUNT="${2:-}"
+      shift 2
+      ;;
+    --pan-span-percent)
+      PAN_SPAN_PERCENT="${2:-}"
       shift 2
       ;;
     --focus-line)
@@ -169,8 +176,8 @@ HEIGHT="${BASH_REMATCH[2]}"
 # 노선도는 홈 화면이다(#1641 구조화 canvas 전환 이후 하단 탭 없음). 앱은 온보딩을
 # 마친 상태여야 하며, 실행 즉시 노선도가 표시된다.
 PAN_Y=$((HEIGHT / 2))
-PAN_LEFT_X=$((WIDTH * 3 / 10))
-PAN_RIGHT_X=$((WIDTH * 7 / 10))
+PAN_LEFT_X=$((WIDTH * (100 - PAN_SPAN_PERCENT) / 200))
+PAN_RIGHT_X=$((WIDTH * (100 + PAN_SPAN_PERCENT) / 200))
 
 {
   echo "serial=$SERIAL"
@@ -179,6 +186,7 @@ PAN_RIGHT_X=$((WIDTH * 7 / 10))
   echo "height=$HEIGHT"
   echo "build_mode=$BUILD_MODE"
   echo "pan_count=$PAN_COUNT"
+  echo "pan_span_percent=$PAN_SPAN_PERCENT"
   echo "focus_line=$FOCUS_LINE"
   echo "settle_seconds=$SETTLE_SECONDS"
   echo "measurement_scope=$MEASUREMENT_SCOPE"

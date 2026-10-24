@@ -15,6 +15,7 @@ Options:
                           becomes one analyzer group named <label>.
   --rounds <n>            Rounds. Each round measures every side once. Defaults to 5.
   --pan-count <n>         Pans per run. Defaults to 6.
+  --pan-span-percent <n>  Swipe length as a percent of screen width. Defaults to 40.
   --focus-line <label>    Line chip to select before the pans (for example 2호선).
   --settle-seconds <sec>  Wait after launch and after the line tap. Defaults to 5.
   --adb <path>            adb executable. Defaults to $ADB or PATH lookup.
@@ -35,6 +36,7 @@ SIDE_LABELS=()
 SIDE_APKS=()
 ROUNDS=5
 PAN_COUNT=6
+PAN_SPAN_PERCENT=40
 FOCUS_LINE=""
 SETTLE_SECONDS=5
 ADB="${ADB:-}"
@@ -55,6 +57,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --rounds) ROUNDS="${2:-}"; shift 2 ;;
     --pan-count) PAN_COUNT="${2:-}"; shift 2 ;;
+    --pan-span-percent) PAN_SPAN_PERCENT="${2:-}"; shift 2 ;;
     --focus-line) FOCUS_LINE="${2:-}"; shift 2 ;;
     --settle-seconds) SETTLE_SECONDS="${2:-}"; shift 2 ;;
     --adb) ADB="${2:-}"; shift 2 ;;
@@ -107,6 +110,7 @@ measure_side() {
     --adb "$ADB"
     --build-mode profile
     --pan-count "$PAN_COUNT"
+    --pan-span-percent "$PAN_SPAN_PERCENT"
     --settle-seconds "$SETTLE_SECONDS"
     --measure-after-route-map-settle
   )
