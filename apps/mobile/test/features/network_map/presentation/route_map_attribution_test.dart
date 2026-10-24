@@ -13,8 +13,8 @@
 //
 // 바탕 painter는 화면 좌하단에 attributionText를 직접 Canvas로 그리므로
 // find.text()로는 찾을 수 없다(route_map_basemap_view.dart _paintAttribution 참고).
-// 대신 지금 바탕을 그리는 painter(벡터 RouteMapBasemapPainter 또는 구운 이미지
-// RouteMapBasemapRasterPainter, #517)의 attributionText를 직접 assert한다.
+// 대신 바탕 아래 RouteMapBasemapPainter들이 그리는 attributionText를 직접 assert한다.
+// 바탕을 타일로 구운 동안(#517)에는 벡터·타일·출처 painter가 함께 있다.
 import 'dart:convert';
 import 'dart:io';
 
@@ -108,21 +108,18 @@ class _FakeNetworkMapRepository implements NetworkMapRepository {
   }
 }
 
-String? _drawnAttributionText(WidgetTester tester) {
-  final painter = tester
-      .widget<CustomPaint>(
-        find.descendant(
-          of: find.byType(RouteMapBasemapView),
-          matching: find.byType(CustomPaint),
-        ),
-      )
-      .painter;
-  return switch (painter) {
-    RouteMapBasemapPainter(:final attributionText) => attributionText,
-    RouteMapBasemapRasterPainter(:final attributionText) => attributionText,
-    _ => throw StateError('바탕 painter가 아니다: $painter'),
-  };
-}
+String? _drawnAttributionText(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(
+      find.descendant(
+        of: find.byType(RouteMapBasemapView),
+        matching: find.byType(CustomPaint),
+      ),
+    )
+    .map((paint) => paint.painter)
+    .whereType<RouteMapBasemapPainter>()
+    .map((painter) => painter.attributionText)
+    .nonNulls
+    .firstOrNull;
 
 void main() {
   testWidgets('광주 노선도는 자작 전환으로 attribution을 표시하지 않는다(#2011 계약 전환)', (
