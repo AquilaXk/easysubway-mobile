@@ -838,8 +838,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
                     selectionClearRevision: _selectionClearRevision,
                     onSelectionDismissed: _dismissSearchPopover,
                     onStationTapped: _handleCanvasStationTapped,
-                    onOpenStationRealtime: _popoverRealtimeAction(),
-                    onOpenStationTimetable: _popoverTimetableAction(data),
+                    realtimeActionFor: _popoverRealtimeAction,
+                    timetableActionFor: (station) =>
+                        _popoverTimetableAction(station, data),
                     originStationId:
                         widget.routeDraftController.draft.origin?.id,
                     waypointStationId:
@@ -1459,16 +1460,22 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     unawaited(_loadNearbyRealtime(station, line, request: request));
   }
 
-  bool get _nearbyPanelHasStation =>
-      _nearbyPanelVisible && _nearbyPanelData.results.isNotEmpty;
+  /// 하단 시트가 지금 [stationId] 역을 보여 주는지. 말풍선의 실시간·전체 시간표는
+  /// 시트의 역에서 동작하므로, 말풍선이 가리키는 역과 같을 때만 둔다.
+  bool _nearbyPanelShowsStation(String stationId) =>
+      _nearbyPanelVisible &&
+      _nearbyPanelData.results.firstOrNull?.id == stationId;
 
-  /// 역 말풍선의 실시간 칸. 하단 시트에 역이 있을 때만 둔다.
-  VoidCallback? _popoverRealtimeAction() =>
-      _nearbyPanelHasStation ? _openNearbyRealtime : null;
+  /// 역 말풍선의 실시간 칸.
+  VoidCallback? _popoverRealtimeAction(NetworkMapStation popoverStation) =>
+      _nearbyPanelShowsStation(popoverStation.id) ? _openNearbyRealtime : null;
 
-  /// 역 말풍선의 전체 시간표 칸. 하단 시트에 역이 있을 때만 둔다.
-  VoidCallback? _popoverTimetableAction(NetworkMapData data) {
-    if (!_nearbyPanelHasStation) {
+  /// 역 말풍선의 전체 시간표 칸.
+  VoidCallback? _popoverTimetableAction(
+    NetworkMapStation popoverStation,
+    NetworkMapData data,
+  ) {
+    if (!_nearbyPanelShowsStation(popoverStation.id)) {
       return null;
     }
     return () => _openNearbyStationTimetable(

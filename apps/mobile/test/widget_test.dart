@@ -16659,6 +16659,136 @@ void main() {
       await tester.pump(const Duration(seconds: 10));
     });
   });
+
+  group('#511 역 말풍선 실시간·전체 시간표는 말풍선의 역을 따른다', () {
+    final sangnoksu = _stationResult(id: 'station-sangnoksu', name: '상록수');
+    final sadang = _stationResult(id: 'station-sadang', name: '사당');
+
+    Finder popoverCell(String label) => find.descendant(
+      of: find.byType(StationPopoverMenu),
+      matching: find.bySemanticsLabel(label),
+    );
+
+    Future<void> pumpMap(
+      WidgetTester tester,
+      FakeTimetableStationRepository repository,
+    ) async {
+      tester.view.physicalSize = const Size(400, 1200);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await _pumpNetworkMapForGpsTest(
+        tester,
+        repository: repository,
+        locationProvider: FakeCurrentLocationProvider(
+          location: _freshCurrentLocation(),
+          needsPermissionRequest: false,
+        ),
+        realtimeRepository: _CountingRealtimeRepository(hang: false),
+      );
+    }
+
+    testWidgets('시트와 같은 역의 말풍선은 전체 시간표로 그 역 시간표를 연다', (tester) async {
+      await pumpMap(
+        tester,
+        FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          queryResults: {
+            '상록수': [sangnoksu],
+          },
+          timetables: const {},
+        ),
+      );
+      await _tapStationByLabel(tester, '상록수역');
+      await tester.pumpAndSettle();
+
+      expect(popoverCell('전체 시간표'), findsOneWidget);
+      expect(popoverCell('실시간'), findsOneWidget);
+      await _tapStationPopoverItem(tester, '전체 시간표');
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<StationTimetableScreen>(find.byType(StationTimetableScreen))
+            .stationId,
+        'station-sangnoksu',
+      );
+    });
+
+    testWidgets('시트가 바뀌지 않은 채 다른 역 말풍선이 뜨면 실시간·전체 시간표 칸을 두지 않는다', (
+      tester,
+    ) async {
+      await pumpMap(
+        tester,
+        FakeTimetableStationRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          queryResults: {
+            '상록수': [sangnoksu],
+          },
+          timetables: const {},
+        ),
+      );
+      await _tapStationByLabel(tester, '상록수역');
+      await tester.pumpAndSettle();
+
+      await _tapStationByLabel(tester, '사당역');
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<StationPopoverMenu>(find.byType(StationPopoverMenu))
+            .stationName,
+        contains('사당'),
+      );
+      expect(popoverCell('전체 시간표'), findsNothing);
+      expect(popoverCell('실시간'), findsNothing);
+      expect(find.byType(StationTimetableScreen), findsNothing);
+    });
+
+    testWidgets('말풍선 역을 시트가 아직 받는 중이면 칸이 없다가 시트가 따라오면 그 역을 연다', (tester) async {
+      final sadangLookup = Completer<List<StationSearchResult>>();
+      addTearDown(() {
+        if (!sadangLookup.isCompleted) {
+          sadangLookup.complete(const []);
+        }
+      });
+      await pumpMap(
+        tester,
+        _GatedSearchRepository(
+          stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
+          networkMapRegionNames: const ['수도권'],
+          queryResults: {
+            '상록수': [sangnoksu],
+          },
+          gates: {'사당': sadangLookup},
+        ),
+      );
+      await _tapStationByLabel(tester, '상록수역');
+      await tester.pumpAndSettle();
+      await _tapStationByLabel(tester, '사당역');
+      await tester.pump();
+
+      expect(popoverCell('전체 시간표'), findsNothing);
+      expect(popoverCell('실시간'), findsNothing);
+
+      sadangLookup.complete([sadang]);
+      await tester.pumpAndSettle();
+
+      expect(popoverCell('전체 시간표'), findsOneWidget);
+      await _tapStationPopoverItem(tester, '전체 시간표');
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widget<StationTimetableScreen>(find.byType(StationTimetableScreen))
+            .stationId,
+        'station-sadang',
+      );
+    });
+  });
 }
 
 Future<void> _showFacilityReportTypeOption(
@@ -17243,6 +17373,7 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     required super.stationDetail,
     super.nearbyResults,
     super.networkMapRegionNames,
+    super.queryResults,
     required this.timetables,
     this.timetableLineId = 'seoul-2',
     this.unavailableLineId,
@@ -17317,6 +17448,29 @@ class FakeTimetableStationRepository extends FakeStationSearchRepository
     lineId: lineId,
     date: asOf,
   );
+}
+
+class _GatedSearchRepository extends FakeTimetableStationRepository {
+  _GatedSearchRepository({
+    required super.stationDetail,
+    super.networkMapRegionNames,
+    super.queryResults,
+    required this.gates,
+  }) : super(timetables: const {});
+
+  final Map<String, Completer<List<StationSearchResult>>> gates;
+
+  @override
+  Future<List<StationSearchResult>> searchStations(
+    String query, {
+    String? region,
+  }) {
+    final gate = gates[query];
+    if (gate != null) {
+      return gate.future;
+    }
+    return super.searchStations(query, region: region);
+  }
 }
 
 /// #2453: 로컬 시간표 Future를 완료하지 않아 패널 첫 프레임 골격을 검증한다.

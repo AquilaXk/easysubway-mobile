@@ -33,6 +33,10 @@ import 'station_fan_menu_policy.dart';
 import 'station_hit_target.dart';
 import 'structured_route_map_painter.dart';
 
+/// 역 말풍선이 가리키는 [station]에서 할 동작. 줄 수 없으면 null이다.
+typedef StationPopoverActionFor =
+    VoidCallback? Function(NetworkMapStation station);
+
 class NetworkMapCanvas extends StatefulWidget {
   const NetworkMapCanvas({
     super.key,
@@ -51,8 +55,8 @@ class NetworkMapCanvas extends StatefulWidget {
     required this.onViewportChanged,
     required this.onSelectionDismissed,
     required this.onStationTapped,
-    this.onOpenStationRealtime,
-    this.onOpenStationTimetable,
+    this.realtimeActionFor,
+    this.timetableActionFor,
     this.originStationId,
     this.waypointStationId,
     this.destinationStationId,
@@ -91,10 +95,11 @@ class NetworkMapCanvas extends StatefulWidget {
   /// 역 말풍선([selectedStationId] prop 경로)는 이 콜백을 태우지 않는다.
   final ValueChanged<NetworkMapStation> onStationTapped;
 
-  /// 역 말풍선 아랫줄의 실시간·전체 시간표. 부모가 그 역의 하단 패널을 열어 둔
-  /// 동안만 넘긴다. null이면 그 칸을 그리지 않는다.
-  final VoidCallback? onOpenStationRealtime;
-  final VoidCallback? onOpenStationTimetable;
+  /// 역 말풍선 아랫줄의 실시간·전체 시간표. 말풍선이 가리키는 역마다 부모에게 묻고,
+  /// 부모가 그 역의 하단 패널을 열어 둔 동안만 동작을 돌려준다. null이면 그 칸을
+  /// 그리지 않는다.
+  final StationPopoverActionFor? realtimeActionFor;
+  final StationPopoverActionFor? timetableActionFor;
 
   @override
   State<NetworkMapCanvas> createState() => _NetworkMapCanvasState();
@@ -736,10 +741,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                         },
                         onClose: _dismissSelection,
                         onRealtime: _dismissingAfter(
-                          widget.onOpenStationRealtime,
+                          widget.realtimeActionFor?.call(selectedStation),
                         ),
                         onTimetable: _dismissingAfter(
-                          widget.onOpenStationTimetable,
+                          widget.timetableActionFor?.call(selectedStation),
                         ),
                       ),
                     );
