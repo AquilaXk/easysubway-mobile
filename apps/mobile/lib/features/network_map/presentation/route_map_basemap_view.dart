@@ -195,7 +195,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     assert(
       oldWidget.region == widget.region &&
           identical(oldWidget.assets, widget.assets),
-      'RouteMapBasemapView의 region과 assets는 바꾸지 않는다. 권역마다 key를 달리한다.',
+      'RouteMapBasemapView는 한 State에서 권역과 바탕 자료를 바꾸지 않는다. 권역마다 key를 달리한다.',
     );
     if (oldWidget.highlightedLineId != widget.highlightedLineId) {
       _syncLayers();
