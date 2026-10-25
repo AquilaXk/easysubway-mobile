@@ -17,11 +17,13 @@ import '../../../support/basemap_vec_draws.dart';
 //
 // 상한은 실측 개수와 같다(여유 0). 줄어도 실패하므로 바탕을 새로 들여와 개수가 줄면 같은
 // PR에서 상한을 내린다(AI 슬롭 가드 기준선과 같은 규칙). 앱은 렌더러에 맞는 변형 하나를
-// 그리므로 변형마다 따로 못 박는다(data pipelineRevision 7).
+// 그리므로 변형마다 따로 못 박는다(data pipelineRevision 8).
 //   outlined : 역명을 글리프 윤곽선으로 구워(data #1488) 텍스트 그리기가 없고(texts 0),
 //     같은 paint의 인접 path를 이어(data #1495) path 그리기 수가 줄었다. 대신 윤곽 좌표가
 //     늘어 그리기 한 번이 처리하는 path 선분 수(segments)가 커진다.
-//   text     : 역명이 텍스트 그리기로 남는다. halo와 글자가 한 줄마다 두 번 그려진다.
+//   text     : 역명이 텍스트 그리기로 남는다. halo와 글자가 한 줄마다 두 번 그려진다. Skia
+//     OpenGLES에서 합친 path가 합치기 전보다 느려(2호선 40% 래스터 p50 11.95ms에서 74.75ms)
+//     이 변형은 path를 합치지 않는다(data #1509). path 그리기 수가 합치기 전과 같다.
 // 그리기 수만으로는 비용을 더 못 보므로 선분 수도 같은 규칙으로 못 박는다.
 typedef _Ceiling = ({int paths, int texts, int invisible, int segments});
 
@@ -34,11 +36,11 @@ const _ceilings = <RouteMapBasemapVariant, Map<String, _Ceiling>>{
     '광주': (paths: 61, texts: 0, invisible: 0, segments: 2378),
   },
   RouteMapBasemapVariant.text: {
-    '수도권': (paths: 1035, texts: 1057, invisible: 0, segments: 7625),
-    '부산': (paths: 282, texts: 342, invisible: 0, segments: 1346),
-    '대구': (paths: 135, texts: 226, invisible: 0, segments: 866),
-    '대전': (paths: 37, texts: 47, invisible: 0, segments: 418),
-    '광주': (paths: 33, texts: 42, invisible: 0, segments: 399),
+    '수도권': (paths: 1697, texts: 1057, invisible: 0, segments: 7625),
+    '부산': (paths: 340, texts: 342, invisible: 0, segments: 1346),
+    '대구': (paths: 219, texts: 226, invisible: 0, segments: 866),
+    '대전': (paths: 55, texts: 47, invisible: 0, segments: 418),
+    '광주': (paths: 49, texts: 42, invisible: 0, segments: 399),
   },
 };
 

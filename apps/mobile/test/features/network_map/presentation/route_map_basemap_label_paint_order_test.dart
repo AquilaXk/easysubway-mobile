@@ -43,7 +43,7 @@ import '../../../support/basemap_vec_draws.dart';
 String _basemapAsset(RouteMapBasemapVariant variant, String regionId) =>
     bundledBasemapIndex.variant(variant).baseAssetFor(regionId);
 
-// 텍스트 변형 실측 기준선(data pipelineRevision 7). halo/글자 짝의 수이며 세는 단위는
+// 텍스트 변형 실측 기준선(data pipelineRevision 8). halo/글자 짝의 수이며 세는 단위는
 // 텍스트 런이다. 다줄 라벨은 tspan마다 draw가 하나씩 나와 `<text>` 요소 수(부산 147·
 // 대구 97)보다 크다. seoul은 라벨 CSS가 stroke를 주지 않아 짝이 없다.
 const _expectedTextHaloPairs = <String, int>{
@@ -103,7 +103,7 @@ const _ascentEm = 1.15;
 const _descentEm = 0.35;
 const _slackEm = 0.3;
 
-// 윤곽선 변형 실측 기준선(data pipelineRevision 7). halo가 붙은 라벨 런의 수다.
+// 윤곽선 변형 실측 기준선(data pipelineRevision 8). halo가 붙은 라벨 런의 수다.
 // 라벨 런은 `<text>` 한 줄이며 다줄 라벨은 줄마다 센다(busan 147개 중 8개가 2줄 → 155).
 //   busan·daegu     : `.station-name`/`.transfer-name` 클래스 규칙이 stroke를 준다.
 //   daejeon·gwangju : `#station-name-labels-layer text` **자손 결합자** 규칙이
