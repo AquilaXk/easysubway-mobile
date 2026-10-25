@@ -35,15 +35,6 @@ const Map<String, String> kRouteMapBasemapRegionToId = {
   '대전': 'daejeon',
 };
 
-/// 이 엔진의 렌더러에 맞는 바탕 변형. dart:ui는 엔진의 Impeller 설정을
-/// [ui.ImageFilter.isShaderFilterSupported]로 그대로 돌려준다(sky_engine painting.dart
-/// `isShaderFilterSupported => _impellerEnabled`). Flutter 3.44 엔진은 Android API 29
-/// 미만과 Vivante GPU에서 Skia OpenGLES로 그린다.
-RouteMapBasemapVariant routeMapBasemapVariantOfEngine() =>
-    RouteMapBasemapVariant.forRenderer(
-      impeller: ui.ImageFilter.isShaderFilterSupported,
-    );
-
 /// 배율이 이만큼 그대로이면 바탕 타일 격자를 만든다. 엔진 래스터 캐시가 같은 그림을
 /// 3프레임 본 뒤에 굽는 규칙(flow/raster_cache.h access_threshold 3)을 60 Hz 프레임
 /// 시간으로 옮긴 값이다. 핀치 중에는 매 프레임 배율이 바뀌어 굽지 않는다. 같은 배율의
@@ -146,9 +137,9 @@ void _paintAttribution(
   painter.paint(canvas, origin);
 }
 
-/// 하이브리드 노선도 바탕층 뷰. [region]에 매핑된 바탕 .vec를 색인의 [variant] 변형에서
-/// 골라 런타임 디코드해 [ui.Picture]를 State에 캐시하고(region 변경 시에만 재로드), 카메라
-/// 변경 시 transform만 재생한다. 노선 강조 레이어도 같은 변형에서 고른다.
+/// 하이브리드 노선도 바탕층 뷰. [region]에 매핑된 바탕 .vec를 엔진 렌더러에 맞는 변형
+/// ([RouteMapBasemapViewState.variant])에서 골라 런타임 디코드해 [ui.Picture]를 캐시하고,
+/// 카메라 변경 시 transform만 재생한다. 노선 강조 레이어도 같은 변형에서 고른다.
 class RouteMapBasemapView extends StatefulWidget {
   const RouteMapBasemapView({
     required this.region,
@@ -156,7 +147,6 @@ class RouteMapBasemapView extends StatefulWidget {
     this.sourceOrigin = Offset.zero,
     this.attributionText,
     this.highlightedLineId,
-    this.variant,
     super.key,
   });
 
@@ -172,9 +162,6 @@ class RouteMapBasemapView extends StatefulWidget {
 
   final String? attributionText;
 
-  /// 그릴 바탕 변형. null이면 엔진 렌더러에 맞는 변형([routeMapBasemapVariantOfEngine])이다.
-  final RouteMapBasemapVariant? variant;
-
   @override
   State<RouteMapBasemapView> createState() => RouteMapBasemapViewState();
 }
@@ -182,9 +169,31 @@ class RouteMapBasemapView extends StatefulWidget {
 class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   static final Map<String, PictureInfo> _globalPictureCache = {};
   static final Map<String, Future<PictureInfo>> _globalPendingLoads = {};
-  static Future<RouteMapLineOverlayIndex>? _indexLoad;
+  // 읽고 검증한 바탕 색인과 읽는 중인 로드. 읽기에 실패하면 로드를 남기지 않아 다음
+  // 동기화가 다시 읽는다.
   static RouteMapLineOverlayIndex? _index;
+  static Future<RouteMapLineOverlayIndex>? _indexLoad;
+  static RouteMapBasemapVariant? _variantOverride;
 
+  /// 이 엔진에서 그리는 바탕 변형. 렌더러는 프로세스 안에서 바뀌지 않는다. dart:ui는 엔진의
+  /// Impeller 설정을 [ui.ImageFilter.isShaderFilterSupported]로 그대로 돌려준다(sky_engine
+  /// painting.dart `isShaderFilterSupported => _impellerEnabled`). Flutter 3.44 엔진은
+  /// Android API 29 미만과 Vivante GPU에서 Skia OpenGLES로 그린다. Galaxy A17 교대 측정에서
+  /// 윤곽선 라벨은 Impeller에서 텍스트 라벨과 같거나 빨랐고, Skia OpenGLES에서는 래스터가
+  /// 1.8~3.6배 느렸다.
+  static RouteMapBasemapVariant get variant =>
+      _variantOverride ??
+      (ui.ImageFilter.isShaderFilterSupported
+          ? RouteMapBasemapVariant.outlined
+          : RouteMapBasemapVariant.text);
+
+  /// 테스트가 [variant]를 정한다. [clearPictureCacheForTest]가 엔진 렌더러로 되돌린다.
+  @visibleForTesting
+  static void overrideVariantForTest(RouteMapBasemapVariant variant) {
+    _variantOverride = variant;
+  }
+
+  /// 디코드한 그림과 읽은 색인을 버리고 [variant]를 엔진 렌더러로 되돌린다.
   @visibleForTesting
   static void clearPictureCacheForTest() {
     for (final info in _globalPictureCache.values) {
@@ -194,14 +203,13 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     _globalPendingLoads.clear();
     _indexLoad = null;
     _index = null;
+    _variantOverride = null;
   }
 
-  PictureInfo? _basemap;
-  ({String regionId, RouteMapBasemapVariant variant})? _loadedBasemap;
-  // 진행 중 로드 토큰. region이 로드 완료 전에 바뀌면 stale 결과를 버린다.
-  Object? _loadToken;
-  ui.Picture? _overlay;
-  Object? _overlayToken;
+  // 지금 그리려는 바탕과 노선 레이어 자산. 그림은 디코드 캐시에서 꺼내므로 이 자산의
+  // 그림만 그려지고, 늦게 끝난 다른 자산의 디코드는 화면을 바꾸지 않는다.
+  String? _baseAsset;
+  String? _overlayAsset;
   TextPainter? _attributionPainter;
   String? _attributionPainterText;
   // 지금 바탕 타일 격자와 구운 타일, 배율이 머물기를 기다리는 다음 내용(#517).
@@ -219,73 +227,110 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @visibleForTesting
   Map<String, Future<PictureInfo>> get debugPendingLoads => _globalPendingLoads;
 
+  PictureInfo? get _basemap => _globalPictureCache[_baseAsset];
+
+  ui.Picture? get _overlay => _globalPictureCache[_overlayAsset]?.picture;
+
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    // initState가 아닌 여기서 로드한다(로드가 inherited widget에 의존할 수 있으므로).
-    // region 미변경 시 _ensureBasemap이 조기 반환해 중복 로드가 없다.
-    _ensureBasemap();
-    _ensureOverlay();
+  void initState() {
+    super.initState();
+    _syncLayers();
   }
 
   @override
   void didUpdateWidget(RouteMapBasemapView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final variantChanged = oldWidget.variant != widget.variant;
-    if (variantChanged) {
-      // 다른 변형 바탕 위에 새 변형 레이어를 겹쳐 그리지 않도록 바탕부터 비운다.
-      _basemap = null;
-    }
-    if (variantChanged || oldWidget.region != widget.region) {
-      _ensureBasemap();
-    }
-    if (variantChanged ||
-        oldWidget.region != widget.region ||
+    if (oldWidget.region != widget.region ||
         oldWidget.highlightedLineId != widget.highlightedLineId) {
-      _ensureOverlay();
+      _syncLayers();
     }
   }
 
-  RouteMapBasemapVariant get _variant =>
-      widget.variant ?? routeMapBasemapVariantOfEngine();
-
-  void _ensureBasemap() {
+  /// 권역과 고른 노선에서 그릴 바탕·노선 레이어 자산을 정하고 아직 없는 그림을 디코드한다.
+  /// 색인을 아직 읽지 않았으면 읽은 뒤 다시 정한다. 레이어가 준비되기 전에는 바탕을
+  /// 흐리지 않는다.
+  void _syncLayers() {
+    _baseAsset = null;
+    _overlayAsset = null;
     final regionId = kRouteMapBasemapRegionToId[widget.region];
-    // 매핑에 없는 region: 바탕 미표시로 안전 폴백(크래시 금지).
     if (regionId == null) {
-      _loadToken = null;
-      _loadedBasemap = null;
-      if (_basemap != null) {
-        setState(() {
-          _basemap = null;
-        });
-      }
       return;
     }
-
-    final wanted = (regionId: regionId, variant: _variant);
-    if (_loadedBasemap == wanted && _basemap != null) {
+    final index = _index;
+    if (index == null) {
+      unawaited(_syncWhenIndexLoads());
       return;
     }
-    _loadedBasemap = wanted;
-
-    final cached = _cachedPicture(
-      wanted.variant,
-      (files) => files.baseAssetFor(regionId),
-    );
-    if (cached != null) {
-      _loadToken = null;
-      if (_basemap != cached) {
-        setState(() {
-          _basemap = cached;
-        });
-      }
+    final files = index.variant(variant);
+    final baseAsset = _baseAsset = files.baseAssetFor(regionId);
+    _decodeIfMissing(baseAsset);
+    final lineId = widget.highlightedLineId;
+    if (lineId == null) {
       return;
     }
-
-    final token = _loadToken = Object();
-    unawaited(_loadBasemap(regionId, wanted.variant, token));
+    try {
+      final overlayAsset = _overlayAsset = files.overlayAssetFor(
+        regionId: regionId,
+        lineId: lineId,
+      );
+      _decodeIfMissing(overlayAsset);
+    } on RouteMapLineOverlayMissing catch (error, stack) {
+      _reportLoadFailure(error, stack, '노선 강조 레이어 조회 실패($regionId/$lineId)');
+    }
   }
+
+  Future<void> _syncWhenIndexLoads() async {
+    try {
+      await (_indexLoad ??= _loadIndex());
+    } catch (error, stack) {
+      if (mounted) {
+        _reportLoadFailure(
+          error,
+          stack,
+          '노선도 바탕 색인 로드 실패($kRouteMapLineOverlayIndexAssetPath)',
+        );
+      }
+      return;
+    }
+    if (mounted) {
+      setState(_syncLayers);
+    }
+  }
+
+  static Future<RouteMapLineOverlayIndex> _loadIndex() => rootBundle
+      .loadString(kRouteMapLineOverlayIndexAssetPath, cache: false)
+      .then(
+        (json) => _index = RouteMapLineOverlayIndex.parse(
+          json,
+          regionIds: kRouteMapBasemapRegionToId.values.toSet(),
+        ),
+      )
+      .whenComplete(() => _indexLoad = null);
+
+  /// [asset]을 아직 디코드하지 않았으면 디코드한다. 끝났을 때 이 뷰가 아직 [asset]을
+  /// 그리려 하면 다시 그리고, 실패하면 그때 보고한다.
+  void _decodeIfMissing(String asset) {
+    if (_globalPictureCache.containsKey(asset)) {
+      return;
+    }
+    unawaited(
+      _decodePicture(asset).then(
+        (_) {
+          if (_wants(asset)) {
+            setState(() {});
+          }
+        },
+        onError: (Object error, StackTrace stack) {
+          if (_wants(asset)) {
+            _reportLoadFailure(error, stack, '노선도 .vec 로드 실패($asset)');
+          }
+        },
+      ),
+    );
+  }
+
+  bool _wants(String asset) =>
+      mounted && (asset == _baseAsset || asset == _overlayAsset);
 
   /// [asset]을 한 번만 디코드한다. 같은 자산을 읽는 중이면 그 로드를 함께 기다린다.
   static Future<PictureInfo> _decodePicture(String asset) {
@@ -299,107 +344,6 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
         .whenComplete(() => unawaited(_globalPendingLoads.remove(asset)));
     _globalPendingLoads[asset] = load;
     return load;
-  }
-
-  Future<void> _loadBasemap(
-    String regionId,
-    RouteMapBasemapVariant variant,
-    Object token,
-  ) async {
-    String? asset;
-    try {
-      asset = (await _loadIndex()).variant(variant).baseAssetFor(regionId);
-      final basemap = await _decodePicture(asset);
-      if (!mounted || !identical(_loadToken, token)) {
-        return;
-      }
-      setState(() {
-        _basemap = basemap;
-      });
-    } catch (error, stack) {
-      if (!mounted || !identical(_loadToken, token)) {
-        return;
-      }
-      _reportLoadFailure(
-        error,
-        stack,
-        '노선도 바탕 .vec 로드 실패(${asset ?? '$regionId 바탕 색인'})',
-      );
-    }
-  }
-
-  /// 고른 노선 레이어를 맞춘다. 레이어가 준비되기 전에는 바탕을 흐리지 않는다.
-  void _ensureOverlay() {
-    final regionId = kRouteMapBasemapRegionToId[widget.region];
-    final lineId = widget.highlightedLineId;
-    _overlayToken = null;
-    if (regionId == null || lineId == null) {
-      _showOverlay(null);
-      return;
-    }
-    final variant = _variant;
-    final cached = _cachedPicture(
-      variant,
-      (files) => files.overlayAssetFor(regionId: regionId, lineId: lineId),
-    );
-    _showOverlay(cached?.picture);
-    if (cached == null) {
-      final token = _overlayToken = Object();
-      unawaited(_loadOverlay(regionId, lineId, variant, token));
-    }
-  }
-
-  /// 색인을 이미 읽었고 [assetOf]가 고른 [variant] 파일을 디코드해 두었으면 그 그림.
-  /// 색인에 없는 파일은 읽기 경로에서 오류로 드러나도록 여기서는 null이다.
-  static PictureInfo? _cachedPicture(
-    RouteMapBasemapVariant variant,
-    String Function(RouteMapBasemapVariantFiles files) assetOf,
-  ) {
-    final index = _index;
-    if (index == null) {
-      return null;
-    }
-    try {
-      return _globalPictureCache[assetOf(index.variant(variant))];
-    } on RouteMapBasemapAssetMissing {
-      return null;
-    }
-  }
-
-  static Future<RouteMapLineOverlayIndex> _loadIndex() =>
-      _indexLoad ??= rootBundle
-          .loadString(kRouteMapLineOverlayIndexAssetPath, cache: false)
-          .then((json) => _index = RouteMapLineOverlayIndex.parse(json));
-
-  Future<void> _loadOverlay(
-    String regionId,
-    String lineId,
-    RouteMapBasemapVariant variant,
-    Object token,
-  ) async {
-    try {
-      final index = await _loadIndex();
-      final overlay = await _decodePicture(
-        index
-            .variant(variant)
-            .overlayAssetFor(regionId: regionId, lineId: lineId),
-      );
-      if (mounted && identical(_overlayToken, token)) {
-        _showOverlay(overlay.picture);
-      }
-    } catch (error, stack) {
-      if (mounted && identical(_overlayToken, token)) {
-        _reportLoadFailure(error, stack, '노선 강조 레이어 로드 실패($regionId/$lineId)');
-      }
-    }
-  }
-
-  void _showOverlay(ui.Picture? overlay) {
-    if (!identical(_overlay, overlay)) {
-      setState(() {
-        _overlay = overlay;
-      });
-    }
   }
 
   void _reportLoadFailure(Object error, StackTrace stack, String context) {
@@ -577,10 +521,6 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   void dispose() {
     _pendingTileGrid?.timer.cancel();
     _tiles.retainWithin(null);
-    _loadToken = null;
-    _basemap = null;
-    _overlayToken = null;
-    _overlay = null;
     _attributionPainter?.dispose();
     super.dispose();
   }

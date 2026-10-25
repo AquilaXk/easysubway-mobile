@@ -12,6 +12,8 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 
+import '../../../support/basemap_index.dart';
+
 // 노선을 고르면 바탕 전체가 흐려지고, 고른 노선 레이어(노선, 역 심벌, 환승 캡슐,
 // 역명)가 그 위에 원래 진하기로 그려진다. 화면에 실제로 그려진 픽셀을 바탕·레이어
 // .vec를 따로 그린 기준 이미지와 대조한다.
@@ -124,9 +126,9 @@ Future<Uint8List> _reference(
 }
 
 /// 엔진 렌더러가 고른 변형. 화면은 이 변형으로 그려지므로 기준 이미지도 같은 변형으로 그린다.
-final RouteMapBasemapVariantFiles _engineFiles = RouteMapLineOverlayIndex.parse(
-  File(kRouteMapLineOverlayIndexAssetPath).readAsStringSync(),
-).variant(routeMapBasemapVariantOfEngine());
+final RouteMapBasemapVariantFiles _engineFiles = bundledBasemapIndex.variant(
+  RouteMapBasemapViewState.variant,
+);
 
 String _overlayAsset(String lineId) =>
     _engineFiles.overlayAssetFor(regionId: 'seoul', lineId: lineId);

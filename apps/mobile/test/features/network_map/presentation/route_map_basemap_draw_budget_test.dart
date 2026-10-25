@@ -189,12 +189,13 @@ void main() {
 
       test('${variant.name} $region 노선 강조 레이어 그리기 명령 수의 최댓값이 상한과 같다', () {
         final regionId = kRouteMapBasemapRegionToId[region]!;
-        final files = bundledBasemapIndex.variant(variant);
-        final base = files.baseAssetFor(regionId);
+        final base = bundledBasemapIndex
+            .variant(variant)
+            .baseAssetFor(regionId);
         final layers = [
-          for (final file in files.files)
-            if (file.asset != base && _isRegionAsset(file.asset, regionId))
-              _drawsOf(file.asset),
+          for (final asset in bundledBasemapIndexFiles(variant).keys)
+            if (asset != base && _isRegionAsset(asset, regionId))
+              _drawsOf(asset),
         ];
         int largest(int Function(_Ceiling) metric) =>
             layers.map(metric).reduce(math.max);

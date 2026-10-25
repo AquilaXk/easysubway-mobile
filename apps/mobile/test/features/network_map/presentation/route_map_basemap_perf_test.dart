@@ -14,7 +14,7 @@ import '../../../support/basemap_index.dart';
 // 셸 `time`으로 별도 측정하므로 여기에 넣지 않는다. structured recordRouteMapPicture
 // 대비 비교는 데이터 로드가 무거워 생략하고 vec 로드만 계측한다(범위 밖 노이즈 회피).
 //
-// 앱은 엔진 렌더러에 맞는 바탕 변형을 그린다(routeMapBasemapVariantOfEngine). Flutter 3.44
+// 앱은 엔진 렌더러에 맞는 바탕 변형을 그린다(RouteMapBasemapViewState.variant). Flutter 3.44
 // 엔진은 Android API 29 이상(Vivante GPU 제외)과 iOS에서 Impeller로, API 24~28과 Vivante
 // GPU에서 Skia OpenGLES로 그린다(flutter_main.cc SelectedRenderingAPI,
 // kMinimumAndroidApiLevelForImpeller = 29). 앱 minSdk는 24다. Impeller 기기군은 윤곽선 라벨
@@ -94,7 +94,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   // 앱처럼 엔진 렌더러에 맞는 변형을 잰다. Impeller 게이트는 윤곽선 변형을 잰다.
-  final files = bundledBasemapIndex.variant(routeMapBasemapVariantOfEngine());
+  final files = bundledBasemapIndex.variant(RouteMapBasemapViewState.variant);
   final seoulAsset = files.baseAssetFor('seoul');
 
   test('Impeller 게이트 실행이면 엔진이 Impeller로 그린다', () {

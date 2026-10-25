@@ -55,6 +55,11 @@ String _indexJson({
   'variants': variants ?? _variants(),
 });
 
+RouteMapLineOverlayIndex _parse(
+  String json, {
+  Set<String> regionIds = const {'seoul'},
+}) => RouteMapLineOverlayIndex.parse(json, regionIds: regionIds);
+
 Matcher _rejects(String reason) => throwsA(
   isA<FormatException>().having(
     (error) => error.message,
@@ -65,7 +70,7 @@ Matcher _rejects(String reason) => throwsA(
 
 void main() {
   group('변형마다 자기 파일만 돌려준다', () {
-    final index = RouteMapLineOverlayIndex.parse(_indexJson());
+    final index = _parse(_indexJson());
 
     test('윤곽선 변형', () {
       final files = index.variant(RouteMapBasemapVariant.outlined);
@@ -86,31 +91,12 @@ void main() {
         '$_dir/seoul.seoul-2.text.vec',
       );
     });
-
-    test('자산 계약 대조용으로 색인에 실린 파일과 sha256을 모두 낸다', () {
-      expect(index.variant(RouteMapBasemapVariant.text).files, [
-        (asset: '$_dir/seoul.text.vec', sha256: _shaA),
-        (asset: '$_dir/seoul.seoul-2.text.vec', sha256: _shaB),
-      ]);
-    });
-  });
-
-  test('렌더러가 Impeller면 윤곽선 변형, 아니면 텍스트 변형을 고른다', () {
-    expect(
-      RouteMapBasemapVariant.forRenderer(impeller: true),
-      RouteMapBasemapVariant.outlined,
-    );
-    expect(
-      RouteMapBasemapVariant.forRenderer(impeller: false),
-      RouteMapBasemapVariant.text,
-    );
   });
 
   test('schemaVersion이 2가 아니면 읽지 않고 실패한다', () {
     for (final version in [1, 3, 0, '2', null]) {
       expect(
-        () =>
-            RouteMapLineOverlayIndex.parse(_indexJson(schemaVersion: version)),
+        () => _parse(_indexJson(schemaVersion: version)),
         _rejects('schemaVersion'),
         reason: 'schemaVersion=$version',
       );
@@ -119,9 +105,7 @@ void main() {
 
   test('다른 산출물 종류의 JSON은 실패한다', () {
     expect(
-      () => RouteMapLineOverlayIndex.parse(
-        _indexJson(artifactKind: 'route-map-basemap-owner-labels'),
-      ),
+      () => _parse(_indexJson(artifactKind: 'route-map-basemap-owner-labels')),
       _rejects('route-map-basemap-owner-labels'),
     );
   });
@@ -129,47 +113,113 @@ void main() {
   test('변형이 빠지거나 모르는 변형이 있으면 실패한다', () {
     final full = _variants();
     expect(
-      () => RouteMapLineOverlayIndex.parse(
-        _indexJson(variants: {'outlined': full['outlined']}),
-      ),
+      () => _parse(_indexJson(variants: {'outlined': full['outlined']})),
       _rejects('variants'),
     );
     expect(
-      () => RouteMapLineOverlayIndex.parse(
-        _indexJson(variants: {...full, 'raster': full['text']}),
-      ),
+      () => _parse(_indexJson(variants: {...full, 'raster': full['text']})),
       _rejects('variants'),
     );
   });
 
   test('변형의 labels가 그 변형의 라벨 방식이 아니면 실패한다', () {
     expect(
-      () => RouteMapLineOverlayIndex.parse(
+      () => _parse(
         _indexJson(variants: _variants(outlinedLabels: 'text-into-vec')),
       ),
       _rejects('labels'),
     );
   });
 
-  test('두 변형의 권역이 다르면 실패한다', () {
+  group('변형마다 권역이 앱이 그리는 권역과 정확히 같아야 한다', () {
+    test('앱이 그리는 권역이 빠진 변형이 있으면 실패한다', () {
+      expect(
+        () => _parse(_indexJson(), regionIds: {'seoul', 'busan'}),
+        _rejects('variants.outlined.regions'),
+      );
+      expect(
+        () => _parse(
+          _indexJson(
+            variants: _variants(
+              outlinedRegions: {
+                'seoul': _region(''),
+                'busan': _region(
+                  '',
+                  baseVector: 'busan.vec',
+                  lineVector: 'busan.seoul-2.vec',
+                ),
+              },
+            ),
+          ),
+          regionIds: {'seoul', 'busan'},
+        ),
+        _rejects('variants.text.regions'),
+      );
+    });
+
+    test('두 변형 모두 권역이 없으면 실패한다', () {
+      expect(
+        () => _parse(
+          _indexJson(
+            variants: _variants(
+              outlinedRegions: const <String, Object?>{},
+              textRegions: const <String, Object?>{},
+            ),
+          ),
+        ),
+        _rejects('variants.outlined.regions'),
+      );
+    });
+
+    test('앱이 그리지 않는 권역이 있으면 실패한다', () {
+      expect(
+        () => _parse(
+          _indexJson(
+            variants: _variants(
+              textRegions: {
+                'seoul': _region('.text'),
+                'busan': _region(
+                  '.text',
+                  baseVector: 'busan.text.vec',
+                  lineVector: 'busan.seoul-2.text.vec',
+                ),
+              },
+            ),
+          ),
+        ),
+        _rejects('variants.text.regions'),
+      );
+    });
+  });
+
+  test('한 .vec 파일을 두 항목이 함께 가리키면 실패한다', () {
     expect(
-      () => RouteMapLineOverlayIndex.parse(
+      () => _parse(
+        _indexJson(
+          variants: _variants(
+            textRegions: {'seoul': _region('.text', baseVector: 'seoul.vec')},
+          ),
+        ),
+      ),
+      _rejects('seoul.vec'),
+    );
+    expect(
+      () => _parse(
         _indexJson(
           variants: _variants(
             textRegions: {
-              'seoul': _region('.text'),
-              'busan': _region('.text', baseVector: 'busan.text.vec'),
+              'seoul': _region('.text', lineVector: 'seoul.seoul-2.vec'),
             },
           ),
         ),
       ),
-      _rejects('text 변형'),
+      _rejects('seoul.seoul-2.vec'),
     );
   });
 
   test('두 변형의 같은 권역 노선이 다르면 실패한다', () {
     expect(
-      () => RouteMapLineOverlayIndex.parse(
+      () => _parse(
         _indexJson(
           variants: _variants(
             textRegions: {
@@ -185,7 +235,7 @@ void main() {
   test('바탕이나 노선 레이어의 sha256이 없거나 모양이 다르면 실패한다', () {
     for (final sha in [null, '', 'abc', _shaA.toUpperCase(), 7]) {
       expect(
-        () => RouteMapLineOverlayIndex.parse(
+        () => _parse(
           _indexJson(
             variants: _variants(
               textRegions: {'seoul': _region('.text', baseSha: sha)},
@@ -196,7 +246,7 @@ void main() {
         reason: 'baseVectorSha256=$sha',
       );
       expect(
-        () => RouteMapLineOverlayIndex.parse(
+        () => _parse(
           _indexJson(
             variants: _variants(
               textRegions: {'seoul': _region('.text', lineSha: sha)},
@@ -218,7 +268,7 @@ void main() {
       7,
     ]) {
       expect(
-        () => RouteMapLineOverlayIndex.parse(
+        () => _parse(
           _indexJson(
             variants: _variants(
               outlinedRegions: {'seoul': _region('', lineVector: vector)},
@@ -229,7 +279,7 @@ void main() {
         reason: 'vector=$vector',
       );
       expect(
-        () => RouteMapLineOverlayIndex.parse(
+        () => _parse(
           _indexJson(
             variants: _variants(
               outlinedRegions: {'seoul': _region('', baseVector: vector)},
@@ -244,17 +294,16 @@ void main() {
 
   test('variants·regions·lines가 객체가 아니면 실패한다', () {
     expect(
-      () => RouteMapLineOverlayIndex.parse(_indexJson(variants: <Object>[])),
+      () => _parse(_indexJson(variants: <Object>[])),
       throwsFormatException,
     );
     expect(
-      () => RouteMapLineOverlayIndex.parse(
-        _indexJson(variants: _variants(textRegions: {'seoul': null})),
-      ),
+      () =>
+          _parse(_indexJson(variants: _variants(textRegions: {'seoul': null}))),
       throwsFormatException,
     );
     expect(
-      () => RouteMapLineOverlayIndex.parse(
+      () => _parse(
         _indexJson(
           variants: _variants(
             textRegions: {
@@ -265,13 +314,11 @@ void main() {
       ),
       throwsFormatException,
     );
-    expect(() => RouteMapLineOverlayIndex.parse('[]'), throwsFormatException);
+    expect(() => _parse('[]'), throwsFormatException);
   });
 
-  test('색인에 없는 권역이나 노선은 명시적 오류다', () {
-    final files = RouteMapLineOverlayIndex.parse(
-      _indexJson(),
-    ).variant(RouteMapBasemapVariant.outlined);
+  test('색인에 없는 노선은 명시적 오류이고 앱 권역이 아닌 권역 조회는 호출 오류다', () {
+    final files = _parse(_indexJson()).variant(RouteMapBasemapVariant.outlined);
 
     expect(
       () => files.overlayAssetFor(regionId: 'seoul', lineId: 'seoul-3'),
@@ -290,17 +337,6 @@ void main() {
       () => files.overlayAssetFor(regionId: 'busan', lineId: 'seoul-2'),
       throwsA(isA<RouteMapLineOverlayMissing>()),
     );
-    expect(
-      () => files.baseAssetFor('busan'),
-      throwsA(
-        isA<RouteMapBasemapRegionMissing>()
-            .having((error) => error.regionId, 'regionId', 'busan')
-            .having(
-              (error) => error.toString(),
-              'crash log message',
-              contains('busan'),
-            ),
-      ),
-    );
+    expect(() => files.baseAssetFor('busan'), throwsArgumentError);
   });
 }

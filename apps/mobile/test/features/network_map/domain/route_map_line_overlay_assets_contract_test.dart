@@ -71,29 +71,29 @@ void main() {
   for (final variant in RouteMapBasemapVariant.values) {
     final files = bundledBasemapIndex.variant(variant);
     final pinned =
-        (record['variants'] as Map<String, dynamic>)[variant.name]
+        (record['variants'] as Map<String, dynamic>)[variant.indexKey]
             as Map<String, dynamic>;
     final pinnedFiles = <String, String>{
       ...(pinned['basemaps'] as Map).cast<String, String>(),
       ...(pinned['overlays'] as Map).cast<String, String>(),
     };
 
-    test('${variant.name}: 색인에 실린 파일은 번들 바이트, 색인, manifest의 sha256이 모두 같다', () {
-      final listed = <String>{};
-      for (final file in files.files) {
-        final fileName = file.asset.split('/').last;
-        listed.add(fileName);
-        expect(_sha256Of(file.asset), file.sha256, reason: '$fileName 번들 바이트');
-        expect(
-          pinnedFiles[fileName],
-          file.sha256,
-          reason: '$fileName manifest',
-        );
-      }
-      expect(listed, pinnedFiles.keys.toSet());
-    });
+    test(
+      '${variant.indexKey}: 색인에 실린 파일은 번들 바이트, 색인, manifest의 sha256이 모두 같다',
+      () {
+        final listed = <String>{};
+        for (final MapEntry(key: asset, value: sha256)
+            in bundledBasemapIndexFiles(variant).entries) {
+          final fileName = asset.split('/').last;
+          listed.add(fileName);
+          expect(_sha256Of(asset), sha256, reason: '$fileName 번들 바이트');
+          expect(pinnedFiles[fileName], sha256, reason: '$fileName manifest');
+        }
+        expect(listed, pinnedFiles.keys.toSet());
+      },
+    );
 
-    test('${variant.name}: 바탕이 있는 5권역이 모두 색인 바탕을 갖는다', () {
+    test('${variant.indexKey}: 바탕이 있는 5권역이 모두 색인 바탕을 갖는다', () {
       for (final regionId in kRouteMapBasemapRegionToId.values) {
         final fileName = files.baseAssetFor(regionId).split('/').last;
         expect(
@@ -104,7 +104,7 @@ void main() {
       }
     });
 
-    test('${variant.name}: 데이터팩 노선도의 모든 노선이 자기 권역의 강조 레이어를 갖는다', () {
+    test('${variant.indexKey}: 데이터팩 노선도의 모든 노선이 자기 권역의 강조 레이어를 갖는다', () {
       final reached = <String>{};
       for (final line in lines) {
         final regionId =

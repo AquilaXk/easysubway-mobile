@@ -383,7 +383,7 @@ Map<String, ByteData> _gwangjuBasemapAssets() => {
   for (final key in [
     kRouteMapLineOverlayIndexAssetPath,
     bundledBasemapIndex
-        .variant(routeMapBasemapVariantOfEngine())
+        .variant(RouteMapBasemapViewState.variant)
         .baseAssetFor('gwangju'),
   ])
     key: ByteData.sublistView(File(key).readAsBytesSync()),

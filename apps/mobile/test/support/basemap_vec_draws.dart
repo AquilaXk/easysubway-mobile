@@ -149,7 +149,7 @@ class _PathDrawListener extends BasemapVecListener {
   }
 }
 
-/// 코덱 `paintStyle` 값 중 stroke. 런타임 vector_graphics 1.2.2 lib/src/listener.dart 395행이 같은 값으로 가른다.
+/// 코덱 `paintStyle` 값 중 stroke. 런타임 vector_graphics 1.2.3 lib/src/listener.dart 377행이 같은 값으로 가른다.
 const int _paintStyleStroke = 1;
 
 /// 모든 명령을 무시하는 `.vec` 디코드 리스너. 게이트는 필요한 명령만 덮어쓴다.
