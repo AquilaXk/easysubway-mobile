@@ -227,10 +227,6 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @visibleForTesting
   Map<String, Future<PictureInfo>> get debugPendingLoads => _globalPendingLoads;
 
-  PictureInfo? get _basemap => _globalPictureCache[_baseAsset];
-
-  ui.Picture? get _overlay => _globalPictureCache[_overlayAsset]?.picture;
-
   @override
   void initState() {
     super.initState();
@@ -277,6 +273,20 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
     } on RouteMapLineOverlayMissing catch (error, stack) {
       _reportLoadFailure(error, stack, '노선 강조 레이어 조회 실패($regionId/$lineId)');
     }
+  }
+
+  /// [asset]을 한 번만 디코드한다. 같은 자산을 읽는 중이면 그 로드를 함께 기다린다.
+  static Future<PictureInfo> _decodePicture(String asset) {
+    final pending = _globalPendingLoads[asset];
+    if (pending != null) {
+      return pending;
+    }
+    final load = vg
+        .loadPicture(AssetBytesLoader(asset), null)
+        .then((info) => _globalPictureCache[asset] = info)
+        .whenComplete(() => unawaited(_globalPendingLoads.remove(asset)));
+    _globalPendingLoads[asset] = load;
+    return load;
   }
 
   Future<void> _syncWhenIndexLoads() async {
@@ -332,19 +342,9 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   bool _wants(String asset) =>
       mounted && (asset == _baseAsset || asset == _overlayAsset);
 
-  /// [asset]을 한 번만 디코드한다. 같은 자산을 읽는 중이면 그 로드를 함께 기다린다.
-  static Future<PictureInfo> _decodePicture(String asset) {
-    final pending = _globalPendingLoads[asset];
-    if (pending != null) {
-      return pending;
-    }
-    final load = vg
-        .loadPicture(AssetBytesLoader(asset), null)
-        .then((info) => _globalPictureCache[asset] = info)
-        .whenComplete(() => unawaited(_globalPendingLoads.remove(asset)));
-    _globalPendingLoads[asset] = load;
-    return load;
-  }
+  PictureInfo? get _basemap => _globalPictureCache[_baseAsset];
+
+  ui.Picture? get _overlay => _globalPictureCache[_overlayAsset]?.picture;
 
   void _reportLoadFailure(Object error, StackTrace stack, String context) {
     FlutterError.reportError(
