@@ -69,6 +69,22 @@ Matcher _rejects(String reason) => throwsA(
 );
 
 void main() {
+  group('렌더러에 맞는 변형', () {
+    test('Impeller는 윤곽선 라벨 변형을 그린다', () {
+      expect(
+        RouteMapBasemapVariant.forRenderer(impeller: true),
+        RouteMapBasemapVariant.outlined,
+      );
+    });
+
+    test('Skia OpenGLES는 텍스트 라벨 변형을 그린다', () {
+      expect(
+        RouteMapBasemapVariant.forRenderer(impeller: false),
+        RouteMapBasemapVariant.text,
+      );
+    });
+  });
+
   group('변형마다 자기 파일만 돌려준다', () {
     final index = _parse(_indexJson());
 
