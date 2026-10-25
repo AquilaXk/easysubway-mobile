@@ -37,7 +37,8 @@ enum RouteMapBasemapVariant {
   const RouteMapBasemapVariant({required this.indexKey, required this.labels});
 
   /// 엔진 렌더러가 그릴 변형. Galaxy A17 교대 측정에서 윤곽선 라벨은 Impeller에서 텍스트
-  /// 라벨과 같거나 빨랐고, Skia OpenGLES에서는 래스터가 더 느렸다(PR #519 측정 원자료).
+  /// 라벨과 같거나 빨랐고, Skia OpenGLES에서는 래스터가 더 느렸다. 원자료는
+  /// test/evidence/perf-route-map-raster-517에 있다.
   factory RouteMapBasemapVariant.forRenderer({required bool impeller}) =>
       impeller ? outlined : text;
 

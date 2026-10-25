@@ -11,11 +11,12 @@ import 'package:vector_graphics/vector_graphics.dart';
 
 import '../../../support/basemap_index.dart';
 
-// #2068 하이브리드 바탕층 성능 계측(계측 위주, 느슨한 assert).
+// #2068 하이브리드 바탕층 성능 상한 확인.
 //
-// 바탕 .vec 런타임 로드+디코드 시간과 파일 크기를 측정해 print한다. 컴파일 시간은
-// 셸 `time`으로 별도 측정하므로 여기에 넣지 않는다. structured recordRouteMapPicture
-// 대비 비교는 데이터 로드가 무거워 생략하고 vec 로드만 계측한다(범위 밖 노이즈 회피).
+// 바탕 .vec 런타임 로드+디코드 시간과 파일 크기를 재서 print하고 느슨한 상한 안인지 본다.
+// 컴파일 시간은 셸 `time`으로 별도 측정하므로 여기에 넣지 않는다. structured
+// recordRouteMapPicture 대비 비교는 데이터 로드가 무거워 생략하고 vec 로드만 잰다(범위 밖
+// 노이즈 회피).
 //
 // 앱은 엔진 렌더러에 맞는 바탕 변형을 그린다(RouteMapBasemapAssets.shared.variant). Flutter 3.44
 // 엔진은 Android API 29 이상(Vivante GPU 제외)과 iOS에서 Impeller로, API 24~28과 Vivante
@@ -52,9 +53,9 @@ const double _overviewScale = 0.35;
 const int _frameWidth = 1080;
 const int _frameHeight = 1920;
 
-/// 지도 바탕 면과 다른 픽셀이 프레임 안 지도 면적에서 차지해야 하는 최소 비율. 실측한 가장 작은
-/// 비율(대전 9.4%)보다 약 9배 낮아 렌더러마다 다른 안티앨리어싱에는 걸리지 않고, 아무것도
-/// 그리지 않았거나 바탕 면만 그린 프레임(0)은 잡는다. 라벨이나 강조 레이어 하나가 빠진 프레임은
+/// 지도 바탕 면과 다른 픽셀이 프레임 안 지도 면적에서 차지해야 하는 최소 비율. 실제 노선도
+/// 프레임의 비율보다 훨씬 낮아 렌더러마다 다른 안티앨리어싱에는 걸리지 않고, 아무것도 그리지
+/// 않았거나 바탕 면만 그린 프레임(0)은 잡는다. 라벨이나 강조 레이어 하나가 빠진 프레임은
 /// 잡지 못한다.
 const double _minInkShare = 0.01;
 
@@ -131,6 +132,19 @@ Future<List<double>> _sampleFrameMs(
 double _percentile(List<double> samples, double q) =>
     (samples.toList()..sort())[(samples.length * q).floor()];
 
+/// [asset]을 디코드해 [body]에 주고, [body]가 던져도 그림을 해제한다.
+Future<T> _withPicture<T>(
+  String asset,
+  Future<T> Function(PictureInfo info) body,
+) async {
+  final info = await vg.loadPicture(AssetBytesLoader(asset), null);
+  try {
+    return await body(info);
+  } finally {
+    info.picture.dispose();
+  }
+}
+
 /// Impeller로 그릴 때 [p50]이 래스터 상한 아래인지 본다. 상한은 로컬에서 60 Hz 한 프레임
 /// 16.7 ms이고, CI 러너 가상화 편차를 고려해 CI에서는 두 프레임 33.3 ms다.
 void _expectUnderRasterUpperBound(double p50, String reason) {
@@ -164,7 +178,7 @@ void main() {
     );
   });
 
-  testWidgets('seoul 바탕 .vec 로드+디코드 시간과 파일 크기 계측', (tester) async {
+  testWidgets('seoul 바탕 .vec 로드+디코드가 상한 안이고 파일이 비어 있지 않다', (tester) async {
     // 파일 크기(bytes) — File.lengthSync는 cwd(apps/mobile) 기준 상대경로로 연다.
     final vecFile = File(seoulAsset);
     expect(vecFile.existsSync(), isTrue, reason: '$seoulAsset가 번들에 있어야 한다');
@@ -176,8 +190,8 @@ void main() {
       final stopwatch = Stopwatch()..start();
       final info = await vg.loadPicture(AssetBytesLoader(seoulAsset), null);
       stopwatch.stop();
-      loadDuration = stopwatch.elapsed;
       info.picture.dispose();
+      loadDuration = stopwatch.elapsed;
     });
 
     // ignore: avoid_print
@@ -186,46 +200,46 @@ void main() {
       '로드+디코드=${loadDuration.inMicroseconds}us(${loadDuration.inMilliseconds}ms)',
     );
 
-    // 느슨한 회귀 상한(계측이 주목적) — 로드가 2초를 넘으면 이상 신호.
+    // 느슨한 회귀 상한. 로드가 2초를 넘으면 이상 신호다.
     expect(loadDuration.inMilliseconds, lessThan(2000));
     expect(sizeBytes, greaterThan(0));
   });
 
-  // #2593 리뷰 Major — 전량 반입으로 새로 들어온 `page-background`(전면 흰 rect)와
-  // `background-grid-overlay`(격자 패턴 타일)의 래스터 비용을 계측한다.
-  // 대전·광주 오버레이는 `opacity="0.52"`라 실제로 보이는 요소이고, 패턴 타일링이
-  // 프레임 시간을 크게 좌우한다(실측: 대전 p90 0.43ms → 1.93ms). 수도권 오버레이는
-  // `opacity="0"`이라 사실상 무료다. 상한은 [_expectUnderRasterUpperBound]의 느슨한 확인선이다.
-  testWidgets('바탕 .vec 래스터 프레임 시간 p50/p90 계측', (tester) async {
+  // #2593 리뷰 Major. 전량 반입으로 새로 들어온 `page-background`(전면 흰 rect)와
+  // `background-grid-overlay`(격자 패턴 타일)의 래스터 비용이 상한 안인지 본다. 대전·광주
+  // 오버레이는 `opacity="0.52"`라 실제로 보이는 요소이고 패턴 타일링이 프레임 시간을 크게
+  // 좌우한다. 수도권 오버레이는 `opacity="0"`이라 사실상 무료다. 상한은
+  // [_expectUnderRasterUpperBound]의 느슨한 확인선이다.
+  testWidgets('바탕 .vec 래스터 프레임 p50이 상한 안이다', (tester) async {
     final targets = {
       for (final regionId in ['seoul', 'daejeon'])
         regionId: files.baseAssetFor(regionId),
     };
     await tester.runAsync(() async {
       for (final entry in targets.entries) {
-        final info = await vg.loadPicture(AssetBytesLoader(entry.value), null);
-        final samples = await _sampleFrameMs(
-          info.size,
-          (canvas) => canvas
-            ..scale(_overviewScale)
-            ..drawPicture(info.picture),
-        );
-        info.picture.dispose();
-        final p50 = _percentile(samples, 0.5);
-        // ignore: avoid_print
-        print(
-          '[#2593 raster] $_renderer ${entry.value} 1080x1920 '
-          'p50=${p50.toStringAsFixed(2)}ms '
-          'p90=${_percentile(samples, 0.9).toStringAsFixed(2)}ms',
-        );
-        _expectUnderRasterUpperBound(p50, '${entry.key}: 래스터 p50이 상한을 넘었다');
+        await _withPicture(entry.value, (info) async {
+          final samples = await _sampleFrameMs(
+            info.size,
+            (canvas) => canvas
+              ..scale(_overviewScale)
+              ..drawPicture(info.picture),
+          );
+          final p50 = _percentile(samples, 0.5);
+          // ignore: avoid_print
+          print(
+            '[#2593 raster] $_renderer ${entry.value} 1080x1920 '
+            'p50=${p50.toStringAsFixed(2)}ms '
+            'p90=${_percentile(samples, 0.9).toStringAsFixed(2)}ms',
+          );
+          _expectUnderRasterUpperBound(p50, '${entry.key}: 래스터 p50이 상한을 넘었다');
+        });
       }
     });
   });
 
-  // 노선 강조(#511): 가장 큰 노선 레이어(수도권 1호선) 디코드 시간과, 흐린 바탕
-  // saveLayer + 레이어 그리기가 바탕만 그릴 때보다 래스터를 얼마나 늘리는지 잰다.
-  testWidgets('노선 강조 레이어 디코드와 흐린 바탕 래스터 시간 계측', (tester) async {
+  // 노선 강조(#511): 가장 큰 노선 레이어(수도권 1호선) 디코드와, 흐린 바탕 saveLayer + 레이어
+  // 그리기가 바탕만 그릴 때보다 늘리는 래스터가 상한 안인지 본다.
+  testWidgets('노선 강조 레이어 디코드와 흐린 바탕 래스터가 상한 안이다', (tester) async {
     final overlayAsset = files.overlayAssetFor(
       regionId: 'seoul',
       lineId: 'line-472a81add377',
@@ -236,116 +250,116 @@ void main() {
         final stopwatch = Stopwatch()..start();
         final info = await vg.loadPicture(AssetBytesLoader(overlayAsset), null);
         stopwatch.stop();
-        decodeMs.add(stopwatch.elapsedMicroseconds / 1000.0);
         info.picture.dispose();
+        decodeMs.add(stopwatch.elapsedMicroseconds / 1000.0);
       }
-      final base = await vg.loadPicture(AssetBytesLoader(seoulAsset), null);
-      final overlay = await vg.loadPicture(
-        AssetBytesLoader(overlayAsset),
-        null,
-      );
-      final fadePaint = ui.Paint()
-        ..color = const ui.Color.fromRGBO(
-          0,
-          0,
-          0,
-          kRouteMapFadedBasemapOpacity,
-        );
-      final plain = await _sampleFrameMs(
-        base.size,
-        (canvas) => canvas
-          ..scale(_overviewScale)
-          ..drawPicture(base.picture),
-      );
-      final highlighted = await _sampleFrameMs(
-        base.size,
-        (canvas) => canvas
-          ..scale(_overviewScale)
-          ..saveLayer(null, fadePaint)
-          ..drawPicture(base.picture)
-          ..restore()
-          ..drawPicture(overlay.picture),
-      );
-      base.picture.dispose();
-      overlay.picture.dispose();
-      // ignore: avoid_print
-      print(
-        '[#511 overlay] $_renderer seoul 1호선 레이어 '
-        '${File(overlayAsset).lengthSync()}B 디코드 '
-        'p50=${_percentile(decodeMs, 0.5).toStringAsFixed(2)}ms '
-        '범위=${_percentile(decodeMs, 0).toStringAsFixed(2)}~'
-        '${(decodeMs.toList()..sort()).last.toStringAsFixed(2)}ms(7회) | '
-        '1080x1920 래스터 바탕만 p50=${_percentile(plain, 0.5).toStringAsFixed(2)}'
-        ' p90=${_percentile(plain, 0.9).toStringAsFixed(2)}ms, '
-        '강조 p50=${_percentile(highlighted, 0.5).toStringAsFixed(2)}'
-        ' p90=${_percentile(highlighted, 0.9).toStringAsFixed(2)}ms'
-        '($_sampleFrames회)',
-      );
-      expect(_percentile(decodeMs, 0.5), lessThan(2000));
-      _expectUnderRasterUpperBound(
-        _percentile(highlighted, 0.5),
-        '강조 래스터 p50이 상한을 넘었다',
-      );
+      await _withPicture(seoulAsset, (base) {
+        return _withPicture(overlayAsset, (overlay) async {
+          final fadePaint = ui.Paint()
+            ..color = const ui.Color.fromRGBO(
+              0,
+              0,
+              0,
+              kRouteMapFadedBasemapOpacity,
+            );
+          final plain = await _sampleFrameMs(
+            base.size,
+            (canvas) => canvas
+              ..scale(_overviewScale)
+              ..drawPicture(base.picture),
+          );
+          final highlighted = await _sampleFrameMs(
+            base.size,
+            (canvas) => canvas
+              ..scale(_overviewScale)
+              ..saveLayer(null, fadePaint)
+              ..drawPicture(base.picture)
+              ..restore()
+              ..drawPicture(overlay.picture),
+          );
+          // ignore: avoid_print
+          print(
+            '[#511 overlay] $_renderer seoul 1호선 레이어 '
+            '${File(overlayAsset).lengthSync()}B 디코드 '
+            'p50=${_percentile(decodeMs, 0.5).toStringAsFixed(2)}ms '
+            '범위=${_percentile(decodeMs, 0).toStringAsFixed(2)}~'
+            '${(decodeMs.toList()..sort()).last.toStringAsFixed(2)}ms(7회) | '
+            '1080x1920 래스터 바탕만 p50=${_percentile(plain, 0.5).toStringAsFixed(2)}'
+            ' p90=${_percentile(plain, 0.9).toStringAsFixed(2)}ms, '
+            '강조 p50=${_percentile(highlighted, 0.5).toStringAsFixed(2)}'
+            ' p90=${_percentile(highlighted, 0.9).toStringAsFixed(2)}ms'
+            '($_sampleFrames회)',
+          );
+          expect(_percentile(decodeMs, 0.5), lessThan(2000));
+          _expectUnderRasterUpperBound(
+            _percentile(highlighted, 0.5),
+            '강조 래스터 p50이 상한을 넘었다',
+          );
+        });
+      });
     });
   });
 
   // 카메라가 멈추면 앱은 바탕을 화면 픽셀 타일로 구워 두고(#518) 팬하는 동안 구운 타일만
   // 그린다. 넓게 본 노선도에서 사용자가 보는 프레임이 이 합성이다. 타일은 앱의 격자로 굽는다.
-  testWidgets('구운 바탕 타일 합성 프레임 시간 계측', (tester) async {
+  testWidgets('구운 바탕 타일 합성 프레임 p50이 상한 안이다', (tester) async {
     await tester.runAsync(() async {
-      final base = await vg.loadPicture(AssetBytesLoader(seoulAsset), null);
-      final grid = RouteMapBasemapTileGrid(
-        content: RouteMapBasemapTileContent(
-          basemap: base.picture,
-          basemapSize: base.size,
-          overlay: null,
-          scale: _overviewScale,
-          devicePixelRatio: 1,
-        ),
-        phase: ui.Offset.zero,
-      );
-      final keys = grid
-          .visibleRange(
-            ui.Offset.zero,
-            ui.Rect.fromLTWH(
-              0,
-              0,
-              _frameWidth.toDouble(),
-              _frameHeight.toDouble(),
+      await _withPicture(seoulAsset, (base) async {
+        final grid = RouteMapBasemapTileGrid(
+          content: RouteMapBasemapTileContent(
+            basemap: base.picture,
+            basemapSize: base.size,
+            overlay: null,
+            scale: _overviewScale,
+            devicePixelRatio: 1,
+          ),
+          phase: ui.Offset.zero,
+        );
+        final keys = grid
+            .visibleRange(
+              ui.Offset.zero,
+              ui.Rect.fromLTWH(
+                0,
+                0,
+                _frameWidth.toDouble(),
+                _frameHeight.toDouble(),
+              ),
+            )!
+            .keysFromCenter();
+        final tiles = [
+          for (final key in keys)
+            (image: grid.rasterize(key), pixels: grid.tilePixels(key)),
+        ];
+        try {
+          for (final tile in tiles) {
+            expect(await tile.image.toByteData(), isNotNull);
+          }
+          final painter = RouteMapBasemapTilePainter(
+            tiles: tiles,
+            gridOrigin: ui.Offset.zero,
+            devicePixelRatio: 1,
+          );
+          final samples = await _sampleFrameMs(
+            base.size,
+            (canvas) => painter.paint(
+              canvas,
+              ui.Size(_frameWidth.toDouble(), _frameHeight.toDouble()),
             ),
-          )!
-          .keysFromCenter();
-      final tiles = [
-        for (final key in keys)
-          (image: grid.rasterize(key), pixels: grid.tilePixels(key)),
-      ];
-      for (final tile in tiles) {
-        expect(await tile.image.toByteData(), isNotNull);
-      }
-      final painter = RouteMapBasemapTilePainter(
-        tiles: tiles,
-        gridOrigin: ui.Offset.zero,
-        devicePixelRatio: 1,
-      );
-      final samples = await _sampleFrameMs(
-        base.size,
-        (canvas) => painter.paint(
-          canvas,
-          ui.Size(_frameWidth.toDouble(), _frameHeight.toDouble()),
-        ),
-      );
-      for (final tile in tiles) {
-        tile.image.dispose();
-      }
-      base.picture.dispose();
-      final p50 = _percentile(samples, 0.5);
-      // ignore: avoid_print
-      print(
-        '[#518 tiles] $_renderer seoul 타일 ${tiles.length}장 합성 1080x1920 '
-        'p50=${p50.toStringAsFixed(2)}ms '
-        'p90=${_percentile(samples, 0.9).toStringAsFixed(2)}ms',
-      );
-      _expectUnderRasterUpperBound(p50, '구운 타일 합성 p50이 상한을 넘었다');
+          );
+          final p50 = _percentile(samples, 0.5);
+          // ignore: avoid_print
+          print(
+            '[#518 tiles] $_renderer seoul 타일 ${tiles.length}장 합성 1080x1920 '
+            'p50=${p50.toStringAsFixed(2)}ms '
+            'p90=${_percentile(samples, 0.9).toStringAsFixed(2)}ms',
+          );
+          _expectUnderRasterUpperBound(p50, '구운 타일 합성 p50이 상한을 넘었다');
+        } finally {
+          for (final tile in tiles) {
+            tile.image.dispose();
+          }
+        }
+      });
     });
   });
 }
