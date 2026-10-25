@@ -70,3 +70,16 @@ class FakeBasemapBundle extends CachingAssetBundle {
     return Future.value(bundledAsset(key));
   }
 }
+
+const int _settleRounds = 10;
+const Duration _settleRoundDelay = Duration(milliseconds: 10);
+
+/// 바탕 색인과 .vec 디코드가 실제 시간으로 끝나도록 기다리며 프레임을 돌린다. 디코드는 부하에
+/// 따라 시간이 달라 한 번에 0초만 기다리면 끝나기 전에 단언이 돈다. 시계는 앞으로 돌리지
+/// 않아 카메라가 멈춘 뒤 굽는 타일은 만들지 않는다.
+Future<void> settleBasemapLoads(WidgetTester tester) async {
+  for (var round = 0; round < _settleRounds; round++) {
+    await tester.runAsync(() => Future<void>.delayed(_settleRoundDelay));
+    await tester.pump();
+  }
+}

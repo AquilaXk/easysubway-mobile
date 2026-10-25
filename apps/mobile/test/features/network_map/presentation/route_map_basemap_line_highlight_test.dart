@@ -68,16 +68,6 @@ Widget _map({
   ),
 );
 
-/// .vec 로드를 끝내고 벡터로 그린 프레임에서 멈춘다. 시계를 앞으로 돌리지 않아 카메라가
-/// 멈춘 뒤 굽는 바탕 이미지(#517)는 아직 만들지 않는다. 구운 이미지가 이 벡터 화면과
-/// 같은지는 route_map_basemap_raster_test.dart가 본다.
-Future<void> _settleLoads(WidgetTester tester) async {
-  for (var attempt = 0; attempt < 5; attempt++) {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-  }
-}
-
 Future<Uint8List> _rgba(Future<ui.Image> Function() render) async {
   final image = await render();
   final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
@@ -204,7 +194,7 @@ void main() {
 
   testWidgets('전체 노선은 바탕을 흐리지 않고 그대로 그린다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
-    await _settleLoads(tester);
+    await settleBasemapLoads(tester);
 
     final screen = await _screen(tester);
     final base = await _reference(tester, [seoulBase]);
@@ -214,7 +204,7 @@ void main() {
   for (final lineId in [_uiSinseolLineId, _seoulLine2Id]) {
     testWidgets('$lineId를 고르면 바탕은 흐려지고 그 노선 레이어는 원래 진하기다', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: lineId));
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
 
       final overlayAsset = _overlayAsset(lineId);
       final counts = _classify(
@@ -245,7 +235,7 @@ void main() {
         attributionText: attribution,
       ),
     );
-    await _settleLoads(tester);
+    await settleBasemapLoads(tester);
 
     String? attributionOf(Finder paint) =>
         (tester.widget<CustomPaint>(paint).painter! as RouteMapBasemapPainter)
@@ -266,7 +256,7 @@ void main() {
 
   testWidgets('레이어를 읽는 동안에는 고른 척 흐리지 않고 바탕을 그대로 둔다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
-    await _settleLoads(tester);
+    await settleBasemapLoads(tester);
     final base = await _screen(tester);
 
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
@@ -276,7 +266,7 @@ void main() {
 
   testWidgets('한 번 읽은 노선을 다시 고르면 다시 디코드하지 않고 그 프레임에 바로 강조한다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-    await _settleLoads(tester);
+    await settleBasemapLoads(tester);
     final highlighted = await _screen(tester);
     final overlayAsset = _overlayAsset(_uiSinseolLineId);
     final decoded = RouteMapBasemapAssets.shared.picture(overlayAsset);
@@ -286,7 +276,7 @@ void main() {
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
 
     expect(_maxChannelDiff(await _screen(tester), highlighted), 0);
-    await _settleLoads(tester);
+    await settleBasemapLoads(tester);
     expect(RouteMapBasemapAssets.shared.picture(overlayAsset), same(decoded));
   });
 
@@ -306,7 +296,7 @@ void main() {
       FlutterError.onError = errors.add;
       try {
         await tester.pumpWidget(_map(region: region, lineId: lineId));
-        await _settleLoads(tester);
+        await settleBasemapLoads(tester);
       } finally {
         FlutterError.onError = previousOnError;
       }
@@ -327,7 +317,7 @@ void main() {
 
     testWidgets('색인에 없는 노선', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: _seoulLine2Id));
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
 
       final errors = await pumpCapturingErrors(tester, 'line-unknown');
 
@@ -339,7 +329,7 @@ void main() {
 
     testWidgets('고른 노선이 그대로인 채 권역만 바뀜', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
 
       final errors = await pumpCapturingErrors(
         tester,

@@ -60,14 +60,6 @@ List<ui.Picture?> _paintedPictures(WidgetTester tester) => tester
     .map((paint) => (paint.painter! as RouteMapBasemapPainter).picture)
     .toList();
 
-/// 자산을 읽고 벡터로 그린 프레임에서 멈춘다. 시계를 돌리지 않아 바탕 타일은 굽지 않는다.
-Future<void> _settleLoads(WidgetTester tester) async {
-  for (var attempt = 0; attempt < 5; attempt++) {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-  }
-}
-
 /// [body]가 도는 동안 보고된 Flutter 오류.
 Future<List<FlutterErrorDetails>> _errorsDuring(
   Future<void> Function() body,
@@ -96,7 +88,7 @@ void main() {
         await tester.pumpWidget(
           _view(assets, region: '수도권', lineId: _uiSinseolLineId),
         );
-        await _settleLoads(tester);
+        await settleBasemapLoads(tester);
 
         final base = assets.picture(_files(assets).baseAssetFor('seoul'));
         final overlay = assets.picture(_overlay(assets, _uiSinseolLineId));
@@ -181,11 +173,11 @@ void main() {
     testWidgets('매핑에 없는 권역은 바탕을 그리지 않고 뷰마다 한 번 보고한다', (tester) async {
       final errors = await _errorsDuring(() async {
         await tester.pumpWidget(_view(assets, region: '알 수 없음'));
-        await _settleLoads(tester);
+        await settleBasemapLoads(tester);
         await tester.pumpWidget(
           _view(assets, region: '알 수 없음', lineId: _seoulLine2Id),
         );
-        await _settleLoads(tester);
+        await settleBasemapLoads(tester);
       });
 
       expect(_paintedPictures(tester), [null]);
@@ -197,12 +189,12 @@ void main() {
 
     testWidgets('권역을 바꿔 새로 만든 뷰는 한 번 디코드한 바탕을 첫 프레임에 바로 그린다', (tester) async {
       await tester.pumpWidget(_view(assets, region: '대전'));
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
       final daejeon = assets.picture(base('daejeon'));
       expect(daejeon, isNotNull);
 
       await tester.pumpWidget(_view(assets, region: '광주'));
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
       await tester.pumpWidget(_view(assets, region: '대전'));
 
       expect(_paintedPictures(tester), [daejeon!.picture]);
@@ -210,7 +202,7 @@ void main() {
 
     testWidgets('같은 자리의 뷰가 권역을 바꾸면 이전 권역 바탕은 한 프레임도 남지 않는다', (tester) async {
       await tester.pumpWidget(_view(assets, region: '대전'));
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
       final daejeon = assets.picture(base('daejeon'))!.picture;
       expect(_paintedPictures(tester), [daejeon]);
 
@@ -218,7 +210,7 @@ void main() {
 
       expect(_paintedPictures(tester), isNot(contains(daejeon)));
 
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
 
       expect(_paintedPictures(tester), [
         assets.picture(base('gwangju'))!.picture,
@@ -236,7 +228,7 @@ void main() {
           ],
         ),
       );
-      await _settleLoads(tester);
+      await settleBasemapLoads(tester);
 
       final daegu = assets.picture(base('daegu'));
       expect(daegu, isNotNull);
@@ -251,7 +243,7 @@ void main() {
 
         final errors = await _errorsDuring(() async {
           await tester.pumpWidget(_view(assets, region: '부산'));
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         expect(_paintedPictures(tester), [null]);
@@ -264,7 +256,7 @@ void main() {
           await tester.pumpWidget(
             _view(assets, region: '부산', key: const ValueKey('다시')),
           );
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         expect(retryErrors, isEmpty);
@@ -282,7 +274,7 @@ void main() {
           await tester.pumpWidget(
             _view(assets, region: '부산', lineId: 'line-ab1a041f6266'),
           );
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         expect(_paintedPictures(tester), [null]);
@@ -295,7 +287,7 @@ void main() {
         serveBasemapAssets();
         final retryErrors = await _errorsDuring(() async {
           await tester.pumpWidget(_view(assets, region: '대구'));
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         expect(retryErrors, isEmpty);
@@ -320,7 +312,7 @@ void main() {
 
         final errors = await _errorsDuring(() async {
           await tester.pumpWidget(_view(assets, region: '부산'));
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         expect(_paintedPictures(tester), [null]);
@@ -349,7 +341,7 @@ void main() {
             _view(assets, region: '수도권', lineId: 'line-unknown'),
           );
           index.complete(bundledAsset(kRouteMapLineOverlayIndexAssetPath));
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         expect(errors, hasLength(1));
@@ -375,13 +367,13 @@ void main() {
           await tester.pumpWidget(
             _view(assets, region: '수도권', lineId: _uiSinseolLineId),
           );
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
           await tester.pumpWidget(
             _view(assets, region: '수도권', lineId: _seoulLine2Id),
           );
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
           firstA.complete(null);
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         final seoul = assets.picture(base('seoul'))!.picture;
@@ -396,7 +388,7 @@ void main() {
           await tester.pumpWidget(
             _view(assets, region: '수도권', lineId: _uiSinseolLineId),
           );
-          await _settleLoads(tester);
+          await settleBasemapLoads(tester);
         });
 
         expect(retryErrors, isEmpty);
