@@ -1,4 +1,6 @@
 import 'dart:io';
+import 'dart:math' as math;
+import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_tiles.dart';
@@ -27,7 +29,7 @@ import '../../../support/basemap_index.dart';
 // 호스트 렌더러는 단계마다 다르다. `flutter test` 기본 실행은 Skia 소프트웨어 래스터라
 // (flutter_tools flutter_tester_device.dart --enable-software-rendering) 텍스트 변형을 고르고
 // 어느 기기에도 없는 CPU 커버리지 계산을 잰다. 이 값은 기록만 한다. CI는 이 파일을 `flutter test
-// --enable-impeller`로 한 번 더 돌려 예산을 건다(ci.yml "Raster frame budget (Impeller)").
+// --enable-impeller`로 한 번 더 돌려 예산을 건다(ci.yml "Raster frame upper bound (Impeller)").
 // 이때 flutter_tester는 SwiftShader 위 Impeller Vulkan으로 그리고(tester_main.cc), 예산이 재는
 // 값은 래스터 스레드가 명령을 만드는 시간이다. GPU를 포함한 프레임은 실기기 측정만 본다.
 //
@@ -49,28 +51,70 @@ const double _overviewScale = 0.35;
 const int _frameWidth = 1080;
 const int _frameHeight = 1920;
 
+/// 지도 바탕 면과 다른 픽셀이 프레임 안 지도 면적에서 차지해야 하는 최소 비율. 노선·역·라벨이
+/// 칠한 픽셀의 실제 비율은 수도권 11.0~12.1%, 대전 9.4~9.6%다(호스트 Skia 소프트웨어 텍스트
+/// 변형과 Impeller 윤곽선 변형, 바탕만·흐린 바탕 강조·구운 타일 합성 프레임). 가장 작은 값의
+/// 10분의 1 아래로 잡아 렌더러마다 다른 안티앨리어싱에는 걸리지 않고, 아무것도 그리지 않았거나
+/// 바탕 면만 그린 프레임(0)은 잡는다.
+const double _minInkShare = 0.01;
+
+/// [mapSize] 크기 지도를 [_overviewScale]로 원점에 그린 프레임에서 최소한 칠해져야 하는 픽셀 수.
+/// 지도 면적은 .vec viewBox 크기를 배율로 줄여 프레임에 잘린 넓이다.
+int _minInkPixels(ui.Size mapSize) =>
+    (math.min(mapSize.width * _overviewScale, _frameWidth) *
+            math.min(mapSize.height * _overviewScale, _frameHeight) *
+            _minInkShare)
+        .ceil();
+
+/// 투명하지 않고 지도 바탕 면과도 다른 픽셀 수. 지도는 원점에 그리고 맨 처음 바탕 면을 칠하므로
+/// 왼쪽 위 픽셀이 바탕 면 색이다.
+int _inkPixels(ByteData rgba) {
+  final pixels = rgba.buffer.asUint32List(
+    rgba.offsetInBytes,
+    rgba.lengthInBytes ~/ 4,
+  );
+  final background = pixels.first;
+  var ink = 0;
+  for (final pixel in pixels) {
+    if (pixel != 0 && pixel != background) {
+      ink += 1;
+    }
+  }
+  return ink;
+}
+
 /// [frame]을 toImage로 그리는 시간(ms). Impeller의 toImage는 래스터 스레드가 명령을
 /// 만들어 제출하면 끝나고 GPU 완료를 기다리지 않는다(impeller/display_list/dl_dispatcher.cc
 /// DisplayListToTexture). 그래서 잰 다음 toByteData로 완료를 기다려 다음 표본이 밀린 GPU
-/// 일과 겹치지 않게 하고, 그림이 실제로 그려졌는지 바이트 수로 확인한다.
-Future<double> _frameMs(ui.Picture frame) async {
+/// 일과 겹치지 않게 하고, 빈 프레임이 예산을 통과하지 않도록 칠한 픽셀이 [minInkPixels]
+/// 이상인지 확인한다.
+Future<double> _frameMs(ui.Picture frame, int minInkPixels) async {
   final stopwatch = Stopwatch()..start();
   final image = await frame.toImage(_frameWidth, _frameHeight);
   stopwatch.stop();
-  final pixels = await image.toByteData();
-  expect(pixels?.lengthInBytes, _frameWidth * _frameHeight * 4);
+  final pixels = (await image.toByteData())!;
+  expect(pixels.lengthInBytes, _frameWidth * _frameHeight * 4);
+  expect(
+    _inkPixels(pixels),
+    greaterThanOrEqualTo(minInkPixels),
+    reason: '프레임에 노선도가 그려지지 않았다',
+  );
   image.dispose();
   frame.dispose();
   return stopwatch.elapsedMicroseconds / 1000.0;
 }
 
-/// [draw]로 그린 프레임을 워밍업 뒤 [_sampleFrames]장 잰다.
-Future<List<double>> _sampleFrameMs(void Function(ui.Canvas) draw) async {
+/// [mapSize] 크기 지도를 [draw]로 그린 프레임을 워밍업 뒤 [_sampleFrames]장 잰다.
+Future<List<double>> _sampleFrameMs(
+  ui.Size mapSize,
+  void Function(ui.Canvas) draw,
+) async {
+  final minInkPixels = _minInkPixels(mapSize);
   final samples = <double>[];
   for (var index = 0; index < _warmupFrames + _sampleFrames; index += 1) {
     final recorder = ui.PictureRecorder();
     draw(ui.Canvas(recorder));
-    final ms = await _frameMs(recorder.endRecording());
+    final ms = await _frameMs(recorder.endRecording(), minInkPixels);
     if (index >= _warmupFrames) {
       samples.add(ms);
     }
@@ -146,6 +190,7 @@ void main() {
       for (final entry in targets.entries) {
         final info = await vg.loadPicture(AssetBytesLoader(entry.value), null);
         final samples = await _sampleFrameMs(
+          info.size,
           (canvas) => canvas
             ..scale(_overviewScale)
             ..drawPicture(info.picture),
@@ -192,11 +237,13 @@ void main() {
           kRouteMapFadedBasemapOpacity,
         );
       final plain = await _sampleFrameMs(
+        base.size,
         (canvas) => canvas
           ..scale(_overviewScale)
           ..drawPicture(base.picture),
       );
       final highlighted = await _sampleFrameMs(
+        base.size,
         (canvas) => canvas
           ..scale(_overviewScale)
           ..saveLayer(null, fadePaint)
@@ -266,6 +313,7 @@ void main() {
         devicePixelRatio: 1,
       );
       final samples = await _sampleFrameMs(
+        base.size,
         (canvas) => painter.paint(
           canvas,
           ui.Size(_frameWidth.toDouble(), _frameHeight.toDouble()),
