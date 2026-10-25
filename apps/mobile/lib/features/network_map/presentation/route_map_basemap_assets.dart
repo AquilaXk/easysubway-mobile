@@ -58,9 +58,6 @@ class RouteMapBasemapAssets {
   // [resetForTest]마다 올린다. 그 전에 시작한 로드는 끝나도 아무것도 남기거나 보고하지 않는다.
   int _generation = 0;
 
-  // loadString과 loadPicture는 async 함수라 첫 await에서 멈춘다. 그래서 아래 로드의 실패
-  // 정리는 `??=`가 그 로드를 기억한 뒤에 돈다.
-
   /// 읽고 검증한 색인의 [variant] 바탕·노선 레이어. 아직 읽지 않았으면 null.
   RouteMapBasemapVariantFiles? get files => _files;
 
@@ -90,6 +87,8 @@ class RouteMapBasemapAssets {
     _filesLoad = null;
   }
 
+  // loadString과 loadPicture는 async 함수라 첫 await에서 멈춘다. 그래서 두 로드의 실패 정리는
+  // [loadFiles]·[decode]의 `??=`가 그 로드를 기억한 뒤에 돈다.
   Future<RouteMapBasemapVariantFiles?> _readFiles(int generation) async {
     try {
       final json = await rootBundle.loadString(
