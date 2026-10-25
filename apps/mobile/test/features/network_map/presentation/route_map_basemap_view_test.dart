@@ -32,7 +32,7 @@ RouteMapBasemapVariantFiles _files(RouteMapBasemapAssets assets) =>
 String _overlay(RouteMapBasemapAssets assets, String lineId) =>
     _files(assets).overlayAssetFor(regionId: 'seoul', lineId: lineId);
 
-/// 앱처럼 권역마다 key를 달리한 바탕 뷰.
+/// 바탕 뷰. 권역을 바꿔도 부모가 key를 달아 주지 않는다.
 Widget _view(
   RouteMapBasemapAssets assets, {
   required String region,
@@ -41,7 +41,7 @@ Widget _view(
 }) => Directionality(
   textDirection: TextDirection.ltr,
   child: RouteMapBasemapView(
-    key: key ?? ValueKey(region),
+    key: key,
     region: region,
     camera: _camera,
     highlightedLineId: lineId,
@@ -178,11 +178,21 @@ void main() {
 
     String base(String regionId) => _files(assets).baseAssetFor(regionId);
 
-    testWidgets('매핑에 없는 권역은 바탕을 그리지 않는다', (tester) async {
-      await tester.pumpWidget(_view(assets, region: '알 수 없음'));
-      await tester.pumpAndSettle();
+    testWidgets('매핑에 없는 권역은 바탕을 그리지 않고 뷰마다 한 번 보고한다', (tester) async {
+      final errors = await _errorsDuring(() async {
+        await tester.pumpWidget(_view(assets, region: '알 수 없음'));
+        await _settleLoads(tester);
+        await tester.pumpWidget(
+          _view(assets, region: '알 수 없음', lineId: _seoulLine2Id),
+        );
+        await _settleLoads(tester);
+      });
 
       expect(_paintedPictures(tester), [null]);
+      expect(errors, hasLength(1));
+      expect(errors.single.library, 'network_map');
+      expect(errors.single.exception, isA<ArgumentError>());
+      expect(errors.single.context.toString(), contains('알 수 없음'));
     });
 
     testWidgets('권역을 바꿔 새로 만든 뷰는 한 번 디코드한 바탕을 첫 프레임에 바로 그린다', (tester) async {
@@ -198,12 +208,21 @@ void main() {
       expect(_paintedPictures(tester), [daejeon!.picture]);
     });
 
-    testWidgets('한 뷰의 권역을 제자리에서 바꾸면 assert로 막는다', (tester) async {
-      const key = ValueKey('같은 뷰');
-      await tester.pumpWidget(_view(assets, region: '대전', key: key));
-      await tester.pumpWidget(_view(assets, region: '광주', key: key));
+    testWidgets('같은 자리의 뷰가 권역을 바꾸면 이전 권역 바탕은 한 프레임도 남지 않는다', (tester) async {
+      await tester.pumpWidget(_view(assets, region: '대전'));
+      await _settleLoads(tester);
+      final daejeon = assets.picture(base('daejeon'))!.picture;
+      expect(_paintedPictures(tester), [daejeon]);
 
-      expect(tester.takeException(), isAssertionError);
+      await tester.pumpWidget(_view(assets, region: '광주'));
+
+      expect(_paintedPictures(tester), isNot(contains(daejeon)));
+
+      await _settleLoads(tester);
+
+      expect(_paintedPictures(tester), [
+        assets.picture(base('gwangju'))!.picture,
+      ]);
     });
 
     testWidgets('같은 권역을 그리는 두 뷰는 한 번 디코드한 같은 그림을 그린다', (tester) async {

@@ -1144,7 +1144,6 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       fit: StackFit.expand,
       children: [
         RouteMapBasemapView(
-          key: ValueKey(routeMapDisplayRegionName(data.selectedRegion)),
           region: routeMapDisplayRegionName(data.selectedRegion),
           camera: camera,
           sourceOrigin: sourceOrigin,

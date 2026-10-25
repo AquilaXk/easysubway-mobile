@@ -139,7 +139,7 @@ bool _drawsGaps(WidgetTester tester) => find
     .isNotEmpty;
 
 RouteMapBasemapTileCache _tiles(WidgetTester tester) => tester
-    .state<RouteMapBasemapViewState>(find.byType(RouteMapBasemapView))
+    .state<RouteMapBasemapLayersState>(find.byType(RouteMapBasemapLayers))
     .debugTiles;
 
 /// 카메라가 [kRouteMapBasemapRasterSettleDelay] 동안 멈춰 격자를 만든 프레임.

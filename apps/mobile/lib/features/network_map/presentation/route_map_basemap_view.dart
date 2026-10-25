@@ -130,9 +130,10 @@ void _paintAttribution(
 /// 하이브리드 노선도 바탕층 뷰. [region]의 바탕 .vec와 고른 노선 레이어를 [assets]의 변형에서
 /// 골라 디코드한 [ui.Picture]를 카메라 변경 시 transform만 바꿔 재생한다.
 ///
-/// [region]과 [assets]는 State마다 고정이다. 권역이 바뀌면 부모가 key를 달리해 새 뷰를 만든다
-/// (network_map_canvas.dart가 권역 이름을 key로 건다).
-class RouteMapBasemapView extends StatefulWidget {
+/// 상태를 쥐는 [RouteMapBasemapLayers]를 권역과 바탕 자료로 key를 걸어 만든다. 권역이나
+/// 바탕 자료가 바뀌면 이전 State와 그림이 버려지고 새로 만들어져, 이전 권역의 바탕이
+/// 남는 일이 구조상 없다.
+class RouteMapBasemapView extends StatelessWidget {
   const RouteMapBasemapView({
     required this.region,
     required this.camera,
@@ -143,7 +144,7 @@ class RouteMapBasemapView extends StatefulWidget {
     super.key,
   });
 
-  /// 앱 region(한글). 매핑에 없으면 바탕 미표시(빈 화면).
+  /// 앱 region(한글). 매핑에 없으면 바탕을 그리지 않고 한 번 보고한다.
   final String region;
   final MapCameraState camera;
 
@@ -159,12 +160,47 @@ class RouteMapBasemapView extends StatefulWidget {
   final RouteMapBasemapAssets? assets;
 
   @override
-  State<RouteMapBasemapView> createState() => RouteMapBasemapViewState();
+  Widget build(BuildContext context) {
+    final source = assets ?? RouteMapBasemapAssets.shared;
+    return RouteMapBasemapLayers(
+      key: ValueKey((region, source)),
+      region: region,
+      camera: camera,
+      sourceOrigin: sourceOrigin,
+      attributionText: attributionText,
+      highlightedLineId: highlightedLineId,
+      assets: source,
+    );
+  }
 }
 
-class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
-  late final RouteMapBasemapAssets _assets =
-      widget.assets ?? RouteMapBasemapAssets.shared;
+/// [RouteMapBasemapView]가 권역마다 만드는 바탕 그림 상태. 그릴 자산과 타일 격자는 이
+/// State의 [region]과 [assets]에서만 정해진다.
+class RouteMapBasemapLayers extends StatefulWidget {
+  const RouteMapBasemapLayers({
+    required this.region,
+    required this.camera,
+    required this.sourceOrigin,
+    required this.attributionText,
+    required this.highlightedLineId,
+    required this.assets,
+    super.key,
+  });
+
+  final String region;
+  final MapCameraState camera;
+  final Offset sourceOrigin;
+  final String? attributionText;
+  final String? highlightedLineId;
+  final RouteMapBasemapAssets assets;
+
+  @override
+  State<RouteMapBasemapLayers> createState() => RouteMapBasemapLayersState();
+}
+
+class RouteMapBasemapLayersState extends State<RouteMapBasemapLayers> {
+  late final RouteMapBasemapAssets _assets = widget.assets;
+  late final String? _regionId = kRouteMapBasemapRegionToId[widget.region];
   // 색인을 기다리는 중인지. 기다리는 동안 노선을 몇 번 바꿔도 이어 실행은 하나다.
   bool _awaitingFiles = false;
   // 지금 그리려는 바탕과 노선 레이어 자산. 그림은 [_assets]에서 꺼내므로 이 자산의 그림만
@@ -185,17 +221,19 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   @override
   void initState() {
     super.initState();
+    if (_regionId == null) {
+      reportRouteMapBasemapFailure(
+        ArgumentError.value(widget.region, 'region', '바탕 색인에 없는 권역'),
+        StackTrace.current,
+        '노선도 바탕 권역 매핑 실패(${widget.region})',
+      );
+    }
     _syncLayers();
   }
 
   @override
-  void didUpdateWidget(RouteMapBasemapView oldWidget) {
+  void didUpdateWidget(RouteMapBasemapLayers oldWidget) {
     super.didUpdateWidget(oldWidget);
-    assert(
-      oldWidget.region == widget.region &&
-          identical(oldWidget.assets, widget.assets),
-      'RouteMapBasemapView는 한 State에서 권역과 바탕 자료를 바꾸지 않는다. 권역마다 key를 달리한다.',
-    );
     if (oldWidget.highlightedLineId != widget.highlightedLineId) {
       _syncLayers();
     }
@@ -207,7 +245,7 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
   void _syncLayers() {
     _baseAsset = null;
     _overlayAsset = null;
-    final regionId = kRouteMapBasemapRegionToId[widget.region];
+    final regionId = _regionId;
     if (regionId == null) {
       return;
     }
@@ -216,18 +254,20 @@ class RouteMapBasemapViewState extends State<RouteMapBasemapView> {
       _syncWhenFilesLoad();
       return;
     }
-    _decodeIfMissing(_baseAsset = files.baseAssetFor(regionId));
+    final baseAsset = files.baseAssetFor(regionId);
+    _baseAsset = baseAsset;
+    _decodeIfMissing(baseAsset);
     final lineId = widget.highlightedLineId;
     if (lineId == null) {
       return;
     }
     try {
-      _decodeIfMissing(
-        _overlayAsset = files.overlayAssetFor(
-          regionId: regionId,
-          lineId: lineId,
-        ),
+      final overlayAsset = files.overlayAssetFor(
+        regionId: regionId,
+        lineId: lineId,
       );
+      _overlayAsset = overlayAsset;
+      _decodeIfMissing(overlayAsset);
     } on RouteMapLineOverlayMissing catch (error, stack) {
       reportRouteMapBasemapFailure(
         error,
