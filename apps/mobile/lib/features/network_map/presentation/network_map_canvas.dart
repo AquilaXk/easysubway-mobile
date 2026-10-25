@@ -19,7 +19,7 @@ import '../domain/network_map_station_aligner.dart';
 import '../domain/network_map_station_selection.dart';
 import '../domain/route_map_design_space.dart';
 import '../domain/route_map_line_overlay_index.dart'
-    show kRouteMapBasemapRegionToId;
+    show routeMapBasemapRegionId;
 import '../domain/route_map_min_scale.dart';
 import '../domain/route_map_owner_labels.dart';
 import '../domain/route_map_owner_nodes.dart';
@@ -203,10 +203,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   Object? _alignedDataOwnerEntries;
 
   NetworkMapData _alignedData(NetworkMapData data) {
-    final basemapAssetId =
-        kRouteMapBasemapRegionToId[routeMapDisplayRegionName(
-          data.selectedRegion,
-        )];
+    final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
     final ownerNodes = basemapAssetId == null
         ? null
         : _ownerNodesByRegion?[basemapAssetId];
@@ -807,16 +804,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     // 로드 전엔 null → 라벨 rect 없이 계산되지만, 로드가 끝나면 setState로 rebuild
     // 되며 ownerKey가 바뀌어 캐시가 무효화되고 라벨 extents를 포함해 재계산된다
     // (stale bounds 방지 — sidecar 로드 전/후 캐시 키 구분).
-    //
-    // data.selectedRegion은 drift_station_repository._storedNetworkMapRegion이
-    // 만든 저장형('광주권' 등 접미 포함)이라 kRouteMapBasemapRegionToId의 짧은
-    // 키('광주')와 직접 안 맞는다 — routeMapDisplayRegionName으로 정규화해야 조회가
-    // 성공한다(실기기 회귀: 정규화 누락으로 basemapAssetId가 항상 null이 돼
-    // 라벨이 bounds에 전혀 반영되지 않았다, #2068).
-    final basemapAssetId =
-        kRouteMapBasemapRegionToId[routeMapDisplayRegionName(
-          data.selectedRegion,
-        )];
+    final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
     final ownerEntries = basemapAssetId == null
         ? null
         : _ownerLabelsByRegion?[basemapAssetId];
@@ -851,10 +839,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   /// build는 팬 프레임마다 호출되므로 [_geometryFor]와 같은 키 규칙으로 캐시해
   /// 라벨 수백~수천 건 중앙값 계산이 매 프레임 반복되지 않게 한다.
   double? _readableInitialMapScaleFor(NetworkMapData data) {
-    final basemapAssetId =
-        kRouteMapBasemapRegionToId[routeMapDisplayRegionName(
-          data.selectedRegion,
-        )];
+    final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
     final ownerEntries = basemapAssetId == null
         ? null
         : _ownerLabelsByRegion?[basemapAssetId];

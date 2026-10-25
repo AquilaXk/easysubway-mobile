@@ -130,9 +130,10 @@ void _paintAttribution(
 /// 하이브리드 노선도 바탕층 뷰. [region]의 바탕 .vec와 고른 노선 레이어를 [assets]의 변형에서
 /// 골라 디코드한 [ui.Picture]를 카메라 변경 시 transform만 바꿔 재생한다.
 ///
-/// 상태를 쥐는 [RouteMapBasemapLayers]를 권역과 바탕 자료로 key를 걸어 만든다. 권역이나
+/// 상태를 쥐는 [_RouteMapBasemapLayers]를 권역과 바탕 자료로 key를 걸어 만든다. 권역이나
 /// 바탕 자료가 바뀌면 이전 State와 그림이 버려지고 새로 만들어져, 이전 권역의 바탕이
-/// 남는 일이 구조상 없다.
+/// 남는 일이 구조상 없다. 그 클래스는 이 라이브러리 밖에서 만들 수 없어 key 없이 만들 길도
+/// 없다.
 class RouteMapBasemapView extends StatelessWidget {
   const RouteMapBasemapView({
     required this.region,
@@ -162,7 +163,7 @@ class RouteMapBasemapView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final source = assets ?? RouteMapBasemapAssets.shared;
-    return RouteMapBasemapLayers(
+    return _RouteMapBasemapLayers(
       key: ValueKey((region, source)),
       region: region,
       camera: camera,
@@ -174,10 +175,21 @@ class RouteMapBasemapView extends StatelessWidget {
   }
 }
 
+/// [view]가 만든 바탕 그림 상태가 쥔 타일 캐시. 굽은 타일 수를 읽는 테스트가 쓴다.
+@visibleForTesting
+RouteMapBasemapTileCache debugRouteMapBasemapTiles(Element view) {
+  RouteMapBasemapTileCache? tiles;
+  view.visitChildElements((layers) {
+    tiles = ((layers as StatefulElement).state as _RouteMapBasemapLayersState)
+        ._tiles;
+  });
+  return tiles!;
+}
+
 /// [RouteMapBasemapView]가 권역마다 만드는 바탕 그림 상태. 그릴 자산과 타일 격자는 이
 /// State의 [region]과 [assets]에서만 정해진다.
-class RouteMapBasemapLayers extends StatefulWidget {
-  const RouteMapBasemapLayers({
+class _RouteMapBasemapLayers extends StatefulWidget {
+  const _RouteMapBasemapLayers({
     required this.region,
     required this.camera,
     required this.sourceOrigin,
@@ -195,12 +207,12 @@ class RouteMapBasemapLayers extends StatefulWidget {
   final RouteMapBasemapAssets assets;
 
   @override
-  State<RouteMapBasemapLayers> createState() => RouteMapBasemapLayersState();
+  State<_RouteMapBasemapLayers> createState() => _RouteMapBasemapLayersState();
 }
 
-class RouteMapBasemapLayersState extends State<RouteMapBasemapLayers> {
+class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   late final RouteMapBasemapAssets _assets = widget.assets;
-  late final String? _regionId = kRouteMapBasemapRegionToId[widget.region];
+  late final String? _regionId = routeMapBasemapRegionId(widget.region);
   // 색인을 기다리는 중인지. 기다리는 동안 노선을 몇 번 바꿔도 이어 실행은 하나다.
   bool _awaitingFiles = false;
   // 지금 그리려는 바탕과 노선 레이어 자산. 그림은 [_assets]에서 꺼내므로 이 자산의 그림만
@@ -214,9 +226,6 @@ class RouteMapBasemapLayersState extends State<RouteMapBasemapLayers> {
   final RouteMapBasemapTileCache _tiles = RouteMapBasemapTileCache();
   ({RouteMapBasemapTileContent content, Timer timer})? _pendingTileGrid;
   bool _bakeFrameScheduled = false;
-
-  @visibleForTesting
-  RouteMapBasemapTileCache get debugTiles => _tiles;
 
   @override
   void initState() {
@@ -232,7 +241,7 @@ class RouteMapBasemapLayersState extends State<RouteMapBasemapLayers> {
   }
 
   @override
-  void didUpdateWidget(RouteMapBasemapLayers oldWidget) {
+  void didUpdateWidget(_RouteMapBasemapLayers oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.highlightedLineId != widget.highlightedLineId) {
       _syncLayers();

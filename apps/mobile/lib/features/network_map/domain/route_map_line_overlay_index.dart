@@ -1,12 +1,15 @@
 import 'dart:convert' show jsonDecode;
 
+import 'route_map_min_scale.dart' show routeMapDisplayRegionName;
+
 /// 노선도 바탕 .vec와 노선 강조 레이어가 함께 들어 있는 자산 폴더. pubspec.yaml에
 /// 폴더째 등록돼 있다.
 const String kRouteMapBasemapAssetDir =
     'assets/datapacks/metro_map_pack/basemap';
 
-/// `widget.data.selectedRegion`(한글) → 바탕 색인 권역 id. 색인은 변형마다 이 권역 id 집합과
-/// 정확히 같아야 읽힌다.
+/// 권역 표시 이름([routeMapDisplayRegionName] 결과) → 바탕 색인 권역 id. 색인은 변형마다 이
+/// 권역 id 집합과 정확히 같아야 읽힌다. 저장 이름('광주권')으로는 조회되지 않으니
+/// [routeMapBasemapRegionId]로 찾는다.
 const Map<String, String> kRouteMapBasemapRegionToId = {
   '수도권': 'seoul',
   '부산': 'busan',
@@ -14,6 +17,13 @@ const Map<String, String> kRouteMapBasemapRegionToId = {
   '대구': 'daegu',
   '대전': 'daejeon',
 };
+
+/// [region]의 바탕 색인 권역 id. 저장 이름('광주권')과 표시 이름('광주')을 모두 받고, 앱이
+/// 그리지 않는 권역이면 null이다. 조회 전에 표시 이름으로 정규화하는 일을 호출부가 아니라
+/// 이 함수가 맡는다. 정규화를 빠뜨린 조회는 늘 null이 되어 오너 라벨이 지도 범위에 전혀
+/// 반영되지 않았다(#2068).
+String? routeMapBasemapRegionId(String region) =>
+    kRouteMapBasemapRegionToId[routeMapDisplayRegionName(region)];
 
 /// data 레포 바탕 컴파일러(`tools/route-map/compile-basemap-vec.mjs`)가 굽는 바탕·노선
 /// 강조 레이어 색인.
@@ -68,14 +78,15 @@ final class RouteMapLineOverlayMissing implements Exception {
 /// 권역 바탕과 노선 id → 노선 레이어의 번들 자산 경로.
 typedef _RegionAssets = ({String base, Map<String, String> lines});
 
-/// 한 변형의 권역 바탕과 노선 강조 레이어. 권역은 [RouteMapLineOverlayIndex.parse]에
-/// 넘긴 권역과 정확히 같다.
+/// 한 변형의 권역 바탕과 노선 강조 레이어. 권역은 [kRouteMapBasemapRegionToId] 값과 정확히
+/// 같다.
 class RouteMapBasemapVariantFiles {
   const RouteMapBasemapVariantFiles._(this._regions);
 
   final Map<String, _RegionAssets> _regions;
 
-  /// [regionId] 권역 바탕의 자산 경로. 색인을 읽을 때 넘긴 권역이 아니면 [ArgumentError].
+  /// [regionId] 권역 바탕의 자산 경로. [kRouteMapBasemapRegionToId] 값이 아니면
+  /// [ArgumentError].
   String baseAssetFor(String regionId) =>
       (_regions[regionId] ??
               (throw ArgumentError.value(
@@ -106,7 +117,7 @@ class RouteMapLineOverlayIndex {
   const RouteMapLineOverlayIndex._(this._variants);
 
   /// 색인 JSON을 읽는다. 모르는 schemaVersion, 다른 산출물 종류, 빠지거나 모르는 변형,
-  /// 권역이 [kRouteMapBasemapRegionToId]와 다른 변형, 변형끼리 다른 노선, 두 항목이 함께
+  /// 권역이 [kRouteMapBasemapRegionToId] 값과 다른 변형, 변형끼리 다른 노선, 두 항목이 함께
   /// 가리키는 파일, sha256이 없는 파일, 모양이 다른 항목은 [FormatException]으로 실패한다.
   factory RouteMapLineOverlayIndex.parse(String json) {
     final root = _objectOf(jsonDecode(json), '최상위');
@@ -163,7 +174,7 @@ Map<String, dynamic> _objectOf(Object? value, String path) {
   return value;
 }
 
-/// 색인 한 개를 읽는 동안 앱 권역과, 이미 다른 항목이 가리킨 파일을 들고 있다.
+/// 색인 한 개를 읽는 동안 이미 다른 항목이 가리킨 .vec 파일을 들고 있다.
 class _IndexReader {
   final Set<String> _seenVectors = {};
 

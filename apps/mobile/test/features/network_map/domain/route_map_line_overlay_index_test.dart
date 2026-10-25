@@ -78,6 +78,43 @@ Matcher _rejects(String reason) => throwsA(
 );
 
 void main() {
+  group('권역 이름에서 바탕 권역 id를 찾는다', () {
+    test('표시 이름과 저장 이름이 같은 id로 풀린다', () {
+      expect(
+        {
+          for (final region in [
+            '수도권',
+            '부산',
+            '부산권',
+            '광주',
+            '광주권',
+            '대구',
+            '대구권',
+            '대전',
+            '대전권',
+          ])
+            region: routeMapBasemapRegionId(region),
+        },
+        {
+          '수도권': 'seoul',
+          '부산': 'busan',
+          '부산권': 'busan',
+          '광주': 'gwangju',
+          '광주권': 'gwangju',
+          '대구': 'daegu',
+          '대구권': 'daegu',
+          '대전': 'daejeon',
+          '대전권': 'daejeon',
+        },
+      );
+    });
+
+    test('앱이 그리지 않는 권역은 null이다', () {
+      expect(routeMapBasemapRegionId('알 수 없음'), isNull);
+      expect(routeMapBasemapRegionId(''), isNull);
+    });
+  });
+
   group('렌더러에 맞는 변형', () {
     test('Impeller는 윤곽선 라벨 변형을 그린다', () {
       expect(

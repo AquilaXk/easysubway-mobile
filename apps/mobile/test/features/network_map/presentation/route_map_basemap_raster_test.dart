@@ -133,9 +133,8 @@ bool _drawsGaps(WidgetTester tester) => find
     .evaluate()
     .isNotEmpty;
 
-RouteMapBasemapTileCache _tiles(WidgetTester tester) => tester
-    .state<RouteMapBasemapLayersState>(find.byType(RouteMapBasemapLayers))
-    .debugTiles;
+RouteMapBasemapTileCache _tiles(WidgetTester tester) =>
+    debugRouteMapBasemapTiles(tester.element(find.byType(RouteMapBasemapView)));
 
 /// 뷰가 [lineId]에 맞는 그림(바탕, 노선을 골랐으면 노선 레이어까지)을 모두 그릴 때까지 기다린다.
 Future<void> _paintLoaded(WidgetTester tester, {String? lineId}) =>

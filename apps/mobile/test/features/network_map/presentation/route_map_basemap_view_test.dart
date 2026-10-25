@@ -177,6 +177,18 @@ void main() {
       expect(errors.single.context.toString(), contains('알 수 없음'));
     });
 
+    testWidgets('저장 이름 권역도 표시 이름과 같은 바탕을 그린다', (tester) async {
+      final errors = await _errorsDuring((_) async {
+        await tester.pumpWidget(_view(assets, region: '광주권'));
+        await pumpUntilBasemapPainted(tester);
+      });
+
+      expect(errors, isEmpty);
+      expect(paintedBasemapPictures(tester), [
+        assets.picture(base('gwangju'))!.picture,
+      ]);
+    });
+
     testWidgets('권역을 바꿔 새로 만든 뷰는 한 번 디코드한 바탕을 첫 프레임에 바로 그린다', (tester) async {
       await tester.pumpWidget(_view(assets, region: '대전'));
       await pumpUntilBasemapPainted(tester);
@@ -204,6 +216,24 @@ void main() {
 
       expect(paintedBasemapPictures(tester), [
         assets.picture(base('gwangju'))!.picture,
+      ]);
+    });
+
+    testWidgets('같은 자리의 뷰가 같은 권역에서 바탕 자료만 바꾸면 새 자료의 그림을 그린다', (tester) async {
+      final other = RouteMapBasemapAssets(variant: RouteMapBasemapVariant.text);
+      addTearDown(other.resetForTest);
+      await tester.pumpWidget(_view(assets, region: '대전'));
+      await pumpUntilBasemapPainted(tester);
+      final fromFirst = assets.picture(base('daejeon'))!.picture;
+
+      await tester.pumpWidget(_view(other, region: '대전'));
+
+      expect(paintedBasemapPictures(tester), isNot(contains(fromFirst)));
+
+      await pumpUntilBasemapPainted(tester);
+
+      expect(paintedBasemapPictures(tester), [
+        other.picture(base('daejeon'))!.picture,
       ]);
     });
 
