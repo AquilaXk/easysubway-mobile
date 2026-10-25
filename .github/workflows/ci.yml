@@ -366,20 +366,16 @@ jobs:
             --inventory "${RUNNER_TEMP}/mobile-host-test-inventory.json" \
             --report "${RUNNER_TEMP}/mobile-host-test-events.json" \
             --summary "${RUNNER_TEMP}/mobile-host-test-parity.json"
-      # 노선도 바탕 래스터 프레임 상한 확인. 앱은 렌더러에 맞는 바탕 변형을 그린다. 위 전체 실행은
-      # Skia 소프트웨어 래스터라 텍스트 라벨 변형을 재고 값은 기록만 한다. 이 단계는 SwiftShader 위
-      # Impeller Vulkan으로 Impeller 기기군(Android API 29 이상, iOS)이 쓰는 윤곽선 라벨 변형의
-      # 래스터 스레드 시간 p50이 33.3 ms 아래인지 본다. 이 값은 상한 확인이고 회귀 게이트가 아니다.
-      # 이 러너에서 잰 가장 큰 p50은 9.5 ms(흐린 바탕 강조 프레임)라 3배 넘게 느려져도 통과한다.
-      # 회귀는 실기기 교대 측정이 잡는다.
-      # 그린 픽셀이 너무 적은 빈 프레임은 실패한다. Skia OpenGLES 기기군(Android API 24~28,
-      # Vivante GPU)이 쓰는 텍스트 라벨 변형과 GPU를 포함한 프레임은
+      # 노선도 바탕 래스터 프레임 상한 확인. 위 전체 실행은 Skia 소프트웨어 래스터라 텍스트 라벨
+      # 변형을 재고 값은 기록만 한다. 이 단계는 SwiftShader 위 Impeller Vulkan으로 Impeller 기기군이
+      # 쓰는 윤곽선 라벨 변형을 고르는지와 래스터 스레드 시간 p50이 상한 아래인지 본다. 회귀 게이트가
+      # 아니다. 회귀와 Skia OpenGLES 기기군의 텍스트 라벨 변형은
       # test/evidence/perf-route-map-raster-517의 실기기 교대 측정 원자료가 맡는다.
       - name: Raster frame upper bound (Impeller)
         working-directory: apps/mobile
         run: >-
           flutter test --enable-impeller
-          --dart-define=ROUTE_MAP_RASTER_GATE_IMPELLER=true
+          --dart-define=ROUTE_MAP_RASTER_UPPER_BOUND_IMPELLER=true
           test/features/network_map/presentation/route_map_basemap_perf_test.dart
       - name: Filter mobile coverage
         run: |

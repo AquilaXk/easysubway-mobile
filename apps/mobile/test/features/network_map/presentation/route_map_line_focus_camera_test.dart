@@ -3,7 +3,7 @@ import 'package:easysubway_mobile/features/network_map/data/network_map_owner_no
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_canvas.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -89,7 +89,7 @@ void main() {
   tearDown(() {
     resetNetworkMapOwnerLabelsCacheForTest();
     resetNetworkMapOwnerNodesCacheForTest();
-    RouteMapBasemapViewState.clearPictureCacheForTest();
+    RouteMapBasemapAssets.shared.resetForTest();
   });
 
   testWidgets('지도에 역이 없는 노선을 고르면 카메라를 옮기지 않는다', (tester) async {

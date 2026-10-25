@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -53,7 +54,9 @@ Widget _map({
         size: _viewport,
         child: ColoredBox(
           color: const Color(0xFFFFFFFF),
+          // 앱처럼 권역마다 key를 달리해 권역이 바뀌면 새 뷰를 만든다.
           child: RouteMapBasemapView(
+            key: ValueKey(region),
             region: region,
             camera: _camera,
             highlightedLineId: lineId,
@@ -127,7 +130,7 @@ Future<Uint8List> _reference(
 
 /// 엔진 렌더러가 고른 변형. 화면은 이 변형으로 그려지므로 기준 이미지도 같은 변형으로 그린다.
 final RouteMapBasemapVariantFiles _engineFiles = bundledBasemapIndex.variant(
-  RouteMapBasemapViewState.variant,
+  RouteMapBasemapAssets.shared.variant,
 );
 
 String _overlayAsset(String lineId) =>
@@ -197,7 +200,7 @@ void main() {
   final seoulBase = _engineFiles.baseAssetFor('seoul');
   final busanBase = _engineFiles.baseAssetFor('busan');
 
-  tearDown(RouteMapBasemapViewState.clearPictureCacheForTest);
+  tearDown(RouteMapBasemapAssets.shared.resetForTest);
 
   testWidgets('전체 노선은 바탕을 흐리지 않고 그대로 그린다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
@@ -276,29 +279,15 @@ void main() {
     await _settleLoads(tester);
     final highlighted = await _screen(tester);
     final overlayAsset = _overlayAsset(_uiSinseolLineId);
-    final state = tester.state<RouteMapBasemapViewState>(
-      find.byType(RouteMapBasemapView),
-    );
-    final decoded = state.debugPictureCache[overlayAsset];
+    final decoded = RouteMapBasemapAssets.shared.picture(overlayAsset);
+    expect(decoded, isNotNull);
 
     await tester.pumpWidget(_map(region: '수도권'));
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
 
     expect(_maxChannelDiff(await _screen(tester), highlighted), 0);
     await _settleLoads(tester);
-    expect(state.debugPictureCache[overlayAsset], same(decoded));
-  });
-
-  testWidgets('권역을 바꾸면 이전 권역 노선 레이어를 지우고 새 바탕을 그대로 그린다', (tester) async {
-    await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-    await _settleLoads(tester);
-
-    await tester.pumpWidget(_map(region: '부산'));
-    await _settleLoads(tester);
-
-    final screen = await _screen(tester);
-    final base = await _reference(tester, [busanBase]);
-    expect(_maxChannelDiff(screen, base), lessThanOrEqualTo(_channelTolerance));
+    expect(RouteMapBasemapAssets.shared.picture(overlayAsset), same(decoded));
   });
 
   group('레이어를 그리지 못하면 오류로 드러내고 바탕을 흐리지 않는다', () {

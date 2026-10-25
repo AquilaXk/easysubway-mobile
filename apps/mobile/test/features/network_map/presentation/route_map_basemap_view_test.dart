@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -12,11 +14,40 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../../support/basemap_index.dart';
 
 const _uiSinseolLineId = 'line-30886152e4f8';
+const _seoulLine2Id = 'seoul-2';
 
-/// 엔진 렌더러가 고른 변형의 [regionId] 권역 바탕.
-String _engineBase(String regionId) => bundledBasemapIndex
-    .variant(RouteMapBasemapViewState.variant)
-    .baseAssetFor(regionId);
+const _camera = MapCameraState(
+  sourceBounds: Rect.fromLTWH(0, 0, 1000, 1000),
+  viewportSize: Size(400, 800),
+  center: Offset(500, 500),
+  scale: 2.0,
+  minScale: 0.5,
+  maxScale: 10.0,
+  revision: 1,
+);
+
+RouteMapBasemapVariantFiles _files(RouteMapBasemapAssets assets) =>
+    bundledBasemapIndex.variant(assets.variant);
+
+String _overlay(RouteMapBasemapAssets assets, String lineId) =>
+    _files(assets).overlayAssetFor(regionId: 'seoul', lineId: lineId);
+
+/// 앱처럼 권역마다 key를 달리한 바탕 뷰.
+Widget _view(
+  RouteMapBasemapAssets assets, {
+  required String region,
+  String? lineId,
+  Key? key,
+}) => Directionality(
+  textDirection: TextDirection.ltr,
+  child: RouteMapBasemapView(
+    key: key ?? ValueKey(region),
+    region: region,
+    camera: _camera,
+    highlightedLineId: lineId,
+    assets: assets,
+  ),
+);
 
 /// 바탕 뷰가 지금 그리는 그림. 노선을 골랐으면 흐린 바탕, 노선 레이어 순이다.
 List<ui.Picture?> _paintedPictures(WidgetTester tester) => tester
@@ -37,64 +68,41 @@ Future<void> _settleLoads(WidgetTester tester) async {
   }
 }
 
-/// [assets]에 든 키는 그 바이트로, 나머지 자산 키는 번들 파일 그대로 답한다. 값이 null이면
-/// 읽기 실패다.
-void _serveAssets(Map<String, ByteData?> assets) {
-  TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-      .setMockMessageHandler('flutter/assets', (message) async {
-        final key = Uri.decodeFull(utf8.decode(message!.buffer.asUint8List()));
-        if (assets.containsKey(key)) return assets[key];
-        return ByteData.sublistView(File(key).readAsBytesSync());
-      });
+/// [body]가 도는 동안 보고된 Flutter 오류.
+Future<List<FlutterErrorDetails>> _errorsDuring(
+  Future<void> Function() body,
+) async {
+  final errors = <FlutterErrorDetails>[];
+  final previousOnError = FlutterError.onError;
+  FlutterError.onError = errors.add;
+  try {
+    await body();
+  } finally {
+    FlutterError.onError = previousOnError;
+  }
+  return errors;
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const camera = MapCameraState(
-    sourceBounds: Rect.fromLTWH(0, 0, 1000, 1000),
-    viewportSize: Size(400, 800),
-    center: Offset(500, 500),
-    scale: 2.0,
-    minScale: 0.5,
-    maxScale: 10.0,
-    revision: 1,
-  );
-
   group('렌더러 변형', () {
-    tearDown(RouteMapBasemapViewState.clearPictureCacheForTest);
-
     for (final variant in RouteMapBasemapVariant.values) {
       testWidgets('${variant.indexKey} 변형이면 바탕과 노선 레이어를 모두 그 변형 파일로 그린다', (
         tester,
       ) async {
-        RouteMapBasemapViewState.overrideVariantForTest(variant);
+        final assets = RouteMapBasemapAssets(variant: variant);
+        addTearDown(assets.resetForTest);
         await tester.pumpWidget(
-          const Directionality(
-            textDirection: TextDirection.ltr,
-            child: RouteMapBasemapView(
-              region: '수도권',
-              camera: camera,
-              highlightedLineId: _uiSinseolLineId,
-            ),
-          ),
+          _view(assets, region: '수도권', lineId: _uiSinseolLineId),
         );
         await _settleLoads(tester);
 
-        final state = tester.state<RouteMapBasemapViewState>(
-          find.byType(RouteMapBasemapView),
-        );
-        final files = bundledBasemapIndex.variant(variant);
-        final base = state.debugPictureCache[files.baseAssetFor('seoul')];
-        final overlay =
-            state.debugPictureCache[files.overlayAssetFor(
-              regionId: 'seoul',
-              lineId: _uiSinseolLineId,
-            )];
-        expect(_paintedPictures(tester), [base?.picture, overlay?.picture]);
+        final base = assets.picture(_files(assets).baseAssetFor('seoul'));
+        final overlay = assets.picture(_overlay(assets, _uiSinseolLineId));
         expect(base, isNotNull);
         expect(overlay, isNotNull);
-        expect(state.debugPictureCache, hasLength(2));
+        expect(_paintedPictures(tester), [base!.picture, overlay!.picture]);
       });
     }
   });
@@ -104,7 +112,7 @@ void main() {
       const origin = Offset(100, 50);
       final painter = RouteMapBasemapPainter(
         picture: null,
-        camera: camera,
+        camera: _camera,
         sourceOrigin: origin,
       );
 
@@ -118,13 +126,13 @@ void main() {
     test('shouldRepaint는 카메라, picture, sourceOrigin, attribution 변화를 감지한다', () {
       final painter1 = RouteMapBasemapPainter(
         picture: null,
-        camera: camera,
+        camera: _camera,
         sourceOrigin: Offset.zero,
         attributionText: '출처 A',
       );
       final painter2 = RouteMapBasemapPainter(
         picture: null,
-        camera: camera,
+        camera: _camera,
         sourceOrigin: Offset.zero,
         attributionText: '출처 A',
       );
@@ -132,7 +140,7 @@ void main() {
 
       final painterCameraChanged = RouteMapBasemapPainter(
         picture: null,
-        camera: camera.copyWith(scale: 3.0),
+        camera: _camera.copyWith(scale: 3.0),
         sourceOrigin: Offset.zero,
         attributionText: '출처 A',
       );
@@ -140,7 +148,7 @@ void main() {
 
       final painterOriginChanged = RouteMapBasemapPainter(
         picture: null,
-        camera: camera,
+        camera: _camera,
         sourceOrigin: const Offset(10, 10),
         attributionText: '출처 A',
       );
@@ -148,7 +156,7 @@ void main() {
 
       final painterAttributionChanged = RouteMapBasemapPainter(
         picture: null,
-        camera: camera,
+        camera: _camera,
         sourceOrigin: Offset.zero,
         attributionText: '출처 B',
       );
@@ -156,183 +164,107 @@ void main() {
     });
   });
 
-  group('RouteMapBasemapView 위젯 및 캐시 수명주기', () {
-    tearDown(RouteMapBasemapViewState.clearPictureCacheForTest);
+  group('RouteMapBasemapView 위젯과 자산 수명주기', () {
+    late RouteMapBasemapAssets assets;
 
-    testWidgets('매핑에 없는 권역은 바탕을 그리지 않고 안전하게 유지한다', (tester) async {
-      await tester.pumpWidget(
-        const Directionality(
-          textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(region: '알 수 없음', camera: camera),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final customPaint = tester.widget<CustomPaint>(find.byType(CustomPaint));
-      final painter = customPaint.painter as RouteMapBasemapPainter;
-      expect(painter.picture, isNull);
+    setUp(() {
+      assets = RouteMapBasemapAssets(variant: RouteMapBasemapVariant.text);
     });
 
-    testWidgets('권역 로드 후 _pictureCache에 캐시되고 권역 전환 후 복귀 시 재사용된다', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        const Directionality(
-          textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(region: '대전', camera: camera),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final state = tester.state<RouteMapBasemapViewState>(
-        find.byType(RouteMapBasemapView),
-      );
-      final daejeonAsset = _engineBase('daejeon');
-      expect(state.debugPictureCache.containsKey(daejeonAsset), isTrue);
-      final daejeonPicture = state.debugPictureCache[daejeonAsset];
-      expect(daejeonPicture, isNotNull);
-
-      // 광주로 전환
-      await tester.pumpWidget(
-        const Directionality(
-          textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(region: '광주', camera: camera),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      final gwangjuAsset = _engineBase('gwangju');
-      expect(state.debugPictureCache.containsKey(gwangjuAsset), isTrue);
-      expect(state.debugPictureCache.containsKey(daejeonAsset), isTrue);
-
-      // 대전으로 즉시 복귀: 캐시된 Picture를 그대로 재사용하여 pendingLoad가 생기지 않는다.
-      await tester.pumpWidget(
-        const Directionality(
-          textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(region: '대전', camera: camera),
-        ),
-      );
-      expect(state.debugPendingLoads.containsKey(daejeonAsset), isFalse);
-      expect(
-        identical(state.debugPictureCache[daejeonAsset], daejeonPicture),
-        isTrue,
-      );
-
-      final customPaint = tester.widget<CustomPaint>(find.byType(CustomPaint));
-      final painter = customPaint.painter as RouteMapBasemapPainter;
-      expect(identical(painter.picture, daejeonPicture!.picture), isTrue);
+    tearDown(() {
+      assets.resetForTest();
+      stopServingBasemapAssets();
     });
 
-    testWidgets('유효한 권역 로드 후 매핑에 없는 권역으로 변경되면 _picture가 null로 초기화된다', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        const Directionality(
-          textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(region: '대전', camera: camera),
-        ),
-      );
+    String base(String regionId) => _files(assets).baseAssetFor(regionId);
+
+    testWidgets('매핑에 없는 권역은 바탕을 그리지 않는다', (tester) async {
+      await tester.pumpWidget(_view(assets, region: '알 수 없음'));
       await tester.pumpAndSettle();
 
-      var customPaint = tester.widget<CustomPaint>(find.byType(CustomPaint));
-      var painter = customPaint.painter as RouteMapBasemapPainter;
-      expect(painter.picture, isNotNull);
-
-      await tester.pumpWidget(
-        const Directionality(
-          textDirection: TextDirection.ltr,
-          child: RouteMapBasemapView(region: '미지의권역', camera: camera),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      customPaint = tester.widget<CustomPaint>(find.byType(CustomPaint));
-      painter = customPaint.painter as RouteMapBasemapPainter;
-      expect(painter.picture, isNull);
+      expect(_paintedPictures(tester), [null]);
     });
 
-    testWidgets('동일 권역을 그리는 두 위젯이 동시 마운트될 때 pendingLoad를 공유하여 로드한다', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        const Directionality(
-          textDirection: TextDirection.ltr,
-          child: Stack(
-            children: [
-              RouteMapBasemapView(region: '대구', camera: camera),
-              RouteMapBasemapView(region: '대구', camera: camera),
-            ],
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
+    testWidgets('권역을 바꿔 새로 만든 뷰는 한 번 디코드한 바탕을 첫 프레임에 바로 그린다', (tester) async {
+      await tester.pumpWidget(_view(assets, region: '대전'));
+      await _settleLoads(tester);
+      final daejeon = assets.picture(base('daejeon'));
+      expect(daejeon, isNotNull);
 
-      final paints = tester
-          .widgetList<CustomPaint>(find.byType(CustomPaint))
-          .toList();
-      expect(paints.length, 2);
-      final p1 = paints[0].painter as RouteMapBasemapPainter;
-      final p2 = paints[1].painter as RouteMapBasemapPainter;
-      expect(p1.picture, isNotNull);
-      expect(p2.picture, isNotNull);
-      expect(identical(p1.picture, p2.picture), isTrue);
+      await tester.pumpWidget(_view(assets, region: '광주'));
+      await _settleLoads(tester);
+      await tester.pumpWidget(_view(assets, region: '대전'));
+
+      expect(_paintedPictures(tester), [daejeon!.picture]);
     });
 
-    group('바탕을 읽지 못하면 그리지 않고 FlutterError를 보고한다', () {
-      tearDown(() {
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-            .setMockMessageHandler('flutter/assets', null);
-      });
+    testWidgets('한 뷰의 권역을 제자리에서 바꾸면 assert로 막는다', (tester) async {
+      const key = ValueKey('같은 뷰');
+      await tester.pumpWidget(_view(assets, region: '대전', key: key));
+      await tester.pumpWidget(_view(assets, region: '광주', key: key));
 
-      Future<List<FlutterErrorDetails>> pumpRegion(
-        WidgetTester tester, {
-        String region = '부산',
-        String? lineId,
-      }) async {
-        final errors = <FlutterErrorDetails>[];
-        final previousOnError = FlutterError.onError;
-        FlutterError.onError = errors.add;
-        try {
-          await tester.pumpWidget(
-            Directionality(
-              textDirection: TextDirection.ltr,
-              child: RouteMapBasemapView(
-                region: region,
-                camera: camera,
-                highlightedLineId: lineId,
-              ),
-            ),
-          );
-          await tester.pumpAndSettle();
-        } finally {
-          FlutterError.onError = previousOnError;
-        }
-        return errors;
-      }
+      expect(tester.takeException(), isAssertionError);
+    });
 
-      testWidgets('바탕 .vec를 읽지 못하면 pendingLoads를 정리한다', (tester) async {
-        final busanAsset = _engineBase('busan');
-        _serveAssets({busanAsset: null});
+    testWidgets('같은 권역을 그리는 두 뷰는 한 번 디코드한 같은 그림을 그린다', (tester) async {
+      final requests = serveBasemapAssets();
+      await tester.pumpWidget(
+        Stack(
+          textDirection: TextDirection.ltr,
+          children: [
+            _view(assets, region: '대구', key: const ValueKey('첫째')),
+            _view(assets, region: '대구', key: const ValueKey('둘째')),
+          ],
+        ),
+      );
+      await _settleLoads(tester);
 
-        final errors = await pumpRegion(tester);
+      final daegu = assets.picture(base('daegu'));
+      expect(daegu, isNotNull);
+      expect(_paintedPictures(tester), [daegu!.picture, daegu.picture]);
+      expect(requests.where((key) => key == base('daegu')), hasLength(1));
+    });
 
-        final state = tester.state<RouteMapBasemapViewState>(
-          find.byType(RouteMapBasemapView),
-        );
-        expect(state.debugPendingLoads.containsKey(busanAsset), isFalse);
-        expect(state.debugPictureCache.containsKey(busanAsset), isFalse);
+    group('읽지 못한 자산은 그리지 않고 시도마다 한 번 보고한다', () {
+      testWidgets('바탕 .vec를 읽지 못하면 한 번 보고하고, 다음에 만든 뷰가 다시 읽는다', (tester) async {
+        final busan = base('busan');
+        serveBasemapAssets({busan: () async => null});
+
+        final errors = await _errorsDuring(() async {
+          await tester.pumpWidget(_view(assets, region: '부산'));
+          await _settleLoads(tester);
+        });
+
         expect(_paintedPictures(tester), [null]);
         expect(errors, hasLength(1));
         expect(errors.single.library, 'network_map');
-        expect(errors.single.context.toString(), contains(busanAsset));
+        expect(errors.single.context.toString(), contains(busan));
+
+        serveBasemapAssets();
+        final retryErrors = await _errorsDuring(() async {
+          await tester.pumpWidget(
+            _view(assets, region: '부산', key: const ValueKey('다시')),
+          );
+          await _settleLoads(tester);
+        });
+
+        expect(retryErrors, isEmpty);
+        expect(_paintedPictures(tester), [assets.picture(busan)!.picture]);
       });
 
-      testWidgets('바탕 색인을 읽지 못하면 노선을 골랐어도 한 번만 보고하고, 다음 동기화에서 다시 읽는다', (
+      testWidgets('바탕 색인을 읽지 못하면 노선을 골랐어도 한 번만 보고하고, 다음에 만든 뷰가 다시 읽는다', (
         tester,
       ) async {
-        _serveAssets({kRouteMapLineOverlayIndexAssetPath: null});
+        serveBasemapAssets({
+          kRouteMapLineOverlayIndexAssetPath: () async => null,
+        });
 
-        final errors = await pumpRegion(tester, lineId: 'line-ab1a041f6266');
+        final errors = await _errorsDuring(() async {
+          await tester.pumpWidget(
+            _view(assets, region: '부산', lineId: 'line-ab1a041f6266'),
+          );
+          await _settleLoads(tester);
+        });
 
         expect(_paintedPictures(tester), [null]);
         expect(errors, hasLength(1));
@@ -341,15 +273,15 @@ void main() {
           contains(kRouteMapLineOverlayIndexAssetPath),
         );
 
-        _serveAssets(const {});
-        final retryErrors = await pumpRegion(tester, region: '대구');
+        serveBasemapAssets();
+        final retryErrors = await _errorsDuring(() async {
+          await tester.pumpWidget(_view(assets, region: '대구'));
+          await _settleLoads(tester);
+        });
 
         expect(retryErrors, isEmpty);
-        final state = tester.state<RouteMapBasemapViewState>(
-          find.byType(RouteMapBasemapView),
-        );
         expect(_paintedPictures(tester), [
-          state.debugPictureCache[_engineBase('daegu')]!.picture,
+          assets.picture(base('daegu'))!.picture,
         ]);
       });
 
@@ -362,13 +294,15 @@ void main() {
         for (final variant in (index['variants'] as Map).values) {
           ((variant as Map)['regions'] as Map).remove('busan');
         }
-        _serveAssets({
-          kRouteMapLineOverlayIndexAssetPath: ByteData.sublistView(
-            utf8.encode(jsonEncode(index)),
-          ),
+        serveBasemapAssets({
+          kRouteMapLineOverlayIndexAssetPath: () async =>
+              ByteData.sublistView(utf8.encode(jsonEncode(index))),
         });
 
-        final errors = await pumpRegion(tester);
+        final errors = await _errorsDuring(() async {
+          await tester.pumpWidget(_view(assets, region: '부산'));
+          await _settleLoads(tester);
+        });
 
         expect(_paintedPictures(tester), [null]);
         expect(errors, hasLength(1));
@@ -380,6 +314,77 @@ void main() {
             contains('regions'),
           ),
         );
+      });
+
+      testWidgets('색인을 기다리는 동안 노선을 바꿔도 색인을 읽은 뒤 한 번만 맞춘다', (tester) async {
+        final index = Completer<ByteData?>();
+        serveBasemapAssets({
+          kRouteMapLineOverlayIndexAssetPath: () => index.future,
+        });
+
+        final errors = await _errorsDuring(() async {
+          await tester.pumpWidget(
+            _view(assets, region: '수도권', lineId: _uiSinseolLineId),
+          );
+          await tester.pumpWidget(
+            _view(assets, region: '수도권', lineId: 'line-unknown'),
+          );
+          index.complete(bundledAsset(kRouteMapLineOverlayIndexAssetPath));
+          await _settleLoads(tester);
+        });
+
+        expect(errors, hasLength(1));
+        expect(errors.single.exception, isA<RouteMapLineOverlayMissing>());
+        expect(_paintedPictures(tester), [
+          assets.picture(base('seoul'))!.picture,
+        ]);
+      });
+
+      testWidgets('노선을 A→B→A로 바꾸는 사이 끝난 A 레이어 실패도 보고하고, 다시 고르면 다시 읽는다', (
+        tester,
+      ) async {
+        final lineA = _overlay(assets, _uiSinseolLineId);
+        final firstA = Completer<ByteData?>();
+        var requestsA = 0;
+        serveBasemapAssets({
+          lineA: () => requestsA++ == 0
+              ? firstA.future
+              : Future.value(bundledAsset(lineA)),
+        });
+
+        final errors = await _errorsDuring(() async {
+          await tester.pumpWidget(
+            _view(assets, region: '수도권', lineId: _uiSinseolLineId),
+          );
+          await _settleLoads(tester);
+          await tester.pumpWidget(
+            _view(assets, region: '수도권', lineId: _seoulLine2Id),
+          );
+          await _settleLoads(tester);
+          firstA.complete(null);
+          await _settleLoads(tester);
+        });
+
+        final seoul = assets.picture(base('seoul'))!.picture;
+        expect(errors, hasLength(1));
+        expect(errors.single.context.toString(), contains(lineA));
+        expect(_paintedPictures(tester), [
+          seoul,
+          assets.picture(_overlay(assets, _seoulLine2Id))!.picture,
+        ]);
+
+        final retryErrors = await _errorsDuring(() async {
+          await tester.pumpWidget(
+            _view(assets, region: '수도권', lineId: _uiSinseolLineId),
+          );
+          await _settleLoads(tester);
+        });
+
+        expect(retryErrors, isEmpty);
+        expect(_paintedPictures(tester), [
+          seoul,
+          assets.picture(lineA)!.picture,
+        ]);
       });
     });
   });

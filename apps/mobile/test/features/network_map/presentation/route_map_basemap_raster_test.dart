@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_tiles.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -207,7 +208,7 @@ void main() {
     TestWidgetsFlutterBinding.instance.platformDispatcher.views.first
       ..resetDevicePixelRatio()
       ..resetPhysicalSize();
-    RouteMapBasemapViewState.clearPictureCacheForTest();
+    RouteMapBasemapAssets.shared.resetForTest();
   });
 
   for (final devicePixelRatio in _devicePixelRatios) {

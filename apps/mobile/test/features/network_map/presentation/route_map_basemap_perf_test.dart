@@ -3,8 +3,9 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_tiles.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 
@@ -16,21 +17,21 @@ import '../../../support/basemap_index.dart';
 // 셸 `time`으로 별도 측정하므로 여기에 넣지 않는다. structured recordRouteMapPicture
 // 대비 비교는 데이터 로드가 무거워 생략하고 vec 로드만 계측한다(범위 밖 노이즈 회피).
 //
-// 앱은 엔진 렌더러에 맞는 바탕 변형을 그린다(RouteMapBasemapViewState.variant). Flutter 3.44
+// 앱은 엔진 렌더러에 맞는 바탕 변형을 그린다(RouteMapBasemapAssets.shared.variant). Flutter 3.44
 // 엔진은 Android API 29 이상(Vivante GPU 제외)과 iOS에서 Impeller로, API 24~28과 Vivante
 // GPU에서 Skia OpenGLES로 그린다(flutter_main.cc SelectedRenderingAPI,
 // kMinimumAndroidApiLevelForImpeller = 29). 앱 minSdk는 24다. Impeller 기기군은 윤곽선 라벨
 // 변형을, Skia OpenGLES 기기군은 텍스트 라벨 변형을 쓴다. 이 파일도 같은 규칙으로 자산을 고른다.
 //
-// 래스터 프레임 예산은 Impeller로 그릴 때만 건다. 그래서 예산은 Impeller 기기군의 윤곽선
+// 래스터 프레임 상한은 Impeller로 그릴 때만 확인한다. 그래서 상한은 Impeller 기기군의 윤곽선
 // 변형만 대표한다. Skia OpenGLES 기기군의 텍스트 변형은 호스트에서 재지 못하므로 Impeller를
 // 끈 측정용 빌드의 실기기 교대 측정이 맡는다(test/evidence/perf-route-map-raster-517).
 //
 // 호스트 렌더러는 단계마다 다르다. `flutter test` 기본 실행은 Skia 소프트웨어 래스터라
 // (flutter_tools flutter_tester_device.dart --enable-software-rendering) 텍스트 변형을 고르고
 // 어느 기기에도 없는 CPU 커버리지 계산을 잰다. 이 값은 기록만 한다. CI는 이 파일을 `flutter test
-// --enable-impeller`로 한 번 더 돌려 예산을 건다(ci.yml "Raster frame upper bound (Impeller)").
-// 이때 flutter_tester는 SwiftShader 위 Impeller Vulkan으로 그리고(tester_main.cc), 예산이 재는
+// --enable-impeller`로 한 번 더 돌려 상한을 확인한다(ci.yml "Raster frame upper bound (Impeller)").
+// 이때 flutter_tester는 SwiftShader 위 Impeller Vulkan으로 그리고(tester_main.cc), 상한이 재는
 // 값은 래스터 스레드가 명령을 만드는 시간이다. GPU를 포함한 프레임은 실기기 측정만 본다.
 //
 // flutter test cwd는 apps/mobile다 — 자산 경로를 그 기준 상대경로로 연다.
@@ -38,9 +39,9 @@ import '../../../support/basemap_index.dart';
 /// 엔진이 Impeller로 그리는지. dart:ui가 엔진의 Impeller 설정을 그대로 돌려준다.
 final bool _impeller = ui.ImageFilter.isShaderFilterSupported;
 
-/// CI Impeller 게이트 단계가 켠다. 켜졌는데 Impeller가 아니면 예산이 조용히 빠진다.
-const bool _impellerGateRun = bool.fromEnvironment(
-  'ROUTE_MAP_RASTER_GATE_IMPELLER',
+/// CI 상한 확인 단계가 켠다. 켜졌는데 Impeller가 아니면 상한 확인이 조용히 빠진다.
+const bool _upperBoundRun = bool.fromEnvironment(
+  'ROUTE_MAP_RASTER_UPPER_BOUND_IMPELLER',
 );
 
 String get _renderer => _impeller ? 'Impeller' : 'Skia 소프트웨어(기록만)';
@@ -51,11 +52,10 @@ const double _overviewScale = 0.35;
 const int _frameWidth = 1080;
 const int _frameHeight = 1920;
 
-/// 지도 바탕 면과 다른 픽셀이 프레임 안 지도 면적에서 차지해야 하는 최소 비율. 노선·역·라벨이
-/// 칠한 픽셀의 실제 비율은 수도권 11.0~12.1%, 대전 9.4~9.6%다(호스트 Skia 소프트웨어 텍스트
-/// 변형과 Impeller 윤곽선 변형, 바탕만·흐린 바탕 강조·구운 타일 합성 프레임). 가장 작은 값의
-/// 10분의 1 아래로 잡아 렌더러마다 다른 안티앨리어싱에는 걸리지 않고, 아무것도 그리지 않았거나
-/// 바탕 면만 그린 프레임(0)은 잡는다.
+/// 지도 바탕 면과 다른 픽셀이 프레임 안 지도 면적에서 차지해야 하는 최소 비율. 실측한 가장 작은
+/// 비율(대전 9.4%)보다 약 9배 낮아 렌더러마다 다른 안티앨리어싱에는 걸리지 않고, 아무것도
+/// 그리지 않았거나 바탕 면만 그린 프레임(0)은 잡는다. 라벨이나 강조 레이어 하나가 빠진 프레임은
+/// 잡지 못한다.
 const double _minInkShare = 0.01;
 
 /// [mapSize] 크기 지도를 [_overviewScale]로 원점에 그린 프레임에서 최소한 칠해져야 하는 픽셀 수.
@@ -86,22 +86,28 @@ int _inkPixels(ByteData rgba) {
 /// [frame]을 toImage로 그리는 시간(ms). Impeller의 toImage는 래스터 스레드가 명령을
 /// 만들어 제출하면 끝나고 GPU 완료를 기다리지 않는다(impeller/display_list/dl_dispatcher.cc
 /// DisplayListToTexture). 그래서 잰 다음 toByteData로 완료를 기다려 다음 표본이 밀린 GPU
-/// 일과 겹치지 않게 하고, 빈 프레임이 예산을 통과하지 않도록 칠한 픽셀이 [minInkPixels]
+/// 일과 겹치지 않게 하고, 빈 프레임이 상한 확인을 통과하지 않도록 칠한 픽셀이 [minInkPixels]
 /// 이상인지 확인한다.
 Future<double> _frameMs(ui.Picture frame, int minInkPixels) async {
-  final stopwatch = Stopwatch()..start();
-  final image = await frame.toImage(_frameWidth, _frameHeight);
-  stopwatch.stop();
-  final pixels = (await image.toByteData())!;
-  expect(pixels.lengthInBytes, _frameWidth * _frameHeight * 4);
-  expect(
-    _inkPixels(pixels),
-    greaterThanOrEqualTo(minInkPixels),
-    reason: '프레임에 노선도가 그려지지 않았다',
-  );
-  image.dispose();
-  frame.dispose();
-  return stopwatch.elapsedMicroseconds / 1000.0;
+  try {
+    final stopwatch = Stopwatch()..start();
+    final image = await frame.toImage(_frameWidth, _frameHeight);
+    stopwatch.stop();
+    try {
+      final pixels = (await image.toByteData())!;
+      expect(pixels.lengthInBytes, _frameWidth * _frameHeight * 4);
+      expect(
+        _inkPixels(pixels),
+        greaterThanOrEqualTo(minInkPixels),
+        reason: '프레임에 노선도가 그려지지 않았다',
+      );
+    } finally {
+      image.dispose();
+    }
+    return stopwatch.elapsedMicroseconds / 1000.0;
+  } finally {
+    frame.dispose();
+  }
 }
 
 /// [mapSize] 크기 지도를 [draw]로 그린 프레임을 워밍업 뒤 [_sampleFrames]장 잰다.
@@ -125,27 +131,36 @@ Future<List<double>> _sampleFrameMs(
 double _percentile(List<double> samples, double q) =>
     (samples.toList()..sort())[(samples.length * q).floor()];
 
-/// CI 러너 가상화 편차를 고려해 CI에서는 33.3ms, 로컬에서는 16.7ms를 적용한다.
-void _expectWithinFrameBudget(double p50, String reason) {
+/// Impeller로 그릴 때 [p50]이 래스터 상한 아래인지 본다. 상한은 로컬에서 60 Hz 한 프레임
+/// 16.7 ms이고, CI 러너 가상화 편차를 고려해 CI에서는 두 프레임 33.3 ms다.
+void _expectUnderRasterUpperBound(double p50, String reason) {
   if (!_impeller) {
     return;
   }
-  final maxBudget = Platform.environment['CI'] != null ? 33.3 : 16.7;
-  expect(p50, lessThan(maxBudget), reason: reason);
+  final upperBoundMs = Platform.environment['CI'] != null ? 33.3 : 16.7;
+  expect(p50, lessThan(upperBoundMs), reason: reason);
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  // 앱처럼 엔진 렌더러에 맞는 변형을 잰다. Impeller 게이트는 윤곽선 변형을 잰다.
-  final files = bundledBasemapIndex.variant(RouteMapBasemapViewState.variant);
+  // 앱처럼 엔진 렌더러에 맞는 변형을 잰다.
+  final files = bundledBasemapIndex.variant(
+    RouteMapBasemapAssets.shared.variant,
+  );
   final seoulAsset = files.baseAssetFor('seoul');
 
-  test('Impeller 게이트 실행이면 엔진이 Impeller로 그린다', () {
+  test('상한 확인 실행은 Impeller로 윤곽선 변형을, 기본 실행은 Skia로 텍스트 변형을 그린다', () {
     expect(
-      !_impellerGateRun || _impeller,
-      isTrue,
-      reason: '--enable-impeller 없이 게이트를 돌리면 예산이 걸리지 않는다',
+      _impeller,
+      _upperBoundRun,
+      reason: '상한 확인은 --enable-impeller와 그 define을 함께 줄 때만 돈다',
+    );
+    expect(
+      RouteMapBasemapAssets.shared.variant,
+      _upperBoundRun
+          ? RouteMapBasemapVariant.outlined
+          : RouteMapBasemapVariant.text,
     );
   });
 
@@ -180,7 +195,7 @@ void main() {
   // `background-grid-overlay`(격자 패턴 타일)의 래스터 비용을 계측한다.
   // 대전·광주 오버레이는 `opacity="0.52"`라 실제로 보이는 요소이고, 패턴 타일링이
   // 프레임 시간을 크게 좌우한다(실측: 대전 p90 0.43ms → 1.93ms). 수도권 오버레이는
-  // `opacity="0"`이라 사실상 무료다. 상한은 프레임 예산 기준의 느슨한 회귀 감지선이다.
+  // `opacity="0"`이라 사실상 무료다. 상한은 [_expectUnderRasterUpperBound]의 느슨한 확인선이다.
   testWidgets('바탕 .vec 래스터 프레임 시간 p50/p90 계측', (tester) async {
     final targets = {
       for (final regionId in ['seoul', 'daejeon'])
@@ -203,7 +218,7 @@ void main() {
           'p50=${p50.toStringAsFixed(2)}ms '
           'p90=${_percentile(samples, 0.9).toStringAsFixed(2)}ms',
         );
-        _expectWithinFrameBudget(p50, '${entry.key}: 래스터 p50이 프레임 예산을 넘었다');
+        _expectUnderRasterUpperBound(p50, '${entry.key}: 래스터 p50이 상한을 넘었다');
       }
     });
   });
@@ -267,9 +282,9 @@ void main() {
         '($_sampleFrames회)',
       );
       expect(_percentile(decodeMs, 0.5), lessThan(2000));
-      _expectWithinFrameBudget(
+      _expectUnderRasterUpperBound(
         _percentile(highlighted, 0.5),
-        '강조 래스터 p50이 프레임 예산을 넘었다',
+        '강조 래스터 p50이 상한을 넘었다',
       );
     });
   });
@@ -330,7 +345,7 @@ void main() {
         'p50=${p50.toStringAsFixed(2)}ms '
         'p90=${_percentile(samples, 0.9).toStringAsFixed(2)}ms',
       );
-      _expectWithinFrameBudget(p50, '구운 타일 합성 p50이 프레임 예산을 넘었다');
+      _expectUnderRasterUpperBound(p50, '구운 타일 합성 p50이 상한을 넘었다');
     });
   });
 }

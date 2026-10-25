@@ -278,7 +278,7 @@ test("host test lane은 노선도 바탕 래스터 프레임 상한을 Impeller�
       "        working-directory: apps/mobile",
       "        run: >-",
       "          flutter test --enable-impeller",
-      "          --dart-define=ROUTE_MAP_RASTER_GATE_IMPELLER=true",
+      "          --dart-define=ROUTE_MAP_RASTER_UPPER_BOUND_IMPELLER=true",
       "          test/features/network_map/presentation/route_map_basemap_perf_test.dart",
     ].join("\n"),
   );

@@ -5,6 +5,7 @@ import 'package:easysubway_mobile/features/network_map/data/network_map_owner_la
 import 'package:easysubway_mobile/features/network_map/application/network_map_region_bridge.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_nodes_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:flutter/material.dart';
@@ -184,7 +185,7 @@ void main() {
   tearDown(() {
     resetNetworkMapOwnerLabelsCacheForTest();
     resetNetworkMapOwnerNodesCacheForTest();
-    RouteMapBasemapViewState.clearPictureCacheForTest();
+    RouteMapBasemapAssets.shared.resetForTest();
   });
 
   testWidgets('노선도를 불러오는 동안에는 노선 줄을 그리지 않는다', (tester) async {
