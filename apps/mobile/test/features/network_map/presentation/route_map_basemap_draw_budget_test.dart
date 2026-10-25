@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
@@ -41,6 +42,25 @@ const _ceilings = <RouteMapBasemapVariant, Map<String, _Ceiling>>{
     '대구': (paths: 219, texts: 226, invisible: 0, segments: 866),
     '대전': (paths: 55, texts: 47, invisible: 0, segments: 418),
     '광주': (paths: 49, texts: 42, invisible: 0, segments: 399),
+  },
+};
+
+// 노선 강조 레이어(권역마다 노선 하나가 바탕 위에 겹쳐 그려진다)의 상한. 한 번에 하나만 그리므로
+// 권역 안 레이어들의 지표별 최댓값을 못 박는다. 바탕과 같은 규칙(실측과 같을 때만 통과)이다.
+const _overlayCeilings = <RouteMapBasemapVariant, Map<String, _Ceiling>>{
+  RouteMapBasemapVariant.outlined: {
+    '수도권': (paths: 307, texts: 0, invisible: 0, segments: 8946),
+    '부산': (paths: 179, texts: 0, invisible: 0, segments: 3634),
+    '대구': (paths: 114, texts: 0, invisible: 0, segments: 3787),
+    '대전': (paths: 60, texts: 0, invisible: 0, segments: 1804),
+    '광주': (paths: 55, texts: 0, invisible: 0, segments: 2108),
+  },
+  RouteMapBasemapVariant.text: {
+    '수도권': (paths: 275, texts: 177, invisible: 0, segments: 846),
+    '부산': (paths: 99, texts: 106, invisible: 0, segments: 271),
+    '대구': (paths: 81, texts: 88, invisible: 0, segments: 222),
+    '대전': (paths: 49, texts: 47, invisible: 0, segments: 148),
+    '광주': (paths: 43, texts: 42, invisible: 0, segments: 129),
   },
 };
 
@@ -115,6 +135,33 @@ class _DrawCounter extends BasemapVecListener {
   }
 }
 
+/// [asset] `.vec` 한 장의 그리기 명령 수와 path 선분 수.
+_Ceiling _drawsOf(String asset) {
+  final counter = _DrawCounter();
+  final response = const VectorGraphicsCodec().decode(
+    ByteData.sublistView(File(asset).readAsBytesSync()),
+    counter,
+  );
+  expect(response.complete, isTrue, reason: asset);
+  return (
+    paths: counter.paths,
+    texts: counter.texts,
+    invisible: counter.invisible,
+    segments: counter.segments,
+  );
+}
+
+/// [measured]가 [ceiling]과 다른 지표마다 고치는 방법을 담은 줄을 이은 문구. 모두 같으면 빈 문자열.
+String _ceilingMismatches(_Ceiling measured, _Ceiling ceiling) => [
+  _ceilingMismatch('경로 그리기', measured.paths, ceiling.paths),
+  _ceilingMismatch('글자 그리기', measured.texts, ceiling.texts),
+  _ceilingMismatch('path 선분', measured.segments, ceiling.segments),
+].nonNulls.join('\n');
+
+/// [asset]이 [regionId] 권역의 파일이면 true. 파일 이름이 `<권역 id>.`로 시작한다.
+bool _isRegionAsset(String asset, String regionId) =>
+    asset.split('/').last.startsWith('$regionId.');
+
 void main() {
   test('상한표는 모든 변형의 노선도 바탕이 있는 모든 권역을 다룬다', () {
     expect(_ceilings.keys.toSet(), RouteMapBasemapVariant.values.toSet());
@@ -126,27 +173,44 @@ void main() {
   for (final MapEntry(key: variant, value: regions) in _ceilings.entries) {
     for (final MapEntry(key: region, value: ceiling) in regions.entries) {
       test('${variant.name} $region 바탕 그리기 명령 수가 상한과 같다', () {
-        final asset = bundledBasemapIndex
-            .variant(variant)
-            .baseAssetFor(kRouteMapBasemapRegionToId[region]!);
-        final counter = _DrawCounter();
-        final response = const VectorGraphicsCodec().decode(
-          ByteData.sublistView(File(asset).readAsBytesSync()),
-          counter,
+        final measured = _drawsOf(
+          bundledBasemapIndex
+              .variant(variant)
+              .baseAssetFor(kRouteMapBasemapRegionToId[region]!),
         );
 
-        expect(response.complete, isTrue);
-        final mismatches = [
-          _ceilingMismatch('경로 그리기', counter.paths, ceiling.paths),
-          _ceilingMismatch('글자 그리기', counter.texts, ceiling.texts),
-          _ceilingMismatch('path 선분', counter.segments, ceiling.segments),
-        ].nonNulls;
-        expect(mismatches, isEmpty, reason: mismatches.join('\n'));
+        expect(_ceilingMismatches(measured, ceiling), isEmpty);
         expect(
-          counter.invisible,
+          measured.invisible,
           ceiling.invisible,
           reason: '보이지 않는 그리기도 매 프레임 비용이다. 바탕 원본에서 지운다.',
         );
+      });
+
+      test('${variant.name} $region 노선 강조 레이어 그리기 명령 수의 최댓값이 상한과 같다', () {
+        final regionId = kRouteMapBasemapRegionToId[region]!;
+        final files = bundledBasemapIndex.variant(variant);
+        final base = files.baseAssetFor(regionId);
+        final layers = [
+          for (final file in files.files)
+            if (file.asset != base && _isRegionAsset(file.asset, regionId))
+              _drawsOf(file.asset),
+        ];
+        int largest(int Function(_Ceiling) metric) =>
+            layers.map(metric).reduce(math.max);
+        final measured = (
+          paths: largest((c) => c.paths),
+          texts: largest((c) => c.texts),
+          invisible: largest((c) => c.invisible),
+          segments: largest((c) => c.segments),
+        );
+
+        expect(layers, isNotEmpty);
+        expect(
+          _ceilingMismatches(measured, _overlayCeilings[variant]![region]!),
+          isEmpty,
+        );
+        expect(measured.invisible, 0);
       });
     }
   }
