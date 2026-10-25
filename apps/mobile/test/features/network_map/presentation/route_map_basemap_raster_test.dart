@@ -137,6 +137,10 @@ RouteMapBasemapTileCache _tiles(WidgetTester tester) => tester
     .state<RouteMapBasemapLayersState>(find.byType(RouteMapBasemapLayers))
     .debugTiles;
 
+/// 뷰가 [lineId]에 맞는 그림(바탕, 노선을 골랐으면 노선 레이어까지)을 모두 그릴 때까지 기다린다.
+Future<void> _paintLoaded(WidgetTester tester, {String? lineId}) =>
+    pumpUntilBasemapPainted(tester, count: lineId == null ? 1 : 2);
+
 /// 카메라가 [kRouteMapBasemapRasterSettleDelay] 동안 멈춰 격자를 만든 프레임.
 Future<void> _rest(WidgetTester tester) =>
     tester.pump(kRouteMapBasemapRasterSettleDelay);
@@ -160,7 +164,7 @@ Future<Uint8List> _vectorScreen(
   String? lineId,
 }) async {
   await tester.pumpWidget(_map(camera, lineId: lineId, key: UniqueKey()));
-  await settleBasemapLoads(tester);
+  await _paintLoaded(tester, lineId: lineId);
   expect(_tilePainter(tester), isNull);
   return _screen(tester);
 }
@@ -225,7 +229,7 @@ void main() {
 
           final key = UniqueKey();
           await tester.pumpWidget(_map(_camera(), lineId: lineId, key: key));
-          await settleBasemapLoads(tester);
+          await _paintLoaded(tester, lineId: lineId);
           await _rest(tester);
           final counts = await _bakeAll(tester);
           expect(counts.first, 1, reason: '격자를 만든 프레임에 한 장');
@@ -261,7 +265,7 @@ void main() {
         final expected = await _vectorScreen(tester, _camera(pan: between));
 
         await tester.pumpWidget(_map(_camera(pan: between), key: UniqueKey()));
-        await settleBasemapLoads(tester);
+        await _paintLoaded(tester);
         await _rest(tester);
         await _bakeAll(tester);
 
@@ -295,7 +299,7 @@ void main() {
               top: top,
             ),
           );
-          await settleBasemapLoads(tester);
+          await _paintLoaded(tester, lineId: lineId);
           expect(_tilePainter(tester), isNull);
           expected.add(await _screen(tester));
         }
@@ -304,7 +308,7 @@ void main() {
         await tester.pumpWidget(
           _map(_camera(), lineId: lineId, key: key, top: top),
         );
-        await settleBasemapLoads(tester);
+        await _paintLoaded(tester, lineId: lineId);
         await _rest(tester);
         await _bakeAll(tester);
         for (var i = 0; i < pans.length; i++) {
@@ -329,7 +333,7 @@ void main() {
     testWidgets('팬이 화면 픽셀 사이에서 멈춰도 타일은 화면 정수 픽셀에 놓인다', (tester) async {
       final key = UniqueKey();
       await tester.pumpWidget(_map(_camera(), key: key, top: top));
-      await settleBasemapLoads(tester);
+      await _paintLoaded(tester);
       await _rest(tester);
       await _bakeAll(tester);
 
@@ -353,7 +357,7 @@ void main() {
   testWidgets('같은 배율의 팬은 남은 타일을 다시 굽지 않고, 화면을 벗어난 타일은 버린다', (tester) async {
     final key = UniqueKey();
     await tester.pumpWidget(_map(_camera(), key: key));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     await _rest(tester);
     await _bakeAll(tester);
     final before = {
@@ -386,7 +390,7 @@ void main() {
 
     final key = UniqueKey();
     await tester.pumpWidget(_map(_camera(), key: key));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     await _rest(tester);
     await _bakeAll(tester);
     final plain = _tilePainter(tester)!.tiles.map((tile) => tile.image);
@@ -394,7 +398,7 @@ void main() {
     await tester.pumpWidget(
       _map(_camera(), lineId: _uiSinseolLineId, key: key),
     );
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester, lineId: _uiSinseolLineId);
     expect(_tilePainter(tester), isNull);
     expect(_tiles(tester).length, 0);
     expect(plain.every((image) => image.debugDisposed), isTrue);
@@ -406,7 +410,7 @@ void main() {
 
   testWidgets('배율이 바뀌는 동안은 굽지 않고 벡터로 그린다', (tester) async {
     await tester.pumpWidget(_map(_camera()));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     for (final scale in [0.52, 0.54, 0.56, 0.58]) {
       await tester.pumpWidget(_map(_camera(scale: scale)));
       await tester.pump(kRouteMapBasemapRasterSettleDelay ~/ 2);
@@ -420,7 +424,7 @@ void main() {
 
   testWidgets('카메라가 멈추면 보이는 타일 수만큼만 프레임을 요청하고 그 뒤로는 멈춘다', (tester) async {
     await tester.pumpWidget(_map(_camera()));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     await _rest(tester);
 
     var frames = 0;
@@ -441,7 +445,7 @@ void main() {
     const viewport = Size(2100, 2100);
     _setView(viewport);
     await tester.pumpWidget(_map(_camera(scale: 1.5, viewport: viewport)));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     await _rest(tester);
     for (var frame = 0; frame < 100; frame++) {
       await tester.pump();
@@ -459,7 +463,7 @@ void main() {
     // MapLibre Native TilePyramid::reduceMemoryUse는 렌더하지 않는 캐시만 비운다. 이 캐시에는
     // 보이는 타일만 있으니 버릴 것이 없다. 버리면 같은 타일을 곧바로 다시 굽는다.
     await tester.pumpWidget(_map(_camera()));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     await _rest(tester);
     await _bakeAll(tester);
     final images = _tilePainter(
@@ -481,7 +485,7 @@ void main() {
   testWidgets('바탕이 화면을 벗어나면 타일을 모두 버리고 아무것도 그리지 않는다', (tester) async {
     final key = UniqueKey();
     await tester.pumpWidget(_map(_camera(), key: key));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     await _rest(tester);
     await _bakeAll(tester);
 
@@ -496,7 +500,7 @@ void main() {
 
   testWidgets('바탕을 떠나면 격자 대기를 거두고 타일을 버린다', (tester) async {
     await tester.pumpWidget(_map(_camera()));
-    await settleBasemapLoads(tester);
+    await _paintLoaded(tester);
     await _rest(tester);
     final tiles = _tiles(tester);
     expect(tiles.length, 1);

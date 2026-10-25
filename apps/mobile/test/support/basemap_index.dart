@@ -1,8 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 /// 번들 바탕 색인(`line-overlays.json`) 원문. flutter test cwd(apps/mobile) 기준으로 연다.
@@ -71,15 +75,53 @@ class FakeBasemapBundle extends CachingAssetBundle {
   }
 }
 
-const int _settleRounds = 10;
-const Duration _settleRoundDelay = Duration(milliseconds: 10);
+/// [pumpUntil]이 조건을 기다리는 실제 시간 한도. 부하가 큰 러너에서도 디코드는 이 안에 끝난다.
+const Duration _pumpUntilTimeout = Duration(seconds: 30);
 
-/// 바탕 색인과 .vec 디코드가 실제 시간으로 끝나도록 기다리며 프레임을 돌린다. 디코드는 부하에
-/// 따라 시간이 달라 한 번에 0초만 기다리면 끝나기 전에 단언이 돈다. 시계는 앞으로 돌리지
-/// 않아 카메라가 멈춘 뒤 굽는 타일은 만들지 않는다.
-Future<void> settleBasemapLoads(WidgetTester tester) async {
-  for (var round = 0; round < _settleRounds; round++) {
-    await tester.runAsync(() => Future<void>.delayed(_settleRoundDelay));
+/// [condition]이 참이 될 때까지 프레임을 돌리며 실제 이벤트 루프를 한 바퀴씩 내준다. 색인
+/// 읽기와 .vec 디코드는 테스트 시계가 아니라 실제 시간으로 끝나기 때문이다. 시계는 앞으로
+/// 돌리지 않아 카메라가 멈춘 뒤 굽는 타일은 만들지 않는다. 한도 안에 참이 되지 않으면
+/// [waitingFor]를 밝혀 실패한다.
+Future<void> pumpUntil(
+  WidgetTester tester,
+  bool Function() condition, {
+  required String waitingFor,
+}) async {
+  final elapsed = Stopwatch()..start();
+  await tester.pump();
+  while (!condition()) {
+    if (elapsed.elapsed > _pumpUntilTimeout) {
+      fail('${_pumpUntilTimeout.inSeconds}초가 지나도 $waitingFor 끝나지 않았습니다.');
+    }
+    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
     await tester.pump();
   }
 }
+
+/// 바탕 뷰가 지금 그리는 그림. 노선을 골랐고 레이어가 준비됐으면 흐린 바탕, 노선 레이어
+/// 순이다. 아직 읽지 못한 층은 null이다.
+List<ui.Picture?> paintedBasemapPictures(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(
+      find.descendant(
+        of: find.byType(RouteMapBasemapView),
+        matching: find.byType(CustomPaint),
+      ),
+    )
+    .map((paint) => paint.painter)
+    .whereType<RouteMapBasemapPainter>()
+    .map((painter) => painter.picture)
+    .toList();
+
+/// 바탕 뷰가 [count]장의 그림을 모두 그릴 때까지 기다린다. 뷰 하나는 바탕 1장이고, 노선을
+/// 골랐으면 흐린 바탕과 노선 레이어 2장이다.
+Future<void> pumpUntilBasemapPainted(WidgetTester tester, {int count = 1}) =>
+    pumpUntil(tester, () {
+      final pictures = paintedBasemapPictures(tester);
+      return pictures.length == count && !pictures.contains(null);
+    }, waitingFor: '바탕 그림 $count장을 그리는 일이');
+
+/// 보고된 Flutter 오류가 [errors]에 하나라도 쌓일 때까지 기다린다.
+Future<void> pumpUntilReported(
+  WidgetTester tester,
+  List<FlutterErrorDetails> errors,
+) => pumpUntil(tester, () => errors.isNotEmpty, waitingFor: '오류를 보고하는 일이');

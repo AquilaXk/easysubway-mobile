@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
@@ -49,26 +48,16 @@ Widget _view(
   ),
 );
 
-/// 바탕 뷰가 지금 그리는 그림. 노선을 골랐으면 흐린 바탕, 노선 레이어 순이다.
-List<ui.Picture?> _paintedPictures(WidgetTester tester) => tester
-    .widgetList<CustomPaint>(
-      find.descendant(
-        of: find.byType(RouteMapBasemapView),
-        matching: find.byType(CustomPaint),
-      ),
-    )
-    .map((paint) => (paint.painter! as RouteMapBasemapPainter).picture)
-    .toList();
-
-/// [body]가 도는 동안 보고된 Flutter 오류.
+/// [body]가 도는 동안 보고된 Flutter 오류. [body]는 지금까지 보고된 오류 목록을 받아 보고를
+/// 기다릴 수 있다.
 Future<List<FlutterErrorDetails>> _errorsDuring(
-  Future<void> Function() body,
+  Future<void> Function(List<FlutterErrorDetails> errors) body,
 ) async {
   final errors = <FlutterErrorDetails>[];
   final previousOnError = FlutterError.onError;
   FlutterError.onError = errors.add;
   try {
-    await body();
+    await body(errors);
   } finally {
     FlutterError.onError = previousOnError;
   }
@@ -88,13 +77,16 @@ void main() {
         await tester.pumpWidget(
           _view(assets, region: '수도권', lineId: _uiSinseolLineId),
         );
-        await settleBasemapLoads(tester);
+        await pumpUntilBasemapPainted(tester, count: 2);
 
         final base = assets.picture(_files(assets).baseAssetFor('seoul'));
         final overlay = assets.picture(_overlay(assets, _uiSinseolLineId));
         expect(base, isNotNull);
         expect(overlay, isNotNull);
-        expect(_paintedPictures(tester), [base!.picture, overlay!.picture]);
+        expect(paintedBasemapPictures(tester), [
+          base!.picture,
+          overlay!.picture,
+        ]);
       });
     }
   });
@@ -171,16 +163,14 @@ void main() {
     String base(String regionId) => _files(assets).baseAssetFor(regionId);
 
     testWidgets('매핑에 없는 권역은 바탕을 그리지 않고 뷰마다 한 번 보고한다', (tester) async {
-      final errors = await _errorsDuring(() async {
+      final errors = await _errorsDuring((_) async {
         await tester.pumpWidget(_view(assets, region: '알 수 없음'));
-        await settleBasemapLoads(tester);
         await tester.pumpWidget(
           _view(assets, region: '알 수 없음', lineId: _seoulLine2Id),
         );
-        await settleBasemapLoads(tester);
       });
 
-      expect(_paintedPictures(tester), [null]);
+      expect(paintedBasemapPictures(tester), [null]);
       expect(errors, hasLength(1));
       expect(errors.single.library, 'network_map');
       expect(errors.single.exception, isA<ArgumentError>());
@@ -189,30 +179,30 @@ void main() {
 
     testWidgets('권역을 바꿔 새로 만든 뷰는 한 번 디코드한 바탕을 첫 프레임에 바로 그린다', (tester) async {
       await tester.pumpWidget(_view(assets, region: '대전'));
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester);
       final daejeon = assets.picture(base('daejeon'));
       expect(daejeon, isNotNull);
 
       await tester.pumpWidget(_view(assets, region: '광주'));
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester);
       await tester.pumpWidget(_view(assets, region: '대전'));
 
-      expect(_paintedPictures(tester), [daejeon!.picture]);
+      expect(paintedBasemapPictures(tester), [daejeon!.picture]);
     });
 
     testWidgets('같은 자리의 뷰가 권역을 바꾸면 이전 권역 바탕은 한 프레임도 남지 않는다', (tester) async {
       await tester.pumpWidget(_view(assets, region: '대전'));
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester);
       final daejeon = assets.picture(base('daejeon'))!.picture;
-      expect(_paintedPictures(tester), [daejeon]);
+      expect(paintedBasemapPictures(tester), [daejeon]);
 
       await tester.pumpWidget(_view(assets, region: '광주'));
 
-      expect(_paintedPictures(tester), isNot(contains(daejeon)));
+      expect(paintedBasemapPictures(tester), isNot(contains(daejeon)));
 
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester);
 
-      expect(_paintedPictures(tester), [
+      expect(paintedBasemapPictures(tester), [
         assets.picture(base('gwangju'))!.picture,
       ]);
     });
@@ -228,11 +218,11 @@ void main() {
           ],
         ),
       );
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester, count: 2);
 
       final daegu = assets.picture(base('daegu'));
       expect(daegu, isNotNull);
-      expect(_paintedPictures(tester), [daegu!.picture, daegu.picture]);
+      expect(paintedBasemapPictures(tester), [daegu!.picture, daegu.picture]);
       expect(requests.where((key) => key == base('daegu')), hasLength(1));
     });
 
@@ -241,26 +231,28 @@ void main() {
         final busan = base('busan');
         serveBasemapAssets({busan: () async => null});
 
-        final errors = await _errorsDuring(() async {
+        final errors = await _errorsDuring((reported) async {
           await tester.pumpWidget(_view(assets, region: '부산'));
-          await settleBasemapLoads(tester);
+          await pumpUntilReported(tester, reported);
         });
 
-        expect(_paintedPictures(tester), [null]);
+        expect(paintedBasemapPictures(tester), [null]);
         expect(errors, hasLength(1));
         expect(errors.single.library, 'network_map');
         expect(errors.single.context.toString(), contains(busan));
 
         serveBasemapAssets();
-        final retryErrors = await _errorsDuring(() async {
+        final retryErrors = await _errorsDuring((_) async {
           await tester.pumpWidget(
             _view(assets, region: '부산', key: const ValueKey('다시')),
           );
-          await settleBasemapLoads(tester);
+          await pumpUntilBasemapPainted(tester);
         });
 
         expect(retryErrors, isEmpty);
-        expect(_paintedPictures(tester), [assets.picture(busan)!.picture]);
+        expect(paintedBasemapPictures(tester), [
+          assets.picture(busan)!.picture,
+        ]);
       });
 
       testWidgets('바탕 색인을 읽지 못하면 노선을 골랐어도 한 번만 보고하고, 다음에 만든 뷰가 다시 읽는다', (
@@ -270,14 +262,14 @@ void main() {
           kRouteMapLineOverlayIndexAssetPath: () async => null,
         });
 
-        final errors = await _errorsDuring(() async {
+        final errors = await _errorsDuring((reported) async {
           await tester.pumpWidget(
             _view(assets, region: '부산', lineId: 'line-ab1a041f6266'),
           );
-          await settleBasemapLoads(tester);
+          await pumpUntilReported(tester, reported);
         });
 
-        expect(_paintedPictures(tester), [null]);
+        expect(paintedBasemapPictures(tester), [null]);
         expect(errors, hasLength(1));
         expect(
           errors.single.context.toString(),
@@ -285,13 +277,13 @@ void main() {
         );
 
         serveBasemapAssets();
-        final retryErrors = await _errorsDuring(() async {
+        final retryErrors = await _errorsDuring((_) async {
           await tester.pumpWidget(_view(assets, region: '대구'));
-          await settleBasemapLoads(tester);
+          await pumpUntilBasemapPainted(tester);
         });
 
         expect(retryErrors, isEmpty);
-        expect(_paintedPictures(tester), [
+        expect(paintedBasemapPictures(tester), [
           assets.picture(base('daegu'))!.picture,
         ]);
       });
@@ -310,12 +302,12 @@ void main() {
               ByteData.sublistView(utf8.encode(jsonEncode(index))),
         });
 
-        final errors = await _errorsDuring(() async {
+        final errors = await _errorsDuring((reported) async {
           await tester.pumpWidget(_view(assets, region: '부산'));
-          await settleBasemapLoads(tester);
+          await pumpUntilReported(tester, reported);
         });
 
-        expect(_paintedPictures(tester), [null]);
+        expect(paintedBasemapPictures(tester), [null]);
         expect(errors, hasLength(1));
         expect(
           errors.single.exception,
@@ -333,7 +325,7 @@ void main() {
           kRouteMapLineOverlayIndexAssetPath: () => index.future,
         });
 
-        final errors = await _errorsDuring(() async {
+        final errors = await _errorsDuring((reported) async {
           await tester.pumpWidget(
             _view(assets, region: '수도권', lineId: _uiSinseolLineId),
           );
@@ -341,12 +333,13 @@ void main() {
             _view(assets, region: '수도권', lineId: 'line-unknown'),
           );
           index.complete(bundledAsset(kRouteMapLineOverlayIndexAssetPath));
-          await settleBasemapLoads(tester);
+          await pumpUntilReported(tester, reported);
+          await pumpUntilBasemapPainted(tester);
         });
 
         expect(errors, hasLength(1));
         expect(errors.single.exception, isA<RouteMapLineOverlayMissing>());
-        expect(_paintedPictures(tester), [
+        expect(paintedBasemapPictures(tester), [
           assets.picture(base('seoul'))!.picture,
         ]);
       });
@@ -363,36 +356,36 @@ void main() {
               : Future.value(bundledAsset(lineA)),
         });
 
-        final errors = await _errorsDuring(() async {
+        final errors = await _errorsDuring((reported) async {
           await tester.pumpWidget(
             _view(assets, region: '수도권', lineId: _uiSinseolLineId),
           );
-          await settleBasemapLoads(tester);
+          await pumpUntilBasemapPainted(tester);
           await tester.pumpWidget(
             _view(assets, region: '수도권', lineId: _seoulLine2Id),
           );
-          await settleBasemapLoads(tester);
+          await pumpUntilBasemapPainted(tester, count: 2);
           firstA.complete(null);
-          await settleBasemapLoads(tester);
+          await pumpUntilReported(tester, reported);
         });
 
         final seoul = assets.picture(base('seoul'))!.picture;
         expect(errors, hasLength(1));
         expect(errors.single.context.toString(), contains(lineA));
-        expect(_paintedPictures(tester), [
+        expect(paintedBasemapPictures(tester), [
           seoul,
           assets.picture(_overlay(assets, _seoulLine2Id))!.picture,
         ]);
 
-        final retryErrors = await _errorsDuring(() async {
+        final retryErrors = await _errorsDuring((_) async {
           await tester.pumpWidget(
             _view(assets, region: '수도권', lineId: _uiSinseolLineId),
           );
-          await settleBasemapLoads(tester);
+          await pumpUntilBasemapPainted(tester, count: 2);
         });
 
         expect(retryErrors, isEmpty);
-        expect(_paintedPictures(tester), [
+        expect(paintedBasemapPictures(tester), [
           seoul,
           assets.picture(lineA)!.picture,
         ]);

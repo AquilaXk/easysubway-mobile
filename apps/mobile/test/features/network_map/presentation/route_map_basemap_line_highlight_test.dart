@@ -194,7 +194,7 @@ void main() {
 
   testWidgets('전체 노선은 바탕을 흐리지 않고 그대로 그린다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
-    await settleBasemapLoads(tester);
+    await pumpUntilBasemapPainted(tester);
 
     final screen = await _screen(tester);
     final base = await _reference(tester, [seoulBase]);
@@ -204,7 +204,7 @@ void main() {
   for (final lineId in [_uiSinseolLineId, _seoulLine2Id]) {
     testWidgets('$lineId를 고르면 바탕은 흐려지고 그 노선 레이어는 원래 진하기다', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: lineId));
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester, count: 2);
 
       final overlayAsset = _overlayAsset(lineId);
       final counts = _classify(
@@ -235,7 +235,7 @@ void main() {
         attributionText: attribution,
       ),
     );
-    await settleBasemapLoads(tester);
+    await pumpUntilBasemapPainted(tester, count: 2);
 
     String? attributionOf(Finder paint) =>
         (tester.widget<CustomPaint>(paint).painter! as RouteMapBasemapPainter)
@@ -256,7 +256,7 @@ void main() {
 
   testWidgets('레이어를 읽는 동안에는 고른 척 흐리지 않고 바탕을 그대로 둔다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
-    await settleBasemapLoads(tester);
+    await pumpUntilBasemapPainted(tester);
     final base = await _screen(tester);
 
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
@@ -266,7 +266,7 @@ void main() {
 
   testWidgets('한 번 읽은 노선을 다시 고르면 다시 디코드하지 않고 그 프레임에 바로 강조한다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-    await settleBasemapLoads(tester);
+    await pumpUntilBasemapPainted(tester, count: 2);
     final highlighted = await _screen(tester);
     final overlayAsset = _overlayAsset(_uiSinseolLineId);
     final decoded = RouteMapBasemapAssets.shared.picture(overlayAsset);
@@ -276,7 +276,6 @@ void main() {
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
 
     expect(_maxChannelDiff(await _screen(tester), highlighted), 0);
-    await settleBasemapLoads(tester);
     expect(RouteMapBasemapAssets.shared.picture(overlayAsset), same(decoded));
   });
 
@@ -286,17 +285,22 @@ void main() {
           .setMockMessageHandler('flutter/assets', null);
     });
 
+    /// 오류가 보고되고, [baseLoads]이면 그 바탕 그림 한 장까지 그려질 때까지 기다린다.
     Future<List<FlutterErrorDetails>> pumpCapturingErrors(
       WidgetTester tester,
       String lineId, {
       String region = '수도권',
+      bool baseLoads = true,
     }) async {
       final errors = <FlutterErrorDetails>[];
       final previousOnError = FlutterError.onError;
       FlutterError.onError = errors.add;
       try {
         await tester.pumpWidget(_map(region: region, lineId: lineId));
-        await settleBasemapLoads(tester);
+        await pumpUntilReported(tester, errors);
+        if (baseLoads) {
+          await pumpUntilBasemapPainted(tester);
+        }
       } finally {
         FlutterError.onError = previousOnError;
       }
@@ -317,7 +321,7 @@ void main() {
 
     testWidgets('색인에 없는 노선', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: _seoulLine2Id));
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester, count: 2);
 
       final errors = await pumpCapturingErrors(tester, 'line-unknown');
 
@@ -329,7 +333,7 @@ void main() {
 
     testWidgets('고른 노선이 그대로인 채 권역만 바뀜', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-      await settleBasemapLoads(tester);
+      await pumpUntilBasemapPainted(tester, count: 2);
 
       final errors = await pumpCapturingErrors(
         tester,
@@ -352,7 +356,11 @@ void main() {
             return ByteData.sublistView(File(key).readAsBytesSync());
           });
 
-      final errors = await pumpCapturingErrors(tester, _uiSinseolLineId);
+      final errors = await pumpCapturingErrors(
+        tester,
+        _uiSinseolLineId,
+        baseLoads: false,
+      );
 
       expect(errors, hasLength(1));
       expect(errors.single.context.toString(), contains(seoulBase));
