@@ -1,6 +1,5 @@
-import '../presentation/route_map_basemap_view.dart'
-    show kRouteMapBasemapRegionToId;
 import 'network_map_models.dart';
+import 'route_map_line_overlay_index.dart' show kRouteMapBasemapRegionToId;
 import 'route_map_min_scale.dart' show routeMapDisplayRegionName;
 import 'route_map_owner_labels.dart';
 import 'route_map_owner_nodes.dart';

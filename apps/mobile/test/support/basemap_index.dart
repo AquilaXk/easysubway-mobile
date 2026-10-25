@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -13,10 +12,7 @@ final String bundledBasemapIndexJson = File(
 
 /// 앱과 같은 권역 집합으로 읽은 번들 바탕 색인.
 final RouteMapLineOverlayIndex bundledBasemapIndex =
-    RouteMapLineOverlayIndex.parse(
-      bundledBasemapIndexJson,
-      regionIds: kRouteMapBasemapRegionToId.values.toSet(),
-    );
+    RouteMapLineOverlayIndex.parse(bundledBasemapIndexJson);
 
 /// 번들 색인 [variant] 변형에 실린 모든 .vec의 자산 경로 → sha256. 앱은 파일 목록과
 /// sha256을 읽지 않으므로 자산 계약 테스트가 색인 원문에서 직접 꺼낸다.

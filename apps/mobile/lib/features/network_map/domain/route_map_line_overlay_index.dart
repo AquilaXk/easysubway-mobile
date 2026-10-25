@@ -5,6 +5,16 @@ import 'dart:convert' show jsonDecode;
 const String kRouteMapBasemapAssetDir =
     'assets/datapacks/metro_map_pack/basemap';
 
+/// `widget.data.selectedRegion`(한글) → 바탕 색인 권역 id. 색인은 변형마다 이 권역 id 집합과
+/// 정확히 같아야 읽힌다.
+const Map<String, String> kRouteMapBasemapRegionToId = {
+  '수도권': 'seoul',
+  '부산': 'busan',
+  '광주': 'gwangju',
+  '대구': 'daegu',
+  '대전': 'daejeon',
+};
+
 /// data 레포 바탕 컴파일러(`tools/route-map/compile-basemap-vec.mjs`)가 굽는 바탕·노선
 /// 강조 레이어 색인.
 const String kRouteMapLineOverlayIndexAssetPath =
@@ -94,13 +104,10 @@ class RouteMapBasemapVariantFiles {
 class RouteMapLineOverlayIndex {
   const RouteMapLineOverlayIndex._(this._variants);
 
-  /// 색인 JSON을 읽는다. 모르는 schemaVersion, 다른 산출물 종류, 빠지거나 모르는
-  /// 변형, 권역이 [regionIds]와 다른 변형, 변형끼리 다른 노선, 두 항목이 함께 가리키는
-  /// 파일, sha256이 없는 파일, 모양이 다른 항목은 [FormatException]으로 실패한다.
-  factory RouteMapLineOverlayIndex.parse(
-    String json, {
-    required Set<String> regionIds,
-  }) {
+  /// 색인 JSON을 읽는다. 모르는 schemaVersion, 다른 산출물 종류, 빠지거나 모르는 변형,
+  /// 권역이 [kRouteMapBasemapRegionToId]와 다른 변형, 변형끼리 다른 노선, 두 항목이 함께
+  /// 가리키는 파일, sha256이 없는 파일, 모양이 다른 항목은 [FormatException]으로 실패한다.
+  factory RouteMapLineOverlayIndex.parse(String json) {
     final root = _objectOf(jsonDecode(json), '최상위');
     if (root['schemaVersion'] != _supportedSchemaVersion) {
       throw FormatException(
@@ -119,7 +126,7 @@ class RouteMapLineOverlayIndex {
         '바탕 색인 variants ${variantsJson.keys.toList()}가 ${keys.toList()}가 아닙니다.',
       );
     }
-    final reader = _IndexReader(regionIds);
+    final reader = _IndexReader();
     final variants = {
       for (final variant in RouteMapBasemapVariant.values)
         variant: reader.variantOf(variant, variantsJson[variant.indexKey]),
@@ -157,9 +164,6 @@ Map<String, dynamic> _objectOf(Object? value, String path) {
 
 /// 색인 한 개를 읽는 동안 앱 권역과, 이미 다른 항목이 가리킨 파일을 들고 있다.
 class _IndexReader {
-  _IndexReader(this._regionIds);
-
-  final Set<String> _regionIds;
   final Set<String> _seenVectors = {};
 
   RouteMapBasemapVariantFiles variantOf(
@@ -174,10 +178,10 @@ class _IndexReader {
       );
     }
     final regions = _objectOf(entry['regions'], '$path.regions');
-    if (!_sameSet(regions.keys, _regionIds)) {
+    if (!_sameSet(regions.keys, kRouteMapBasemapRegionToId.values)) {
       throw FormatException(
         '바탕 색인 $path.regions 권역 ${regions.keys.toList()}가 앱 권역 '
-        '${_regionIds.toList()}와 다릅니다.',
+        '${kRouteMapBasemapRegionToId.values.toList()}와 다릅니다.',
       );
     }
     return RouteMapBasemapVariantFiles._({

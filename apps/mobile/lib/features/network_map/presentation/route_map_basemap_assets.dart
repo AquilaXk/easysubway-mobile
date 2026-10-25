@@ -7,16 +7,6 @@ import 'package:vector_graphics/vector_graphics.dart';
 
 import '../domain/route_map_line_overlay_index.dart';
 
-/// `widget.data.selectedRegion`(한글) → 바탕 색인 권역 id.
-/// 매핑에 없는 region은 basemap 미표시(빈 화면)로 안전 폴백한다(크래시 금지).
-const Map<String, String> kRouteMapBasemapRegionToId = {
-  '수도권': 'seoul',
-  '부산': 'busan',
-  '광주': 'gwangju',
-  '대구': 'daegu',
-  '대전': 'daejeon',
-};
-
 /// 바탕 자산을 읽거나 찾지 못한 오류를 Flutter 오류로 드러낸다.
 void reportRouteMapBasemapFailure(
   Object error,
@@ -95,10 +85,7 @@ class RouteMapBasemapAssets {
         kRouteMapLineOverlayIndexAssetPath,
         cache: false,
       );
-      final files = RouteMapLineOverlayIndex.parse(
-        json,
-        regionIds: kRouteMapBasemapRegionToId.values.toSet(),
-      ).variant(variant);
+      final files = RouteMapLineOverlayIndex.parse(json).variant(variant);
       return generation == _generation ? _files = files : null;
     } catch (error, stack) {
       if (generation == _generation) {

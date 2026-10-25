@@ -11,23 +11,34 @@ const _shaB =
 
 Map<String, Object?> _region(
   String suffix, {
+  String regionId = 'seoul',
   Object? baseVector,
   Object? baseSha = _shaA,
   Object? lineVector,
   Object? lineSha = _shaB,
   Map<String, Object?>? lines,
 }) => {
-  'baseVector': baseVector ?? 'seoul$suffix.vec',
+  'baseVector': baseVector ?? '$regionId$suffix.vec',
   'baseVectorSha256': baseSha,
   'lines':
       lines ??
       {
-        'seoul-2': {
+        '$regionId-2': {
           'svgLineSlug': '2',
-          'vector': lineVector ?? 'seoul.seoul-2$suffix.vec',
+          'vector': lineVector ?? '$regionId.$regionId-2$suffix.vec',
           'sha256': lineSha,
         },
       },
+};
+
+/// 앱이 그리는 모든 권역을 갖춘 권역 목록. [overrides]의 권역은 그 항목으로 바꾼다.
+Map<String, Object?> _regions(
+  String suffix, [
+  Map<String, Object?> overrides = const {},
+]) => {
+  for (final regionId in kRouteMapBasemapRegionToId.values)
+    regionId: _region(suffix, regionId: regionId),
+  ...overrides,
 };
 
 Map<String, Object?> _variants({
@@ -37,11 +48,11 @@ Map<String, Object?> _variants({
 }) => {
   'outlined': {
     'labels': outlinedLabels,
-    'regions': outlinedRegions ?? {'seoul': _region('')},
+    'regions': outlinedRegions ?? _regions(''),
   },
   'text': {
     'labels': 'text-into-vec',
-    'regions': textRegions ?? {'seoul': _region('.text')},
+    'regions': textRegions ?? _regions('.text'),
   },
 };
 
@@ -55,10 +66,8 @@ String _indexJson({
   'variants': variants ?? _variants(),
 });
 
-RouteMapLineOverlayIndex _parse(
-  String json, {
-  Set<String> regionIds = const {'seoul'},
-}) => RouteMapLineOverlayIndex.parse(json, regionIds: regionIds);
+RouteMapLineOverlayIndex _parse(String json) =>
+    RouteMapLineOverlayIndex.parse(json);
 
 Matcher _rejects(String reason) => throwsA(
   isA<FormatException>().having(
@@ -150,24 +159,20 @@ void main() {
   group('변형마다 권역이 앱이 그리는 권역과 정확히 같아야 한다', () {
     test('앱이 그리는 권역이 빠진 변형이 있으면 실패한다', () {
       expect(
-        () => _parse(_indexJson(), regionIds: {'seoul', 'busan'}),
+        () => _parse(
+          _indexJson(
+            variants: _variants(outlinedRegions: _regions('')..remove('busan')),
+          ),
+        ),
         _rejects('variants.outlined.regions'),
       );
       expect(
         () => _parse(
           _indexJson(
             variants: _variants(
-              outlinedRegions: {
-                'seoul': _region(''),
-                'busan': _region(
-                  '',
-                  baseVector: 'busan.vec',
-                  lineVector: 'busan.seoul-2.vec',
-                ),
-              },
+              textRegions: _regions('.text')..remove('busan'),
             ),
           ),
-          regionIds: {'seoul', 'busan'},
         ),
         _rejects('variants.text.regions'),
       );
@@ -192,14 +197,9 @@ void main() {
         () => _parse(
           _indexJson(
             variants: _variants(
-              textRegions: {
-                'seoul': _region('.text'),
-                'busan': _region(
-                  '.text',
-                  baseVector: 'busan.text.vec',
-                  lineVector: 'busan.seoul-2.text.vec',
-                ),
-              },
+              textRegions: _regions('.text', {
+                'incheon': _region('.text', regionId: 'incheon'),
+              }),
             ),
           ),
         ),
@@ -213,7 +213,9 @@ void main() {
       () => _parse(
         _indexJson(
           variants: _variants(
-            textRegions: {'seoul': _region('.text', baseVector: 'seoul.vec')},
+            textRegions: _regions('.text', {
+              'seoul': _region('.text', baseVector: 'seoul.vec'),
+            }),
           ),
         ),
       ),
@@ -223,9 +225,9 @@ void main() {
       () => _parse(
         _indexJson(
           variants: _variants(
-            textRegions: {
+            textRegions: _regions('.text', {
               'seoul': _region('.text', lineVector: 'seoul.seoul-2.vec'),
-            },
+            }),
           ),
         ),
       ),
@@ -238,9 +240,9 @@ void main() {
       () => _parse(
         _indexJson(
           variants: _variants(
-            textRegions: {
+            textRegions: _regions('.text', {
               'seoul': _region('.text', lines: const <String, Object?>{}),
-            },
+            }),
           ),
         ),
       ),
@@ -254,7 +256,9 @@ void main() {
         () => _parse(
           _indexJson(
             variants: _variants(
-              textRegions: {'seoul': _region('.text', baseSha: sha)},
+              textRegions: _regions('.text', {
+                'seoul': _region('.text', baseSha: sha),
+              }),
             ),
           ),
         ),
@@ -265,7 +269,9 @@ void main() {
         () => _parse(
           _indexJson(
             variants: _variants(
-              textRegions: {'seoul': _region('.text', lineSha: sha)},
+              textRegions: _regions('.text', {
+                'seoul': _region('.text', lineSha: sha),
+              }),
             ),
           ),
         ),
@@ -287,7 +293,9 @@ void main() {
         () => _parse(
           _indexJson(
             variants: _variants(
-              outlinedRegions: {'seoul': _region('', lineVector: vector)},
+              outlinedRegions: _regions('', {
+                'seoul': _region('', lineVector: vector),
+              }),
             ),
           ),
         ),
@@ -298,7 +306,9 @@ void main() {
         () => _parse(
           _indexJson(
             variants: _variants(
-              outlinedRegions: {'seoul': _region('', baseVector: vector)},
+              outlinedRegions: _regions('', {
+                'seoul': _region('', baseVector: vector),
+              }),
             ),
           ),
         ),
@@ -314,17 +324,20 @@ void main() {
       throwsFormatException,
     );
     expect(
-      () =>
-          _parse(_indexJson(variants: _variants(textRegions: {'seoul': null}))),
+      () => _parse(
+        _indexJson(
+          variants: _variants(textRegions: _regions('.text', {'seoul': null})),
+        ),
+      ),
       throwsFormatException,
     );
     expect(
       () => _parse(
         _indexJson(
           variants: _variants(
-            textRegions: {
+            textRegions: _regions('.text', {
               'seoul': {..._region('.text'), 'lines': null},
-            },
+            }),
           ),
         ),
       ),
@@ -353,6 +366,10 @@ void main() {
       () => files.overlayAssetFor(regionId: 'busan', lineId: 'seoul-2'),
       throwsA(isA<RouteMapLineOverlayMissing>()),
     );
-    expect(() => files.baseAssetFor('busan'), throwsArgumentError);
+    expect(
+      files.overlayAssetFor(regionId: 'busan', lineId: 'busan-2'),
+      '$_dir/busan.busan-2.vec',
+    );
+    expect(() => files.baseAssetFor('incheon'), throwsArgumentError);
   });
 }

@@ -11,7 +11,6 @@ import '../domain/route_map_line_overlay_index.dart';
 import 'route_map_basemap_assets.dart';
 import 'route_map_basemap_tiles.dart';
 
-export 'route_map_basemap_assets.dart' show kRouteMapBasemapRegionToId;
 export 'route_map_basemap_tiles.dart' show kRouteMapFadedBasemapOpacity;
 
 // 하이브리드 노선도 바탕층(#2068 트랙 2번째 PR).
