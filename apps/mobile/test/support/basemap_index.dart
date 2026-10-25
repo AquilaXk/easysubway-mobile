@@ -58,3 +58,15 @@ void stopServingBasemapAssets() {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMessageHandler('flutter/assets', null);
 }
+
+/// 번들 파일을 읽어 답하고 요청받은 자산 키를 순서대로 [requests]에 모으는 자산 묶음. 플랫폼
+/// 채널을 가로채지 않고 [RouteMapBasemapAssets]의 `bundle`로 넘긴다.
+class FakeBasemapBundle extends CachingAssetBundle {
+  final List<String> requests = [];
+
+  @override
+  Future<ByteData> load(String key) {
+    requests.add(key);
+    return Future.value(bundledAsset(key));
+  }
+}

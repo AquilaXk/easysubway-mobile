@@ -7,6 +7,31 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/basemap_index.dart';
 
+/// 첫 [loadString]이 비동기 함수의 첫 await에 닿기도 전에 던지는 묶음.
+class _ThrowsBeforeFirstAwaitBundle extends FakeBasemapBundle {
+  int loadStringCalls = 0;
+
+  @override
+  Future<String> loadString(String key, {bool cache = true}) {
+    if (loadStringCalls++ == 0) {
+      throw StateError('색인 읽기 시작 실패');
+    }
+    return super.loadString(key, cache: cache);
+  }
+}
+
+/// 첫 [load]가 호출 자리에서 바로 던지는 묶음.
+class _ThrowsOnFirstLoadBundle extends FakeBasemapBundle {
+  @override
+  Future<ByteData> load(String key) {
+    if (requests.isEmpty) {
+      requests.add(key);
+      throw StateError('그림 읽기 시작 실패');
+    }
+    return super.load(key);
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -45,6 +70,38 @@ void main() {
     expect(decoded.last, same(decoded.first));
     expect(assets.picture(daejeon), same(decoded.first));
     expect(requestsFor(requests, daejeon), hasLength(1));
+  });
+
+  test('끝난 그림을 다시 디코드하면 다시 읽지 않고 같은 그림을 준다', () async {
+    final bundle = FakeBasemapBundle();
+    final assets = RouteMapBasemapAssets(variant: variant, bundle: bundle);
+    addTearDown(assets.resetForTest);
+
+    final first = await assets.decode(daejeon);
+    final second = await assets.decode(daejeon);
+
+    expect(first, isNotNull);
+    expect(second, same(first));
+    expect(assets.picture(daejeon), same(first));
+    expect(requestsFor(bundle.requests, daejeon), hasLength(1));
+  });
+
+  test('그림 읽기가 호출 자리에서 던져도 보고하고 디코드를 남기지 않아 다음 디코드가 다시 읽는다', () async {
+    final bundle = _ThrowsOnFirstLoadBundle();
+    final assets = RouteMapBasemapAssets(variant: variant, bundle: bundle);
+    addTearDown(assets.resetForTest);
+
+    expect(await assets.decode(daejeon), isNull);
+    expect(assets.picture(daejeon), isNull);
+    expect(errors, hasLength(1));
+    expect(errors.single.context.toString(), contains(daejeon));
+
+    final retried = await assets.decode(daejeon);
+
+    expect(retried, isNotNull);
+    expect(assets.picture(daejeon), same(retried));
+    expect(requestsFor(bundle.requests, daejeon), hasLength(2));
+    expect(errors, hasLength(1));
   });
 
   test('디코드에 실패하면 기다리는 곳이 둘이어도 한 번 보고하고, 다음 디코드가 다시 읽는다', () async {
@@ -88,6 +145,24 @@ void main() {
     expect(files, isNotNull);
     expect(assets.files, same(files));
     expect(files!.baseAssetFor('daejeon'), daejeon);
+    expect(errors, hasLength(1));
+  });
+
+  test('색인 읽기가 첫 await 전에 던져도 보고하고 로드를 남기지 않아 다음 읽기가 다시 읽는다', () async {
+    final bundle = _ThrowsBeforeFirstAwaitBundle();
+    final assets = RouteMapBasemapAssets(variant: variant, bundle: bundle);
+    addTearDown(assets.resetForTest);
+
+    expect(await assets.loadFiles(), isNull);
+    expect(assets.files, isNull);
+    expect(errors, hasLength(1));
+    expect(errors.single.exception, isA<StateError>());
+
+    final files = await assets.loadFiles();
+
+    expect(files, isNotNull);
+    expect(assets.files, same(files));
+    expect(bundle.loadStringCalls, 2);
     expect(errors, hasLength(1));
   });
 

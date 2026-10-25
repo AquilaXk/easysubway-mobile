@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -27,7 +26,8 @@ void reportRouteMapBasemapFailure(
 /// 같은 .vec를 한 번만 디코드한다. 색인 읽기와 디코드 실패는 그 그림을 기다리는 뷰가 있든
 /// 없든 시도마다 한 번 보고한다.
 class RouteMapBasemapAssets {
-  RouteMapBasemapAssets({required this.variant});
+  RouteMapBasemapAssets({required this.variant, AssetBundle? bundle})
+    : _bundle = bundle ?? rootBundle;
 
   /// 앱의 바탕 자산. dart:ui는 엔진의 Impeller 설정을 [ui.ImageFilter.isShaderFilterSupported]로
   /// 그대로 돌려주고(sky_engine painting.dart `isShaderFilterSupported => _impellerEnabled`),
@@ -41,6 +41,8 @@ class RouteMapBasemapAssets {
   /// 바탕과 노선 레이어를 고르는 변형.
   final RouteMapBasemapVariant variant;
 
+  final AssetBundle _bundle;
+
   final Map<String, PictureInfo> _pictures = {};
   final Map<String, Future<PictureInfo?>> _decodes = {};
   RouteMapBasemapVariantFiles? _files;
@@ -51,18 +53,37 @@ class RouteMapBasemapAssets {
   /// 읽고 검증한 색인의 [variant] 바탕·노선 레이어. 아직 읽지 않았으면 null.
   RouteMapBasemapVariantFiles? get files => _files;
 
-  /// 색인을 읽어 [files]를 채운다. 읽는 중이면 그 로드를 함께 기다린다. 실패하면 보고하고
-  /// null로 끝나며, 로드를 남기지 않아 다음 호출이 다시 읽는다.
-  Future<RouteMapBasemapVariantFiles?> loadFiles() =>
-      _filesLoad ??= _readFiles(_generation);
+  /// 색인을 읽어 [files]를 채운다. 읽는 중이면 그 로드를 함께 기다리고, 읽었으면 그 색인을
+  /// 준다. 실패하면 보고하고 null로 끝나며, 로드를 남기지 않아 다음 호출이 다시 읽는다.
+  Future<RouteMapBasemapVariantFiles?> loadFiles() {
+    final generation = _generation;
+    return _filesLoad ??= _readFiles(generation).whenComplete(() {
+      if (generation == _generation && _files == null) {
+        _filesLoad = null;
+      }
+    });
+  }
 
   /// 디코드한 [asset] 그림. 아직 디코드하지 않았으면 null.
   PictureInfo? picture(String asset) => _pictures[asset];
 
-  /// [asset]을 디코드해 [picture]에 둔다. 디코드하는 중이면 그 디코드를 함께 기다린다. 실패하면
-  /// 보고하고 null로 끝나며, 다음 호출이 다시 디코드한다.
-  Future<PictureInfo?> decode(String asset) =>
-      _decodes[asset] ??= _decodePicture(asset, _generation);
+  /// [asset]을 디코드해 [picture]에 둔다. 디코드했으면 그 그림을 그대로 주고, 디코드하는
+  /// 중이면 그 디코드를 함께 기다린다. 실패하면 보고하고 null로 끝나며, 다음 호출이 다시
+  /// 디코드한다.
+  Future<PictureInfo?> decode(String asset) {
+    final decoded = _pictures[asset];
+    if (decoded != null) {
+      return Future.value(decoded);
+    }
+    final generation = _generation;
+    return _decodes[asset] ??= _decodePicture(asset, generation).whenComplete(
+      () {
+        if (generation == _generation) {
+          _decodes.removeWhere((key, _) => key == asset);
+        }
+      },
+    );
+  }
 
   /// 디코드한 그림과 읽은 색인을 버린다. 진행 중인 로드는 끝나도 아무것도 남기지 않는다.
   @visibleForTesting
@@ -77,11 +98,9 @@ class RouteMapBasemapAssets {
     _filesLoad = null;
   }
 
-  // loadString과 loadPicture는 async 함수라 첫 await에서 멈춘다. 그래서 두 로드의 실패 정리는
-  // [loadFiles]·[decode]의 `??=`가 그 로드를 기억한 뒤에 돈다.
   Future<RouteMapBasemapVariantFiles?> _readFiles(int generation) async {
     try {
-      final json = await rootBundle.loadString(
+      final json = await _bundle.loadString(
         kRouteMapLineOverlayIndexAssetPath,
         cache: false,
       );
@@ -89,7 +108,6 @@ class RouteMapBasemapAssets {
       return generation == _generation ? _files = files : null;
     } catch (error, stack) {
       if (generation == _generation) {
-        _filesLoad = null;
         reportRouteMapBasemapFailure(
           error,
           stack,
@@ -102,7 +120,10 @@ class RouteMapBasemapAssets {
 
   Future<PictureInfo?> _decodePicture(String asset, int generation) async {
     try {
-      final info = await vg.loadPicture(AssetBytesLoader(asset), null);
+      final info = await vg.loadPicture(
+        AssetBytesLoader(asset, assetBundle: _bundle),
+        null,
+      );
       if (generation != _generation) {
         info.picture.dispose();
         return null;
@@ -113,10 +134,6 @@ class RouteMapBasemapAssets {
         reportRouteMapBasemapFailure(error, stack, '노선도 .vec 로드 실패($asset)');
       }
       return null;
-    } finally {
-      if (generation == _generation) {
-        unawaited(_decodes.remove(asset));
-      }
     }
   }
 }
