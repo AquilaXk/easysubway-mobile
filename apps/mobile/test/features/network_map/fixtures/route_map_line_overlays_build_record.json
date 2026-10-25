@@ -1,13 +1,13 @@
 {
   "dataRepository": "AquilaXk/easysubway-data",
-  "dataCommit": "8efc042ac07f75c5abb895b9bd5c875adeeab3eb",
+  "dataCommit": "37db014fe512391a89844c484d185eac602addf5",
   "dataPullRequest": 1508,
-  "mobileFixtureTag": "data-fixture/basemap-variants-1495",
+  "mobileFixtureTag": "data-fixture/basemap-variants-1495b",
   "manifest": "tools/route-map/basemap-build-manifest.json",
   "pipelineRevision": 7,
   "lineOverlayIndex": {
     "file": "line-overlays.json",
-    "sha256": "fc5881cfc2e15ebebd21f6f4de3d5dcfbf2c2beda63b6ddde3cb110bf7bbd631"
+    "sha256": "b745e895c8d2fe8d88eb6715c594656f7c5e1afc90f5e74731ca16ca2651f387"
   },
   "ownerLabels": {
     "file": "labels.json",
@@ -65,8 +65,8 @@
       "basemaps": {
         "busan.text.vec": "6a4cd64a6344a23d50c37f86374379a6c01c992153870a67d152dd96f9697019",
         "daegu.text.vec": "e8c6237428d74647a4e84fb5115b64b27b59d4900d8aed324968fad3ec740297",
-        "daejeon.text.vec": "8c8996de208e6ac42746d60c7a7de3f1efebdb20c40f03add34ae892b8dc1d70",
-        "gwangju.text.vec": "c91a39e325ac9ebe83c1dadd13358296be523c164387e620205561d5bf5307d7",
+        "daejeon.text.vec": "1bf40d2886245c8c966c52eafb63f069f381311ef0fbc517cc06507394156136",
+        "gwangju.text.vec": "3e7fbb16e249562a07b071c2b79e80729b5c97178b39b8af028b5740f6df47c8",
         "seoul.text.vec": "46b9fc983ae0b199d8e82b51c9f3069e8ded7a8ba779f0e365aab516951e2540"
       },
       "overlays": {
@@ -80,8 +80,8 @@
         "daegu.line-5b8d9b05e7e6.text.vec": "da90bd306695f96bfd7dda8383460c2560e7f9f79f2f24d872025ab0c0a782da",
         "daegu.line-8f7ed01f290a.text.vec": "fca82bbef91e490ce8dc5aa9015c308897c8ef2af0a01d67ceae29bb192f6386",
         "daegu.line-e2938a4cc492.text.vec": "e3c66a5204bda838f4a724744d8ff0dd160665f95759146d3d83fea2aa712c2d",
-        "daejeon.line-7051a9c2525c.text.vec": "49e889a46be8b7171c57d2a8763f12bc85014de0ca168c452dcdd9e14910fab2",
-        "gwangju.line-e57a361e8892.text.vec": "f12c32722fb534cc4d267587f41a503c6c9d3efbb1cd635be942ed221cc886ce",
+        "daejeon.line-7051a9c2525c.text.vec": "0553d926e826a5c2cc0fdff4e0dd442f23c8fb96e55728b017de35d17abc8971",
+        "gwangju.line-e57a361e8892.text.vec": "b51f2f2d6be7fc85506b01a1f2de3915149901b770689e8492df96501c9bd980",
         "seoul.line-051552e50435.text.vec": "2c82a08f2c1ad98c3c08c88276fc20fdb9c40029233ea020ce44b2dbe9103d2e",
         "seoul.line-15b3b8a93259.text.vec": "68e6213ee9a1eae93fdfb036b97553c4ae516f194c47f95eb50a2ff1980ffdc9",
         "seoul.line-2b2d9eaa53d0.text.vec": "de657c119745466e60df051f4b07fc96f2d6e692bb971ddce84fe10b71d53263",

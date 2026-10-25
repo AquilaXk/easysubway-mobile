@@ -284,23 +284,23 @@
         },
         "daejeon": {
           "baseVector": "daejeon.text.vec",
-          "baseVectorSha256": "8c8996de208e6ac42746d60c7a7de3f1efebdb20c40f03add34ae892b8dc1d70",
+          "baseVectorSha256": "1bf40d2886245c8c966c52eafb63f069f381311ef0fbc517cc06507394156136",
           "lines": {
             "line-7051a9c2525c": {
               "svgLineSlug": "1",
               "vector": "daejeon.line-7051a9c2525c.text.vec",
-              "sha256": "49e889a46be8b7171c57d2a8763f12bc85014de0ca168c452dcdd9e14910fab2"
+              "sha256": "0553d926e826a5c2cc0fdff4e0dd442f23c8fb96e55728b017de35d17abc8971"
             }
           }
         },
         "gwangju": {
           "baseVector": "gwangju.text.vec",
-          "baseVectorSha256": "c91a39e325ac9ebe83c1dadd13358296be523c164387e620205561d5bf5307d7",
+          "baseVectorSha256": "3e7fbb16e249562a07b071c2b79e80729b5c97178b39b8af028b5740f6df47c8",
           "lines": {
             "line-e57a361e8892": {
               "svgLineSlug": "1",
               "vector": "gwangju.line-e57a361e8892.text.vec",
-              "sha256": "f12c32722fb534cc4d267587f41a503c6c9d3efbb1cd635be942ed221cc886ce"
+              "sha256": "b51f2f2d6be7fc85506b01a1f2de3915149901b770689e8492df96501c9bd980"
             }
           }
         },
