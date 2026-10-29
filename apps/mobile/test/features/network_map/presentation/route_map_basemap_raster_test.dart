@@ -36,6 +36,9 @@ final _boundaryKey = GlobalKey();
 
 var _devicePixelRatio = 1.0;
 
+/// 지금 시험의 뷰가 굽은 타일을 쥐는 캐시. 시험마다 새로 만든다.
+var _tiles = RouteMapBasemapTileCache();
+
 /// [pan]은 화면 픽셀 거리다.
 MapCameraState _camera({
   double scale = 0.5,
@@ -72,6 +75,7 @@ Widget _map(
               color: const Color(0xFFFFFFFF),
               child: RouteMapBasemapView(
                 key: key,
+                tileCache: _tiles,
                 region: '수도권',
                 camera: camera,
                 highlightedLineId: lineId,
@@ -133,9 +137,6 @@ bool _drawsGaps(WidgetTester tester) => find
     .evaluate()
     .isNotEmpty;
 
-RouteMapBasemapTileCache _tiles(WidgetTester tester) =>
-    debugRouteMapBasemapTiles(tester.element(find.byType(RouteMapBasemapView)));
-
 /// 뷰가 [lineId]에 맞는 그림(바탕, 노선을 골랐으면 노선 레이어까지)을 모두 그릴 때까지 기다린다.
 Future<void> _paintLoaded(WidgetTester tester, {String? lineId}) =>
     pumpUntilBasemapPainted(tester, count: lineId == null ? 1 : 2);
@@ -148,7 +149,7 @@ Future<void> _rest(WidgetTester tester) =>
 Future<List<int>> _bakeAll(WidgetTester tester) async {
   final counts = <int>[];
   for (var frame = 0; frame < 50 && _drawsGaps(tester); frame++) {
-    counts.add(_tiles(tester).length);
+    counts.add(_tiles.length);
     await tester.pump();
   }
   expect(_drawsGaps(tester), isFalse, reason: '보이는 타일을 모두 굽는다');
@@ -201,7 +202,10 @@ void _setView(Size logicalSize, {double devicePixelRatio = 1}) {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => _setView(const Size(800, 800)));
+  setUp(() {
+    _setView(const Size(800, 800));
+    _tiles = RouteMapBasemapTileCache();
+  });
   tearDown(() {
     TestWidgetsFlutterBinding.instance.platformDispatcher.views.first
       ..resetDevicePixelRatio()
@@ -399,7 +403,7 @@ void main() {
     );
     await _paintLoaded(tester, lineId: _uiSinseolLineId);
     expect(_tilePainter(tester), isNull);
-    expect(_tiles(tester).length, 0);
+    expect(_tiles.length, 0);
     expect(plain.every((image) => image.debugDisposed), isTrue);
 
     await _rest(tester);
@@ -434,7 +438,7 @@ void main() {
 
     final visible = _tilePainter(tester)!.tiles.length;
     expect(visible, greaterThan(1));
-    expect(_tiles(tester).length, visible, reason: '보이는 타일을 모두 굽는다');
+    expect(_tiles.length, visible, reason: '보이는 타일을 모두 굽는다');
     expect(frames, lessThanOrEqualTo(visible), reason: '프레임마다 한 장');
     expect(tester.binding.hasScheduledFrame, isFalse, reason: '다 굽고 나면 요청 없음');
   });
@@ -450,7 +454,7 @@ void main() {
       await tester.pump();
     }
 
-    final tiles = _tiles(tester);
+    final tiles = _tiles;
     expect(tiles.length, greaterThan(0));
     expect(tiles.bytes, lessThanOrEqualTo(kRouteMapBasemapTileCacheBytes));
     expect(tiles.fits(routeMapTileBytes(256, 256)), isFalse);
@@ -492,7 +496,7 @@ void main() {
       _map(_camera(pan: const Offset(-5000, 0)), key: key),
     );
 
-    expect(_tiles(tester).length, 0);
+    expect(_tiles.length, 0);
     expect(_tilePainter(tester)!.tiles, isEmpty);
     expect(_drawsGaps(tester), isFalse);
   });
@@ -501,7 +505,7 @@ void main() {
     await tester.pumpWidget(_map(_camera()));
     await _paintLoaded(tester);
     await _rest(tester);
-    final tiles = _tiles(tester);
+    final tiles = _tiles;
     expect(tiles.length, 1);
     await tester.pumpWidget(_map(_camera(scale: 0.6)));
 
