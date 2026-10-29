@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -64,6 +65,11 @@ class RouteMapBasemapAssets {
     });
   }
 
+  /// 색인이나 .vec를 읽는 중인지. 읽는 일이 모두 끝났다는 확인에 시험이 쓴다.
+  @visibleForTesting
+  bool get isLoading =>
+      _decodes.isNotEmpty || (_filesLoad != null && _files == null);
+
   /// 디코드한 [asset] 그림. 아직 디코드하지 않았으면 null.
   PictureInfo? picture(String asset) => _pictures[asset];
 
@@ -79,9 +85,7 @@ class RouteMapBasemapAssets {
     return _decodes[asset] ??= _decodePicture(asset, generation).whenComplete(
       () {
         if (generation == _generation) {
-          // Map.remove는 Future를 돌려줘 discarded_futures에 걸린다. 이미 끝난 항목을 치우는
-          // 일이라 반환값이 필요 없어 removeWhere로 키 하나를 지운다.
-          _decodes.removeWhere((key, _) => key == asset);
+          unawaited(_decodes.remove(asset));
         }
       },
     );
@@ -107,7 +111,10 @@ class RouteMapBasemapAssets {
         cache: false,
       );
       final files = RouteMapLineOverlayIndex.parse(json).variant(variant);
-      return generation == _generation ? _files = files : null;
+      if (generation != _generation) {
+        return null;
+      }
+      return _files = files;
     } catch (error, stack) {
       if (generation == _generation) {
         reportRouteMapBasemapFailure(

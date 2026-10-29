@@ -168,6 +168,7 @@ void main() {
         await tester.pumpWidget(
           _view(assets, region: '알 수 없음', lineId: _seoulLine2Id),
         );
+        await pumpUntilQuiet(tester, assets);
       });
 
       expect(paintedBasemapPictures(tester), [null]);
@@ -181,6 +182,7 @@ void main() {
       final errors = await _errorsDuring((_) async {
         await tester.pumpWidget(_view(assets, region: '광주권'));
         await pumpUntilBasemapPainted(tester);
+        await pumpUntilQuiet(tester, assets);
       });
 
       expect(errors, isEmpty);
@@ -249,6 +251,7 @@ void main() {
         ),
       );
       await pumpUntilBasemapPainted(tester, count: 2);
+      await pumpUntilQuiet(tester, assets);
 
       final daegu = assets.picture(base('daegu'));
       expect(daegu, isNotNull);
@@ -263,7 +266,12 @@ void main() {
 
         final errors = await _errorsDuring((reported) async {
           await tester.pumpWidget(_view(assets, region: '부산'));
-          await pumpUntilReported(tester, reported);
+          await pumpUntilReported(
+            tester,
+            assets,
+            reported,
+            isExpected: (error) => error.context.toString().contains(busan),
+          );
         });
 
         expect(paintedBasemapPictures(tester), [null]);
@@ -277,6 +285,7 @@ void main() {
             _view(assets, region: '부산', key: const ValueKey('다시')),
           );
           await pumpUntilBasemapPainted(tester);
+          await pumpUntilQuiet(tester, assets);
         });
 
         expect(retryErrors, isEmpty);
@@ -296,7 +305,14 @@ void main() {
           await tester.pumpWidget(
             _view(assets, region: '부산', lineId: 'line-ab1a041f6266'),
           );
-          await pumpUntilReported(tester, reported);
+          await pumpUntilReported(
+            tester,
+            assets,
+            reported,
+            isExpected: (error) => error.context.toString().contains(
+              kRouteMapLineOverlayIndexAssetPath,
+            ),
+          );
         });
 
         expect(paintedBasemapPictures(tester), [null]);
@@ -310,6 +326,7 @@ void main() {
         final retryErrors = await _errorsDuring((_) async {
           await tester.pumpWidget(_view(assets, region: '대구'));
           await pumpUntilBasemapPainted(tester);
+          await pumpUntilQuiet(tester, assets);
         });
 
         expect(retryErrors, isEmpty);
@@ -334,7 +351,12 @@ void main() {
 
         final errors = await _errorsDuring((reported) async {
           await tester.pumpWidget(_view(assets, region: '부산'));
-          await pumpUntilReported(tester, reported);
+          await pumpUntilReported(
+            tester,
+            assets,
+            reported,
+            isExpected: (error) => error.exception is FormatException,
+          );
         });
 
         expect(paintedBasemapPictures(tester), [null]);
@@ -363,7 +385,13 @@ void main() {
             _view(assets, region: '수도권', lineId: 'line-unknown'),
           );
           index.complete(bundledAsset(kRouteMapLineOverlayIndexAssetPath));
-          await pumpUntilReported(tester, reported);
+          await pumpUntilReported(
+            tester,
+            assets,
+            reported,
+            isExpected: (error) =>
+                error.exception is RouteMapLineOverlayMissing,
+          );
           await pumpUntilBasemapPainted(tester);
         });
 
@@ -396,7 +424,12 @@ void main() {
           );
           await pumpUntilBasemapPainted(tester, count: 2);
           firstA.complete(null);
-          await pumpUntilReported(tester, reported);
+          await pumpUntilReported(
+            tester,
+            assets,
+            reported,
+            isExpected: (error) => error.context.toString().contains(lineA),
+          );
         });
 
         final seoul = assets.picture(base('seoul'))!.picture;
@@ -412,6 +445,7 @@ void main() {
             _view(assets, region: '수도권', lineId: _uiSinseolLineId),
           );
           await pumpUntilBasemapPainted(tester, count: 2);
+          await pumpUntilQuiet(tester, assets);
         });
 
         expect(retryErrors, isEmpty);

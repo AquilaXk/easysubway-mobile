@@ -3,11 +3,14 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'pump_until.dart';
 
 /// 번들 바탕 색인(`line-overlays.json`) 원문. flutter test cwd(apps/mobile) 기준으로 연다.
 final String bundledBasemapIndexJson = File(
@@ -75,29 +78,6 @@ class FakeBasemapBundle extends CachingAssetBundle {
   }
 }
 
-/// [pumpUntil]이 조건을 기다리는 실제 시간 한도. 부하가 큰 러너에서도 디코드는 이 안에 끝난다.
-const Duration _pumpUntilTimeout = Duration(seconds: 30);
-
-/// [condition]이 참이 될 때까지 프레임을 돌리며 실제 이벤트 루프를 한 바퀴씩 내준다. 색인
-/// 읽기와 .vec 디코드는 테스트 시계가 아니라 실제 시간으로 끝나기 때문이다. 시계는 앞으로
-/// 돌리지 않아 카메라가 멈춘 뒤 굽는 타일은 만들지 않는다. 한도 안에 참이 되지 않으면
-/// [waitingFor]를 밝혀 실패한다.
-Future<void> pumpUntil(
-  WidgetTester tester,
-  bool Function() condition, {
-  required String waitingFor,
-}) async {
-  final elapsed = Stopwatch()..start();
-  await tester.pump();
-  while (!condition()) {
-    if (elapsed.elapsed > _pumpUntilTimeout) {
-      fail('${_pumpUntilTimeout.inSeconds}초가 지나도 $waitingFor 끝나지 않았습니다.');
-    }
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-  }
-}
-
 /// 바탕 뷰가 지금 그리는 그림. 노선을 골랐고 레이어가 준비됐으면 흐린 바탕, 노선 레이어
 /// 순이다. 아직 읽지 못한 층은 null이다.
 List<ui.Picture?> paintedBasemapPictures(WidgetTester tester) => tester
@@ -113,15 +93,52 @@ List<ui.Picture?> paintedBasemapPictures(WidgetTester tester) => tester
     .toList();
 
 /// 바탕 뷰가 [count]장의 그림을 모두 그릴 때까지 기다린다. 뷰 하나는 바탕 1장이고, 노선을
-/// 골랐으면 흐린 바탕과 노선 레이어 2장이다.
-Future<void> pumpUntilBasemapPainted(WidgetTester tester, {int count = 1}) =>
-    pumpUntil(tester, () {
-      final pictures = paintedBasemapPictures(tester);
-      return pictures.length == count && !pictures.contains(null);
-    }, waitingFor: '바탕 그림 $count장을 그리는 일이');
+/// 골랐으면 흐린 바탕과 노선 레이어 2장이다. 출처 표기만 그리는 painter는 그림이 없어 세지
+/// 않는다.
+Future<void> pumpUntilBasemapPainted(WidgetTester tester, {int count = 1}) {
+  int painted() =>
+      paintedBasemapPictures(tester).whereType<ui.Picture>().length;
+  return pumpUntil(
+    tester,
+    () => painted() == count,
+    reason: '바탕 그림 $count장을 그리는 일이 끝나기를 기다렸다',
+    observed: () => '그린 그림 ${painted()}장',
+  );
+}
 
-/// 보고된 Flutter 오류가 [errors]에 하나라도 쌓일 때까지 기다린다.
+/// 읽는 일이 없는 상태가 이벤트 루프 이만큼의 바퀴 동안 이어져야 조용하다고 본다. 읽기가 끝난
+/// 바로 뒤에 오는 늦은 보고나 다시 읽기를 놓치지 않으려는 값이다.
+const int _quietTurns = 3;
+
+/// [assets]에 읽는 일이 남지 않고 새로 시작하지도 않는 상태가 [_quietTurns]바퀴 이어질 때까지
+/// 기다린다. "정확히 한 번"이나 "일어나지 않음"을 단언하기 전에 쓴다.
+Future<void> pumpUntilQuiet(WidgetTester tester, RouteMapBasemapAssets assets) {
+  var quietTurns = 0;
+  return pumpUntil(
+    tester,
+    () {
+      quietTurns = assets.isLoading ? 0 : quietTurns + 1;
+      return quietTurns >= _quietTurns;
+    },
+    reason: '바탕 자산이 읽는 일을 모두 마치기를 기다렸다',
+    observed: () => '읽는 중=${assets.isLoading}',
+  );
+}
+
+/// [isExpected]인 Flutter 오류가 [errors]에 쌓이고 [assets]가 조용해질 때까지 기다린다. 첫
+/// 보고에서 멈추지 않고 조용해질 때까지 기다리므로, 이어 오는 같은 보고와 다른 읽기의
+/// 결과를 단언 전에 모두 본다.
 Future<void> pumpUntilReported(
   WidgetTester tester,
-  List<FlutterErrorDetails> errors,
-) => pumpUntil(tester, () => errors.isNotEmpty, waitingFor: '오류를 보고하는 일이');
+  RouteMapBasemapAssets assets,
+  List<FlutterErrorDetails> errors, {
+  required bool Function(FlutterErrorDetails error) isExpected,
+}) async {
+  await pumpUntil(
+    tester,
+    () => errors.any(isExpected),
+    reason: '기대한 오류를 보고하는 일이 끝나기를 기다렸다',
+    observed: () => '보고된 오류 ${errors.map((e) => e.context).toList()}',
+  );
+  await pumpUntilQuiet(tester, assets);
+}

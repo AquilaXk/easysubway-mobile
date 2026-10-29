@@ -1,5 +1,3 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
@@ -126,6 +124,9 @@ final RouteMapBasemapVariantFiles _engineFiles = bundledBasemapIndex.variant(
 String _overlayAsset(String lineId) =>
     _engineFiles.overlayAssetFor(regionId: 'seoul', lineId: lineId);
 
+bool _isMissingOverlay(FlutterErrorDetails error) =>
+    error.exception is RouteMapLineOverlayMissing;
+
 int _maxChannelDiff(Uint8List a, Uint8List b) {
   var max = 0;
   for (var i = 0; i < a.length; i++) {
@@ -190,7 +191,10 @@ void main() {
   final seoulBase = _engineFiles.baseAssetFor('seoul');
   final busanBase = _engineFiles.baseAssetFor('busan');
 
-  tearDown(RouteMapBasemapAssets.shared.resetForTest);
+  tearDown(() {
+    RouteMapBasemapAssets.shared.resetForTest();
+    stopServingBasemapAssets();
+  });
 
   testWidgets('전체 노선은 바탕을 흐리지 않고 그대로 그린다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
@@ -265,30 +269,36 @@ void main() {
   });
 
   testWidgets('한 번 읽은 노선을 다시 고르면 다시 디코드하지 않고 그 프레임에 바로 강조한다', (tester) async {
+    final requests = serveBasemapAssets();
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
     await pumpUntilBasemapPainted(tester, count: 2);
     final highlighted = await _screen(tester);
     final overlayAsset = _overlayAsset(_uiSinseolLineId);
     final decoded = RouteMapBasemapAssets.shared.picture(overlayAsset);
     expect(decoded, isNotNull);
+    await pumpUntilQuiet(tester, RouteMapBasemapAssets.shared);
+    expect(requests.where((key) => key == overlayAsset), hasLength(1));
 
     await tester.pumpWidget(_map(region: '수도권'));
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
 
     expect(_maxChannelDiff(await _screen(tester), highlighted), 0);
+    await pumpUntilQuiet(tester, RouteMapBasemapAssets.shared);
     expect(RouteMapBasemapAssets.shared.picture(overlayAsset), same(decoded));
+    expect(
+      requests.where((key) => key == overlayAsset),
+      hasLength(1),
+      reason: '다시 고른 노선 레이어를 다시 읽지 않는다',
+    );
   });
 
   group('레이어를 그리지 못하면 오류로 드러내고 바탕을 흐리지 않는다', () {
-    tearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', null);
-    });
-
-    /// 오류가 보고되고, [baseLoads]이면 그 바탕 그림 한 장까지 그려질 때까지 기다린다.
+    /// [isExpected]인 오류가 보고되고 바탕 자산이 조용해질 때까지 기다린다. [baseLoads]이면 그
+    /// 바탕 그림 한 장까지 그려질 때까지 기다린다.
     Future<List<FlutterErrorDetails>> pumpCapturingErrors(
       WidgetTester tester,
       String lineId, {
+      required bool Function(FlutterErrorDetails error) isExpected,
       String region = '수도권',
       bool baseLoads = true,
     }) async {
@@ -297,7 +307,12 @@ void main() {
       FlutterError.onError = errors.add;
       try {
         await tester.pumpWidget(_map(region: region, lineId: lineId));
-        await pumpUntilReported(tester, errors);
+        await pumpUntilReported(
+          tester,
+          RouteMapBasemapAssets.shared,
+          errors,
+          isExpected: isExpected,
+        );
         if (baseLoads) {
           await pumpUntilBasemapPainted(tester);
         }
@@ -323,7 +338,11 @@ void main() {
       await tester.pumpWidget(_map(region: '수도권', lineId: _seoulLine2Id));
       await pumpUntilBasemapPainted(tester, count: 2);
 
-      final errors = await pumpCapturingErrors(tester, 'line-unknown');
+      final errors = await pumpCapturingErrors(
+        tester,
+        'line-unknown',
+        isExpected: _isMissingOverlay,
+      );
 
       expect(errors, hasLength(1));
       expect(errors.single.library, 'network_map');
@@ -339,6 +358,7 @@ void main() {
         tester,
         _uiSinseolLineId,
         region: '부산',
+        isExpected: _isMissingOverlay,
       );
 
       expect(errors, hasLength(1));
@@ -347,39 +367,38 @@ void main() {
     });
 
     testWidgets('바탕 .vec를 읽지 못하면 고른 노선 레이어만 따로 그리지 않는다', (tester) async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', (message) async {
-            final key = Uri.decodeFull(
-              utf8.decode(message!.buffer.asUint8List()),
-            );
-            if (key == seoulBase) return null;
-            return ByteData.sublistView(File(key).readAsBytesSync());
-          });
+      final overlayAsset = _overlayAsset(_uiSinseolLineId);
+      final requests = serveBasemapAssets({seoulBase: () async => null});
 
       final errors = await pumpCapturingErrors(
         tester,
         _uiSinseolLineId,
         baseLoads: false,
+        isExpected: (error) => error.context.toString().contains(seoulBase),
       );
 
       expect(errors, hasLength(1));
       expect(errors.single.context.toString(), contains(seoulBase));
+      expect(requests, contains(overlayAsset), reason: '노선 레이어도 읽기를 시작했다');
+      expect(
+        RouteMapBasemapAssets.shared.picture(overlayAsset),
+        isNotNull,
+        reason: '노선 레이어는 읽혔는데도 바탕 없이 그리지 않는다',
+      );
       final blank = await _reference(tester, const []);
       expect(_maxChannelDiff(await _screen(tester), blank), 0);
     });
 
     testWidgets('레이어 .vec를 읽지 못함', (tester) async {
       final overlayAsset = _overlayAsset(_uiSinseolLineId);
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', (message) async {
-            final key = Uri.decodeFull(
-              utf8.decode(message!.buffer.asUint8List()),
-            );
-            if (key == overlayAsset) return null;
-            return ByteData.sublistView(File(key).readAsBytesSync());
-          });
+      serveBasemapAssets({overlayAsset: () async => null});
 
-      final errors = await pumpCapturingErrors(tester, _uiSinseolLineId);
+      final errors = await pumpCapturingErrors(
+        tester,
+        _uiSinseolLineId,
+        isExpected: (error) =>
+            error.context.toString().contains(_uiSinseolLineId),
+      );
 
       expect(errors, hasLength(1));
       expect(errors.single.library, 'network_map');
