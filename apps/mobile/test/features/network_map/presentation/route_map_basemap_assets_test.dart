@@ -311,17 +311,34 @@ void main() {
       expect(scripted.hasPendingReads, isFalse);
     });
 
-    testWidgets('조용해진 뒤 마지막 바퀴에 읽기가 다시 시작해도 실패한다', (tester) async {
+    testWidgets('조용해진 뒤 마지막 바퀴에 읽기가 다시 시작하면 그 바퀴를 밝혀 실패한다', (tester) async {
       final scripted = _ScriptedReadsAssets([true, false, false, false, true]);
 
-      TestFailure? failure;
-      try {
-        await pumpUntilQuiet(tester, scripted);
-      } on TestFailure catch (error) {
-        failure = error;
-      }
+      await expectLater(
+        () => pumpUntilQuiet(tester, scripted),
+        throwsA(
+          isA<TestFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('3번째 바퀴'),
+          ),
+        ),
+      );
+    });
 
-      expect(failure, isNotNull);
+    testWidgets('조용해진 첫 바퀴에 읽기가 다시 시작해도 그 바퀴를 밝혀 실패한다', (tester) async {
+      final scripted = _ScriptedReadsAssets([false, true]);
+
+      await expectLater(
+        () => pumpUntilQuiet(tester, scripted),
+        throwsA(
+          isA<TestFailure>().having(
+            (failure) => failure.message,
+            'message',
+            contains('1번째 바퀴'),
+          ),
+        ),
+      );
     });
   });
 

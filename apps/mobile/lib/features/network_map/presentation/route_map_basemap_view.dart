@@ -130,8 +130,8 @@ void _paintAttribution(
 /// 하이브리드 노선도 바탕층 뷰. [region]의 바탕 .vec와 고른 노선 레이어를 [assets]의 변형에서
 /// 골라 디코드한 [ui.Picture]를 카메라 변경 시 transform만 바꿔 재생한다.
 ///
-/// 그림을 쥐는 상태는 권역과 바탕 자료, 타일 캐시로 key를 걸어 만든다. 이 중 하나가 바뀌면
-/// 이전 상태와 그림이 버려지고 새로 만들어져, 이전 권역의 바탕이 남는 일이 구조상 없다.
+/// 그림을 쥐는 상태는 권역과 바탕 자료로 key를 걸어 만든다. 이 중 하나가 바뀌면 이전 상태와
+/// 그림이 버려지고 새로 만들어져, 이전 권역의 바탕이 남는 일이 구조상 없다.
 /// 그 상태를 쥔 위젯은 이 라이브러리 밖에서 만들 수 없어 key 없이 만들 길도 없다.
 class RouteMapBasemapView extends StatelessWidget {
   const RouteMapBasemapView({
@@ -141,7 +141,6 @@ class RouteMapBasemapView extends StatelessWidget {
     this.attributionText,
     this.highlightedLineId,
     this.assets,
-    this.tileCache,
     super.key,
   });
 
@@ -161,23 +160,13 @@ class RouteMapBasemapView extends StatelessWidget {
   /// 바탕 색인과 그림을 읽는 곳. null이면 [RouteMapBasemapAssets.shared]다.
   final RouteMapBasemapAssets? assets;
 
-  /// 굽은 바탕 타일을 쥘 캐시. null이면 뷰가 만들어 쥐고 뷰가 사라질 때 비운다. 시험이 굽은
-  /// 타일 수를 읽으려고 넘기면 뷰는 격자 내용이 바뀔 때만 이 캐시의 타일을 버리고 사라질
-  /// 때는 건드리지 않으니, 남은 타일은 넘긴 쪽이 비운다.
-  @visibleForTesting
-  final RouteMapBasemapTileCache? tileCache;
-
   @override
   Widget build(BuildContext context) {
     final source = assets ?? RouteMapBasemapAssets.shared;
     final regionId = routeMapBasemapRegionId(region);
     return _RouteMapBasemapLayers(
-      key: ValueKey((
-        regionId,
-        regionId == null ? region : null,
-        source,
-        tileCache,
-      )),
+      // 원래 표기는 매핑 밖일 때만 넣는다. 같은 권역의 두 표기는 State를 함께 쓰고 매핑 밖 이름은 따로 보고한다.
+      key: ValueKey((regionId, regionId == null ? region : null, source)),
       regionId: regionId,
       region: region,
       camera: camera,
@@ -185,13 +174,13 @@ class RouteMapBasemapView extends StatelessWidget {
       attributionText: attributionText,
       highlightedLineId: highlightedLineId,
       assets: source,
-      tileCache: tileCache,
     );
   }
 }
 
-/// [RouteMapBasemapView]가 권역마다 만드는 바탕 그림 상태. 그릴 자산과 타일 격자는 이
-/// State의 [regionId]와 [assets]에서만 정해진다.
+/// [RouteMapBasemapView]가 권역마다 만드는 바탕 그림 상태. 그릴 바탕 자산과 타일 격자는 이
+/// State의 [regionId]와 [assets]에서만 정해지고, 노선 레이어는 [highlightedLineId]에도 따라
+/// 바뀐다.
 class _RouteMapBasemapLayers extends StatefulWidget {
   const _RouteMapBasemapLayers({
     required this.regionId,
@@ -201,7 +190,6 @@ class _RouteMapBasemapLayers extends StatefulWidget {
     required this.attributionText,
     required this.highlightedLineId,
     required this.assets,
-    required this.tileCache,
     super.key,
   });
 
@@ -215,7 +203,6 @@ class _RouteMapBasemapLayers extends StatefulWidget {
   final String? attributionText;
   final String? highlightedLineId;
   final RouteMapBasemapAssets assets;
-  final RouteMapBasemapTileCache? tileCache;
 
   @override
   State<_RouteMapBasemapLayers> createState() => _RouteMapBasemapLayersState();
@@ -233,9 +220,7 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   String? _attributionPainterText;
   // 지금 바탕 타일 격자와 구운 타일, 배율이 머물기를 기다리는 다음 내용(#517).
   RouteMapBasemapTileGrid? _tileGrid;
-  late final bool _ownsTiles = widget.tileCache == null;
-  late final RouteMapBasemapTileCache _tiles =
-      widget.tileCache ?? RouteMapBasemapTileCache();
+  final RouteMapBasemapTileCache _tiles = RouteMapBasemapTileCache();
   ({RouteMapBasemapTileContent content, Timer timer})? _pendingTileGrid;
   bool _bakeFrameScheduled = false;
 
@@ -496,9 +481,7 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   @override
   void dispose() {
     _pendingTileGrid?.timer.cancel();
-    if (_ownsTiles) {
-      _tiles.retainWithin(null);
-    }
+    _tiles.retainWithin(null);
     _attributionPainter?.dispose();
     super.dispose();
   }

@@ -1,12 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
-import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_tiles.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -28,6 +26,17 @@ const _camera = MapCameraState(
   revision: 1,
 );
 
+/// 타일을 프레임 한도 안에 다 굽는 작은 화면.
+const _smallCamera = MapCameraState(
+  sourceBounds: Rect.fromLTWH(0, 0, 1000, 1000),
+  viewportSize: Size(200, 200),
+  center: Offset(500, 500),
+  scale: 1.0,
+  minScale: 0.5,
+  maxScale: 10.0,
+  revision: 1,
+);
+
 RouteMapBasemapVariantFiles _files(RouteMapBasemapAssets assets) =>
     bundledBasemapIndex.variant(assets.variant);
 
@@ -40,26 +49,17 @@ Widget _view(
   required String region,
   String? lineId,
   Key? key,
-  RouteMapBasemapTileCache? tiles,
+  MapCameraState camera = _camera,
 }) => Directionality(
   textDirection: TextDirection.ltr,
   child: RouteMapBasemapView(
     key: key,
     region: region,
-    camera: _camera,
+    camera: camera,
     highlightedLineId: lineId,
     assets: assets,
-    tileCache: tiles,
   ),
 );
-
-/// 지금 화면에 놓인 굽은 타일 그림. 타일 격자가 서지 않았으면 비어 있다.
-List<ui.Image> _bakedTiles(WidgetTester tester) => tester
-    .widgetList<CustomPaint>(find.byType(CustomPaint))
-    .map((paint) => paint.painter)
-    .whereType<RouteMapBasemapTilePainter>()
-    .expand((painter) => painter.tiles.map((tile) => tile.image))
-    .toList();
 
 /// [body]가 도는 동안 보고된 Flutter 오류. [body]는 지금까지 보고된 오류 목록을 받아 보고를
 /// 기다릴 수 있다.
@@ -220,27 +220,21 @@ void main() {
       tester,
     ) async {
       final requests = serveBasemapAssets();
-      final tiles = RouteMapBasemapTileCache();
-      addTearDown(() => tiles.retainWithin(null));
-      await tester.pumpWidget(_view(assets, region: '광주권', tiles: tiles));
+      await tester.pumpWidget(
+        _view(assets, region: '광주권', camera: _smallCamera),
+      );
       await pumpUntilBasemapPainted(tester);
       await tester.pump(kRouteMapBasemapRasterSettleDelay);
-      for (
-        var frame = 0;
-        frame < 50 && tester.binding.hasScheduledFrame;
-        frame++
-      ) {
-        await tester.pump();
-      }
-      final baked = _bakedTiles(tester);
+      await bakeAllBasemapTiles(tester);
+      final baked = bakedBasemapTiles(tester);
       expect(baked, isNotEmpty);
-      expect(tiles.length, baked.length);
 
-      await tester.pumpWidget(_view(assets, region: '광주', tiles: tiles));
+      await tester.pumpWidget(
+        _view(assets, region: '광주', camera: _smallCamera),
+      );
       await pumpUntilQuiet(tester, assets);
 
-      expect(_bakedTiles(tester), orderedEquals(baked));
-      expect(tiles.length, baked.length);
+      expect(bakedBasemapTiles(tester), orderedEquals(baked));
       expect(requests.where((key) => key == base('gwangju')), hasLength(1));
     });
 

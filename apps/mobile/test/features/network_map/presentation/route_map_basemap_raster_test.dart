@@ -36,9 +36,6 @@ final _boundaryKey = GlobalKey();
 
 var _devicePixelRatio = 1.0;
 
-/// 지금 시험의 뷰가 굽은 타일을 쥐는 캐시. 시험마다 새로 만든다.
-var _tiles = RouteMapBasemapTileCache();
-
 /// [pan]은 화면 픽셀 거리다.
 MapCameraState _camera({
   double scale = 0.5,
@@ -54,14 +51,12 @@ MapCameraState _camera({
   revision: 1,
 );
 
-/// [top]은 지도 위 여백(논리 픽셀)이다. 앱처럼 지도 밖은 잘라 그린다. [shareTiles]가 거짓이면
-/// 타일 캐시를 넘기지 않아 앱과 같이 뷰가 캐시를 만들어 쥔다.
+/// [top]은 지도 위 여백(논리 픽셀)이다. 앱처럼 지도 밖은 잘라 그린다.
 Widget _map(
   MapCameraState camera, {
   String? lineId,
   Key? key,
   double top = 0,
-  bool shareTiles = true,
 }) => Directionality(
   textDirection: TextDirection.ltr,
   child: Align(
@@ -77,7 +72,6 @@ Widget _map(
               color: const Color(0xFFFFFFFF),
               child: RouteMapBasemapView(
                 key: key,
-                tileCache: shareTiles ? _tiles : null,
                 region: '수도권',
                 camera: camera,
                 highlightedLineId: lineId,
@@ -130,15 +124,6 @@ RouteMapBasemapTilePainter? _tilePainter(WidgetTester tester) => tester
     .whereType<RouteMapBasemapTilePainter>()
     .firstOrNull;
 
-/// 아직 굽지 않은 타일 자리를 벡터로 그리는 중인지.
-bool _drawsGaps(WidgetTester tester) => find
-    .descendant(
-      of: find.byType(RouteMapBasemapView),
-      matching: find.byType(ClipPath),
-    )
-    .evaluate()
-    .isNotEmpty;
-
 /// 뷰가 [lineId]에 맞는 그림(바탕, 노선을 골랐으면 노선 레이어까지)을 모두 그릴 때까지 기다린다.
 Future<void> _paintLoaded(WidgetTester tester, {String? lineId}) =>
     pumpUntilBasemapPainted(tester, count: lineId == null ? 1 : 2);
@@ -146,17 +131,6 @@ Future<void> _paintLoaded(WidgetTester tester, {String? lineId}) =>
 /// 카메라가 [kRouteMapBasemapRasterSettleDelay] 동안 멈춰 격자를 만든 프레임.
 Future<void> _rest(WidgetTester tester) =>
     tester.pump(kRouteMapBasemapRasterSettleDelay);
-
-/// 보이는 타일을 다 구울 때까지 프레임을 돌린다. 굽은 타일 수를 프레임마다 센다.
-Future<List<int>> _bakeAll(WidgetTester tester) async {
-  final counts = <int>[];
-  for (var frame = 0; frame < 50 && _drawsGaps(tester); frame++) {
-    counts.add(_tiles.length);
-    await tester.pump();
-  }
-  expect(_drawsGaps(tester), isFalse, reason: '보이는 타일을 모두 굽는다');
-  return counts;
-}
 
 /// 바탕을 처음 그린 프레임(벡터)의 화면. 새 key로 새 State를 만들어 격자를 아직
 /// 만들지 않은 상태에서 찍는다.
@@ -206,13 +180,11 @@ void main() {
 
   setUp(() {
     _setView(const Size(800, 800));
-    _tiles = RouteMapBasemapTileCache();
   });
   tearDown(() {
     TestWidgetsFlutterBinding.instance.platformDispatcher.views.first
       ..resetDevicePixelRatio()
       ..resetPhysicalSize();
-    _tiles.retainWithin(null);
     RouteMapBasemapAssets.shared.resetForTest();
   });
 
@@ -237,7 +209,7 @@ void main() {
           await tester.pumpWidget(_map(_camera(), lineId: lineId, key: key));
           await _paintLoaded(tester, lineId: lineId);
           await _rest(tester);
-          final counts = await _bakeAll(tester);
+          final counts = await bakeAllBasemapTiles(tester);
           expect(counts.first, 1, reason: '격자를 만든 프레임에 한 장');
           expect(
             [for (var i = 1; i < counts.length; i++) counts[i] - counts[i - 1]],
@@ -259,9 +231,13 @@ void main() {
               '팬 ${pans[i]}',
             );
           }
-          expect(_drawsGaps(tester), isTrue, reason: '새로 드러난 타일은 아직 벡터');
+          expect(
+            drawsBasemapTileGaps(tester),
+            isTrue,
+            reason: '새로 드러난 타일은 아직 벡터',
+          );
 
-          await _bakeAll(tester);
+          await bakeAllBasemapTiles(tester);
           _expectSameScreen(await _screen(tester), expected.last, '다 구운 팬');
         });
       }
@@ -273,7 +249,7 @@ void main() {
         await tester.pumpWidget(_map(_camera(pan: between), key: UniqueKey()));
         await _paintLoaded(tester);
         await _rest(tester);
-        await _bakeAll(tester);
+        await bakeAllBasemapTiles(tester);
 
         _expectSameScreen(await _screen(tester), expected, '픽셀 사이 카메라');
       });
@@ -316,7 +292,7 @@ void main() {
         );
         await _paintLoaded(tester, lineId: lineId);
         await _rest(tester);
-        await _bakeAll(tester);
+        await bakeAllBasemapTiles(tester);
         for (var i = 0; i < pans.length; i++) {
           await tester.pumpWidget(
             _map(
@@ -332,7 +308,11 @@ void main() {
             '팬 ${pans[i]}',
           );
         }
-        expect(_drawsGaps(tester), isTrue, reason: '새로 드러난 타일은 아직 벡터');
+        expect(
+          drawsBasemapTileGaps(tester),
+          isTrue,
+          reason: '새로 드러난 타일은 아직 벡터',
+        );
       });
     }
 
@@ -341,7 +321,7 @@ void main() {
       await tester.pumpWidget(_map(_camera(), key: key, top: top));
       await _paintLoaded(tester);
       await _rest(tester);
-      await _bakeAll(tester);
+      await bakeAllBasemapTiles(tester);
 
       for (final pan in const [Offset(0.37, 0.61), Offset(-41.2, 17.5)]) {
         await tester.pumpWidget(
@@ -365,7 +345,7 @@ void main() {
     await tester.pumpWidget(_map(_camera(), key: key));
     await _paintLoaded(tester);
     await _rest(tester);
-    await _bakeAll(tester);
+    await bakeAllBasemapTiles(tester);
     final before = {
       for (final tile in _tilePainter(tester)!.tiles) tile.pixels: tile.image,
     };
@@ -398,7 +378,7 @@ void main() {
     await tester.pumpWidget(_map(_camera(), key: key));
     await _paintLoaded(tester);
     await _rest(tester);
-    await _bakeAll(tester);
+    await bakeAllBasemapTiles(tester);
     final plain = _tilePainter(tester)!.tiles.map((tile) => tile.image);
 
     await tester.pumpWidget(
@@ -406,11 +386,10 @@ void main() {
     );
     await _paintLoaded(tester, lineId: _uiSinseolLineId);
     expect(_tilePainter(tester), isNull);
-    expect(_tiles.length, 0);
     expect(plain.every((image) => image.debugDisposed), isTrue);
 
     await _rest(tester);
-    await _bakeAll(tester);
+    await bakeAllBasemapTiles(tester);
     _expectSameScreen(await _screen(tester), expected, '강조한 바탕');
   });
 
@@ -441,7 +420,7 @@ void main() {
 
     final visible = _tilePainter(tester)!.tiles.length;
     expect(visible, greaterThan(1));
-    expect(_tiles.length, visible, reason: '보이는 타일을 모두 굽는다');
+    expect(drawsBasemapTileGaps(tester), isFalse, reason: '보이는 타일을 모두 굽는다');
     expect(frames, lessThanOrEqualTo(visible), reason: '프레임마다 한 장');
     expect(tester.binding.hasScheduledFrame, isFalse, reason: '다 굽고 나면 요청 없음');
   });
@@ -457,11 +436,24 @@ void main() {
       await tester.pump();
     }
 
-    final tiles = _tiles;
-    expect(tiles.length, greaterThan(0));
-    expect(tiles.bytes, lessThanOrEqualTo(kRouteMapBasemapTileCacheBytes));
-    expect(tiles.fits(routeMapTileBytes(256, 256)), isFalse);
-    expect(_drawsGaps(tester), isTrue);
+    final baked = _tilePainter(tester)!.tiles;
+    final bakedBytes = baked.fold<int>(
+      0,
+      (sum, tile) =>
+          sum +
+          routeMapTileBytes(
+            tile.pixels.width.toInt(),
+            tile.pixels.height.toInt(),
+          ),
+    );
+    expect(baked, isNotEmpty);
+    expect(bakedBytes, lessThanOrEqualTo(kRouteMapBasemapTileCacheBytes));
+    expect(
+      bakedBytes + routeMapTileBytes(256, 256),
+      greaterThan(kRouteMapBasemapTileCacheBytes),
+      reason: '한 장도 더 들어가지 않는다',
+    );
+    expect(drawsBasemapTileGaps(tester), isTrue);
     expect(tester.binding.hasScheduledFrame, isFalse, reason: '더 굽지 않는다');
   });
 
@@ -471,7 +463,7 @@ void main() {
     await tester.pumpWidget(_map(_camera()));
     await _paintLoaded(tester);
     await _rest(tester);
-    await _bakeAll(tester);
+    await bakeAllBasemapTiles(tester);
     final images = _tilePainter(
       tester,
     )!.tiles.map((tile) => tile.image).toList();
@@ -480,7 +472,7 @@ void main() {
     await tester.pump();
 
     expect(images.any((image) => image.debugDisposed), isFalse);
-    expect(_drawsGaps(tester), isFalse);
+    expect(drawsBasemapTileGaps(tester), isFalse);
     expect(
       _tilePainter(tester)!.tiles.map((tile) => tile.image),
       orderedEquals(images),
@@ -493,22 +485,21 @@ void main() {
     await tester.pumpWidget(_map(_camera(), key: key));
     await _paintLoaded(tester);
     await _rest(tester);
-    await _bakeAll(tester);
+    await bakeAllBasemapTiles(tester);
 
     await tester.pumpWidget(
       _map(_camera(pan: const Offset(-5000, 0)), key: key),
     );
 
-    expect(_tiles.length, 0);
     expect(_tilePainter(tester)!.tiles, isEmpty);
-    expect(_drawsGaps(tester), isFalse);
+    expect(drawsBasemapTileGaps(tester), isFalse);
   });
 
-  testWidgets('캐시를 넘기지 않은 뷰는 바탕을 떠나면 타일을 버린다', (tester) async {
-    await tester.pumpWidget(_map(_camera(), shareTiles: false));
+  testWidgets('뷰는 바탕을 떠나면 굽은 타일을 버린다', (tester) async {
+    await tester.pumpWidget(_map(_camera()));
     await _paintLoaded(tester);
     await _rest(tester);
-    await _bakeAll(tester);
+    await bakeAllBasemapTiles(tester);
     final images = _tilePainter(tester)!.tiles.map((tile) => tile.image);
     expect(images, isNotEmpty);
 
@@ -517,18 +508,24 @@ void main() {
     expect(images.every((image) => image.debugDisposed), isTrue);
   });
 
-  testWidgets('넘겨 받은 캐시는 바탕을 떠나도 비우지 않는다', (tester) async {
+  testWidgets('대기 중인 격자가 있는 채로 뷰가 사라져도 settle 지연이 지나도록 오류가 없다', (tester) async {
     await tester.pumpWidget(_map(_camera()));
     await _paintLoaded(tester);
-    await _rest(tester);
-    final tiles = _tiles;
-    expect(tiles.length, 1);
-    final image = _tilePainter(tester)!.tiles.single.image;
+    await tester.pumpWidget(_map(_camera(scale: 0.52)));
+    expect(_tilePainter(tester), isNull);
 
     await tester.pumpWidget(const SizedBox());
+    await tester.pump(kRouteMapBasemapRasterSettleDelay * 2);
 
-    expect(tiles.length, 1);
-    expect(image.debugDisposed, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('대기 중인 격자가 있는 채로 뷰가 사라지면 타이머가 남지 않는다', (tester) async {
+    await tester.pumpWidget(_map(_camera()));
+    await _paintLoaded(tester);
+    await tester.pumpWidget(_map(_camera(scale: 0.52)));
+
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('타일 painter는 그리는 입력이 바뀔 때만 다시 그린다', (tester) async {

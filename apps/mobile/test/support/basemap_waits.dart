@@ -1,6 +1,7 @@
 import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_tiles.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -34,6 +35,35 @@ Future<void> pumpUntilBasemapPainted(WidgetTester tester, {int count = 1}) {
     reason: '바탕 그림 $count장을 그리는 일이 끝나기를 기다렸다',
     observed: () => '그린 그림 ${painted()}장',
   );
+}
+
+/// 지금 화면에 놓인 굽은 타일 그림. 타일 격자가 서지 않았으면 비어 있다.
+List<ui.Image> bakedBasemapTiles(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(find.byType(CustomPaint))
+    .map((paint) => paint.painter)
+    .whereType<RouteMapBasemapTilePainter>()
+    .expand((painter) => painter.tiles.map((tile) => tile.image))
+    .toList();
+
+/// 아직 굽지 않은 타일 자리를 벡터로 그리는 중인지.
+bool drawsBasemapTileGaps(WidgetTester tester) => find
+    .descendant(
+      of: find.byType(RouteMapBasemapView),
+      matching: find.byType(ClipPath),
+    )
+    .evaluate()
+    .isNotEmpty;
+
+/// 보이는 타일을 다 구울 때까지 프레임을 돌리고, 굽은 타일 수를 프레임마다 센다. 다 굽지
+/// 못하고 돌려보내면 실패한다.
+Future<List<int>> bakeAllBasemapTiles(WidgetTester tester) async {
+  final counts = <int>[];
+  for (var frame = 0; frame < 50 && drawsBasemapTileGaps(tester); frame++) {
+    counts.add(bakedBasemapTiles(tester).length);
+    await tester.pump();
+  }
+  expect(drawsBasemapTileGaps(tester), isFalse, reason: '보이는 타일을 모두 굽는다');
+  return counts;
 }
 
 /// 읽는 일이 없는 상태를 이벤트 루프 이만큼의 바퀴 동안 더 지켜본다. 읽기가 끝난 바로
