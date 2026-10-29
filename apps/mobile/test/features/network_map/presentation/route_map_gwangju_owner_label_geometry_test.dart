@@ -28,8 +28,7 @@ import 'package:sqlite3/sqlite3.dart';
 // rect가 geometry bounds에 절대 반영되지 않았다(로드 타이밍·designScale과
 // 무관하게 애초에 라벨 목록 자체가 비어 있었음).
 //
-// 수정: canvas owner의 _geometryFor·_buildStructuredRouteMapCanvas 양쪽 조회를
-// kRouteMapBasemapRegionToId[routeMapDisplayRegionName(selectedRegion)]로 정규화.
+// 수정: 바탕 권역 id 조회를 정규화까지 맡는 routeMapBasemapRegionId 하나로 모았다.
 //
 // 이 테스트는 실제 nationwide.sqlite.gz의 광주권(route_map_positions.region=
 // '광주권') 실데이터로 NetworkMapScreen을 프로덕션과 동일한 저장형 region으로

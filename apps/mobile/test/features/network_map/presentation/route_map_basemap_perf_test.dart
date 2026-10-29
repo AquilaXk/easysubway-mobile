@@ -53,10 +53,11 @@ const double _overviewScale = 0.35;
 const int _frameWidth = 1080;
 const int _frameHeight = 1920;
 
-/// 지도 바탕 면과 다른 픽셀이 프레임 안 지도 면적에서 차지해야 하는 최소 비율. 실제 노선도
-/// 프레임의 비율보다 훨씬 낮아 렌더러마다 다른 안티앨리어싱에는 걸리지 않고, 아무것도 그리지
-/// 않았거나 바탕 면만 그린 프레임(0)은 잡는다. 라벨이나 강조 레이어 하나가 빠진 프레임은
-/// 잡지 못한다.
+/// 지도 바탕 면과 다른 픽셀이 프레임 안 지도 면적에서 차지해야 하는 최소 비율. 이 테스트가
+/// 그리는 수도권·대전 바탕은 두 변형 모두 이 값의 9배 넘게 칠한다(2026-10-25 호스트 실측,
+/// .vec를 바꾸면 다시 잰다). 그래서 렌더러마다 다른 안티앨리어싱에는 걸리지 않고, 아무것도
+/// 그리지 않았거나 바탕 면만 그린 프레임(0)은 잡는다. 라벨이나 강조 레이어 하나가 빠진
+/// 프레임은 잡지 못한다.
 const double _minInkShare = 0.01;
 
 /// [mapSize] 크기 지도를 [_overviewScale]로 원점에 그린 프레임에서 최소한 칠해져야 하는 픽셀 수.
@@ -326,11 +327,14 @@ void main() {
               ),
             )!
             .keysFromCenter();
-        final tiles = [
-          for (final key in keys)
-            (image: grid.rasterize(key), pixels: grid.tilePixels(key)),
-        ];
+        final tiles = <({ui.Image image, ui.Rect pixels})>[];
         try {
+          for (final key in keys) {
+            tiles.add((
+              image: grid.rasterize(key),
+              pixels: grid.tilePixels(key),
+            ));
+          }
           for (final tile in tiles) {
             expect(await tile.image.toByteData(), isNotNull);
           }

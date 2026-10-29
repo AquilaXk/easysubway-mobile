@@ -3,7 +3,6 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
-import 'package:easysubway_mobile/features/network_map/domain/route_map_min_scale.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart';
 
@@ -106,8 +105,7 @@ void main() {
     test('${variant.indexKey}: 데이터팩 노선도의 모든 노선이 자기 권역의 강조 레이어를 갖는다', () {
       final reached = <String>{};
       for (final line in lines) {
-        final regionId =
-            kRouteMapBasemapRegionToId[routeMapDisplayRegionName(line.region)];
+        final regionId = routeMapBasemapRegionId(line.region);
         expect(regionId, isNotNull, reason: '${line.region} 바탕 권역');
         reached.add(
           files

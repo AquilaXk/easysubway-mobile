@@ -79,6 +79,8 @@ class RouteMapBasemapAssets {
     return _decodes[asset] ??= _decodePicture(asset, generation).whenComplete(
       () {
         if (generation == _generation) {
+          // Map.remove는 Future를 돌려줘 discarded_futures에 걸린다. 이미 끝난 항목을 치우는
+          // 일이라 반환값이 필요 없어 removeWhere로 키 하나를 지운다.
           _decodes.removeWhere((key, _) => key == asset);
         }
       },
