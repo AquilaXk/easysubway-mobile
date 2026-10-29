@@ -161,16 +161,24 @@ class RouteMapBasemapView extends StatelessWidget {
   /// 바탕 색인과 그림을 읽는 곳. null이면 [RouteMapBasemapAssets.shared]다.
   final RouteMapBasemapAssets? assets;
 
-  /// 굽은 바탕 타일을 쥘 캐시. null이면 뷰가 만든다. 시험이 굽은 타일 수를 읽으려고 넘기며,
-  /// 이 캐시는 뷰가 새로 만들어지거나 사라질 때 비워진다.
+  /// 굽은 바탕 타일을 쥘 캐시. null이면 뷰가 만들어 쥐고 뷰가 사라질 때 비운다. 시험이 굽은
+  /// 타일 수를 읽으려고 넘기면 뷰는 격자 내용이 바뀔 때만 이 캐시의 타일을 버리고 사라질
+  /// 때는 건드리지 않으니, 남은 타일은 넘긴 쪽이 비운다.
   @visibleForTesting
   final RouteMapBasemapTileCache? tileCache;
 
   @override
   Widget build(BuildContext context) {
     final source = assets ?? RouteMapBasemapAssets.shared;
+    final regionId = routeMapBasemapRegionId(region);
     return _RouteMapBasemapLayers(
-      key: ValueKey((region, source, tileCache)),
+      key: ValueKey((
+        regionId,
+        regionId == null ? region : null,
+        source,
+        tileCache,
+      )),
+      regionId: regionId,
       region: region,
       camera: camera,
       sourceOrigin: sourceOrigin,
@@ -183,9 +191,10 @@ class RouteMapBasemapView extends StatelessWidget {
 }
 
 /// [RouteMapBasemapView]가 권역마다 만드는 바탕 그림 상태. 그릴 자산과 타일 격자는 이
-/// State의 [region]과 [assets]에서만 정해진다.
+/// State의 [regionId]와 [assets]에서만 정해진다.
 class _RouteMapBasemapLayers extends StatefulWidget {
   const _RouteMapBasemapLayers({
+    required this.regionId,
     required this.region,
     required this.camera,
     required this.sourceOrigin,
@@ -196,6 +205,10 @@ class _RouteMapBasemapLayers extends StatefulWidget {
     super.key,
   });
 
+  /// 바탕 색인 권역 id. 앱이 그리지 않는 권역이면 null이다.
+  final String? regionId;
+
+  /// 뷰가 받은 권역 표기. [regionId]가 null일 때 어느 표기가 매핑 밖인지 보고하는 데만 쓴다.
   final String region;
   final MapCameraState camera;
   final Offset sourceOrigin;
@@ -210,7 +223,6 @@ class _RouteMapBasemapLayers extends StatefulWidget {
 
 class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   late final RouteMapBasemapAssets _assets = widget.assets;
-  late final String? _regionId = routeMapBasemapRegionId(widget.region);
   // 색인을 기다리는 중인지. 기다리는 동안 노선을 몇 번 바꿔도 이어 실행은 하나다.
   bool _awaitingFiles = false;
   // 지금 그리려는 바탕과 노선 레이어 자산. 그림은 [_assets]에서 꺼내므로 이 자산의 그림만
@@ -221,6 +233,7 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   String? _attributionPainterText;
   // 지금 바탕 타일 격자와 구운 타일, 배율이 머물기를 기다리는 다음 내용(#517).
   RouteMapBasemapTileGrid? _tileGrid;
+  late final bool _ownsTiles = widget.tileCache == null;
   late final RouteMapBasemapTileCache _tiles =
       widget.tileCache ?? RouteMapBasemapTileCache();
   ({RouteMapBasemapTileContent content, Timer timer})? _pendingTileGrid;
@@ -229,7 +242,7 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   @override
   void initState() {
     super.initState();
-    if (_regionId == null) {
+    if (widget.regionId == null) {
       reportRouteMapBasemapFailure(
         ArgumentError.value(widget.region, 'region', '바탕 색인에 없는 권역'),
         StackTrace.current,
@@ -253,7 +266,7 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   void _syncLayers() {
     _baseAsset = null;
     _overlayAsset = null;
-    final regionId = _regionId;
+    final regionId = widget.regionId;
     if (regionId == null) {
       return;
     }
@@ -483,7 +496,9 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   @override
   void dispose() {
     _pendingTileGrid?.timer.cancel();
-    _tiles.retainWithin(null);
+    if (_ownsTiles) {
+      _tiles.retainWithin(null);
+    }
     _attributionPainter?.dispose();
     super.dispose();
   }

@@ -29,6 +29,7 @@ import 'package:sqlite3/sqlite3.dart';
 // 무관하게 애초에 라벨 목록 자체가 비어 있었음).
 //
 // 수정: 바탕 권역 id 조회를 정규화까지 맡는 routeMapBasemapRegionId 하나로 모았다.
+// kRouteMapBasemapRegionToId는 #519에서 지웠고, 위 연혁의 이름은 그 시점 기록이다.
 //
 // 이 테스트는 실제 nationwide.sqlite.gz의 광주권(route_map_positions.region=
 // '광주권') 실데이터로 NetworkMapScreen을 프로덕션과 동일한 저장형 region으로

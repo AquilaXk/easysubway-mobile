@@ -12,6 +12,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics/vector_graphics.dart';
 
 import '../../../support/basemap_index.dart';
+import '../../../support/basemap_waits.dart';
 
 // 노선을 고르면 바탕 전체가 흐려지고, 고른 노선 레이어(노선, 역 심벌, 환승 캡슐,
 // 역명)가 그 위에 원래 진하기로 그려진다. 화면에 실제로 그려진 픽셀을 바탕·레이어

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/basemap_index.dart';
+import '../../../support/basemap_waits.dart';
 
 /// 첫 [loadString]이 비동기 함수의 첫 await에 닿기도 전에 던지는 묶음.
 class _ThrowsBeforeFirstAwaitBundle extends FakeBasemapBundle {
@@ -29,6 +30,23 @@ class _ThrowsOnFirstLoadBundle extends FakeBasemapBundle {
       throw StateError('그림 읽기 시작 실패');
     }
     return super.load(key);
+  }
+}
+
+/// [hasPendingReads]가 [script]의 값을 차례로 돌려주고, 다 쓰면 마지막 값을 계속 돌려주는
+/// 자산. 조용한 상태의 판정만 따로 확인하려고 쓴다.
+class _ScriptedReadsAssets extends RouteMapBasemapAssets {
+  _ScriptedReadsAssets(this._script)
+    : super(variant: RouteMapBasemapVariant.text);
+
+  final List<bool> _script;
+  int reads = 0;
+
+  @override
+  bool get hasPendingReads {
+    final value = _script[reads < _script.length ? reads : _script.length - 1];
+    reads++;
+    return value;
   }
 }
 
@@ -177,6 +195,134 @@ void main() {
       requestsFor(requests, kRouteMapLineOverlayIndexAssetPath),
       hasLength(1),
     );
+  });
+
+  group('끝나지 않은 읽기가 있는지', () {
+    test('디코드하는 동안만 true이고, 성공하면 false다', () async {
+      final bytes = Completer<ByteData?>();
+      serveBasemapAssets({daejeon: () => bytes.future});
+      expect(assets.hasPendingReads, isFalse);
+
+      final decoded = assets.decode(daejeon);
+
+      expect(assets.hasPendingReads, isTrue);
+
+      bytes.complete(bundledAsset(daejeon));
+      expect(await decoded, isNotNull);
+
+      expect(assets.hasPendingReads, isFalse);
+    });
+
+    test('디코드에 실패하면 false이고, 기억을 남기지 않아 다시 디코드하면 다시 true다', () async {
+      final bytes = Completer<ByteData?>();
+      serveBasemapAssets({daejeon: () => bytes.future});
+      final failed = assets.decode(daejeon);
+      bytes.complete(null);
+      expect(await failed, isNull);
+
+      expect(assets.hasPendingReads, isFalse);
+
+      serveBasemapAssets({daejeon: () => Completer<ByteData?>().future});
+      unawaited(assets.decode(daejeon));
+
+      expect(assets.hasPendingReads, isTrue);
+    });
+
+    test('색인을 읽는 동안만 true이고, 성공하면 false다', () async {
+      final index = Completer<ByteData?>();
+      serveBasemapAssets({
+        kRouteMapLineOverlayIndexAssetPath: () => index.future,
+      });
+      expect(assets.hasPendingReads, isFalse);
+
+      final files = assets.loadFiles();
+
+      expect(assets.hasPendingReads, isTrue);
+
+      index.complete(bundledAsset(kRouteMapLineOverlayIndexAssetPath));
+      expect(await files, isNotNull);
+
+      expect(assets.hasPendingReads, isFalse);
+    });
+
+    test('색인 읽기에 실패하면 false이고, 기억을 남기지 않아 다시 읽으면 다시 true다', () async {
+      final index = Completer<ByteData?>();
+      serveBasemapAssets({
+        kRouteMapLineOverlayIndexAssetPath: () => index.future,
+      });
+      final failed = assets.loadFiles();
+      index.complete(null);
+      expect(await failed, isNull);
+
+      expect(assets.hasPendingReads, isFalse);
+
+      serveBasemapAssets({
+        kRouteMapLineOverlayIndexAssetPath: () => Completer<ByteData?>().future,
+      });
+      unawaited(assets.loadFiles());
+
+      expect(assets.hasPendingReads, isTrue);
+    });
+
+    test('읽는 중에 초기화하면 false이고, 늦게 끝나도 false다', () async {
+      final bytes = Completer<ByteData?>();
+      final index = Completer<ByteData?>();
+      serveBasemapAssets({
+        daejeon: () => bytes.future,
+        kRouteMapLineOverlayIndexAssetPath: () => index.future,
+      });
+      final stale = [assets.decode(daejeon), assets.loadFiles()];
+      expect(assets.hasPendingReads, isTrue);
+
+      assets.resetForTest();
+
+      expect(assets.hasPendingReads, isFalse);
+
+      bytes.complete(bundledAsset(daejeon));
+      index.complete(bundledAsset(kRouteMapLineOverlayIndexAssetPath));
+      expect(await Future.wait(stale), [null, null]);
+
+      expect(assets.hasPendingReads, isFalse);
+    });
+  });
+
+  group('조용해질 때까지 기다리기', () {
+    testWidgets('막힌 디코드가 끝나기 전에는 돌아오지 않는다', (tester) async {
+      final bytes = Completer<ByteData?>();
+      serveBasemapAssets({daejeon: () => bytes.future});
+      unawaited(assets.decode(daejeon));
+      await tester.runAsync(
+        () async => Timer(
+          const Duration(milliseconds: 100),
+          () => bytes.complete(bundledAsset(daejeon)),
+        ),
+      );
+
+      await pumpUntilQuiet(tester, assets);
+
+      expect(assets.picture(daejeon), isNotNull);
+    });
+
+    testWidgets('읽는 일이 없는 상태가 이어지면 돌아온다', (tester) async {
+      final scripted = _ScriptedReadsAssets([true, true, false]);
+
+      await pumpUntilQuiet(tester, scripted);
+
+      expect(scripted.hasPendingReads, isFalse);
+    });
+
+    testWidgets('조용해진 뒤 마지막 바퀴에 읽기가 다시 시작해도 실패한다', (tester) async {
+      final scripted = _ScriptedReadsAssets([true, false, false, false, true]);
+
+      TestFailure? failure;
+      try {
+        await pumpUntilQuiet(tester, scripted);
+      } on TestFailure catch (error) {
+        failure = error;
+      }
+
+      expect(failure, isNotNull);
+    });
   });
 
   group('초기화 전에 시작한 로드는 늦게 끝나도 아무것도 남기지 않는다', () {

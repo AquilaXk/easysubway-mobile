@@ -65,9 +65,9 @@ class RouteMapBasemapAssets {
     });
   }
 
-  /// 색인이나 .vec를 읽는 중인지. 읽는 일이 모두 끝났다는 확인에 시험이 쓴다.
+  /// 끝나지 않은 색인 로드나 .vec 디코드가 있는지. 읽는 일이 모두 끝났다는 확인에 시험이 쓴다.
   @visibleForTesting
-  bool get isLoading =>
+  bool get hasPendingReads =>
       _decodes.isNotEmpty || (_filesLoad != null && _files == null);
 
   /// 디코드한 [asset] 그림. 아직 디코드하지 않았으면 null.
@@ -114,7 +114,8 @@ class RouteMapBasemapAssets {
       if (generation != _generation) {
         return null;
       }
-      return _files = files;
+      _files = files;
+      return files;
     } catch (error, stack) {
       if (generation == _generation) {
         reportRouteMapBasemapFailure(

@@ -9,7 +9,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import '../../../support/basemap_index.dart';
+import '../../../support/basemap_waits.dart';
 
 // 같은 배율로 팬하는 동안 바탕을 구운 타일로 그려도 화면은 벡터로 그린 것과 같아야
 // 한다(#517). 타일 이음매와, 아직 굽지 않아 벡터로 채운 칸도 같은 화면이어야 한다.
@@ -54,12 +54,14 @@ MapCameraState _camera({
   revision: 1,
 );
 
-/// [top]은 지도 위 여백(논리 픽셀)이다. 앱처럼 지도 밖은 잘라 그린다.
+/// [top]은 지도 위 여백(논리 픽셀)이다. 앱처럼 지도 밖은 잘라 그린다. [shareTiles]가 거짓이면
+/// 타일 캐시를 넘기지 않아 앱과 같이 뷰가 캐시를 만들어 쥔다.
 Widget _map(
   MapCameraState camera, {
   String? lineId,
   Key? key,
   double top = 0,
+  bool shareTiles = true,
 }) => Directionality(
   textDirection: TextDirection.ltr,
   child: Align(
@@ -75,7 +77,7 @@ Widget _map(
               color: const Color(0xFFFFFFFF),
               child: RouteMapBasemapView(
                 key: key,
-                tileCache: _tiles,
+                tileCache: shareTiles ? _tiles : null,
                 region: '수도권',
                 camera: camera,
                 highlightedLineId: lineId,
@@ -210,6 +212,7 @@ void main() {
     TestWidgetsFlutterBinding.instance.platformDispatcher.views.first
       ..resetDevicePixelRatio()
       ..resetPhysicalSize();
+    _tiles.retainWithin(null);
     RouteMapBasemapAssets.shared.resetForTest();
   });
 
@@ -501,18 +504,31 @@ void main() {
     expect(_drawsGaps(tester), isFalse);
   });
 
-  testWidgets('바탕을 떠나면 격자 대기를 거두고 타일을 버린다', (tester) async {
+  testWidgets('캐시를 넘기지 않은 뷰는 바탕을 떠나면 타일을 버린다', (tester) async {
+    await tester.pumpWidget(_map(_camera(), shareTiles: false));
+    await _paintLoaded(tester);
+    await _rest(tester);
+    await _bakeAll(tester);
+    final images = _tilePainter(tester)!.tiles.map((tile) => tile.image);
+    expect(images, isNotEmpty);
+
+    await tester.pumpWidget(const SizedBox());
+
+    expect(images.every((image) => image.debugDisposed), isTrue);
+  });
+
+  testWidgets('넘겨 받은 캐시는 바탕을 떠나도 비우지 않는다', (tester) async {
     await tester.pumpWidget(_map(_camera()));
     await _paintLoaded(tester);
     await _rest(tester);
     final tiles = _tiles;
     expect(tiles.length, 1);
-    await tester.pumpWidget(_map(_camera(scale: 0.6)));
+    final image = _tilePainter(tester)!.tiles.single.image;
 
     await tester.pumpWidget(const SizedBox());
 
-    expect(tiles.length, 0);
-    await tester.pump(kRouteMapBasemapRasterSettleDelay * 2);
+    expect(tiles.length, 1);
+    expect(image.debugDisposed, isFalse);
   });
 
   testWidgets('타일 painter는 그리는 입력이 바뀔 때만 다시 그린다', (tester) async {

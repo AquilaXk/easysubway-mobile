@@ -1,16 +1,19 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_tiles.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../../support/basemap_index.dart';
+import '../../../support/basemap_waits.dart';
 
 const _uiSinseolLineId = 'line-30886152e4f8';
 const _seoulLine2Id = 'seoul-2';
@@ -37,6 +40,7 @@ Widget _view(
   required String region,
   String? lineId,
   Key? key,
+  RouteMapBasemapTileCache? tiles,
 }) => Directionality(
   textDirection: TextDirection.ltr,
   child: RouteMapBasemapView(
@@ -45,8 +49,17 @@ Widget _view(
     camera: _camera,
     highlightedLineId: lineId,
     assets: assets,
+    tileCache: tiles,
   ),
 );
+
+/// 지금 화면에 놓인 굽은 타일 그림. 타일 격자가 서지 않았으면 비어 있다.
+List<ui.Image> _bakedTiles(WidgetTester tester) => tester
+    .widgetList<CustomPaint>(find.byType(CustomPaint))
+    .map((paint) => paint.painter)
+    .whereType<RouteMapBasemapTilePainter>()
+    .expand((painter) => painter.tiles.map((tile) => tile.image))
+    .toList();
 
 /// [body]가 도는 동안 보고된 Flutter 오류. [body]는 지금까지 보고된 오류 목록을 받아 보고를
 /// 기다릴 수 있다.
@@ -178,6 +191,18 @@ void main() {
       expect(errors.single.context.toString(), contains('알 수 없음'));
     });
 
+    testWidgets('매핑에 없는 권역은 표기가 달라지면 새 뷰라 표기마다 한 번 보고한다', (tester) async {
+      final errors = await _errorsDuring((_) async {
+        await tester.pumpWidget(_view(assets, region: '알 수 없음'));
+        await tester.pumpWidget(_view(assets, region: '다른 이름'));
+        await pumpUntilQuiet(tester, assets);
+      });
+
+      expect(errors, hasLength(2));
+      expect(errors.first.context.toString(), contains('알 수 없음'));
+      expect(errors.last.context.toString(), contains('다른 이름'));
+    });
+
     testWidgets('저장 이름 권역도 표시 이름과 같은 바탕을 그린다', (tester) async {
       final errors = await _errorsDuring((_) async {
         await tester.pumpWidget(_view(assets, region: '광주권'));
@@ -189,6 +214,34 @@ void main() {
       expect(paintedBasemapPictures(tester), [
         assets.picture(base('gwangju'))!.picture,
       ]);
+    });
+
+    testWidgets('같은 권역의 저장 이름과 표시 이름은 같은 뷰라 굽은 타일과 읽은 그림을 그대로 쓴다', (
+      tester,
+    ) async {
+      final requests = serveBasemapAssets();
+      final tiles = RouteMapBasemapTileCache();
+      addTearDown(() => tiles.retainWithin(null));
+      await tester.pumpWidget(_view(assets, region: '광주권', tiles: tiles));
+      await pumpUntilBasemapPainted(tester);
+      await tester.pump(kRouteMapBasemapRasterSettleDelay);
+      for (
+        var frame = 0;
+        frame < 50 && tester.binding.hasScheduledFrame;
+        frame++
+      ) {
+        await tester.pump();
+      }
+      final baked = _bakedTiles(tester);
+      expect(baked, isNotEmpty);
+      expect(tiles.length, baked.length);
+
+      await tester.pumpWidget(_view(assets, region: '광주', tiles: tiles));
+      await pumpUntilQuiet(tester, assets);
+
+      expect(_bakedTiles(tester), orderedEquals(baked));
+      expect(tiles.length, baked.length);
+      expect(requests.where((key) => key == base('gwangju')), hasLength(1));
     });
 
     testWidgets('권역을 바꿔 새로 만든 뷰는 한 번 디코드한 바탕을 첫 프레임에 바로 그린다', (tester) async {
@@ -239,8 +292,17 @@ void main() {
       ]);
     });
 
-    testWidgets('같은 권역을 그리는 두 뷰는 한 번 디코드한 같은 그림을 그린다', (tester) async {
-      final requests = serveBasemapAssets();
+    testWidgets('같은 권역을 그리는 두 뷰는 읽는 동안에도 한 번만 읽고 같은 그림을 그린다', (tester) async {
+      final daeguBytes = Completer<ByteData?>();
+      final requests = serveBasemapAssets({
+        base('daegu'): () => daeguBytes.future,
+      });
+      await tester.runAsync(
+        () async => Timer(
+          const Duration(milliseconds: 100),
+          () => daeguBytes.complete(bundledAsset(base('daegu'))),
+        ),
+      );
       await tester.pumpWidget(
         Stack(
           textDirection: TextDirection.ltr,
@@ -250,7 +312,6 @@ void main() {
           ],
         ),
       );
-      await pumpUntilBasemapPainted(tester, count: 2);
       await pumpUntilQuiet(tester, assets);
 
       final daegu = assets.picture(base('daegu'));
