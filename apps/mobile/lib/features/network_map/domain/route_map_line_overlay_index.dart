@@ -7,10 +7,9 @@ import 'route_map_min_scale.dart' show routeMapDisplayRegionName;
 const String kRouteMapBasemapAssetDir =
     'assets/datapacks/metro_map_pack/basemap';
 
-/// 권역 표시 이름([routeMapDisplayRegionName] 결과) → 바탕 색인 권역 id. 색인은 변형마다 이
-/// 권역 id 집합과 정확히 같아야 읽힌다. 저장 이름('광주권')으로는 조회되지 않으니
-/// [routeMapBasemapRegionId]로 찾는다.
-const Map<String, String> kRouteMapBasemapRegionToId = {
+/// 권역 표시 이름([routeMapDisplayRegionName] 결과) → 바탕 색인 권역 id. 저장 이름('광주권')
+/// 으로는 조회되지 않아, 바깥에는 정규화까지 맡는 [routeMapBasemapRegionId]만 내보낸다.
+const Map<String, String> _regionToId = {
   '수도권': 'seoul',
   '부산': 'busan',
   '광주': 'gwangju',
@@ -18,12 +17,18 @@ const Map<String, String> kRouteMapBasemapRegionToId = {
   '대전': 'daejeon',
 };
 
+/// 앱이 바탕을 그리는 권역의 바탕 색인 권역 id. 색인은 변형마다 이 집합과 정확히 같아야
+/// 읽힌다.
+final Set<String> kRouteMapBasemapRegionIds = Set.unmodifiable(
+  _regionToId.values,
+);
+
 /// [region]의 바탕 색인 권역 id. 저장 이름('광주권')과 표시 이름('광주')을 모두 받고, 앱이
 /// 그리지 않는 권역이면 null이다. 조회 전에 표시 이름으로 정규화하는 일을 호출부가 아니라
 /// 이 함수가 맡는다. 정규화를 빠뜨린 조회는 늘 null이 되어 오너 라벨이 지도 범위에 전혀
 /// 반영되지 않았다(#2068).
 String? routeMapBasemapRegionId(String region) =>
-    kRouteMapBasemapRegionToId[routeMapDisplayRegionName(region)];
+    _regionToId[routeMapDisplayRegionName(region)];
 
 /// data 레포 바탕 컴파일러(`tools/route-map/compile-basemap-vec.mjs`)가 굽는 바탕·노선
 /// 강조 레이어 색인.
@@ -78,14 +83,14 @@ final class RouteMapLineOverlayMissing implements Exception {
 /// 권역 바탕과 노선 id → 노선 레이어의 번들 자산 경로.
 typedef _RegionAssets = ({String base, Map<String, String> lines});
 
-/// 한 변형의 권역 바탕과 노선 강조 레이어. 권역은 [kRouteMapBasemapRegionToId] 값과 정확히
+/// 한 변형의 권역 바탕과 노선 강조 레이어. 권역은 [kRouteMapBasemapRegionIds]와 정확히
 /// 같다.
 class RouteMapBasemapVariantFiles {
   const RouteMapBasemapVariantFiles._(this._regions);
 
   final Map<String, _RegionAssets> _regions;
 
-  /// [regionId] 권역 바탕의 자산 경로. [kRouteMapBasemapRegionToId] 값이 아니면
+  /// [regionId] 권역 바탕의 자산 경로. [kRouteMapBasemapRegionIds]에 없으면
   /// [ArgumentError].
   String baseAssetFor(String regionId) =>
       (_regions[regionId] ??
@@ -117,7 +122,7 @@ class RouteMapLineOverlayIndex {
   const RouteMapLineOverlayIndex._(this._variants);
 
   /// 색인 JSON을 읽는다. 모르는 schemaVersion, 다른 산출물 종류, 빠지거나 모르는 변형,
-  /// 권역이 [kRouteMapBasemapRegionToId] 값과 다른 변형, 변형끼리 다른 노선, 두 항목이 함께
+  /// 권역이 [kRouteMapBasemapRegionIds]와 다른 변형, 변형끼리 다른 노선, 두 항목이 함께
   /// 가리키는 파일, sha256이 없는 파일, 모양이 다른 항목은 [FormatException]으로 실패한다.
   factory RouteMapLineOverlayIndex.parse(String json) {
     final root = _objectOf(jsonDecode(json), '최상위');
@@ -190,10 +195,10 @@ class _IndexReader {
       );
     }
     final regions = _objectOf(entry['regions'], '$path.regions');
-    if (!_sameSet(regions.keys, kRouteMapBasemapRegionToId.values)) {
+    if (!_sameSet(regions.keys, kRouteMapBasemapRegionIds)) {
       throw FormatException(
         '바탕 색인 $path.regions 권역 ${regions.keys.toList()}가 앱 권역 '
-        '${kRouteMapBasemapRegionToId.values.toList()}와 다릅니다.',
+        '${kRouteMapBasemapRegionIds.toList()}와 다릅니다.',
       );
     }
     return RouteMapBasemapVariantFiles._({

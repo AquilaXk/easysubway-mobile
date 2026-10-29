@@ -84,10 +84,9 @@ void main() {
     test('앱이 바탕층을 그리는 전 권역에 하한이 등록돼 있다', () {
       // 권역이 추가되면 basemap 매핑과 하한 표가 함께 늘어야 한다. 하나만 늘면
       // 새 권역이 조용히 폴백 하한을 쓰게 되므로 여기서 red로 잡는다.
-      expect(
-        kRouteMapMinScaleByRegion.keys.toSet(),
-        kRouteMapBasemapRegionToId.keys.toSet(),
-      );
+      final ids = kRouteMapMinScaleByRegion.keys.map(routeMapBasemapRegionId);
+      expect(ids, isNot(contains(null)), reason: '하한 표의 모든 권역에 바탕 id가 있다');
+      expect(ids.toSet(), kRouteMapBasemapRegionIds);
     });
 
     test('폴백 하한은 표에서 유도한다(리터럴 사본 금지)', () {

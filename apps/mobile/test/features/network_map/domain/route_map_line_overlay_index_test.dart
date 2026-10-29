@@ -36,7 +36,7 @@ Map<String, Object?> _regions(
   String suffix, [
   Map<String, Object?> overrides = const {},
 ]) => {
-  for (final regionId in kRouteMapBasemapRegionToId.values)
+  for (final regionId in kRouteMapBasemapRegionIds)
     regionId: _region(suffix, regionId: regionId),
   ...overrides,
 };

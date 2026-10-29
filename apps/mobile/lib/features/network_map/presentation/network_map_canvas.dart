@@ -20,7 +20,6 @@ import '../domain/network_map_station_selection.dart';
 import '../domain/route_map_design_space.dart';
 import '../domain/route_map_line_overlay_index.dart'
     show routeMapBasemapRegionId;
-import '../domain/route_map_min_scale.dart';
 import '../domain/route_map_owner_labels.dart';
 import '../domain/route_map_owner_nodes.dart';
 import '../domain/structured_route_map.dart';
@@ -1129,7 +1128,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       fit: StackFit.expand,
       children: [
         RouteMapBasemapView(
-          region: routeMapDisplayRegionName(data.selectedRegion),
+          region: data.selectedRegion,
           camera: camera,
           sourceOrigin: sourceOrigin,
           attributionText: attribution,

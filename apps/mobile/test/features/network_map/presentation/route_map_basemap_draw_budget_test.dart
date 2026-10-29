@@ -165,7 +165,9 @@ void main() {
   test('상한표는 모든 변형의 노선도 바탕이 있는 모든 권역을 다룬다', () {
     expect(_ceilings.keys.toSet(), RouteMapBasemapVariant.values.toSet());
     for (final regions in _ceilings.values) {
-      expect(regions.keys.toSet(), kRouteMapBasemapRegionToId.keys.toSet());
+      final ids = regions.keys.map(routeMapBasemapRegionId);
+      expect(ids, isNot(contains(null)), reason: '상한표의 모든 권역에 바탕 id가 있다');
+      expect(ids.toSet(), kRouteMapBasemapRegionIds);
     }
   });
 
@@ -175,7 +177,7 @@ void main() {
         final measured = _drawsOf(
           bundledBasemapIndex
               .variant(variant)
-              .baseAssetFor(kRouteMapBasemapRegionToId[region]!),
+              .baseAssetFor(routeMapBasemapRegionId(region)!),
         );
 
         expect(_ceilingMismatches(measured, ceiling), isEmpty);
@@ -187,7 +189,7 @@ void main() {
       });
 
       test('${variant.name} $region 노선 강조 레이어 그리기 명령 수의 최댓값이 상한과 같다', () {
-        final regionId = kRouteMapBasemapRegionToId[region]!;
+        final regionId = routeMapBasemapRegionId(region)!;
         final base = bundledBasemapIndex
             .variant(variant)
             .baseAssetFor(regionId);

@@ -92,7 +92,7 @@ void main() {
     );
 
     test('${variant.indexKey}: 바탕이 있는 5권역이 모두 색인 바탕을 갖는다', () {
-      for (final regionId in kRouteMapBasemapRegionToId.values) {
+      for (final regionId in kRouteMapBasemapRegionIds) {
         final fileName = files.baseAssetFor(regionId).split('/').last;
         expect(
           (pinned['basemaps'] as Map).containsKey(fileName),
