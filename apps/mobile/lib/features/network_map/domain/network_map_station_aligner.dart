@@ -1,7 +1,5 @@
-import '../presentation/route_map_basemap_view.dart'
-    show kRouteMapBasemapRegionToId;
 import 'network_map_models.dart';
-import 'route_map_min_scale.dart' show routeMapDisplayRegionName;
+import 'route_map_line_overlay_index.dart' show routeMapBasemapRegionId;
 import 'route_map_owner_labels.dart';
 import 'route_map_owner_nodes.dart';
 
@@ -119,10 +117,7 @@ NetworkMapData alignNetworkMapDataForBasemap(
   RouteMapOwnerNodesLookup? ownerNodes,
   Map<String, List<RouteMapOwnerLabelEntry>>? ownerEntries,
 }) {
-  final basemapAssetId =
-      kRouteMapBasemapRegionToId[routeMapDisplayRegionName(
-        data.selectedRegion,
-      )];
+  final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
   final hasNodes = ownerNodes != null && ownerNodes.isNotEmpty;
   final hasEntries = ownerEntries != null && ownerEntries.isNotEmpty;
   if (basemapAssetId == null || (!hasNodes && !hasEntries)) {
