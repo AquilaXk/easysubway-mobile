@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { readFileSync } from 'node:fs';
 
 export const TRUSTED_ROLES = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 export const CODERABBIT_LOGIN = 'coderabbitai[bot]';
@@ -7,6 +6,11 @@ export const CODERABBIT_ID = 136622811;
 export const ACTIONS_BOT_LOGIN = 'github-actions[bot]';
 export const ACTIONS_BOT_ID = 41898282;
 export const MARKER_PATTERN = /^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$/;
+
+const FENCED_MD_CODE_RE =
+  /^ {0,3}(`{3,})[^`\n]*\n[\s\S]*?(?:^ {0,3}\1`*[ \t]*$|(?![\s\S]))|^ {0,3}(~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\2~*[ \t]*$|(?![\s\S]))/gm;
+const INLINE_MD_CODE_RE = /(?<!`)(`+)(?!`)(?:(?!\n[ \t]*\n)[\s\S])*?(?<!`)\1(?!`)/g;
+const PSTACK_MARKER_SCAN_RE = /<!--\s*pstack-interrogate/g;
 
 /**
  * Calculates a canonical whitespace-preserving patch digest.
@@ -25,33 +29,64 @@ export function canonicalPatchDigest(patch) {
 }
 
 export function isTrustedHuman(review) {
-  return TRUSTED_ROLES.has(review?.author_association);
+  return (
+    TRUSTED_ROLES.has(review?.author_association) &&
+    review?.user !== null &&
+    typeof review?.user === 'object' &&
+    typeof review.user.login === 'string' &&
+    review.user.login.length > 0 &&
+    review.user.type === 'User'
+  );
 }
 
 export function isCodeRabbit(review) {
   return (
     review?.author_association === 'NONE' &&
-    review?.user?.login === CODERABBIT_LOGIN &&
-    review?.user?.id === CODERABBIT_ID &&
-    review?.user?.type === 'Bot'
+    review?.user !== null &&
+    typeof review?.user === 'object' &&
+    review.user.login === CODERABBIT_LOGIN &&
+    review.user.id === CODERABBIT_ID &&
+    review.user.type === 'Bot'
   );
 }
 
-export function isCanonicalAquilaReview(review) {
-  const body = review?.body ?? '';
-  return (
-    isTrustedHuman(review) &&
-    body.startsWith('**Actionable comments posted: ') &&
-    (body.includes('<!-- Review source: Aquila fallback; canonical visible structure:') ||
-      body.includes('<!-- Review source: Aquila Universal Review; engine: aquila-review -->'))
-  );
+export function stripMarkdownCode(text) {
+  if (typeof text !== 'string' || text.length === 0) {
+    return '';
+  }
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(FENCED_MD_CODE_RE, ' ')
+    .replace(INLINE_MD_CODE_RE, ' ');
+}
+
+export function hasPstackInterrogateMarker(review) {
+  const clean = stripMarkdownCode(review?.body);
+  return (clean.match(PSTACK_MARKER_SCAN_RE) ?? []).length > 0;
+}
+
+export function isCanonicalPstackInterrogate(review, head) {
+  if (typeof head !== 'string' || !/^[0-9a-f]{40}$/.test(head)) {
+    return false;
+  }
+  if (!isTrustedHuman(review) || review?.state !== 'COMMENTED' || review?.commit_id !== head) {
+    return false;
+  }
+  const clean = stripMarkdownCode(review?.body);
+  if ((clean.match(PSTACK_MARKER_SCAN_RE) ?? []).length !== 1) {
+    return false;
+  }
+  const standaloneRe = new RegExp(`^<!-- pstack-interrogate head=${head} act-on=0 -->[ \\t]*$`, 'm');
+  return standaloneRe.test(clean);
 }
 
 export function isCanonicalMarker(comment) {
   return (
-    comment?.user?.login === ACTIONS_BOT_LOGIN &&
-    comment?.user?.id === ACTIONS_BOT_ID &&
-    comment?.user?.type === 'Bot' &&
+    comment?.user !== null &&
+    typeof comment?.user === 'object' &&
+    comment.user.login === ACTIONS_BOT_LOGIN &&
+    comment.user.id === ACTIONS_BOT_ID &&
+    comment.user.type === 'Bot' &&
     typeof comment?.body === 'string' &&
     MARKER_PATTERN.test(comment.body)
   );
@@ -64,47 +99,153 @@ export function isExactMarker(comment, head) {
   );
 }
 
-/**
- * Computes active review state per reviewer login across all trusted reviews.
- * Reviews are processed chronologically: DISMISSED resets state, CHANGES_REQUESTED
- * or APPROVED overwrites state, COMMENTED establishes a non-empty state.
- */
-export function getActiveReviewStates(reviews) {
+function parseReviewTimestamp(value) {
+  if (!value || typeof value !== 'string') return 0;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function posClears(recordedPos, pos) {
+  return (pos >= 0 && pos >= recordedPos) || (pos < 0 && recordedPos < 0);
+}
+
+function clearPriorActOn(pstack, pos) {
+  if (pstack && pstack.kind === 'ACT_ON' && !pstack.current && posClears(pstack.pos, pos)) {
+    return null;
+  }
+  return pstack;
+}
+
+export function getActiveReviewStates(reviews, head = null, commitShas = null) {
   const sorted = [...reviews].sort((a, b) => {
-    const timeDiff = new Date(a.submitted_at || 0).getTime() - new Date(b.submitted_at || 0).getTime();
+    const timeDiff = parseReviewTimestamp(a.submitted_at) - parseReviewTimestamp(b.submitted_at);
     return timeDiff !== 0 ? timeDiff : (a.id || 0) - (b.id || 0);
   });
 
-  const states = {};
+  const hasCommitList = Array.isArray(commitShas) && commitShas.length > 0;
+  const internal = {};
   for (const review of sorted) {
     if (!isTrustedHuman(review) && !isCodeRabbit(review)) {
       continue;
     }
-    const login = review.user?.login;
-    if (!login) continue;
+    const login = review.user.login;
+    const cur = internal[login] ?? { formal: null, formalPos: -1, pstack: null };
+    const pos = hasCommitList
+      ? commitShas.indexOf(review.commit_id)
+      : head !== null && review.commit_id === head
+        ? 1
+        : 0;
+    const isCurHead = head !== null && review.commit_id === head && pos >= 0;
 
     if (review.state === 'DISMISSED') {
-      delete states[login];
+      if (cur.pstack && cur.pstack.kind === 'ACT_ON') {
+        internal[login] = { formal: null, formalPos: -1, pstack: cur.pstack };
+      } else {
+        delete internal[login];
+      }
+    } else if (review.state === 'CHANGES_REQUESTED') {
+      if (isTrustedHuman(review)) {
+        internal[login] = {
+          formal: 'CHANGES_REQUESTED',
+          formalPos: cur.formal === 'CHANGES_REQUESTED' ? Math.max(cur.formalPos, pos) : pos,
+          pstack: cur.pstack?.kind === 'OK' ? null : cur.pstack,
+        };
+      } else {
+        internal[login] = {
+          formal: 'UNTRUSTED_CHANGES_REQUESTED',
+          formalPos: cur.formal === 'UNTRUSTED_CHANGES_REQUESTED' ? Math.max(cur.formalPos, pos) : pos,
+          pstack: cur.pstack,
+        };
+      }
+    } else if (review.state === 'APPROVED') {
+      if (isTrustedHuman(review) && pos >= 0) {
+        if (isCurHead) {
+          internal[login] = { formal: 'APPROVED', formalPos: pos, pstack: null };
+        } else if (cur.formal === 'CHANGES_REQUESTED' && !posClears(cur.formalPos, pos)) {
+          internal[login] = {
+            formal: 'CHANGES_REQUESTED',
+            formalPos: cur.formalPos,
+            pstack: clearPriorActOn(cur.pstack, pos),
+          };
+        } else {
+          internal[login] = {
+            formal: head === null ? 'APPROVED' : 'APPROVED_PRIOR',
+            formalPos: pos,
+            pstack: clearPriorActOn(cur.pstack, pos),
+          };
+        }
+      } else if (isTrustedHuman(review) && pos < 0) {
+        internal[login] = {
+          formal: cur.formal === 'CHANGES_REQUESTED' && posClears(cur.formalPos, pos) ? 'COMMENTED' : (cur.formal ?? 'COMMENTED'),
+          formalPos: cur.formal === 'CHANGES_REQUESTED' && posClears(cur.formalPos, pos) ? -1 : cur.formalPos,
+          pstack: clearPriorActOn(cur.pstack, pos),
+        };
+      } else if (isCodeRabbit(review) && posClears(cur.formalPos, pos)) {
+        internal[login] = {
+          formal: cur.formal === 'UNTRUSTED_CHANGES_REQUESTED' ? 'COMMENTED' : (cur.formal ?? 'COMMENTED'),
+          formalPos: cur.formal === 'UNTRUSTED_CHANGES_REQUESTED' ? -1 : cur.formalPos,
+          pstack: cur.pstack,
+        };
+      } else {
+        internal[login] = { formal: cur.formal ?? 'COMMENTED', formalPos: cur.formalPos, pstack: cur.pstack };
+      }
     } else if (review.state === 'COMMENTED') {
-      states[login] = states[login] ?? 'COMMENTED';
+      if (isTrustedHuman(review) && hasPstackInterrogateMarker(review)) {
+        const targetHead = head ?? review.commit_id;
+        if (head === null ? isCanonicalPstackInterrogate(review, targetHead) : isCurHead && isCanonicalPstackInterrogate(review, head)) {
+          internal[login] = {
+            formal: cur.formal === null || cur.formal === 'CHANGES_REQUESTED' ? 'COMMENTED' : cur.formal,
+            formalPos: cur.formal === 'CHANGES_REQUESTED' ? -1 : cur.formalPos,
+            pstack: head === null ? null : { kind: 'OK' },
+          };
+        } else if (head !== null && isCanonicalPstackInterrogate(review, review.commit_id)) {
+          internal[login] = {
+            formal: cur.formal === 'CHANGES_REQUESTED' && pos < 0 && cur.formalPos < 0 ? 'COMMENTED' : (cur.formal ?? 'COMMENTED'),
+            formalPos: cur.formal === 'CHANGES_REQUESTED' && pos < 0 && cur.formalPos < 0 ? -1 : cur.formalPos,
+            pstack: clearPriorActOn(cur.pstack, pos),
+          };
+        } else if (isCurHead) {
+          internal[login] = {
+            formal: cur.formal === 'APPROVED' ? 'APPROVED_PRIOR' : (cur.formal ?? 'COMMENTED'),
+            formalPos: cur.formalPos,
+            pstack: { kind: 'ACT_ON', pos, current: true },
+          };
+        } else {
+          internal[login] = {
+            formal: cur.formal ?? 'COMMENTED',
+            formalPos: cur.formalPos,
+            pstack:
+              cur.pstack?.kind === 'ACT_ON'
+                ? { kind: 'ACT_ON', pos: Math.max(pos, cur.pstack.pos), current: cur.pstack.current }
+                : { kind: 'ACT_ON', pos, current: false },
+          };
+        }
+      } else {
+        internal[login] = { formal: cur.formal ?? 'COMMENTED', formalPos: cur.formalPos, pstack: cur.pstack };
+      }
     } else {
-      states[login] = review.state;
+      internal[login] = { formal: review.state, formalPos: cur.formalPos, pstack: cur.pstack };
+    }
+  }
+
+  const states = {};
+  for (const [login, { formal, pstack }] of Object.entries(internal)) {
+    if (formal === 'CHANGES_REQUESTED' || formal === 'UNTRUSTED_CHANGES_REQUESTED') {
+      states[login] = formal;
+    } else if (pstack?.kind === 'ACT_ON') {
+      states[login] = pstack.current ? 'ACT_ON_CURRENT' : (head === null ? 'ACT_ON' : 'ACT_ON_PRIOR');
+    } else if (formal === 'APPROVED') {
+      states[login] = 'APPROVED';
+    } else if (pstack?.kind === 'OK') {
+      states[login] = 'PSTACK_OK';
+    } else if (formal !== null) {
+      states[login] = formal;
     }
   }
   return states;
 }
 
-export function extractFindings(discoveryReview, reviewThreads = []) {
-  if (isCanonicalAquilaReview(discoveryReview)) {
-    const match = (discoveryReview.body ?? '').match(/\*\*Actionable comments posted: (\d+)\*\*/);
-    const findingCount = match ? parseInt(match[1], 10) : 0;
-    const inlinePaths = new Set();
-    for (const thread of reviewThreads) {
-      if (thread.path) inlinePaths.add(thread.path);
-    }
-    return { findingCount, inlineFindingPaths: inlinePaths };
-  }
-
+export function extractFindings(reviewThreads = []) {
   const inlinePaths = new Set();
   let count = 0;
   for (const thread of reviewThreads) {
@@ -306,33 +447,62 @@ export function verifyAutomergeReviewClosure({
     throw new Error(`invalid head commit SHA: ${head}`);
   }
 
-  // 1. Fail closed if 0 trusted reviews exist
   const trustedReviews = reviews.filter((r) => isTrustedHuman(r) || isCodeRabbit(r));
   if (trustedReviews.length === 0) {
     throw new Error('no trusted reviews found on pull request');
   }
 
-  // 2. Active CHANGES_REQUESTED check across all trusted reviews
-  const activeStates = getActiveReviewStates(reviews);
-  for (const [reviewer, state] of Object.entries(activeStates)) {
+  const commitShas =
+    currentCommits.length > 0
+      ? [...(reviewedCommits?.map((c) => c.sha) ?? []), ...currentCommits.map((c) => c.sha)]
+      : null;
+  const activeStates = getActiveReviewStates(reviews, head, commitShas);
+  const activeEntries = Object.entries(activeStates);
+  if (activeEntries.length === 0) {
+    throw new Error('no active trusted reviews remain on pull request');
+  }
+
+  const currentHeadApproved = reviews.some(
+    (r) =>
+      isTrustedHuman(r) &&
+      r.state === 'APPROVED' &&
+      r.commit_id === head &&
+      activeStates[r.user.login] === 'APPROVED',
+  );
+  const currentHeadPstackInterrogate = reviews.some(
+    (r) =>
+      isCanonicalPstackInterrogate(r, head) &&
+      (activeStates[r.user.login] === 'PSTACK_OK' || activeStates[r.user.login] === 'APPROVED'),
+  );
+  const hasCurrentHumanPass = currentHeadApproved || currentHeadPstackInterrogate;
+
+  for (const [reviewer, state] of activeEntries) {
     if (state === 'CHANGES_REQUESTED') {
       throw new Error(`active CHANGES_REQUESTED remains from ${reviewer}`);
     }
+    if (state === 'ACT_ON_CURRENT' || (state === 'ACT_ON_PRIOR' && !hasCurrentHumanPass)) {
+      throw new Error(`blocking review state '${state}' remains from ${reviewer}`);
+    }
+    if (
+      state !== 'APPROVED' &&
+      state !== 'APPROVED_PRIOR' &&
+      state !== 'PSTACK_OK' &&
+      state !== 'COMMENTED' &&
+      state !== 'ACT_ON_PRIOR'
+    ) {
+      throw new Error(`blocking review state '${state}' remains from ${reviewer}`);
+    }
   }
 
-  // 3. Current-head trusted APPROVED path
-  const currentHeadApproved = reviews.some(
-    (r) => isTrustedHuman(r) && r.state === 'APPROVED' && r.commit_id === head,
-  );
-
-  if (currentHeadApproved) {
+  if (hasCurrentHumanPass) {
     verifyReviewThreads(reviewThreads);
     verifyRequiredContexts(requiredContexts, checks, statuses);
-    return { ok: true, type: 'current-head-approved' };
+    return {
+      ok: true,
+      type: currentHeadApproved ? 'current-head-approved' : 'current-head-pstack-interrogate',
+    };
   }
 
-  // 4. Previous-head discovery review path
-  // Exactly one canonical Actions marker matching current head
   const canonicalMarkers = comments.filter(isCanonicalMarker);
   if (canonicalMarkers.length === 0) {
     throw new Error('missing automerge frozen discovery authorization marker');
@@ -344,13 +514,16 @@ export function verifyAutomergeReviewClosure({
     throw new Error(`stale or wrong marker for head ${head}: ${canonicalMarkers[0].body}`);
   }
 
-  // Find eligible discovery review
   const eligibleReviews = reviews.filter((r) => {
     if (r.commit_id === head) return false;
     if (r.state === 'DISMISSED') return false;
-    if (isTrustedHuman(r) && r.state === 'APPROVED') return true;
-    if (isCodeRabbit(r) && r.state === 'COMMENTED') return true;
-    if (isCanonicalAquilaReview(r) && r.state === 'COMMENTED') return true;
+    if (!Object.hasOwn(activeStates, r.user?.login)) return false;
+    if (isTrustedHuman(r) && r.state === 'APPROVED') {
+      return activeStates[r.user.login] === 'APPROVED_PRIOR' || activeStates[r.user.login] === 'APPROVED';
+    }
+    if (isCodeRabbit(r) && r.state === 'COMMENTED') {
+      return activeStates[r.user.login] === 'COMMENTED';
+    }
     return false;
   });
 
@@ -358,15 +531,13 @@ export function verifyAutomergeReviewClosure({
     throw new Error('no eligible previous-head discovery review found');
   }
 
-  // Pick the latest eligible review
   const discoveryReview = [...eligibleReviews]
     .sort((a, b) => {
-      const timeDiff = new Date(a.submitted_at || 0).getTime() - new Date(b.submitted_at || 0).getTime();
+      const timeDiff = parseReviewTimestamp(a.submitted_at) - parseReviewTimestamp(b.submitted_at);
       return timeDiff !== 0 ? timeDiff : (a.id || 0) - (b.id || 0);
     })
     .at(-1);
 
-  // Determine reviewed commits prefix
   const effectiveReviewed =
     reviewedCommits ??
     (() => {
@@ -375,14 +546,11 @@ export function verifyAutomergeReviewClosure({
       throw new Error(`reviewed head ${discoveryReview.commit_id} not found in current commit ancestry`);
     })();
 
-  // Verify commit series
   const { closureCommits } = verifyCommitSeries(effectiveReviewed, currentCommits);
 
-  // Extract findings
   const threadsArray = reviewThreads?.nodes ?? (Array.isArray(reviewThreads) ? reviewThreads : []);
-  const { findingCount, inlineFindingPaths } = extractFindings(discoveryReview, threadsArray);
+  const { findingCount, inlineFindingPaths } = extractFindings(threadsArray);
 
-  // Verify closure delta
   verifyClosureDelta({
     findingCount,
     inlineFindingPaths,
@@ -391,10 +559,7 @@ export function verifyAutomergeReviewClosure({
     closureCommits,
   });
 
-  // Verify review threads
   verifyReviewThreads(reviewThreads);
-
-  // Verify required contexts
   verifyRequiredContexts(requiredContexts, checks, statuses);
 
   return { ok: true, type: 'reused-discovery-review', discoveryReviewId: discoveryReview.id };

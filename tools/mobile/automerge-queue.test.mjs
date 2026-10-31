@@ -7,6 +7,10 @@ import { join } from 'node:path';
 import test from 'node:test';
 import {
   canonicalPatchDigest,
+  hasPstackInterrogateMarker,
+  isCanonicalPstackInterrogate,
+  isTrustedHuman,
+  stripMarkdownCode,
   verifyAutomergeReviewClosure,
 } from './verify-automerge-review-closure.mjs';
 
@@ -14,13 +18,28 @@ const workflowUrl = new URL(
   '../../.github/workflows/automerge-queue.yml',
   import.meta.url,
 );
+const closureModuleUrl = new URL(
+  './verify-automerge-review-closure.mjs',
+  import.meta.url,
+);
+const prTemplateUrls = [
+  new URL('../../.github/PULL_REQUEST_TEMPLATE/full.md', import.meta.url),
+  new URL('../../.github/PULL_REQUEST_TEMPLATE/short.md', import.meta.url),
+  new URL('../../.github/pull_request_template.md', import.meta.url),
+];
 const MARKER_SYNC_RE =
   /# authorization-marker-sync-begin\n([\s\S]*?)\n\s+# authorization-marker-sync-end/;
+const extractReviewJqDefs = (workflow) => {
+  const match = workflow.match(/(^ +review_jq_defs="\$\(cat <<'JQ'\n([\s\S]*?)\n +JQ\n +\)"$)/m);
+  assert.ok(match, 'shared review jq definitions must stay testable');
+  return { block: match[1], body: match[2] };
+};
 const AQUILA_UNIVERSAL_MARKER = '<!-- Review source: Aquila Universal Review; engine: aquila-review -->';
 const AQUILA_FALLBACK_MARKER =
   '<!-- Review source: Aquila fallback; canonical visible structure: PR #1926 Review 4676157515 -->';
 const CODEX_LEGACY_MARKER =
   '<!-- Review source: Codex CLI fallback; canonical visible structure: PR #1926 Review 4676157515 -->';
+
 test('automerge coordinator fails closed around the native merge queue', async () => {
   const workflow = await readFile(workflowUrl, 'utf8');
 
@@ -55,7 +74,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'github-actions[bot]',
     '41898282',
     '$has_exact_marker',
-    'author_association == "OWNER"',
+    '.author_association == "OWNER"',
     '. == "APPROVED"',
     'reduce .[] as $review',
     'del(.[$review.user.login])',
@@ -67,6 +86,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'CLEAN | HAS_HOOKS | UNSTABLE)',
     '# queue-loop-begin',
     '# candidate-window-begin',
+    '# candidate-window-end',
     '# candidate-offset-begin',
     'window=20',
     'offset="$(( RANDOM % total ))"',
@@ -79,11 +99,17 @@ test('automerge coordinator fails closed around the native merge queue', async (
     'gh pr edit "${pr}" --repo "${repo}" --remove-label automerge',
     'Actions run: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}',
     '--limit 1000',
+    'strip_markdown_code',
+    'has_pstack_interrogate_marker',
+    'is_valid_pstack_interrogate_on($head)',
+    '<!-- pstack-interrogate head=',
   ]) {
     assert.ok(workflow.includes(contract), `missing contract: ${contract}`);
   }
 
   assert.doesNotMatch(workflow, /--admin|gh pr merge.+--merge|gh pr merge.+--rebase/);
+  assert.doesNotMatch(workflow, /Aquila Universal Review|Aquila fallback|is_aquila_fallback|Codex CLI fallback/);
+  assert.doesNotMatch(workflow, /exact_actions_marker|\$commit_set\b/);
   assert.doesNotMatch(workflow, /actions: write/);
   assert.doesNotMatch(workflow, /gh workflow run ci\.yml/);
   // base 갱신 요청은 병합 분기의 BEHIND 한 곳에서만, 게이트를 통과한 현재 head를 고정해 PAT로 보낸다.
@@ -114,12 +140,24 @@ test('automerge coordinator fails closed around the native merge queue', async (
     body,
     user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
   });
-  const markerIds = (comments) =>
-    spawnSync('jq', ['-c', '--arg', 'marker_pattern', '^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$', canonicalMarkerIds], {
-      input: JSON.stringify(comments),
-      encoding: 'utf8',
-    }).stdout.trim();
+  const markerIds = (comments) => {
+    const res = spawnSync(
+      'jq',
+      ['-cer', '--arg', 'marker_pattern', '^<!-- Automerge frozen discovery authorization: [0-9a-f]{40} -->$', canonicalMarkerIds],
+      {
+        input: JSON.stringify(comments),
+        encoding: 'utf8',
+      },
+    );
+    assert.equal(res.status, 0, res.stderr);
+    return res.stdout.trim();
+  };
   assert.equal(markerIds([canonicalTuple(7, oldMarker)]), '[7]', 'relabel must PATCH the one old marker');
+  assert.equal(
+    markerIds([canonicalTuple(7, oldMarker), { id: 9, body: null, user: null }]),
+    '[7]',
+    'null comment fields must not crash canonical marker selector',
+  );
   assert.equal(markerIds([canonicalTuple(7, oldMarker), canonicalTuple(8, oldMarker)]), '[7,8]', 'multiple old/current canonical markers must mutate zero');
   assert.match(markerProducer, /sender=.*\.sender\.login/);
   assert.match(markerProducer, /permission=.*collaborators\/\$\{sender\}\/permission/);
@@ -201,13 +239,17 @@ test('automerge coordinator fails closed around the native merge queue', async (
     assert.ok(statusRequest.includes(flag), `status request missing: ${flag}`);
   }
 
-  const reviewProgram = workflow.match(
-    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commit_shas "\$\{commit_shas\}" --argjson comments "\$\{comments_slim\}" '\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
+  const { body: reviewJqDefs } = extractReviewJqDefs(workflow);
+  const reviewFilterBody = workflow.match(
+    /# frozen-discovery-review-filter-begin\n\s+if ! jq -e --arg head "\$\{head\}" --argjson commit_shas "\$\{commit_shas\}" --argjson comments "\$\{comments_slim\}" \\\n\s+"\$\{review_jq_defs\}"'\n([\s\S]*?)\n\s+' <<<"\$\{reviews\}" >\/dev\/null; then/,
   )?.[1];
-  assert.ok(reviewProgram, 'review state jq program must stay testable');
+  assert.ok(reviewFilterBody, 'review state jq program must stay testable');
+  const reviewProgram = `${reviewJqDefs}\n${reviewFilterBody}`;
 
-  const fallbackBody = `**Actionable comments posted: 0**\n${AQUILA_UNIVERSAL_MARKER}`;
   const head = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+  const previousHeadSha = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+  const pstackInterrogateBody = (sha = head, actOn = 0) =>
+    `## Summary\nAll clean.\n<!-- pstack-interrogate head=${sha} act-on=${actOn} -->`;
   const review = (id, state, submittedAt, body = '', overrides = {}) => ({
     id,
     state,
@@ -215,7 +257,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
     commit_id: head,
     author_association: 'OWNER',
     body,
-    user: { login: 'reviewer' },
+    user: { login: 'reviewer', type: 'User' },
     ...overrides,
   });
   const marker = `<!-- Automerge frozen discovery authorization: ${head} -->`;
@@ -226,7 +268,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   });
   const runReviewFilter = (
     reviews,
-    commits = [{ sha: head }, { sha: 'previous-head' }],
+    commits = [{ sha: head }, { sha: 'previous-head' }, { sha: previousHeadSha }],
     comments = [actionMarker()],
   ) => {
     const commitShas = Array.isArray(commits) && commits.length > 0 && typeof commits[0] === 'object' && commits[0] !== null
@@ -254,63 +296,139 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.notEqual(
     runReviewFilter([review(1, 'COMMENTED', '2026-08-01T00:00:00Z')]),
     0,
+    'plain COMMENTED review without marker must be rejected',
   );
+  for (const role of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
+    assert.equal(
+      runReviewFilter(
+        [review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0), { author_association: role })],
+        [{ sha: head }],
+        [],
+      ),
+      0,
+      `pstack-interrogate act-on=0 from ${role} on current head must pass`,
+    );
+  }
   assert.equal(
     runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody),
-    ]),
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '', { commit_id: previousHeadSha }),
+      review(2, 'COMMENTED', '2026-08-01T00:01:00Z', `<!-- pstack-interrogate head=${head} act-on=0 -->`),
+    ], [{ sha: head }, { sha: previousHeadSha }], []),
     0,
+    'earlier non-matching review must not short-circuit or crash pstack-interrogate evaluation',
   );
-  for (const [name, marker] of [
-    ['Aquila fallback', AQUILA_FALLBACK_MARKER],
-    ['Aquila Universal Review', AQUILA_UNIVERSAL_MARKER],
-  ]) {
-    assert.equal(
+  for (const actOn of [1, 2, 12]) {
+    assert.notEqual(
       runReviewFilter([
-        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', `**Actionable comments posted: 0**\n${marker}`),
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, actOn)),
       ]),
       0,
-      `${name} review must satisfy frozen discovery filter`,
+      `pstack-interrogate act-on=${actOn} must be rejected`,
     );
   }
   assert.notEqual(
     runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', `**Actionable comments posted: 0**\n${CODEX_LEGACY_MARKER}`),
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(previousHeadSha, 0), { commit_id: head }),
     ]),
     0,
-    'a review that carries only the retired Codex marker must not satisfy frozen discovery filter',
+    'pstack-interrogate marker head mismatching review commit_id must be rejected',
   );
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0), { commit_id: previousHeadSha }),
+    ]),
+    0,
+    'pstack-interrogate review commit_id mismatching current head must be rejected',
+  );
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(previousHeadSha, 0), { commit_id: previousHeadSha }),
+    ]),
+    0,
+    'pstack-interrogate review on previous head must be rejected even with exact Actions marker',
+  );
+  for (const multiBody of [
+    `${pstackInterrogateBody(head, 1)}\n${pstackInterrogateBody(head, 0)}`,
+    `${pstackInterrogateBody(head, 0)}\n${pstackInterrogateBody(head, 0)}`,
+    `<!-- pstack-interrogate head=${head} act-on=0 extra=1 -->`,
+  ]) {
+    assert.notEqual(
+      runReviewFilter([review(1, 'COMMENTED', '2026-08-01T00:00:00Z', multiBody)]),
+      0,
+      'multiple or malformed pstack-interrogate markers must be rejected',
+    );
+  }
+  for (const [name, legacyMarker] of [
+    ['Aquila fallback', AQUILA_FALLBACK_MARKER],
+    ['Aquila Universal Review', AQUILA_UNIVERSAL_MARKER],
+    ['Codex CLI fallback', CODEX_LEGACY_MARKER],
+  ]) {
+    assert.notEqual(
+      runReviewFilter([
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', `**Actionable comments posted: 0**\n${legacyMarker}`),
+      ]),
+      0,
+      `retired ${name} marker on current head must be rejected`,
+    );
+    assert.notEqual(
+      runReviewFilter([
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', `**Actionable comments posted: 0**\n${legacyMarker}`, { commit_id: previousHeadSha }),
+      ]),
+      0,
+      `retired ${name} marker on previous head must be rejected`,
+    );
+  }
   assert.notEqual(
     runReviewFilter([
       review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '**Actionable comments posted: 0**'),
     ]),
     0,
-    'a review without any recognized marker must not satisfy frozen discovery filter',
+    'a review without any recognized marker must not satisfy review filter',
   );
-  assert.notEqual(
-    runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', '', {
-        author_association: 'NONE',
-      }),
-    ]),
-    0,
-  );
+  for (const untrustedRole of ['NONE', 'CONTRIBUTOR']) {
+    assert.notEqual(
+      runReviewFilter([
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0), {
+          author_association: untrustedRole,
+        }),
+      ]),
+      0,
+      `untrusted ${untrustedRole} pstack-interrogate review must be rejected`,
+    );
+    assert.notEqual(
+      runReviewFilter([
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', 'plain note'),
+        review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 0), {
+          author_association: untrustedRole,
+          user: { login: 'outsider', type: 'User' },
+        }),
+      ]),
+      0,
+      `untrusted ${untrustedRole} pstack-interrogate alongside trusted note must be rejected`,
+    );
+  }
 
-  // native APPROVED는 exact current head만으로 인정되며 marker가 필요 없다.
   assert.equal(
     runReviewFilter([review(1, 'APPROVED', '2026-08-01T00:00:00Z')], [{ sha: head }], []),
     0,
   );
-  // frozen discovery는 commit set의 prior review와 exact current-head Actions marker를 함께 요구한다.
+
+  const codeRabbitReview = (id, state, submittedAt, overrides = {}) =>
+    review(id, state, submittedAt, '', {
+      author_association: 'NONE',
+      user: { login: 'coderabbitai[bot]', id: 136622811, type: 'Bot' },
+      ...overrides,
+    });
+
   assert.equal(
     runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, { commit_id: 'previous-head' }),
+      codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: 'previous-head' }),
     ]),
     0,
   );
   assert.notEqual(
     runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, { commit_id: 'previous-head' }),
+      codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: 'previous-head' }),
     ], [{ sha: head }]),
     0,
   );
@@ -323,19 +441,12 @@ test('automerge coordinator fails closed around the native merge queue', async (
   ]) {
     assert.notEqual(
       runReviewFilter([
-        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, { commit_id: 'previous-head' }),
+        codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: 'previous-head' }),
       ], [{ sha: head }, { sha: 'previous-head' }], comments),
       0,
     );
   }
 
-  const codeRabbitReview = (id, state, submittedAt, overrides = {}) =>
-    review(id, state, submittedAt, '', {
-      author_association: 'NONE',
-      user: { login: 'coderabbitai[bot]', id: 136622811, type: 'Bot' },
-      ...overrides,
-    });
-  // CodeRabbit의 REST identity 전체가 일치하는 current-head COMMENTED만 예외다.
   assert.equal(
     runReviewFilter([codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z')]),
     0,
@@ -367,33 +478,30 @@ test('automerge coordinator fails closed around the native merge queue', async (
     0,
   );
 
-  // 이전 head에 남은 CHANGES_REQUESTED는 head가 바뀌어도 게이트에서 사라지지 않는다.
   assert.notEqual(
     runReviewFilter([
       review(1, 'CHANGES_REQUESTED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
       review(2, 'APPROVED', '2026-08-01T00:01:00Z', '', {
-        user: { login: 'reviewer-two' },
+        user: { login: 'reviewer-two', type: 'User' },
       }),
     ]),
     0,
   );
-  // 폴백 리뷰가 current head에 있어도 다른 리뷰어의 이전 head change request는 여전히 막는다.
   assert.notEqual(
     runReviewFilter([
       review(1, 'CHANGES_REQUESTED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
-      review(2, 'COMMENTED', '2026-08-01T00:01:00Z', fallbackBody, {
-        user: { login: 'reviewer-two' },
+      review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 0), {
+        user: { login: 'reviewer-two', type: 'User' },
       }),
     ]),
     0,
   );
-  // 같은 리뷰어가 current head에서 승인하면 이전 change request는 해소된다.
   assert.equal(
     runReviewFilter([
       review(1, 'CHANGES_REQUESTED', '2026-08-01T00:00:00Z', '', {
@@ -403,7 +511,41 @@ test('automerge coordinator fails closed around the native merge queue', async (
     ]),
     0,
   );
-  // native APPROVED는 current head를 요구하고, canonical frozen fallback만 commit set+marker로 재사용한다.
+  const outOfPrSha = 'e'.repeat(40);
+  assert.equal(
+    runReviewFilter([
+      review(1, 'CHANGES_REQUESTED', '2026-08-01T00:00:00Z', '', {
+        commit_id: outOfPrSha,
+        user: { login: 'reviewer-one', type: 'User' },
+      }),
+      review(2, 'APPROVED', '2026-08-01T00:01:00Z', '', {
+        commit_id: outOfPrSha,
+        user: { login: 'reviewer-one', type: 'User' },
+      }),
+      review(3, 'COMMENTED', '2026-08-01T00:02:00Z', pstackInterrogateBody(head, 0), {
+        user: { login: 'reviewer-two', type: 'User' },
+      }),
+    ]),
+    0,
+    'pre-rebase cleared CHANGES_REQUESTED must not block current head',
+  );
+  assert.notEqual(
+    runReviewFilter([
+      review(1, 'CHANGES_REQUESTED', '2026-08-01T00:00:00Z', '', {
+        commit_id: 'previous-head',
+        user: { login: 'reviewer-one', type: 'User' },
+      }),
+      review(2, 'APPROVED', '2026-08-01T00:01:00Z', '', {
+        commit_id: outOfPrSha,
+        user: { login: 'reviewer-one', type: 'User' },
+      }),
+      review(3, 'COMMENTED', '2026-08-01T00:02:00Z', pstackInterrogateBody(head, 0), {
+        user: { login: 'reviewer-two', type: 'User' },
+      }),
+    ]),
+    0,
+    'out-of-PR APPROVED must not clear an in-PR CHANGES_REQUESTED',
+  );
   assert.notEqual(
     runReviewFilter([
       review(1, 'APPROVED', '2026-08-01T00:00:00Z', '', {
@@ -414,7 +556,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   );
   assert.equal(
     runReviewFilter([
-      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', fallbackBody, {
+      codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', {
         commit_id: 'previous-head',
       }),
     ]),
@@ -426,10 +568,10 @@ test('automerge coordinator fails closed around the native merge queue', async (
     runReviewFilter([
       review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
       review(2, 'APPROVED', '2026-08-01T00:01:00Z', '', {
-        user: { login: 'reviewer-two' },
+        user: { login: 'reviewer-two', type: 'User' },
       }),
     ]),
     0,
@@ -440,14 +582,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
     runReviewFilter([
       review(1, 'APPROVED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
       review(2, 'DISMISSED', '2026-08-01T00:01:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
       review(3, 'APPROVED', '2026-08-01T00:02:00Z', '', {
-        user: { login: 'reviewer-two' },
+        user: { login: 'reviewer-two', type: 'User' },
       }),
     ]),
     0,
@@ -457,14 +599,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
     runReviewFilter([
       review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
       review(2, 'CHANGES_REQUESTED', '2026-08-01T00:01:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-two' },
+        user: { login: 'reviewer-two', type: 'User' },
       }),
       review(3, 'APPROVED', '2026-08-01T00:02:00Z', '', {
-        user: { login: 'reviewer-three' },
+        user: { login: 'reviewer-three', type: 'User' },
       }),
     ]),
     0,
@@ -474,14 +616,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
     runReviewFilter([
       review(1, 'DISMISSED', '2026-08-01T00:00:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
       review(2, 'CHANGES_REQUESTED', '2026-08-01T00:01:00Z', '', {
         commit_id: 'previous-head',
-        user: { login: 'reviewer-one' },
+        user: { login: 'reviewer-one', type: 'User' },
       }),
       review(3, 'APPROVED', '2026-08-01T00:02:00Z', '', {
-        user: { login: 'reviewer-two' },
+        user: { login: 'reviewer-two', type: 'User' },
       }),
     ]),
     0,
@@ -494,6 +636,249 @@ test('automerge coordinator fails closed around the native merge queue', async (
       }),
     ]),
     0,
+  );
+
+  assert.equal(
+    runReviewFilter([
+      codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: previousHeadSha }),
+      review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 1)),
+    ]),
+    1,
+    'CodeRabbit frozen discovery must not bypass an active pstack-interrogate act-on>0 review',
+  );
+  assert.equal(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0)),
+      review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 1)),
+    ]),
+    1,
+    'later pstack-interrogate act-on>0 by same reviewer on same head must supersede earlier act-on=0',
+  );
+  assert.equal(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0)),
+      review(2, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 1)),
+    ]),
+    1,
+    'same-timestamp pstack-interrogate act-on>0 with higher id must supersede earlier act-on=0',
+  );
+  assert.equal(
+    runReviewFilter([
+      review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0), {
+        user: { login: 'reviewer-one', type: 'User' },
+      }),
+      review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 2), {
+        user: { login: 'reviewer-two', type: 'User' },
+      }),
+    ]),
+    1,
+    'later pstack-interrogate act-on>0 by another trusted reviewer on same head must block',
+  );
+  assert.equal(
+    runReviewFilter(
+      [
+        review(1, 'CHANGES_REQUESTED', '2026-08-01T00:00:00Z', 'fix needed', {
+          commit_id: previousHeadSha,
+        }),
+        review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 0)),
+      ],
+      [{ sha: head }, { sha: previousHeadSha }],
+      [],
+    ),
+    0,
+    'canonical pstack-interrogate act-on=0 on current head must clear prior CHANGES_REQUESTED by same reviewer',
+  );
+  assert.equal(
+    runReviewFilter(
+      [
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(previousHeadSha, 3), {
+          commit_id: previousHeadSha,
+        }),
+        review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 0)),
+      ],
+      [{ sha: head }, { sha: previousHeadSha }],
+      [],
+    ),
+    0,
+    'canonical pstack-interrogate act-on=0 on current head must clear prior ACT_ON by same reviewer',
+  );
+  assert.equal(
+    runReviewFilter(
+      [
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(previousHeadSha, 0), {
+          commit_id: previousHeadSha,
+          user: { login: 'reviewer-one', type: 'User' },
+        }),
+        review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(head, 0), {
+          user: { login: 'reviewer-two', type: 'User' },
+        }),
+      ],
+      [{ sha: head }, { sha: previousHeadSha }],
+      [],
+    ),
+    0,
+    'clean act-on=0 on previous head must not block a different reviewer act-on=0 on current head',
+  );
+  assert.equal(
+    runReviewFilter(
+      [
+        review(
+          1,
+          'COMMENTED',
+          '2026-08-01T00:00:00Z',
+          [
+            `Inline \`<!-- pstack-interrogate head=${previousHeadSha} act-on=2 -->\` and double \`\` \`<!-- pstack-interrogate head=${head} act-on=3 -->\` \`\`.`,
+            '```html',
+            `<!-- pstack-interrogate head=${head} act-on=1 -->`,
+            '```',
+            '~~~markdown',
+            `<!-- pstack-interrogate head=${head} act-on=4 -->`,
+            '~~~',
+            pstackInterrogateBody(head, 0),
+          ].join('\n'),
+        ),
+      ],
+      [{ sha: head }],
+      [],
+    ),
+    0,
+    'Markdown fenced and inline code examples must not invalidate a real pstack-interrogate act-on=0 marker',
+  );
+  assert.equal(
+    runReviewFilter(
+      [
+        review(
+          1,
+          'COMMENTED',
+          '2026-08-01T00:00:00Z',
+          [
+            '```html',
+            `<!-- pstack-interrogate head=${head} act-on=0 -->`,
+            '```',
+            `Inline \`<!-- pstack-interrogate head=${head} act-on=0 -->\` only.`,
+          ].join('\n'),
+        ),
+      ],
+      [{ sha: head }],
+      [],
+    ),
+    1,
+    'marker inside Markdown code only must not be accepted as a real pstack-interrogate marker',
+  );
+  for (const [label, malformedBody] of [
+    [
+      'marker between double-backtick inline spans',
+      `\`\`a \` b\`\` <!-- pstack-interrogate head=${head} act-on=1 --> \`\`c \` d\`\` <!-- pstack-interrogate head=${head} act-on=0 -->`,
+    ],
+    ['extra leading space after <!--', `<!--  pstack-interrogate head=${head} act-on=0 -->`],
+    ['multiline comment', `<!--\npstack-interrogate\nhead=${head} act-on=0\n-->`],
+    [
+      'internal > decoy before canonical marker',
+      `<!-- pstack-interrogate a>b -->\n<!-- pstack-interrogate head=${head} act-on=0 -->`,
+    ],
+    ['unclosed marker prefix alone', `<!-- pstack-interrogate head=${head} act-on=0`],
+    [
+      'unclosed marker prefix before canonical marker',
+      `<!-- pstack-interrogate broken\n<!-- pstack-interrogate head=${head} act-on=0 -->`,
+    ],
+    ['blockquote marker only', `> <!-- pstack-interrogate head=${head} act-on=0 -->`],
+    ['indented code block marker only', `Summary\n\n    <!-- pstack-interrogate head=${head} act-on=0 -->`],
+    ['mid-line marker with leading text', `prefix <!-- pstack-interrogate head=${head} act-on=0 -->`],
+    ['unclosed fenced code block wrapping marker', `\`\`\`\n<!-- pstack-interrogate head=${head} act-on=0 -->`],
+  ]) {
+    assert.equal(
+      runReviewFilter([review(1, 'COMMENTED', '2026-08-01T00:00:00Z', malformedBody)], [{ sha: head }], []),
+      1,
+      `${label} must fail closed with jq exit 1`,
+    );
+  }
+  for (const [label, dismissedResurrection] of [
+    [
+      'dismissed pstack-interrogate followed by same reviewer plain comment',
+      [
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0)),
+        review(2, 'DISMISSED', '2026-08-01T00:01:00Z', ''),
+        review(3, 'COMMENTED', '2026-08-01T00:02:00Z', 'plain note'),
+      ],
+    ],
+    [
+      'dismissed APPROVED followed by same reviewer plain comment',
+      [
+        review(1, 'APPROVED', '2026-08-01T00:00:00Z', ''),
+        review(2, 'DISMISSED', '2026-08-01T00:01:00Z', ''),
+        review(3, 'COMMENTED', '2026-08-01T00:02:00Z', 'plain note'),
+      ],
+    ],
+  ]) {
+    assert.equal(
+      runReviewFilter(dismissedResurrection, [{ sha: head }], []),
+      1,
+      `${label} must not resurrect dismissed review`,
+    );
+  }
+  assert.equal(
+    runReviewFilter(
+      [
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody('c'.repeat(40), 2), {
+          commit_id: 'c'.repeat(40),
+          user: { login: 'reviewer-one', type: 'User' },
+        }),
+        review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody(previousHeadSha, 0), {
+          commit_id: previousHeadSha,
+          user: { login: 'reviewer-one', type: 'User' },
+        }),
+        codeRabbitReview(3, 'COMMENTED', '2026-08-01T00:02:00Z', { commit_id: previousHeadSha }),
+      ],
+      [{ sha: 'c'.repeat(40) }, { sha: previousHeadSha }, { sha: head }],
+      [actionMarker()],
+    ),
+    0,
+    'later prior-commit act-on=0 by same reviewer must clear earlier ACT_ON_PRIOR to COMMENTED',
+  );
+  for (const [label, badOverrides] of [
+    ['MEMBER with user: null', { author_association: 'MEMBER', user: null }],
+    ['OWNER with empty login', { author_association: 'OWNER', user: { login: '', type: 'User' } }],
+    ['COLLABORATOR with Bot user', { author_association: 'COLLABORATOR', user: { login: 'bot[bot]', type: 'Bot' } }],
+    ['DISMISSED review carrying canonical marker', { state: 'DISMISSED' }],
+    ['PENDING review carrying canonical marker', { state: 'PENDING', submitted_at: '' }],
+  ]) {
+    assert.equal(
+      runReviewFilter(
+        [review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0), badOverrides)],
+        [{ sha: head }],
+        [],
+      ),
+      1,
+      `${label} must fail closed with jq exit 1 and never crash`,
+    );
+  }
+  assert.equal(
+    runReviewFilter(
+      [
+        review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(head, 0), {
+          user: { login: 'reviewer-one', type: 'User' },
+        }),
+        review(2, 'DISMISSED', '2026-08-01T00:01:00Z', '', {
+          user: { login: 'reviewer-one', type: 'User' },
+        }),
+        review(3, 'COMMENTED', '2026-08-01T00:02:00Z', 'plain note', {
+          user: { login: 'reviewer-two', type: 'User' },
+        }),
+      ],
+      [{ sha: head }],
+      [],
+    ),
+    1,
+    'dismissed pstack-interrogate review must not pass via another reviewer plain note',
+  );
+  assert.equal(
+    runReviewFilter(
+      [codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: previousHeadSha })],
+      [{ sha: head }, { sha: previousHeadSha }],
+      [{ user: null, body: null }, actionMarker()],
+    ),
+    0,
+    'null user/body comments permitted by bounded_issue_comments must not crash canonical_actions_marker',
   );
 
   const checkProgram = workflow.match(
@@ -629,6 +1014,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   // gh 호출을 기록만 하는 스텁으로 대체해 상태별 분기 결과를 실측한다. 분기는 큐 루프
   // 안에 있으므로 `continue`가 유효하도록 1회 루프로 감싸고, 루프를 빠져나오면
   // SKIPPED를 남겨 "이 후보를 건너뛰었다"를 관측한다.
+  const defaultDispatchHead = '0'.repeat(40);
   const runDispatch = (
     mergeState,
     {
@@ -646,11 +1032,22 @@ test('automerge coordinator fails closed around the native merge queue', async (
       updateStatus = 0,
       recordStatus = 0,
       baseUpdateRecords = [],
+      headSha = defaultDispatchHead,
+      reviews = [codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: headSha })],
+      commitShas = [headSha],
+      comments = [
+        {
+          id: 1,
+          body: `<!-- Automerge frozen discovery authorization: ${headSha} -->`,
+          user: { login: 'github-actions[bot]', id: 41898282, type: 'Bot' },
+        },
+      ],
     } = {},
   ) => {
     const log = join(mkdtempSync(join(tmpdir(), 'automerge-queue-')), 'gh.log');
     const markerSync = workflow.match(MARKER_SYNC_RE)?.[1];
     assert.ok(markerSync, 'authorization marker sync must stay testable');
+    const { block: reviewJqDefs } = extractReviewJqDefs(workflow);
     const script = [
       'set -euo pipefail',
       `GH_LOG=${JSON.stringify(log)}`,
@@ -658,6 +1055,9 @@ test('automerge coordinator fails closed around the native merge queue', async (
       `HAS_AUTOMERGE_PAT=${hasPat}`,
       'GH_TOKEN=github-token',
       `base_update_records=${JSON.stringify(JSON.stringify(baseUpdateRecords))}`,
+      `reviews=${JSON.stringify(JSON.stringify(reviews))}`,
+      `commit_shas=${JSON.stringify(JSON.stringify(commitShas))}`,
+      `comments=${JSON.stringify(JSON.stringify(comments))}`,
       'gh() {',
       `  printf '%s\\n' "gh $*" >> "$GH_LOG"`,
       '  case "$*" in',
@@ -675,7 +1075,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       'label_calls=0',
       'pr=44',
       'repo=o/r',
-      'head=old-head',
+      `head=${JSON.stringify(headSha)}`,
       'GITHUB_RUN_ID=123',
       'GITHUB_SERVER_URL=https://github.example',
       'GITHUB_REPOSITORY=o/r',
@@ -683,6 +1083,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
       `merge_state=${JSON.stringify(mergeState)}`,
       ['fail_closed_pr() {', failureHandler.replace(/^ {10}/gm, ''), '}'].join('\n'),
       markerSync.replace(/^ {10}/gm, ''),
+      reviewJqDefs.replace(/^ {10}/gm, ''),
       'for _ in 1; do',
       dispatchBlock.replace(/^ {12}/gm, ''),
       'done',
@@ -733,7 +1134,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.match(behind.output, /owning SSD worktree must rebase and push/);
   // PAT가 있으면 게이트를 통과한 BEHIND 후보의 base를 현재 head 고정으로 갱신하고, 수락된 요청만
   // github.token 기록으로 남긴 뒤 그 실행을 끝낸다.
-  const recordLine = 'gh api --method POST repos/o/r/issues/44/comments -f body=<!-- Automerge base update requested: old-head -->';
+  const recordLine = `gh api --method POST repos/o/r/issues/44/comments -f body=<!-- Automerge base update requested: ${defaultDispatchHead} -->`;
   const behindWithPat = runDispatch('BEHIND', { hasPat: true });
   assert.equal(behindWithPat.status, 0);
   assert.equal(behindWithPat.merged, false);
@@ -741,14 +1142,14 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.equal(behindWithPat.labelRemoved, false);
   assert.deepEqual(
     behindWithPat.calls.split('\n').filter((line) => line.includes('update-branch')),
-    ['gh api --method PUT repos/o/r/pulls/44/update-branch -f expected_head_sha=old-head'],
+    [`gh api --method PUT repos/o/r/pulls/44/update-branch -f expected_head_sha=${defaultDispatchHead}`],
   );
   assert.match(behindWithPat.calls, /^UPDATE_BRANCH_TOKEN=merge-token$/m);
   assert.ok(behindWithPat.calls.includes(recordLine), 'an accepted base update must be recorded');
   assert.ok(behindWithPat.calls.indexOf('update-branch') < behindWithPat.calls.indexOf(recordLine));
   assert.match(behindWithPat.calls, /^RECORD_TOKEN=github-token$/m);
   const behindRecorded = runDispatch('BEHIND', { hasPat: true, baseUpdateRecords: [{ id: 7, head: 'a'.repeat(40) }] });
-  assert.ok(behindRecorded.calls.includes('gh api --method PATCH repos/o/r/issues/comments/7 -f body=<!-- Automerge base update requested: old-head -->'));
+  assert.ok(behindRecorded.calls.includes(`gh api --method PATCH repos/o/r/issues/comments/7 -f body=<!-- Automerge base update requested: ${defaultDispatchHead} -->`));
   assert.doesNotMatch(behindRecorded.calls, /--method POST/);
   const behindAmbiguous = runDispatch('BEHIND', { hasPat: true, baseUpdateRecords: [{ id: 7, head: 'a'.repeat(40) }, { id: 8, head: 'b'.repeat(40) }] });
   assert.equal(behindAmbiguous.status, 0);
@@ -766,6 +1167,72 @@ test('automerge coordinator fails closed around the native merge queue', async (
   assert.equal(behindUpdateFailed.labelRemoved, false);
   assert.doesNotMatch(behindUpdateFailed.calls, /requested: /, 'a failed base update must not be recorded');
   assert.match(behindUpdateFailed.output, /::warning::/);
+  for (const [label, options] of [
+    [
+      'pstack-interrogate review without frozen discovery',
+      {
+        hasPat: true,
+        reviews: [
+          review(1, 'COMMENTED', '2026-08-01T00:00:00Z', pstackInterrogateBody(defaultDispatchHead, 0), {
+            commit_id: defaultDispatchHead,
+          }),
+        ],
+      },
+    ],
+    ['frozen discovery without canonical marker', { hasPat: true, comments: [] }],
+    [
+      'unresolved ACT_ON_PRIOR masked on current head by second reviewer pstack-interrogate',
+      {
+        hasPat: true,
+        commitShas: ['b'.repeat(40), defaultDispatchHead],
+        reviews: [
+          codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: 'b'.repeat(40) }),
+          review(2, 'COMMENTED', '2026-08-01T00:01:00Z', pstackInterrogateBody('b'.repeat(40), 2), {
+            commit_id: 'b'.repeat(40),
+            user: { login: 'reviewer-one', type: 'User' },
+          }),
+          review(3, 'COMMENTED', '2026-08-01T00:02:00Z', pstackInterrogateBody(defaultDispatchHead, 0), {
+            commit_id: defaultDispatchHead,
+            user: { login: 'reviewer-two', type: 'User' },
+          }),
+        ],
+      },
+    ],
+    [
+      'prior CHANGES_REQUESTED cleared only by current-head pstack-interrogate',
+      {
+        hasPat: true,
+        commitShas: ['b'.repeat(40), defaultDispatchHead],
+        reviews: [
+          codeRabbitReview(1, 'COMMENTED', '2026-08-01T00:00:00Z', { commit_id: 'b'.repeat(40) }),
+          review(2, 'CHANGES_REQUESTED', '2026-08-01T00:01:00Z', 'fix needed', {
+            commit_id: 'b'.repeat(40),
+          }),
+          review(3, 'COMMENTED', '2026-08-01T00:02:00Z', pstackInterrogateBody(defaultDispatchHead, 0), {
+            commit_id: defaultDispatchHead,
+          }),
+        ],
+      },
+    ],
+  ]) {
+    const nonTransferable = runDispatch('BEHIND', options);
+    assert.deepEqual(
+      withoutCalls(nonTransferable),
+      {
+        status: 0,
+        merged: false,
+        updatedBranch: false,
+        dispatchedCi: false,
+        skipped: true,
+        commented: false,
+        autoMergeDisabled: false,
+        labelRemoved: false,
+      },
+      `${label} must skip BEHIND without calling update-branch`,
+    );
+    assert.doesNotMatch(nonTransferable.calls, /requested: /);
+    assert.match(nonTransferable.output, /without a transferable frozen discovery review/);
+  }
   // 병합할 수 없는 상태는 전부 "이 후보만 건너뛴다"로 수렴한다. 실행을 실패시키지도,
   // 라벨을 건드리지도 않는다. 뒤의 후보는 계속 평가된다.
   for (const mergeState of ['DIRTY', 'BLOCKED', 'UNKNOWN', 'SOME_NEW_STATE']) {
@@ -843,7 +1310,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
         commit_id: head,
         author_association: 'OWNER',
         body: '',
-        user: { login: 'reviewer' },
+        user: { login: 'reviewer', type: 'User' },
       },
     ],
   ];
@@ -1010,7 +1477,7 @@ test('automerge coordinator fails closed around the native merge queue', async (
   //      모든 시작점의 확률이 0보다 크고, 그 값이 실행 간격에 좌우되지 않는다.
   const windowSize = 20;
   const windowProgram = workflow.match(
-    /# candidate-window-begin\n\s+done < <\(jq -r --argjson window "\$\{window\}" --argjson offset "\$\{offset\}" '\n([\s\S]*?)\n\s+' <<<"\$\{candidates\}"\)/,
+    /# candidate-window-begin\n\s+done < <\(jq -r --argjson window "\$\{window\}" --argjson offset "\$\{offset\}" '\n([\s\S]*?)\n\s+' <<<"\$\{candidates\}"\)\n\s+# candidate-window-end/,
   )?.[1];
   assert.ok(windowProgram, 'candidate window jq program must stay testable');
   const pickWindow = (total, offset) => {
@@ -1171,8 +1638,19 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     ...overrides,
   });
 
-  const canonicalReviewBody = (findings = 0) =>
-    `**Actionable comments posted: ${findings}**\n${AQUILA_UNIVERSAL_MARKER}`;
+  const pstackInterrogateBody = (headSha = currentHead, actOn = 0) =>
+    `## Summary\nAll clean.\n<!-- pstack-interrogate head=${headSha} act-on=${actOn} -->`;
+
+  const codeRabbitDiscoveryReview = (id, commitId, body = 'CodeRabbit review', overrides = {}) => ({
+    id,
+    state: 'COMMENTED',
+    commit_id: commitId,
+    author_association: 'NONE',
+    submitted_at: '2026-08-01T00:00:00Z',
+    body,
+    user: { login: 'coderabbitai[bot]', id: 136622811, type: 'Bot' },
+    ...overrides,
+  });
 
   const canonicalMarker = (headSha = currentHead) => ({
     body: `<!-- Automerge frozen discovery authorization: ${headSha} -->`,
@@ -1181,7 +1659,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
 
   const validPatch = 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void main() {}\n';
 
-  // 1. current-head trusted APPROVED 통과
   assert.equal(
     verifyAutomergeReviewClosure({
       head: currentHead,
@@ -1190,16 +1667,27 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     }).ok,
     true,
   );
+  for (const role of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
+    const res = verifyAutomergeReviewClosure({
+      head: currentHead,
+      reviews: [
+        trustedHumanReview(1, 'COMMENTED', currentHead, pstackInterrogateBody(currentHead, 0), {
+          author_association: role,
+        }),
+      ],
+      comments: [],
+    });
+    assert.equal(res.ok, true);
+    assert.equal(res.type, 'current-head-pstack-interrogate');
+  }
 
-  // 2. rebase-equivalent reviewed prefix + inline finding path 수정 + selected test 수정 + exact marker 통과
   const rebasePrefixPatch = 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void oldRoute() {}\n';
   const closureFindingPatch = 'diff --git a/apps/mobile/lib/route.dart b/apps/mobile/lib/route.dart\n+void fixedRoute() {}\n';
-  const closureTestPatch = 'diff --git a/apps/mobile/test/route_test.dart b/apps/mobile/test/route_test.dart\n+test();\n';
 
   assert.equal(
     verifyAutomergeReviewClosure({
       head: currentHead,
-      reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalReviewBody(1))],
+      reviews: [codeRabbitDiscoveryReview(1, previousHead)],
       comments: [canonicalMarker(currentHead)],
       reviewThreads: {
         pageInfo: { hasNextPage: false },
@@ -1219,7 +1707,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     true,
   );
 
-  // 3. previous-head live APPROVED의 rebase-only 통과
   assert.equal(
     verifyAutomergeReviewClosure({
       head: currentHead,
@@ -1232,8 +1719,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     true,
   );
 
-  // 4. unrelated Review, patch tamper/누락/재정렬/squash 차단
-  // 누락 (squash되어 commit 수가 줄어듦)
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1250,7 +1735,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /current commit series is shorter/,
   );
 
-  // Patch tamper (내용 변경)
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1264,7 +1748,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /commit series mismatch/,
   );
 
-  // Merge commit 차단
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1278,7 +1761,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /merge commit detected/,
   );
 
-  // Empty commit 차단
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1292,10 +1774,9 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /empty commit detected/,
   );
 
-  // 5. selected 밖 production/test path와 add/delete/rename/binary/submodule 차단
   const baseClosureSetup = {
     head: currentHead,
-    reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalReviewBody(1))],
+    reviews: [codeRabbitDiscoveryReview(1, previousHead)],
     comments: [canonicalMarker(currentHead)],
     reviewThreads: {
       pageInfo: { hasNextPage: false },
@@ -1306,7 +1787,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     selectedTestPaths: ['apps/mobile/test/route_test.dart'],
   };
 
-  // selected 밖 production path
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1316,7 +1796,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /production path outside original inline finding paths/,
   );
 
-  // selected 밖 test path
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1329,7 +1808,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /test path outside review-selected test paths/,
   );
 
-  // add/delete/rename status 차단
   for (const status of ['added', 'deleted', 'renamed']) {
     assert.throws(
       () =>
@@ -1341,7 +1819,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     );
   }
 
-  // binary 차단
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1351,7 +1828,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /binary changes forbidden/,
   );
 
-  // submodule 차단
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1361,7 +1837,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /submodule changes forbidden/,
   );
 
-  // mode change 차단
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1371,7 +1846,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /mode changes forbidden/,
   );
 
-  // workflow / dependency 파일 변경 차단
   for (const protectedFile of ['.github/workflows/ci.yml', 'package.json', 'pubspec.yaml']) {
     assert.throws(
       () =>
@@ -1383,12 +1857,11 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     );
   }
 
-  // 6. finding 0 + closure delta 차단
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
         head: currentHead,
-        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, canonicalReviewBody(0))],
+        reviews: [codeRabbitDiscoveryReview(1, previousHead)],
         comments: [canonicalMarker(currentHead)],
         reviewedCommits: [{ sha: previousHead, patch: validPatch }],
         currentCommits: [{ sha: previousHead, patch: validPatch }, { sha: currentHead, patch: validPatch }],
@@ -1397,8 +1870,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /finding 0 requires diff 0/,
   );
 
-  // 7. Review 0, 임의 COMMENTED, malformed canonical body, wrong actor 차단
-  // Review 0
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1409,7 +1880,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /no trusted reviews found/,
   );
 
-  // 임의 COMMENTED
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1429,12 +1899,11 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /no trusted reviews found/,
   );
 
-  // malformed canonical body
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
         head: currentHead,
-        reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, 'Not a canonical review body')],
+        reviews: [trustedHumanReview(1, 'COMMENTED', currentHead, 'Not a canonical review body')],
         comments: [canonicalMarker(currentHead)],
         reviewedCommits: [{ sha: previousHead, patch: validPatch }],
         currentCommits: [{ sha: currentHead, patch: validPatch }],
@@ -1442,39 +1911,76 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /no eligible previous-head discovery review found/,
   );
 
-  const closureWithBody = (body) => () =>
+  const closureOnHead = (commitId, body) => () =>
     verifyAutomergeReviewClosure({
       head: currentHead,
-      reviews: [trustedHumanReview(1, 'COMMENTED', previousHead, body)],
+      reviews: [trustedHumanReview(1, 'COMMENTED', commitId, body)],
       comments: [canonicalMarker(currentHead)],
       reviewedCommits: [{ sha: previousHead, patch: validPatch }],
       currentCommits: [{ sha: currentHead, patch: validPatch }],
       closureFiles: [],
     });
-  for (const marker of [AQUILA_FALLBACK_MARKER, AQUILA_UNIVERSAL_MARKER]) {
-    assert.equal(closureWithBody(`**Actionable comments posted: 0**\n${marker}`)().ok, true, marker);
+
+  for (const actOn of [1, 2, 12]) {
+    assert.throws(
+      closureOnHead(currentHead, pstackInterrogateBody(currentHead, actOn)),
+      /blocking review state 'ACT_ON_CURRENT'/,
+      `act-on=${actOn} must be rejected`,
+    );
   }
+  assert.throws(
+    closureOnHead(currentHead, pstackInterrogateBody(previousHead, 0)),
+    /blocking review state 'ACT_ON_CURRENT'/,
+    'marker head != review commit_id must be rejected',
+  );
+  assert.throws(
+    closureOnHead(previousHead, pstackInterrogateBody(currentHead, 0)),
+    /blocking review state 'ACT_ON_PRIOR'/,
+    'review commit_id != currentHead must be rejected even if marker names currentHead',
+  );
+  assert.throws(
+    closureOnHead(previousHead, pstackInterrogateBody(previousHead, 0)),
+    /no eligible previous-head discovery review found/,
+    'previous-head pstack-interrogate review must not be reused as frozen discovery',
+  );
   for (const body of [
-    `**Actionable comments posted: 0**\n${CODEX_LEGACY_MARKER}`,
-    '**Actionable comments posted: 0**',
+    `${pstackInterrogateBody(currentHead, 1)}\n${pstackInterrogateBody(currentHead, 0)}`,
+    `${pstackInterrogateBody(currentHead, 0)}\n${pstackInterrogateBody(currentHead, 0)}`,
+    `<!-- pstack-interrogate head=${currentHead} act-on=0 extra=1 -->`,
   ]) {
-    assert.throws(closureWithBody(body), /no eligible previous-head discovery review found/, body);
+    assert.throws(
+      closureOnHead(currentHead, body),
+      /blocking review state 'ACT_ON_CURRENT'/,
+      body,
+    );
+  }
+  for (const legacyMarker of [AQUILA_FALLBACK_MARKER, AQUILA_UNIVERSAL_MARKER, CODEX_LEGACY_MARKER]) {
+    for (const commitId of [currentHead, previousHead]) {
+      assert.throws(
+        closureOnHead(commitId, `**Actionable comments posted: 0**\n${legacyMarker}`),
+        /no eligible previous-head discovery review found/,
+        legacyMarker,
+      );
+    }
+  }
+  for (const commitId of [currentHead, previousHead]) {
+    assert.throws(
+      closureOnHead(commitId, '**Actionable comments posted: 0**'),
+      /no eligible previous-head discovery review found/,
+      'missing pstack-interrogate marker must be rejected',
+    );
   }
 
-  // 요약 머리말은 본문 맨 앞에 있어야 한다. 마커만 있거나 머리말이 중간에 있으면 인정하지 않는다.
-  for (const body of [
-    AQUILA_UNIVERSAL_MARKER,
-    `intro\n**Actionable comments posted: 0**\n${AQUILA_UNIVERSAL_MARKER}`,
-  ]) {
-    assert.throws(closureWithBody(body), /no eligible previous-head discovery review found/, body);
-  }
-
-  // 신뢰하지 않는 작성자가 마커와 머리말을 모두 갖춰 게시해도 canonical로 인정하지 않는다.
-  // 신뢰 작성자의 비정형 리뷰와 함께 두어, 외부 리뷰가 유일한 후보가 되는 경우를 가린다.
-  const untrustedCanonical = trustedHumanReview(2, 'COMMENTED', previousHead, canonicalReviewBody(0), {
-    author_association: 'NONE',
-    user: { login: 'outsider', id: 2, type: 'User' },
-  });
+  const untrustedCanonical = trustedHumanReview(
+    2,
+    'COMMENTED',
+    currentHead,
+    pstackInterrogateBody(currentHead, 0),
+    {
+      author_association: 'NONE',
+      user: { login: 'outsider', id: 2, type: 'User' },
+    },
+  );
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1488,7 +1994,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /no eligible previous-head discovery review found/,
   );
 
-  // wrong actor for CodeRabbit
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1508,55 +2013,54 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /no trusted reviews found/,
   );
 
-  // 8. active CHANGES_REQUESTED, unresolved/paginated thread 차단
-  // active CHANGES_REQUESTED
-  assert.throws(
-    () =>
-      verifyAutomergeReviewClosure({
-        head: currentHead,
-        reviews: [
-          trustedHumanReview(1, 'APPROVED', currentHead),
-          trustedHumanReview(2, 'CHANGES_REQUESTED', previousHead, '', {
-            user: { login: 'reviewer-two', id: 2, type: 'User' },
-          }),
-        ],
-        comments: [],
-      }),
-    /active CHANGES_REQUESTED remains/,
-  );
+  for (const currentHeadReview of [
+    trustedHumanReview(1, 'APPROVED', currentHead),
+    trustedHumanReview(1, 'COMMENTED', currentHead, pstackInterrogateBody(currentHead, 0)),
+  ]) {
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          head: currentHead,
+          reviews: [
+            currentHeadReview,
+            trustedHumanReview(2, 'CHANGES_REQUESTED', previousHead, '', {
+              user: { login: 'reviewer-two', id: 2, type: 'User' },
+            }),
+          ],
+          comments: [],
+        }),
+      /active CHANGES_REQUESTED remains/,
+    );
 
-  // unresolved review thread
-  assert.throws(
-    () =>
-      verifyAutomergeReviewClosure({
-        head: currentHead,
-        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
-        comments: [],
-        reviewThreads: {
-          pageInfo: { hasNextPage: false },
-          nodes: [{ isResolved: false, path: 'apps/mobile/lib/route.dart' }],
-        },
-      }),
-    /unresolved review thread/,
-  );
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          head: currentHead,
+          reviews: [currentHeadReview],
+          comments: [],
+          reviewThreads: {
+            pageInfo: { hasNextPage: false },
+            nodes: [{ isResolved: false, path: 'apps/mobile/lib/route.dart' }],
+          },
+        }),
+      /unresolved review thread/,
+    );
 
-  // paginated review thread
-  assert.throws(
-    () =>
-      verifyAutomergeReviewClosure({
-        head: currentHead,
-        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
-        comments: [],
-        reviewThreads: {
-          pageInfo: { hasNextPage: true },
-          nodes: [{ isResolved: true, path: 'apps/mobile/lib/route.dart' }],
-        },
-      }),
-    /paginated review threads not allowed/,
-  );
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          head: currentHead,
+          reviews: [currentHeadReview],
+          comments: [],
+          reviewThreads: {
+            pageInfo: { hasNextPage: true },
+            nodes: [{ isResolved: true, path: 'apps/mobile/lib/route.dart' }],
+          },
+        }),
+      /paginated review threads not allowed/,
+    );
+  }
 
-  // 9. stale/wrong/multiple marker 차단
-  // stale marker
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1569,7 +2073,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /stale or wrong marker/,
   );
 
-  // multiple markers
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1582,7 +2085,6 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /multiple canonical markers found/,
   );
 
-  // missing marker
   assert.throws(
     () =>
       verifyAutomergeReviewClosure({
@@ -1595,45 +2097,46 @@ test('verifyAutomergeReviewClosure enforces 1-discovery Review contract (Mobile 
     /missing automerge frozen discovery authorization marker/,
   );
 
-  // 10. missing/pending/failing required context 차단
   const required = [{ context: 'Mobile CI', integration_id: null }];
 
-  // missing
-  assert.throws(
-    () =>
-      verifyAutomergeReviewClosure({
-        head: currentHead,
-        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
-        requiredContexts: required,
-        checks: [],
-        statuses: [],
-      }),
-    /missing required context/,
-  );
+  for (const currentHeadReview of [
+    trustedHumanReview(1, 'APPROVED', currentHead),
+    trustedHumanReview(1, 'COMMENTED', currentHead, pstackInterrogateBody(currentHead, 0)),
+  ]) {
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          head: currentHead,
+          reviews: [currentHeadReview],
+          requiredContexts: required,
+          checks: [],
+          statuses: [],
+        }),
+      /missing required context/,
+    );
 
-  // pending
-  assert.throws(
-    () =>
-      verifyAutomergeReviewClosure({
-        head: currentHead,
-        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
-        requiredContexts: required,
-        checks: [{ name: 'Mobile CI', conclusion: null, started_at: '2026-08-01T00:00:00Z' }],
-      }),
-    /required check 'Mobile CI' is not successful/,
-  );
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          head: currentHead,
+          reviews: [currentHeadReview],
+          requiredContexts: required,
+          checks: [{ name: 'Mobile CI', conclusion: null, started_at: '2026-08-01T00:00:00Z' }],
+        }),
+      /required check 'Mobile CI' is not successful/,
+    );
 
-  // failing
-  assert.throws(
-    () =>
-      verifyAutomergeReviewClosure({
-        head: currentHead,
-        reviews: [trustedHumanReview(1, 'APPROVED', currentHead)],
-        requiredContexts: required,
-        checks: [{ name: 'Mobile CI', conclusion: 'failure', started_at: '2026-08-01T00:00:00Z' }],
-      }),
-    /required check 'Mobile CI' is not successful/,
-  );
+    assert.throws(
+      () =>
+        verifyAutomergeReviewClosure({
+          head: currentHead,
+          reviews: [currentHeadReview],
+          requiredContexts: required,
+          checks: [{ name: 'Mobile CI', conclusion: 'failure', started_at: '2026-08-01T00:00:00Z' }],
+        }),
+      /required check 'Mobile CI' is not successful/,
+    );
+  }
 });
 
 test('병합 예약과 update-branch만 AUTOMERGE_PAT 병합 토큰을 쓰고 나머지는 github.token을 유지한다', async () => {
@@ -1926,22 +2429,28 @@ test('bounded_issue_comments: overflow probe에 잔여 코멘트가 있으면 �
   assert.equal(result.status, 'FAILED');
 });
 
-// ---------------------------------------------------------------------------
-// BEHIND 자동 갱신과 marker 재발행·복구 (backend #412 이식, mobile #414)
-// ---------------------------------------------------------------------------
 const markerFor = (head) => `<!-- Automerge frozen discovery authorization: ${head} -->`;
 const recordFor = (head) => `<!-- Automerge base update requested: ${head} -->`;
 const actionsBotUser = { login: 'github-actions[bot]', id: 41898282, type: 'Bot' };
-const universalDiscoveryBody =
-  '**Actionable comments posted: 0**\n<!-- Review source: Aquila Universal Review; engine: aquila-review -->';
+const pstackMarkerFor = (head, actOn = 0) => `<!-- pstack-interrogate head=${head} act-on=${actOn} -->`;
 const discoveryReview = (commitId, overrides = {}) => ({
   id: 5,
   state: 'COMMENTED',
   submitted_at: '2026-09-29T00:00:00Z',
   commit_id: commitId,
+  author_association: 'NONE',
+  body: '',
+  user: { login: 'coderabbitai[bot]', id: 136622811, type: 'Bot' },
+  ...overrides,
+});
+const pstackReview = (commitId, markerHead = commitId, actOn = 0, overrides = {}) => ({
+  id: 6,
+  state: 'COMMENTED',
+  submitted_at: '2026-09-29T00:00:00Z',
+  commit_id: commitId,
   author_association: 'OWNER',
-  body: universalDiscoveryBody,
-  user: { login: 'reviewer' },
+  body: `## Summary\nAll clean.\n${pstackMarkerFor(markerHead, actOn)}`,
+  user: { login: 'reviewer', type: 'User' },
   ...overrides,
 });
 const committedAt = (sha, date) => ({ sha, commit: { committer: { date } } });
@@ -2117,17 +2626,12 @@ test('marker 복구는 marker가 없고 게이트 정의의 discovery가 있으�
     commits: [committedAt(previous, '2026-09-29T00:00:00Z'), committedAt(head, '2026-09-29T01:00:00Z')],
     events: [[labeledAt('2026-09-29T02:00:00Z')]],
   };
-  const codeRabbit = {
-    author_association: 'NONE',
-    body: '',
-    user: { login: 'coderabbitai[bot]', id: 136622811, type: 'Bot' },
-  };
   const posted = [`TOKEN=github-token gh api --method POST repos/o/r/issues/85/comments -f body=${markerFor(head)}`];
   const hundred = (event) => Array.from({ length: 100 }, () => event);
 
   for (const [label, options] of [
-    ['Aquila discovery on an earlier PR commit', {}],
-    ['CodeRabbit discovery', { reviews: [discoveryReview(head, codeRabbit)] }],
+    ['CodeRabbit discovery on an earlier PR commit', {}],
+    ['CodeRabbit discovery on current head', { reviews: [discoveryReview(head)] }],
     ['spoofed marker is not canonical', { comments: [{ id: 7, body: markerFor(previous), user: { ...actionsBotUser, id: 1 } }] }],
     ['head committed at the label time', { events: [[labeledAt('2026-09-29T01:00:00Z')]] }],
     ['relabel after the head', { events: [[labeledAt('2026-09-28T00:00:00Z'), labeledAt('2026-09-29T02:00:00Z')]] }],
@@ -2142,11 +2646,17 @@ test('marker 복구는 marker가 없고 게이트 정의의 discovery가 있으�
 
   for (const [label, options] of [
     ['no review', { reviews: [] }],
-    ['approval only', { reviews: [discoveryReview(head, { state: 'APPROVED', body: '' })] }],
-    ['non-canonical comment review', { reviews: [discoveryReview(previous, { body: 'looks fine' })] }],
+    ['approval only', { reviews: [pstackReview(head, head, 0, { state: 'APPROVED', body: '' })] }],
+    ['non-canonical comment review', { reviews: [pstackReview(head, head, 0, { body: 'looks fine' })] }],
+    ['pstack-interrogate review on current head', { reviews: [pstackReview(head, head, 0)] }],
+    ['pstack-interrogate act-on>0', { reviews: [pstackReview(head, head, 1)] }],
+    ['pstack-interrogate on previous head', { reviews: [pstackReview(previous, previous, 0)] }],
+    ['pstack-interrogate marker head mismatch', { reviews: [pstackReview(head, previous, 0)] }],
+    ['retired Aquila marker', { reviews: [pstackReview(head, head, 0, { body: `**Actionable comments posted: 0**\n${AQUILA_UNIVERSAL_MARKER}` })] }],
     ['discovery outside the PR commit set', { reviews: [discoveryReview(outside)] }],
-    ['untrusted fallback author', { reviews: [discoveryReview(previous, { author_association: 'NONE' })] }],
-    ['CodeRabbit impersonation', { reviews: [discoveryReview(head, { ...codeRabbit, user: { ...codeRabbit.user, id: 1 } })] }],
+    ['pstack-interrogate head outside the PR commit set', { reviews: [pstackReview(outside, outside, 0)], head: outside }],
+    ['untrusted pstack-interrogate author', { reviews: [pstackReview(head, head, 0, { author_association: 'NONE' })] }],
+    ['CodeRabbit impersonation', { reviews: [discoveryReview(head, { user: { login: 'coderabbitai[bot]', id: 1, type: 'Bot' } })] }],
   ]) {
     const kept = runMarkerSync(workflow, { ...base, ...options });
     assert.equal(kept.status, 0, `${label}: ${kept.stderr}`);
@@ -2180,17 +2690,26 @@ test('marker 동기화의 discovery 판정은 리뷰 게이트와 같은 정의�
   const workflow = await readFile(workflowUrl, 'utf8');
   const sync = workflow.match(MARKER_SYNC_RE)?.[1];
   assert.ok(sync, 'authorization marker sync must stay testable');
-  const gate = workflow.match(/# frozen-discovery-review-filter-begin\n([\s\S]*?)\n\s+# review-state-filter-end/)?.[1];
-  assert.ok(gate, 'review gate must stay testable');
+  const { body: reviewJqDefs } = extractReviewJqDefs(workflow);
+  const gateBody = workflow.match(/# frozen-discovery-review-filter-begin\n([\s\S]*?)\n\s+# review-state-filter-end/)?.[1];
+  assert.ok(gateBody, 'review gate must stay testable');
+  const gate = `${reviewJqDefs}\n${gateBody}`;
   const normalize = (text) => text.replace(/\s+/g, ' ').trim();
-  for (const name of ['is_coderabbit', 'is_trusted_human', 'is_aquila_fallback', 'is_frozen_discovery']) {
+  for (const name of ['is_coderabbit', 'is_frozen_discovery']) {
     const definition = (source) => source.match(new RegExp(`def ${name}:[\\s\\S]*?;\\n`))?.[0];
     assert.ok(definition(gate), `gate must define ${name}`);
     assert.equal(normalize(definition(sync) ?? ''), normalize(definition(gate)), `marker sync ${name} must match the review gate`);
   }
+  assert.doesNotMatch(
+    sync,
+    /is_trusted_human|pstack-interrogate/,
+    'marker sync must only recover frozen discovery reviews and not duplicate pstack-interrogate logic',
+  );
   assert.ok(
-    normalize(sync).includes(normalize('any($trusted[]; is_frozen_discovery and (.commit_id as $review_head | $commit_shas | index($review_head) != null))')),
-    'recovery must use the gate discovery clause over the PR commit set',
+    normalize(sync).includes(
+      normalize('any($frozen[]; ((.commit_id) as $review_head | $commit_shas | index($review_head) != null))'),
+    ),
+    'recovery must use the gate frozen discovery commit-set clause',
   );
   assert.doesNotMatch(sync, /MERGE_GH_TOKEN/);
   const loop = workflow.slice(workflow.indexOf('while IFS= read -r pr; do'));
@@ -2331,6 +2850,46 @@ test('코디네이터 base 갱신 기록 뒤 다음 실행은 marker를 재발�
   assert.equal(recovered.status, 0, recovered.stderr);
   assert.match(recovered.calls, new RegExp(`gh api --method POST repos/o/r/issues/1/comments -f body=${markerFor(head)}\\nTOKEN=github-token\\n`));
   assert.equal(recovered.mergedPr, 1, 'a recovered marker must satisfy the unchanged review gate in the same run');
+
+  for (const [label, prComments] of [
+    ['without authorization marker', []],
+    ['with labeled exact-head marker', [{ id: 55, body: markerFor(head), user: actionsBotUser }]],
+  ]) {
+    const behindPstack = runSyncQueue(
+      queueLoop,
+      [
+        {
+          number: 1,
+          head,
+          mergeStateStatus: 'BEHIND',
+          comments: prComments,
+          reviews: [pstackReview(head, head, 0)],
+          commits: [committedAt(head, '2026-09-29T01:00:00Z')],
+          events: [[labeledAt('2026-09-29T02:00:00Z')]],
+        },
+        {
+          number: 2,
+          head: previous,
+          mergeStateStatus: 'CLEAN',
+          comments: [],
+          reviews: [pstackReview(previous, previous, 0)],
+          commits: [{ sha: previous }],
+        },
+      ],
+      { hasPat: true },
+    );
+    assert.equal(behindPstack.status, 0, `${label}: ${behindPstack.stderr}`);
+    assert.doesNotMatch(
+      behindPstack.calls,
+      /update-branch|--method (POST|PATCH)/,
+      `pstack-interrogate BEHIND PR (${label}) must neither recover a marker nor request update-branch`,
+    );
+    assert.equal(
+      behindPstack.mergedPr,
+      2,
+      `pstack-interrogate BEHIND PR (${label}) must be skipped so later ready PRs still merge`,
+    );
+  }
 });
 
 // #3036: 큐를 다시 깨울 이벤트가 오지 않는 공백을 schedule tick이 메운다. 한 run이 후보를 일시적 상태(대기 중 check)로
@@ -2425,4 +2984,285 @@ test('coordinate는 schedule에서 라벨 PR이 있을 때만 돌고 동시성 �
   // 빈 큐 tick이 그룹에 들어가면 대기 중인 라벨 run을 밀어낼 수 있다. 그룹은 coordinate job에만 둔다.
   assert.match(head, /\n {4}concurrency:\n {6}group: automerge-queue\n {6}cancel-in-progress: false\n/);
   assert.doesNotMatch(workflow, /^concurrency:/m);
+});
+
+test('모든 PR 템플릿이 현재 head의 pstack interrogate 단일 마커 계약을 안내하고 은퇴한 폴백 문구를 남기지 않는다', async () => {
+  const expectedLine =
+    '- [ ] 현재 head에 대한 `pstack` `interrogate` Review(`<!-- pstack-interrogate head=<40자 sha> act-on=0 -->`)를 단일 PR review로 게시했습니다.';
+  for (const url of prTemplateUrls) {
+    const content = await readFile(url, 'utf8');
+    assert.ok(content.includes(expectedLine), `${url.pathname} must contain the pstack interrogate checklist item`);
+    assert.doesNotMatch(
+      content,
+      /aquila-review|Codex|폴백 리뷰/i,
+      `${url.pathname} must not reference retired fallback review wording`,
+    );
+  }
+
+  const closureSource = await readFile(closureModuleUrl, 'utf8');
+  assert.doesNotMatch(closureSource, /\breadFileSync\b/, 'verify-automerge-review-closure.mjs must not keep unused readFileSync import');
+});
+
+test('verifyAutomergeReviewClosure helpers enforce trusted human roles, code stripping, and chronological review states', () => {
+  const head = 'a'.repeat(40);
+  const prev = 'b'.repeat(40);
+  const out = 'e'.repeat(40);
+  const mkHuman = (id, state, commitId = head, body = '', overrides = {}) => ({
+    id,
+    state,
+    commit_id: commitId,
+    author_association: 'OWNER',
+    submitted_at: `2026-10-31T00:0${id}:00Z`,
+    body,
+    user: { login: 'reviewer-one', id: 1, type: 'User' },
+    ...overrides,
+  });
+  const mkBody = (sha = head, actOn = 0) => `### Intent\nCheck.\n\n<!-- pstack-interrogate head=${sha} act-on=${actOn} -->`;
+
+  for (const role of ['OWNER', 'MEMBER', 'COLLABORATOR']) {
+    assert.equal(isTrustedHuman(mkHuman(1, 'COMMENTED', head, '', { author_association: role })), true);
+  }
+  for (const overrides of [
+    { user: null },
+    { user: { login: '', type: 'User' } },
+    { user: { login: 'bot[bot]', type: 'Bot' } },
+    { author_association: 'CONTRIBUTOR' },
+    { author_association: 'NONE' },
+  ]) {
+    assert.equal(isTrustedHuman(mkHuman(1, 'COMMENTED', head, '', overrides)), false);
+  }
+
+  const withCodeExamples = mkHuman(
+    1,
+    'COMMENTED',
+    head,
+    [
+      `Inline \`<!-- pstack-interrogate head=${prev} act-on=2 -->\` example.`,
+      '```html',
+      `<!-- pstack-interrogate head=${head} act-on=1 -->`,
+      '```',
+      mkBody(head, 0),
+    ].join('\n'),
+  );
+  assert.equal(hasPstackInterrogateMarker(withCodeExamples), true);
+  assert.equal(isCanonicalPstackInterrogate(withCodeExamples, head), true);
+  assert.equal(typeof stripMarkdownCode('```x\ny\n```'), 'string');
+
+  const codeOnly = mkHuman(2, 'COMMENTED', head, `\`\`\`\n<!-- pstack-interrogate head=${head} act-on=0 -->\n\`\`\``);
+  assert.equal(hasPstackInterrogateMarker(codeOnly), false);
+  assert.equal(isCanonicalPstackInterrogate(codeOnly, head), false);
+
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head,
+        reviews: [mkHuman(1, 'COMMENTED', head, mkBody(head, 0)), mkHuman(2, 'COMMENTED', head, mkBody(head, 1))],
+        comments: [],
+      }),
+    /ACT_ON/,
+  );
+  assert.equal(
+    verifyAutomergeReviewClosure({
+      head,
+      reviews: [mkHuman(1, 'CHANGES_REQUESTED', prev, 'fix'), mkHuman(2, 'COMMENTED', head, mkBody(head, 0))],
+      comments: [],
+    }).ok,
+    true,
+  );
+  assert.throws(
+    () =>
+      verifyAutomergeReviewClosure({
+        head,
+        reviews: [
+          mkHuman(1, 'CHANGES_REQUESTED', head, 'fix'),
+          mkHuman(2, 'CHANGES_REQUESTED', prev, 'older commit cr'),
+          mkHuman(3, 'APPROVED', prev, ''),
+          mkHuman(4, 'COMMENTED', head, mkBody(head, 0), { user: { login: 'reviewer-two', id: 2, type: 'User' } }),
+        ],
+        currentCommits: [{ sha: prev, patch: '+x\n' }, { sha: head, patch: '+x\n' }],
+      }),
+    /active CHANGES_REQUESTED remains from reviewer-one/,
+  );
+  assert.equal(
+    verifyAutomergeReviewClosure({
+      head,
+      reviews: [
+        mkHuman(1, 'CHANGES_REQUESTED', out, 'pre-rebase cr'),
+        mkHuman(2, 'COMMENTED', '6'.repeat(40), mkBody('6'.repeat(40), 0)),
+        mkHuman(3, 'COMMENTED', head, mkBody(head, 0), { user: { login: 'reviewer-two', id: 2, type: 'User' } }),
+      ],
+      currentCommits: [{ sha: prev, patch: '+x\n' }, { sha: head, patch: '+x\n' }],
+    }).ok,
+    true,
+  );
+});
+
+const validateJqAsBindings = (program) => {
+  const openToClose = new Map();
+  const closeToOpen = new Map();
+  const stack = [];
+  const chars = [...program];
+  const masked = [];
+  for (let index = 0; index < chars.length; index += 1) {
+    const ch = chars[index];
+    if (ch === '"') {
+      masked.push(' ');
+      index += 1;
+      while (index < chars.length && chars[index] !== '"') {
+        if (chars[index] === '\\' && index + 1 < chars.length) {
+          masked.push(' ', ' ');
+          index += 2;
+          continue;
+        }
+        masked.push(' ');
+        index += 1;
+      }
+      if (index >= chars.length) {
+        return { ok: false, reason: 'unterminated string literal' };
+      }
+      masked.push(' ');
+      continue;
+    }
+    if (ch === '#') {
+      while (index < chars.length && chars[index] !== '\n') {
+        masked.push(' ');
+        index += 1;
+      }
+      if (index < chars.length) masked.push('\n');
+      continue;
+    }
+    if (ch === '(') {
+      stack.push(index);
+    } else if (ch === ')') {
+      const open = stack.pop();
+      if (open === undefined) {
+        return { ok: false, reason: `unmatched ')' at offset ${index}` };
+      }
+      openToClose.set(open, index);
+      closeToOpen.set(index, open);
+    }
+    masked.push(ch);
+  }
+  if (stack.length > 0) {
+    return { ok: false, reason: `unclosed '(' at offset ${stack.at(-1)}` };
+  }
+
+  const text = masked.join('');
+  const prevNonSpace = (from) => {
+    let cursor = from;
+    while (cursor >= 0 && /\s/.test(text[cursor])) cursor -= 1;
+    return cursor;
+  };
+  const nextNonSpace = (from) => {
+    let cursor = from;
+    while (cursor < text.length && /\s/.test(text[cursor])) cursor += 1;
+    return cursor;
+  };
+
+  let nonReduceCount = 0;
+  let reduceCount = 0;
+  for (const match of text.matchAll(/\bas\s+\$([A-Za-z_][A-Za-z0-9_]*)/g)) {
+    const asIndex = match.index;
+    const varName = match[1];
+    const varEnd = asIndex + match[0].length;
+    const afterVar = nextNonSpace(varEnd);
+    if (text[afterVar] === '(') {
+      const enclosingOpen =
+        [...openToClose.entries()]
+          .filter(([open, close]) => open < asIndex && close > asIndex)
+          .map(([open]) => open)
+          .at(-1) ?? -1;
+      if (!/\b(?:reduce|foreach)\b/.test(text.slice(enclosingOpen + 1, asIndex))) {
+        return { ok: false, reason: `as $${varName} followed by '(' without reduce/foreach` };
+      }
+      reduceCount += 1;
+      continue;
+    }
+    if (text[afterVar] !== '|') {
+      return { ok: false, reason: `as $${varName} must be followed by '|'` };
+    }
+    const lhsClose = prevNonSpace(asIndex - 1);
+    if (text[lhsClose] !== ')') {
+      return { ok: false, reason: `as $${varName} LHS must be enclosed in (...)` };
+    }
+    const lhsOpen = closeToOpen.get(lhsClose);
+    if (lhsOpen === undefined || text.slice(lhsOpen + 1, lhsClose).trim() === '') {
+      return { ok: false, reason: `as $${varName} has empty LHS (...)` };
+    }
+    const outerOpen = prevNonSpace(lhsOpen - 1);
+    if (text[outerOpen] !== '(') {
+      return { ok: false, reason: `as $${varName} must have outer '(' immediately before LHS` };
+    }
+    const outerClose = openToClose.get(outerOpen);
+    if (
+      outerClose === undefined ||
+      outerClose <= afterVar ||
+      text.slice(afterVar + 1, outerClose).trim() === ''
+    ) {
+      return { ok: false, reason: `as $${varName} outer (...) must enclose a non-empty RHS body` };
+    }
+    nonReduceCount += 1;
+  }
+  return { ok: true, nonReduceCount, reduceCount };
+};
+
+test('automerge-queue.yml의 모든 비-reduce jq as 바인딩이 ((<lhs>) as $<var> | <body>) 형식을 지키고 jq 컴파일을 통과한다', async () => {
+  assert.equal(validateJqAsBindings('((.[0]) as $x | $x)').ok, true);
+  assert.equal(validateJqAsBindings('reduce .[] as $x ({}; .)').ok, true);
+  for (const broken of [
+    '.[0] as $x | $x',
+    '($files | flatten) as $changed | ($changed | length == 1)',
+    '(true and ($files | flatten) as $changed | $changed)',
+    '((.[0]) as $x) | $x',
+  ]) {
+    assert.equal(validateJqAsBindings(broken).ok, false, broken);
+  }
+
+  const workflow = await readFile(workflowUrl, 'utf8');
+  const commentStripped = workflow.replace(/^[ \t]*#.*$/gm, '');
+  const totalWorkflowAsBindings = [
+    ...commentStripped.matchAll(/\bas\s+\\?\$[A-Za-z_][A-Za-z0-9_]*/g),
+  ].length;
+  assert.ok(totalWorkflowAsBindings >= 20, 'workflow must contain jq as bindings');
+
+  const { body: reviewJqDefs } = extractReviewJqDefs(workflow);
+  let checkedNonReduce = 0;
+  let checkedReduce = 0;
+  const defsValidation = validateJqAsBindings(reviewJqDefs);
+  assert.equal(defsValidation.ok, true, defsValidation.reason);
+  checkedNonReduce += defsValidation.nonReduceCount;
+  checkedReduce += defsValidation.reduceCount;
+
+  const joinedWorkflow = workflow.replace(/\\\n[ \t]*/g, ' ');
+  for (const match of joinedWorkflow.matchAll(
+    /(?:--jq\s+|_query=|\bjq\b(?:[^\n']|'[^'\n]*')*?\s+)("\$\{review_jq_defs\}")?'([^']*)'/g,
+  )) {
+    const usesDefs = Boolean(match[1]);
+    const program = match[2];
+    const validation = validateJqAsBindings(program);
+    assert.equal(
+      validation.ok,
+      true,
+      `jq program violates ((...) as $var | ...) invariant (${validation.reason}):\n${program}`,
+    );
+    checkedNonReduce += validation.nonReduceCount;
+    checkedReduce += validation.reduceCount;
+
+    const fullProgram = usesDefs ? `${reviewJqDefs}\n${program}` : program;
+    const args = [
+      ...match[0].matchAll(/--(?:arg(?:json)?|slurpfile)\s+([A-Za-z_][A-Za-z0-9_]*)/g),
+    ].map((argMatch) => argMatch[1]);
+    const compileArgs = [
+      '-n',
+      ...args.flatMap((name) => ['--arg', name, '']),
+      `if false then (${fullProgram}) else true end`,
+    ];
+    const compiled = spawnSync('jq', compileArgs, { encoding: 'utf8' });
+    assert.equal(compiled.status, 0, `jq compile failed: ${compiled.stderr}\n${program}`);
+  }
+  assert.equal(
+    checkedNonReduce + checkedReduce,
+    totalWorkflowAsBindings,
+    'every jq as binding in automerge-queue.yml must be covered by the structural check',
+  );
 });

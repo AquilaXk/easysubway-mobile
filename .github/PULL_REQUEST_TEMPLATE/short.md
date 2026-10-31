@@ -29,4 +29,4 @@ Related #
 - [ ] UI/accessibility·store·datapack·contract·CI gate 영향 없음을 확인했습니다.
 - [ ] CodeRabbit 리뷰 결과와 필요한 조치를 확인했습니다.
 - [ ] GitHub PR Review 객체가 있는지 확인했습니다. CodeRabbit status check만으로는 리뷰 완료로 보지 않습니다.
-- [ ] CodeRabbit Review 객체가 없으면 폴백 리뷰를 단일 PR review로 게시했습니다.
+- [ ] 현재 head에 대한 `pstack` `interrogate` Review(`<!-- pstack-interrogate head=<40자 sha> act-on=0 -->`)를 단일 PR review로 게시했습니다.
