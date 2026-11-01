@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:kakao_map_sdk/kakao_map_sdk.dart';
 
+import '../../../support/pump_until.dart';
+
 void main() {
   test('좌표 쌍이 있는 출구만 API 순서대로 미리보기 point가 된다', () {
     final points = stationExitPreviewPoints([
@@ -94,7 +96,7 @@ void main() {
       selectedExitId: 'exit-2',
       nativeMapBuilder: _readyMapBuilder(controller),
     );
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.addPoiCount >= 2,
       reason: '선택 출구 fallback marker까지 준비되어야 한다',
@@ -151,7 +153,7 @@ void main() {
         tester,
         nativeMapBuilder: _readyMapBuilder(controller),
       );
-      await _pumpUntil(
+      await pumpUntil(
         tester,
         () => controller.finishCount == 1,
         reason: '구성 실패 뒤 controller가 종료되어야 한다',
@@ -188,7 +190,7 @@ void main() {
             );
           },
     );
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.addPoiCount == 1,
       reason: '첫 marker 구성이 시작되어야 한다',
@@ -421,7 +423,7 @@ void main() {
     await tester.runAsync(
       () => Future<void>.delayed(const Duration(milliseconds: 20)),
     );
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.addPoiCount > 0,
       reason: '첫 marker 구성이 시작되어야 한다',
@@ -431,7 +433,7 @@ void main() {
     updateHost(() => selectedExitId = 'exit-2');
     await tester.pump();
     firstPoiGate.complete();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.changeStyleCount >= 2,
       reason: '현재 선택으로 marker style이 수렴해야 한다',
@@ -470,7 +472,7 @@ void main() {
         ),
       ),
     );
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.addPoiCount >= 2,
       reason: '선택 변경 전 marker 두 개가 준비되어야 한다',
@@ -483,7 +485,7 @@ void main() {
     updateHost(() => selectedExitId = 'exit-1');
     await tester.pump();
     delayedOldChange.complete();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.changeStyleCount >= 4,
       reason: '연속 선택 변경의 style 작업이 완료되어야 한다',
@@ -524,7 +526,7 @@ void main() {
         ),
       ),
     );
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.addPoiCount == 2,
       reason: '초기 marker 두 개가 준비되어야 한다',
@@ -537,7 +539,7 @@ void main() {
       () async {
         updateHost(() => selectedExitId = 'exit-2');
         await tester.pump();
-        await _pumpUntil(
+        await pumpUntil(
           tester,
           () => controller.labels.pois['exit-1']!.nextChangeGate == null,
           reason: '첫 marker style 변경이 시작되어야 한다',
@@ -584,7 +586,7 @@ void main() {
         ),
       ),
     );
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.moveCameraCount > 0,
       reason: '카메라 이동이 시작되어야 한다',
@@ -594,7 +596,7 @@ void main() {
     updateHost(() => selectedExitId = 'exit-2');
     await tester.pump();
     moveCameraGate.complete();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => controller.labels.changeStyleCount >= 2,
       reason: '카메라 이동 뒤 선택 style이 수렴해야 한다',
@@ -654,7 +656,7 @@ void main() {
       ),
     );
     await tester.pump();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => oldController.labels.addPoiCount > 0,
       reason: '이전 지도의 marker 구성이 시작되어야 한다',
@@ -666,7 +668,7 @@ void main() {
     });
     await tester.tap(find.widgetWithText(TextButton, '다시 시도'));
     await tester.pump();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => newController.labels.addPoiCount >= 2,
       reason: '재시도한 지도의 marker 두 개가 준비되어야 한다',
@@ -679,7 +681,7 @@ void main() {
     await tester.pump();
     updateHost(() => selectedExitId = 'exit-2');
     await tester.pump();
-    await _pumpUntil(
+    await pumpUntil(
       tester,
       () => newController.labels.changeStyleCount >= 2,
       reason: '재시도한 지도의 선택 style이 수렴해야 한다',
@@ -767,21 +769,6 @@ Future<void> _pumpPreview(
       ),
     ),
   );
-}
-
-Future<void> _pumpUntil(
-  WidgetTester tester,
-  bool Function() condition, {
-  required String reason,
-  int attempts = 10,
-}) async {
-  for (var attempt = 0; attempt < attempts && !condition(); attempt++) {
-    await tester.runAsync(
-      () => Future<void>.delayed(const Duration(milliseconds: 10)),
-    );
-    await tester.pump();
-  }
-  expect(condition(), isTrue, reason: reason);
 }
 
 StationExitNativeMapBuilder _recordingMapBuilder({
