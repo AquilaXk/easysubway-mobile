@@ -2760,7 +2760,7 @@ void main() {
 
   testWidgets('노선도 지역 메뉴는 선택한 지역으로 지도를 다시 불러온다', (tester) async {
     final repository = FakeStationSearchRepository(
-      networkMapRegionNames: const ['테스트권', '부산'],
+      networkMapRegionNames: const ['수도권', '부산'],
     );
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -2776,7 +2776,7 @@ void main() {
     expect(find.byType(RouteMapBasemapView), findsOneWidget);
     expect(find.byKey(const Key('networkMapLineFilter')), findsNothing);
 
-    await tester.tap(find.text('테스트권'));
+    await tester.tap(find.text('수도권'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('부산'));
     await tester.pumpAndSettle();
@@ -2789,7 +2789,7 @@ void main() {
 
   testWidgets('노선도 지역 메뉴는 흰 표면·구분선·화면 우측 밀착으로 뜬다 (#1933)', (tester) async {
     final repository = FakeStationSearchRepository(
-      networkMapRegionNames: const ['테스트권', '부산'],
+      networkMapRegionNames: const ['수도권', '부산'],
     );
     await tester.pumpWidget(
       buildEasySubwayTestApp(
@@ -2801,7 +2801,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    await tester.tap(find.text('테스트권'));
+    await tester.tap(find.text('수도권'));
     await tester.pumpAndSettle();
 
     final panelFinder = find.byType(EasySubwayRegionMenuPanel);
@@ -2842,14 +2842,14 @@ void main() {
     );
     expect(dimBarrier, findsOneWidget);
 
-    // 선택 상태: 선택 행(초기=테스트권)은 강조 굵기·accent 색상 + 체크마크(✓).
+    // 선택 상태: 선택 행(초기=수도권)은 강조 굵기·accent 색상 + 체크마크(✓).
     final selectedRow = find.byKey(
-      const ValueKey('networkMapRegionMenuRow_테스트권'),
+      const ValueKey('networkMapRegionMenuRow_수도권'),
     );
     final busanRow = find.byKey(const ValueKey('networkMapRegionMenuRow_부산'));
 
     final selectedText = tester.widget<Text>(
-      find.descendant(of: selectedRow, matching: find.text('테스트권')),
+      find.descendant(of: selectedRow, matching: find.text('수도권')),
     );
     expect(selectedText.style?.fontSize, 16);
     expect(selectedText.style?.fontWeight, EasySubwayFontWeight.emphasis);
@@ -4436,20 +4436,20 @@ void main() {
     // culling이 없다. 밖 역 semantics 미생성(culling)은 대형 지역에서만 유효하므로,
     // 도심에 filler 역을 채워 대형 지역(역 40 초과) 경로로 검증한다.
     final map = NetworkMapData(
-      regions: const [NetworkMapRegion(name: '테스트권')],
-      selectedRegion: '테스트권',
+      regions: const [NetworkMapRegion(name: '수도권')],
+      selectedRegion: '수도권',
       lines: [
         NetworkMapLine(
           id: 'seoul-4',
           name: '수도권 4호선',
           color: '#00A5DE',
-          region: '테스트권',
+          region: '수도권',
         ),
         NetworkMapLine(
           id: 'seoul-2',
           name: '수도권 2호선',
           color: '#00A84D',
-          region: '테스트권',
+          region: '수도권',
         ),
       ],
       stations: [
@@ -4457,7 +4457,7 @@ void main() {
           id: 'station-visible-a',
           nameKo: '보이는역A',
           nameEn: 'Visible A',
-          region: '테스트권',
+          region: '수도권',
           lineId: 'seoul-4',
           stationCode: '401',
           sequence: 1,
@@ -4475,7 +4475,7 @@ void main() {
           id: 'station-visible-a',
           nameKo: '보이는역A',
           nameEn: 'Visible A',
-          region: '테스트권',
+          region: '수도권',
           lineId: 'seoul-2',
           stationCode: '201',
           sequence: 1,
@@ -4495,7 +4495,7 @@ void main() {
           id: 'station-geometry-left',
           nameKo: '왼쪽기준',
           nameEn: 'Geometry Left',
-          region: '테스트권',
+          region: '수도권',
           lineId: 'geometry-helper',
           stationCode: '000',
           sequence: 0,
@@ -4513,7 +4513,7 @@ void main() {
           id: 'station-geometry-left-b',
           nameKo: '왼쪽기준B',
           nameEn: 'Geometry Left B',
-          region: '테스트권',
+          region: '수도권',
           lineId: 'geometry-helper',
           stationCode: '001',
           sequence: 0,
@@ -4531,7 +4531,7 @@ void main() {
           id: 'station-far-a',
           nameKo: '먼역A',
           nameEn: 'Far A',
-          region: '테스트권',
+          region: '수도권',
           lineId: 'seoul-4',
           stationCode: '499',
           sequence: 99,
@@ -4551,7 +4551,7 @@ void main() {
             id: 'station-filler-$i',
             nameKo: '채움$i',
             nameEn: 'Filler $i',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'geometry-helper',
             stationCode: 'F$i',
             sequence: i,
@@ -4594,7 +4594,7 @@ void main() {
       await tester.pumpWidget(
         buildEasySubwayTestApp(
           repository: FakeStationSearchRepository(
-            networkMapRegionNames: const ['테스트권'],
+            networkMapRegionNames: const ['수도권'],
             networkMapData: map,
           ),
           reportRepository: FakeFacilityReportRepository(),
@@ -4787,20 +4787,20 @@ void main() {
   testWidgets('노선도 역 좌표가 겹쳐도 탭한 위치에서 가장 가까운 역을 선택한다', (tester) async {
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-6',
             name: '수도권 6호선',
             color: '#CD7C2F',
-            region: '테스트권',
+            region: '수도권',
           ),
           NetworkMapLine(
             id: 'gtx-a',
             name: '수도권 GTX-A',
             color: '#9A4DA3',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -4808,7 +4808,7 @@ void main() {
             id: 'station-gusan',
             nameKo: '구산',
             nameEn: 'Gusan',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-6',
             stationCode: '615',
             sequence: 6,
@@ -4826,7 +4826,7 @@ void main() {
             id: 'station-yeonsinnae',
             nameKo: '연신내',
             nameEn: 'Yeonsinnae',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'gtx-a',
             stationCode: 'X615',
             sequence: 7,
@@ -4886,14 +4886,14 @@ void main() {
   ) async {
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -4901,7 +4901,7 @@ void main() {
             id: 'station-polygon',
             nameKo: '다각형',
             nameEn: 'Polygon',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '499',
             sequence: 99,
@@ -4961,14 +4961,14 @@ void main() {
   testWidgets('노선도 역명 label polygon 영역을 탭하면 해당 역을 선택한다', (tester) async {
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -4976,7 +4976,7 @@ void main() {
             id: 'station-polygon',
             nameKo: '다각형',
             nameEn: 'Polygon',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '499',
             sequence: 99,
@@ -5033,14 +5033,14 @@ void main() {
   testWidgets('노선도 배경을 탭하면 가까운 역 sheet를 열지 않는다', (tester) async {
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -5048,7 +5048,7 @@ void main() {
             id: 'station-near',
             nameKo: '가까운역',
             nameEn: 'Near',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '401',
             sequence: 1,
@@ -5113,14 +5113,14 @@ void main() {
   testWidgets('노선도 확대 상태에서도 label 바깥 배경 tap은 sheet를 열지 않는다', (tester) async {
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -5128,7 +5128,7 @@ void main() {
             id: 'station-label',
             nameKo: '라벨역',
             nameEn: 'Label',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '402',
             sequence: 2,
@@ -5202,14 +5202,14 @@ void main() {
   testWidgets('노선도 label과 marker가 겹치면 marker tap 역을 우선 선택한다', (tester) async {
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -5217,7 +5217,7 @@ void main() {
             id: 'station-a-label',
             nameKo: '가라벨',
             nameEn: 'Label A',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '403',
             sequence: 3,
@@ -5235,7 +5235,7 @@ void main() {
             id: 'station-b-node',
             nameKo: '나마커',
             nameEn: 'Marker B',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '404',
             sequence: 4,
@@ -5294,14 +5294,14 @@ void main() {
   testWidgets('노선도 label끼리 겹치면 tap 위치에 가까운 역을 선택한다', (tester) async {
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -5309,7 +5309,7 @@ void main() {
             id: 'station-a-far',
             nameKo: '먼역',
             nameEn: 'Far',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '405',
             sequence: 5,
@@ -5327,7 +5327,7 @@ void main() {
             id: 'station-z-near',
             nameKo: '가까운',
             nameEn: 'Near',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '406',
             sequence: 6,
@@ -5397,20 +5397,20 @@ void main() {
     final semanticsHandle = tester.ensureSemantics();
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-2',
             name: '수도권 2호선',
             color: '#00A84D',
-            region: '테스트권',
+            region: '수도권',
           ),
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -5418,7 +5418,7 @@ void main() {
             id: 'station-transfer',
             nameKo: '환승',
             nameEn: 'Transfer',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-2',
             stationCode: '201',
             sequence: 1,
@@ -5436,7 +5436,7 @@ void main() {
             id: 'station-transfer',
             nameKo: '환승',
             nameEn: 'Transfer',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '401',
             sequence: 2,
@@ -5509,20 +5509,20 @@ void main() {
     final semanticsHandle = tester.ensureSemantics();
     final repository = FakeStationSearchRepository(
       networkMapData: const NetworkMapData(
-        regions: [NetworkMapRegion(name: '테스트권')],
-        selectedRegion: '테스트권',
+        regions: [NetworkMapRegion(name: '수도권')],
+        selectedRegion: '수도권',
         lines: [
           NetworkMapLine(
             id: 'seoul-2',
             name: '수도권 2호선',
             color: '#00A84D',
-            region: '테스트권',
+            region: '수도권',
           ),
           NetworkMapLine(
             id: 'seoul-4',
             name: '수도권 4호선',
             color: '#00A5DE',
-            region: '테스트권',
+            region: '수도권',
           ),
         ],
         stations: [
@@ -5530,7 +5530,7 @@ void main() {
             id: 'station-transfer',
             nameKo: '환승',
             nameEn: 'Transfer',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-2',
             stationCode: '201',
             sequence: 1,
@@ -5548,7 +5548,7 @@ void main() {
             id: 'station-center',
             nameKo: '중앙',
             nameEn: 'Center',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-2',
             stationCode: '202',
             sequence: 2,
@@ -5566,7 +5566,7 @@ void main() {
             id: 'station-transfer',
             nameKo: '환승',
             nameEn: 'Transfer',
-            region: '테스트권',
+            region: '수도권',
             lineId: 'seoul-4',
             stationCode: '401',
             sequence: 3,
@@ -17025,20 +17025,20 @@ FavoriteRoute _favoriteRoute({
 
 NetworkMapData _unifiedRouteMapData() {
   return const NetworkMapData(
-    regions: [NetworkMapRegion(name: '테스트권')],
-    selectedRegion: '테스트권',
+    regions: [NetworkMapRegion(name: '수도권')],
+    selectedRegion: '수도권',
     lines: [
       NetworkMapLine(
         id: 'line-local',
         name: '일반 노선',
         color: '#444444',
-        region: '테스트권',
+        region: '수도권',
       ),
       NetworkMapLine(
         id: 'line-express',
         name: '급행 노선',
         color: '#D71920',
-        region: '테스트권',
+        region: '수도권',
       ),
     ],
     stations: [
@@ -17046,7 +17046,7 @@ NetworkMapData _unifiedRouteMapData() {
         id: 'station-local-a',
         nameKo: '일반A',
         nameEn: 'Local A',
-        region: '테스트권',
+        region: '수도권',
         lineId: 'line-local',
         stationCode: 'L01',
         sequence: 1,
@@ -17064,7 +17064,7 @@ NetworkMapData _unifiedRouteMapData() {
         id: 'station-local-b',
         nameKo: '일반B',
         nameEn: 'Local B',
-        region: '테스트권',
+        region: '수도권',
         lineId: 'line-local',
         stationCode: 'L02',
         sequence: 2,
@@ -17082,7 +17082,7 @@ NetworkMapData _unifiedRouteMapData() {
         id: 'station-express-a',
         nameKo: '급행A',
         nameEn: 'Express A',
-        region: '테스트권',
+        region: '수도권',
         lineId: 'line-express',
         stationCode: 'E01',
         sequence: 1,
@@ -17100,7 +17100,7 @@ NetworkMapData _unifiedRouteMapData() {
         id: 'station-express-b',
         nameKo: '급행B',
         nameEn: 'Express B',
-        region: '테스트권',
+        region: '수도권',
         lineId: 'line-express',
         stationCode: 'E02',
         sequence: 2,
@@ -17157,7 +17157,7 @@ class FakeStationSearchRepository
     this.networkMapCompletersByRegion = const {},
     this.queryResults = const {},
     this.lineOptions = const [],
-    this.networkMapRegionNames = const ['테스트권'],
+    this.networkMapRegionNames = const ['수도권'],
     this.networkMapData,
     this.networkMapError,
     this.searchCompleter,
@@ -17299,13 +17299,13 @@ class FakeStationSearchRepository
         id: 'seoul-2',
         name: '수도권 2호선',
         color: '#00A84D',
-        region: '테스트권',
+        region: '수도권',
       ),
       NetworkMapLine(
         id: 'seoul-4',
         name: '수도권 4호선',
         color: '#00A5DE',
-        region: '테스트권',
+        region: '수도권',
       ),
     ];
     const stations = [
@@ -17313,7 +17313,7 @@ class FakeStationSearchRepository
         id: 'station-sadang',
         nameKo: '사당',
         nameEn: 'Sadang',
-        region: '테스트권',
+        region: '수도권',
         lineId: 'seoul-2',
         stationCode: '226',
         sequence: 33,
@@ -17331,7 +17331,7 @@ class FakeStationSearchRepository
         id: 'station-banwol',
         nameKo: '반월',
         nameEn: 'Banwol',
-        region: '테스트권',
+        region: '수도권',
         lineId: 'seoul-4',
         stationCode: '447',
         sequence: 47,
