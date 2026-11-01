@@ -1,9 +1,8 @@
-import 'dart:convert';
-import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:easysubway_mobile/features/network_map/domain/map_camera.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
+import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_assets.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/route_map_basemap_view.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -11,6 +10,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:vector_graphics/vector_graphics.dart';
+
+import '../../../support/basemap_index.dart';
+import '../../../support/basemap_waits.dart';
 
 // 노선을 고르면 바탕 전체가 흐려지고, 고른 노선 레이어(노선, 역 심벌, 환승 캡슐,
 // 역명)가 그 위에 원래 진하기로 그려진다. 화면에 실제로 그려진 픽셀을 바탕·레이어
@@ -51,7 +53,9 @@ Widget _map({
         size: _viewport,
         child: ColoredBox(
           color: const Color(0xFFFFFFFF),
+          // 앱처럼 권역마다 key를 달리해 권역이 바뀌면 새 뷰를 만든다.
           child: RouteMapBasemapView(
+            key: ValueKey(region),
             region: region,
             camera: _camera,
             highlightedLineId: lineId,
@@ -62,16 +66,6 @@ Widget _map({
     ),
   ),
 );
-
-/// .vec 로드를 끝내고 벡터로 그린 프레임에서 멈춘다. 시계를 앞으로 돌리지 않아 카메라가
-/// 멈춘 뒤 굽는 바탕 이미지(#517)는 아직 만들지 않는다. 구운 이미지가 이 벡터 화면과
-/// 같은지는 route_map_basemap_raster_test.dart가 본다.
-Future<void> _settleLoads(WidgetTester tester) async {
-  for (var attempt = 0; attempt < 5; attempt++) {
-    await tester.runAsync(() => Future<void>.delayed(Duration.zero));
-    await tester.pump();
-  }
-}
 
 Future<Uint8List> _rgba(Future<ui.Image> Function() render) async {
   final image = await render();
@@ -123,15 +117,16 @@ Future<Uint8List> _reference(
   }))!;
 }
 
-Future<String> _overlayAsset(String lineId) async {
-  final json = await rootBundle.loadString(
-    kRouteMapLineOverlayIndexAssetPath,
-    cache: false,
-  );
-  return RouteMapLineOverlayIndex.parse(
-    json,
-  ).overlayAssetFor(regionId: 'seoul', lineId: lineId);
-}
+/// 엔진 렌더러가 고른 변형. 화면은 이 변형으로 그려지므로 기준 이미지도 같은 변형으로 그린다.
+final RouteMapBasemapVariantFiles _engineFiles = bundledBasemapIndex.variant(
+  RouteMapBasemapAssets.shared.variant,
+);
+
+String _overlayAsset(String lineId) =>
+    _engineFiles.overlayAssetFor(regionId: 'seoul', lineId: lineId);
+
+bool _isMissingOverlay(FlutterErrorDetails error) =>
+    error.exception is RouteMapLineOverlayMissing;
 
 int _maxChannelDiff(Uint8List a, Uint8List b) {
   var max = 0;
@@ -194,14 +189,17 @@ double _median(List<double> values) {
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  const seoulBase = 'assets/datapacks/metro_map_pack/basemap/seoul.vec';
-  const busanBase = 'assets/datapacks/metro_map_pack/basemap/busan.vec';
+  final seoulBase = _engineFiles.baseAssetFor('seoul');
+  final busanBase = _engineFiles.baseAssetFor('busan');
 
-  tearDown(RouteMapBasemapViewState.clearPictureCacheForTest);
+  tearDown(() {
+    RouteMapBasemapAssets.shared.resetForTest();
+    stopServingBasemapAssets();
+  });
 
   testWidgets('전체 노선은 바탕을 흐리지 않고 그대로 그린다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
-    await _settleLoads(tester);
+    await pumpUntilBasemapPainted(tester);
 
     final screen = await _screen(tester);
     final base = await _reference(tester, [seoulBase]);
@@ -211,11 +209,9 @@ void main() {
   for (final lineId in [_uiSinseolLineId, _seoulLine2Id]) {
     testWidgets('$lineId를 고르면 바탕은 흐려지고 그 노선 레이어는 원래 진하기다', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: lineId));
-      await _settleLoads(tester);
+      await pumpUntilBasemapPainted(tester, count: 2);
 
-      final overlayAsset = (await tester.runAsync(
-        () => _overlayAsset(lineId),
-      ))!;
+      final overlayAsset = _overlayAsset(lineId);
       final counts = _classify(
         screen: await _screen(tester),
         base: await _reference(tester, [seoulBase]),
@@ -244,7 +240,7 @@ void main() {
         attributionText: attribution,
       ),
     );
-    await _settleLoads(tester);
+    await pumpUntilBasemapPainted(tester, count: 2);
 
     String? attributionOf(Finder paint) =>
         (tester.widget<CustomPaint>(paint).painter! as RouteMapBasemapPainter)
@@ -265,7 +261,7 @@ void main() {
 
   testWidgets('레이어를 읽는 동안에는 고른 척 흐리지 않고 바탕을 그대로 둔다', (tester) async {
     await tester.pumpWidget(_map(region: '수도권'));
-    await _settleLoads(tester);
+    await pumpUntilBasemapPainted(tester);
     final base = await _screen(tester);
 
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
@@ -274,54 +270,53 @@ void main() {
   });
 
   testWidgets('한 번 읽은 노선을 다시 고르면 다시 디코드하지 않고 그 프레임에 바로 강조한다', (tester) async {
+    final requests = serveBasemapAssets();
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-    await _settleLoads(tester);
+    await pumpUntilBasemapPainted(tester, count: 2);
     final highlighted = await _screen(tester);
-    final overlayAsset = (await tester.runAsync(
-      () => _overlayAsset(_uiSinseolLineId),
-    ))!;
-    final state = tester.state<RouteMapBasemapViewState>(
-      find.byType(RouteMapBasemapView),
-    );
-    final decoded = state.debugPictureCache[overlayAsset];
+    final overlayAsset = _overlayAsset(_uiSinseolLineId);
+    final decoded = RouteMapBasemapAssets.shared.picture(overlayAsset);
+    expect(decoded, isNotNull);
+    await pumpUntilQuiet(tester, RouteMapBasemapAssets.shared);
+    expect(requests.where((key) => key == overlayAsset), hasLength(1));
 
     await tester.pumpWidget(_map(region: '수도권'));
     await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
 
     expect(_maxChannelDiff(await _screen(tester), highlighted), 0);
-    await _settleLoads(tester);
-    expect(state.debugPictureCache[overlayAsset], same(decoded));
-  });
-
-  testWidgets('권역을 바꾸면 이전 권역 노선 레이어를 지우고 새 바탕을 그대로 그린다', (tester) async {
-    await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-    await _settleLoads(tester);
-
-    await tester.pumpWidget(_map(region: '부산'));
-    await _settleLoads(tester);
-
-    final screen = await _screen(tester);
-    final base = await _reference(tester, [busanBase]);
-    expect(_maxChannelDiff(screen, base), lessThanOrEqualTo(_channelTolerance));
+    await pumpUntilQuiet(tester, RouteMapBasemapAssets.shared);
+    expect(RouteMapBasemapAssets.shared.picture(overlayAsset), same(decoded));
+    expect(
+      requests.where((key) => key == overlayAsset),
+      hasLength(1),
+      reason: '다시 고른 노선 레이어를 다시 읽지 않는다',
+    );
   });
 
   group('레이어를 그리지 못하면 오류로 드러내고 바탕을 흐리지 않는다', () {
-    tearDown(() {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', null);
-    });
-
+    /// [isExpected]인 오류가 보고되고 바탕 자산이 조용해질 때까지 기다린다. [baseLoads]이면 그
+    /// 바탕 그림 한 장까지 그려질 때까지 기다린다.
     Future<List<FlutterErrorDetails>> pumpCapturingErrors(
       WidgetTester tester,
       String lineId, {
+      required bool Function(FlutterErrorDetails error) isExpected,
       String region = '수도권',
+      bool baseLoads = true,
     }) async {
       final errors = <FlutterErrorDetails>[];
       final previousOnError = FlutterError.onError;
       FlutterError.onError = errors.add;
       try {
         await tester.pumpWidget(_map(region: region, lineId: lineId));
-        await _settleLoads(tester);
+        await pumpUntilReported(
+          tester,
+          RouteMapBasemapAssets.shared,
+          errors,
+          isExpected: isExpected,
+        );
+        if (baseLoads) {
+          await pumpUntilBasemapPainted(tester);
+        }
       } finally {
         FlutterError.onError = previousOnError;
       }
@@ -330,10 +325,10 @@ void main() {
 
     Future<void> expectPlainBase(
       WidgetTester tester, {
-      String baseAsset = seoulBase,
+      String? baseAsset,
     }) async {
       final screen = await _screen(tester);
-      final base = await _reference(tester, [baseAsset]);
+      final base = await _reference(tester, [baseAsset ?? seoulBase]);
       expect(
         _maxChannelDiff(screen, base),
         lessThanOrEqualTo(_channelTolerance),
@@ -342,9 +337,13 @@ void main() {
 
     testWidgets('색인에 없는 노선', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: _seoulLine2Id));
-      await _settleLoads(tester);
+      await pumpUntilBasemapPainted(tester, count: 2);
 
-      final errors = await pumpCapturingErrors(tester, 'line-unknown');
+      final errors = await pumpCapturingErrors(
+        tester,
+        'line-unknown',
+        isExpected: _isMissingOverlay,
+      );
 
       expect(errors, hasLength(1));
       expect(errors.single.library, 'network_map');
@@ -354,12 +353,13 @@ void main() {
 
     testWidgets('고른 노선이 그대로인 채 권역만 바뀜', (tester) async {
       await tester.pumpWidget(_map(region: '수도권', lineId: _uiSinseolLineId));
-      await _settleLoads(tester);
+      await pumpUntilBasemapPainted(tester, count: 2);
 
       final errors = await pumpCapturingErrors(
         tester,
         _uiSinseolLineId,
         region: '부산',
+        isExpected: _isMissingOverlay,
       );
 
       expect(errors, hasLength(1));
@@ -368,37 +368,38 @@ void main() {
     });
 
     testWidgets('바탕 .vec를 읽지 못하면 고른 노선 레이어만 따로 그리지 않는다', (tester) async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', (message) async {
-            final key = Uri.decodeFull(
-              utf8.decode(message!.buffer.asUint8List()),
-            );
-            if (key == seoulBase) return null;
-            return ByteData.sublistView(File(key).readAsBytesSync());
-          });
+      final overlayAsset = _overlayAsset(_uiSinseolLineId);
+      final requests = serveBasemapAssets({seoulBase: () async => null});
 
-      final errors = await pumpCapturingErrors(tester, _uiSinseolLineId);
+      final errors = await pumpCapturingErrors(
+        tester,
+        _uiSinseolLineId,
+        baseLoads: false,
+        isExpected: (error) => error.context.toString().contains(seoulBase),
+      );
 
       expect(errors, hasLength(1));
-      expect(errors.single.context.toString(), contains('seoul.vec'));
+      expect(errors.single.context.toString(), contains(seoulBase));
+      expect(requests, contains(overlayAsset), reason: '노선 레이어도 읽기를 시작했다');
+      expect(
+        RouteMapBasemapAssets.shared.picture(overlayAsset),
+        isNotNull,
+        reason: '노선 레이어는 읽혔는데도 바탕 없이 그리지 않는다',
+      );
       final blank = await _reference(tester, const []);
       expect(_maxChannelDiff(await _screen(tester), blank), 0);
     });
 
     testWidgets('레이어 .vec를 읽지 못함', (tester) async {
-      final overlayAsset = (await tester.runAsync(
-        () => _overlayAsset(_uiSinseolLineId),
-      ))!;
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMessageHandler('flutter/assets', (message) async {
-            final key = Uri.decodeFull(
-              utf8.decode(message!.buffer.asUint8List()),
-            );
-            if (key == overlayAsset) return null;
-            return ByteData.sublistView(File(key).readAsBytesSync());
-          });
+      final overlayAsset = _overlayAsset(_uiSinseolLineId);
+      serveBasemapAssets({overlayAsset: () async => null});
 
-      final errors = await pumpCapturingErrors(tester, _uiSinseolLineId);
+      final errors = await pumpCapturingErrors(
+        tester,
+        _uiSinseolLineId,
+        isExpected: (error) =>
+            error.context.toString().contains(_uiSinseolLineId),
+      );
 
       expect(errors, hasLength(1));
       expect(errors.single.library, 'network_map');

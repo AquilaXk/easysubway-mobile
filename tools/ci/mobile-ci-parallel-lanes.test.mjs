@@ -54,6 +54,7 @@ const MOBILE_HOST_TEST_STEPS = [
   "Discover host tests",
   "Test",
   "Verify host test execution parity",
+  "Raster frame upper bound (Impeller)",
   "Filter mobile coverage",
   "Upload mobile coverage for SonarCloud",
   "Analyze mobile coverage ratchet",
@@ -266,6 +267,21 @@ test("host test lane은 러너 코어 수만큼 병렬로 전체 host test와 co
   assert.match(job, /^ {6}contents: read\n {6}issues: read$/mu);
   assert.match(stepBlock(job, "Discover host tests"), /mobile-host-test-parity\.mjs discover/u);
   assert.match(stepBlock(job, "Verify host test execution parity"), /mobile-host-test-parity\.mjs verify/u);
+});
+
+test("host test lane은 노선도 바탕 래스터 프레임 상한을 Impeller로 다시 확인한다", () => {
+  const job = jobBlock("mobile-host-tests");
+  assert.equal(
+    stepBlock(job, "Raster frame upper bound (Impeller)"),
+    [
+      "      - name: Raster frame upper bound (Impeller)",
+      "        working-directory: apps/mobile",
+      "        run: >-",
+      "          flutter test --enable-impeller",
+      "          --dart-define=ROUTE_MAP_RASTER_UPPER_BOUND_IMPELLER=true",
+      "          test/features/network_map/presentation/route_map_basemap_perf_test.dart",
+    ].join("\n"),
+  );
 });
 
 test("Android lane은 개선 전과 같은 debug APK·release AAB 검증 명령을 한 job에서 순서대로 실행한다", () => {
