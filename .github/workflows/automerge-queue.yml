@@ -88,7 +88,7 @@ jobs:
             for ((page = 1; page <= data_page_limit; page++)); do
               response="$(gh api "repos/${repo}/issues/${pr}/comments?per_page=${page_size}&page=${page}")" || return 1
               jq -e 'type == "array" and all(.[]; (.id | type) == "number" and ((.body == null) or (.body | type) == "string") and ((.user == null) or (.user | type) == "object"))' <<<"${response}" >/dev/null || return 1
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
+              collected="$(jq -cs 'add' <<<"${collected}"$'\n'"${response}")" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
@@ -104,7 +104,7 @@ jobs:
             for ((page = 1; page <= data_page_limit; page++)); do
               response="$(gh api "repos/${repo}/pulls/${pr}/commits?per_page=${page_size}&page=${page}")" || return 1
               jq -e 'type == "array" and all(.[]; (.sha | type) == "string" and (.sha | test("^[0-9a-f]{40}$")))' <<<"${response}" >/dev/null || return 1
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
+              collected="$(jq -cs 'add' <<<"${collected}"$'\n'"${response}")" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
@@ -128,7 +128,7 @@ jobs:
                 ((.body == null) or (.body | type) == "string") and
                 ((.user == null) or (.user | type) == "object")
               )' <<<"${response}" >/dev/null || return 1
-              collected="$(jq -cn --argjson all "${collected}" --argjson next "${response}" '$all + $next')" || return 1
+              collected="$(jq -cs 'add' <<<"${collected}"$'\n'"${response}")" || return 1
               if [[ "$(jq 'length' <<<"${response}")" -lt "${page_size}" ]]; then
                 printf '%s\n' "${collected}"
                 return 0
