@@ -219,7 +219,7 @@ test('Mobile CI pulls the locked OCI payload before stage, generation, drift, an
   assert.ok(setupFlutter < generateAndVerify && generateAndVerify < focusedChecks && focusedChecks < installFlutter);
 
   const journeySteps = workflow.slice(setupOras, focusedChecks);
-  assert.match(journeySteps, /uses: oras-project\/setup-oras@1d808f7d7f6995cc68b7bf507bfe5c5446e1dc9d/);
+  assert.match(journeySteps, /uses: oras-project\/setup-oras@005458ad77f1c8facd38a094e4af2e69e5607ff4/);
   assert.match(journeySteps, /version: 1\.3\.3/);
   assert.match(journeySteps, /oras pull "\$\{journey_contract_subject\}" --output "\$JOURNEY_PULL_ROOT"/);
   assert.match(journeySteps, /node tools\/mobile\/stage-journey-v3-contract\.mjs/);
