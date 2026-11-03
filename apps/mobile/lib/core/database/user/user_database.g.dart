@@ -4598,7 +4598,16 @@ class $$FavoriteStationsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$FavoriteStationsTable, FavoriteStation>(table),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $FavoriteStationsTable,
+                    FavoriteStation
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -4771,7 +4780,18 @@ class $$FavoriteFacilitiesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$FavoriteFacilitiesTable, FavoriteFacility>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $FavoriteFacilitiesTable,
+                    FavoriteFacility
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -4983,7 +5003,16 @@ class $$FavoriteRoutesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$FavoriteRoutesTable, FavoriteRoute>(table),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $FavoriteRoutesTable,
+                    FavoriteRoute
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -5261,7 +5290,16 @@ class $$SearchHistoryTableTableManager
                 searchedAt: searchedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$SearchHistoryTable, SearchHistoryData>(table),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $SearchHistoryTable,
+                    SearchHistoryData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -5806,7 +5844,18 @@ class $$RouteSearchHistoryTableTableManager
                 searchedAt: searchedAt,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$RouteSearchHistoryTable, RouteSearchHistoryData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $RouteSearchHistoryTable,
+                    RouteSearchHistoryData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -5974,7 +6023,16 @@ class $$AppPreferencesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$AppPreferencesTable, AppPreference>(table),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $AppPreferencesTable,
+                    AppPreference
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6166,7 +6224,18 @@ class $$InstalledDataPacksTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$InstalledDataPacksTable, InstalledDataPack>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $InstalledDataPacksTable,
+                    InstalledDataPack
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6344,7 +6413,19 @@ class $$DataPackUpdateStateTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $DataPackUpdateStateTable,
+                    DataPackUpdateStateData
+                  >(table),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $DataPackUpdateStateTable,
+                    DataPackUpdateStateData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6552,7 +6633,16 @@ class $$ReportReceiptsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ReportReceiptsTable, ReportReceipt>(table),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $ReportReceiptsTable,
+                    ReportReceipt
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -6756,7 +6846,16 @@ class $$ReportDraftsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ReportDraftsTable, ReportDraft>(table),
+                  BaseReferences<
+                    _$UserDatabase,
+                    $ReportDraftsTable,
+                    ReportDraft
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),

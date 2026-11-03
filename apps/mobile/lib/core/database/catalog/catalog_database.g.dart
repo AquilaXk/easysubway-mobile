@@ -20120,7 +20120,18 @@ class $$CatalogMetadataTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$CatalogMetadataTable, CatalogMetadataData>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $CatalogMetadataTable,
+                    CatalogMetadataData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -20286,7 +20297,16 @@ class $$OperatorsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$OperatorsTable, Operator>(table),
+                  BaseReferences<_$CatalogDatabase, $OperatorsTable, Operator>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -20482,7 +20502,16 @@ class $$LinesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$LinesTable, Line>(table),
+                  BaseReferences<_$CatalogDatabase, $LinesTable, Line>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -20798,7 +20827,16 @@ class $$StationsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationsTable, Station>(table),
+                  BaseReferences<_$CatalogDatabase, $StationsTable, Station>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -20965,7 +21003,16 @@ class $$StationAliasesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationAliasesTable, StationAliase>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationAliasesTable,
+                    StationAliase
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -21173,7 +21220,16 @@ class $$StationLinesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationLinesTable, StationLine>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationLinesTable,
+                    StationLine
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -21493,7 +21549,16 @@ class $$ServiceCalendarsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ServiceCalendarsTable, ServiceCalendar>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $ServiceCalendarsTable,
+                    ServiceCalendar
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -21673,7 +21738,18 @@ class $$ServiceCalendarDatesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$ServiceCalendarDatesTable, ServiceCalendarDate>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $ServiceCalendarDatesTable,
+                    ServiceCalendarDate
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -21908,7 +21984,16 @@ class $$TransitRoutesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$TransitRoutesTable, TransitRoute>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $TransitRoutesTable,
+                    TransitRoute
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -22177,7 +22262,16 @@ class $$TransitTripsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$TransitTripsTable, TransitTrip>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $TransitTripsTable,
+                    TransitTrip
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -22450,7 +22544,16 @@ class $$TransitStopTimesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$TransitStopTimesTable, TransitStopTime>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $TransitStopTimesTable,
+                    TransitStopTime
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -22671,7 +22774,18 @@ class $$TransitFrequenciesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$TransitFrequenciesTable, TransitFrequency>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $TransitFrequenciesTable,
+                    TransitFrequency
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -22877,7 +22991,16 @@ class $$FareZonesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$FareZonesTable, FareZone>(table),
+                  BaseReferences<_$CatalogDatabase, $FareZonesTable, FareZone>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -23101,7 +23224,16 @@ class $$FareRulesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$FareRulesTable, FareRule>(table),
+                  BaseReferences<_$CatalogDatabase, $FareRulesTable, FareRule>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -23344,7 +23476,16 @@ class $$FareDiscountsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$FareDiscountsTable, FareDiscount>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $FareDiscountsTable,
+                    FareDiscount
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -23512,7 +23653,16 @@ class $$StationFareZonesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationFareZonesTable, StationFareZone>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationFareZonesTable,
+                    StationFareZone
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -23862,7 +24012,19 @@ class $$OfficialOdFareQuotesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $OfficialOdFareQuotesTable,
+                    OfficialOdFareQuoteRow
+                  >(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $OfficialOdFareQuotesTable,
+                    OfficialOdFareQuoteRow
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -24196,7 +24358,19 @@ class $$RouteServiceArtifactEvidenceTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $RouteServiceArtifactEvidenceTable,
+                    RouteServiceArtifactEvidenceData
+                  >(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $RouteServiceArtifactEvidenceTable,
+                    RouteServiceArtifactEvidenceData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -24482,7 +24656,19 @@ class $$RealtimeProviderLineMappingsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $RealtimeProviderLineMappingsTable,
+                    RealtimeProviderLineMapping
+                  >(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $RealtimeProviderLineMappingsTable,
+                    RealtimeProviderLineMapping
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -24827,7 +25013,19 @@ class $$RealtimeProviderStationMappingsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $RealtimeProviderStationMappingsTable,
+                    RealtimeProviderStationMapping
+                  >(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $RealtimeProviderStationMappingsTable,
+                    RealtimeProviderStationMapping
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -25350,7 +25548,16 @@ class $$NetworkEdgesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$NetworkEdgesTable, NetworkEdge>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $NetworkEdgesTable,
+                    NetworkEdge
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -25678,7 +25885,16 @@ class $$StationExitsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationExitsTable, StationExit>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationExitsTable,
+                    StationExit
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -26206,7 +26422,16 @@ class $$FacilitiesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$FacilitiesTable, Facility>(table),
+                  BaseReferences<_$CatalogDatabase, $FacilitiesTable, Facility>(
+                    db,
+                    table,
+                    e,
+                  ),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -26674,7 +26899,19 @@ class $$StationFacilityEvidenceTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $StationFacilityEvidenceTable,
+                    StationFacilityEvidenceData
+                  >(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationFacilityEvidenceTable,
+                    StationFacilityEvidenceData
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -27084,7 +27321,19 @@ class $$FacilityStatusSnapshotsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $FacilityStatusSnapshotsTable,
+                    FacilityStatusSnapshot
+                  >(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $FacilityStatusSnapshotsTable,
+                    FacilityStatusSnapshot
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -27265,7 +27514,19 @@ class $$StationAccessibilitySummariesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<
+                    $StationAccessibilitySummariesTable,
+                    StationAccessibilitySummary
+                  >(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationAccessibilitySummariesTable,
+                    StationAccessibilitySummary
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -27459,7 +27720,18 @@ class $$InternalRouteNodesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$InternalRouteNodesTable, InternalRouteNode>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $InternalRouteNodesTable,
+                    InternalRouteNode
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -28031,7 +28303,18 @@ class $$InternalRouteEdgesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$InternalRouteEdgesTable, InternalRouteEdge>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $InternalRouteEdgesTable,
+                    InternalRouteEdge
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -28287,7 +28570,18 @@ class $$StationPathwayNodesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationPathwayNodesTable, StationPathwayNode>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationPathwayNodesTable,
+                    StationPathwayNode
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -28963,7 +29257,18 @@ class $$StationPathwayEdgesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationPathwayEdgesTable, StationPathwayEdge>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationPathwayEdgesTable,
+                    StationPathwayEdge
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -29305,7 +29610,16 @@ class $$TransferRulesTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$TransferRulesTable, TransferRule>(table),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $TransferRulesTable,
+                    TransferRule
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -29518,7 +29832,18 @@ class $$DataQualityRecordsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$DataQualityRecordsTable, DataQualityRecord>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $DataQualityRecordsTable,
+                    DataQualityRecord
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
@@ -29921,7 +30246,18 @@ class $$StationCarDoorHintsTableTableManager
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
-              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .map(
+                (e) => (
+                  e.readTable<$StationCarDoorHintsTable, StationCarDoorHint>(
+                    table,
+                  ),
+                  BaseReferences<
+                    _$CatalogDatabase,
+                    $StationCarDoorHintsTable,
+                    StationCarDoorHint
+                  >(db, table, e),
+                ),
+              )
               .toList(),
           prefetchHooksCallback: null,
         ),
