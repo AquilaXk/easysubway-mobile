@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:clock/clock.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/application/network_map_nearby_panel_state.dart';
@@ -328,6 +329,89 @@ void main() {
         await tester.pumpAndSettle();
       }
     },
+  );
+
+  testWidgets('NetworkMapScreen 주변역 시간표 조회는 월요일 00:15 KST에 전날(일요일) 운행일로 조회한다', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(420, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final routeDraftController = RouteDraftController();
+    addTearDown(routeDraftController.dispose);
+    final recordingRepo = _RecordingTimetableRepository();
+    StationSearchResult? focusStationRequest;
+    late StateSetter updateHost;
+
+    await withClock(Clock.fixed(DateTime.utc(2026, 7, 5, 15, 15)), () async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              updateHost = setState;
+              return NetworkMapScreen(
+                repository: const _MapRepository(),
+                timetableRepository: recordingRepo,
+                routeDraftController: routeDraftController,
+                onOpenStationSearch: (_, _) {},
+                focusStationRequest: focusStationRequest,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      updateHost(() => focusStationRequest = _focusedStation);
+      await tester.pumpAndSettle();
+    });
+
+    expect(recordingRepo.requestedDates, [DateTime.utc(2026, 7, 5)]);
+  });
+}
+
+final class _RecordingTimetableRepository
+    implements StationTimetableRepository {
+  final requestedDates = <DateTime>[];
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) async => StationTimetable(
+    stationId: stationId,
+    lineId: lineId,
+    dayType: dayType,
+    directions: const [],
+  );
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) async {
+    requestedDates.add(date);
+    return StationTimetable(
+      stationId: stationId,
+      lineId: lineId,
+      dayType: StationTimetableDayType.sundayHoliday,
+      directions: const [],
+    );
+  }
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => loadStationTimetableForDate(
+    stationId: stationId,
+    lineId: lineId,
+    date: asOf,
   );
 }
 

@@ -54,7 +54,8 @@ class _JourneyDepartureSheetState extends State<_JourneyDepartureSheet> {
   );
   late final DateTime _nowWall = journeySeoulWallTime(widget.now);
   late _SheetMode _mode;
-  late int _dayIndex;
+  late int _departAtDayIndex;
+  late int _lastTrainDayIndex;
   late int _halfDay;
   late int _hourIndex;
   late int _minute;
@@ -63,28 +64,34 @@ class _JourneyDepartureSheetState extends State<_JourneyDepartureSheet> {
   late final FixedExtentScrollController _hourWheel;
   late final FixedExtentScrollController _minuteWheel;
 
+  int get _dayIndex =>
+      _mode == _SheetMode.lastTrain ? _lastTrainDayIndex : _departAtDayIndex;
+
+  set _dayIndex(int value) {
+    if (_mode == _SheetMode.lastTrain) {
+      _lastTrainDayIndex = value;
+    } else {
+      _departAtDayIndex = value;
+    }
+  }
+
   @override
   void initState() {
     super.initState();
-    final (mode, wall) = switch (widget.initial) {
-      JourneyDepartNow() => (_SheetMode.departAt, _nowWall),
-      JourneyDepartAt(:final requestedAt) => (
-        _SheetMode.departAt,
-        journeySeoulWallTime(requestedAt),
-      ),
-      JourneyLastTrain(:final serviceDay) => (
-        _SheetMode.lastTrain,
-        DateTime.utc(
-          serviceDay.year,
-          serviceDay.month,
-          serviceDay.day,
-          _nowWall.hour,
-          _nowWall.minute,
-        ),
-      ),
-    };
-    _mode = mode;
-    _setFromWall(wall);
+    _departAtDayIndex = _indexOfDay(_nowWall);
+    _lastTrainDayIndex = _indexOfDay(journeyCurrentServiceDay(widget.now));
+    switch (widget.initial) {
+      case JourneyDepartNow():
+        _mode = _SheetMode.departAt;
+        _setFromWall(_nowWall);
+      case JourneyDepartAt(:final requestedAt):
+        _mode = _SheetMode.departAt;
+        _setFromWall(journeySeoulWallTime(requestedAt));
+      case JourneyLastTrain(:final serviceDay):
+        _mode = _SheetMode.lastTrain;
+        _setFromWall(_nowWall);
+        _lastTrainDayIndex = _indexOfDay(serviceDay);
+    }
     _dayWheel = FixedExtentScrollController(initialItem: _dayIndex);
     _halfDayWheel = FixedExtentScrollController(initialItem: _halfDay);
     _hourWheel = FixedExtentScrollController(initialItem: _hourIndex);
@@ -106,7 +113,7 @@ class _JourneyDepartureSheetState extends State<_JourneyDepartureSheet> {
           .clamp(0, _dayCount - 1);
 
   void _setFromWall(DateTime wall) {
-    _dayIndex = _indexOfDay(wall);
+    _departAtDayIndex = _indexOfDay(wall);
     _halfDay = wall.hour ~/ _hoursPerHalfDay;
     _hourIndex = (wall.hour + _hoursPerHalfDay - 1) % _hoursPerHalfDay;
     _minute = wall.minute;
@@ -119,10 +126,7 @@ class _JourneyDepartureSheetState extends State<_JourneyDepartureSheet> {
     if (mode == _mode) return;
     setState(() {
       _mode = mode;
-      if (mode == _SheetMode.lastTrain) {
-        _dayIndex = _indexOfDay(journeyCurrentServiceDay(widget.now));
-        _dayWheel.jumpToItem(_dayIndex);
-      }
+      _dayWheel.jumpToItem(_dayIndex);
     });
     if (mode == _SheetMode.departAt) {
       // 다시 붙는 휠은 처음 위치에서 시작하므로 고른 값으로 되돌린다.
@@ -150,6 +154,9 @@ class _JourneyDepartureSheetState extends State<_JourneyDepartureSheet> {
   @override
   Widget build(BuildContext context) {
     final itemExtent = MediaQuery.textScalerOf(context).scale(40);
+    final labelBaseDay = _mode == _SheetMode.lastTrain
+        ? journeyCurrentServiceDay(widget.now)
+        : _today;
     return SafeArea(
       child: Column(
         key: const Key('journey-departure-sheet'),
@@ -208,7 +215,7 @@ class _JourneyDepartureSheetState extends State<_JourneyDepartureSheet> {
                           selected: _dayIndex,
                           labels: [
                             for (var index = 0; index < _dayCount; index++)
-                              journeyDayLabel(_day(index), _today),
+                              journeyDayLabel(_day(index), labelBaseDay),
                           ],
                           onChanged: (index) => _dayIndex = index,
                         ),

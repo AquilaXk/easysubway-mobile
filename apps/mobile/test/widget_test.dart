@@ -17,6 +17,7 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/presentation/my_facility_reports_screens.dart';
 import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
+import 'package:easysubway_mobile/core/format/date_time_labels.dart';
 import 'package:easysubway_mobile/core/datapack/bundled_data_pack_freshness.dart';
 import 'package:easysubway_mobile/core/network/api_client.dart';
 import 'package:easysubway_mobile/features/ads/active_ad_banner.dart';
@@ -5874,7 +5875,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -5974,7 +5975,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -6023,7 +6024,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -6501,7 +6502,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -6691,7 +6692,7 @@ void main() {
         );
       }
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -6802,7 +6803,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -6877,7 +6878,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -6950,7 +6951,7 @@ void main() {
       tester.view.resetPhysicalSize();
       tester.view.resetDevicePixelRatio();
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -7058,7 +7059,7 @@ void main() {
       'seoul-2': line2Completer,
       'seoul-4': line4Completer,
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final line2Departure = StationTimetableDeparture(
       directionName: '성수',
       seconds:
@@ -7364,7 +7365,7 @@ void main() {
       'seoul-2': line2Completer,
       'seoul-4': line4Completer,
     });
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final departure = StationTimetableDeparture(
       directionName: '오이도',
       seconds:
@@ -7696,7 +7697,7 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
     final semanticsHandle = tester.ensureSemantics();
-    final now = DateTime.now();
+    final now = journeySeoulWallTime(DateTime.now());
     final baseSeconds =
         now.hour * Duration.secondsPerHour +
         now.minute * Duration.secondsPerMinute +
@@ -13471,7 +13472,7 @@ void main() {
   });
 
   testWidgets('역 상세 시간표는 요일과 방향을 바꾸며 첫차·막차와 출발 시각을 읽는다', (tester) async {
-    await withClock(Clock.fixed(DateTime(2026, 7, 6)), () async {
+    await withClock(Clock.fixed(DateTime.utc(2026, 7, 6)), () async {
       final semanticsHandle = tester.ensureSemantics();
       final repository = FakeTimetableStationRepository(
         stationDetail: _stationDetail(id: 'station-sangnoksu', name: '상록수'),
@@ -13573,7 +13574,7 @@ void main() {
   ) async {
     // #2099 WP1: LOCAL 08:00과 EXPRESS 08:03이 한 방향 목록에 시각순으로 함께
     // 놓이고, 08:03에만 급행 배지가 붙으며 방향·첫차·막차 동작은 유지된다.
-    await withClock(Clock.fixed(DateTime(2026, 7, 6)), () async {
+    await withClock(Clock.fixed(DateTime.utc(2026, 7, 6)), () async {
       const line = StationSearchLine(
         id: 'seoul-4',
         name: '수도권 4호선',
@@ -13677,7 +13678,7 @@ void main() {
   });
 
   testWidgets('환승역 시간표는 coverage가 있는 첫 노선을 기본 선택한다', (tester) async {
-    await withClock(Clock.fixed(DateTime(2026, 7, 6)), () async {
+    await withClock(Clock.fixed(DateTime.utc(2026, 7, 6)), () async {
       const lines = [
         StationSearchLine(
           id: 'seoul-2',
@@ -13824,7 +13825,7 @@ void main() {
   });
 
   testWidgets('시간표 운행일 변경은 사라진 방향 선택을 새 첫 방향으로 초기화한다', (tester) async {
-    await withClock(Clock.fixed(DateTime(2026, 7, 6)), () async {
+    await withClock(Clock.fixed(DateTime.utc(2026, 7, 6)), () async {
       const line = StationSearchLine(
         id: 'seoul-4',
         name: '수도권 4호선',

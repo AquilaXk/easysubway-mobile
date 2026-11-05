@@ -266,4 +266,47 @@ void main() {
     expect(find.bySemanticsLabel(RegExp('엘리베이터 없음')), findsNothing);
     expect(exit.semanticLabel, isNot(contains('엘리베이터')));
   });
+
+  testWidgets('장애인 리프트 이름과 안내·대합실·출구 설명만으로 장애인화장실이나 개찰구 안/밖을 오판하지 않는다', (
+    tester,
+  ) async {
+    await _pumpDetail(
+      tester,
+      facilities: const [
+        StationFacilityInfo(
+          id: 'facility-lift-1',
+          stationId: 'station-geumnamno-4ga',
+          exitId: '',
+          type: 'WHEELCHAIR_LIFT',
+          name: '장애인 휠체어 리프트 1호기',
+          floorFrom: 'B1',
+          floorTo: 'B2',
+          description: '승강장 이동용',
+          status: 'NORMAL',
+          dataConfidence: 'HIGH',
+          lastUpdatedAt: '2026-09-09',
+        ),
+        StationFacilityInfo(
+          id: 'facility-toilet-1',
+          stationId: 'station-geumnamno-4ga',
+          exitId: '',
+          type: 'TOILET',
+          name: '화장실',
+          floorFrom: 'B1',
+          floorTo: 'B1',
+          description: '개찰구 밖 역무실 안내 표지 옆 (1번 출구 대합실 방향)',
+          status: 'NORMAL',
+          dataConfidence: 'HIGH',
+          lastUpdatedAt: '2026-09-09',
+        ),
+      ],
+    );
+
+    expect(_announced('휠체어 리프트 있음'), findsOneWidget);
+    expect(find.text('장애인화장실'), findsNothing);
+    expect(_announced('장애인화장실 있음'), findsNothing);
+    expect(find.text('화장실 개찰구 밖'), findsOneWidget);
+    expect(find.text('화장실 개찰구 안/밖'), findsNothing);
+    expect(find.text('화장실 개찰구 안'), findsNothing);
+  });
 }

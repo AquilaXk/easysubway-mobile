@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../../core/format/date_time_labels.dart';
 import 'nearby_direction_columns.dart';
 import 'nearby_direction_title.dart';
 
@@ -262,11 +263,12 @@ List<_NextTimetableDeparture> _nextTimetableDepartures(
   if (data == null) {
     return const [];
   }
+  final wall = journeySeoulWallTime(now);
   final currentSeconds =
-      now.hour * Duration.secondsPerHour +
-      now.minute * Duration.secondsPerMinute +
-      now.second;
-  final isLateNight = now.hour < 4;
+      wall.hour * Duration.secondsPerHour +
+      wall.minute * Duration.secondsPerMinute +
+      wall.second;
+  final isLateNight = wall.hour < 4;
   final lateNightServiceSeconds = Duration.secondsPerDay + currentSeconds;
 
   final result = <_NextTimetableDeparture>[];
@@ -324,7 +326,7 @@ List<_NextTimetableDeparture> _nextTimetableDepartures(
 
       if (upcoming.isNotEmpty) {
         final isBeforeFirstTrain =
-            now.hour < 6 &&
+            wall.hour < 6 &&
             upcoming.first == direction.departures.first &&
             (upcoming.first.seconds - currentSeconds >=
                 15 * Duration.secondsPerMinute);
@@ -413,11 +415,12 @@ String _formatDepartureCountdown(
   NearbyTimetableDepartureData departure,
   DateTime now,
 ) {
+  final wall = journeySeoulWallTime(now);
   final currentSeconds =
-      now.hour * Duration.secondsPerHour +
-      now.minute * Duration.secondsPerMinute +
-      now.second;
-  final isLateNight = now.hour < 4;
+      wall.hour * Duration.secondsPerHour +
+      wall.minute * Duration.secondsPerMinute +
+      wall.second;
+  final isLateNight = wall.hour < 4;
   final lateNightServiceSeconds = Duration.secondsPerDay + currentSeconds;
 
   final int diffSeconds;

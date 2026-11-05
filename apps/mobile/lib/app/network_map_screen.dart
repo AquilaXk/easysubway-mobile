@@ -1,8 +1,10 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../accessible_design.dart';
+import '../core/format/date_time_labels.dart';
 import '../features/ads/active_ad_banner.dart';
 import '../features/ads/ad_slot.dart';
 import '../design_tokens.dart';
@@ -1331,7 +1333,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       final timetable = await timetableRepository.loadStationTimetableForDate(
         stationId: station.id,
         lineId: line.id,
-        date: DateTime.now(),
+        date: journeyCurrentServiceDay(clock.now()),
       );
       if (!_isCurrentNearbyRequest(request)) {
         if (mounted) {

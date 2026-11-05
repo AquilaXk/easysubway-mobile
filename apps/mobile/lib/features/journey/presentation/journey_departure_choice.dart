@@ -1,3 +1,8 @@
+import '../../../core/format/date_time_labels.dart';
+
+export '../../../core/format/date_time_labels.dart'
+    show journeyCurrentServiceDay, journeySeoulWallTime;
+
 /// 경로 검색의 출발 기준. 서버가 받는 요청 모드만 둔다(지금 출발, 출발 시각
 /// 지정, 막차). 도착 시각과 첫차는 서버 요청 모드가 없어 두지 않는다.
 sealed class JourneyDepartureChoice {
@@ -30,18 +35,6 @@ final class JourneyLastTrain extends JourneyDepartureChoice {
 const _seoulOffset = Duration(hours: 9);
 const _weekdays = ['월', '화', '수', '목', '금', '토', '일'];
 
-/// UTC 시각을 서울 벽시계 값(연·월·일·시·분)으로 바꾼다.
-DateTime journeySeoulWallTime(DateTime instant) {
-  final value = instant.toUtc().add(_seoulOffset);
-  return DateTime.utc(
-    value.year,
-    value.month,
-    value.day,
-    value.hour,
-    value.minute,
-  );
-}
-
 /// 서울 벽시계 값을 UTC 시각으로 바꾼다.
 DateTime journeyInstantFromSeoul(DateTime wall) => DateTime.utc(
   wall.year,
@@ -53,14 +46,6 @@ DateTime journeyInstantFromSeoul(DateTime wall) => DateTime.utc(
 
 DateTime _seoulDay(DateTime wall) =>
     DateTime.utc(wall.year, wall.month, wall.day);
-
-/// 운행일 경계. Journey V3 계약의 `serviceDayCutoff`가 `03:00` 하나만 허용한다
-/// (backend `contracts/api/journey-v3.openapi.yaml` JourneySearchSuccess).
-const _serviceDayCutoff = Duration(hours: 3);
-
-/// [now]가 속한 운행일(서울 날짜). 03:00 전은 전날 운행일이다.
-DateTime journeyCurrentServiceDay(DateTime now) =>
-    _seoulDay(journeySeoulWallTime(now.subtract(_serviceDayCutoff)));
 
 /// 오늘·내일, 그 밖에는 `10월 26일(월)`. [day]와 [today]는 서울 날짜다.
 String journeyDayLabel(DateTime day, DateTime today) {

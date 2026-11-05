@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart';
 
 import '../../../core/database/catalog/catalog_database.dart';
+import '../../../core/format/date_time_labels.dart';
 import '../domain/station_models.dart';
 import '../domain/station_repositories.dart';
 import 'server_station_timetable_repository.dart';
@@ -68,6 +69,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
         )
         .get();
 
+    final seoulRef = journeySeoulWallTime(referenceDate);
     final directionsMap = <String, List<StationTimetableDeparture>>{};
     for (final row in rows) {
       final directionName = row.read<String>('resolved_direction_name');
@@ -77,11 +79,11 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       final servicePattern = row.read<String?>('service_pattern') ?? 'LOCAL';
       final serviceClass = row.read<String?>('service_class') ?? 'SUBWAY';
 
-      final departureAt = DateTime(
-        referenceDate.year,
-        referenceDate.month,
-        referenceDate.day,
-      ).add(Duration(seconds: seconds));
+      final departureAt = DateTime.utc(
+        seoulRef.year,
+        seoulRef.month,
+        seoulRef.day,
+      ).subtract(const Duration(hours: 9)).add(Duration(seconds: seconds));
 
       directionsMap
           .putIfAbsent(directionName, () => [])
@@ -143,16 +145,19 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
     required DateTime asOf,
     int horizonDays = 1,
   }) async {
+    final serviceDate = journeyCurrentServiceDay(asOf);
     final timetable = await loadStationTimetableForDate(
       stationId: stationId,
       lineId: lineId,
-      date: asOf,
+      date: serviceDate,
     );
-    final nowSeconds = asOf.hour * 3600 + asOf.minute * 60 + asOf.second;
+    final wall = journeySeoulWallTime(asOf);
+    final nowSeconds = wall.hour * 3600 + wall.minute * 60 + wall.second;
+    final effectiveSeconds = wall.hour < 3 ? nowSeconds + 86400 : nowSeconds;
     final filteredDirections = <StationTimetableDirection>[];
     for (final dir in timetable.directions) {
       final upcoming = dir.departures
-          .where((d) => d.seconds >= nowSeconds)
+          .where((d) => d.seconds >= effectiveSeconds)
           .toList(growable: false);
       if (upcoming.isNotEmpty) {
         filteredDirections.add(
@@ -170,10 +175,11 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
   }
 
   Future<StationTimetableDayType> _resolveDayTypeForDate(DateTime date) async {
+    final seoulDate = journeySeoulWallTime(date);
     final dateKey =
-        '${date.year.toString().padLeft(4, '0')}'
-        '${date.month.toString().padLeft(2, '0')}'
-        '${date.day.toString().padLeft(2, '0')}';
+        '${seoulDate.year.toString().padLeft(4, '0')}'
+        '${seoulDate.month.toString().padLeft(2, '0')}'
+        '${seoulDate.day.toString().padLeft(2, '0')}';
 
     final holidayExceptionRows = await database
         .customSelect(
@@ -186,10 +192,11 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
         )
         .get();
 
-    if (holidayExceptionRows.isNotEmpty || date.weekday == DateTime.sunday) {
+    if (holidayExceptionRows.isNotEmpty ||
+        seoulDate.weekday == DateTime.sunday) {
       return StationTimetableDayType.sundayHoliday;
     }
-    if (date.weekday == DateTime.saturday) {
+    if (seoulDate.weekday == DateTime.saturday) {
       return StationTimetableDayType.saturday;
     }
     return StationTimetableDayType.weekday;
