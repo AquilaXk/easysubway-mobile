@@ -682,57 +682,85 @@ void main() {
       );
     }
 
+    Future<(Rect, Rect)> composedBar(
+      WidgetTester tester,
+      StationSearchLine line, {
+      required double width,
+      required double scale,
+    }) async {
+      final content = buildNetworkMapNearbyPanelSuccessContent(
+        results: const [
+          StationSearchResult(
+            id: 'hongdae',
+            nameKo: '홍대입구',
+            nameEn: '',
+            region: '수도권',
+            dataQualityLevel: 'LEVEL_1',
+            lastVerifiedAt: '2026-06-13',
+            lines: [circleLine, _gyeonguiJungang],
+          ),
+        ],
+        realtime: const RealtimeSnapshot(
+          status: RealtimeSnapshotStatus.unavailable,
+        ),
+        selectedLineId: line.id,
+        dataSource: NetworkMapNearbyPanelDataSource.realtime,
+        timetable: null,
+        adjacentStations: const NearbyAdjacentStations(
+          leftName: '신촌',
+          rightName: '합정',
+        ),
+      );
+      await _pump360(
+        tester,
+        Scaffold(body: content.stationBar),
+        scale,
+        width: width,
+      );
+      return (
+        tester.getRect(find.byKey(const Key('nearbyStationLineBarCapsule'))),
+        tester.getRect(find.byKey(Key('stationLineBadge-${line.id}'))),
+      );
+    }
+
+    testWidgets('주변역 캡슐 320.0dp 글자 1.0배 원 마크는 24dp 정원을 지킨다', (tester) async {
+      final (capsule, circle) = await composedBar(
+        tester,
+        circleLine,
+        width: 320,
+        scale: 1.0,
+      );
+      expect(circle.width, closeTo(24.0, 0.05));
+      expect(circle.height, closeTo(24.0, 0.05));
+      expect(circle.width, closeTo(circle.height, 0.05));
+      expect(circle.top, greaterThanOrEqualTo(capsule.top));
+      expect(circle.bottom, lessThanOrEqualTo(capsule.bottom));
+      expect(tester.takeException(), isNull);
+    });
+
     for (final (width, circleDiameter) in [(320.0, 29.1), (360.0, 31.8)]) {
       for (final scale in [1.3, 1.5, 2.0]) {
         testWidgets('주변역 캡슐 ${width}dp 글자 $scale배 마크는 캡슐 안에서 멈춘다', (
           tester,
         ) async {
-          Future<(Rect, Rect)> composedBar(StationSearchLine line) async {
-            final content = buildNetworkMapNearbyPanelSuccessContent(
-              results: const [
-                StationSearchResult(
-                  id: 'hongdae',
-                  nameKo: '홍대입구',
-                  nameEn: '',
-                  region: '수도권',
-                  dataQualityLevel: 'LEVEL_1',
-                  lastVerifiedAt: '2026-06-13',
-                  lines: [circleLine, _gyeonguiJungang],
-                ),
-              ],
-              realtime: const RealtimeSnapshot(
-                status: RealtimeSnapshotStatus.unavailable,
-              ),
-              selectedLineId: line.id,
-              dataSource: NetworkMapNearbyPanelDataSource.realtime,
-              timetable: null,
-              adjacentStations: const NearbyAdjacentStations(
-                leftName: '신촌',
-                rightName: '합정',
-              ),
-            );
-            await _pump360(
-              tester,
-              Scaffold(body: content.stationBar),
-              scale,
-              width: width,
-            );
-            return (
-              tester.getRect(
-                find.byKey(const Key('nearbyStationLineBarCapsule')),
-              ),
-              tester.getRect(find.byKey(Key('stationLineBadge-${line.id}'))),
-            );
-          }
-
-          final (circleCapsule, circle) = await composedBar(circleLine);
+          final (circleCapsule, circle) = await composedBar(
+            tester,
+            circleLine,
+            width: width,
+            scale: scale,
+          );
           expect(circle.width, closeTo(circleDiameter, 0.05));
           expect(circle.height, closeTo(circleDiameter, 0.05));
           expect(circle.width, closeTo(circle.height, 0.05));
           expect(circle.top, greaterThanOrEqualTo(circleCapsule.top));
           expect(circle.bottom, lessThanOrEqualTo(circleCapsule.bottom));
 
-          final (pillCapsule, pill) = await composedBar(_gyeonguiJungang);
+          final (pillCapsule, pill) = await composedBar(
+            tester,
+            _gyeonguiJungang,
+            width: width,
+            scale: scale,
+          );
           expect(pill.height, 26);
           expect(pill.width, closeTo(78.48, 0.05));
           expect(pill.top, greaterThanOrEqualTo(pillCapsule.top));
