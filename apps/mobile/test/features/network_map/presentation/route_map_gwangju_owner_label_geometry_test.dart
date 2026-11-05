@@ -1,5 +1,4 @@
 import 'dart:convert' show utf8;
-import 'dart:io';
 
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_design_space.dart';
@@ -13,7 +12,8 @@ import 'package:easysubway_mobile/app/network_map_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqlite3/sqlite3.dart';
+
+import '../../../support/bundled_datapack.dart';
 
 // #2068 실기기 반려 재발 방지(2026-07-16 좌우 라벨 잘림 재보고).
 //
@@ -60,19 +60,9 @@ class _GwangjuFixture {
 const _gwangjuStoredRegion = '광주권'; // route_map_positions 저장형.
 
 _GwangjuFixture _loadGwangjuFixture() {
-  final gzBytes = File(
-    'assets/datapacks/nationwide.sqlite.gz',
-  ).readAsBytesSync();
-  final dir = Directory.systemTemp.createTempSync(
-    'gwangju-owner-label-geometry-',
-  );
-  try {
-    final sqliteFile = File('${dir.path}/pack.sqlite')
-      ..writeAsBytesSync(gzip.decode(gzBytes));
-    final db = sqlite3.open(sqliteFile.path);
-    try {
-      final stationRows = db.select(
-        '''
+  return openBundledDatapack((db) {
+    final stationRows = db.select(
+      '''
         SELECT p.station_id, p.line_id, p.x, p.y, p.label_polygon,
                sl.line_sequence, s.name_ko, s.name_en
         FROM route_map_positions p
@@ -82,89 +72,84 @@ _GwangjuFixture _loadGwangjuFixture() {
         WHERE p.region = ?
         ORDER BY p.line_id, sl.line_sequence, p.station_id
         ''',
-        [_gwangjuStoredRegion],
-      );
-      if (stationRows.isEmpty) {
-        fail('광주권 실데이터가 nationwide.sqlite.gz에 없다 — fixture 쿼리 확인');
-      }
-      final trackRows = db.select(
-        'SELECT line_id, path FROM route_map_line_tracks '
-        'WHERE region = ? ORDER BY line_id, track_index',
-        [_gwangjuStoredRegion],
-      );
-      final lineRows = db.select('SELECT id, name_ko, color FROM lines');
-
-      final stations = <NetworkMapStation>[
-        for (final row in stationRows)
-          NetworkMapStation(
-            id: row['station_id'] as String,
-            nameKo: row['name_ko'] as String,
-            nameEn: row['name_en'] as String? ?? '',
-            region: _gwangjuStoredRegion,
-            lineId: row['line_id'] as String,
-            stationCode: row['station_id'] as String,
-            sequence: row['line_sequence'] as int,
-            position: NetworkMapPosition(
-              x: (row['x'] as num).toInt(),
-              y: (row['y'] as num).toInt(),
-              labelDx: 0,
-              labelDy: 0,
-              labelPolygon: row['label_polygon'] as String? ?? '',
-              upPath: '',
-              downPath: '',
-              sourceId: 'gwangju-owner-label-geometry-test',
-            ),
-          ),
-      ];
-      final lineIdsInFixture = {for (final s in stations) s.lineId};
-      final lines = <NetworkMapLine>[
-        for (final row in lineRows)
-          if (lineIdsInFixture.contains(row['id'] as String))
-            NetworkMapLine(
-              id: row['id'] as String,
-              name: row['name_ko'] as String,
-              color: (row['color'] as String?) ?? '#000000',
-              region: _gwangjuStoredRegion,
-            ),
-      ];
-      final pathsByLine = <String, List<String>>{};
-      for (final row in trackRows) {
-        pathsByLine
-            .putIfAbsent(row['line_id'] as String, () => [])
-            .add(row['path'] as String);
-      }
-      final data = NetworkMapData(
-        regions: [const NetworkMapRegion(name: _gwangjuStoredRegion)],
-        selectedRegion: _gwangjuStoredRegion,
-        lines: lines,
-        stations: stations,
-        edges: const [],
-        positionSources: const [
-          NetworkMapPositionSource(
-            id: 'gwangju-owner-label-geometry-test',
-            name: '광주 오너 라벨 geometry 회귀 테스트 fixture',
-            licenseStatus: 'fixture-only',
-          ),
-        ],
-        stationLineMemberships: [
-          for (final s in stations)
-            NetworkMapStationLineMembership(stationId: s.id, lineId: s.lineId),
-        ],
-        lineTracks: [
-          for (final entry in pathsByLine.entries)
-            NetworkMapLineTrack(lineId: entry.key, paths: entry.value),
-        ],
-      );
-      final designScale = routeMapDesignSpaceFor(
-        data.toStructuredRouteMap(),
-      ).designScale;
-      return _GwangjuFixture(data: data, designScale: designScale);
-    } finally {
-      db.close();
+      [_gwangjuStoredRegion],
+    );
+    if (stationRows.isEmpty) {
+      fail('광주권 실데이터가 nationwide.sqlite.gz에 없다 — fixture 쿼리 확인');
     }
-  } finally {
-    dir.deleteSync(recursive: true);
-  }
+    final trackRows = db.select(
+      'SELECT line_id, path FROM route_map_line_tracks '
+      'WHERE region = ? ORDER BY line_id, track_index',
+      [_gwangjuStoredRegion],
+    );
+    final lineRows = db.select('SELECT id, name_ko, color FROM lines');
+
+    final stations = <NetworkMapStation>[
+      for (final row in stationRows)
+        NetworkMapStation(
+          id: row['station_id'] as String,
+          nameKo: row['name_ko'] as String,
+          nameEn: row['name_en'] as String? ?? '',
+          region: _gwangjuStoredRegion,
+          lineId: row['line_id'] as String,
+          stationCode: row['station_id'] as String,
+          sequence: row['line_sequence'] as int,
+          position: NetworkMapPosition(
+            x: (row['x'] as num).toInt(),
+            y: (row['y'] as num).toInt(),
+            labelDx: 0,
+            labelDy: 0,
+            labelPolygon: row['label_polygon'] as String? ?? '',
+            upPath: '',
+            downPath: '',
+            sourceId: 'gwangju-owner-label-geometry-test',
+          ),
+        ),
+    ];
+    final lineIdsInFixture = {for (final s in stations) s.lineId};
+    final lines = <NetworkMapLine>[
+      for (final row in lineRows)
+        if (lineIdsInFixture.contains(row['id'] as String))
+          NetworkMapLine(
+            id: row['id'] as String,
+            name: row['name_ko'] as String,
+            color: (row['color'] as String?) ?? '#000000',
+            region: _gwangjuStoredRegion,
+          ),
+    ];
+    final pathsByLine = <String, List<String>>{};
+    for (final row in trackRows) {
+      pathsByLine
+          .putIfAbsent(row['line_id'] as String, () => [])
+          .add(row['path'] as String);
+    }
+    final data = NetworkMapData(
+      regions: [const NetworkMapRegion(name: _gwangjuStoredRegion)],
+      selectedRegion: _gwangjuStoredRegion,
+      lines: lines,
+      stations: stations,
+      edges: const [],
+      positionSources: const [
+        NetworkMapPositionSource(
+          id: 'gwangju-owner-label-geometry-test',
+          name: '광주 오너 라벨 geometry 회귀 테스트 fixture',
+          licenseStatus: 'fixture-only',
+        ),
+      ],
+      stationLineMemberships: [
+        for (final s in stations)
+          NetworkMapStationLineMembership(stationId: s.id, lineId: s.lineId),
+      ],
+      lineTracks: [
+        for (final entry in pathsByLine.entries)
+          NetworkMapLineTrack(lineId: entry.key, paths: entry.value),
+      ],
+    );
+    final designScale = routeMapDesignSpaceFor(
+      data.toStructuredRouteMap(),
+    ).designScale;
+    return _GwangjuFixture(data: data, designScale: designScale);
+  });
 }
 
 class _FakeGwangjuRepository implements NetworkMapRepository {

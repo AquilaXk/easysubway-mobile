@@ -1,5 +1,4 @@
 import 'dart:convert' show utf8;
-import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
@@ -17,8 +16,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/bundled_datapack.dart';
 import '../../../support/network_map_visible_center.dart';
-import 'package:sqlite3/sqlite3.dart';
 
 // #2068 트랙 QA 후속: 노선도 초기 카메라를 "전체-fit 과축소"에서 "노선도 콘텐츠
 // 중앙을 글자가 읽히는 배율로 확대"로 바꾼 계약의 회귀 가드.
@@ -61,17 +60,9 @@ const _regionsUnderTest = <String, String>{
 };
 
 _RegionFixture _loadRegionFixture(String storedRegion) {
-  final gzBytes = File(
-    'assets/datapacks/nationwide.sqlite.gz',
-  ).readAsBytesSync();
-  final dir = Directory.systemTemp.createTempSync('initial-camera-zoom-');
-  try {
-    final sqliteFile = File('${dir.path}/pack.sqlite')
-      ..writeAsBytesSync(gzip.decode(gzBytes));
-    final db = sqlite3.open(sqliteFile.path);
-    try {
-      final stationRows = db.select(
-        '''
+  return openBundledDatapack((db) {
+    final stationRows = db.select(
+      '''
         SELECT p.station_id, p.line_id, p.x, p.y, p.label_polygon,
                sl.line_sequence, s.name_ko, s.name_en
         FROM route_map_positions p
@@ -81,91 +72,83 @@ _RegionFixture _loadRegionFixture(String storedRegion) {
         WHERE p.region = ?
         ORDER BY p.line_id, sl.line_sequence, p.station_id
         ''',
-        [storedRegion],
-      );
-      if (stationRows.isEmpty) {
-        fail('$storedRegion 실데이터가 nationwide.sqlite.gz에 없다 — fixture 쿼리 확인');
-      }
-      final trackRows = db.select(
-        'SELECT line_id, path FROM route_map_line_tracks '
-        'WHERE region = ? ORDER BY line_id, track_index',
-        [storedRegion],
-      );
-      final lineRows = db.select('SELECT id, name_ko, color FROM lines');
-
-      final stations = <NetworkMapStation>[
-        for (final row in stationRows)
-          NetworkMapStation(
-            id: row['station_id'] as String,
-            nameKo: row['name_ko'] as String,
-            nameEn: row['name_en'] as String? ?? '',
-            region: storedRegion,
-            lineId: row['line_id'] as String,
-            stationCode: row['station_id'] as String,
-            sequence: row['line_sequence'] as int,
-            position: NetworkMapPosition(
-              x: (row['x'] as num).toInt(),
-              y: (row['y'] as num).toInt(),
-              labelDx: 0,
-              labelDy: 0,
-              labelPolygon: row['label_polygon'] as String? ?? '',
-              upPath: '',
-              downPath: '',
-              sourceId: 'initial-camera-zoom-test',
-            ),
-          ),
-      ];
-      final lineIdsInFixture = {for (final s in stations) s.lineId};
-      final lines = <NetworkMapLine>[
-        for (final row in lineRows)
-          if (lineIdsInFixture.contains(row['id'] as String))
-            NetworkMapLine(
-              id: row['id'] as String,
-              name: row['name_ko'] as String,
-              color: (row['color'] as String?) ?? '#000000',
-              region: storedRegion,
-            ),
-      ];
-      final pathsByLine = <String, List<String>>{};
-      for (final row in trackRows) {
-        pathsByLine
-            .putIfAbsent(row['line_id'] as String, () => [])
-            .add(row['path'] as String);
-      }
-      return _RegionFixture(
-        data: NetworkMapData(
-          regions: [NetworkMapRegion(name: storedRegion)],
-          selectedRegion: storedRegion,
-          lines: lines,
-          stations: stations,
-          edges: const [],
-          positionSources: const [
-            NetworkMapPositionSource(
-              id: 'initial-camera-zoom-test',
-              name: '초기 카메라 확대 회귀 테스트 fixture',
-              licenseStatus: 'fixture-only',
-            ),
-          ],
-          stationLineMemberships: [
-            for (final s in stations)
-              NetworkMapStationLineMembership(
-                stationId: s.id,
-                lineId: s.lineId,
-              ),
-          ],
-          lineTracks: [
-            for (final entry in pathsByLine.entries)
-              NetworkMapLineTrack(lineId: entry.key, paths: entry.value),
-          ],
-        ),
-        stationNames: {for (final s in stations) s.nameKo},
-      );
-    } finally {
-      db.close();
+      [storedRegion],
+    );
+    if (stationRows.isEmpty) {
+      fail('$storedRegion 실데이터가 nationwide.sqlite.gz에 없다 — fixture 쿼리 확인');
     }
-  } finally {
-    dir.deleteSync(recursive: true);
-  }
+    final trackRows = db.select(
+      'SELECT line_id, path FROM route_map_line_tracks '
+      'WHERE region = ? ORDER BY line_id, track_index',
+      [storedRegion],
+    );
+    final lineRows = db.select('SELECT id, name_ko, color FROM lines');
+
+    final stations = <NetworkMapStation>[
+      for (final row in stationRows)
+        NetworkMapStation(
+          id: row['station_id'] as String,
+          nameKo: row['name_ko'] as String,
+          nameEn: row['name_en'] as String? ?? '',
+          region: storedRegion,
+          lineId: row['line_id'] as String,
+          stationCode: row['station_id'] as String,
+          sequence: row['line_sequence'] as int,
+          position: NetworkMapPosition(
+            x: (row['x'] as num).toInt(),
+            y: (row['y'] as num).toInt(),
+            labelDx: 0,
+            labelDy: 0,
+            labelPolygon: row['label_polygon'] as String? ?? '',
+            upPath: '',
+            downPath: '',
+            sourceId: 'initial-camera-zoom-test',
+          ),
+        ),
+    ];
+    final lineIdsInFixture = {for (final s in stations) s.lineId};
+    final lines = <NetworkMapLine>[
+      for (final row in lineRows)
+        if (lineIdsInFixture.contains(row['id'] as String))
+          NetworkMapLine(
+            id: row['id'] as String,
+            name: row['name_ko'] as String,
+            color: (row['color'] as String?) ?? '#000000',
+            region: storedRegion,
+          ),
+    ];
+    final pathsByLine = <String, List<String>>{};
+    for (final row in trackRows) {
+      pathsByLine
+          .putIfAbsent(row['line_id'] as String, () => [])
+          .add(row['path'] as String);
+    }
+    return _RegionFixture(
+      data: NetworkMapData(
+        regions: [NetworkMapRegion(name: storedRegion)],
+        selectedRegion: storedRegion,
+        lines: lines,
+        stations: stations,
+        edges: const [],
+        positionSources: const [
+          NetworkMapPositionSource(
+            id: 'initial-camera-zoom-test',
+            name: '초기 카메라 확대 회귀 테스트 fixture',
+            licenseStatus: 'fixture-only',
+          ),
+        ],
+        stationLineMemberships: [
+          for (final s in stations)
+            NetworkMapStationLineMembership(stationId: s.id, lineId: s.lineId),
+        ],
+        lineTracks: [
+          for (final entry in pathsByLine.entries)
+            NetworkMapLineTrack(lineId: entry.key, paths: entry.value),
+        ],
+      ),
+      stationNames: {for (final s in stations) s.nameKo},
+    );
+  });
 }
 
 class _FakeRegionRepository implements NetworkMapRepository {

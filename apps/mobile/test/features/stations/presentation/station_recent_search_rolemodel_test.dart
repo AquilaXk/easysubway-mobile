@@ -109,7 +109,14 @@ void main() {
       find.bySemanticsLabel('최근 경로 소요산역 → 상록수역 다시 찾기, 10월 24일 검색'),
       findsOneWidget,
     );
-    expect(find.bySemanticsLabel('최근 검색어 충무로 검색, 10월 23일 검색'), findsOneWidget);
+    expect(
+      find.bySemanticsLabel('최근 검색어 충무로, 수도권 4호선 검색, 10월 23일 검색'),
+      findsOneWidget,
+    );
+    expect(
+      find.bySemanticsLabel('최근 검색어 부평 검색, 2025년 12월 31일 검색'),
+      findsOneWidget,
+    );
     handle.dispose();
   });
 

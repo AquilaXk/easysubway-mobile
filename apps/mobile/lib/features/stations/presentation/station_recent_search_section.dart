@@ -254,7 +254,7 @@ class _RecentSearchItem extends StatelessWidget {
         Key('stationRecentSearchQuery-${entry.query}'),
         Key('stationRecentSearchRemove-${entry.query}'),
         '${entry.query} 최근 검색 삭제',
-        '최근 검색어 ${entry.query} 검색',
+        _recentStationSemanticsLabel(entry),
         _StationQueryLabel(entry: entry, textStyle: titleStyle),
       ),
       RecentRouteSearchEntry() => (
@@ -426,6 +426,14 @@ class _RouteStationsLabel extends StatelessWidget {
       ],
     );
   }
+}
+
+String _recentStationSemanticsLabel(RecentStationSearchEntry entry) {
+  if (entry.lines.isEmpty) {
+    return '최근 검색어 ${entry.query} 검색';
+  }
+  final lineNames = entry.lines.map((line) => line.name).join(', ');
+  return '최근 검색어 ${entry.query}, $lineNames 검색';
 }
 
 String _withStationSuffix(String name) {

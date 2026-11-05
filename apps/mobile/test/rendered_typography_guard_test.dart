@@ -193,4 +193,14 @@ void main() {
     expect(violations, hasLength(1));
     expect(violations.single, contains('fontVariations'));
   });
+
+  test('stationLineColor는 잘못된 hex 문자열을 조용히 덮지 않고 FormatException을 던진다', () {
+    for (final invalid in const ['', 'teal', '#12345', '#1234567', '#GGGGGG']) {
+      expect(
+        () => stationLineColor(invalid),
+        throwsFormatException,
+        reason: invalid,
+      );
+    }
+  });
 }

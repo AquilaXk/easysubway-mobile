@@ -392,11 +392,15 @@ List<StationSearchLine> _linesFromStored({
     return const [];
   }
   final name = lineName?.trim() ?? '';
+  final resolvedName = name.isEmpty ? id : name;
+  final rawColor = lineColor?.trim() ?? '';
   return [
     StationSearchLine(
       id: id,
-      name: name.isEmpty ? id : name,
-      color: lineColor?.trim() ?? '',
+      name: resolvedName,
+      color: rawColor.isEmpty
+          ? fallbackLineColorHex(lineId: id, lineName: resolvedName)
+          : rawColor,
       stationCode: stationCode?.trim() ?? '',
     ),
   ];

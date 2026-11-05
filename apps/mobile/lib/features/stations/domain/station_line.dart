@@ -207,7 +207,7 @@ Color stationLineColor(String color) {
       return Color(0xFF000000 | parsed);
     }
   }
-  return const Color(0xFF006D77);
+  throw FormatException('Invalid line color hex: $color');
 }
 
 /// 카탈로그 색이 없을 때 노선 이름·식별자로 추정하는 노선색 단일 소스.
