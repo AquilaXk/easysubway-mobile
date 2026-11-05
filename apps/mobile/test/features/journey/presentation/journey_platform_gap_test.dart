@@ -3,11 +3,11 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
-import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
-import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
+
+import '../../../support/journey_result_fixture.dart';
 
 void main() {
   testWidgets('(1) 무단차 요청 + NARROW/LOW 위치 4개 → 칸·문 오름차순 앞 3개만 표시 (형식 정확히)', (
@@ -66,7 +66,7 @@ void main() {
     ];
 
     final journey = _makeTestJourney(id: 'journey-gap-1', boardingGaps: gaps);
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -114,7 +114,7 @@ void main() {
     ];
 
     final journey = _makeTestJourney(id: 'journey-gap-2', boardingGaps: gaps);
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -132,7 +132,7 @@ void main() {
       boardingGaps: const [],
       alightingGaps: const [],
     );
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -164,7 +164,7 @@ void main() {
     ];
 
     final journey = _makeTestJourney(id: 'journey-gap-4', boardingGaps: gaps);
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     // 일반(STANDARD) 요청
     await _pumpScreen(tester, repository: repo, mobilityType: 'STANDARD');
@@ -207,7 +207,7 @@ void main() {
     ];
 
     final journey = _makeTestJourney(id: 'journey-gap-5', boardingGaps: gaps);
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -263,7 +263,7 @@ void main() {
     ];
 
     final journey = _makeTestJourney(id: 'journey-gap-5b', boardingGaps: gaps);
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -367,7 +367,7 @@ void main() {
       boardingGaps: boardingGaps,
       alightingGaps: alightingGaps,
     );
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -417,7 +417,7 @@ void main() {
       ),
     ];
     final journey = _makeTestJourney(id: 'journey-gap-6b', boardingGaps: gaps);
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -472,7 +472,7 @@ void main() {
     ];
 
     final journey = _makeTestJourney(id: 'journey-gap-7', boardingGaps: gaps);
-    final repo = _GapTestRepository(journey);
+    final repo = FixtureJourneyRepository(journeys: [journey]);
 
     await _pumpScreen(tester, repository: repo, mobilityType: 'WHEELCHAIR');
     await tester.tap(find.widgetWithText(FilledButton, '경로 찾기'));
@@ -508,7 +508,7 @@ Future<void> _pumpScreen(
     MaterialApp(
       home: JourneySearchScreen(
         repository: repository,
-        attestor: const _FakeAttestor(),
+        attestor: const FixtureIntegrityAttestor(),
         draft: RouteDraft(
           origin: const RouteDraftStation(id: 'station-origin', nameKo: '용산'),
           destination: const RouteDraftStation(
@@ -598,81 +598,4 @@ Journey _makeTestJourney({
       sourceSnapshotIds: <String>[],
     ),
   );
-}
-
-class _FakeAttestor implements JourneyV3IntegrityAttestor {
-  const _FakeAttestor();
-
-  @override
-  Future<String> attest(String requestHash) async => 'integrity-token';
-}
-
-class _GapTestRepository implements JourneyRepository {
-  _GapTestRepository(this.journey);
-
-  final Journey journey;
-
-  @override
-  Future<JourneySessionResponse> issueSession(
-    JourneySessionRequest request,
-  ) async {
-    final now = DateTime.utc(2026, 8, 12);
-    return JourneySessionResponse(
-      token: 'session-token',
-      scope: JourneySessionScope.journeyV3,
-      issuedAt: now,
-      expiresAt: now.add(const Duration(minutes: 5)),
-    );
-  }
-
-  @override
-  Future<JourneySearchSuccess> searchJourneys(
-    JourneySearchRequest request, {
-    required String sessionToken,
-  }) async {
-    final now = DateTime.utc(2026, 8, 12);
-    return JourneySearchSuccess(
-      contractVersion: JourneyContractVersion.journeySearchV3,
-      requestId: request.requestId,
-      queryId: 'query-1',
-      calculatedAt: now,
-      validUntil: now.add(const Duration(minutes: 5)),
-      effectiveDepartureTime: now,
-      serviceDate: JourneyDate.parse('2026-08-12'),
-      serviceTimezone: 'Asia/Seoul',
-      serviceDayCutoff: '03:00',
-      stairFreeAlternative: const JourneyStairFreeAlternative(
-        status: JourneyStairFreeAlternativeStatus.included,
-        facilityStatus: JourneyStairFreeFacilityStatus.applied,
-      ),
-      sourceIdentity: JourneySourceIdentity(
-        routeBundleId: 'bundle-1',
-        routeBundleSha256: 'a' * 64,
-        timetableSnapshotId: 'timetable-1',
-        accessibilitySnapshotId: 'accessibility-1',
-        realtimeSnapshotId: null,
-      ),
-      requestPolicy: JourneyRequestPolicy(
-        timePolicy: request.timePolicy,
-        walkingPace: request.walkingPace,
-        mobilityProfile: request.mobilityProfile,
-        constraintMode: request.constraintMode,
-        maxTransfers: request.maxTransfers,
-        alternativeCount: request.alternativeCount,
-      ),
-      journeys: [journey],
-    );
-  }
-
-  @override
-  Future<JourneyProfileSuccess> profileJourneys(
-    JourneyProfileRequest request, {
-    required String sessionToken,
-  }) async => throw UnimplementedError();
-
-  @override
-  Future<StationTimetableSearchSuccess> searchStationTimetables(
-    StationTimetableSearchRequest request, {
-    required String sessionToken,
-  }) async => throw UnimplementedError();
 }

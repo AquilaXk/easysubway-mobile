@@ -682,13 +682,7 @@ void main() {
       );
     }
 
-    // 캡슐 높이는 지도 폭에 비례해 정해진다. 마크는 1.3배에서 멈추고 캡슐 안에
-    // 있다. 320dp의 원 마크는 캡슐 안쪽 높이 29.1이 한 변 31.2보다 작아 높이가 눌린다.
-    // 앱이 조합하는 주변역 패널의 막대와, 배지 빌더가 없을 때의 막대를 모두 잰다.
-    for (final (width, circleSide, circleHeight) in [
-      (320.0, 31.2, 29.1),
-      (360.0, 31.8, 31.8),
-    ]) {
+    for (final (width, circleDiameter) in [(320.0, 29.1), (360.0, 31.8)]) {
       for (final scale in [1.3, 1.5, 2.0]) {
         testWidgets('주변역 캡슐 ${width}dp 글자 $scale배 마크는 캡슐 안에서 멈춘다', (
           tester,
@@ -732,8 +726,9 @@ void main() {
           }
 
           final (circleCapsule, circle) = await composedBar(circleLine);
-          expect(circle.width, closeTo(circleSide, 0.05));
-          expect(circle.height, closeTo(circleHeight, 0.05));
+          expect(circle.width, closeTo(circleDiameter, 0.05));
+          expect(circle.height, closeTo(circleDiameter, 0.05));
+          expect(circle.width, closeTo(circle.height, 0.05));
           expect(circle.top, greaterThanOrEqualTo(circleCapsule.top));
           expect(circle.bottom, lessThanOrEqualTo(circleCapsule.bottom));
 

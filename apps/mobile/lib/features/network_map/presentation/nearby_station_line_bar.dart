@@ -100,7 +100,10 @@ class NearbyStationLineBar extends StatelessWidget {
         final baseCenterWidth = barWidth * 0.37069;
         final capsuleHeight = baseCenterWidth * 41 / 129;
         final hitHeight = capsuleHeight < 48.0 ? 48.0 : capsuleHeight;
-        final badgeDiameter = (capsuleHeight * 0.62).clamp(24.0, 28.0);
+        final badgeDiameter = math.min(
+          (capsuleHeight * 0.62).clamp(24.0, 28.0),
+          (capsuleHeight - 6.0) / lineMarkFixedChromeMaxTextScale,
+        );
         // 알약 마크는 같은 높이 원보다 훨씬 넓어 캡슐 안 이름 자리를 먹는다.
         // 이름이 줄어들지 않게 알약만 더 낮게 그린다.
         final badgeSize = isLineMarkCircle(badgeText)
