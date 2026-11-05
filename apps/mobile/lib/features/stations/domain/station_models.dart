@@ -363,14 +363,6 @@ class StationContact {
     required this.phone,
   });
 
-  factory StationContact.fromJson(Map<String, Object?> json) {
-    return StationContact(
-      lineId: _requiredString(json, 'lineId'),
-      lineName: _stringOrEmpty(json, 'lineName'),
-      phone: _requiredString(json, 'phone'),
-    );
-  }
-
   final String lineId;
   final String lineName;
   final String phone;
@@ -403,7 +395,6 @@ class StationDetail {
     if (rawLines is! List<Object?>) {
       throw const FormatException('Invalid station detail lines payload');
     }
-    final rawContacts = json['contacts'];
 
     return StationDetail(
       id: _requiredString(json, 'id'),
@@ -426,18 +417,6 @@ class StationDetail {
             return StationSearchLine.fromJson(item);
           })
           .toList(growable: false),
-      contacts: rawContacts is List<Object?>
-          ? rawContacts
-                .map((item) {
-                  if (item is! Map<String, Object?>) {
-                    throw const FormatException(
-                      'Invalid station detail contact payload',
-                    );
-                  }
-                  return StationContact.fromJson(item);
-                })
-                .toList(growable: false)
-          : const [],
     );
   }
 

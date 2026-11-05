@@ -403,11 +403,7 @@ void main() {
           lineName: '수도권 3호선',
           phone: '02-6110-3311',
         ),
-        StationContact(
-          lineId: 'seoul-4',
-          lineName: '수도권 4호선',
-          phone: '02-6110-4231',
-        ),
+        StationContact(lineId: 'seoul-4', phone: '02-6110-4231'),
       ],
     );
 
@@ -433,6 +429,23 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(launched, ['tel:02-6110-3281']);
+    });
+
+    testWidgets('전화 실행 중 플랫폼 예외가 발생해도 크래시하지 않고 오류를 보고한다', (tester) async {
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(urlLauncherChannel, (call) async {
+            throw PlatformException(code: 'LAUNCH_FAILED', message: 'failed');
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(urlLauncherChannel, null);
+      });
+
+      await _pump(tester, detail: singleContactStation);
+      await tester.tap(find.text('역무실 전화 02-6110-3281'));
+      await tester.pumpAndSettle();
+
+      expect(tester.takeException(), isA<PlatformException>());
     });
 
     testWidgets('환승역 복수 노선 연락처는 노선명과 함께 목록으로 표시하고 탭하면 해당 번호로 연결한다', (
