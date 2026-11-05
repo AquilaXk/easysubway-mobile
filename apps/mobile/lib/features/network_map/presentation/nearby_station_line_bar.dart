@@ -26,6 +26,8 @@ class NearbyStationLineBar extends StatelessWidget {
     super.key,
   });
 
+  static const _capsuleBorderWidth = 3.0;
+
   final String? leftName;
   final String? rightName;
   final String stationName;
@@ -100,7 +102,15 @@ class NearbyStationLineBar extends StatelessWidget {
         final baseCenterWidth = barWidth * 0.37069;
         final capsuleHeight = baseCenterWidth * 41 / 129;
         final hitHeight = capsuleHeight < 48.0 ? 48.0 : capsuleHeight;
-        final badgeDiameter = (capsuleHeight * 0.62).clamp(24.0, 28.0);
+        final effectiveTextScale = scaledLineMarkSize(
+          context,
+          1.0,
+          maxTextScale: lineMarkFixedChromeMaxTextScale,
+        );
+        final badgeDiameter = math.min(
+          (capsuleHeight * 0.62).clamp(24.0, 28.0),
+          (capsuleHeight - _capsuleBorderWidth * 2) / effectiveTextScale,
+        );
         // 알약 마크는 같은 높이 원보다 훨씬 넓어 캡슐 안 이름 자리를 먹는다.
         // 이름이 줄어들지 않게 알약만 더 낮게 그린다.
         final badgeSize = isLineMarkCircle(badgeText)
@@ -182,7 +192,10 @@ class NearbyStationLineBar extends StatelessWidget {
                           decoration: BoxDecoration(
                             color: EasySubwayAccessibleColors.surfaceDefault,
                             borderRadius: BorderRadius.circular(24),
-                            border: Border.all(color: lineColor, width: 3),
+                            border: Border.all(
+                              color: lineColor,
+                              width: _capsuleBorderWidth,
+                            ),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,

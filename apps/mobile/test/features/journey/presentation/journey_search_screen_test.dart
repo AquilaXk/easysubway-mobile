@@ -24,6 +24,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/journey_result_fixture.dart';
+
 void main() {
   test('Home Journey station resolver는 exact ID만 이름으로 해소한다', () async {
     final resolver = journeyAlarmStationNameResolver(
@@ -510,7 +512,7 @@ void main() {
     await tester.pump();
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
-    session.complete(_sessionResponse());
+    session.complete(buildFixtureJourneySessionResponse());
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('journey-summary')), findsOneWidget);
   });
@@ -1638,7 +1640,7 @@ Future<void> _pumpScreen(
     MaterialApp(
       home: JourneySearchScreen(
         repository: repository,
-        attestor: const _Attestor(),
+        attestor: const FixtureIntegrityAttestor(),
         draft: draft ?? _completeDraft(),
         mobilityType: mobilityType,
         onShellBackToHome: () {},
@@ -1684,13 +1686,6 @@ class _TransferGuideRepository implements TransferGuideRepository {
   Future<List<TransferGuideSource>> loadSources() async => const [];
 }
 
-class _Attestor implements JourneyV3IntegrityAttestor {
-  const _Attestor();
-
-  @override
-  Future<String> attest(String requestHash) async => 'integrity-token';
-}
-
 class _Repository implements JourneyRepository {
   int sessionRequests = 0;
   int failuresRemaining = 0;
@@ -1712,7 +1707,8 @@ class _Repository implements JourneyRepository {
     JourneySessionRequest request,
   ) async {
     sessionRequests++;
-    return sessionCompleter?.future ?? _sessionResponse(responseNow);
+    return sessionCompleter?.future ??
+        buildFixtureJourneySessionResponse(issuedAt: responseNow);
   }
 
   @override
@@ -1761,39 +1757,15 @@ class _Repository implements JourneyRepository {
       );
     }
     final responseTime = responseNow ?? DateTime.utc(2026, 8, 12);
-    return JourneyProfileSuccess(
-      contractVersion: 'JOURNEY_PROFILE_V1',
-      requestId: request.requestId,
-      queryId: 'profile-query-1',
-      calculatedAt: responseTime,
-      validUntil: responseTime.add(const Duration(minutes: 5)),
-      temporalQuery: request.temporalQuery,
-      serviceDayCutoff: '03:00',
-      sourceIdentity: const JourneyProfileSourceIdentity(
-        routeBundleId: 'bundle-1',
-        routeBundleGeneration: 'gen-1',
-        routeBundleSha256:
-            'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
-        timetableSnapshotId: 'timetable-1',
-        accessibilitySnapshotId: 'accessibility-1',
-        realtimeSnapshotId: null,
-      ),
+    return buildFixtureJourneyProfileSuccess(
+      request,
       journeys: journeyIds
-          .map(
-            (id) => JourneyProfileJourneyCandidate(
-              journeyId: id,
-              readyAt: responseTime,
-              journeyStartTime: responseTime,
-              firstBoardingTime: responseTime,
-              arrivalAtPlatform: responseTime.add(const Duration(minutes: 5)),
-              arrivalAtDestination: responseTime.add(
-                const Duration(minutes: 5),
-              ),
-              objectiveTags: const ['PROFILE_TEST'],
-              journey: _journey(id, responseTime),
-            ),
-          )
-          .toList(),
+          .map((id) => _journey(id, responseTime, specLastStop: specLastStop))
+          .toList(growable: false),
+      now: responseTime,
+      queryId: 'profile-query-1',
+      objectiveTags: const ['PROFILE_TEST'],
+      candidateArrivalOffset: const Duration(minutes: 5),
     );
   }
 
@@ -1825,16 +1797,6 @@ JourneyRejectedFailure _accessibilityConstraintRejection() =>
       ),
     );
 
-JourneySessionResponse _sessionResponse([DateTime? issuedAt]) {
-  final now = issuedAt ?? DateTime.utc(2026, 8, 12);
-  return JourneySessionResponse(
-    token: 'session-token',
-    scope: JourneySessionScope.journeyV3,
-    issuedAt: now,
-    expiresAt: now.add(const Duration(minutes: 5)),
-  );
-}
-
 JourneySearchSuccess _success(
   JourneySearchRequest request,
   List<String> journeyIds, {
@@ -1847,35 +1809,13 @@ JourneySearchSuccess _success(
       ),
 }) {
   final responseNow = now ?? DateTime.utc(2026, 8, 12);
-  return JourneySearchSuccess(
-    contractVersion: JourneyContractVersion.journeySearchV3,
-    requestId: request.requestId,
-    queryId: 'query-1',
-    calculatedAt: responseNow,
-    validUntil: responseNow.add(const Duration(minutes: 5)),
-    effectiveDepartureTime: responseNow,
-    serviceDate: JourneyDate.parse('2026-08-12'),
-    serviceTimezone: 'Asia/Seoul',
-    serviceDayCutoff: '03:00',
-    stairFreeAlternative: stairFreeAlternative,
-    sourceIdentity: JourneySourceIdentity(
-      routeBundleId: 'bundle-1',
-      routeBundleSha256: 'a' * 64,
-      timetableSnapshotId: 'timetable-1',
-      accessibilitySnapshotId: 'accessibility-1',
-      realtimeSnapshotId: null,
-    ),
-    requestPolicy: JourneyRequestPolicy(
-      timePolicy: request.timePolicy,
-      walkingPace: request.walkingPace,
-      mobilityProfile: request.mobilityProfile,
-      constraintMode: request.constraintMode,
-      maxTransfers: request.maxTransfers,
-      alternativeCount: request.alternativeCount,
-    ),
+  return buildFixtureJourneySearchSuccess(
+    request,
     journeys: journeyIds
         .map((id) => _journey(id, responseNow, specLastStop: specLastStop))
         .toList(growable: false),
+    now: responseNow,
+    stairFreeAlternative: stairFreeAlternative,
   );
 }
 

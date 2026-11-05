@@ -68,48 +68,52 @@ class FixtureTransferGuideRepository implements TransferGuideRepository {
   Future<List<TransferGuideSource>> loadSources() async => const [];
 }
 
-class FixtureJourneyRepository implements JourneyRepository {
-  FixtureJourneyRepository({
-    DateTime? now,
-    this.stairFreeAlternative = const JourneyStairFreeAlternative(
-      status: JourneyStairFreeAlternativeStatus.included,
-      facilityStatus: JourneyStairFreeFacilityStatus.applied,
-    ),
-  }) : now = now ?? DateTime.utc(2026, 8, 12);
-
-  final DateTime now;
-  final JourneyStairFreeAlternative stairFreeAlternative;
-
-  @override
-  Future<JourneySessionResponse> issueSession(
-    JourneySessionRequest request,
-  ) async => JourneySessionResponse(
-    token: 'session-token',
+JourneySessionResponse buildFixtureJourneySessionResponse({
+  DateTime? issuedAt,
+  Duration ttl = const Duration(minutes: 5),
+  String token = 'session-token',
+}) {
+  final basis = issuedAt ?? DateTime.utc(2026, 8, 12);
+  return JourneySessionResponse(
+    token: token,
     scope: JourneySessionScope.journeyV3,
-    issuedAt: now,
-    expiresAt: now.add(const Duration(minutes: 5)),
+    issuedAt: basis,
+    expiresAt: basis.add(ttl),
   );
+}
 
-  @override
-  Future<JourneySearchSuccess> searchJourneys(
-    JourneySearchRequest request, {
-    required String sessionToken,
-  }) async => JourneySearchSuccess(
+JourneySearchSuccess buildFixtureJourneySearchSuccess(
+  JourneySearchRequest request, {
+  required List<Journey> journeys,
+  DateTime? now,
+  String queryId = 'query-1',
+  String? serviceDate,
+  JourneyStairFreeAlternative? stairFreeAlternative =
+      const JourneyStairFreeAlternative(
+        status: JourneyStairFreeAlternativeStatus.included,
+        facilityStatus: JourneyStairFreeFacilityStatus.applied,
+      ),
+  String routeBundleId = 'bundle-1',
+  String timetableSnapshotId = 'timetable-1',
+  String accessibilitySnapshotId = 'accessibility-1',
+}) {
+  final basis = now ?? DateTime.utc(2026, 8, 12);
+  return JourneySearchSuccess(
     contractVersion: JourneyContractVersion.journeySearchV3,
     requestId: request.requestId,
-    queryId: 'query-fixture',
-    calculatedAt: now,
-    validUntil: now.add(const Duration(minutes: 5)),
-    effectiveDepartureTime: now,
-    serviceDate: JourneyDate.parse('2026-08-12'),
+    queryId: queryId,
+    calculatedAt: basis,
+    validUntil: basis.add(const Duration(minutes: 5)),
+    effectiveDepartureTime: basis,
+    serviceDate: JourneyDate.parse(serviceDate ?? '2026-08-12'),
     serviceTimezone: 'Asia/Seoul',
     serviceDayCutoff: '03:00',
     stairFreeAlternative: stairFreeAlternative,
     sourceIdentity: JourneySourceIdentity(
-      routeBundleId: 'bundle-fixture',
+      routeBundleId: routeBundleId,
       routeBundleSha256: 'a' * 64,
-      timetableSnapshotId: 'timetable-fixture',
-      accessibilitySnapshotId: 'accessibility-fixture',
+      timetableSnapshotId: timetableSnapshotId,
+      accessibilitySnapshotId: accessibilitySnapshotId,
       realtimeSnapshotId: null,
     ),
     requestPolicy: JourneyRequestPolicy(
@@ -120,33 +124,122 @@ class FixtureJourneyRepository implements JourneyRepository {
       maxTransfers: request.maxTransfers,
       alternativeCount: request.alternativeCount,
     ),
+    journeys: journeys,
+  );
+}
+
+JourneyProfileSuccess buildFixtureJourneyProfileSuccess(
+  JourneyProfileRequest request, {
+  required List<Journey> journeys,
+  DateTime? now,
+  String queryId = 'profile-1',
+  List<String> objectiveTags = const ['LAST_CONNECTION'],
+  Duration? candidateArrivalOffset,
+}) {
+  final basis = now ?? DateTime.utc(2026, 8, 12);
+  return JourneyProfileSuccess(
+    contractVersion: 'JOURNEY_PROFILE_V1',
+    requestId: request.requestId,
+    queryId: queryId,
+    calculatedAt: basis,
+    validUntil: basis.add(const Duration(minutes: 5)),
+    temporalQuery: request.temporalQuery,
+    serviceDayCutoff: '03:00',
+    sourceIdentity: JourneyProfileSourceIdentity(
+      routeBundleId: 'bundle-1',
+      routeBundleGeneration: 'gen-1',
+      routeBundleSha256: 'a' * 64,
+      timetableSnapshotId: 'timetable-1',
+      accessibilitySnapshotId: 'accessibility-1',
+      realtimeSnapshotId: null,
+    ),
     journeys: [
-      _transferJourney(
-        now,
-        id: fixtureStairFreeJourneyId,
-        extraMinutes: 0,
-        stairFree: true,
-        categories: const [
-          JourneyAlternativeCategory.fastest,
-          JourneyAlternativeCategory.stairFree,
-        ],
-        alightingCarDoors: _alightingCarDoors,
-      ),
-      _transferJourney(
-        now,
-        id: fixtureSlowerJourneyId,
-        extraMinutes: 6,
-        stairFree: false,
-        categories: const [JourneyAlternativeCategory.fewestTransfers],
-      ),
+      for (final journey in journeys)
+        JourneyProfileJourneyCandidate(
+          journeyId: journey.journeyId,
+          readyAt: candidateArrivalOffset == null
+              ? journey.plannedDepartureTime
+              : basis,
+          journeyStartTime: candidateArrivalOffset == null
+              ? journey.plannedDepartureTime
+              : basis,
+          firstBoardingTime: candidateArrivalOffset == null
+              ? journey.plannedDepartureTime
+              : basis,
+          arrivalAtPlatform: candidateArrivalOffset == null
+              ? journey.plannedArrivalTime
+              : basis.add(candidateArrivalOffset),
+          arrivalAtDestination: candidateArrivalOffset == null
+              ? journey.plannedArrivalTime
+              : basis.add(candidateArrivalOffset),
+          objectiveTags: objectiveTags,
+          journey: journey,
+        ),
     ],
   );
+}
+
+class FixtureJourneyRepository implements JourneyRepository {
+  FixtureJourneyRepository({
+    DateTime? now,
+    List<Journey>? journeys,
+    this.serviceDate,
+    this.stairFreeAlternative = const JourneyStairFreeAlternative(
+      status: JourneyStairFreeAlternativeStatus.included,
+      facilityStatus: JourneyStairFreeFacilityStatus.applied,
+    ),
+    this.profileObjectiveTags = const ['LAST_CONNECTION'],
+    this.enableProfile = false,
+  }) : now = now ?? DateTime.utc(2026, 8, 12),
+       journeys =
+           journeys ??
+           _defaultFixtureJourneys(now ?? DateTime.utc(2026, 8, 12));
+
+  final DateTime now;
+  List<Journey> journeys;
+  final String? serviceDate;
+  final JourneyStairFreeAlternative? stairFreeAlternative;
+  final List<String> profileObjectiveTags;
+  final bool enableProfile;
+  final List<JourneySearchRequest> requests = <JourneySearchRequest>[];
+  final List<JourneyProfileRequest> profileRequests = <JourneyProfileRequest>[];
+
+  @override
+  Future<JourneySessionResponse> issueSession(
+    JourneySessionRequest request,
+  ) async => buildFixtureJourneySessionResponse(issuedAt: now);
+
+  @override
+  Future<JourneySearchSuccess> searchJourneys(
+    JourneySearchRequest request, {
+    required String sessionToken,
+  }) async {
+    requests.add(request);
+    return buildFixtureJourneySearchSuccess(
+      request,
+      journeys: journeys,
+      now: now,
+      serviceDate: serviceDate,
+      stairFreeAlternative: stairFreeAlternative,
+    );
+  }
 
   @override
   Future<JourneyProfileSuccess> profileJourneys(
     JourneyProfileRequest request, {
     required String sessionToken,
-  }) => throw UnimplementedError('접근성 fixture는 프로필 검색을 쓰지 않는다.');
+  }) async {
+    if (!enableProfile) {
+      throw UnimplementedError('접근성 fixture는 프로필 검색을 쓰지 않는다.');
+    }
+    profileRequests.add(request);
+    return buildFixtureJourneyProfileSuccess(
+      request,
+      journeys: journeys,
+      now: now,
+      objectiveTags: profileObjectiveTags,
+    );
+  }
 
   @override
   Future<StationTimetableSearchSuccess> searchStationTimetables(
@@ -154,6 +247,27 @@ class FixtureJourneyRepository implements JourneyRepository {
     required String sessionToken,
   }) => throw UnimplementedError('접근성 fixture는 역 시간표를 쓰지 않는다.');
 }
+
+List<Journey> _defaultFixtureJourneys(DateTime now) => <Journey>[
+  _transferJourney(
+    now,
+    id: fixtureStairFreeJourneyId,
+    extraMinutes: 0,
+    stairFree: true,
+    categories: const [
+      JourneyAlternativeCategory.fastest,
+      JourneyAlternativeCategory.stairFree,
+    ],
+    alightingCarDoors: _alightingCarDoors,
+  ),
+  _transferJourney(
+    now,
+    id: fixtureSlowerJourneyId,
+    extraMinutes: 6,
+    stairFree: false,
+    categories: const [JourneyAlternativeCategory.fewestTransfers],
+  ),
+];
 
 JourneyRideStop _stop(
   String stationId, {

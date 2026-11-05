@@ -4,14 +4,15 @@ import 'package:easysubway_mobile/accessible_design.dart';
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
 import 'package:easysubway_mobile/core/ui/route_role_dot.dart';
 import 'package:easysubway_mobile/design_tokens.dart';
-import 'package:easysubway_mobile/features/journey/application/journey_search_controller.dart';
-import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
+import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/journey/presentation/result/journey_result_widgets.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../../support/journey_result_fixture.dart';
 
 // 시각은 KST로 적고 UTC로 바꿔 넣는다. 기대값은 손으로 적는다.
 DateTime _kst(int day, int hour, int minute) => DateTime.utc(
@@ -165,110 +166,14 @@ Journey _fewestTransfers() => Journey(
   alternativeCategories: const [JourneyAlternativeCategory.fewestTransfers],
 );
 
-class _Attestor implements JourneyV3IntegrityAttestor {
-  const _Attestor();
-
-  @override
-  Future<String> attest(String requestHash) async => 'integrity-token';
-}
-
-class _Repository implements JourneyRepository {
-  _Repository(this.journeys);
-
-  List<Journey> journeys;
-  final requests = <JourneySearchRequest>[];
-  final profileRequests = <JourneyProfileRequest>[];
-
-  @override
-  Future<JourneySessionResponse> issueSession(
-    JourneySessionRequest request,
-  ) async => JourneySessionResponse(
-    token: 'session-token',
-    scope: JourneySessionScope.journeyV3,
-    issuedAt: _basis,
-    expiresAt: _basis.add(const Duration(minutes: 5)),
-  );
-
-  @override
-  Future<JourneySearchSuccess> searchJourneys(
-    JourneySearchRequest request, {
-    required String sessionToken,
-  }) async {
-    requests.add(request);
-    return JourneySearchSuccess(
-      contractVersion: JourneyContractVersion.journeySearchV3,
-      requestId: request.requestId,
-      queryId: 'query-1',
-      calculatedAt: _basis,
-      validUntil: _basis.add(const Duration(minutes: 5)),
-      effectiveDepartureTime: _basis,
-      serviceDate: JourneyDate.parse('2026-10-24'),
-      serviceTimezone: 'Asia/Seoul',
-      serviceDayCutoff: '03:00',
-      stairFreeAlternative: null,
-      sourceIdentity: JourneySourceIdentity(
-        routeBundleId: 'bundle-1',
-        routeBundleSha256: 'a' * 64,
-        timetableSnapshotId: 'timetable-1',
-        accessibilitySnapshotId: 'accessibility-1',
-        realtimeSnapshotId: null,
-      ),
-      requestPolicy: JourneyRequestPolicy(
-        timePolicy: request.timePolicy,
-        walkingPace: request.walkingPace,
-        mobilityProfile: request.mobilityProfile,
-        constraintMode: request.constraintMode,
-        maxTransfers: request.maxTransfers,
-        alternativeCount: request.alternativeCount,
-      ),
+FixtureJourneyRepository _repository(List<Journey> journeys) =>
+    FixtureJourneyRepository(
+      now: _basis,
       journeys: journeys,
+      serviceDate: '2026-10-24',
+      stairFreeAlternative: null,
+      enableProfile: true,
     );
-  }
-
-  @override
-  Future<JourneyProfileSuccess> profileJourneys(
-    JourneyProfileRequest request, {
-    required String sessionToken,
-  }) async {
-    profileRequests.add(request);
-    return JourneyProfileSuccess(
-      contractVersion: 'JOURNEY_PROFILE_V1',
-      requestId: request.requestId,
-      queryId: 'profile-1',
-      calculatedAt: _basis,
-      validUntil: _basis.add(const Duration(minutes: 5)),
-      temporalQuery: request.temporalQuery,
-      serviceDayCutoff: '03:00',
-      sourceIdentity: JourneyProfileSourceIdentity(
-        routeBundleId: 'bundle-1',
-        routeBundleGeneration: 'gen-1',
-        routeBundleSha256: 'a' * 64,
-        timetableSnapshotId: 'timetable-1',
-        accessibilitySnapshotId: 'accessibility-1',
-        realtimeSnapshotId: null,
-      ),
-      journeys: [
-        for (final journey in journeys)
-          JourneyProfileJourneyCandidate(
-            journeyId: journey.journeyId,
-            readyAt: journey.plannedDepartureTime,
-            journeyStartTime: journey.plannedDepartureTime,
-            firstBoardingTime: journey.plannedDepartureTime,
-            arrivalAtPlatform: journey.plannedArrivalTime,
-            arrivalAtDestination: journey.plannedArrivalTime,
-            objectiveTags: const ['LAST_CONNECTION'],
-            journey: journey,
-          ),
-      ],
-    );
-  }
-
-  @override
-  Future<StationTimetableSearchSuccess> searchStationTimetables(
-    StationTimetableSearchRequest request, {
-    required String sessionToken,
-  }) => throw UnimplementedError('경로 화면은 역 시간표를 직접 부르지 않는다.');
-}
 
 RouteDraft _draft() => RouteDraft(
   origin: const RouteDraftStation(
@@ -288,7 +193,7 @@ RouteDraft _draft() => RouteDraft(
 
 Future<void> _pump(
   WidgetTester tester,
-  _Repository repository, {
+  FixtureJourneyRepository repository, {
   double textScale = 1.0,
   double width = 411,
   ValueChanged<String>? onOpenStation,
@@ -309,7 +214,7 @@ Future<void> _pump(
       ),
       home: JourneySearchScreen(
         repository: repository,
-        attestor: const _Attestor(),
+        attestor: const FixtureIntegrityAttestor(),
         draft: _draft(),
         mobilityType: mobilityType,
         onShellBackToHome: () {},
@@ -337,7 +242,7 @@ void main() {
   group('입력 카드(7-46)', () {
     testWidgets('출발은 초록 점, 도착은 빨강 점이고 노선 마크와 역할 배지가 없다', (tester) async {
       final semantics = tester.ensureSemantics();
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
 
       final card = find.byKey(const Key('journey-route-input-card'));
       expect(card, findsOneWidget);
@@ -370,7 +275,7 @@ void main() {
 
   group('시간 줄과 출발 시각 시트(7-49, 7-52)', () {
     testWidgets('지금 출발은 오늘 HH:MM 출발이고 다음열차는 결과 전에는 누를 수 없다', (tester) async {
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
 
       expect(find.text('오늘 00:36 출발'), findsOneWidget);
       expect(find.text('이전열차'), findsNothing);
@@ -383,7 +288,7 @@ void main() {
     });
 
     testWidgets('다음열차는 고른 경로 첫 열차 출발 1분 뒤로 다시 검색한다', (tester) async {
-      final repository = _Repository([_morning()]);
+      final repository = _repository([_morning()]);
       await _pump(tester, repository);
       await _search(tester);
 
@@ -401,7 +306,7 @@ void main() {
     });
 
     testWidgets('시트는 서버가 받는 출발 시각과 막차만 고르게 한다', (tester) async {
-      final repository = _Repository([_morning()]);
+      final repository = _repository([_morning()]);
       await _pump(tester, repository);
 
       await tester.tap(find.byKey(const Key('journey-departure-bar-time')));
@@ -450,7 +355,7 @@ void main() {
     });
 
     testWidgets('확인은 휠에서 고른 날짜와 시각으로 출발 시각을 정한다', (tester) async {
-      final repository = _Repository([_morning()]);
+      final repository = _repository([_morning()]);
       await _pump(tester, repository);
       await tester.tap(find.byKey(const Key('journey-departure-bar-time')));
       await tester.pumpAndSettle();
@@ -476,7 +381,7 @@ void main() {
       tester,
     ) async {
       final semantics = tester.ensureSemantics();
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
       final bar = find.byKey(const Key('journey-departure-bar-time'));
       final lastTrain = find.byKey(
         const Key('journey-departure-sheet-mode-lastTrain'),
@@ -533,7 +438,7 @@ void main() {
       '00:36 심야 막차 모드는 현재 운행일(전날)을 오늘로 표시하고 모드 전환 시 각 모드가 고른 날짜를 지킨다',
       (tester) async {
         final semantics = tester.ensureSemantics();
-        await _pump(tester, _Repository([_morning()]));
+        await _pump(tester, _repository([_morning()]));
         final bar = find.byKey(const Key('journey-departure-bar-time'));
         final departAtMode = find.byKey(
           const Key('journey-departure-sheet-mode-departAt'),
@@ -570,7 +475,7 @@ void main() {
 
     testWidgets('휠은 스크린리더의 올리기·내리기로 한 칸씩 움직이고 오전·오후를 바꿀 수 있다', (tester) async {
       final semantics = tester.ensureSemantics();
-      final repository = _Repository([_morning()]);
+      final repository = _repository([_morning()]);
       await _pump(tester, repository);
       await tester.tap(find.byKey(const Key('journey-departure-bar-time')));
       await tester.pumpAndSettle();
@@ -600,7 +505,7 @@ void main() {
     });
 
     testWidgets('지금 출발은 지금 출발 검색으로 돌아간다', (tester) async {
-      final repository = _Repository([_morning()]);
+      final repository = _repository([_morning()]);
       await _pump(tester, repository);
       await tester.tap(find.byKey(const Key('journey-departure-bar-time')));
       await tester.pumpAndSettle();
@@ -620,7 +525,7 @@ void main() {
   group('기준 탭과 요약(7-49)', () {
     testWidgets('탭은 최단시간·최소환승이고 최저요금은 없다', (tester) async {
       final semantics = tester.ensureSemantics();
-      await _pump(tester, _Repository([_morning(), _fewestTransfers()]));
+      await _pump(tester, _repository([_morning(), _fewestTransfers()]));
       await _search(tester);
 
       expect(find.text('최단시간'), findsOneWidget);
@@ -656,7 +561,7 @@ void main() {
     });
 
     testWidgets('막차 탭은 지금 운행일(03:00 경계)의 막차를 검색한다', (tester) async {
-      final repository = _Repository([_morning()]);
+      final repository = _repository([_morning()]);
       await _pump(tester, repository);
       await _search(tester);
 
@@ -671,7 +576,7 @@ void main() {
     });
 
     testWidgets('요약은 큰 총시간, 오전 시각 범위와 운임 한 줄이다', (tester) async {
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
       await _search(tester);
 
       final summary = find.byKey(const Key('journey-summary'));
@@ -691,7 +596,7 @@ void main() {
     });
 
     testWidgets('운임이 없으면 운임 칸을 숨긴다', (tester) async {
-      await _pump(tester, _Repository([_morning(fare: _unavailableFare)]));
+      await _pump(tester, _repository([_morning(fare: _unavailableFare)]));
       await _search(tester);
 
       final summary = find.byKey(const Key('journey-summary'));
@@ -706,7 +611,7 @@ void main() {
     });
 
     testWidgets('구간 막대는 위에 출발 시각, 아래에 승차역을 노선 글자색으로 쓴다', (tester) async {
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
       await _search(tester);
 
       final bar = find.byKey(const Key('journey-segment-bar'));
@@ -746,7 +651,7 @@ void main() {
 
   group('상세 타임라인(7-51)', () {
     testWidgets('기준 시각 줄과 승차·하차·환승 단계를 서버 값으로만 그린다', (tester) async {
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
       await _search(tester);
 
       expect(find.text('오전 12:36 기준 (출발 대기 4시간 35분)'), findsOneWidget);
@@ -768,7 +673,7 @@ void main() {
     });
 
     testWidgets('정차역을 펼치면 시각과 역 이름이 나온다', (tester) async {
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
       await _search(tester);
 
       final toggle = find.byKey(const Key('journey-ride-stops-toggle-0'));
@@ -785,7 +690,7 @@ void main() {
     testWidgets('열차 카드의 남은 분은 실시간 출발이 있을 때만 빨강으로 쓴다', (tester) async {
       await _pump(
         tester,
-        _Repository([_morning(realtimeDeparture: _kst(24, 0, 47))]),
+        _repository([_morning(realtimeDeparture: _kst(24, 0, 47))]),
       );
       await _search(tester);
 
@@ -804,7 +709,7 @@ void main() {
       final timetables = <String>[];
       await _pump(
         tester,
-        _Repository([_morning()]),
+        _repository([_morning()]),
         onOpenStation: opened.add,
         onOpenStationTimetable: timetables.add,
       );
@@ -822,7 +727,7 @@ void main() {
     });
 
     testWidgets('연결할 화면이 없으면 칩을 그리지 않는다', (tester) async {
-      await _pump(tester, _Repository([_morning()]));
+      await _pump(tester, _repository([_morning()]));
       await _search(tester);
 
       expect(find.byKey(const Key('journey-ride-realtime-0')), findsNothing);
@@ -833,7 +738,7 @@ void main() {
   testWidgets('글자 2.0배에서 결과와 상세가 넘치지 않는다', (tester) async {
     await _pump(
       tester,
-      _Repository([_morning(realtimeDeparture: _kst(24, 0, 47))]),
+      _repository([_morning(realtimeDeparture: _kst(24, 0, 47))]),
       textScale: 2.0,
       width: 360,
       onOpenStation: (_) {},

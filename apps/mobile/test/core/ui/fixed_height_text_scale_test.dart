@@ -1,8 +1,5 @@
 import 'package:easysubway_mobile/core/external/kakao_map_launcher.dart';
 import 'package:easysubway_mobile/core/ui/line_mark.dart';
-import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
-import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
-import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
 import 'package:easysubway_mobile/features/journey/presentation/journey_search_screen.dart';
 import 'package:easysubway_mobile/features/route_draft/domain/route_draft.dart';
 import 'package:easysubway_mobile/features/stations/application/station_detail_controller.dart';
@@ -13,6 +10,8 @@ import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart'
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import '../../support/journey_result_fixture.dart';
 
 Future<void> pumpAtScale(
   WidgetTester tester,
@@ -99,171 +98,101 @@ void _ignoreHorizontalOverflow() {
   };
 }
 
-class _BadgeAttestor implements JourneyV3IntegrityAttestor {
-  const _BadgeAttestor();
-
-  @override
-  Future<String> attest(String requestHash) async => 'integrity-token';
-}
-
-class _BadgeRepository implements JourneyRepository {
-  @override
-  Future<JourneySessionResponse> issueSession(
-    JourneySessionRequest request,
-  ) async {
-    final now = DateTime.utc(2026, 8, 12);
-    return JourneySessionResponse(
-      token: 'session-token',
-      scope: JourneySessionScope.journeyV3,
-      issuedAt: now,
-      expiresAt: now.add(const Duration(minutes: 5)),
-    );
-  }
-
-  @override
-  Future<JourneySearchSuccess> searchJourneys(
-    JourneySearchRequest request, {
-    required String sessionToken,
-  }) async {
-    final now = DateTime.utc(2026, 8, 12);
-    return JourneySearchSuccess(
-      contractVersion: JourneyContractVersion.journeySearchV3,
-      requestId: request.requestId,
-      queryId: 'query-1',
-      calculatedAt: now,
-      validUntil: now.add(const Duration(minutes: 5)),
-      effectiveDepartureTime: now,
-      serviceDate: JourneyDate.parse('2026-08-12'),
-      serviceTimezone: 'Asia/Seoul',
-      serviceDayCutoff: '03:00',
-      stairFreeAlternative: const JourneyStairFreeAlternative(
-        status: JourneyStairFreeAlternativeStatus.included,
-        facilityStatus: JourneyStairFreeFacilityStatus.applied,
+Journey _badgeJourney() {
+  final now = DateTime.utc(2026, 8, 12);
+  return Journey(
+    journeyId: 'journey-1',
+    status: JourneyStatus.found,
+    planSource: JourneyPlanSource.serverTimetableRaptor,
+    plannedDepartureTime: now,
+    plannedArrivalTime: now.add(const Duration(minutes: 20)),
+    realtimeDepartureTime: null,
+    realtimeArrivalTime: null,
+    durationSeconds: 1200,
+    transferCount: 1,
+    walkingDistanceMeters: 50,
+    timeSource: JourneyTimeSource.timetable,
+    accessibility: const JourneyAccessibility(
+      result: JourneyAccessibilityResult.verified,
+      stairFree: true,
+      reasonCodes: <String>[],
+    ),
+    legs: <JourneyLeg>[
+      const JourneyEntryLeg(
+        fromStationId: 'station-origin',
+        durationSeconds: 60,
       ),
-      sourceIdentity: JourneySourceIdentity(
-        routeBundleId: 'bundle-1',
-        routeBundleSha256: 'a' * 64,
-        timetableSnapshotId: 'timetable-1',
-        accessibilitySnapshotId: 'accessibility-1',
-        realtimeSnapshotId: null,
-      ),
-      requestPolicy: JourneyRequestPolicy(
-        timePolicy: request.timePolicy,
-        walkingPace: request.walkingPace,
-        mobilityProfile: request.mobilityProfile,
-        constraintMode: request.constraintMode,
-        maxTransfers: request.maxTransfers,
-        alternativeCount: request.alternativeCount,
-      ),
-      journeys: [
-        Journey(
-          journeyId: 'journey-1',
-          status: JourneyStatus.found,
-          planSource: JourneyPlanSource.serverTimetableRaptor,
-          plannedDepartureTime: now,
-          plannedArrivalTime: now.add(const Duration(minutes: 20)),
-          realtimeDepartureTime: null,
-          realtimeArrivalTime: null,
-          durationSeconds: 1200,
-          transferCount: 1,
-          walkingDistanceMeters: 50,
-          timeSource: JourneyTimeSource.timetable,
-          accessibility: const JourneyAccessibility(
-            result: JourneyAccessibilityResult.verified,
-            stairFree: true,
-            reasonCodes: <String>[],
+      JourneyRideLeg(
+        lineId: 'gyeongui-jungang',
+        tripId: 'trip-1',
+        directionStationId: 'station-direction',
+        fromStationId: 'station-origin',
+        toStationId: 'station-transfer',
+        plannedDepartureTime: now,
+        plannedArrivalTime: now.add(const Duration(minutes: 10)),
+        realtimeDepartureTime: null,
+        realtimeArrivalTime: null,
+        servicePattern: JourneyServicePattern.local,
+        stops: <JourneyRideStop>[
+          JourneyRideStop(
+            stationId: 'station-origin',
+            plannedArrivalTime: null,
+            plannedDepartureTime: now,
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
           ),
-          legs: <JourneyLeg>[
-            const JourneyEntryLeg(
-              fromStationId: 'station-origin',
-              durationSeconds: 60,
-            ),
-            JourneyRideLeg(
-              lineId: 'gyeongui-jungang',
-              tripId: 'trip-1',
-              directionStationId: 'station-direction',
-              fromStationId: 'station-origin',
-              toStationId: 'station-transfer',
-              plannedDepartureTime: now,
-              plannedArrivalTime: now.add(const Duration(minutes: 10)),
-              realtimeDepartureTime: null,
-              realtimeArrivalTime: null,
-              servicePattern: JourneyServicePattern.local,
-              stops: <JourneyRideStop>[
-                JourneyRideStop(
-                  stationId: 'station-origin',
-                  plannedArrivalTime: null,
-                  plannedDepartureTime: now,
-                  realtimeArrivalTime: null,
-                  realtimeDepartureTime: null,
-                ),
-                JourneyRideStop(
-                  stationId: 'station-transfer',
-                  plannedArrivalTime: now.add(const Duration(minutes: 10)),
-                  plannedDepartureTime: null,
-                  realtimeArrivalTime: null,
-                  realtimeDepartureTime: null,
-                ),
-              ],
-            ),
-            const JourneyTransferLeg(
-              fromStationId: 'station-transfer',
-              toStationId: 'station-destination',
-              durationSeconds: 120,
-            ),
-            JourneyRideLeg(
-              lineId: 'line-2',
-              tripId: 'trip-2',
-              directionStationId: 'station-direction',
-              fromStationId: 'station-transfer',
-              toStationId: 'station-destination',
-              plannedDepartureTime: now.add(const Duration(minutes: 12)),
-              plannedArrivalTime: now.add(const Duration(minutes: 18)),
-              realtimeDepartureTime: null,
-              realtimeArrivalTime: null,
-              servicePattern: JourneyServicePattern.local,
-              stops: <JourneyRideStop>[
-                JourneyRideStop(
-                  stationId: 'station-transfer',
-                  plannedArrivalTime: null,
-                  plannedDepartureTime: now.add(const Duration(minutes: 12)),
-                  realtimeArrivalTime: null,
-                  realtimeDepartureTime: null,
-                ),
-                JourneyRideStop(
-                  stationId: 'station-destination',
-                  plannedArrivalTime: now.add(const Duration(minutes: 18)),
-                  plannedDepartureTime: null,
-                  realtimeArrivalTime: null,
-                  realtimeDepartureTime: null,
-                ),
-              ],
-            ),
-            const JourneyExitLeg(
-              fromStationId: 'station-destination',
-              durationSeconds: 60,
-            ),
-          ],
-          fare: const JourneyFare(
-            status: JourneyFareStatus.unavailable,
-            sourceSnapshotIds: <String>[],
+          JourneyRideStop(
+            stationId: 'station-transfer',
+            plannedArrivalTime: now.add(const Duration(minutes: 10)),
+            plannedDepartureTime: null,
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
           ),
-        ),
-      ],
-    );
-  }
-
-  @override
-  Future<JourneyProfileSuccess> profileJourneys(
-    JourneyProfileRequest request, {
-    required String sessionToken,
-  }) async => throw UnimplementedError('badge test does not profile');
-
-  @override
-  Future<StationTimetableSearchSuccess> searchStationTimetables(
-    StationTimetableSearchRequest request, {
-    required String sessionToken,
-  }) async => throw UnimplementedError('badge test does not search timetables');
+        ],
+      ),
+      const JourneyTransferLeg(
+        fromStationId: 'station-transfer',
+        toStationId: 'station-destination',
+        durationSeconds: 120,
+      ),
+      JourneyRideLeg(
+        lineId: 'line-2',
+        tripId: 'trip-2',
+        directionStationId: 'station-direction',
+        fromStationId: 'station-transfer',
+        toStationId: 'station-destination',
+        plannedDepartureTime: now.add(const Duration(minutes: 12)),
+        plannedArrivalTime: now.add(const Duration(minutes: 18)),
+        realtimeDepartureTime: null,
+        realtimeArrivalTime: null,
+        servicePattern: JourneyServicePattern.local,
+        stops: <JourneyRideStop>[
+          JourneyRideStop(
+            stationId: 'station-transfer',
+            plannedArrivalTime: null,
+            plannedDepartureTime: now.add(const Duration(minutes: 12)),
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
+          ),
+          JourneyRideStop(
+            stationId: 'station-destination',
+            plannedArrivalTime: now.add(const Duration(minutes: 18)),
+            plannedDepartureTime: null,
+            realtimeArrivalTime: null,
+            realtimeDepartureTime: null,
+          ),
+        ],
+      ),
+      const JourneyExitLeg(
+        fromStationId: 'station-destination',
+        durationSeconds: 60,
+      ),
+    ],
+    fare: const JourneyFare(
+      status: JourneyFareStatus.unavailable,
+      sourceSnapshotIds: <String>[],
+    ),
+  );
 }
 
 void main() {
@@ -349,8 +278,8 @@ void main() {
         await pumpAtScale(
           tester,
           JourneySearchScreen(
-            repository: _BadgeRepository(),
-            attestor: const _BadgeAttestor(),
+            repository: FixtureJourneyRepository(journeys: [_badgeJourney()]),
+            attestor: const FixtureIntegrityAttestor(),
             draft: RouteDraft(
               origin: const RouteDraftStation(
                 id: 'station-origin',

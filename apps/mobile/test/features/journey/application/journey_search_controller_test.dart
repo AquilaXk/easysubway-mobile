@@ -5,6 +5,8 @@ import 'package:easysubway_mobile/features/journey/domain/journey_repository.dar
 import 'package:easysubway_mobile/generated/journey_v3/journey_v3_contract.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import '../../../support/journey_result_fixture.dart';
+
 void main() {
   test('검색은 V3 세션 한 번과 search 한 번만 실행하고 IDLE에서 SEARCHING으로 전이한다', () async {
     final repository = _Repository();
@@ -906,12 +908,7 @@ class _Repository implements JourneyRepository {
       _sessionCompleters.add(completer);
       return completer.future;
     }
-    return JourneySessionResponse(
-      token: 'session-token',
-      scope: JourneySessionScope.journeyV3,
-      issuedAt: DateTime.utc(2026, 8, 12),
-      expiresAt: DateTime.utc(2026, 8, 12, 0, 10),
-    );
+    return buildFixtureJourneySessionResponse(ttl: const Duration(minutes: 10));
   }
 
   @override
@@ -960,12 +957,7 @@ class _Repository implements JourneyRepository {
   void completeSessionAt(int index) {
     pendingSession = false;
     _sessionCompleters[index].complete(
-      JourneySessionResponse(
-        token: 'session-token',
-        scope: JourneySessionScope.journeyV3,
-        issuedAt: DateTime.utc(2026, 8, 12),
-        expiresAt: DateTime.utc(2026, 8, 12, 0, 10),
-      ),
+      buildFixtureJourneySessionResponse(ttl: const Duration(minutes: 10)),
     );
   }
 
