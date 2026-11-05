@@ -152,7 +152,7 @@ configurations.configureEach {
         force("org.apache.commons:commons-lang3:3.18.0")
         force("org.apache.httpcomponents:httpclient:4.5.13")
         // Flutter integration-test의 오래된 test-only transitive 보안 버전을 고정한다.
-        force("com.google.guava:guava:32.0.0-android", "junit:junit:4.13.2")
+        force("com.google.guava:guava:33.7.2-android", "junit:junit:4.13.2")
     }
 }
 

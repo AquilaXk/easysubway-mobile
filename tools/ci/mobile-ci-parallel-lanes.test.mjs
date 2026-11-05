@@ -42,6 +42,7 @@ const MOBILE_CONTRACT_STEPS = [
   "Run owned Node checks",
   "Run Journey V3 generator checks",
   "Install Flutter dependencies",
+  "Verify Drift generated code freshness",
   "Check format",
   "Analyze",
 ];
@@ -71,6 +72,7 @@ const ANDROID_BUILD_STEPS = [
   "Build debug APK",
   "Create ephemeral preflight key",
   "Build no-upload release AAB",
+  "Verify Android dependency lockfile freshness",
 ];
 
 // 개선 전 단일 Mobile CI job과 Android CI job이 실행하던 검증 단계. 설정 단계(Checkout 등)를
@@ -313,10 +315,34 @@ test("Android lane은 개선 전과 같은 debug APK·release AAB 검증 명령�
       "            --artifact-dir \"$RUNNER_TEMP/android-16kb-aab-evidence\"",
       "          node ../../tools/release/hash-android-bundle-payload.mjs \\",
       "            --aab build/app/outputs/bundle/release/app-release.aab",
+    ].join("\n"),
+  );
+  assert.equal(
+    stepBlock(build, "Verify Android dependency lockfile freshness"),
+    [
+      "      - name: Verify Android dependency lockfile freshness",
+      "        working-directory: apps/mobile/android",
+      "        run: |",
+      "          ./gradlew :app:dependencies --write-locks -q",
+      "          git diff --exit-code -- app/gradle.lockfile",
       "",
     ].join("\n"),
   );
   assert.match(stepBlock(build, "Create ephemeral preflight key"), /keytool -genkeypair -storetype PKCS12/u);
+});
+
+test("Mobile contracts lane은 Drift codegen 신선도를 format·analyze 전에 검증한다", () => {
+  const contracts = jobBlock("mobile-contracts");
+  assert.equal(
+    stepBlock(contracts, "Verify Drift generated code freshness"),
+    [
+      "      - name: Verify Drift generated code freshness",
+      "        working-directory: apps/mobile",
+      "        run: |",
+      "          dart run build_runner build --delete-conflicting-outputs",
+      "          git diff --exit-code -- lib test",
+    ].join("\n"),
+  );
 });
 
 test("Gradle·Flutter SDK·pub 캐시가 Flutter를 쓰는 모든 lane에 걸려 있다", () => {
