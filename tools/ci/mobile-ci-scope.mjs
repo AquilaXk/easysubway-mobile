@@ -21,6 +21,7 @@ const SKIP_ELIGIBLE_EXACT = new Set([
   ".github/pull_request_template.md",
   "README.md",
   "README.ko.md",
+  "SECURITY.md",
 ]);
 const SKIP_ELIGIBLE_PREFIXES = [".github/PULL_REQUEST_TEMPLATE/", ".github/ISSUE_TEMPLATE/"];
 const OTHER_WORKFLOW = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/u;

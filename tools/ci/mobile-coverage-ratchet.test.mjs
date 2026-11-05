@@ -175,7 +175,8 @@ test("Phase 2 baseline serializer, owner API, Flutter producer는 closed contrac
   assert.equal(serializeBaseline(baseline), baselineBytes.toString("utf8"));
   assert.throws(() => parseBaselineBytes(Buffer.from(baselineBytes.toString("utf8").replace('    {"path"', '     {"path"'))), /reviewed Phase 2 pin/i);
   assert.equal(validateOwnerIssueResponse(owner).number, 102);
-  for (const response of [{ ...owner, statusCode: 404 }, { ...owner, redirected: true }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"closed"}') }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open","pull_request":{}}') }]) assert.throws(() => validateOwnerIssueResponse(response));
+  assert.equal(validateOwnerIssueResponse({ ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"closed"}') }).state, "closed");
+  for (const response of [{ ...owner, statusCode: 404 }, { ...owner, redirected: true }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"invalid"}') }, { ...owner, body: Buffer.from('{"number":102,"html_url":"https://github.com/AquilaXk/easysubway-mobile/issues/102","state":"open","pull_request":{}}') }]) assert.throws(() => validateOwnerIssueResponse(response));
   assert.equal(flutterVersionFromMachine(Buffer.from('{"frameworkVersion":"3.44.0"}')), "3.44.0");
   for (const output of [Buffer.from("not json"), Buffer.from('{"frameworkVersion":"3.45.0"}'), Buffer.from('{"other":"3.44.0"}')]) assert.throws(() => flutterVersionFromMachine(output));
 });
