@@ -208,12 +208,7 @@ class NetworkMapLine {
         'NetworkMapLine requires non-empty id, name, and color',
       );
     }
-    return NetworkMapLine(
-      id: id,
-      name: name,
-      color: color,
-      region: region,
-    );
+    return NetworkMapLine(id: id, name: name, color: color, region: region);
   }
 
   static String _optionalString(Map<String, Object?> json, String key) {
