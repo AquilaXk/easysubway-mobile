@@ -577,4 +577,66 @@ void main() {
 
     expect(track.paths, ['M 0 0 L 10 0', 'M 20 0 L 30 0']);
   });
+
+  test('station_contacts 테이블이 없어도 역 상세 조회는 빈 연락처 목록을 반환한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    final repository = DriftStationRepository(database: database);
+
+    final detail = await repository.getStationDetail('station-sangnoksu');
+
+    expect(detail.contacts, isEmpty);
+  });
+
+  test('station_contacts 테이블이 있으면 역 상세에 노선 순서대로 역무실 연락처를 매핑한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      CREATE TABLE station_contacts (
+        station_id TEXT NOT NULL,
+        line_id TEXT NOT NULL,
+        phone TEXT NOT NULL,
+        phone_raw TEXT NOT NULL,
+        source_snapshot_id TEXT NOT NULL,
+        PRIMARY KEY (station_id, line_id)
+      )
+    ''');
+    await database.customStatement('''
+      INSERT INTO station_contacts (
+        station_id, line_id, phone, phone_raw, source_snapshot_id
+      )
+      VALUES
+        ('station-sadang', 'seoul-4', '02-6110-4331', '02-6110-4331', 'snap-1'),
+        ('station-sadang', 'seoul-2', '02-6110-2261', '02-6110-2261', 'snap-1'),
+        ('station-sangnoksu', 'seoul-4', '031-409-7788', '031-409-7788', 'snap-1')
+    ''');
+    await database.customStatement('''
+      INSERT INTO station_aliases (station_id, alias, normalized_alias)
+      VALUES ('station-sangnoksu', 'station-sangnoksu-legacy', 'station-sangnoksu-legacy')
+    ''');
+    final repository = DriftStationRepository(database: database);
+
+    final sadang = await repository.getStationDetail('station-sadang');
+    final sangnoksu = await repository.getStationDetail(
+      'station-sangnoksu-legacy',
+    );
+
+    expect(sadang.contacts, hasLength(2));
+    expect(sadang.contacts[0].lineId, 'seoul-2');
+    expect(sadang.contacts[0].lineName, '수도권 2호선');
+    expect(sadang.contacts[0].phone, '02-6110-2261');
+    expect(sadang.contacts[0].spokenPhone, '02 6110 2261');
+    expect(sadang.contacts[1].lineId, 'seoul-4');
+    expect(sadang.contacts[1].lineName, '수도권 4호선');
+    expect(sadang.contacts[1].phone, '02-6110-4331');
+    expect(sadang.contacts[1].spokenPhone, '02 6110 4331');
+
+    expect(sangnoksu.contacts, hasLength(1));
+    expect(sangnoksu.contacts.single.lineId, 'seoul-4');
+    expect(sangnoksu.contacts.single.lineName, '수도권 4호선');
+    expect(sangnoksu.contacts.single.phone, '031-409-7788');
+    expect(sangnoksu.contacts.single.spokenPhone, '031 409 7788');
+  });
 }

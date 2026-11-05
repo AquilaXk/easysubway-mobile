@@ -356,6 +356,23 @@ String normalizeStationRegion(String region) {
   };
 }
 
+class StationContact {
+  const StationContact({
+    required this.lineId,
+    this.lineName = '',
+    required this.phone,
+  });
+
+  final String lineId;
+  final String lineName;
+  final String phone;
+
+  String get spokenPhone => phone
+      .trim()
+      .replaceAll(RegExp(r'-+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
 class StationDetail {
   const StationDetail({
     required this.id,
@@ -370,6 +387,7 @@ class StationDetail {
     required this.lastVerifiedAt,
     required this.lines,
     this.confirmedAbsentFacilityTypes = const {},
+    this.contacts = const [],
   });
 
   factory StationDetail.fromJson(Map<String, Object?> json) {
@@ -417,6 +435,7 @@ class StationDetail {
   /// 원천이 이 역의 모든 노선에서 없다고 확인한 시설 유형(`ELEVATOR` 등).
   /// 시설 행도 없고 여기에도 없는 유형은 모름이므로 없음으로 보이지 않는다.
   final Set<String> confirmedAbsentFacilityTypes;
+  final List<StationContact> contacts;
 
   String get dataQualityLabel => _dataQualityLabel(dataQualityLevel);
 

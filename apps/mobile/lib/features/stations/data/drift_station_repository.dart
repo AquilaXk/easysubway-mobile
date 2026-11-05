@@ -291,7 +291,57 @@ class DriftStationRepository
       confirmedAbsentFacilityTypes: await _confirmedAbsentFacilityTypes(
         summary.id,
       ),
+      contacts: await _stationContacts(summary.id),
     );
+  }
+
+  Future<List<StationContact>> _stationContacts(String stationId) async {
+    if (!await _hasTable('station_contacts')) {
+      return const [];
+    }
+    final rows = await database
+        .customSelect(
+          '''
+          SELECT
+            sc.line_id,
+            COALESCE(l.name_ko, '') AS line_name,
+            sc.phone
+          FROM station_contacts sc
+          LEFT JOIN lines l ON l.id = sc.line_id
+          LEFT JOIN station_lines sl
+            ON sl.station_id = sc.station_id
+           AND sl.line_id = sc.line_id
+          WHERE sc.station_id = ?
+            AND TRIM(sc.phone) <> ''
+          ORDER BY sl.line_sequence IS NULL, sl.line_sequence, sc.line_id
+          ''',
+          variables: [Variable.withString(stationId)],
+        )
+        .get();
+    return List.unmodifiable(
+      rows.map(
+        (row) => StationContact(
+          lineId: row.read<String>('line_id').trim(),
+          lineName: row.read<String>('line_name').trim(),
+          phone: row.read<String>('phone').trim(),
+        ),
+      ),
+    );
+  }
+
+  Future<bool> _hasTable(String tableName) async {
+    final rows = await database
+        .customSelect(
+          '''
+          SELECT 1
+          FROM sqlite_master
+          WHERE type = 'table' AND name = ?
+          LIMIT 1
+          ''',
+          variables: [Variable.withString(tableName)],
+        )
+        .get();
+    return rows.isNotEmpty;
   }
 
   /// 노선 하나라도 증거가 없거나 있다고 하면 그 유형은 역 단위로 없음이 아니다.

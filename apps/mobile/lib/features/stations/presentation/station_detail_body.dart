@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
@@ -247,6 +248,10 @@ class _StationDetailContent extends StatelessWidget {
     final detailChildren = <Widget>[
       if (stationInfoGroups.isNotEmpty) ...[
         _StationInfoSection(groups: stationInfoGroups),
+        const SizedBox(height: 16),
+      ],
+      if (detail.contacts.isNotEmpty) ...[
+        _StationOfficeContactSection(detail: detail),
         const SizedBox(height: 16),
       ],
       if (hasExits) ...[
@@ -1157,6 +1162,155 @@ class _SlashPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _StationOfficeContactSection extends StatelessWidget {
+  const _StationOfficeContactSection({required this.detail});
+
+  final StationDetail detail;
+
+  String _lineNameFor(StationContact contact) {
+    final direct = contact.lineName.trim();
+    if (direct.isNotEmpty) {
+      return direct;
+    }
+    for (final line in detail.lines) {
+      if (line.id == contact.lineId && line.name.trim().isNotEmpty) {
+        return line.name.trim();
+      }
+    }
+    return '';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final contacts = detail.contacts;
+    final showLineName = contacts.length > 1 || detail.lines.length > 1;
+    return Column(
+      key: const Key('stationOfficeContactSection'),
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Semantics(
+          header: true,
+          child: const Text(
+            '역무실 전화',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: EasySubwayFontWeight.emphasis,
+              color: EasySubwayAccessibleColors.text,
+            ),
+          ),
+        ),
+        const SizedBox(height: EasySubwaySpacing.sm),
+        for (var index = 0; index < contacts.length; index++) ...[
+          if (index > 0) const SizedBox(height: EasySubwaySpacing.sm),
+          _StationOfficeContactButton(
+            contact: contacts[index],
+            lineName: showLineName ? _lineNameFor(contacts[index]) : '',
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _StationOfficeContactButton extends StatelessWidget {
+  const _StationOfficeContactButton({
+    required this.contact,
+    required this.lineName,
+  });
+
+  final StationContact contact;
+  final String lineName;
+
+  Future<void> _callStationOffice(BuildContext context) async {
+    final phone = contact.phone.trim();
+    try {
+      final opened = await launchUrl(Uri(scheme: 'tel', path: phone));
+      if (!opened) {
+        throw StateError('station office call launch failed');
+      }
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '역무실 전화 연결 실행 중 예외가 발생했습니다.',
+      );
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(content: Text('전화 앱을 열 수 없어요. $phone 번호로 직접 연락해 주세요.')),
+          );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final hasLineName = lineName.isNotEmpty;
+    final semanticLabel = hasLineName
+        ? '$lineName, 역무실에 전화하기, ${contact.spokenPhone}'
+        : '역무실에 전화하기, ${contact.spokenPhone}';
+    void handleTap() => _callStationOffice(context);
+    return Semantics(
+      container: true,
+      button: true,
+      label: semanticLabel,
+      onTap: handleTap,
+      excludeSemantics: true,
+      child: Material(
+        color: EasySubwayAccessibleColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(EasySubwayRadius.control),
+          side: const BorderSide(
+            color: EasySubwayAccessibleColors.borderSubtle,
+          ),
+        ),
+        child: InkWell(
+          key: Key('stationOfficeCallButton-${contact.lineId}'),
+          borderRadius: BorderRadius.circular(EasySubwayRadius.control),
+          onTap: handleTap,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: EasySubwaySpacing.md,
+                vertical: EasySubwaySpacing.sm,
+              ),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Wrap(
+                  spacing: EasySubwaySpacing.sm,
+                  runSpacing: EasySubwaySpacing.xs,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (hasLineName)
+                      Text(
+                        lineName,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: EasySubwayFontWeight.regular,
+                          color: EasySubwayAccessibleColors.secondaryText,
+                        ),
+                      ),
+                    Text(
+                      '역무실 전화 ${contact.phone}',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: EasySubwayFontWeight.emphasis,
+                        color: EasySubwayAccessibleColors.primary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 /// 상용 지하철 서비스와 같은 출구정보 래퍼 섹션.
