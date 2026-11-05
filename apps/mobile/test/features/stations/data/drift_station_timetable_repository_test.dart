@@ -50,6 +50,10 @@ void main() {
       );
       expect(sat.isAvailable, isTrue);
       expect(sat.isOfflineFallback, isTrue);
+      expect(
+        sat.directions.single.departures.single.departureAt,
+        DateTime.utc(2026, 9, 26, 1, 0),
+      );
 
       final sun = await repository.loadStationTimetable(
         stationId: 'station-sangnoksu',
@@ -122,6 +126,29 @@ void main() {
       expect(
         mondayMidnight.directions.single.departures.map((d) => d.seconds),
         [87600],
+      );
+
+      final sundayMidnightNoLateTrain = await repository
+          .loadNextStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            asOf: DateTime.utc(2026, 9, 26, 15, 15),
+          );
+      expect(
+        sundayMidnightNoLateTrain.dayType,
+        StationTimetableDayType.saturday,
+      );
+      expect(sundayMidnightNoLateTrain.directions, isEmpty);
+
+      final mondayAfterCutoff = await repository.loadNextStationTimetable(
+        stationId: 'station-sangnoksu',
+        lineId: 'seoul-4',
+        asOf: DateTime.utc(2026, 9, 27, 18, 15),
+      );
+      expect(mondayAfterCutoff.dayType, StationTimetableDayType.weekday);
+      expect(
+        mondayAfterCutoff.directions.single.departures.map((d) => d.seconds),
+        [60000, 88200],
       );
     });
   });

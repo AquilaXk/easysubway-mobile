@@ -83,7 +83,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
         seoulRef.year,
         seoulRef.month,
         seoulRef.day,
-      ).add(Duration(seconds: seconds));
+      ).subtract(const Duration(hours: 9)).add(Duration(seconds: seconds));
 
       directionsMap
           .putIfAbsent(directionName, () => [])
@@ -153,12 +153,9 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
     );
     final wall = journeySeoulWallTime(asOf);
     final nowSeconds = wall.hour * 3600 + wall.minute * 60 + wall.second;
+    final effectiveSeconds = wall.hour < 3 ? nowSeconds + 86400 : nowSeconds;
     final filteredDirections = <StationTimetableDirection>[];
     for (final dir in timetable.directions) {
-      final hasAfterMidnight = dir.departures.any((d) => d.seconds >= 86400);
-      final effectiveSeconds = (wall.hour < 4 && hasAfterMidnight)
-          ? nowSeconds + 86400
-          : nowSeconds;
       final upcoming = dir.departures
           .where((d) => d.seconds >= effectiveSeconds)
           .toList(growable: false);
