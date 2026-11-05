@@ -356,6 +356,31 @@ String normalizeStationRegion(String region) {
   };
 }
 
+class StationContact {
+  const StationContact({
+    required this.lineId,
+    this.lineName = '',
+    required this.phone,
+  });
+
+  factory StationContact.fromJson(Map<String, Object?> json) {
+    return StationContact(
+      lineId: _requiredString(json, 'lineId'),
+      lineName: _stringOrEmpty(json, 'lineName'),
+      phone: _requiredString(json, 'phone'),
+    );
+  }
+
+  final String lineId;
+  final String lineName;
+  final String phone;
+
+  String get spokenPhone => phone
+      .trim()
+      .replaceAll(RegExp(r'-+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ');
+}
+
 class StationDetail {
   const StationDetail({
     required this.id,
@@ -370,6 +395,7 @@ class StationDetail {
     required this.lastVerifiedAt,
     required this.lines,
     this.confirmedAbsentFacilityTypes = const {},
+    this.contacts = const [],
   });
 
   factory StationDetail.fromJson(Map<String, Object?> json) {
@@ -377,6 +403,7 @@ class StationDetail {
     if (rawLines is! List<Object?>) {
       throw const FormatException('Invalid station detail lines payload');
     }
+    final rawContacts = json['contacts'];
 
     return StationDetail(
       id: _requiredString(json, 'id'),
@@ -399,6 +426,18 @@ class StationDetail {
             return StationSearchLine.fromJson(item);
           })
           .toList(growable: false),
+      contacts: rawContacts is List<Object?>
+          ? rawContacts
+                .map((item) {
+                  if (item is! Map<String, Object?>) {
+                    throw const FormatException(
+                      'Invalid station detail contact payload',
+                    );
+                  }
+                  return StationContact.fromJson(item);
+                })
+                .toList(growable: false)
+          : const [],
     );
   }
 
@@ -417,6 +456,7 @@ class StationDetail {
   /// 원천이 이 역의 모든 노선에서 없다고 확인한 시설 유형(`ELEVATOR` 등).
   /// 시설 행도 없고 여기에도 없는 유형은 모름이므로 없음으로 보이지 않는다.
   final Set<String> confirmedAbsentFacilityTypes;
+  final List<StationContact> contacts;
 
   String get dataQualityLabel => _dataQualityLabel(dataQualityLevel);
 
