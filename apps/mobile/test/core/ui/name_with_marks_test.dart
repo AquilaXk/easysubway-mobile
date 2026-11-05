@@ -11,7 +11,7 @@ Widget _host({
   double markHeight = 20,
   double gap = 8,
   bool marksFirst = true,
-  double maxMarksFraction = 0.4,
+  double maxMarksFraction = NameWithMarks.defaultMaxMarksFraction,
   Widget? marks,
 }) {
   return MaterialApp(
@@ -39,9 +39,9 @@ Widget _host({
   );
 }
 
-const unbounded = BoxConstraints(maxWidth: double.infinity);
+const _unbounded = BoxConstraints(maxWidth: double.infinity);
 
-RenderBox budgetOf(WidgetTester tester) =>
+RenderBox _budgetOf(WidgetTester tester) =>
     tester.renderObject<RenderBox>(find.byKey(_marksKey)).parent! as RenderBox;
 
 void main() {
@@ -85,13 +85,13 @@ void main() {
       _host(width: 400, markWidths: const [], marks: textMark),
     );
 
-    final budget = budgetOf(tester);
+    final budget = _budgetOf(tester);
     final markBaseline = tester
         .renderObject<RenderBox>(find.byKey(_marksKey))
         .getDryBaseline(const BoxConstraints(), TextBaseline.alphabetic);
     expect(markBaseline, isNotNull);
     expect(
-      budget.getDryBaseline(unbounded, TextBaseline.alphabetic),
+      budget.getDryBaseline(_unbounded, TextBaseline.alphabetic),
       markBaseline,
     );
   });
@@ -116,7 +116,7 @@ void main() {
     );
 
     expect(
-      budgetOf(tester).getDryLayout(const BoxConstraints(maxWidth: 100)),
+      _budgetOf(tester).getDryLayout(const BoxConstraints(maxWidth: 100)),
       const Size(50 + 8, 40),
     );
   });
@@ -125,7 +125,7 @@ void main() {
     await tester.pumpWidget(_host(width: 100, markWidths: [30]));
 
     expect(
-      budgetOf(tester).getDryLayout(const BoxConstraints(maxWidth: 6)),
+      _budgetOf(tester).getDryLayout(const BoxConstraints(maxWidth: 6)),
       const Size(6, 20),
     );
   });
@@ -157,19 +157,18 @@ void main() {
     // 놓으면 작은 글자의 기준선으로 바뀐다.
     final marks = tester.renderObject<RenderBox>(find.byType(Wrap));
     final budget = marks.parent! as RenderBox;
-    const unbounded = BoxConstraints(maxWidth: double.infinity);
     const budgeted = BoxConstraints(maxWidth: 96);
-    expect(budget.getDryLayout(unbounded), marks.size + const Offset(8, 0));
+    expect(budget.getDryLayout(_unbounded), marks.size + const Offset(8, 0));
     final budgetedBaseline = marks.getDryBaseline(
       budgeted,
       TextBaseline.alphabetic,
     );
     expect(
-      budget.getDryBaseline(unbounded, TextBaseline.alphabetic),
+      budget.getDryBaseline(_unbounded, TextBaseline.alphabetic),
       budgetedBaseline,
     );
     expect(
-      marks.getDryBaseline(unbounded, TextBaseline.alphabetic),
+      marks.getDryBaseline(_unbounded, TextBaseline.alphabetic),
       isNot(budgetedBaseline),
       reason: '폭을 풀면 기준선이 달라져야 위 비교가 예산 적용을 증명한다',
     );

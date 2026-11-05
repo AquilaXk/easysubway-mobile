@@ -79,6 +79,8 @@ void main() {
     ];
     // 카드가 그려진다는 전제를 같이 고정해야 "없다"는 단언이 비어 있는 화면에서 통과하지 않는다.
     expect(rendered, contains('서울교통공사 실시간운임정보'));
+    expect(rendered, contains('국가철도공단 역사별 승강기·교통약자 편의시설 정보'));
+    expect(rendered, isNot(contains('편의정보(표준)')));
     for (final entry in _removedSourceTitles.entries) {
       expect(rendered, isNot(contains(entry.value)), reason: entry.key);
     }
