@@ -199,13 +199,12 @@ bool _isBusanLine({required String id, required String name}) {
       normalizedId.contains('donghae');
 }
 
+final _hexColorPattern = RegExp(r'^#?([0-9a-fA-F]{6})$');
+
 Color stationLineColor(String color) {
-  final normalized = color.trim().replaceFirst('#', '');
-  if (normalized.length == 6) {
-    final parsed = int.tryParse(normalized, radix: 16);
-    if (parsed != null) {
-      return Color(0xFF000000 | parsed);
-    }
+  final match = _hexColorPattern.firstMatch(color.trim());
+  if (match != null) {
+    return Color(0xFF000000 | int.parse(match.group(1)!, radix: 16));
   }
   throw FormatException('Invalid line color hex: $color');
 }

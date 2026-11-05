@@ -195,7 +195,18 @@ void main() {
   });
 
   test('stationLineColor는 잘못된 hex 문자열을 조용히 덮지 않고 FormatException을 던진다', () {
-    for (final invalid in const ['', 'teal', '#12345', '#1234567', '#GGGGGG']) {
+    for (final invalid in const [
+      '',
+      'teal',
+      '#12345',
+      '#1234567',
+      '#GGGGGG',
+      '-12345',
+      '+12345',
+      '#-12345',
+      '12#3456',
+      '123456#',
+    ]) {
       expect(
         () => stationLineColor(invalid),
         throwsFormatException,
