@@ -1185,7 +1185,7 @@ class _StationOfficeContactSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final contacts = detail.contacts;
-    final isMultiple = contacts.length > 1;
+    final showLineName = contacts.length > 1 || detail.lines.length > 1;
     return Column(
       key: const Key('stationOfficeContactSection'),
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1206,7 +1206,7 @@ class _StationOfficeContactSection extends StatelessWidget {
           if (index > 0) const SizedBox(height: EasySubwaySpacing.sm),
           _StationOfficeContactButton(
             contact: contacts[index],
-            lineName: isMultiple ? _lineNameFor(contacts[index]) : '',
+            lineName: showLineName ? _lineNameFor(contacts[index]) : '',
           ),
         ],
       ],
@@ -1223,19 +1223,30 @@ class _StationOfficeContactButton extends StatelessWidget {
   final StationContact contact;
   final String lineName;
 
-  Future<void> _callStationOffice() async {
+  Future<void> _callStationOffice(BuildContext context) async {
     final phone = contact.phone.trim();
-    if (phone.isEmpty) {
-      return;
-    }
     try {
-      await launchUrl(Uri(scheme: 'tel', path: phone));
+      final opened = await launchUrl(Uri(scheme: 'tel', path: phone));
+      if (!opened) {
+        throw StateError('station office call launch failed');
+      }
     } catch (error, stackTrace) {
       reportMobileError(
         error,
         stackTrace,
         context: '역무실 전화 연결 실행 중 예외가 발생했습니다.',
       );
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)
+          ?..hideCurrentSnackBar()
+          ..showSnackBar(
+            SnackBar(
+              content: Text(
+                '전화 앱을 열 수 없어요. $phone 번호로 직접 연락해 주세요.',
+              ),
+            ),
+          );
+      }
     }
   }
 
@@ -1245,11 +1256,12 @@ class _StationOfficeContactButton extends StatelessWidget {
     final semanticLabel = hasLineName
         ? '$lineName, 역무실에 전화하기, ${contact.spokenPhone}'
         : '역무실에 전화하기, ${contact.spokenPhone}';
+    void handleTap() => _callStationOffice(context);
     return Semantics(
       container: true,
       button: true,
       label: semanticLabel,
-      onTap: _callStationOffice,
+      onTap: handleTap,
       excludeSemantics: true,
       child: Material(
         color: EasySubwayAccessibleColors.surface,
@@ -1262,7 +1274,7 @@ class _StationOfficeContactButton extends StatelessWidget {
         child: InkWell(
           key: Key('stationOfficeCallButton-${contact.lineId}'),
           borderRadius: BorderRadius.circular(EasySubwayRadius.control),
-          onTap: _callStationOffice,
+          onTap: handleTap,
           child: ConstrainedBox(
             constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
             child: Padding(

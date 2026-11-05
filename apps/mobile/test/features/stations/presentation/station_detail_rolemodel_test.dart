@@ -4,6 +4,7 @@ import 'package:easysubway_mobile/features/stations/application/station_detail_c
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/presentation/station_detail_body.dart';
+import 'package:easysubway_mobile/mobile_error_reporter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -431,21 +432,106 @@ void main() {
       expect(launched, ['tel:02-6110-3281']);
     });
 
-    testWidgets('전화 실행 중 플랫폼 예외가 발생해도 크래시하지 않고 오류를 보고한다', (tester) async {
-      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
-          .setMockMethodCallHandler(urlLauncherChannel, (call) async {
-            throw PlatformException(code: 'LAUNCH_FAILED', message: 'failed');
-          });
+    testWidgets('전화 실행이 false를 반환하거나 플랫폼 예외가 발생하면 오류를 보고하고 안내 스낵바를 표시한다', (
+      tester,
+    ) async {
+      final reportedErrors = <FlutterErrorDetails>[];
       addTearDown(() {
         TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
             .setMockMethodCallHandler(urlLauncherChannel, null);
       });
 
-      await _pump(tester, detail: singleContactStation);
-      await tester.tap(find.text('역무실 전화 02-6110-3281'));
-      await tester.pumpAndSettle();
+      await runWithMobileErrorReporter(reportedErrors.add, () async {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(urlLauncherChannel, (call) async {
+              if (call.method == 'launch') {
+                return false;
+              }
+              return true;
+            });
 
-      expect(tester.takeException(), isA<PlatformException>());
+        await _pump(tester, detail: singleContactStation);
+        await tester.tap(find.text('역무실 전화 02-6110-3281'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(
+          find.text('전화 앱을 열 수 없어요. 02-6110-3281 번호로 직접 연락해 주세요.'),
+          findsOneWidget,
+        );
+
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(urlLauncherChannel, (call) async {
+              throw PlatformException(code: 'LAUNCH_FAILED', message: 'failed');
+            });
+
+        await tester.tap(find.text('역무실 전화 02-6110-3281'));
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull);
+        expect(
+          find.text('전화 앱을 열 수 없어요. 02-6110-3281 번호로 직접 연락해 주세요.'),
+          findsOneWidget,
+        );
+      });
+
+      expect(reportedErrors, hasLength(2));
+      expect(reportedErrors[0].exception, isA<StateError>());
+      expect(reportedErrors[1].exception, isA<PlatformException>());
+      expect(
+        reportedErrors.every(
+          (details) =>
+              details.context?.toDescription().contains('역무실 전화 연결 실행 중 예외가 발생했습니다.') ??
+              false,
+        ),
+        isTrue,
+      );
+    });
+
+    testWidgets('타 운영사 노선과 만나는 환승역에서 연락처가 1건뿐이어도 관할 노선명을 함께 표시한다', (
+      tester,
+    ) async {
+      const transferSingleContactStation = StationDetail(
+        id: 'station-yangjae',
+        nameKo: '양재',
+        nameEn: 'Yangjae',
+        region: '수도권',
+        dataQualityLevel: 'LEVEL_1',
+        lastVerifiedAt: '2026-10-24',
+        lines: [
+          StationSearchLine(
+            id: 'seoul-3',
+            name: '수도권 3호선',
+            color: '#EF7C1C',
+            stationCode: '342',
+          ),
+          StationSearchLine(
+            id: 'shinbundang',
+            name: '신분당선',
+            color: '#D4003B',
+            stationCode: 'D08',
+          ),
+        ],
+        confirmedAbsentFacilityTypes: {'WHEELCHAIR_LIFT'},
+        contacts: [
+          StationContact(
+            lineId: 'seoul-3',
+            lineName: '수도권 3호선',
+            phone: '02-6110-3421',
+          ),
+        ],
+      );
+
+      final handle = tester.ensureSemantics();
+      await _pump(tester, detail: transferSingleContactStation);
+
+      expect(find.text('수도권 3호선'), findsOneWidget);
+      expect(find.text('역무실 전화 02-6110-3421'), findsOneWidget);
+      expect(
+        find.bySemanticsLabel('수도권 3호선, 역무실에 전화하기, 02 6110 3421'),
+        findsOneWidget,
+      );
+      handle.dispose();
     });
 
     testWidgets('환승역 복수 노선 연락처는 노선명과 함께 목록으로 표시하고 탭하면 해당 번호로 연결한다', (
