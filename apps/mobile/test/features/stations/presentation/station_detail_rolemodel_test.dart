@@ -481,7 +481,9 @@ void main() {
       expect(
         reportedErrors.every(
           (details) =>
-              details.context?.toDescription().contains('역무실 전화 연결 실행 중 예외가 발생했습니다.') ??
+              details.context?.toDescription().contains(
+                '역무실 전화 연결 실행 중 예외가 발생했습니다.',
+              ) ??
               false,
         ),
         isTrue,

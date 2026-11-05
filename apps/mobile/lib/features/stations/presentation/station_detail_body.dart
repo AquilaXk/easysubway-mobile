@@ -1240,11 +1240,7 @@ class _StationOfficeContactButton extends StatelessWidget {
         ScaffoldMessenger.maybeOf(context)
           ?..hideCurrentSnackBar()
           ..showSnackBar(
-            SnackBar(
-              content: Text(
-                '전화 앱을 열 수 없어요. $phone 번호로 직접 연락해 주세요.',
-              ),
-            ),
+            SnackBar(content: Text('전화 앱을 열 수 없어요. $phone 번호로 직접 연락해 주세요.')),
           );
       }
     }
