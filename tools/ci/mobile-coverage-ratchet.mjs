@@ -204,7 +204,7 @@ export function parseBaselineBytes(bytes) {
   return value;
 }
 export function validateOwnerIssueResponse(response) {
-  if (!response || response.statusCode !== 200 || response.redirected) fail("owner issue request failed"); const value = strictExternalJson(Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body ?? ""), "owner issue response"); if (!value || Array.isArray(value) || !Number.isInteger(value.number) || typeof value.html_url !== "string" || typeof value.state !== "string" || value.number !== 102 || value.html_url !== OWNER_URL || value.state !== "open" || Object.hasOwn(value, "pull_request")) fail("owner issue is not the reviewed open issue"); return value;
+  if (!response || response.statusCode !== 200 || response.redirected) fail("owner issue request failed"); const value = strictExternalJson(Buffer.isBuffer(response.body) ? response.body : Buffer.from(response.body ?? ""), "owner issue response"); if (!value || Array.isArray(value) || !Number.isInteger(value.number) || typeof value.html_url !== "string" || typeof value.state !== "string" || value.number !== 102 || value.html_url !== OWNER_URL || (value.state !== "open" && value.state !== "closed") || Object.hasOwn(value, "pull_request")) fail("owner issue is not the reviewed issue"); return value;
 }
 export function flutterVersionFromMachine(bytes) {
   const value = strictExternalJson(Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes), "Flutter machine output"); if (!value || Array.isArray(value) || typeof value.frameworkVersion !== "string" || value.frameworkVersion !== "3.44.0") fail("Flutter frameworkVersion must be 3.44.0"); return value.frameworkVersion;

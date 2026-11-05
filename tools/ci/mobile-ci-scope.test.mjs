@@ -26,6 +26,7 @@ const SKIP_ELIGIBLE = [
   ".github/ISSUE_TEMPLATE/bug.yml",
   "README.md",
   "README.ko.md",
+  "SECURITY.md",
   "tools/mobile/automerge-queue.test.mjs",
   "tools/ci/mobile-ci-scope.test.mjs",
   "tools/release/hash-android-bundle-payload.test.mjs",
