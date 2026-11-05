@@ -306,6 +306,11 @@ jobs:
       - name: Install Flutter dependencies
         working-directory: apps/mobile
         run: flutter pub get
+      - name: Verify Drift generated code freshness
+        working-directory: apps/mobile
+        run: |
+          dart run build_runner build --delete-conflicting-outputs
+          git diff --exit-code -- lib test
       - name: Check format
         working-directory: apps/mobile
         run: dart format --output=none --set-exit-if-changed lib test
@@ -603,6 +608,11 @@ jobs:
             --artifact-dir "$RUNNER_TEMP/android-16kb-aab-evidence"
           node ../../tools/release/hash-android-bundle-payload.mjs \
             --aab build/app/outputs/bundle/release/app-release.aab
+      - name: Verify Android dependency lockfile freshness
+        working-directory: apps/mobile/android
+        run: |
+          ./gradlew :app:dependencies --write-locks -q
+          git diff --exit-code -- app/gradle.lockfile
 
   # required check "Android CI". Mobile CI 집계와 같은 규칙으로 Android build lane 결과를 판정한다.
   # 빌드 job 자체에 이 이름을 주지 않는 이유: skip 판정 때 skipped check는 통과로 간주되기 때문이다.
