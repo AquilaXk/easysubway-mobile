@@ -277,7 +277,7 @@ void main() {
                 _direction('동대입구', [6 * 3600, 23 * 3600 + 50 * 60]),
               ],
             ),
-            now: DateTime(2026, 10, 24, 23, 30),
+            now: DateTime.utc(2026, 10, 24, 14, 30),
           ),
         ),
       );
@@ -290,7 +290,7 @@ void main() {
 
     testWidgets('시간표가 없으면 방면마다 시간표 정보 없음이다', (tester) async {
       await tester.pumpWidget(
-        _host(_timetable(null, now: DateTime(2026, 10, 24, 12))),
+        _host(_timetable(null, now: DateTime.utc(2026, 10, 24, 3))),
       );
 
       expect(find.text('시간표 정보 없음'), findsNWidgets(2));

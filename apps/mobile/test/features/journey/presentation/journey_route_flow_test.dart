@@ -508,6 +508,12 @@ void main() {
       await tester.pumpAndSettle();
       expect(
         tester
+            .getSemantics(find.byKey(const Key('journey-departure-sheet-date')))
+            .value,
+        '오늘',
+      );
+      expect(
+        tester
             .getSemantics(find.byKey(const Key('journey-departure-sheet-hour')))
             .value,
         '12',
@@ -522,6 +528,45 @@ void main() {
       );
       semantics.dispose();
     });
+
+    testWidgets(
+      '00:36 심야 막차 모드는 현재 운행일(전날)을 오늘로 표시하고 모드 전환 시 각 모드가 고른 날짜를 지킨다',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        await _pump(tester, _Repository([_morning()]));
+        final bar = find.byKey(const Key('journey-departure-bar-time'));
+        final departAtMode = find.byKey(
+          const Key('journey-departure-sheet-mode-departAt'),
+        );
+        final lastTrainMode = find.byKey(
+          const Key('journey-departure-sheet-mode-lastTrain'),
+        );
+        final dateWheel = find.byKey(const Key('journey-departure-sheet-date'));
+
+        await tester.tap(bar);
+        await tester.pumpAndSettle();
+
+        await _nudgeWheel(tester, 'journey-departure-sheet-date', 2);
+        expect(tester.getSemantics(dateWheel).value, '10월 26일(월)');
+
+        await tester.tap(lastTrainMode);
+        await tester.pumpAndSettle();
+        expect(tester.getSemantics(dateWheel).value, '오늘');
+
+        await _nudgeWheel(tester, 'journey-departure-sheet-date', 1);
+        expect(tester.getSemantics(dateWheel).value, '내일');
+
+        await tester.tap(departAtMode);
+        await tester.pumpAndSettle();
+        expect(tester.getSemantics(dateWheel).value, '10월 26일(월)');
+
+        await tester.tap(lastTrainMode);
+        await tester.pumpAndSettle();
+        expect(tester.getSemantics(dateWheel).value, '내일');
+
+        semantics.dispose();
+      },
+    );
 
     testWidgets('휠은 스크린리더의 올리기·내리기로 한 칸씩 움직이고 오전·오후를 바꿀 수 있다', (tester) async {
       final semantics = tester.ensureSemantics();

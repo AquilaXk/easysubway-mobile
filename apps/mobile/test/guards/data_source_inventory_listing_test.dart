@@ -10,10 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// 퇴역했거나 쓰이지 않아 출처 화면에서 뺀 원천과 그 카드 제목.
 /// 제목은 inventory가 `userDisplayName`으로 내려 주던 값이다.
 const _removedSourceTitles = <String, String>{
-  // 거버넌스 원장에서 퇴역한 KRIC 접근성 원천 5건. 정기 수집은 stationCnvFacl만 한다.
   'kric-station-elevator': '국가철도공단 역사별 엘리베이터 현황',
   'kric-station-elevator-movement': '국가철도공단 역사별 엘리베이터 이동동선',
-  'kric-station-escalator': '국가철도공단 역사별 에스컬레이터 현황',
   'kric-wheelchair-lift-location': '국가철도공단 역사별 휠체어리프트 위치',
   'kric-wheelchair-lift-movement': '국가철도공단 역사별 휠체어리프트 이동동선',
   // 후보 평가에만 쓰이고 데이터팩·서버 번들에 들어가지 않는 원천

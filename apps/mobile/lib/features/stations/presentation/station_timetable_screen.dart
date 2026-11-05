@@ -4,6 +4,7 @@ import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 
 import '../../../accessible_design.dart';
+import '../../../core/format/date_time_labels.dart';
 import '../../../mobile_error_reporter.dart';
 import '../data/server_station_timetable_repository.dart';
 import '../domain/station_line.dart';
@@ -153,7 +154,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
   }
 
   int _initSelectedHour(DateTime now) {
-    final h = now.hour;
+    final h = journeySeoulWallTime(now).hour;
     if (h >= 5 && h <= 23) return h;
     if (h < 5) return 24;
     return 5;
@@ -168,6 +169,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
       _isNetworkError = false;
       _isServerError = false;
     });
+    final serviceDate = journeyCurrentServiceDay(date);
     StationTimetable? unavailable;
     ServerConnectionException? serverException;
     var serverUnavailable = false;
@@ -179,7 +181,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
         final timetable = await repository.loadStationTimetableForDate(
           stationId: widget.stationId,
           lineId: line.id,
-          date: date,
+          date: serviceDate,
         );
         if (!mounted || requestId != _requestId) return;
         if (timetable.isAvailable) {
@@ -256,7 +258,7 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
               stationId: widget.stationId,
               lineId: lineId,
               dayType: _dayType,
-              referenceDate: _effectiveNow,
+              referenceDate: journeyCurrentServiceDay(_effectiveNow),
             )
           : await repository.loadStationTimetableForDate(
               stationId: widget.stationId,
@@ -471,11 +473,12 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
     required DateTime effectiveNow,
   }) {
     if (!isToday || direction.departures.isEmpty) return null;
+    final wall = journeySeoulWallTime(effectiveNow);
     final currentSeconds =
-        effectiveNow.hour * Duration.secondsPerHour +
-        effectiveNow.minute * Duration.secondsPerMinute +
-        effectiveNow.second;
-    final isLateNight = effectiveNow.hour < 4;
+        wall.hour * Duration.secondsPerHour +
+        wall.minute * Duration.secondsPerMinute +
+        wall.second;
+    final isLateNight = wall.hour < 4;
     final lateNightServiceSeconds = Duration.secondsPerDay + currentSeconds;
 
     final nextIndex = isLateNight
@@ -1775,7 +1778,8 @@ class _StationTimetableScreenState extends State<StationTimetableScreen>
 }
 
 StationTimetableDayType _todayTimetableDayType(DateTime now) {
-  return switch (now.weekday) {
+  final serviceDay = journeyCurrentServiceDay(now);
+  return switch (serviceDay.weekday) {
     DateTime.saturday => StationTimetableDayType.saturday,
     DateTime.sunday => StationTimetableDayType.sundayHoliday,
     _ => StationTimetableDayType.weekday,
@@ -1813,11 +1817,12 @@ bool _isLateNightCandidate(
 }
 
 String _formatStationDepartureCountdown(int seconds, DateTime now) {
+  final wall = journeySeoulWallTime(now);
   final currentSeconds =
-      now.hour * Duration.secondsPerHour +
-      now.minute * Duration.secondsPerMinute +
-      now.second;
-  final isLateNight = now.hour < 4;
+      wall.hour * Duration.secondsPerHour +
+      wall.minute * Duration.secondsPerMinute +
+      wall.second;
+  final isLateNight = wall.hour < 4;
   final lateNightServiceSeconds = Duration.secondsPerDay + currentSeconds;
 
   final int diffSeconds;

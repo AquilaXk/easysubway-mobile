@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import '../../../accessible_design.dart';
 import '../../../adaptive_layout.dart';
 import '../../../core/external/kakao_map_launcher.dart';
+import '../../../core/format/date_time_labels.dart';
 import '../../../core/ui/line_mark.dart';
 import '../../../core/ui/name_with_marks.dart';
 import '../../../design_tokens.dart';
@@ -620,21 +621,18 @@ class _StationInfoSection extends StatelessWidget {
   final List<_StationInfoGroup> groups;
 
   static const _insideGateKeywords = [
-    '안',
-    '내부',
-    '운임구역 내',
-    '승강장',
-    '게이트 안',
     '개찰구 안',
+    '개찰구 내',
+    '운임구역 내',
+    '운임구역 안',
+    '게이트 안',
   ];
   static const _outsideGateKeywords = [
-    '밖',
-    '외부',
-    '운임구역 외',
-    '대합실',
-    '게이트 밖',
     '개찰구 밖',
-    '출구',
+    '개찰구 외',
+    '운임구역 외',
+    '운임구역 밖',
+    '게이트 밖',
   ];
   static const _doorRules = [
     _TagRule(['왼쪽'], '왼쪽'),
@@ -684,7 +682,7 @@ class _StationInfoSection extends StatelessWidget {
       icon: Icons.accessible,
       label: '장애인화장실',
       types: ['ACCESSIBLE_TOILET'],
-      keywords: ['장애인'],
+      keywords: ['장애인화장실', '장애인 화장실'],
     ),
     _FacilityKind(
       icon: Icons.elevator_outlined,
@@ -1468,7 +1466,7 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     List<StationSearchLine> lines,
   ) async {
     try {
-      final date = clock.now();
+      final date = journeyCurrentServiceDay(clock.now());
       StationTimetable? unavailable;
       for (final line in lines) {
         final timetable = await repository.loadStationTimetableForDate(

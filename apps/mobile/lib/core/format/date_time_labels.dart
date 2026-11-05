@@ -35,8 +35,29 @@ String? tryFormatServerDateTime(String raw, {required DateTime now}) {
   return parsed == null ? null : formatListDateTime(parsed, now: now);
 }
 
-DateTime _kst(DateTime instant) =>
-    instant.toUtc().add(const Duration(hours: 9));
+const _seoulOffset = Duration(hours: 9);
+const _serviceDayCutoff = Duration(hours: 3);
+
+DateTime _kst(DateTime instant) => instant.toUtc().add(_seoulOffset);
+
+/// 임의 시각 [instant]를 서울 표준시(KST, UTC+9) 벽시계 시각으로 바꾼다.
+DateTime journeySeoulWallTime(DateTime instant) {
+  final value = _kst(instant);
+  return DateTime.utc(
+    value.year,
+    value.month,
+    value.day,
+    value.hour,
+    value.minute,
+    value.second,
+  );
+}
+
+/// 서울 지하철 운행일 경계(03:00 KST)를 반영한 현재 운행일 날짜.
+DateTime journeyCurrentServiceDay(DateTime now) {
+  final wall = journeySeoulWallTime(now.subtract(_serviceDayCutoff));
+  return DateTime.utc(wall.year, wall.month, wall.day);
+}
 
 /// 서울 표준시(KST) `HH:mm`.
 String kstTime(DateTime instant) {

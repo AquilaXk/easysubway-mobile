@@ -3,6 +3,22 @@ import 'package:easysubway_mobile/features/network_map/presentation/nearby_timet
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+DateTime _kst(
+  int year,
+  int month,
+  int day, [
+  int hour = 0,
+  int minute = 0,
+  int second = 0,
+]) => DateTime.utc(
+  year,
+  month,
+  day,
+  hour,
+  minute,
+  second,
+).subtract(const Duration(hours: 9));
+
 void main() {
   Widget subject({
     NearbyTimetablePanelData? data,
@@ -17,7 +33,7 @@ void main() {
           loading: loading,
           leftName: leftName,
           rightName: rightName,
-          now: DateTime(2026, 8, 12, 10),
+          now: _kst(2026, 8, 12, 10),
           expressBadgeBuilder: () =>
               const SizedBox(key: Key('testExpressBadge')),
         ),
@@ -181,7 +197,7 @@ void main() {
             ),
             leftName: '반월',
             rightName: '한대앞',
-            now: DateTime(2026, 9, 27, 1, 28), // 01:28
+            now: _kst(2026, 9, 27, 1, 28),
             expressBadgeBuilder: () => const SizedBox(),
           ),
         ),
@@ -226,7 +242,7 @@ void main() {
             ),
             leftName: '반월',
             rightName: '한대앞',
-            now: DateTime(2026, 9, 27, 1, 35), // 01:35
+            now: _kst(2026, 9, 27, 1, 35),
             expressBadgeBuilder: () => const SizedBox(),
           ),
         ),
@@ -274,7 +290,7 @@ void main() {
             ),
             leftName: '반월',
             rightName: '한대앞',
-            now: DateTime(2026, 9, 27, 4, 30), // 04:30
+            now: _kst(2026, 9, 27, 4, 30),
             expressBadgeBuilder: () => const SizedBox(),
           ),
         ),
@@ -316,7 +332,7 @@ void main() {
             ),
             leftName: '반월',
             rightName: '한대앞',
-            now: DateTime(2026, 9, 27, 23, 50), // 23:50
+            now: _kst(2026, 9, 27, 23, 50),
             expressBadgeBuilder: () => const SizedBox(),
           ),
         ),
@@ -370,7 +386,7 @@ void main() {
             ),
             leftName: '건대입구',
             rightName: '한양대',
-            now: DateTime(2026, 8, 12, 10, 0, 50),
+            now: _kst(2026, 8, 12, 10, 0, 50),
             enableTicker: true,
             tickerInterval: const Duration(seconds: 5),
             expressBadgeBuilder: () => const SizedBox(),
@@ -433,7 +449,7 @@ void main() {
             ),
             leftName: '반월',
             rightName: '한대앞',
-            now: DateTime(2026, 8, 12, 10, 0, 0),
+            now: _kst(2026, 8, 12, 10, 0, 0),
             expressBadgeBuilder: () => const SizedBox(),
           ),
         ),
@@ -486,7 +502,7 @@ void main() {
               data: data,
               leftName: '반월',
               rightName: '한대앞',
-              now: DateTime(2026, 8, 12, 10, 0, 0),
+              now: _kst(2026, 8, 12, 10, 0, 0),
               enableTicker: true,
               tickerInterval: const Duration(milliseconds: 50),
               expressBadgeBuilder: () => const SizedBox(),
@@ -514,7 +530,7 @@ void main() {
               data: data,
               leftName: '반월',
               rightName: '한대앞',
-              now: DateTime(2026, 8, 12, 10, 0, 10),
+              now: _kst(2026, 8, 12, 10, 0, 10),
               enableTicker: false,
               tickerInterval: const Duration(milliseconds: 50),
               expressBadgeBuilder: () => const SizedBox(),
@@ -531,7 +547,7 @@ void main() {
               data: data,
               leftName: '반월',
               rightName: '한대앞',
-              now: DateTime(2026, 8, 12, 10, 0, 10),
+              now: _kst(2026, 8, 12, 10, 0, 10),
               enableTicker: true,
               tickerInterval: const Duration(milliseconds: 50),
               expressBadgeBuilder: () => const SizedBox(),
@@ -540,6 +556,44 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 60));
+    },
+  );
+
+  testWidgets(
+    'UTC 시각(일요일 15:15 = 월요일 00:15 KST)을 전달받으면 서울 벽시계 기준으로 심야 열차 카운트다운을 계산한다',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: NearbyTimetablePanel(
+              data: const NearbyTimetablePanelData(
+                directions: [
+                  NearbyTimetableDirectionData(
+                    name: '오이도',
+                    departures: [
+                      NearbyTimetableDepartureData(
+                        directionName: '오이도',
+                        destination: '오이도',
+                        seconds: 87600,
+                        timeLabel: '00:20',
+                        semanticLabel: '오이도, 00시 20분 출발',
+                        isExpress: false,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              leftName: '반월',
+              rightName: '한대앞',
+              now: DateTime.utc(2026, 7, 5, 15, 15),
+              expressBadgeBuilder: () => const SizedBox(),
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('5분'), findsOneWidget);
+      expect(find.text('운행종료'), findsNothing);
     },
   );
 }

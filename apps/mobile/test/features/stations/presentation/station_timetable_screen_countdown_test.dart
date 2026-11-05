@@ -77,9 +77,25 @@ class _FakeTimetableRepo implements StationTimetableRepository {
   }
 }
 
+DateTime _kst(
+  int year,
+  int month,
+  int day, [
+  int hour = 0,
+  int minute = 0,
+  int second = 0,
+]) => DateTime.utc(
+  year,
+  month,
+  day,
+  hour,
+  minute,
+  second,
+).subtract(const Duration(hours: 9));
+
 void main() {
   testWidgets('시간표 화면은 다음 열차 카운트다운을 박스 없이 인라인 텍스트로 자연스럽게 결합한다', (tester) async {
-    await withClock(Clock.fixed(DateTime(2026, 7, 6, 10, 0, 50)), () async {
+    await withClock(Clock.fixed(_kst(2026, 7, 6, 10, 0, 50)), () async {
       const line = StationSearchLine(
         id: 'seoul-2',
         name: '2호선',
@@ -166,7 +182,7 @@ void main() {
   testWidgets('시간표 화면은 인접역 기준 방면 칩 정규화 및 열차 종착역 행선지(사당행, 진접행)를 명확히 표시한다', (
     tester,
   ) async {
-    await withClock(Clock.fixed(DateTime(2026, 7, 6, 10, 0, 0)), () async {
+    await withClock(Clock.fixed(_kst(2026, 7, 6, 10, 0, 0)), () async {
       const line = StationSearchLine(
         id: 'seoul-4',
         name: '4호선',
@@ -227,7 +243,7 @@ void main() {
   testWidgets(
     '심야 시간대(00:00~03:59)에도 24시 이후(86400+ 초) 열차 카운트다운과 곧 도착이 정상 동작한다',
     (tester) async {
-      await withClock(Clock.fixed(DateTime(2026, 7, 6, 0, 15, 0)), () async {
+      await withClock(Clock.fixed(_kst(2026, 7, 7, 0, 15, 0)), () async {
         const line = StationSearchLine(
           id: 'seoul-4',
           name: '4호선',
@@ -288,7 +304,7 @@ void main() {
   testWidgets(
     '종착역 필터에서 개별 종착역 선택 시 해당 열차만 필터링되고 전체를 선택하면 전체 ∨ 표시와 함께 모든 열차가 복원된다',
     (tester) async {
-      await withClock(Clock.fixed(DateTime(2026, 7, 6, 10, 0, 0)), () async {
+      await withClock(Clock.fixed(_kst(2026, 7, 6, 10, 0, 0)), () async {
         const line = StationSearchLine(
           id: 'seoul-4',
           name: '4호선',
@@ -383,7 +399,7 @@ void main() {
   testWidgets('전국 모든 노선(부산 1호선, 대구 1호선, 2호선 순환선 등)에서 하드코딩 없이 방면명이 정확히 정규화된다', (
     tester,
   ) async {
-    await withClock(Clock.fixed(DateTime(2026, 7, 6, 10, 0, 0)), () async {
+    await withClock(Clock.fixed(_kst(2026, 7, 6, 10, 0, 0)), () async {
       // 1. 부산 1호선 서면역 (부전 <-> 서면 <-> 범내골)
       const busanLine = StationSearchLine(
         id: 'busan-1',
@@ -518,7 +534,7 @@ void main() {
   testWidgets('첫·막차 및 급행 필터 토글 시 첫/막 뱃지가 유지되고 필터된 시간대 알약 탭이 안정적으로 스크롤된다', (
     tester,
   ) async {
-    await withClock(Clock.fixed(DateTime(2026, 7, 6, 6, 0, 0)), () async {
+    await withClock(Clock.fixed(_kst(2026, 7, 6, 6, 0, 0)), () async {
       const line = StationSearchLine(
         id: 'seoul-1',
         name: '1호선',
@@ -864,7 +880,7 @@ void main() {
   testWidgets(
     '실제 벽시계가 진행되는 환경에서 _tickerElapsed가 중복 가산되지 않고 자연 진행 시각만 정확히 반영된다',
     (tester) async {
-      var currentSimulatedTime = DateTime(2026, 7, 6, 10, 0, 50);
+      var currentSimulatedTime = _kst(2026, 7, 6, 10, 0, 50);
       await withClock(Clock(() => currentSimulatedTime), () async {
         const line = StationSearchLine(
           id: 'seoul-2',
@@ -954,7 +970,7 @@ void main() {
         StationTimetableDayType.weekday: timetable,
       });
 
-      final now1 = DateTime(2026, 7, 6, 10, 0, 50);
+      final now1 = _kst(2026, 7, 6, 10, 0, 50);
       await tester.pumpWidget(
         MaterialApp(
           home: StationTimetableScreen(
@@ -969,7 +985,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('곧 도착'), findsOneWidget);
 
-      final now2 = DateTime(2026, 7, 6, 10, 5, 0);
+      final now2 = _kst(2026, 7, 6, 10, 5, 0);
       await tester.pumpWidget(
         MaterialApp(
           home: StationTimetableScreen(

@@ -414,7 +414,7 @@ void main() {
           () => composite.loadNextStationTimetable(
             stationId: 'station-sangnoksu',
             lineId: 'seoul-4',
-            asOf: DateTime.utc(2026, 9, 25, 7, 0),
+            asOf: DateTime.utc(2026, 9, 24, 22, 0),
           ),
         );
         expect(timetable.isAvailable, isTrue);
@@ -431,7 +431,7 @@ void main() {
         final successResult = await compositeSuccess.loadNextStationTimetable(
           stationId: 'station-sangnoksu',
           lineId: 'seoul-4',
-          asOf: DateTime.utc(2026, 9, 25, 7, 0),
+          asOf: DateTime.utc(2026, 9, 24, 22, 0),
         );
         expect(successResult.isAvailable, isTrue);
         expect(successResult.isOfflineFallback, isFalse);
