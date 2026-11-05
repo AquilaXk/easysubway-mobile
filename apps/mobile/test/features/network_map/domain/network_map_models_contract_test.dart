@@ -143,6 +143,34 @@ void main() {
       }),
       throwsFormatException,
     );
+    final fallbackLine = NetworkMapLine.fromJson(const <String, Object?>{
+      'id': 'line-2',
+      'name': '  ',
+      'nameKo': '수도권 2호선',
+      'color': '',
+      'colorHex': '#00AA00',
+    });
+    expect(fallbackLine.name, '수도권 2호선');
+    expect(fallbackLine.color, '#00AA00');
+    for (final invalidLine in <Map<String, Object?>>[
+      const <String, Object?>{'id': 123, 'name': '2호선', 'color': '#00AA00'},
+      const <String, Object?>{'id': 'line-2', 'name': 123, 'color': '#00AA00'},
+      const <String, Object?>{
+        'id': 'line-2',
+        'nameKo': 123,
+        'color': '#00AA00',
+      },
+      const <String, Object?>{'id': 'line-2', 'name': '2호선', 'color': 123},
+      const <String, Object?>{'id': 'line-2', 'name': '2호선', 'colorHex': 123},
+      const <String, Object?>{
+        'id': 'line-2',
+        'name': '2호선',
+        'color': '#00AA00',
+        'region': 123,
+      },
+    ]) {
+      expect(() => NetworkMapLine.fromJson(invalidLine), throwsFormatException);
+    }
     expect(emptyStation.id, '');
     expect(emptyStation.nameKo, '');
     expect(emptyStation.position.x, 0);
