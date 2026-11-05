@@ -252,7 +252,7 @@ function diffChanges(gitApi, range, renameThreshold) {
     parseNumstatZ(gitApi.bytes(diffArgs(range, "--numstat", ["-z"], renameThreshold))),
   );
 }
-function patchHunks(patch, changes) { const byNew = new Map(changes.filter((entry) => entry.newPath).map((entry) => [entry.newPath, entry])); const hunks = new Map(); let file = null; for (const row of patch.split("\n")) { if (row.startsWith("+++ b/")) { file = row.slice(6); if (file) safeDartPath(file, "patch path"); continue; } const match = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/u.exec(row); if (!match || !file || !byNew.has(file)) continue; const start = Number(match[1]); const count = Number(match[2] ?? 1); if (count === 0) continue; const entries = hunks.get(file) ?? []; for (let line = start; line < start + count; line += 1) entries.push(line); hunks.set(file, entries); } return hunks; }
+function patchHunks(patch, changes) { const byNew = new Map(changes.filter((entry) => entry.newPath).map((entry) => [entry.newPath, entry])); const hunks = new Map(); let file = null; let remainingAdded = 0; for (const row of patch.split("\n")) { if (row.startsWith("diff --git ")) { if (remainingAdded !== 0) fail("numstat/patch added-line mismatch"); file = null; continue; } if (row.startsWith("+++ ")) { if (remainingAdded !== 0) fail("numstat/patch added-line mismatch"); file = row.startsWith("+++ b/") ? row.slice(6) : null; if (file) safeDartPath(file, "patch path"); continue; } const match = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@/u.exec(row); if (match) { if (remainingAdded !== 0) fail("numstat/patch added-line mismatch"); if (!file || !byNew.has(file)) continue; const start = Number(match[1]); const count = Number(match[2] ?? 1); remainingAdded = count; if (count === 0) continue; const entries = hunks.get(file) ?? []; for (let line = start; line < start + count; line += 1) entries.push(line); hunks.set(file, entries); continue; } if (file && byNew.has(file) && row.startsWith("+")) { remainingAdded -= 1; if (remainingAdded < 0) fail("numstat/patch added-line mismatch"); } } if (remainingAdded !== 0) fail("numstat/patch added-line mismatch"); return hunks; }
 export function changedExecutableLines(range, headSha, testedMergeSha, coverage, gitApi, excludedPaths = new Set()) {
   const strictChanges = diffChanges(gitApi, range, 90);
   const changes = acceptReviewedSub90Renames(strictChanges, diffChanges(gitApi, range, REVIEWED_RENAME_DISCOVERY_THRESHOLD));
@@ -260,7 +260,7 @@ export function changedExecutableLines(range, headSha, testedMergeSha, coverage,
   for (const change of changes) {
     if (change.newPath && excludedPaths.has(change.newPath)) continue;
     if (change.status === "DELETED") continue;
-    const lines = hunks.get(change.newPath) ?? []; if (change.added !== lines.length) fail("numstat/patch added-line mismatch");
+    const lines = hunks.get(change.newPath) ?? []; if ((change.added === 0) !== (lines.length === 0) || lines.length < change.added) fail("numstat/patch added-line mismatch");
     const rawBlob = blobAt(headSha, change.newPath, gitApi); const testedBlob = blobAt(testedMergeSha, change.newPath, gitApi); if (!rawBlob.equals(testedBlob)) fail("raw-head/tested-merge Dart blob differs; deterministic line mapping is required");
     if (!lines.length) continue;
     const source = utf8(rawBlob, "raw head Dart source"); rejectCoverageIgnoreDirectives(source); const sourceLineCount = source ? source.split("\n").length - (source.endsWith("\n") ? 1 : 0) : 0;

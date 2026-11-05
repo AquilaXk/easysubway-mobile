@@ -20,7 +20,11 @@ void main() {
           'color': '#00AA00',
           'region': '수도권',
         },
-        <String, Object?>{'id': 'gtx-a', 'nameKo': 'GTX-A'},
+        <String, Object?>{
+          'id': 'gtx-a',
+          'nameKo': 'GTX-A',
+          'colorHex': '#9A6292',
+        },
       ],
       'stations': <Object?>[
         <String, Object?>{
@@ -74,6 +78,8 @@ void main() {
     expect(data.regions.map((region) => region.name), <String>['부산권', '수도권']);
     expect(data.regions.first.displayName, '부산');
     expect(data.lines.map((line) => line.id), <String>['line-2', 'gtx-a']);
+    expect(data.lines.last.name, 'GTX-A');
+    expect(data.lines.last.color, '#9A6292');
     expect(data.stations.single.displayName, '시청역');
     expect(data.stations.single.position.labelDx, 4);
     expect(data.edges.single.accessibilityStatus, 'AVAILABLE');
@@ -95,7 +101,6 @@ void main() {
     expect(emptyData.lineTracks, isEmpty);
 
     final emptyRegion = NetworkMapRegion.fromJson(const <String, Object?>{});
-    final emptyLine = NetworkMapLine.fromJson(const <String, Object?>{});
     final emptyStation = NetworkMapStation.fromJson(const <String, Object?>{});
     final emptyPosition = NetworkMapPosition.fromJson(
       const <String, Object?>{},
@@ -110,10 +115,34 @@ void main() {
     final emptyTrack = NetworkMapLineTrack.fromJson(const <String, Object?>{});
 
     expect(emptyRegion.name, '');
-    expect(emptyLine.id, '');
-    expect(emptyLine.name, '');
-    expect(emptyLine.color, '#006D77');
-    expect(emptyLine.region, '');
+    expect(
+      () => NetworkMapLine.fromJson(const <String, Object?>{}),
+      throwsFormatException,
+    );
+    expect(
+      () => NetworkMapLine.fromJson(const <String, Object?>{
+        'id': '  ',
+        'name': '수도권 2호선',
+        'color': '#00AA00',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => NetworkMapLine.fromJson(const <String, Object?>{
+        'id': 'line-2',
+        'name': '  ',
+        'color': '#00AA00',
+      }),
+      throwsFormatException,
+    );
+    expect(
+      () => NetworkMapLine.fromJson(const <String, Object?>{
+        'id': 'line-2',
+        'name': '수도권 2호선',
+        'color': '  ',
+      }),
+      throwsFormatException,
+    );
     expect(emptyStation.id, '');
     expect(emptyStation.nameKo, '');
     expect(emptyStation.position.x, 0);

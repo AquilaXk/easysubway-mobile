@@ -152,7 +152,7 @@ Map<FacilityStatusPresentation, int> _attentionCounts(
 }
 
 /// 공공데이터/운영기관 원천의 raw 영문·시스템 식별자(ELEVATOR 2 등)를
-/// 상용 서비스(카카오·네이버) 수준의 친화적 한국어 표준 명칭으로 정규화한다.
+/// 역 상세 시설 안내용 한국어 표준 명칭으로 정규화한다.
 String formatFacilityDisplayName({
   required String name,
   required String type,

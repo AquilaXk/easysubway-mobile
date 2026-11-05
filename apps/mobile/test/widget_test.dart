@@ -215,7 +215,6 @@ Future<void> _openFavoriteList(
               reportRepository: home.reportRepository,
               favoriteRepository: home.favoriteRepository,
               bottomAdBuilder: _stationDetailBottomAdBuilder(home.adRepository),
-              locationProvider: home.locationProvider,
               realtimeRepository: home.realtimeRepository,
               stationId: favorite.stationId,
               facilityReportDraftTargetStore:
@@ -303,7 +302,6 @@ Future<void> _pumpStationDetailForTest(
           favoriteRepository: favoriteRepository,
           bottomAdBuilder: _stationDetailBottomAdBuilder(adRepository),
           realtimeRepository: realtimeRepository,
-          locationProvider: locationProvider,
           initiallyFavorite: initiallyFavorite,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
           routeDraftController: routeDraftController,
@@ -10283,7 +10281,6 @@ void main() {
               reportRepository: FakeFacilityReportRepository(),
               favoriteRepository: favoriteRepository,
               realtimeRepository: const UnavailableRealtimeRepository(),
-              locationProvider: FakeCurrentLocationProvider(),
               stationId: favorite.stationId,
               initiallyFavorite: true,
             );

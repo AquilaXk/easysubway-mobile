@@ -53,7 +53,6 @@ class StationDetailBody extends StatelessWidget {
     this.favoriteController,
     this.bottomAdBuilder,
     this.routeDraftController,
-    this.locationProvider,
     this.mapLauncher = const UrlLauncherKakaoMapLauncher(),
     this.timetableRepository,
     this.mapPreviewBuilder,
@@ -74,7 +73,6 @@ class StationDetailBody extends StatelessWidget {
   final StationFavoriteToggleController? favoriteController;
   final WidgetBuilder? bottomAdBuilder;
   final RouteDraftPort? routeDraftController;
-  final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
   final StationTimetableRepository? timetableRepository;
   final bool showContextChrome;
@@ -109,7 +107,6 @@ class StationDetailBody extends StatelessWidget {
         favoriteController: favoriteController,
         bottomAdBuilder: bottomAdBuilder,
         routeDraftController: routeDraftController,
-        locationProvider: locationProvider,
         mapLauncher: mapLauncher,
         timetableRepository: timetableRepository,
         mapPreviewBuilder: mapPreviewBuilder,
@@ -160,7 +157,6 @@ class _StationDetailContent extends StatelessWidget {
     required this.favoriteController,
     required this.bottomAdBuilder,
     required this.routeDraftController,
-    required this.locationProvider,
     required this.mapLauncher,
     required this.timetableRepository,
     this.mapPreviewBuilder,
@@ -184,7 +180,6 @@ class _StationDetailContent extends StatelessWidget {
   final StationFavoriteToggleController? favoriteController;
   final WidgetBuilder? bottomAdBuilder;
   final RouteDraftPort? routeDraftController;
-  final CurrentLocationProvider? locationProvider;
   final KakaoMapLauncher mapLauncher;
   final StationTimetableRepository? timetableRepository;
   final StationExitMapPreviewBuilder? mapPreviewBuilder;

@@ -149,8 +149,42 @@ void main() {
     );
 
     expect(find.text('[3]번째 전역'), findsOneWidget);
-    expect(find.text('곧 도착'), findsOneWidget);
+    expect(find.text('곧 도착'), findsNothing);
+    expect(find.text('실시간 정보 없음'), findsOneWidget);
   });
+
+  testWidgets(
+    'etaSeconds가 없거나 0 이하이고 message·positionMessage도 비어 있으면 곧 도착을 합성하지 않고 제외한다',
+    (tester) async {
+      await tester.pumpWidget(
+        subject(
+          data: const NearbyArrivalPanelData(
+            status: NearbyArrivalPanelStatus.fresh,
+            arrivals: [
+              NearbyArrivalData(
+                direction: '건대입구 방면',
+                destination: '성수',
+                etaSeconds: null,
+                message: '   ',
+              ),
+              NearbyArrivalData(
+                direction: '한양대 방면',
+                destination: '왕십리',
+                etaSeconds: -10,
+                message: '',
+                positionMessage: '  ',
+              ),
+            ],
+          ),
+        ),
+      );
+
+      expect(find.text('곧 도착'), findsNothing);
+      expect(find.text('성수행'), findsNothing);
+      expect(find.text('왕십리행'), findsNothing);
+      expect(find.text('실시간 정보 없음'), findsNWidgets(2));
+    },
+  );
 
   testWidgets(
     'message가 "곧 도착"이고 positionMessage가 있으면 positionMessage를 우선 표시한다',

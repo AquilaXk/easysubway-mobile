@@ -195,10 +195,19 @@ class NetworkMapLine {
   final String region;
 
   factory NetworkMapLine.fromJson(Map<String, Object?> json) {
+    final id = (json['id'] as String?)?.trim() ?? '';
+    final name = ((json['name'] ?? json['nameKo']) as String?)?.trim() ?? '';
+    final color =
+        ((json['color'] ?? json['colorHex']) as String?)?.trim() ?? '';
+    if (id.isEmpty || name.isEmpty || color.isEmpty) {
+      throw const FormatException(
+        'NetworkMapLine requires non-empty id, name, and color',
+      );
+    }
     return NetworkMapLine(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? json['nameKo'] as String? ?? '',
-      color: json['color'] as String? ?? '#006D77',
+      id: id,
+      name: name,
+      color: color,
       region: json['region'] as String? ?? '',
     );
   }
