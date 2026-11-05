@@ -1,11 +1,11 @@
-import 'dart:io';
 import 'dart:ui' show Offset;
 
 import 'package:easysubway_mobile/features/network_map/domain/route_map_label_polygon.dart';
 import 'package:easysubway_mobile/features/network_map/domain/structured_route_map.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/structured_route_map_painter.dart'
     show routeMapLineBadgeLabel, routeMapStationLabel;
-import 'package:sqlite3/sqlite3.dart';
+
+import 'bundled_datapack.dart';
 
 /// nationwide 팩(assets/datapacks/nationwide.sqlite.gz)을 직접 열어 프로덕션과 같은
 /// buildStructuredRouteMap 입력으로 실데이터 노선도를 만든다 — 실데이터 계약
@@ -36,17 +36,11 @@ class CapitalRouteMapFixture {
 /// 리포 루트 상대(`../../tools/...`)로 넘겨 재사용한다.
 CapitalRouteMapFixture loadCapitalRouteMapFixture({
   String region = '수도권',
-  String packAssetPath = 'assets/datapacks/nationwide.sqlite.gz',
+  String packAssetPath = bundledDatapackAssetPath,
 }) {
-  final gzBytes = File(packAssetPath).readAsBytesSync();
-  final dir = Directory.systemTemp.createTempSync('capital-pack-');
-  try {
-    final sqliteFile = File('${dir.path}/pack.sqlite')
-      ..writeAsBytesSync(gzip.decode(gzBytes));
-    final db = sqlite3.open(sqliteFile.path);
-    try {
-      final stationRows = db.select(
-        '''
+  return openBundledDatapack((db) {
+    final stationRows = db.select(
+      '''
         SELECT p.station_id, p.line_id, p.x, p.y, p.label_polygon,
                sl.line_sequence, s.name_ko
         FROM route_map_positions p
@@ -56,78 +50,70 @@ CapitalRouteMapFixture loadCapitalRouteMapFixture({
         WHERE p.region = ?
         ORDER BY p.line_id, sl.line_sequence, p.station_id
       ''',
-        [region],
-      );
-      final trackRows = db.select(
-        'SELECT line_id, path FROM route_map_line_tracks '
-        'WHERE region = ? ORDER BY line_id, track_index',
-        [region],
-      );
-      final lineRows = db.select('SELECT id, name_ko, color FROM lines');
+      [region],
+    );
+    final trackRows = db.select(
+      'SELECT line_id, path FROM route_map_line_tracks '
+      'WHERE region = ? ORDER BY line_id, track_index',
+      [region],
+    );
+    final lineRows = db.select('SELECT id, name_ko, color FROM lines');
 
-      final labelText = <String, String>{};
-      final stationName = <String, String>{};
-      final inputs = <StructuredRouteMapStationInput>[];
-      for (final row in stationRows) {
-        final stationId = row['station_id'] as String;
-        final nameKo = row['name_ko'] as String;
-        labelText[stationId] = routeMapStationLabel(nameKo);
-        stationName[stationId] = nameKo;
-        inputs.add(
-          StructuredRouteMapStationInput(
-            stationId: stationId,
-            lineId: row['line_id'] as String,
-            sequence: row['line_sequence'] as int,
-            position: Offset(
-              (row['x'] as num).toDouble(),
-              (row['y'] as num).toDouble(),
-            ),
-            labelPolygon:
-                parseRouteMapLabelPolygon(
-                  row['label_polygon'] as String? ?? '',
-                ) ??
-                const [],
+    final labelText = <String, String>{};
+    final stationName = <String, String>{};
+    final inputs = <StructuredRouteMapStationInput>[];
+    for (final row in stationRows) {
+      final stationId = row['station_id'] as String;
+      final nameKo = row['name_ko'] as String;
+      labelText[stationId] = routeMapStationLabel(nameKo);
+      stationName[stationId] = nameKo;
+      inputs.add(
+        StructuredRouteMapStationInput(
+          stationId: stationId,
+          lineId: row['line_id'] as String,
+          sequence: row['line_sequence'] as int,
+          position: Offset(
+            (row['x'] as num).toDouble(),
+            (row['y'] as num).toDouble(),
           ),
-        );
-      }
-      final pathsByLine = <String, List<String>>{};
-      for (final row in trackRows) {
-        pathsByLine
-            .putIfAbsent(row['line_id'] as String, () => [])
-            .add(row['path'] as String);
-      }
-      final map = buildStructuredRouteMap(
-        inputs,
-        lineTracks: [
-          for (final entry in pathsByLine.entries)
-            RouteMapLineTrackInput(lineId: entry.key, paths: entry.value),
-        ],
+          labelPolygon:
+              parseRouteMapLabelPolygon(
+                row['label_polygon'] as String? ?? '',
+              ) ??
+              const [],
+        ),
       );
-      final lineIdsInMap = {for (final line in map.lines) line.lineId};
-      final badgeLabel = <String, String>{
-        for (final row in lineRows)
-          if (lineIdsInMap.contains(row['id'] as String))
-            row['id'] as String: routeMapLineBadgeLabel(
-              row['name_ko'] as String,
-            ),
-      };
-      final lineColorHex = <String, String>{
-        for (final row in lineRows)
-          if (lineIdsInMap.contains(row['id'] as String) &&
-              row['color'] != null)
-            row['id'] as String: row['color'] as String,
-      };
-      return CapitalRouteMapFixture(
-        map: map,
-        labelTextByStationId: labelText,
-        stationNameByStationId: stationName,
-        badgeLabelByLineId: badgeLabel,
-        lineColorHexById: lineColorHex,
-      );
-    } finally {
-      db.close();
     }
-  } finally {
-    dir.deleteSync(recursive: true);
-  }
+    final pathsByLine = <String, List<String>>{};
+    for (final row in trackRows) {
+      pathsByLine
+          .putIfAbsent(row['line_id'] as String, () => [])
+          .add(row['path'] as String);
+    }
+    final map = buildStructuredRouteMap(
+      inputs,
+      lineTracks: [
+        for (final entry in pathsByLine.entries)
+          RouteMapLineTrackInput(lineId: entry.key, paths: entry.value),
+      ],
+    );
+    final lineIdsInMap = {for (final line in map.lines) line.lineId};
+    final badgeLabel = <String, String>{
+      for (final row in lineRows)
+        if (lineIdsInMap.contains(row['id'] as String))
+          row['id'] as String: routeMapLineBadgeLabel(row['name_ko'] as String),
+    };
+    final lineColorHex = <String, String>{
+      for (final row in lineRows)
+        if (lineIdsInMap.contains(row['id'] as String) && row['color'] != null)
+          row['id'] as String: row['color'] as String,
+    };
+    return CapitalRouteMapFixture(
+      map: map,
+      labelTextByStationId: labelText,
+      stationNameByStationId: stationName,
+      badgeLabelByLineId: badgeLabel,
+      lineColorHexById: lineColorHex,
+    );
+  }, packAssetPath: packAssetPath);
 }

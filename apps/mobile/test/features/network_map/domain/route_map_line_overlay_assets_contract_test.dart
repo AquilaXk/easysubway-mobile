@@ -4,41 +4,28 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:easysubway_mobile/features/network_map/domain/route_map_line_overlay_index.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:sqlite3/sqlite3.dart';
 
 import '../../../support/basemap_index.dart';
+import '../../../support/bundled_datapack.dart';
 
 // 권역 바탕·노선 강조 레이어·오너 라벨 sidecar는 data 레포 바탕 컴파일러가 변형(윤곽선·
 // 텍스트)마다 굽고 build manifest에 sha256을 남긴다. 이 레코드는 그 manifest에서 옮겨 적은
 // 값이라, 자산을 다시 가져올 때 data 커밋과 함께 바꾼다.
 const _buildRecordPath =
     'test/features/network_map/fixtures/route_map_line_overlays_build_record.json';
-const _packPath = 'assets/datapacks/nationwide.sqlite.gz';
 
 String _sha256Of(String path) =>
     sha256.convert(File(path).readAsBytesSync()).toString();
 
 Set<({String region, String lineId})> _datapackRouteMapLines() {
-  final workDir = Directory.systemTemp.createTempSync(
-    'route-map-overlay-lines-',
-  );
-  try {
-    final pack = File('${workDir.path}/nationwide.sqlite')
-      ..writeAsBytesSync(gzip.decode(File(_packPath).readAsBytesSync()));
-    final database = sqlite3.open(pack.path, mode: OpenMode.readOnly);
-    try {
-      return {
-        for (final row in database.select(
-          'SELECT DISTINCT region, line_id FROM route_map_positions',
-        ))
-          (region: row['region'] as String, lineId: row['line_id'] as String),
-      };
-    } finally {
-      database.close();
-    }
-  } finally {
-    workDir.deleteSync(recursive: true);
-  }
+  return openBundledDatapack((database) {
+    return {
+      for (final row in database.select(
+        'SELECT DISTINCT region, line_id FROM route_map_positions',
+      ))
+        (region: row['region'] as String, lineId: row['line_id'] as String),
+    };
+  });
 }
 
 void main() {

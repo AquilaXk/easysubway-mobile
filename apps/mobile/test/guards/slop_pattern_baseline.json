@@ -47,7 +47,7 @@
       "lib/features/network_map/presentation/route_map_basemap_view.dart": 2,
       "lib/features/network_map/presentation/route_map_label_layout.dart": 1,
       "lib/features/network_map/presentation/structured_route_map_painter.dart": 9,
-      "lib/features/stations/domain/station_line.dart": 2,
+      "lib/features/stations/domain/station_line.dart": 1,
       "lib/features/train_search/presentation/train_search_screen.dart": 3
     },
     "box_decoration": {

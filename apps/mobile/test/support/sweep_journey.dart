@@ -13,11 +13,6 @@ import 'test_viewport.dart';
 
 // 전수 검사 화면 표와 경로 검색 화면 단독 검사가 함께 쓰는 경로 검색 열기 도우미다.
 // 화면 표(`core_screen_sweep_screens.dart`)를 통째로 끌어오지 않고 이 화면만 열 수 있다.
-const _standardPreferences = OnboardingViewPreferences(
-  largeTextEnabled: false,
-  highContrastEnabled: false,
-  simpleViewEnabled: false,
-);
 
 /// 기본 설정으로 전수 검사용 앱을 띄운 뒤 경로 검색 화면을 연다. [taps]의 키를
 /// 차례로 누른다(출발 시각 시트 열기, 시트의 막차 칩 등).
@@ -30,10 +25,10 @@ Future<void> pumpSweepJourney(
   await tester.pumpWidget(
     buildSweepApp(
       navigatorKey: navigatorKey,
-      onboardingState: OnboardingState.completed(
+      onboardingState: const OnboardingState.completed(
         result: OnboardingResult(
           preset: MobilityPreset.standard,
-          preferences: _standardPreferences,
+          preferences: OnboardingViewPreferences.defaults(),
         ),
       ),
     ),
@@ -42,7 +37,7 @@ Future<void> pumpSweepJourney(
   await openSweepJourney(
     tester: tester,
     navigatorKey: navigatorKey,
-    preferences: _standardPreferences,
+    preferences: const OnboardingViewPreferences.defaults(),
     search: false,
     taps: taps,
   );
