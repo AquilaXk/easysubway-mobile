@@ -198,7 +198,6 @@ Future<void> main() async {
           realtimeRepository: bootstrap.dependencies.realtimeRepository,
           timetableRepository:
               bootstrap.dependencies.stationTimetableRepository,
-          locationProvider: bootstrap.dependencies.locationProvider,
           stationId: stationId,
           facilityReportDraftTargetStore: draftTargetStore,
           onOpenFacilityReport: (target) {

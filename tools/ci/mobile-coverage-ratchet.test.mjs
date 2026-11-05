@@ -553,7 +553,7 @@ test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부�
   assert.throws(() => parseNameStatusZ(Buffer.from("T\0apps/mobile/lib/a.dart\0")), /type/i);
   const rawPath = "apps/mobile/lib/a.dart"; const rawBlob = Buffer.from("final raw = 1;\n"); const testedBlob = Buffer.from("final shifted = 1;\n");
   const seam = {
-    text: (args) => args.includes("--unified=0") ? `+++ b/${rawPath}\n@@ -1 +1 @@\n` : "",
+    text: (args) => args.includes("--unified=0") ? `+++ b/${rawPath}\n@@ -0,0 +1 @@\n+final raw = 1;\n` : "",
     bytes: (args) => {
       if (args.includes("--name-status")) return Buffer.from(`M\0${rawPath}\0`);
       if (args.includes("--numstat")) return Buffer.from(`1\t0\t${rawPath}\0`);
@@ -570,9 +570,10 @@ test("F1/F3 byte fixture는 raw NUL tuple, deletion 보존, binary/type 거부�
 test("changed executable set은 present SF의 exact DA hit·miss만 사용한다", () => {
   const rawPath = "apps/mobile/lib/domain.dart";
   const source = Buffer.from("import 'dart:ui';\n\nabstract interface class Port {\n  int get value;\n  int run() => 1;\n  int covered() => 2;\n}\n");
+  const addedBody = source.toString("utf8").trimEnd().split("\n").map((line) => `+${line}`).join("\n");
   const range = `${head}..${head}`; const productionDiffCalls = [];
   const diff = {
-    text: (args) => { productionDiffCalls.push(args); return `+++ b/${rawPath}\n@@ -0,0 +1,7 @@\n`; },
+    text: (args) => { productionDiffCalls.push(args); return `+++ b/${rawPath}\n@@ -0,0 +1,7 @@\n${addedBody}\n`; },
     bytes: (args) => {
       if (args.includes("diff")) productionDiffCalls.push(args);
       if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
@@ -600,16 +601,20 @@ test("changed executable set은 present SF의 exact DA hit·miss만 사용한다
 
 test("F1 changed executable set은 producer coverage-ignore 지시를 fail-closed한다", () => {
   const rawPath = "apps/mobile/lib/ignored.dart";
-  const changed = (source) => ({
-    text: () => `+++ b/${rawPath}\n@@ -0,0 +1,${source.toString("utf8").trimEnd().split("\n").length} @@\n`,
-    bytes: (args) => {
-      if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
-      if (args.includes("--numstat")) return Buffer.from(`${source.toString("utf8").trimEnd().split("\n").length}\t0\t${rawPath}\0`);
-      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
-      if (args[0] === "cat-file") return source;
-      throw new Error(`unexpected git bytes ${args.join(" ")}`);
-    },
-  });
+  const changed = (source) => {
+    const sourceLines = source.toString("utf8").trimEnd().split("\n");
+    const addedBody = sourceLines.map((line) => `+${line}`).join("\n");
+    return {
+      text: () => `+++ b/${rawPath}\n@@ -0,0 +1,${sourceLines.length} @@\n${addedBody}\n`,
+      bytes: (args) => {
+        if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
+        if (args.includes("--numstat")) return Buffer.from(`${sourceLines.length}\t0\t${rawPath}\0`);
+        if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+        if (args[0] === "cat-file") return source;
+        throw new Error(`unexpected git bytes ${args.join(" ")}`);
+      },
+    };
+  };
   const coverage = new Map([[rawPath, new Map()]]);
   for (const source of [
     Buffer.from("final hidden = 1; // coverage:ignore-line reason_1\n"),
@@ -628,7 +633,7 @@ test("Journey의 exact validated exclusion만 changed-line LCOV 부재를 건너
   const journey = "apps/mobile/lib/generated/journey_v3/journey_v3_contract.dart";
   const ordinary = "apps/mobile/lib/generated/other.dart";
   const seam = (rawPath) => ({
-    text: () => `+++ b/${rawPath}\n@@ -0,0 +1 @@\n`,
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1 @@\n+final generated = 1;\n`,
     bytes: (args) => {
       if (args.includes("--name-status")) return Buffer.from(`A\0${rawPath}\0`);
       if (args.includes("--numstat")) return Buffer.from(`1\t0\t${rawPath}\0`);
@@ -644,7 +649,7 @@ test("Journey의 exact validated exclusion만 changed-line LCOV 부재를 건너
 test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", () => {
   const rawPath = "apps/mobile/lib/comment.dart"; const source = Buffer.from("// comment\n");
   const emptyDiff = {
-    text: () => `+++ b/${rawPath}\n@@ -0,0 +1 @@\n`,
+    text: () => `+++ b/${rawPath}\n@@ -0,0 +1 @@\n+// comment\n`,
     bytes: (args) => {
       if (args.includes("--name-status")) return Buffer.from(`M\0${rawPath}\0`);
       if (args.includes("--numstat")) return Buffer.from(`1\t0\t${rawPath}\0`);
@@ -655,6 +660,82 @@ test("F1 basis-point consumer는 실행 줄이 없으면 null을 보존한다", 
   };
   assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, new Map([[rawPath, new Map()]]), emptyDiff), { state: "APPLICABLE", entries: [], executableLines: 0, coveredLines: 0, lineBasisPoints: null });
   assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, new Map(), emptyDiff), /changed source is missing LCOV/i);
+});
+
+test("numstat U3 context compaction과 unified=0 hunk 분리가 달라도 hunk 내부 + 줄 무결성이 맞으면 통과하고 불일치는 거부한다", () => {
+  const rawPath = "apps/mobile/lib/features/network_map/presentation/route_map_basemap_view.dart";
+  const source = Buffer.from("final a = 1;\n\nfinal b = 2;\nfinal c = 3;\n");
+  const compactedDiff = {
+    text: () => `diff --git a/${rawPath} b/${rawPath}\n--- a/${rawPath}\n+++ b/${rawPath}\n@@ -1,2 +1 @@\n-final oldA = 0;\n-\n+final a = 1;\n@@ -3,0 +2,3 @@\n+\n+final b = 2;\n+final c = 3;\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`M\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`3\t1\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return source;
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  };
+  const coverage = new Map([[rawPath, new Map([[1, 1], [3, 1], [4, 1]])]]);
+  assert.deepEqual(changedExecutableLines(`${head}..${head}`, head, head, coverage, compactedDiff), {
+    state: "APPLICABLE",
+    entries: [
+      { path: rawPath, line: 1, hits: 1, status: "MODIFIED" },
+      { path: rawPath, line: 3, hits: 1, status: "MODIFIED" },
+      { path: rawPath, line: 4, hits: 1, status: "MODIFIED" },
+    ],
+    executableLines: 3,
+    coveredLines: 3,
+    lineBasisPoints: 10000,
+  });
+
+  const truncatedHunkBodyDiff = {
+    ...compactedDiff,
+    text: () => `+++ b/${rawPath}\n@@ -1,2 +1,2 @@\n+final a = 1;\n`,
+  };
+  assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, coverage, truncatedHunkBodyDiff), /numstat\/patch added-line mismatch/i);
+
+  const zeroAddedMismatchDiff = {
+    ...compactedDiff,
+    bytes: (args) => args.includes("--numstat") ? Buffer.from(`0\t2\t${rawPath}\0`) : compactedDiff.bytes(args),
+  };
+  assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, coverage, zeroAddedMismatchDiff), /numstat\/patch added-line mismatch/i);
+
+  const droppedHunkDiff = {
+    ...compactedDiff,
+    text: () => `diff --git a/${rawPath} b/${rawPath}\n--- a/${rawPath}\n+++ b/${rawPath}\n@@ -2,0 +2,3 @@\n+\n+final b = 2;\n+final c = 3;\n`,
+  };
+  assert.throws(() => changedExecutableLines(`${head}..${head}`, head, head, coverage, droppedHunkDiff), /numstat\/patch added-line mismatch/i);
+
+  const headerLikeBodySource = Buffer.from("++ b/apps/mobile/lib/fake.dart\nfinal d = 4;\n");
+  const headerLikeBodyDiff = {
+    text: () => `diff --git a/${rawPath} b/${rawPath}\n--- a/${rawPath}\n+++ b/${rawPath}\n@@ -1,2 +1,2 @@\n--- a/${rawPath}\n-@@ -9,1 +9,1 @@\n+++ b/apps/mobile/lib/fake.dart\n+final d = 4;\n`,
+    bytes: (args) => {
+      if (args.includes("--name-status")) return Buffer.from(`M\0${rawPath}\0`);
+      if (args.includes("--numstat")) return Buffer.from(`2\t2\t${rawPath}\0`);
+      if (args[0] === "ls-tree") return Buffer.from(`100644 blob ${"a".repeat(40)}\t${rawPath}\0`);
+      if (args[0] === "cat-file") return headerLikeBodySource;
+      throw new Error(`unexpected git bytes ${args.join(" ")}`);
+    },
+  };
+  assert.deepEqual(
+    changedExecutableLines(
+      `${head}..${head}`,
+      head,
+      head,
+      new Map([[rawPath, new Map([[1, 1], [2, 1]])]]),
+      headerLikeBodyDiff,
+    ),
+    {
+      state: "APPLICABLE",
+      entries: [
+        { path: rawPath, line: 1, hits: 1, status: "MODIFIED" },
+        { path: rawPath, line: 2, hits: 1, status: "MODIFIED" },
+      ],
+      executableLines: 2,
+      coveredLines: 2,
+      lineBasisPoints: 10000,
+    },
+  );
 });
 
 test("F2 artifact pair는 두 번째 rename 실패 후 원래 destination과 clean staging을 복구한다", () => {

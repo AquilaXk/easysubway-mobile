@@ -76,17 +76,22 @@ RouteMapOwnerLabelAnchor _parseRouteMapOwnerLabelAnchor(Object? value) =>
       _ => RouteMapOwnerLabelAnchor.start,
     };
 
-/// `lines` sidecar 필드 파싱(#2068 다줄 라벨 렌더) — 형식이 어긋난 항목은
-/// 건너뛴다(단일 줄 폴백과 같은 안전 방향: 결과가 비면 호출부가 단일 줄로 렌더).
 List<RouteMapOwnerLabelLine> _parseRouteMapOwnerLabelLines(Object? raw) {
-  if (raw is! List) return const [];
+  if (raw == null) return const [];
+  if (raw is! List) {
+    throw const FormatException('Invalid route map owner label lines');
+  }
   final lines = <RouteMapOwnerLabelLine>[];
   for (final rawLine in raw) {
-    if (rawLine is! Map) continue;
+    if (rawLine is! Map) {
+      throw const FormatException('Invalid route map owner label line');
+    }
     final text = rawLine['text'];
     final x = rawLine['x'];
     final y = rawLine['y'];
-    if (text is! String || text.isEmpty || x is! num || y is! num) continue;
+    if (text is! String || text.trim().isEmpty || x is! num || y is! num) {
+      throw const FormatException('Invalid route map owner label line');
+    }
     lines.add(
       RouteMapOwnerLabelLine(
         text: text,
@@ -98,52 +103,50 @@ List<RouteMapOwnerLabelLine> _parseRouteMapOwnerLabelLines(Object? raw) {
 }
 
 /// sidecar 전체 JSON에서 [regionId](예: `seoul`)의 라벨을 station명 키 맵으로
-/// 파싱한다. 형식이 어긋나거나 regionId가 없으면 빈 맵(호출부가 안전 폴백).
+/// 파싱한다. 유효한 `regions` 맵 안에 [regionId] 키가 없을 때만 빈 맵을 반환한다.
 ///
 /// 동명이역(#2068 실측: seoul 신촌·양평, busan 좌천·동래 — 서로 다른 물리역이
 /// 같은 렌더 텍스트를 공유)은 **한 이름 아래 모든 라벨을 위치로 구분해 리스트로
-/// 보존한다**. 이전엔 role 우선순위로 하나만 남겨(6차 한계) 라벨 하나가 통째로
-/// 소실됐다 — 소비처(geometry bounds 확장·초기 카메라 가독 배율)가 엔트리를
-/// 빠짐없이 훑도록 전부 넘긴다.
+/// 보존한다**.
 /// 리스트 안 순서는 sidecar 등장 순(=station→role 정렬)으로 결정적이다.
 Map<String, List<RouteMapOwnerLabelEntry>> parseRouteMapOwnerLabelsForRegion(
   String sidecarJson,
   String regionId,
 ) {
-  final Object? decoded;
-  try {
-    decoded = jsonDecode(sidecarJson);
-  } on FormatException {
-    return const {};
-  }
+  final decoded = jsonDecode(sidecarJson);
   if (decoded is! Map || decoded['regions'] is! Map) {
+    throw const FormatException('Invalid route map owner labels payload');
+  }
+  final regionEntries = (decoded['regions'] as Map)[regionId];
+  if (regionEntries == null) {
     return const {};
   }
-  return _buildOwnerLabelMap((decoded['regions'] as Map)[regionId]);
+  return _buildOwnerLabelMap(regionEntries);
 }
 
-/// 이미 디코드된 region 엔트리 리스트(Object?)를 station명 키 맵으로 만든다.
-/// 형식이 어긋나면 빈 맵. [parseRouteMapOwnerLabelsForRegion]과
-/// [routeMapOwnerLabelsByRegionFrom]이 공유해 sidecar를 1회만 decode하도록 한다.
 Map<String, List<RouteMapOwnerLabelEntry>> _buildOwnerLabelMap(
   Object? regionEntries,
 ) {
   if (regionEntries is! List) {
-    return const {};
+    throw const FormatException(
+      'Invalid route map owner labels region entries',
+    );
   }
   final result = <String, List<RouteMapOwnerLabelEntry>>{};
   for (final raw in regionEntries) {
-    if (raw is! Map) continue;
+    if (raw is! Map) {
+      throw const FormatException('Invalid route map owner label entry');
+    }
     final station = raw['station'];
     final x = raw['x'];
     final y = raw['y'];
     final fontSizePx = raw['fontSizePx'];
     if (station is! String ||
-        station.isEmpty ||
+        station.trim().isEmpty ||
         x is! num ||
         y is! num ||
         fontSizePx is! num) {
-      continue;
+      throw const FormatException('Invalid route map owner label entry');
     }
     final role = raw['role'] is String ? raw['role'] as String : 'ordinary';
     final entry = RouteMapOwnerLabelEntry(
@@ -164,14 +167,9 @@ Map<String, List<RouteMapOwnerLabelEntry>> _buildOwnerLabelMap(
 /// sidecar는 여기서 1회만 decode하고 그 결과를 모든 region이 공유한다.
 Map<String, Map<String, List<RouteMapOwnerLabelEntry>>>
 routeMapOwnerLabelsByRegionFrom(String sidecarJson) {
-  final Object? decoded;
-  try {
-    decoded = jsonDecode(sidecarJson);
-  } on FormatException {
-    return const {};
-  }
+  final decoded = jsonDecode(sidecarJson);
   if (decoded is! Map || decoded['regions'] is! Map) {
-    return const {};
+    throw const FormatException('Invalid route map owner labels payload');
   }
   final regions = decoded['regions'] as Map;
   return {

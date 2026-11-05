@@ -195,12 +195,35 @@ class NetworkMapLine {
   final String region;
 
   factory NetworkMapLine.fromJson(Map<String, Object?> json) {
-    return NetworkMapLine(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? json['nameKo'] as String? ?? '',
-      color: json['color'] as String? ?? '#006D77',
-      region: json['region'] as String? ?? '',
-    );
+    final id = _optionalTrimmedString(json, 'id');
+    final primaryName = _optionalTrimmedString(json, 'name');
+    final fallbackName = _optionalTrimmedString(json, 'nameKo');
+    final name = primaryName.isNotEmpty ? primaryName : fallbackName;
+    final primaryColor = _optionalTrimmedString(json, 'color');
+    final fallbackColor = _optionalTrimmedString(json, 'colorHex');
+    final color = primaryColor.isNotEmpty ? primaryColor : fallbackColor;
+    final region = _optionalString(json, 'region');
+    if (id.isEmpty || name.isEmpty || color.isEmpty) {
+      throw const FormatException(
+        'NetworkMapLine requires non-empty id, name, and color',
+      );
+    }
+    return NetworkMapLine(id: id, name: name, color: color, region: region);
+  }
+
+  static String _optionalString(Map<String, Object?> json, String key) {
+    final value = json[key];
+    if (value == null) {
+      return '';
+    }
+    if (value is! String) {
+      throw FormatException('NetworkMapLine.$key must be a String');
+    }
+    return value;
+  }
+
+  static String _optionalTrimmedString(Map<String, Object?> json, String key) {
+    return _optionalString(json, key).trim();
   }
 }
 

@@ -56,14 +56,18 @@ class NearbyArrivalPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final arrivals = [
+      for (final arrival in data.arrivals)
+        if (_formatArrivalEta(arrival, now: now).isNotEmpty) arrival,
+    ];
     final hasData =
         (data.status == NearbyArrivalPanelStatus.fresh ||
             data.status == NearbyArrivalPanelStatus.stale) &&
-        data.arrivals.isNotEmpty;
+        arrivals.isNotEmpty;
     final dataGroups = <List<NearbyArrivalData>>[];
     if (hasData) {
       final groups = <String, List<NearbyArrivalData>>{};
-      for (final arrival in data.arrivals) {
+      for (final arrival in arrivals) {
         final dir = _resolveNearbyArrivalDirection(
           arrival,
           leftName: leftName,
@@ -207,7 +211,7 @@ String _formatArrivalEta(NearbyArrivalData arrival, {DateTime? now}) {
   if (pos.isNotEmpty) {
     return pos;
   }
-  return msg.isNotEmpty ? msg : '곧 도착';
+  return msg;
 }
 
 String _fallbackDestination(String direction) {

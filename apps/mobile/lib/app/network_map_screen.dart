@@ -1854,7 +1854,6 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         bottomAdBuilder: _stationDetailBottomAdBuilder(widget.adRepository),
         realtimeRepository: widget.realtimeRepository,
         timetableRepository: widget.timetableRepository,
-        locationProvider: widget.locationProvider,
         stationId: primary.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
         onOpenFacilityReport: widget.onOpenFacilityReport,

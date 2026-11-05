@@ -29,7 +29,6 @@ Future<T?> showStationDetailSheet<T>({
   RealtimeRepository? realtimeRepository,
   bool enableRealtimePolling = true,
   StationTimetableRepository? timetableRepository,
-  CurrentLocationProvider? locationProvider,
   bool? initiallyFavorite,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
   RouteDraftPort? routeDraftController,
@@ -56,7 +55,6 @@ Future<T?> showStationDetailSheet<T>({
           realtimeRepository: realtimeRepository,
           enableRealtimePolling: enableRealtimePolling,
           timetableRepository: timetableRepository,
-          locationProvider: locationProvider,
           stationId: stationId,
           initiallyFavorite: initiallyFavorite,
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
@@ -81,7 +79,6 @@ class StationDetailScreen extends StatefulWidget {
     this.realtimeRepository,
     this.enableRealtimePolling = true,
     this.timetableRepository,
-    this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
     this.routeDraftController,
@@ -99,7 +96,6 @@ class StationDetailScreen extends StatefulWidget {
   final RealtimeRepository? realtimeRepository;
   final bool enableRealtimePolling;
   final StationTimetableRepository? timetableRepository;
-  final CurrentLocationProvider? locationProvider;
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
@@ -191,7 +187,6 @@ class _StationDetailScreenState extends State<StationDetailScreen>
                 favoriteController: _favoriteController,
                 bottomAdBuilder: widget.bottomAdBuilder,
                 routeDraftController: widget.routeDraftController,
-                locationProvider: widget.locationProvider,
                 mapLauncher: widget.mapLauncher,
                 timetableRepository: widget.timetableRepository,
                 previousStation: widget.previousStation,
@@ -273,7 +268,6 @@ class StationDetailExpandHost extends StatefulWidget {
     this.bottomAdBuilder,
     this.realtimeRepository,
     this.timetableRepository,
-    this.locationProvider,
     this.initiallyFavorite,
     this.facilityReportDraftTargetStore,
     this.routeDraftController,
@@ -295,7 +289,6 @@ class StationDetailExpandHost extends StatefulWidget {
   final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
   final StationTimetableRepository? timetableRepository;
-  final CurrentLocationProvider? locationProvider;
   final String stationId;
   final bool? initiallyFavorite;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
@@ -381,7 +374,6 @@ class _StationDetailExpandHostState extends State<StationDetailExpandHost> {
             favoriteController: _favoriteController,
             bottomAdBuilder: widget.bottomAdBuilder,
             routeDraftController: widget.routeDraftController,
-            locationProvider: widget.locationProvider,
             mapLauncher: widget.mapLauncher,
             timetableRepository: widget.timetableRepository,
             showContextChrome: widget.showContextChrome,
