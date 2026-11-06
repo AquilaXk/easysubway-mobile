@@ -17,9 +17,11 @@ class NameWithMarks extends StatelessWidget {
     required this.marks,
     this.marksFirst = false,
     this.gap = 8,
-    this.maxMarksFraction = 0.4,
+    this.maxMarksFraction = defaultMaxMarksFraction,
     super.key,
   });
+
+  static const double defaultMaxMarksFraction = 0.4;
 
   final Widget name;
   final Widget marks;
