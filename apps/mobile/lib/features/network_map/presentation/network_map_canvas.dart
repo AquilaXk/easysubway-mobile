@@ -563,22 +563,6 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
         geometry.x(focusedStation),
         geometry.y(focusedStation),
       );
-      final targetBounds = _stationFocusBoundsFor(
-        focusedStation,
-        geometry,
-        initialBounds: initialCameraBounds,
-      );
-      final focusCamera = networkMapStationFocusCameraForRegion(
-        initialBounds: initialCameraBounds,
-        stationCenter: stationCenter,
-        fullBounds: fullBounds,
-        viewport: viewport,
-        minScale: minScale,
-        revision: camera.revision + 1,
-        // 역 focus 후에도 LOD 기준은 지역 초기 화면 baseline을 유지한다.
-        initialScaleOverride: camera.initialScale,
-        obscuredTop: obscuredTop,
-      );
       final focusedCamera = widget.preserveFocusedStationScale
           ? camera
                 .copyWith(
@@ -590,19 +574,17 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
                   revision: camera.revision + 1,
                 )
                 .clamped(viewportMargin: clampMargin)
-          : (camera.scale > focusCamera.scale
-                ? focusCamera
-                      .copyWith(
-                        center: networkMapCameraCenterForVisibleCenter(
-                          targetBounds.center,
-                          scale: camera.scale,
-                          obscuredTop: obscuredTop,
-                        ),
-                        scale: camera.scale,
-                        revision: camera.revision + 1,
-                      )
-                      .clamped(viewportMargin: clampMargin)
-                : focusCamera);
+          : networkMapStationFocusCameraForRegion(
+              initialBounds: initialCameraBounds,
+              stationCenter: stationCenter,
+              fullBounds: fullBounds,
+              viewport: viewport,
+              minScale: minScale,
+              currentScale: camera.scale,
+              revision: camera.revision + 1,
+              initialScaleOverride: camera.initialScale,
+              obscuredTop: obscuredTop,
+            );
       _cameraFocusedStationKey = focusedStationKey;
       _pendingCamera = null;
       _camera = focusedCamera;
@@ -1311,22 +1293,4 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       center.dy - geometry.origin.dy,
     );
   }
-}
-
-/// [initialBounds]는 이 지역이 실제로 쓰는 초기 카메라 bounds다(#2068 트랙 QA
-/// 후속으로 [networkMapInitialCameraBounds]가 확대해 준 값). geometry의 원
-/// initialBounds를 쓰면 초기 화면이 확대된 만큼 focus가 오히려 축소돼 #2062
-/// ("focus는 초기 화면보다 확대") 불변식이 깨진다 — 두 카메라가 같은 bounds를
-/// 공유해야 focus 배율이 항상 동일한 feature policy로 계산된다.
-Rect _stationFocusBoundsFor(
-  NetworkMapStation station,
-  NetworkMapGeometry geometry, {
-  required Rect initialBounds,
-}) {
-  return networkMapStationFocusBounds(
-    initialBounds: initialBounds,
-    center: Offset(geometry.x(station), geometry.y(station)),
-    sourceWidth: geometry.width,
-    sourceHeight: geometry.height,
-  );
 }

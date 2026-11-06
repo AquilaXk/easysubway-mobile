@@ -10,6 +10,8 @@ import 'package:flutter_test/flutter_test.dart';
 /// 퇴역했거나 쓰이지 않아 출처 화면에서 뺀 원천과 그 카드 제목.
 /// 제목은 inventory가 `userDisplayName`으로 내려 주던 값이다.
 const _removedSourceTitles = <String, String>{
+  'busan-transportation-urban-rail-station-info': '부산교통공사 도시철도역사정보',
+  'kric-metropolitan-rail-station-info': '국가철도공단 도시광역철도 역사정보',
   'kric-station-elevator': '국가철도공단 역사별 엘리베이터 현황',
   'kric-station-elevator-movement': '국가철도공단 역사별 엘리베이터 이동동선',
   'kric-wheelchair-lift-location': '국가철도공단 역사별 휠체어리프트 위치',
@@ -19,6 +21,8 @@ const _removedSourceTitles = <String, String>{
   'kric-station-movement-detailed': '출입구-승강장 이동경로',
   'kric-station-transfer-info': '역사별 환승정보',
   'kric-train-operation-organ': '열차운영기관정보',
+  'molit-tago-subway-info': '국토교통부(TAGO) 지하철정보',
+  'seoul-subway-hourly-boarding': '서울시 지하철 호선별 역별 시간대별 승하차 인원 정보',
   // 현재 노선도는 공개 좌표 자료와 자체 배치로 만들고, 이 원천은 과거 진단 이력으로만 남는다.
   'seoulmetro-cyberstation-route-map': '서울교통공사 노선도',
 };
@@ -26,8 +30,6 @@ const _removedSourceTitles = <String, String>{
 /// 운영 사용 허용 표시가 꺼져 있어도 실제로 쓰여서 출처 카드를 남기는 원천과 그 이유.
 const _listedDespiteNoProductionFlag = <String, String>{
   'kric-subway-route-info': '모든 KRIC 수집이 이 노선·역 목록으로 제공처 코드를 맞춘다',
-  'kric-station-movement-standard':
-      '서버 번들의 역 엘리베이터 경로 표(#834)를 이 원천의 보관 snapshot으로 만든다',
 };
 
 // testWidgets의 가짜 시계 안에서는 비동기 파일 읽기가 끝나지 않으므로 동기로 읽는다.
@@ -47,12 +49,21 @@ void main() {
 
   test('출처 목록에 올라오는 원천 중 운영 사용 허용이 꺼진 것은 실제로 쓰이는 원천뿐이다', () {
     final inventory = _readJson('assets/datapacks/source-inventory.json');
+    final listedSources = (inventory['sources']! as List)
+        .cast<Map<String, Object?>>()
+        .where(isListedDataSource)
+        .toList(growable: false);
+    for (final source in listedSources) {
+      final id = source['id']! as String;
+      expect(
+        source['productionUseAllowed'],
+        isA<bool>(),
+        reason: '$id must declare boolean productionUseAllowed',
+      );
+    }
     final flaggedOff = [
-      for (final source
-          in (inventory['sources']! as List).cast<Map<String, Object?>>().where(
-            isListedDataSource,
-          ))
-        if (source['productionUseAllowed'] == false) source['id']! as String,
+      for (final source in listedSources)
+        if (source['productionUseAllowed'] != true) source['id']! as String,
     ];
     expect(flaggedOff.toSet(), _listedDespiteNoProductionFlag.keys.toSet());
   });

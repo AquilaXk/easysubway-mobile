@@ -138,16 +138,18 @@ MapCameraState networkMapStationFocusCameraForRegion({
   required Size viewport,
   double? initialScaleOverride,
   double? minScale,
+  double? currentScale,
   int revision = 0,
   double obscuredTop = 0,
 }) {
-  return networkMapCameraForBounds(
-    networkMapStationFocusBounds(
-      initialBounds: initialBounds,
-      center: stationCenter,
-      sourceWidth: fullBounds.width,
-      sourceHeight: fullBounds.height,
-    ),
+  final focusBounds = networkMapStationFocusBounds(
+    initialBounds: initialBounds,
+    center: stationCenter,
+    sourceWidth: fullBounds.width,
+    sourceHeight: fullBounds.height,
+  );
+  final focusCamera = networkMapCameraForBounds(
+    focusBounds,
     BoxConstraints.tightFor(width: viewport.width, height: viewport.height),
     sourceBounds: fullBounds,
     contain: true,
@@ -156,6 +158,25 @@ MapCameraState networkMapStationFocusCameraForRegion({
     initialScaleOverride: initialScaleOverride,
     obscuredTop: obscuredTop,
   );
+  if (currentScale == null ||
+      !currentScale.isFinite ||
+      currentScale <= focusCamera.scale) {
+    return focusCamera;
+  }
+  final usableObscuredTop = networkMapUsableObscuredTop(
+    obscuredTop,
+    viewport.height,
+  );
+  return focusCamera
+      .copyWith(
+        center: networkMapCameraCenterForVisibleCenter(
+          focusBounds.center,
+          scale: currentScale,
+          obscuredTop: usableObscuredTop,
+        ),
+        scale: currentScale,
+      )
+      .clamped(viewportMargin: networkMapCameraClampMargin(usableObscuredTop));
 }
 
 /// 저장형·표시형 권역명에 같은 오너 실측 축소 하한을 적용한다.
