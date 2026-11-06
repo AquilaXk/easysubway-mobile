@@ -113,12 +113,12 @@ MapCameraState networkMapCameraForBounds(
 }
 
 /// 지역 초기 화면 카메라의 contain-fit과 baseline scale을 함께 고정한다.
-@visibleForTesting
 MapCameraState networkMapInitialCameraForRegion({
   required Rect regionBounds,
   required Rect fullBounds,
   required Size viewport,
   double? minScale,
+  double obscuredTop = 0,
 }) {
   return networkMapCameraForBounds(
     regionBounds,
@@ -126,11 +126,11 @@ MapCameraState networkMapInitialCameraForRegion({
     sourceBounds: fullBounds,
     contain: true,
     minScale: minScale ?? _fallbackMinMapScale,
+    obscuredTop: obscuredTop,
   );
 }
 
 /// 역 focus를 지역 초기 화면보다 1/0.72배(약 1.39배) 확대하되 max scale을 보존한다.
-@visibleForTesting
 MapCameraState networkMapStationFocusCameraForRegion({
   required Rect initialBounds,
   required Offset stationCenter,
@@ -138,6 +138,8 @@ MapCameraState networkMapStationFocusCameraForRegion({
   required Size viewport,
   double? initialScaleOverride,
   double? minScale,
+  int revision = 0,
+  double obscuredTop = 0,
 }) {
   return networkMapCameraForBounds(
     networkMapStationFocusBounds(
@@ -150,7 +152,9 @@ MapCameraState networkMapStationFocusCameraForRegion({
     sourceBounds: fullBounds,
     contain: true,
     minScale: minScale ?? _fallbackMinMapScale,
+    revision: revision,
     initialScaleOverride: initialScaleOverride,
+    obscuredTop: obscuredTop,
   );
 }
 

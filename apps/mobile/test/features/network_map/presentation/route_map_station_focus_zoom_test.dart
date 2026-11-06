@@ -1,6 +1,5 @@
-import 'dart:ui';
-
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // GPS/인플레이스 검색으로 역을 focus하면 카메라가 그 역으로 pan만 하고 확대는
@@ -143,6 +142,60 @@ void main() {
       expect(focusCamera.initialScale, initialCamera.initialScale);
       // 실제 표시 scale은 baseline보다 확대돼 있어야 한다.
       expect(focusCamera.scale, greaterThan(focusCamera.initialScale!));
+    });
+
+    test('obscuredTop과 revision을 networkMapCameraForBounds와 동일하게 반영한다', () {
+      const initialBounds = Rect.fromLTWH(600, 500, 777, 568);
+      const obscuredTop = 120.0;
+      final tightViewport = BoxConstraints.tightFor(
+        width: viewport.width,
+        height: viewport.height,
+      );
+
+      final initialCamera = networkMapInitialCameraForRegion(
+        regionBounds: initialBounds,
+        fullBounds: fullBounds,
+        viewport: viewport,
+        obscuredTop: obscuredTop,
+      );
+      final expectedInitial = networkMapCameraForBounds(
+        initialBounds,
+        tightViewport,
+        sourceBounds: fullBounds,
+        contain: true,
+        obscuredTop: obscuredTop,
+      );
+      expect(initialCamera.scale, expectedInitial.scale);
+      expect(initialCamera.center, expectedInitial.center);
+      expect(initialCamera.viewportSize, expectedInitial.viewportSize);
+
+      final focusCamera = networkMapStationFocusCameraForRegion(
+        initialBounds: initialBounds,
+        stationCenter: initialBounds.center,
+        fullBounds: fullBounds,
+        viewport: viewport,
+        initialScaleOverride: initialCamera.initialScale,
+        revision: 4,
+        obscuredTop: obscuredTop,
+      );
+      final expectedFocus = networkMapCameraForBounds(
+        networkMapStationFocusBounds(
+          initialBounds: initialBounds,
+          center: initialBounds.center,
+          sourceWidth: fullBounds.width,
+          sourceHeight: fullBounds.height,
+        ),
+        tightViewport,
+        sourceBounds: fullBounds,
+        contain: true,
+        revision: 4,
+        initialScaleOverride: initialCamera.initialScale,
+        obscuredTop: obscuredTop,
+      );
+      expect(focusCamera.scale, expectedFocus.scale);
+      expect(focusCamera.center, expectedFocus.center);
+      expect(focusCamera.revision, 4);
+      expect(focusCamera.initialScale, initialCamera.initialScale);
     });
   });
 }
