@@ -122,6 +122,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "approved-snapshot-only",
       "observedDataUpdatedAt": "2026-07-13",
       "retrievedAt": "2026-07-13",
@@ -378,77 +379,6 @@
       },
       "admissionEvidence": {
         "licenseEvidenceHash": "da99648cbd80d9263482ae707dfcf6cd11c19c50461bf60cbad85183ff45dec1"
-      }
-    },
-    {
-      "id": "busan-transportation-urban-rail-station-info",
-      "displayName": "부산교통공사_도시철도역사정보",
-      "userDisplayName": "부산교통공사 도시철도역사정보",
-      "owner": "부산교통공사",
-      "provider": "부산교통공사",
-      "providerDepartment": "IT지원단",
-      "sourceSystem": "공공데이터포털",
-      "datasetUrl": "https://www.data.go.kr/data/15043686/fileData.do",
-      "datasetKind": "file-and-open-api",
-      "coverage": "부산교통공사 도시철도 각 역사 기초 정보",
-      "coverageScope": {
-        "regionIds": [
-          "busan"
-        ],
-        "operatorIds": [
-          "busan-transportation"
-        ],
-        "sourceDomains": [
-          "station_line_membership"
-        ]
-      },
-      "requiredForProductionPack": false,
-      "updateFrequency": "ad-hoc",
-      "observedDataUpdatedAt": "2025-09-11",
-      "retrievedAt": "2026-06-22",
-      "license": {
-        "type": "PUBLIC_DATA_FREE_USE",
-        "name": "공공데이터포털 이용허락범위 제한 없음",
-        "attribution": "공공데이터포털 이용허락범위 제한 없음",
-        "commercialUseAllowed": true,
-        "derivativeWorkAllowed": true,
-        "redistributionAllowed": true,
-        "evidenceUrl": "https://www.data.go.kr/data/15043686/fileData.do"
-      },
-      "fieldsProvided": [
-        "station_name",
-        "line_number",
-        "line_name",
-        "english_station_name",
-        "transfer_flag",
-        "latitude",
-        "longitude",
-        "phone_number"
-      ],
-      "capabilities": {
-        "schedule": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "ad-hoc",
-          "unsupportedNotes": "source does not provide scheduled timetable data for production route ETA"
-        },
-        "realtime": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "liveEtaEligible": false,
-          "rateLimitStatus": "NOT_APPLICABLE",
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "ad-hoc",
-          "unsupportedNotes": "source does not provide realtime arrival data for production live ETA"
-        },
-        "facility": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "ad-hoc",
-          "unsupportedNotes": "source does not provide accessibility facility records"
-        }
       }
     },
     {
@@ -2681,6 +2611,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "realtime",
       "observedDataUpdatedAt": "2026-06-22",
       "retrievedAt": "2026-06-22",
@@ -2758,6 +2689,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "realtime",
       "observedDataUpdatedAt": "2026-06-22",
       "retrievedAt": "2026-06-22",
@@ -3579,93 +3511,6 @@
       }
     },
     {
-      "id": "kric-metropolitan-rail-station-info",
-      "displayName": "국가철도공단_도시광역철도_역사정보",
-      "userDisplayName": "국가철도공단 도시광역철도 역사정보",
-      "owner": "국가철도공단",
-      "provider": "국가철도공단",
-      "providerDepartment": "철도산업정보센터",
-      "sourceSystem": "공공데이터포털 표준데이터",
-      "datasetUrl": "https://www.data.go.kr/data/15093755/fileData.do",
-      "datasetKind": "standard-file-data",
-      "coverage": "전국 도시광역철도 역사 기본 정보, 환승 여부와 환승 노선, 위치, 운영기관 정보",
-      "coverageScope": {
-        "regionIds": [
-          "capital",
-          "busan",
-          "daegu",
-          "gwangju",
-          "daejeon"
-        ],
-        "operatorIds": [
-          "seoul-metro",
-          "korail",
-          "incheon-transit",
-          "busan-transportation",
-          "daegu-transportation",
-          "gwangju-metropolitan-rapid-transit",
-          "daejeon-transportation"
-        ],
-        "sourceDomains": [
-          "station_line_membership"
-        ]
-      },
-      "requiredForProductionPack": false,
-      "updateFrequency": "annual",
-      "observedDataUpdatedAt": "2026-06-30",
-      "retrievedAt": "2026-07-11",
-      "license": {
-        "type": "PUBLIC_DATA_FREE_USE",
-        "name": "공공데이터포털 이용허락범위 제한 없음",
-        "attribution": "공공데이터포털 이용허락범위 제한 없음",
-        "commercialUseAllowed": true,
-        "derivativeWorkAllowed": true,
-        "redistributionAllowed": true,
-        "evidenceUrl": "https://www.data.go.kr/dcat/metadata/15093755"
-      },
-      "fieldsProvided": [
-        "station_number",
-        "station_name",
-        "line_number",
-        "line_name",
-        "english_station_name",
-        "chinese_station_name",
-        "transfer_station_flag",
-        "transfer_lines",
-        "latitude",
-        "longitude",
-        "operator_name",
-        "road_address",
-        "phone_number",
-        "data_reference_date"
-      ],
-      "capabilities": {
-        "schedule": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "annual",
-          "unsupportedNotes": "source does not provide scheduled timetable data for production route ETA"
-        },
-        "realtime": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "liveEtaEligible": false,
-          "rateLimitStatus": "NOT_APPLICABLE",
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "annual",
-          "unsupportedNotes": "source does not provide realtime arrival data for production live ETA"
-        },
-        "facility": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "annual",
-          "unsupportedNotes": "source does not provide accessibility facility records"
-        }
-      }
-    },
-    {
       "id": "kric-platform-train-distance",
       "displayName": "국가철도공단_승강장 열차 간격",
       "userDisplayName": "국가철도공단 승강장 열차 간격",
@@ -3698,6 +3543,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "realtime",
       "observedDataUpdatedAt": "2026-06-22",
       "retrievedAt": "2026-06-22",
@@ -3775,6 +3621,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "realtime",
       "observedDataUpdatedAt": "2026-06-22",
       "retrievedAt": "2026-06-22",
@@ -4469,8 +4316,8 @@
         ]
       },
       "requiredForProductionPack": false,
-      "productionUseAllowed": false,
-      "updateFrequency": "provider documented; production cadence not admitted",
+      "productionUseAllowed": true,
+      "updateFrequency": "번들 입력 스냅샷 수집 시 1회",
       "observedDataUpdatedAt": "2026-07-12",
       "retrievedAt": "2026-07-12",
       "license": {
@@ -4510,11 +4357,11 @@
           "unsupportedNotes": "source is not admitted as production realtime arrival data"
         },
         "facility": {
-          "status": "CANDIDATE",
-          "productionUseAllowed": false,
-          "coverageStatus": "CONSUMER_EVIDENCE_REQUIRED",
-          "updateFrequency": "provider documented; production cadence not admitted",
-          "unsupportedNotes": "inventory provenance admission only; consumer-specific coverage and quality evidence is still required before production use"
+          "status": "SUPPORTED",
+          "productionUseAllowed": true,
+          "coverageStatus": "SERVER_ROUTE_BUNDLE_STATION_ELEVATOR_PATH",
+          "updateFrequency": "번들 입력 스냅샷 수집 시 1회",
+          "unsupportedNotes": "표준 역구내 이동동선 원천이 SERVER_ROUTE_BUNDLE_STATION_ELEVATOR_PATH 범위(tools/datapack/build-station-elevator-paths.mjs)로 승인·소비됨"
         }
       },
       "admissionEvidence": {
@@ -4541,10 +4388,10 @@
         "quotaEvidence": {
           "defaultDailyLimit": "unlimited",
           "portal": "KRIC 레일포털",
-          "productionUseAllowed": false,
-          "unlockStatus": "not_required"
+          "productionUseAllowed": true,
+          "unlockStatus": "unlocked"
         },
-        "productionUseNoteKo": "오너 admin review(2026-07-13)로 inventory provenance에만 승격했다. consumer별 coverage·약관·품질 evidence가 확인되기 전에는 production pack과 runtime 호출에 사용하지 않는다.",
+        "productionUseNoteKo": "오너 admin review(2026-07-13) 및 #834 운영 사용 승격(QA 결정 2026-09-30) 완료. SERVER_ROUTE_BUNDLE_STATION_ELEVATOR_PATH 범위(tools/datapack/build-station-elevator-paths.mjs)로 승인·소비됨.",
         "sourceInventorySha256": "d9be49ab573a6437fb069ae7ebe1c8e988253501387b456e31344fd6a835536e"
       }
     },
@@ -4781,6 +4628,7 @@
         ]
       },
       "requiredForProductionPack": true,
+      "productionUseAllowed": true,
       "updateFrequency": "provider-documented-on-change",
       "observedDataUpdatedAt": "2026-10-01",
       "retrievedAt": "2026-10-01",
@@ -5009,6 +4857,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "provider documented; production cadence not admitted",
       "observedDataUpdatedAt": "2026-07-12",
       "retrievedAt": "2026-07-12",
@@ -5339,115 +5188,6 @@
             }
           ]
         }
-      }
-    },
-    {
-      "id": "molit-tago-subway-info",
-      "displayName": "국토교통부_(TAGO)_지하철정보",
-      "userDisplayName": "국토교통부(TAGO) 지하철정보",
-      "owner": "국토교통부",
-      "provider": "국토교통부",
-      "providerDepartment": "모빌리티총괄과",
-      "sourceSystem": "TAGO",
-      "datasetUrl": "https://www.data.go.kr/data/15098554/openapi.do",
-      "datasetKind": "open-api",
-      "coverage": "전국 지하철역 목록, 역별 출구, 주변 시설, 시간표 조회 API",
-      "coverageScope": {
-        "regionIds": [
-          "capital",
-          "busan",
-          "daegu",
-          "gwangju",
-          "daejeon"
-        ],
-        "operatorIds": [
-          "seoul-metro",
-          "korail",
-          "incheon-transit",
-          "busan-transportation",
-          "daegu-transportation",
-          "gwangju-metropolitan-rapid-transit",
-          "daejeon-transportation"
-        ],
-        "sourceDomains": [
-          "station_line_membership"
-        ]
-      },
-      "requiredForProductionPack": false,
-      "updateFrequency": "realtime",
-      "observedDataUpdatedAt": "2026-03-05",
-      "retrievedAt": "2026-06-22",
-      "license": {
-        "type": "PUBLIC_DATA_FREE_USE",
-        "name": "공공데이터포털 이용허락범위 제한 없음",
-        "attribution": "공공데이터포털 이용허락범위 제한 없음",
-        "commercialUseAllowed": true,
-        "derivativeWorkAllowed": true,
-        "redistributionAllowed": true,
-        "evidenceUrl": "https://www.data.go.kr/data/15098554/openapi.do"
-      },
-      "fieldsProvided": [
-        "subwayRouteName",
-        "subwayStationId",
-        "subwayStationName",
-        "exitNo",
-        "depTime",
-        "arrTime"
-      ],
-      "capabilities": {
-        "schedule": {
-          "status": "CANDIDATE",
-          "productionUseAllowed": false,
-          "coverageStatus": "SOURCE_INVENTORY_COVERED",
-          "updateFrequency": "realtime",
-          "unsupportedNotes": "commercial schedule import remains blocked until C-1 production schedule importer and provider sample validation are complete"
-        },
-        "realtime": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "liveEtaEligible": false,
-          "rateLimitStatus": "NOT_APPLICABLE",
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "realtime",
-          "unsupportedNotes": "source does not provide realtime arrival data for production live ETA"
-        },
-        "facility": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "realtime",
-          "unsupportedNotes": "source does not provide accessibility facility records"
-        }
-      },
-      "admissionEvidence": {
-        "artifactKind": "source-admission-pipeline-evidence-summary",
-        "issue": 1397,
-        "candidateId": "molit-tago-subway-info",
-        "sourceId": "molit-tago-subway-info",
-        "snapshotId": "molit-tago-subway-info-snapshot-20260704",
-        "decision": "APPROVED",
-        "approvedBy": "qa-admin",
-        "approvedAt": "2026-07-04T00:20:00Z",
-        "sampleEvidenceHash": "d5a60bcc1907d346a24fbf720a5d362268720e8fab68e35c42eace270e5fe9ae",
-        "rawSha256": "34af0c0e6750012070282b0b59f0226075bfbc8ee533f0bd934c78b130d297d4",
-        "schemaFingerprint": "6e5d572290d2d5a8ea2d243a615b6f310417995944c140353a5606228016bd48",
-        "sourceSnapshotSetHash": "f6a7dcb11a04a1993202fc5fbd3068eb5808f66a237f2b72c907700bbd660578",
-        "sourceInventorySha256": "85a88db7f1c9f389adda7a8c1b9bc7c682ec1fe3762a4cb647ce332d52a916f1",
-        "adminReviewRecordHash": "68de2df243b1b73b5eb5b50c786bbd43385c99338c29945d7fd38b2163640ef0",
-        "licenseEvidenceHash": "1bece434e20038b0e5fc9fb7812b96fc088936905208ad1619317dda73e17c60",
-        "aliasLedgerHash": "6915e06ab8432339b4c3b19ec2a7abeba0698b004234e85e5c1d19735a8b6f6f",
-        "operatorMappingLedgerHash": "436598de70ed9d75b909010aa9fe8a283fe86d9ab9041fcb1ab8c1f54b43f9d0",
-        "facilityEvidenceLedgerHash": "2f9ddabfb6c983c428d2194ea88e65818b5ae951750f82078375ca883ace110c",
-        "routeEvidenceLedgerHash": "db2a0915adbf98eabc8f4ee52b4a9f27d25ebca95ecdfff3e3c8e4554ef768cc",
-        "overrideHash": "b5fb2c6fed271ff24e1c8ecd0d2334b257540e2032492f78b4d8417964215787",
-        "admissionDurationSeconds": 0,
-        "quotaEvidence": {
-          "portal": "공공데이터포털",
-          "defaultDailyLimit": 1000,
-          "unlockStatus": "pending_production_account_transition",
-          "productionUseAllowed": false
-        },
-        "productionUseNoteKo": "admin review는 통과했지만 trip/stop sequence source가 없어 schedule_timetable production use는 아직 차단한다."
       }
     },
     {
@@ -6390,6 +6130,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "provider realtime API; sampled records dated 2024-12-31; production cadence not admitted",
       "observedDataUpdatedAt": "2024-12-31",
       "retrievedAt": "2026-07-12",
@@ -6697,6 +6438,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "approved-snapshot-only",
       "observedDataUpdatedAt": "2026-07-12",
       "retrievedAt": "2026-07-12",
@@ -6990,6 +6732,7 @@
         ]
       },
       "requiredForProductionPack": true,
+      "productionUseAllowed": true,
       "updateFrequency": "annual file snapshot",
       "observedDataUpdatedAt": "2025-12-31",
       "retrievedAt": "2026-07-12",
@@ -7128,6 +6871,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "provider-realtime-api-and-irregular-file-snapshot",
       "observedDataUpdatedAt": "2026-07-03",
       "retrievedAt": "2026-07-03",
@@ -7217,73 +6961,6 @@
       }
     },
     {
-      "id": "seoul-subway-hourly-boarding",
-      "displayName": "서울시 지하철 호선별 역별 시간대별 승하차 인원 정보",
-      "userDisplayName": "서울시 지하철 호선별 역별 시간대별 승하차 인원 정보",
-      "owner": "서울특별시",
-      "provider": "서울특별시",
-      "providerDepartment": "교통실 교통기획관 교통정책과",
-      "sourceSystem": "교통카드 정산시스템",
-      "datasetUrl": "https://data.seoul.go.kr/dataList/OA-12252/S/1/datasetView.do",
-      "datasetKind": "sheet-open-api",
-      "coverage": "서울시 관할 운송기관 1~9호선 시간대별 승하차 인원",
-      "coverageScope": {
-        "regionIds": [
-          "capital"
-        ],
-        "operatorIds": [
-          "seoul-metro"
-        ],
-        "sourceDomains": [
-          "demand_reference"
-        ]
-      },
-      "requiredForProductionPack": false,
-      "updateFrequency": "monthly-day-5",
-      "observedDataUpdatedAt": "2026-06-06",
-      "retrievedAt": "2026-06-21",
-      "license": {
-        "type": "KOGL-1",
-        "name": "공공누리 1유형",
-        "attribution": "공공누리 제1유형: 출처표시 (상업적 이용 및 변경 가능)",
-        "commercialUseAllowed": true,
-        "derivativeWorkAllowed": true,
-        "redistributionAllowed": true,
-        "evidenceUrl": "https://data.seoul.go.kr/dataList/OA-12252/S/1/datasetView.do"
-      },
-      "fieldsProvided": [
-        "line",
-        "station_name",
-        "hourly_boarding_count",
-        "hourly_alighting_count"
-      ],
-      "capabilities": {
-        "schedule": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "monthly-day-5",
-          "unsupportedNotes": "source does not provide scheduled timetable data for production route ETA"
-        },
-        "realtime": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "liveEtaEligible": false,
-          "rateLimitStatus": "NOT_APPLICABLE",
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "monthly-day-5",
-          "unsupportedNotes": "source does not provide realtime arrival data for production live ETA"
-        },
-        "facility": {
-          "status": "UNSUPPORTED",
-          "productionUseAllowed": false,
-          "coverageStatus": "NOT_PROVIDED_BY_SOURCE",
-          "updateFrequency": "monthly-day-5",
-          "unsupportedNotes": "source does not provide accessibility facility records"
-        }
-      }
-    },
-    {
       "id": "seoul-topis-realtime-train-position",
       "displayName": "서울시 지하철 실시간 열차 위치정보",
       "userDisplayName": "서울시 지하철 실시간 열차 위치정보",
@@ -7306,6 +6983,7 @@
         ]
       },
       "requiredForProductionPack": false,
+      "productionUseAllowed": true,
       "updateFrequency": "provider-realtime-api",
       "observedDataUpdatedAt": "2026-07-03",
       "retrievedAt": "2026-07-03",
@@ -7414,6 +7092,7 @@
         ]
       },
       "requiredForProductionPack": true,
+      "productionUseAllowed": true,
       "updateFrequency": "irregular-on-change",
       "observedDataUpdatedAt": "2026-06-21",
       "retrievedAt": "2026-10-01",

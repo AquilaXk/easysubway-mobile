@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_camera_policy.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -144,58 +146,99 @@ void main() {
       expect(focusCamera.scale, greaterThan(focusCamera.initialScale!));
     });
 
-    test('obscuredTop과 revision을 networkMapCameraForBounds와 동일하게 반영한다', () {
-      const initialBounds = Rect.fromLTWH(600, 500, 777, 568);
-      const obscuredTop = 120.0;
-      final tightViewport = BoxConstraints.tightFor(
-        width: viewport.width,
-        height: viewport.height,
-      );
+    test('obscuredTop과 revision을 가시 영역 기하와 currentScale 보존에 직접 반영한다', () {
+      const testViewport = Size(400, 800);
+      const obscuredTop = 160.0;
+      const visibleHeight = 640.0;
+      const initialBounds = Rect.fromLTWH(1000, 1000, 500, 1000);
 
       final initialCamera = networkMapInitialCameraForRegion(
         regionBounds: initialBounds,
         fullBounds: fullBounds,
-        viewport: viewport,
+        viewport: testViewport,
         obscuredTop: obscuredTop,
       );
-      final expectedInitial = networkMapCameraForBounds(
-        initialBounds,
-        tightViewport,
-        sourceBounds: fullBounds,
-        contain: true,
-        obscuredTop: obscuredTop,
+      final expectedInitialScale = math.min(
+        testViewport.width / initialBounds.width,
+        visibleHeight / initialBounds.height,
       );
-      expect(initialCamera.scale, expectedInitial.scale);
-      expect(initialCamera.center, expectedInitial.center);
-      expect(initialCamera.viewportSize, expectedInitial.viewportSize);
+      expect(initialCamera.scale, closeTo(expectedInitialScale, 1e-9));
+      expect(initialCamera.center.dx, closeTo(initialBounds.center.dx, 1e-6));
+      expect(
+        initialCamera.center.dy,
+        closeTo(
+          initialBounds.center.dy - obscuredTop / 2 / initialCamera.scale,
+          1e-6,
+        ),
+      );
+      expect(initialCamera.viewportSize, testViewport);
 
+      const anchor = Offset(1250, 1500);
+      final focusBounds = networkMapStationFocusBounds(
+        initialBounds: initialBounds,
+        center: anchor,
+        sourceWidth: fullBounds.width,
+        sourceHeight: fullBounds.height,
+      );
       final focusCamera = networkMapStationFocusCameraForRegion(
         initialBounds: initialBounds,
-        stationCenter: initialBounds.center,
+        stationCenter: anchor,
         fullBounds: fullBounds,
-        viewport: viewport,
+        viewport: testViewport,
         initialScaleOverride: initialCamera.initialScale,
         revision: 4,
         obscuredTop: obscuredTop,
       );
-      final expectedFocus = networkMapCameraForBounds(
-        networkMapStationFocusBounds(
-          initialBounds: initialBounds,
-          center: initialBounds.center,
-          sourceWidth: fullBounds.width,
-          sourceHeight: fullBounds.height,
-        ),
-        tightViewport,
-        sourceBounds: fullBounds,
-        contain: true,
-        revision: 4,
-        initialScaleOverride: initialCamera.initialScale,
-        obscuredTop: obscuredTop,
+      final expectedFocusScale = math.min(
+        testViewport.width / focusBounds.width,
+        visibleHeight / focusBounds.height,
       );
-      expect(focusCamera.scale, expectedFocus.scale);
-      expect(focusCamera.center, expectedFocus.center);
+      expect(focusCamera.scale, closeTo(expectedFocusScale, 1e-9));
+      expect(focusCamera.center.dx, closeTo(anchor.dx, 1e-6));
+      expect(
+        focusCamera.center.dy,
+        closeTo(anchor.dy - obscuredTop / 2 / focusCamera.scale, 1e-6),
+      );
       expect(focusCamera.revision, 4);
       expect(focusCamera.initialScale, initialCamera.initialScale);
+
+      final preservedScaleCamera = networkMapStationFocusCameraForRegion(
+        initialBounds: initialBounds,
+        stationCenter: anchor,
+        fullBounds: fullBounds,
+        viewport: testViewport,
+        initialScaleOverride: initialCamera.initialScale,
+        currentScale: 3.2,
+        revision: 5,
+        obscuredTop: obscuredTop,
+      );
+      expect(preservedScaleCamera.scale, closeTo(3.2, 1e-9));
+      expect(preservedScaleCamera.center.dx, closeTo(anchor.dx, 1e-6));
+      expect(
+        preservedScaleCamera.center.dy,
+        closeTo(anchor.dy - obscuredTop / 2 / 3.2, 1e-6),
+      );
+      expect(preservedScaleCamera.revision, 5);
+      expect(preservedScaleCamera.initialScale, initialCamera.initialScale);
+
+      final clampedMaxScaleCamera = networkMapStationFocusCameraForRegion(
+        initialBounds: initialBounds,
+        stationCenter: anchor,
+        fullBounds: fullBounds,
+        viewport: testViewport,
+        initialScaleOverride: initialCamera.initialScale,
+        currentScale: 5.2,
+        revision: 6,
+        obscuredTop: obscuredTop,
+      );
+      expect(clampedMaxScaleCamera.scale, closeTo(_maxMapScaleForTest, 1e-9));
+      expect(clampedMaxScaleCamera.center.dx, closeTo(anchor.dx, 1e-6));
+      expect(
+        clampedMaxScaleCamera.center.dy,
+        closeTo(anchor.dy - obscuredTop / 2 / _maxMapScaleForTest, 1e-6),
+      );
+      expect(clampedMaxScaleCamera.revision, 6);
+      expect(clampedMaxScaleCamera.initialScale, initialCamera.initialScale);
     });
   });
 }
