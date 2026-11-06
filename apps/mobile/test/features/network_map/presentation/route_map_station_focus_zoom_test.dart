@@ -208,18 +208,37 @@ void main() {
         fullBounds: fullBounds,
         viewport: testViewport,
         initialScaleOverride: initialCamera.initialScale,
-        currentScale: 5.2,
+        currentScale: 3.2,
         revision: 5,
         obscuredTop: obscuredTop,
       );
-      expect(preservedScaleCamera.scale, closeTo(5.2, 1e-9));
+      expect(preservedScaleCamera.scale, closeTo(3.2, 1e-9));
       expect(preservedScaleCamera.center.dx, closeTo(anchor.dx, 1e-6));
       expect(
         preservedScaleCamera.center.dy,
-        closeTo(anchor.dy - obscuredTop / 2 / 5.2, 1e-6),
+        closeTo(anchor.dy - obscuredTop / 2 / 3.2, 1e-6),
       );
       expect(preservedScaleCamera.revision, 5);
       expect(preservedScaleCamera.initialScale, initialCamera.initialScale);
+
+      final clampedMaxScaleCamera = networkMapStationFocusCameraForRegion(
+        initialBounds: initialBounds,
+        stationCenter: anchor,
+        fullBounds: fullBounds,
+        viewport: testViewport,
+        initialScaleOverride: initialCamera.initialScale,
+        currentScale: 5.2,
+        revision: 6,
+        obscuredTop: obscuredTop,
+      );
+      expect(clampedMaxScaleCamera.scale, closeTo(_maxMapScaleForTest, 1e-9));
+      expect(clampedMaxScaleCamera.center.dx, closeTo(anchor.dx, 1e-6));
+      expect(
+        clampedMaxScaleCamera.center.dy,
+        closeTo(anchor.dy - obscuredTop / 2 / _maxMapScaleForTest, 1e-6),
+      );
+      expect(clampedMaxScaleCamera.revision, 6);
+      expect(clampedMaxScaleCamera.initialScale, initialCamera.initialScale);
     });
   });
 }

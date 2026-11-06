@@ -158,9 +158,10 @@ MapCameraState networkMapStationFocusCameraForRegion({
     initialScaleOverride: initialScaleOverride,
     obscuredTop: obscuredTop,
   );
-  if (currentScale == null ||
-      !currentScale.isFinite ||
-      currentScale <= focusCamera.scale) {
+  final preservedScale = currentScale != null && currentScale.isFinite
+      ? math.min(currentScale, focusCamera.maxScale)
+      : null;
+  if (preservedScale == null || preservedScale <= focusCamera.scale) {
     return focusCamera;
   }
   final usableObscuredTop = networkMapUsableObscuredTop(
@@ -171,10 +172,10 @@ MapCameraState networkMapStationFocusCameraForRegion({
       .copyWith(
         center: networkMapCameraCenterForVisibleCenter(
           focusBounds.center,
-          scale: currentScale,
+          scale: preservedScale,
           obscuredTop: usableObscuredTop,
         ),
-        scale: currentScale,
+        scale: preservedScale,
       )
       .clamped(viewportMargin: networkMapCameraClampMargin(usableObscuredTop));
 }
