@@ -950,6 +950,7 @@ class _FacilityTagItem extends StatelessWidget {
   Widget build(BuildContext context) {
     // 상용 지하철 서비스처럼 `플랫폼 중앙` 한 줄 글자로 쓴다. 값을 상자로 감싸지 않는다.
     return Semantics(
+      container: true,
       label: '$label $tag',
       excludeSemantics: true,
       child: Row(
@@ -986,7 +987,9 @@ class _AmenityGridItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Semantics(
+      container: true,
       label: '$label ${isAvailable ? '있음' : '없음'}',
+      excludeSemantics: true,
       child: _FacilityAvailabilityLabel(
         icon: icon,
         label: label,
@@ -1022,6 +1025,8 @@ class _AccessibleFacilityItem extends StatelessWidget {
       container: true,
       label: '$label ${isAvailable ? '있음' : '없음'}',
       button: isAvailable && onTap != null,
+      onTap: isAvailable ? onTap : null,
+      excludeSemantics: true,
       child: isAvailable && onTap != null
           ? InkWell(
               onTap: onTap,

@@ -95,10 +95,12 @@ class StationPopoverMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     const design = kStationPopoverDesignSize;
     final name = stationName?.trim();
+    final hasStationName = name != null && name.isNotEmpty;
     return Semantics(
       container: true,
       explicitChildNodes: true,
-      label: (name == null || name.isEmpty) ? null : '$name 메뉴',
+      liveRegion: hasStationName,
+      label: hasStationName ? '$name 메뉴' : null,
       onDismiss: onClose,
       child: SizedBox(
         width: width,

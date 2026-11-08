@@ -282,4 +282,89 @@ void main() {
     );
     await tester.pumpAndSettle();
   });
+
+  testWidgets('역 말풍선이 열리거나 대상 역이 바뀌면 liveRegion 시맨틱이 선택 역 메뉴로 갱신된다', (
+    tester,
+  ) async {
+    const secondStation = NetworkMapStation(
+      id: 'station-city-hall',
+      nameKo: '시청',
+      nameEn: 'City Hall',
+      region: '수도권',
+      lineId: 'seoul-1',
+      stationCode: '101',
+      sequence: 2,
+      position: NetworkMapPosition(
+        x: 220,
+        y: 160,
+        labelDx: 0,
+        labelDy: 0,
+        upPath: '',
+        downPath: '',
+        sourceId: 'canvas-state-fixture',
+      ),
+    );
+    const twoStationData = NetworkMapData(
+      regions: [NetworkMapRegion(name: '수도권')],
+      selectedRegion: '수도권',
+      lines: [
+        NetworkMapLine(
+          id: 'seoul-1',
+          name: '수도권 1호선',
+          color: '#0052A4',
+          region: '수도권',
+        ),
+      ],
+      stations: [_station, secondStation],
+      edges: [],
+      positionSources: [
+        NetworkMapPositionSource(
+          id: 'canvas-state-fixture',
+          name: 'Canvas state fixture',
+          licenseStatus: 'fixture-only',
+        ),
+      ],
+      stationLineMemberships: [
+        NetworkMapStationLineMembership(
+          stationId: 'station-canvas',
+          lineId: 'seoul-1',
+        ),
+        NetworkMapStationLineMembership(
+          stationId: 'station-city-hall',
+          lineId: 'seoul-1',
+        ),
+      ],
+    );
+
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(
+      _host(data: twoStationData, selectedStationId: _station.id),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('stationPopoverMenu-station-canvas')),
+      findsOneWidget,
+    );
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('캔버스역 메뉴')),
+      isSemantics(hasDismissAction: true, isLiveRegion: true),
+    );
+
+    await tester.pumpWidget(
+      _host(data: twoStationData, selectedStationId: secondStation.id),
+    );
+    await tester.pumpAndSettle();
+
+    expect(
+      find.byKey(const ValueKey('stationPopoverMenu-station-city-hall')),
+      findsOneWidget,
+    );
+    expect(find.bySemanticsLabel('캔버스역 메뉴'), findsNothing);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('시청역 메뉴')),
+      isSemantics(hasDismissAction: true, isLiveRegion: true),
+    );
+    handle.dispose();
+  });
 }

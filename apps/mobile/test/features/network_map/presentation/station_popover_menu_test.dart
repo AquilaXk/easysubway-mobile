@@ -145,9 +145,26 @@ void main() {
       expect(find.bySemanticsLabel(label), findsOneWidget);
     }
     final group = tester.getSemantics(find.bySemanticsLabel('충무로역 메뉴'));
-    expect(group, isSemantics(hasDismissAction: true));
+    expect(group, isSemantics(hasDismissAction: true, isLiveRegion: true));
     group.owner!.performAction(group.id, SemanticsAction.dismiss);
     expect(calls.closes, 1);
+    handle.dispose();
+  });
+
+  testWidgets('대상 역이 바뀌면 말풍선 liveRegion 라벨이 새 역 메뉴로 바뀐다', (tester) async {
+    final handle = tester.ensureSemantics();
+    await _pump(tester, stationName: '충무로역');
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('충무로역 메뉴')),
+      isSemantics(hasDismissAction: true, isLiveRegion: true),
+    );
+
+    await _pump(tester, stationName: '서울역');
+    expect(find.bySemanticsLabel('충무로역 메뉴'), findsNothing);
+    expect(
+      tester.getSemantics(find.bySemanticsLabel('서울역 메뉴')),
+      isSemantics(hasDismissAction: true, isLiveRegion: true),
+    );
     handle.dispose();
   });
 
