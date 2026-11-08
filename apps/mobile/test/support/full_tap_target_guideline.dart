@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show precisionErrorTolerance;
@@ -13,7 +14,8 @@ const androidMinTapTarget = Size(48, 48);
 /// https://developer.apple.com/design/human-interface-guidelines/accessibility
 const iosMinTapTarget = Size(44, 44);
 
-/// 탭·길게 누르기 요소의 최소 크기 가이드라인으로, 스크롤 목록 안의 요소도 검사한다.
+/// 탭·길게 누르기 요소의 최소 크기 가이드라인으로, 스크롤 목록 안의 요소도 끝까지
+/// 스크롤하며 검사한다.
 ///
 /// Flutter(3.44.0)의 `MinimumTapTargetGuideline._traverse`는 조상 스크롤러에 대해
 /// `_isAtBoundary`를 호출해(`flutter_test/lib/src/accessibility.dart` 165~166행) 노드가
@@ -27,8 +29,12 @@ const iosMinTapTarget = Size(44, 44);
 /// 변은 `scrollDown`·`scrollRight` 액션이 있을 때만, 아래·오른쪽 변은 `scrollUp`·
 /// `scrollLeft` 액션이 있을 때만 잘림 후보로 본다. 따라서 스크롤 시작이나 끝에 붙은
 /// 완전히 보이는 요소도 검사하고, 일부만 보이는 요소는 건너뛴다. 병합된 노드, 숨겨진
-/// 노드, 링크, 탭 액션이 없는 노드도 Flutter 기본 가이드라인과 같이 건너뛴다. 끝까지
-/// 스크롤하며 검사하지는 않으므로 화면에 보이는 부분만 검사한다.
+/// 노드, 링크, 탭 액션이 없는 노드도 Flutter 기본 가이드라인과 같이 건너뛴다.
+///
+/// 또한 현재 스크롤 위치를 먼저 검사한 뒤 화면의 모든 [Scrollable]을 `minScrollExtent`부터
+/// `maxScrollExtent`까지 겹치는 보폭(`viewportDimension * 0.5`)으로 이동하며 검사하고
+/// 원래 오프셋으로 복원한다. 중간 오프셋에서 경계에 닿아 보류된 요소도 인접 스크롤
+/// 스텝에서는 뷰포트 안쪽에 놓여 누락 없이 검사된다.
 ///
 /// 근거: 화면의 모든 탭 요소에 스크롤 여부와 무관하게 최소 터치 영역을 요구한다
 /// ([androidMinTapTarget], [iosMinTapTarget]).
@@ -40,27 +46,93 @@ class FullTapTargetGuideline extends AccessibilityGuideline {
   /// 이 간격 이하로 경계에 붙은 요소는 잘렸을 수 있어 건너뛴다. Flutter 기본값과 같다.
   static const double _edgeGap = 0.001;
 
+  /// 무한·초장거리 스크롤에서 과도한 반복을 막기 위한 스크롤러당 최대 탐색 스텝 수.
+  static const int _maxScrollSteps = 20;
+
   @override
   String get description =>
       'Tappable objects, including those inside '
       'scrollables, should be at least $size';
 
   @override
-  Evaluation evaluate(WidgetTester tester) {
-    var result = const Evaluation.pass();
-    for (final view in tester.binding.renderViews) {
-      result += _traverse(
-        view.flutterView,
-        view.owner!.semanticsOwner!.rootSemanticsNode!,
-      );
+  Future<Evaluation> evaluate(WidgetTester tester) async {
+    final seenFailures = <(int, int?, int, String)>{};
+    var result = _evaluateViews(tester, seenFailures);
+
+    final scrollables = tester
+        .stateList<ScrollableState>(find.byType(Scrollable))
+        .toList(growable: false);
+    for (final scrollable in scrollables) {
+      if (!scrollable.mounted) {
+        continue;
+      }
+      final position = scrollable.position;
+      if (!position.hasPixels ||
+          !position.hasContentDimensions ||
+          !position.hasViewportDimension ||
+          !position.maxScrollExtent.isFinite ||
+          !position.minScrollExtent.isFinite ||
+          position.maxScrollExtent <= position.minScrollExtent ||
+          position.viewportDimension <= 0) {
+        continue;
+      }
+      final initialPixels = position.pixels;
+      final minExtent = position.minScrollExtent;
+      final minStep = math.max(size.width, size.height);
+      final step = math.max(minStep, position.viewportDimension * 0.5);
+
+      for (var i = 0; i <= _maxScrollSteps; i++) {
+        final maxExtent = position.maxScrollExtent;
+        if (!maxExtent.isFinite || maxExtent <= minExtent) {
+          break;
+        }
+        final rawTarget = minExtent + step * i;
+        final target = rawTarget >= maxExtent || i == _maxScrollSteps
+            ? maxExtent
+            : rawTarget;
+        if ((position.pixels - target).abs() > precisionErrorTolerance) {
+          position.jumpTo(target);
+          await tester.pump();
+        }
+        result += _evaluateViews(tester, seenFailures);
+        if (target >= maxExtent) {
+          break;
+        }
+      }
+
+      if (scrollable.mounted &&
+          position.hasPixels &&
+          (position.pixels - initialPixels).abs() > precisionErrorTolerance) {
+        position.jumpTo(initialPixels);
+        await tester.pump();
+      }
     }
     return result;
   }
 
-  Evaluation _traverse(ui.FlutterView view, SemanticsNode node) {
+  Evaluation _evaluateViews(
+    WidgetTester tester,
+    Set<(int, int?, int, String)> seenFailures,
+  ) {
+    var result = const Evaluation.pass();
+    for (final view in tester.binding.renderViews) {
+      final root = view.owner?.semanticsOwner?.rootSemanticsNode;
+      if (root == null) {
+        continue;
+      }
+      result += _traverse(view.flutterView, root, seenFailures);
+    }
+    return result;
+  }
+
+  Evaluation _traverse(
+    ui.FlutterView view,
+    SemanticsNode node,
+    Set<(int, int?, int, String)> seenFailures,
+  ) {
     var result = const Evaluation.pass();
     node.visitChildren((child) {
-      result += _traverse(view, child);
+      result += _traverse(view, child, seenFailures);
       return true;
     });
     if (node.isMergedIntoParent || _isNotTapTarget(node)) {
@@ -73,12 +145,31 @@ class FullTapTargetGuideline extends AccessibilityGuideline {
     final found = bounds.size / view.devicePixelRatio;
     if (found.width < size.width - precisionErrorTolerance ||
         found.height < size.height - precisionErrorTolerance) {
-      result += Evaluation.fail(
-        '$node: expected tap target size of at least $size, '
-        'but found $found',
+      final failureKey = (
+        view.viewId,
+        _enclosingScrollerId(node),
+        node.id,
+        node.label,
       );
+      if (seenFailures.add(failureKey)) {
+        result += Evaluation.fail(
+          '$node: expected tap target size of at least $size, '
+          'but found $found',
+        );
+      }
     }
     return result;
+  }
+
+  static int? _enclosingScrollerId(SemanticsNode node) {
+    var current = node.parent;
+    while (current != null) {
+      if (current.flagsCollection.hasImplicitScrolling) {
+        return current.id;
+      }
+      current = current.parent;
+    }
+    return null;
   }
 
   static bool _isNotTapTarget(SemanticsNode node) {

@@ -1117,11 +1117,24 @@ test("iOS job applies the pinned Flutter tool fix before anything runs flutter, 
   }
 });
 
-test("iOS job restores the Xcode build cache keyed by toolchain, lockfile, and iOS sources; Android keeps none", () => {
+test("iOS job restores the Xcode build cache keyed by toolchain, lockfile, Package.resolved, and iOS sources; Android keeps none", () => {
   const steps = stepNames(iosJob);
   const keyStep = stepBlock(iosJob, "Resolve Xcode build cache key");
   const cacheStep = stepBlock(iosJob, "Restore Xcode build cache");
   const saveStep = stepBlock(iosJob, "Save Xcode build cache");
+  const prebootStep = stepBlock(iosJob, "Pre-boot iOS simulator in background");
+  const gitignore = readFileSync(new URL("../../.gitignore", import.meta.url), "utf8");
+  const packageResolvedRel =
+    "apps/mobile/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved";
+  assert.ok(existsSync(new URL(`../../${packageResolvedRel}`, import.meta.url)));
+  assert.match(gitignore, /^!apps\/mobile\/ios\/Runner\.xcodeproj\/project\.xcworkspace\/xcshareddata\/swiftpm\/$/mu);
+  assert.match(
+    gitignore,
+    /^!apps\/mobile\/ios\/Runner\.xcodeproj\/project\.xcworkspace\/xcshareddata\/swiftpm\/Package\.resolved$/mu,
+  );
+  assert.match(prebootStep, /xcrun simctl bootstatus "\$\{IOS_SIMULATOR:-iPhone 17 Pro\}" -b > \/dev\/null 2>&1 &/u);
+  assert.ok(steps.indexOf("Checkout") < steps.indexOf("Pre-boot iOS simulator in background"));
+  assert.ok(steps.indexOf("Pre-boot iOS simulator in background") < steps.indexOf("Install Flutter dependencies"));
   assert.match(keyStep, /^        id: toolchain$/mu);
   assert.match(keyStep, /xcodebuild -version/u);
   assert.match(keyStep, /flutter --version --machine/u);
@@ -1130,7 +1143,11 @@ test("iOS job restores the Xcode build cache keyed by toolchain, lockfile, and i
   assert.match(cacheStep, /^            ~\/Library\/Developer\/Xcode\/DerivedData$/mu);
   assert.match(cacheStep, /^            apps\/mobile\/build\/ios\/SourcePackages$/mu);
   const toolchainPrefix = "xcode-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.toolchain.outputs.id }}-";
-  assert.ok(cacheStep.includes(`key: ${toolchainPrefix}\${{ hashFiles('apps/mobile/pubspec.lock', 'apps/mobile/ios/**') }}`));
+  assert.ok(
+    cacheStep.includes(
+      `key: ${toolchainPrefix}\${{ hashFiles('apps/mobile/pubspec.lock', '${packageResolvedRel}', 'apps/mobile/ios/**') }}`,
+    ),
+  );
   // 부분 복원은 같은 Xcode·Flutter 안에서만 허용한다. 다른 toolchain의 DerivedData는 복원하지 않는다.
   assert.ok(cacheStep.includes(`restore-keys: ${toolchainPrefix}\n`));
   assert.equal((cacheStep.match(/restore-keys:/gu) ?? []).length, 1);

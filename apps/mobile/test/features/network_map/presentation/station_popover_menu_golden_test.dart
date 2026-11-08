@@ -57,6 +57,10 @@ void main() {
   setUpAll(loadKoreanTestFont);
 
   // 골든 비교는 macOS 호스트 래스터라이저에서만 한다(CI 크로스플랫폼 오탐 방지).
+  // 정본 기준 호스트는 GitHub Actions `macos-15` (macOS 15 Sequoia, Flutter `3.44.0`,
+  // `.github/workflows/mobile-golden.yml:19`)이며, 다른 macOS 메이저 버전 호스트(예:
+  // `macOS 27.0.1`)에서는 CoreGraphics/Skia 폰트·아이콘 서브픽셀 안티에일리어싱 차이로
+  // 0.10~0.51% 픽셀 차이가 발생할 수 있다.
   final skipReason = !Platform.isMacOS;
 
   testWidgets('기본 상태', (tester) async {

@@ -99,7 +99,7 @@ final _cases = <_Case>[
   ),
   _Case(
     '위쪽에서 잘린 버튼은 건너뛴다',
-    (c) => _vertical(c, [_gap(500), _row('잘림', 100, 40), _gap(2000)]),
+    (c) => _vertical(c, [_gap(500), _row('잘림', 100, 60), _gap(2000)]),
     offset: 520,
     present: {'잘림'},
   ),
@@ -111,7 +111,7 @@ final _cases = <_Case>[
   ),
   _Case(
     '아래쪽에서 잘린 버튼은 건너뛴다',
-    (c) => _vertical(c, [_gap(580), _row('잘림', 100, 40), _gap(2000)]),
+    (c) => _vertical(c, [_gap(580), _row('잘림', 100, 60), _gap(2000)]),
     present: {'잘림'},
   ),
   _Case(
@@ -131,8 +131,8 @@ final _cases = <_Case>[
     violating: {'좁음'},
   ),
   _Case(
-    '화면 밖이지만 시맨틱스 노드가 있는 버튼은 건너뛴다',
-    (c) => _vertical(c, [_gap(2000), _row('밖', 100, 30)]),
+    '화면 밖이지만 시맨틱스 노드가 있는 60dp 버튼은 잘린 상태에서 건너뛰고 스크롤 후 통과한다',
+    (c) => _vertical(c, [_gap(2000), _row('밖', 100, 60)]),
     present: {'밖'},
   ),
   // 가로 스크롤(역 시간표 시각 칩 줄과 같은 모양).
@@ -140,7 +140,7 @@ final _cases = <_Case>[
     '가로 스크롤 시작에 붙은 첫 칩의 36dp 높이는 위반이다',
     (c) =>
         _horizontal(c, [for (var i = 0; i < 12; i++) _button('칩$i', 66, 36)]),
-    violating: {for (var i = 0; i < 5; i++) '칩$i'},
+    violating: {for (var i = 0; i < 12; i++) '칩$i'},
     present: {'칩0'},
   ),
   _Case(
@@ -151,23 +151,30 @@ final _cases = <_Case>[
   ),
   _Case(
     '오른쪽에서 잘린 칩은 건너뛴다',
-    (c) =>
-        _horizontal(c, [for (var i = 0; i < 12; i++) _button('칩$i', 66, 36)]),
+    (c) => _horizontal(c, [
+      for (var i = 0; i < 5; i++) _button('칩$i', 66, 36),
+      for (var i = 5; i < 12; i++) _button('칩$i', 66, 48),
+    ]),
     violating: {for (var i = 0; i < 5; i++) '칩$i'},
     present: {'칩5'},
   ),
   _Case(
     '왼쪽에서 잘린 칩은 건너뛴다',
-    (c) =>
-        _horizontal(c, [for (var i = 0; i < 12; i++) _button('칩$i', 66, 36)]),
+    (c) => _horizontal(c, [
+      for (var i = 0; i < 2; i++) _button('칩$i', 66, 48),
+      for (var i = 2; i < 6; i++) _button('칩$i', 66, 36),
+      for (var i = 6; i < 12; i++) _button('칩$i', 66, 48),
+    ]),
     offset: 100,
     violating: {for (var i = 2; i < 6; i++) '칩$i'},
     present: {'칩1'},
   ),
   _Case(
     '가로 스크롤 끝에 붙은 마지막 칩의 36dp 높이는 위반이다',
-    (c) =>
-        _horizontal(c, [for (var i = 0; i < 12; i++) _button('칩$i', 66, 36)]),
+    (c) => _horizontal(c, [
+      for (var i = 0; i < 7; i++) _button('칩$i', 66, 48),
+      for (var i = 7; i < 12; i++) _button('칩$i', 66, 36),
+    ]),
     offset: _scrollMax,
     violating: {for (var i = 7; i < 12; i++) '칩$i'},
     present: {'칩6'},
@@ -337,7 +344,7 @@ void main() {
         offset: testCase.offset,
         devicePixelRatio: testCase.devicePixelRatio,
       );
-      final evaluation = _guideline.evaluate(tester);
+      final evaluation = await _guideline.evaluate(tester);
       expect(await _labels(tester), containsAll(testCase.present));
       expect(_mergedLabels(tester), containsAll(testCase.merged));
       expect(_violatingLabels(evaluation), testCase.violating);
@@ -354,7 +361,7 @@ void main() {
       final semantics = tester.ensureSemantics();
       await _pump(tester, fullWidthRow);
       expect((await androidTapTargetGuideline.evaluate(tester)).passed, isTrue);
-      expect(_violatingLabels(_guideline.evaluate(tester)), {'꽉참'});
+      expect(_violatingLabels(await _guideline.evaluate(tester)), {'꽉참'});
       semantics.dispose();
     });
 
@@ -374,5 +381,68 @@ void main() {
       );
       semantics.dispose();
     });
+  });
+
+  group('끝까지 스크롤하며 탭 영역 검사 및 양방향 경계 요소 처리(#3036 4-29)', () {
+    testWidgets('초기 뷰포트 아래쪽(_gap(1200) 뒤)에 가려진 30x30 탭 타깃을 끝까지 스크롤해 검출한다', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      await _pump(
+        tester,
+        (c) => _vertical(c, [
+          _button('초기정상', 100, 48),
+          _gap(1200),
+          _button('아래숨김', 30, 30),
+        ]),
+      );
+      final evaluation = await _guideline.evaluate(tester);
+      expect(evaluation.passed, isFalse);
+      expect(_violatingLabels(evaluation), {'아래숨김'});
+      semantics.dispose();
+    });
+
+    testWidgets(
+      '양방향 스크롤 중간 오프셋(300)에서 뷰포트 경계(y=0, y=600)에 맞닿은 30x30 탭 타깃을 누락 없이 검출하고 오프셋을 복원한다',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.physicalSize = _viewport;
+        addTearDown(tester.view.reset);
+        final controller = ScrollController(initialScrollOffset: 300);
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: _vertical(controller, [
+                _gap(300),
+                // offset 300에서 y=0..30으로 상단 경계(y=0)에 정확히 맞닿음.
+                _button('상단경계', 30, 30),
+                _gap(540),
+                // offset 300에서 y=570..600으로 하단 경계(y=600)에 정확히 맞닿음.
+                _button('하단경계', 30, 30),
+                _gap(600),
+              ]),
+            ),
+          ),
+        );
+        expect(controller.offset, 300);
+
+        final evaluation = await _guideline.evaluate(tester);
+        expect(evaluation.passed, isFalse);
+        expect(_violatingLabels(evaluation), {'상단경계', '하단경계'});
+        expect(
+          RegExp(r'label: "상단경계"').allMatches(evaluation.reason ?? '').length,
+          1,
+        );
+        expect(
+          RegExp(r'label: "하단경계"').allMatches(evaluation.reason ?? '').length,
+          1,
+        );
+        expect(controller.offset, 300);
+        semantics.dispose();
+      },
+    );
   });
 }
