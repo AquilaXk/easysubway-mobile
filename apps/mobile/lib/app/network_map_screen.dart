@@ -789,11 +789,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       _routeMapLineId = null;
       _resetNearbyPanelState();
       _restoredSavedRegion = false;
-      if (region != null) {
-        _initialNearbyFocusStarted = true;
-      } else if (_selectedRegion == null) {
-        _initialNearbyFocusStarted = false;
-      }
+      _initialNearbyFocusStarted = region != null || _selectedRegion != null;
       _future = _startMapLoad();
     });
     _notifyRegionLabelChanged();
