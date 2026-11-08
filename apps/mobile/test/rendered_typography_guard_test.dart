@@ -20,7 +20,7 @@ Future<List<String>> _violationsOf(WidgetTester tester, TextStyle style) async {
 }
 
 void main() {
-  testWidgets('역할 굵기와 대비용 700, 아이콘 글꼴은 통과한다', (tester) async {
+  testWidgets('역할 굵기와 대비용·마크 획용 700, 아이콘 글꼴은 통과한다', (tester) async {
     await tester.pumpWidget(
       const MaterialApp(
         home: Scaffold(
@@ -38,6 +38,14 @@ void main() {
                 '노선',
                 style: TextStyle(
                   fontWeight: EasySubwayFontWeight.boldForContrast,
+                  color: Colors.white,
+                ),
+              ),
+              Text(
+                '2',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: EasySubwayFontWeight.markGlyph,
                   color: Colors.white,
                 ),
               ),

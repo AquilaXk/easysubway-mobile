@@ -12,7 +12,7 @@ final _allowedWeights = <FontWeight>{
   EasySubwayFontWeight.regular,
   EasySubwayFontWeight.emphasis,
   EasySubwayFontWeight.boldForContrast,
-};
+}..add(EasySubwayFontWeight.markGlyph);
 
 /// 700(대비용 [EasySubwayFontWeight.boldForContrast]와 모양 유지용
 /// [EasySubwayFontWeight.markGlyph])이 정당한 글자색이다. 노선색 면 위 흰 글자거나,
@@ -41,7 +41,7 @@ final Set<Color> _datapackLineInks = {
 /// `FontVariation('wght', 900)`처럼 표기를 바꾼 우회를 놓친다. 이 검사는 표기가 아니라
 /// 그려진 결과를 본다. 규칙은 다음과 같다.
 /// - family는 테마 기본 서체거나 아이콘 글꼴이다. 앱 번들 글꼴은 없다.
-/// - 굵기는 본문 400, 강조 500, 대비용 700 중 하나다. 700은 흰색이나 데이터팩 노선색
+/// - 굵기는 본문 400, 강조 500, 대비용·마크 획용 700 중 하나다. 700은 흰색이나 데이터팩 노선색
 ///   글자(`_isBoldAllowedTextColor`)에만 쓰고, 본문색 같은 다른 색에는 쓰지 않는다.
 ///   어느 호스트가 쓸 수 있는지는 소스 쪽 `design_guard_test`의 허용 목록이 정한다.
 /// - 글자는 가변 글꼴 축(`fontVariations`)을 따로 지정하지 않는다. 아이콘 글꼴의 축은 제외한다.
@@ -72,7 +72,8 @@ List<String> renderedTypographyViolations(WidgetTester tester) {
       if (weight != null && !_allowedWeights.contains(weight)) {
         violations.add('"$text" 굵기 $weight');
       }
-      if (weight == EasySubwayFontWeight.boldForContrast &&
+      if ((weight == EasySubwayFontWeight.boldForContrast ||
+              weight == EasySubwayFontWeight.markGlyph) &&
           !_isBoldAllowedTextColor(style.color)) {
         violations.add('"$text" 대비용 700이 흰색도 노선색도 아닌 글자색 ${style.color}');
       }

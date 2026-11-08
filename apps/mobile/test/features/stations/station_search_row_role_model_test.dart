@@ -183,38 +183,63 @@ void main() {
     });
   });
 
-  testWidgets('행 구분선은 1 논리 픽셀 선이라 소수점 위치에서도 남는다', (tester) async {
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: StationSearchBody(
-            state: StationSearchState(
-              status: StationSearchStatus.success,
-              results: [
-                _station('a', '가', const []),
-                _station('b', '나', const []),
-              ],
+  testWidgets('행 구분선은 헤어라인(0)이 아닌 명시적 1 논리 픽셀 선이라 배율·소수점 위치에서도 모든 행에 남는다', (
+    tester,
+  ) async {
+    for (final scale in const [1.0, 1.35, 1.5]) {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: MediaQuery(
+            data: MediaQueryData(textScaler: TextScaler.linear(scale)),
+            child: Scaffold(
+              body: StationSearchBody(
+                state: StationSearchState(
+                  status: StationSearchStatus.success,
+                  results: [
+                    _station('a', '가산디지털단지', [
+                      _line('seoul-1', '수도권 1호선', '#0052A4', 'P142'),
+                      _line('seoul-7', '수도권 7호선', '#747F00', '746'),
+                    ]),
+                    _station('b', '나원', const []),
+                  ],
+                ),
+                query: '가',
+                onResultTap: (_, _) {},
+              ),
             ),
-            query: '',
-            onResultTap: (_, _) {},
           ),
         ),
-      ),
-    );
+      );
 
-    final borders = tester
-        .widgetList<DecoratedBox>(
-          find.descendant(
-            of: find.byKey(const Key('stationSearchResult-a-none')),
-            matching: find.byType(DecoratedBox),
-          ),
-        )
-        .map((box) => box.decoration)
-        .whereType<BoxDecoration>()
-        .map((decoration) => decoration.border)
-        .whereType<Border>()
-        .toList();
-    expect(borders.first.bottom.width, 1);
-    expect(borders.first.bottom.color, EasySubwayAccessibleColors.line);
+      for (final rowKey in const [
+        Key('stationSearchResult-a-seoul-1'),
+        Key('stationSearchResult-a-seoul-7'),
+        Key('stationSearchResult-b-none'),
+      ]) {
+        final borders = tester
+            .widgetList<DecoratedBox>(
+              find.descendant(
+                of: find.byKey(rowKey),
+                matching: find.byType(DecoratedBox),
+              ),
+            )
+            .map((box) => box.decoration)
+            .whereType<BoxDecoration>()
+            .map((decoration) => decoration.border)
+            .whereType<Border>()
+            .toList();
+        expect(borders, isNotEmpty, reason: '$rowKey at scale $scale');
+        expect(
+          borders.first.bottom.width,
+          1.0,
+          reason: '$rowKey at scale $scale',
+        );
+        expect(
+          borders.first.bottom.color,
+          EasySubwayAccessibleColors.line,
+          reason: '$rowKey at scale $scale',
+        );
+      }
+    }
   });
 }

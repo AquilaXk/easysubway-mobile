@@ -153,7 +153,73 @@ class NearbyStationLineBar extends StatelessWidget {
                             onTap: onLeftNameTap,
                           ),
                         ),
-                        SizedBox(width: centerWidth),
+                        Semantics(
+                          button: openDetail != null,
+                          label: openDetail == null
+                              ? currentLabel
+                              : '$currentLabel, 상세 보기',
+                          onTap: openDetail,
+                          excludeSemantics: openDetail != null,
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: openDetail,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: (hitHeight - capsuleHeight) / 2,
+                              ),
+                              child: Container(
+                                key: const Key('nearbyStationLineBarCapsule'),
+                                constraints: BoxConstraints(
+                                  minWidth: capsuleWidth,
+                                  maxWidth: barWidth * 0.55,
+                                ),
+                                height: capsuleHeight,
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: (capsuleWidth * 0.08).clamp(
+                                    8.0,
+                                    14.0,
+                                  ),
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      EasySubwayAccessibleColors.surfaceDefault,
+                                  borderRadius: BorderRadius.circular(24),
+                                  border: Border.all(
+                                    color: lineColor,
+                                    width: _capsuleBorderWidth,
+                                  ),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    if (badgeText.isNotEmpty ||
+                                        badgeBuilder != null) ...[
+                                      badgeBuilder?.call(badgeSize) ??
+                                          LineMark(
+                                            key: const Key(
+                                              'nearbyStationLineBarBadge',
+                                            ),
+                                            label: badgeText,
+                                            color: lineColor,
+                                            size: badgeSize,
+                                            maxTextScale:
+                                                lineMarkFixedChromeMaxTextScale,
+                                          ),
+                                      const SizedBox(width: 7),
+                                    ],
+                                    Flexible(
+                                      child: _StationNameLabel(
+                                        stationName: stationName,
+                                        fontSize: stationNameSize,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
                         Expanded(
                           child: _SideName(
                             name: rightName,
@@ -162,70 +228,6 @@ class NearbyStationLineBar extends StatelessWidget {
                           ),
                         ),
                       ],
-                    ),
-                  ),
-                  Semantics(
-                    button: openDetail != null,
-                    label: openDetail == null
-                        ? currentLabel
-                        : '$currentLabel, 상세 보기',
-                    onTap: openDetail,
-                    excludeSemantics: openDetail != null,
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: openDetail,
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: (hitHeight - capsuleHeight) / 2,
-                        ),
-                        child: Container(
-                          key: const Key('nearbyStationLineBarCapsule'),
-                          constraints: BoxConstraints(
-                            minWidth: capsuleWidth,
-                            maxWidth: barWidth * 0.55,
-                          ),
-                          height: capsuleHeight,
-                          alignment: Alignment.center,
-                          padding: EdgeInsets.symmetric(
-                            horizontal: (capsuleWidth * 0.08).clamp(8.0, 14.0),
-                          ),
-                          decoration: BoxDecoration(
-                            color: EasySubwayAccessibleColors.surfaceDefault,
-                            borderRadius: BorderRadius.circular(24),
-                            border: Border.all(
-                              color: lineColor,
-                              width: _capsuleBorderWidth,
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              if (badgeText.isNotEmpty ||
-                                  badgeBuilder != null) ...[
-                                badgeBuilder?.call(badgeSize) ??
-                                    LineMark(
-                                      key: const Key(
-                                        'nearbyStationLineBarBadge',
-                                      ),
-                                      label: badgeText,
-                                      color: lineColor,
-                                      size: badgeSize,
-                                      maxTextScale:
-                                          lineMarkFixedChromeMaxTextScale,
-                                    ),
-                                const SizedBox(width: 7),
-                              ],
-                              Flexible(
-                                child: _StationNameLabel(
-                                  stationName: stationName,
-                                  fontSize: stationNameSize,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
                     ),
                   ),
                 ],

@@ -234,7 +234,7 @@ class _StationSearchResultLineRow extends StatelessWidget {
       decoration: const BoxDecoration(
         color: EasySubwayAccessibleColors.surface,
         border: Border(
-          bottom: BorderSide(color: EasySubwayAccessibleColors.line),
+          bottom: BorderSide(color: EasySubwayAccessibleColors.line, width: 1),
         ),
       ),
       child: Semantics(
