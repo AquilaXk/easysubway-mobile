@@ -294,6 +294,25 @@ const _alightingCarDoors = <JourneyAlightingCarDoor>[
   ),
 ];
 
+const _boardingPlatformGaps = <JourneyPlatformGap>[
+  JourneyPlatformGap(
+    platformPosition: '교대 방면 3-2',
+    carNumber: 3,
+    doorNumber: 2,
+    gapGrade: PlatformGapGrade.narrow,
+    heightDiffGrade: PlatformHeightDiffGrade.low,
+    curved: false,
+  ),
+  JourneyPlatformGap(
+    platformPosition: '교대 방면 6-1',
+    carNumber: 6,
+    doorNumber: 1,
+    gapGrade: PlatformGapGrade.wide,
+    heightDiffGrade: PlatformHeightDiffGrade.normal,
+    curved: true,
+  ),
+];
+
 const _unavailableFare = JourneyFare(
   status: JourneyFareStatus.unavailable,
   sourceSnapshotIds: <String>[],
@@ -342,6 +361,7 @@ Journey _transferJourney(
         plannedArrivalTime: at(15),
         realtimeDepartureTime: null,
         realtimeArrivalTime: null,
+        boardingPlatformGaps: stairFree ? _boardingPlatformGaps : const [],
         servicePattern: JourneyServicePattern.local,
         stops: <JourneyRideStop>[
           _stop(fixtureOriginStationId, departure: at(3)),

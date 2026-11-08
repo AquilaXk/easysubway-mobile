@@ -127,9 +127,16 @@ void main() {
               stationResults: screen.stationResults,
               inboxLoad: screen.inboxLoad,
               realtimeRepository: SweepRealtimeRepository(),
+              onboardingStore: screen.onboardingStore,
+              dataPackUpdateStateRepository:
+                  screen.dataPackUpdateStateRepository,
             ),
           );
-          await tester.pumpAndSettle();
+          if (screen.onboardingStore == null) {
+            await tester.pumpAndSettle();
+          } else {
+            await tester.pump();
+          }
           await screen.open(
             SweepScreenContext(
               tester: tester,
