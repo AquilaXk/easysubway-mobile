@@ -61,7 +61,9 @@ void main() {
     }
   });
 
-  testWidgets('글자 1.5배에서 넘치는 이름은 14pt까지 줄여 끝까지 보인다', (tester) async {
+  testWidgets('글자 1.5배에서 넘치는 이름은 14pt까지 줄여 중앙 캡슐에 가려지지 않고 끝까지 보인다', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _bar(
         leftName: '주안국가산단',
@@ -71,10 +73,18 @@ void main() {
       ),
     );
 
+    final capsuleRect = tester.getRect(
+      find.byKey(const Key('nearbyStationLineBarCapsule')),
+    );
+    final leftRect = tester.getRect(find.text('주안국가산단'));
+    final rightRect = tester.getRect(find.text('시민공원'));
+
     for (final name in ['주안국가산단', '시민공원']) {
       expect(_paragraph(tester, name).didExceedMaxLines, isFalse);
       expect(_renderedFontSize(tester, name), greaterThanOrEqualTo(14));
     }
+    expect(leftRect.right, lessThanOrEqualTo(capsuleRect.left));
+    expect(rightRect.left, greaterThanOrEqualTo(capsuleRect.right));
   });
 
   testWidgets('자리가 넉넉하면 글자 배율을 그대로 따른다', (tester) async {

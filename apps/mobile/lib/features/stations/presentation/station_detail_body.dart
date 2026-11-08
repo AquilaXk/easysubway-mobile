@@ -647,11 +647,33 @@ class _StationInfoSection extends StatelessWidget {
     _TagRule(['이동불가', '횡단불가'], '이동 불가'),
     _TagRule(['횡단가능', '반대편연결', '반대편이동가능'], '연결됨'),
   ];
+  static const _explicitFacilityTypes = {
+    'BICYCLE',
+    'BICYCLE_RACK',
+    'PARKING',
+    'LOST_ITEM',
+    'LOST_AND_FOUND',
+    'LOCKER',
+    'STORAGE',
+    'ACCESSIBLE_TOILET',
+    'TOILET',
+    'ELEVATOR',
+    'ESCALATOR',
+    'NURSING_ROOM',
+    'WHEELCHAIR_LIFT',
+    'RAMP',
+    'PLATFORM',
+    'CUSTOMER_CENTER',
+    'STATION_OFFICE',
+    'WHEELCHAIR_CHARGER',
+    'CHARGER',
+    'CHARGE',
+  };
   static const _amenityKinds = [
     _FacilityKind(
       icon: Icons.directions_bike,
       label: '자전거보관소',
-      types: ['BICYCLE'],
+      types: ['BICYCLE', 'BICYCLE_RACK'],
       keywords: ['자전거'],
       matchesDescription: true,
     ),
@@ -682,6 +704,7 @@ class _StationInfoSection extends StatelessWidget {
       icon: Icons.accessible,
       label: '장애인화장실',
       types: ['ACCESSIBLE_TOILET'],
+      fallbackTypes: ['TOILET'],
       keywords: ['장애인화장실', '장애인 화장실'],
     ),
     _FacilityKind(
@@ -780,7 +803,7 @@ class _StationInfoSection extends StatelessWidget {
   ) {
     final items = <Widget>[];
     for (final kind in kinds) {
-      final installed = facilities.where(kind.matches).firstOrNull;
+      final installed = kind.findInstalled(facilities);
       final knowledge = kind.knowledgeOf(installed, absentTypes);
       if (knowledge != _FacilityKnowledge.unknown) {
         items.add(
@@ -794,7 +817,11 @@ class _StationInfoSection extends StatelessWidget {
   static _StationInfoGroup _facilityInfoGroup(
     List<StationFacilityInfo> facilities,
   ) {
-    final texts = facilities
+    final ordered = [
+      ...facilities.where((f) => f.type != 'PLATFORM'),
+      ...facilities.where((f) => f.type == 'PLATFORM'),
+    ];
+    final texts = ordered
         .map((f) => '${f.name} ${f.description}'.toLowerCase())
         .toList();
     final tags = [
@@ -850,7 +877,7 @@ class _StationInfoSection extends StatelessWidget {
   static bool _isToilet(StationFacilityInfo f) =>
       f.type == 'TOILET' ||
       f.type == 'ACCESSIBLE_TOILET' ||
-      f.name.contains('화장실');
+      (!_explicitFacilityTypes.contains(f.type) && f.name.contains('화장실'));
 
   @override
   Widget build(BuildContext context) {
@@ -893,6 +920,7 @@ class _FacilityKind {
     required this.label,
     required this.types,
     required this.keywords,
+    this.fallbackTypes = const [],
     this.matchesDescription = false,
     this.absenceType,
   });
@@ -901,13 +929,19 @@ class _FacilityKind {
   final String label;
   final List<String> types;
   final List<String> keywords;
+  final List<String> fallbackTypes;
   final bool matchesDescription;
 
   /// 원천이 NOT_EXISTS로 확인할 수 있는 유형 코드. 확인 수단이 없으면 null.
   final String? absenceType;
 
-  bool matches(StationFacilityInfo facility) =>
-      types.contains(facility.type) ||
+  StationFacilityInfo? findInstalled(List<StationFacilityInfo> facilities) =>
+      facilities.where((f) => types.contains(f.type)).firstOrNull ??
+      facilities.where(_matchesKeywordFallback).firstOrNull;
+
+  bool _matchesKeywordFallback(StationFacilityInfo facility) =>
+      (!_StationInfoSection._explicitFacilityTypes.contains(facility.type) ||
+          fallbackTypes.contains(facility.type)) &&
       keywords.any(
         (keyword) =>
             facility.name.contains(keyword) ||

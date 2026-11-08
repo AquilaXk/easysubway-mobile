@@ -315,4 +315,300 @@ void main() {
     expect(find.text('화장실 개찰구 안/밖'), findsNothing);
     expect(find.text('화장실 개찰구 안'), findsNothing);
   });
+
+  testWidgets('원천 facilityType 코드가 명시된 경우 이름·설명 키워드보다 원천 유형을 최우선으로 판정한다', (
+    tester,
+  ) async {
+    const cases =
+        <
+          ({
+            String name,
+            List<StationFacilityInfo> facilities,
+            List<String> expectedPresent,
+            List<String> expectedAbsentLabels,
+            String? expectedReportButtonId,
+          })
+        >[
+          (
+            name: 'BICYCLE_RACK 코드는 키워드가 없어도 자전거보관소로 판정',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-bike-rack',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'BICYCLE_RACK',
+                name: '보관대 1호',
+                floorFrom: '1F',
+                floorTo: '1F',
+                description: '1번 출구 옆',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedPresent: ['자전거보관소 있음'],
+            expectedAbsentLabels: ['물품보관소', '환승주차장', '유실물센터'],
+            expectedReportButtonId: null,
+          ),
+          (
+            name: 'ELEVATOR 설명에 주차장·자전거·보관함이 있어도 다른 시설로 오분류하지 않음',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-elev-1',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'ELEVATOR',
+                name: '승강기 1호기',
+                floorFrom: 'B1',
+                floorTo: '1F',
+                description: '환승 주차장 및 자전거 보관함 연결 통로',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedPresent: ['엘리베이터 있음'],
+            expectedAbsentLabels: ['환승주차장', '자전거보관소', '물품보관소'],
+            expectedReportButtonId: 'f-elev-1',
+          ),
+          (
+            name: 'ACCESSIBLE_TOILET 코드가 TOILET 키워드 행보다 우선 선택됨',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-toilet-keyword',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'TOILET',
+                name: '장애인 화장실 겸용',
+                floorFrom: 'B1',
+                floorTo: 'B1',
+                description: '개찰구 내',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+              StationFacilityInfo(
+                id: 'f-acc-toilet-explicit',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'ACCESSIBLE_TOILET',
+                name: '전용 화장실',
+                floorFrom: 'B1',
+                floorTo: 'B1',
+                description: '개찰구 내',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedPresent: ['장애인화장실 있음'],
+            expectedAbsentLabels: ['엘리베이터', '휠체어 리프트'],
+            expectedReportButtonId: 'f-acc-toilet-explicit',
+          ),
+          (
+            name: 'TOILET 행에 장애인 화장실 이름이 있으면 장애인화장실로 분류',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-toilet-acc-name',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'TOILET',
+                name: '장애인 화장실',
+                floorFrom: 'B1',
+                floorTo: 'B1',
+                description: '개찰구 내',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedPresent: ['장애인화장실 있음'],
+            expectedAbsentLabels: ['수유실'],
+            expectedReportButtonId: 'f-toilet-acc-name',
+          ),
+          (
+            name: '비명시 유형(OTHER)에서는 주차장 설명·화장실 이름 키워드 폴백이 동작',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-other-parking',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'OTHER',
+                name: '역세권 환승시설',
+                floorFrom: '1F',
+                floorTo: '1F',
+                description: '공영 주차장 연계',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+              StationFacilityInfo(
+                id: 'f-other-toilet',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'OTHER',
+                name: '공중 화장실',
+                floorFrom: 'B1',
+                floorTo: 'B1',
+                description: '개찰구 안',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedPresent: ['환승주차장 있음'],
+            expectedAbsentLabels: ['자전거보관소', '유실물센터'],
+            expectedReportButtonId: null,
+          ),
+        ];
+
+    for (final c in cases) {
+      await _pumpDetail(tester, facilities: c.facilities);
+      for (final present in c.expectedPresent) {
+        expect(_announced(present), findsOneWidget, reason: c.name);
+      }
+      for (final absent in c.expectedAbsentLabels) {
+        expect(find.text(absent), findsNothing, reason: '${c.name} / $absent');
+      }
+      if (c.expectedReportButtonId != null) {
+        expect(
+          find.byKey(
+            Key('stationFacilityReportButton-${c.expectedReportButtonId}'),
+          ),
+          findsOneWidget,
+          reason: c.name,
+        );
+      }
+    }
+  });
+
+  testWidgets('역정보 시설정보 태그 규칙(_TagRule)을 표 기반으로 검증한다', (tester) async {
+    const cases =
+        <
+          ({
+            String name,
+            List<StationFacilityInfo> facilities,
+            List<String> expectedTags,
+            List<String> unexpectedTags,
+          })
+        >[
+          (
+            name: '단선 플랫폼 키워드와 왼쪽 내리는문, 반대편 이동불가 판정',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-platform-single',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'PLATFORM',
+                name: '승강장',
+                floorFrom: 'B2',
+                floorTo: 'B2',
+                description: '단선 승강장, 내리는문 왼쪽, 반대편 이동불가',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedTags: ['플랫폼 단선', '내리는문 왼쪽', '반대편 이동 불가'],
+            unexpectedTags: ['플랫폼 섬식', '플랫폼 양쪽', '내리는문 오른쪽', '반대편 연결됨'],
+          ),
+          (
+            name: '한 텍스트 안에서는 _TagRule 정의 순서대로 뒤 규칙이 앞 규칙을 덮어쓴다',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-rule-order',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'PLATFORM',
+                name: '승강장 안내',
+                floorFrom: 'B2',
+                floorTo: 'B2',
+                description: '단선 구간 및 섬식·상대식 복합, 왼쪽/오른쪽 문, 횡단불가 및 횡단가능',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedTags: ['플랫폼 양쪽', '내리는문 오른쪽', '반대편 연결됨'],
+            unexpectedTags: ['플랫폼 단선', '플랫폼 섬식', '내리는문 왼쪽', '반대편 이동 불가'],
+          ),
+          (
+            name: '명시적 PLATFORM 행이 비-PLATFORM 행의 부수 설명보다 우선한다',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-platform-island',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'PLATFORM',
+                name: '승강장',
+                floorFrom: 'B2',
+                floorTo: 'B2',
+                description: '섬식 승강장',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+              StationFacilityInfo(
+                id: 'f-elev-later',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'ELEVATOR',
+                name: '엘리베이터',
+                floorFrom: 'B1',
+                floorTo: 'B2',
+                description: '상대식 환승 통로 인근',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedTags: ['플랫폼 섬식'],
+            unexpectedTags: ['플랫폼 양쪽'],
+          ),
+          (
+            name:
+                '화장실 개찰구 안과 개찰구 밖이 모두 확인되면 개찰구 안/밖으로 표시하고 출구 키워드만으로는 판정하지 않는다',
+            facilities: [
+              StationFacilityInfo(
+                id: 'f-toilet-inside',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'TOILET',
+                name: '화장실 1',
+                floorFrom: 'B1',
+                floorTo: 'B1',
+                description: '운임구역 내 대합실',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+              StationFacilityInfo(
+                id: 'f-toilet-outside',
+                stationId: 'station-geumnamno-4ga',
+                exitId: '',
+                type: 'ACCESSIBLE_TOILET',
+                name: '장애인 화장실',
+                floorFrom: 'B1',
+                floorTo: 'B1',
+                description: '게이트 밖 2번 출구 방향',
+                status: 'NORMAL',
+                dataConfidence: 'HIGH',
+                lastUpdatedAt: '2026-09-09',
+              ),
+            ],
+            expectedTags: ['화장실 개찰구 안/밖'],
+            unexpectedTags: ['화장실 개찰구 안', '화장실 개찰구 밖'],
+          ),
+        ];
+
+    for (final c in cases) {
+      await _pumpDetail(tester, facilities: c.facilities);
+      for (final tag in c.expectedTags) {
+        expect(find.text(tag), findsOneWidget, reason: '${c.name} / $tag');
+      }
+      for (final tag in c.unexpectedTags) {
+        expect(find.text(tag), findsNothing, reason: '${c.name} / $tag');
+      }
+    }
+  });
 }

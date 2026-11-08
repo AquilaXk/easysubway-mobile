@@ -12,15 +12,12 @@ import '../../../support/ios_text_scale.dart';
 
 /// 역 상세의 도착 정보 두 줄(방면·첫차막차 행, 실시간 도착 행)이 기본 글자에서는 한 줄에
 /// 우측 정렬로 놓이고, iOS 최대 접근성 글꼴 크기(AX5)에서는 문구를 자르지 않고 줄을 나누는지 검사한다
-/// (에픽 #3036 4-25). 번들 폰트가 없어 글자 폭은 Ahem 근사치다.
+/// (에픽 #3036 4-25, 7-46).
 const _viewport = Size(402, 874);
 const _devicePixelRatio = 3.0;
 const _detailScreenName = '역 상세(출구 지도 안내)';
 const _firstDirectionLastDeparture = '23:52';
 
-/// 줄 바깥 여백: 컨테이너 테두리 1 + 안쪽 여백 14.
-const _rowInset = 15.0;
-const _positionTolerance = 1.0;
 const _scrollStep = 300.0;
 const _maxScrollSteps = 20;
 
@@ -100,20 +97,35 @@ void main() {
       await openStationDetail(tester);
 
       final row = firstDirectionRow();
-      final name = tester.getRect(
-        find.descendant(of: row, matching: find.byType(Text)).first,
-      );
+      final rowRect = tester.getRect(row);
+      final nameFinder = find
+          .descendant(of: row, matching: find.byType(Text))
+          .first;
+      final name = tester.getRect(nameFinder);
       final firstLabel = tester.getRect(find.text('첫차').first);
-      final lastTime = tester.getRect(find.text(_firstDirectionLastDeparture));
+      final lastTimeFinder = find.text(_firstDirectionLastDeparture);
+      final lastTime = tester.getRect(lastTimeFinder);
       final summary = tester.getRect(
         find.ancestor(of: row, matching: find.byType(Container)).first,
       );
 
-      expect(firstLabel.center.dy, closeTo(name.center.dy, 8));
       expect(
-        lastTime.right,
-        closeTo(summary.right - _rowInset, _positionTolerance),
+        tester.renderObject<RenderParagraph>(nameFinder).didExceedMaxLines,
+        isFalse,
       );
+      expect(
+        tester.renderObject<RenderParagraph>(lastTimeFinder).didExceedMaxLines,
+        isFalse,
+      );
+      // 방면 이름과 첫차·막차 묶음이 같은 줄(수직 영역 교차)에 겹치지 않고 나란히 놓인다.
+      expect(firstLabel.top, lessThan(name.bottom));
+      expect(name.top, lessThan(firstLabel.bottom));
+      expect(firstLabel.left, greaterThanOrEqualTo(name.right));
+      // 막차 시각은 행(Wrap)의 우측 끝에 정렬되고 요약 카드 안쪽 가용 폭을 지킨다.
+      expect(name.left, rowRect.left);
+      expect(lastTime.right, rowRect.right);
+      expect(rowRect.left, greaterThan(summary.left));
+      expect(rowRect.right, lessThan(summary.right));
       expect(tester.takeException(), isNull);
     });
 
@@ -121,15 +133,31 @@ void main() {
       useScale(tester, iosAx5TextScale);
       await openStationDetail(tester);
 
-      final name = tester.getRect(
-        find
-            .descendant(of: firstDirectionRow(), matching: find.byType(Text))
-            .first,
-      );
+      final row = firstDirectionRow();
+      final rowRect = tester.getRect(row);
+      final nameFinder = find
+          .descendant(of: row, matching: find.byType(Text))
+          .first;
+      final name = tester.getRect(nameFinder);
       final firstLabel = tester.getRect(find.text('첫차').first);
+      final lastTimeFinder = find.text(_firstDirectionLastDeparture);
+      final lastTime = tester.getRect(lastTimeFinder);
+      final summary = tester.getRect(
+        find.ancestor(of: row, matching: find.byType(Container)).first,
+      );
 
+      expect(
+        tester.renderObject<RenderParagraph>(nameFinder).didExceedMaxLines,
+        isFalse,
+      );
+      expect(
+        tester.renderObject<RenderParagraph>(lastTimeFinder).didExceedMaxLines,
+        isFalse,
+      );
       expect(firstLabel.top, greaterThanOrEqualTo(name.bottom));
-      expect(find.text(_firstDirectionLastDeparture), findsOneWidget);
+      expect(name.left, rowRect.left);
+      expect(lastTime.right, lessThanOrEqualTo(rowRect.right));
+      expect(rowRect.right, lessThanOrEqualTo(summary.right));
       expect(tester.takeException(), isNull);
     });
   });
@@ -178,10 +206,23 @@ void main() {
       await pumpRealtime(tester, shortArrival);
 
       const eta = '곧 도착';
-      final badge = containerRect(tester, find.text(eta));
-      final row = containerRect(tester, find.text(eta), depth: 1);
+      final etaFinder = find.text(eta);
+      final badge = containerRect(tester, etaFinder);
+      final card = containerRect(tester, etaFinder, depth: 1);
+      final rowRect = tester.getRect(
+        find.ancestor(of: etaFinder, matching: find.byType(Row)).first,
+      );
+      final destinationRect = tester.getRect(find.text('성수행'));
 
-      expect(badge.right, closeTo(row.right - _rowInset, _positionTolerance));
+      expect(
+        tester.renderObject<RenderParagraph>(etaFinder).didExceedMaxLines,
+        isFalse,
+      );
+      expect(destinationRect.left, greaterThan(rowRect.left));
+      expect(badge.left, greaterThanOrEqualTo(destinationRect.right));
+      expect(badge.right, rowRect.right);
+      expect(rowRect.left, greaterThan(card.left));
+      expect(rowRect.right, lessThan(card.right));
       expect(tester.takeException(), isNull);
     });
 
@@ -194,10 +235,12 @@ void main() {
       final text = tester.widget<Text>(eta);
       expect(text.maxLines, isNull);
       expect(text.overflow, isNull);
-      expect(
-        tester.renderObject<RenderParagraph>(eta).didExceedMaxLines,
-        isFalse,
-      );
+      final paragraph = tester.renderObject<RenderParagraph>(eta);
+      expect(paragraph.didExceedMaxLines, isFalse);
+      final badge = containerRect(tester, eta);
+      final card = containerRect(tester, eta, depth: 1);
+      expect(badge.left, greaterThanOrEqualTo(card.left));
+      expect(badge.right, lessThanOrEqualTo(card.right));
       expect(find.textContaining('신도림'), findsWidgets);
       expect(tester.takeException(), isNull);
     });
