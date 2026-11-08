@@ -7,6 +7,7 @@ import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
 import 'package:easysubway_mobile/features/favorites/data/drift_favorite_repositories.dart';
 import 'package:easysubway_mobile/features/favorites/domain/favorite_route.dart';
+import 'package:easysubway_mobile/features/favorites/favorite_facility.dart';
 import 'package:easysubway_mobile/features/preferences/data/drift_notification_settings_repository.dart';
 import 'package:easysubway_mobile/features/search_history/data/drift_search_history_repository.dart';
 import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
@@ -252,6 +253,65 @@ void main() {
     await repository.removeFavoriteFacility('facility-sangnoksu-elevator-1');
 
     expect(await repository.listFavoriteFacilities(), isEmpty);
+  });
+
+  test('로컬 시설 즐겨찾기는 미설치(NOT_INSTALLED) 시설을 목록 조회와 저장에서 제외한다', () async {
+    final catalogDatabase = CatalogDatabase.memory();
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    await catalogDatabase.seedBaselineIfEmpty();
+    await catalogDatabase.customStatement('''
+      INSERT INTO facilities (
+        id,
+        station_id,
+        type,
+        name,
+        description,
+        status,
+        installation_status
+      ) VALUES (
+        'facility-sangnoksu-lift-absent',
+        'station-sangnoksu',
+        'WHEELCHAIR_LIFT',
+        '상록수역 휠체어리프트 미설치',
+        '미설치 확인',
+        'UNKNOWN',
+        'NOT_INSTALLED'
+      )
+    ''');
+    await userDatabase
+        .into(userDatabase.favoriteFacilities)
+        .insert(
+          user_db.FavoriteFacilitiesCompanion.insert(
+            facilityId: 'facility-sangnoksu-lift-absent',
+            stationId: 'station-sangnoksu',
+            addedAt: DateTime.utc(2026, 6, 19, 10),
+          ),
+        );
+    await userDatabase
+        .into(userDatabase.favoriteFacilities)
+        .insert(
+          user_db.FavoriteFacilitiesCompanion.insert(
+            facilityId: 'facility-sangnoksu-elevator-1',
+            stationId: 'station-sangnoksu',
+            addedAt: DateTime.utc(2026, 6, 19, 9),
+          ),
+        );
+    final repository = DriftFavoriteFacilityRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+    );
+
+    final favorites = await repository.listFavoriteFacilities();
+    expect(favorites.map((item) => item.facilityId), [
+      'facility-sangnoksu-elevator-1',
+    ]);
+
+    await expectLater(
+      repository.saveFavoriteFacility('facility-sangnoksu-lift-absent'),
+      throwsA(isA<FavoriteFacilityException>()),
+    );
   });
 
   test(

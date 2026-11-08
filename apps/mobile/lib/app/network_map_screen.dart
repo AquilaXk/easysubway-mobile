@@ -206,6 +206,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   String? _nearbyLookupMessage;
   Timer? _nearbyLookupMessageTimer;
   bool _initialNearbyFocusStarted = false;
+  bool _restoredSavedRegion = false;
   int _selectionClearRevision = 0;
   int _nearestStationRequestToken = 0;
 
@@ -699,6 +700,11 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     // 그대로 리포지토리 요청에 반영되어 data.selectedRegion과 같아지므로
     // 값이 보존된다(덮어써도 동일).
     _selectedRegion = data.selectedRegion;
+    _restoredSavedRegion =
+        restoringSavedRegion &&
+        !isRequestedRegionUnavailable &&
+        requestedDisplayName != null &&
+        routeMapDisplayRegionName(data.selectedRegion) == requestedDisplayName;
     _cacheAvailableRegionLabels(data.regions);
     if (mounted) {
       _notifyRegionLabelChanged();
@@ -782,7 +788,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       _selectedRegion = region ?? _selectedRegion;
       _routeMapLineId = null;
       _resetNearbyPanelState();
-      _initialNearbyFocusStarted = false;
+      _restoredSavedRegion = false;
+      _initialNearbyFocusStarted = region != null || _selectedRegion != null;
       _future = _startMapLoad();
     });
     _notifyRegionLabelChanged();
@@ -1095,7 +1102,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
       var regionChanged = false;
       if (routeMapDisplayRegionName(targetMap.data.selectedRegion) !=
           result.region) {
-        if (!widget.routeDraftController.draft.isEmpty) {
+        if (_restoredSavedRegion ||
+            !widget.routeDraftController.draft.isEmpty) {
           return;
         }
         final matchingRegions = targetMap.data.regions

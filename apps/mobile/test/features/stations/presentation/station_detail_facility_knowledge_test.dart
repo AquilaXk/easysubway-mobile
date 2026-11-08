@@ -229,9 +229,15 @@ void main() {
     for (final label in ['엘리베이터', '자전거보관소', '장애인화장실', '수유실']) {
       expect(_announced('$label 있음'), findsOneWidget, reason: label);
       expect(_announced(label), findsNothing, reason: label);
+      expect(
+        tester.getSemantics(_announced('$label 있음')).label,
+        '$label 있음',
+        reason: label,
+      );
     }
     expect(_announced('휠체어 리프트 없음'), findsOneWidget);
     expect(_announced('휠체어 리프트'), findsNothing);
+    expect(tester.getSemantics(_announced('휠체어 리프트 없음')).label, '휠체어 리프트 없음');
   });
 
   testWidgets('화면에 그릴 칸이 없는 미설치 증거만 있는 역은 역정보 구역과 여백을 두지 않는다', (tester) async {

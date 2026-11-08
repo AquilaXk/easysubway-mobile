@@ -402,6 +402,7 @@ class DriftFavoriteFacilityRepository implements FavoriteFacilityRepository {
             FROM facilities f
             JOIN stations s ON s.id = f.station_id
             WHERE f.id = ?
+              AND f.installation_status <> 'NOT_INSTALLED'
             ''',
             variables: [Variable.withString(facilityId)],
             readsFrom: {
@@ -477,7 +478,12 @@ class DriftFavoriteFacilityRepository implements FavoriteFacilityRepository {
   Future<QueryRow?> _facilityCatalogRow(String facilityId) {
     return catalogDatabase
         .customSelect(
-          'SELECT id, station_id FROM facilities WHERE id = ?',
+          '''
+          SELECT id, station_id
+          FROM facilities
+          WHERE id = ?
+            AND installation_status <> 'NOT_INSTALLED'
+          ''',
           variables: [Variable.withString(facilityId)],
           readsFrom: {catalogDatabase.facilities},
         )

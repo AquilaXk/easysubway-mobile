@@ -756,6 +756,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           top: top,
           width: menuWidth,
           child: StationPopoverMenu(
+            key: ValueKey('stationPopoverMenu-${selectedStation.id}'),
             width: menuWidth,
             stationName: selectedStation.displayName,
             selectedSlots: selectedSlots,
