@@ -195,7 +195,13 @@ Future<void> _pumpApp(
       onboardingState: screen.onboardingState(theme),
       stationResults: screen.stationResults,
       inboxLoad: screen.inboxLoad,
+      onboardingStore: screen.onboardingStore,
+      dataPackUpdateStateRepository: screen.dataPackUpdateStateRepository,
     ),
   );
-  await tester.pumpAndSettle();
+  if (screen.onboardingStore == null) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }

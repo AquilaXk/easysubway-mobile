@@ -3,6 +3,7 @@ import 'dart:async' show unawaited;
 import 'dart:convert' show jsonDecode;
 import 'dart:io' show File;
 
+import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
 import 'package:easysubway_mobile/core/error/error_feedback.dart';
 import 'package:easysubway_mobile/core/ui/region_menu.dart';
 import 'package:easysubway_mobile/features/attribution/presentation/data_source_attribution_screen.dart';
@@ -72,6 +73,8 @@ class SweepScreen {
     this.stationResults = const [],
     this.onboarded = true,
     this.inboxLoad = SweepInboxLoad.normal,
+    this.onboardingStore,
+    this.dataPackUpdateStateRepository,
   });
 
   final String name;
@@ -91,6 +94,12 @@ class SweepScreen {
   /// 알림함이 읽는 시설·제보 조회의 성공·실패 조합.
   final SweepInboxLoad inboxLoad;
 
+  /// 주입하면 온보딩 복원 흐름(예: 시작 로딩 화면)을 검사한다.
+  final OnboardingResultStore? onboardingStore;
+
+  /// 주입하면 데이터팩 업데이트 정책 상태(예: 셀룰러 동의 창)를 검사한다.
+  final DataPackUpdateStateRepository? dataPackUpdateStateRepository;
+
   OnboardingState onboardingState(SweepTheme theme) => onboarded
       ? OnboardingState.completed(
           result: OnboardingResult(
@@ -107,6 +116,13 @@ final sweepScreens = <SweepScreen>[
     '홈(노선도)',
     (context) async {},
     find.byKey(const Key('networkMapMenuButton')),
+  ),
+  SweepScreen(
+    '데이터팩 셀룰러 동의 창',
+    (context) async {},
+    find.text('새 지하철 데이터'),
+    dataPackUpdateStateRepository:
+        const SweepPendingConsentDataPackStateRepository(),
   ),
   SweepScreen('좌측 메뉴', _openMenu, find.byKey(const Key('networkMapMenuPanel'))),
   SweepScreen(
@@ -139,6 +155,14 @@ final sweepScreens = <SweepScreen>[
     '경로 결과·상세',
     (context) => _openJourney(context, search: true),
     find.byKey(const Key('selected-journey-detail')),
+  ),
+  SweepScreen(
+    '경로 결과(승강장 간격 시트)',
+    (context) async {
+      await _openJourney(context, search: true);
+      await _tapEntry(context.tester, find.text('틈이 좁은 문 3-2'));
+    },
+    find.byKey(const Key('platform-gap-bottomsheet-boundary')),
   ),
   SweepScreen(
     '역 상세(출구 지도 안내)',
@@ -230,6 +254,16 @@ final sweepScreens = <SweepScreen>[
     find.byKey(const Key('serviceNoticeAppBar')),
   ),
   SweepScreen(
+    '시작 로딩',
+    (context) => context.tester.pump(const Duration(milliseconds: 300)),
+    find.descendant(
+      of: find.byKey(const Key('startupLoadingScreen')),
+      matching: find.byType(CircularProgressIndicator),
+    ),
+    onboarded: false,
+    onboardingStore: const SweepPendingOnboardingResultStore(),
+  ),
+  SweepScreen(
     '시작 화면',
     (context) async {},
     find.byKey(const Key('startScreenStartButton')),
@@ -297,6 +331,15 @@ final sweepScreens = <SweepScreen>[
     await context.tester.tap(find.byKey(const Key('dataDeletionStartButton')));
     await context.tester.pumpAndSettle();
   }, find.byKey(const Key('dataDeletionConfirmButton'))),
+  SweepScreen('사용자 정보 삭제 완료', (context) async {
+    await _openUserDataDeletion(context);
+    await context.tester.tap(find.byKey(const Key('dataDeletionStartButton')));
+    await context.tester.pumpAndSettle();
+    await context.tester.tap(
+      find.byKey(const Key('dataDeletionConfirmButton')),
+    );
+    await context.tester.pumpAndSettle();
+  }, find.byKey(const Key('userDataDeletionResultScreen'))),
   SweepScreen('시설 상세', (context) async {
     await _openStationDetail(context);
     // 큰 글자에서는 시설 카드가 화면 밖에 있어 지연 생성 목록을 스크롤해 연다.

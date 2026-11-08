@@ -1,7 +1,10 @@
 // 핵심 화면 접근성 전수 검사(core_screen_guideline_sweep_test.dart)가 앱을 띄우는
 // 고정 응답 모음. 화면 표(core_screen_sweep_screens.dart)가 같은 응답을 공유한다.
+import 'dart:async' show Completer;
+
 import 'package:easysubway_mobile/app/demo_dependencies.dart';
 import 'package:easysubway_mobile/app/easy_subway_app.dart';
+import 'package:easysubway_mobile/core/datapack/data_pack_update_state.dart';
 import 'package:easysubway_mobile/features/account/user_data_deletion.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_repository.dart';
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
@@ -806,6 +809,34 @@ class SweepRealtimeRepository implements RealtimeRepository {
       );
 }
 
+/// 시작 로딩 화면을 유지하려고 온보딩 상태 복원을 끝내지 않는 저장소.
+class SweepPendingOnboardingResultStore implements OnboardingResultStore {
+  const SweepPendingOnboardingResultStore();
+
+  @override
+  Future<OnboardingResult?> readResult() =>
+      Completer<OnboardingResult?>().future;
+
+  @override
+  Future<void> saveResult(OnboardingResult result) async {}
+
+  @override
+  Future<void> clearResult() async {}
+}
+
+/// 셀룰러 다운로드 동의 창을 띄우려고 대기 중인 데이터팩 크기를 돌려주는 저장소.
+class SweepPendingConsentDataPackStateRepository
+    implements DataPackUpdateStateRepository {
+  const SweepPendingConsentDataPackStateRepository();
+
+  @override
+  Future<DataPackUpdatePolicyState> readPolicyState() async =>
+      const DataPackUpdatePolicyState(pendingConsentBytes: 12 * 1024 * 1024);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
 /// 전수 검사용으로 구성한 앱. 저장소는 모두 고정 응답이라 네트워크·DB에 닿지 않는다.
 ///
 /// [stationResults]는 역 검색 포트가 돌려줄 결과다.
@@ -815,6 +846,8 @@ EasySubwayApp buildSweepApp({
   List<StationSearchResult> stationResults = const [],
   SweepInboxLoad inboxLoad = SweepInboxLoad.normal,
   RealtimeRepository? realtimeRepository,
+  OnboardingResultStore? onboardingStore,
+  DataPackUpdateStateRepository? dataPackUpdateStateRepository,
 }) {
   return buildEasySubwayTestApp(
     repository: SweepRepository(stationResults: stationResults),
@@ -834,6 +867,8 @@ EasySubwayApp buildSweepApp({
     notificationRepository: SweepNotificationSettingsRepository(),
     userDataDeletionRepository: SweepUserDataDeletionRepository(),
     notificationPermissionProvider: SweepNotificationPermissionProvider(),
+    onboardingStore: onboardingStore,
+    dataPackUpdateStateRepository: dataPackUpdateStateRepository,
     navigatorKey: navigatorKey,
     initialOnboardingState: onboardingState,
   );
