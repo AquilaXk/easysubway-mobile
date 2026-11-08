@@ -94,6 +94,8 @@ apps/mobile/ios/DerivedData/
 *.xcodeproj/xcuserdata/
 *.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
 **/*.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+!apps/mobile/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/
+!apps/mobile/ios/Runner.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
 *.xcuserstate
 
 # Infrastructure local state
