@@ -1728,7 +1728,9 @@ class _StationTimetableEntryState extends State<_StationTimetableEntry> {
     final token = ++_loadToken;
     final repository = widget.repository;
     if (repository != null && widget.detail.lines.isNotEmpty) {
-      unawaited(_load(repository, widget.detail.id, widget.detail.lines, token));
+      unawaited(
+        _load(repository, widget.detail.id, widget.detail.lines, token),
+      );
     }
   }
 

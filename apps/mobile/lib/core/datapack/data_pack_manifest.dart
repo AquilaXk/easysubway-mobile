@@ -318,10 +318,7 @@ class DataPackManifestEntry {
     if (signature.value != sha256.convert(utf8.encode(canonical)).toString()) {
       throw const FormatException('Invalid data pack signature.');
     }
-    _validateRepresentativeRouteRegressionSignature(
-      expectedSizeBytes,
-      null,
-    );
+    _validateRepresentativeRouteRegressionSignature(expectedSizeBytes, null);
   }
 
   DataPackSigningPublicKey? _findMatchingPackSigningKey(
@@ -427,9 +424,7 @@ List<DataPackSigningPublicKey> _normalizeTrustedSigningKeys({
 }) {
   if (productionSigningPublicKey != null &&
       productionSigningPublicKeys != null) {
-    throw const FormatException(
-      'Invalid data pack signing key configuration.',
-    );
+    throw const FormatException('Invalid data pack signing key configuration.');
   }
   final keys =
       productionSigningPublicKeys ??
@@ -440,9 +435,7 @@ List<DataPackSigningPublicKey> _normalizeTrustedSigningKeys({
     return const <DataPackSigningPublicKey>[];
   }
   if (keys.length > maxTrustedDataPackSigningKeys) {
-    throw const FormatException(
-      'Invalid data pack signing key configuration.',
-    );
+    throw const FormatException('Invalid data pack signing key configuration.');
   }
   final seenKeyIds = <String>{};
   for (final key in keys) {
