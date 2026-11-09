@@ -17,17 +17,12 @@ const scriptPath = fileURLToPath(new URL("./mobile-ci-scope.mjs", import.meta.ur
 // 경로 → 무거운 lane(host tests·Android 빌드) 실행 여부 계약. 실행 대상 밖으로 증명된 경로만
 // 건너뛸 수 있고, 그 외 경로가 하나라도 섞이면 전체 실행이다.
 const SKIP_ELIGIBLE = [
-  ".github/workflows/automerge-queue.yml",
   ".github/workflows/mobile-golden.yml",
   ".github/workflows/release-artifacts.yml",
   ".github/dependabot.yml",
-  ".github/pull_request_template.md",
-  ".github/PULL_REQUEST_TEMPLATE/full.md",
-  ".github/ISSUE_TEMPLATE/bug.yml",
   "README.md",
   "README.ko.md",
   "SECURITY.md",
-  "tools/mobile/automerge-queue.test.mjs",
   "tools/ci/mobile-ci-scope.test.mjs",
   "tools/release/hash-android-bundle-payload.test.mjs",
 ];
@@ -86,7 +81,7 @@ test("실행 대상 밖으로 증명된 경로만 skip 가능하다", () => {
 test("pull_request에서 skip 가능 경로만 바뀌면 무거운 lane을 건너뛴다", () => {
   const decision = decideScope({
     event: "pull_request",
-    changedPaths: [".github/workflows/automerge-queue.yml", "tools/mobile/automerge-queue.test.mjs", "README.md"],
+    changedPaths: [".github/workflows/release-artifacts.yml", "tools/ci/mobile-ci-scope.test.mjs", "README.md"],
   });
   assert.deepEqual(decision, {
     runHeavyLanes: false,

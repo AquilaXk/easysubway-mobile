@@ -104,8 +104,8 @@ updates:
         versions:
           - ">= 3.6.0"
 
-  # (2) github-actions — 워크플로 5개(automerge-queue / ci / osv-scheduled /
-  # release-artifacts / store-distribution-evidence)의 action 핀이 대상이다.
+  # (2) github-actions — 워크플로(ci / osv-scheduled /
+  # release-artifacts / store-distribution-evidence 등)의 action 핀이 대상이다.
   # 이 레포는 action 을 full commit SHA 로 핀한다. dependabot 은 SHA 핀 갱신을 지원한다.
   # 2026-08-02 실측상 핀 5종 중 4종은 릴리스 태그를 직접 가리켜 semver 판정이 성립한다.
   #   actions/checkout      de0fac2e -> v6.0.2

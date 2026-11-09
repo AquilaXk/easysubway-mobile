@@ -86,8 +86,6 @@ const ORIGINAL_GATE_STEPS = [
 
 test("workflow 이름과 required check 이름을 유지하고 집계 job이 그 이름을 소유한다", () => {
   assert.equal(workflow.split("\n")[0], "name: CI");
-  const coordinator = readFileSync(path.join(repositoryRoot, ".github/workflows/automerge-queue.yml"), "utf8");
-  assert.match(coordinator, /^ {2}workflow_run:\n {4}workflows: \[CI\]\n {4}types: \[completed\]$/mu);
 
   assert.deepEqual(jobIds(), [
     "scope",

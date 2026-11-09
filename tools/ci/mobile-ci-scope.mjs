@@ -18,12 +18,10 @@ export const HEAVY_LANES = Object.freeze(["Mobile host tests", "Android build"])
 // 않는다는 정적 불변식은 tools/ci/mobile-ci-parallel-lanes.test.mjs가 검사한다.
 const SKIP_ELIGIBLE_EXACT = new Set([
   ".github/dependabot.yml",
-  ".github/pull_request_template.md",
   "README.md",
   "README.ko.md",
   "SECURITY.md",
 ]);
-const SKIP_ELIGIBLE_PREFIXES = [".github/PULL_REQUEST_TEMPLATE/", ".github/ISSUE_TEMPLATE/"];
 const OTHER_WORKFLOW = /^\.github\/workflows\/[A-Za-z0-9_.-]+\.ya?ml$/u;
 const NODE_CONTRACT_TEST = /^tools\/(?:[A-Za-z0-9_.-]+\/)*[A-Za-z0-9_.-]+\.test\.mjs$/u;
 const SAFE_SEGMENT = /^[A-Za-z0-9_.-]+$/u;
@@ -39,7 +37,6 @@ export function isSkipEligiblePath(value) {
   if (!isNormalizedRelativePath(value)) return false;
   if (value === ".github/workflows/ci.yml") return false;
   if (SKIP_ELIGIBLE_EXACT.has(value)) return true;
-  if (SKIP_ELIGIBLE_PREFIXES.some((prefix) => value.startsWith(prefix))) return true;
   if (OTHER_WORKFLOW.test(value)) return true;
   if (NODE_CONTRACT_TEST.test(value)) return !value.split("/").includes("fixtures");
   return false;

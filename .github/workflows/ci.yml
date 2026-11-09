@@ -11,8 +11,6 @@ permissions: {}
 
 # 같은 PR에 새 head가 올라오면 이전 head 검증은 쓸모가 없으므로 PR 실행만 취소한다.
 # main push와 dispatch는 run마다 고유 그룹이라 서로 취소하지 않는다(병합 후 전체 검증 보존).
-# 취소된 run도 completed로 끝나 automerge 코디네이터(workflow_run: CI)를 깨우지만, 코디네이터는
-# 현재 head의 required check만 보므로 이전 head의 취소 결과로 병합하지 않는다.
 concurrency:
   group: ci-${{ github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number) || github.run_id }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -284,7 +282,6 @@ jobs:
             tools/ci/mobile-dependabot-policy.test.mjs \
             tools/ci/mobile-root-import-ratchet.test.mjs \
             tools/ci/public-sensitivity-owner-receipt-caller.test.mjs \
-            tools/mobile/automerge-queue.test.mjs \
             tools/mobile/check-android-aab-16kb-page-size.test.mjs \
             tools/mobile/datapack-contract.test.mjs \
             tools/mobile/play-installed-release-contract.test.mjs \
