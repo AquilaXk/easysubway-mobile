@@ -479,7 +479,149 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('18. 복수 공개키 키링 주입 시 manifest.keyId와 일치하는 두 번째 키로 검증을 통과한다', () {
+    final manifest = DataPackManifest.fromJson(
+      manifestJson(),
+      productionSigningPublicKeys: [_rotatedOtherValidKey, publicKey],
+    );
+
+    expect(manifest.keyId, publicKey.keyId);
+    expect(manifest.signature?.value, validSignatureValue);
+    expect(manifest.packs.map((pack) => pack.id), [
+      'capital',
+      'metro',
+      'harbor',
+      'valley',
+    ]);
+  });
+
+  test('19. 키링에 없는 keyId 매니페스트는 거부한다', () {
+    final unknownKeyKeyring = [
+      _rotatedOtherValidKey,
+      DataPackSigningPublicKey(
+        modulusBase64Url: publicKey.modulusBase64Url,
+        exponentBase64Url: publicKey.exponentBase64Url,
+        keyId: 'datapack-test-v0',
+      ),
+    ];
+
+    expect(
+      () => DataPackManifest.fromJson(
+        manifestJson(),
+        productionSigningPublicKeys: unknownKeyKeyring,
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('20. 키링 내 중복 keyId·공백 keyId·단일/복수 동시 주입·상한(8개) 초과는 거부한다', () {
+    expect(maxTrustedDataPackSigningKeys, 8);
+    expect(
+      () => DataPackManifest.fromJson(
+        manifestJson(),
+        productionSigningPublicKey: publicKey,
+        productionSigningPublicKeys: [publicKey],
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => DataPackManifest.fromJson(
+        manifestJson(),
+        productionSigningPublicKeys: [
+          publicKey,
+          DataPackSigningPublicKey(
+            modulusBase64Url: _rotatedOtherValidKey.modulusBase64Url,
+            exponentBase64Url: _rotatedOtherValidKey.exponentBase64Url,
+            keyId: publicKey.keyId,
+          ),
+        ],
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => DataPackManifest.fromJson(
+        manifestJson(),
+        productionSigningPublicKeys: [
+          DataPackSigningPublicKey(
+            modulusBase64Url: publicKey.modulusBase64Url,
+            exponentBase64Url: publicKey.exponentBase64Url,
+            keyId: '',
+          ),
+        ],
+      ),
+      throwsFormatException,
+    );
+    expect(
+      () => DataPackManifest.fromJson(
+        manifestJson(),
+        productionSigningPublicKeys: [
+          DataPackSigningPublicKey(
+            modulusBase64Url: publicKey.modulusBase64Url,
+            exponentBase64Url: publicKey.exponentBase64Url,
+            keyId: ' ${publicKey.keyId} ',
+          ),
+        ],
+      ),
+      throwsFormatException,
+    );
+
+    final oversizedKeyring = [
+      publicKey,
+      for (var index = 1; index <= maxTrustedDataPackSigningKeys; index += 1)
+        DataPackSigningPublicKey(
+          modulusBase64Url: _rotatedOtherValidKey.modulusBase64Url,
+          exponentBase64Url: _rotatedOtherValidKey.exponentBase64Url,
+          keyId: 'datapack-extra-v$index',
+        ),
+    ];
+    expect(oversizedKeyring.length, maxTrustedDataPackSigningKeys + 1);
+    expect(
+      () => DataPackManifest.fromJson(
+        manifestJson(),
+        productionSigningPublicKeys: oversizedKeyring,
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('21. 봉투 서명 키와 내부 팩 서명 키가 다른 교차 키 혼용은 거부한다', () {
+    final mismatch = rejections['keyIdMismatch']! as Map<String, Object?>;
+    final crossMixed = manifestJson()
+      ..addAll(_clone(mismatch['overrides']! as Map<String, Object?>));
+
+    // 봉투는 `_rotatedOtherValidKey`(`rotated-key-v9`)로 정당하게 서명되어 있고,
+    // 내부 팩은 `publicKey`(`datapack-test-v1`)로 정당하게 서명되어 있다.
+    expect(crossMixed['keyId'], _rotatedOtherValidKey.keyId);
+    expect(
+      _rotatedOtherValidKey.verify(
+        _canonicalWithoutSignature(crossMixed),
+        _rotatedEnvelopeSignatureByOtherValidKey,
+      ),
+      isTrue,
+    );
+    expect(
+      () => DataPackManifest.fromJson(
+        withSignature(crossMixed, {
+          'algorithm': 'rsa-sha256-manifest-v2',
+          'value': _rotatedEnvelopeSignatureByOtherValidKey,
+        }),
+        productionSigningPublicKeys: [_rotatedOtherValidKey, publicKey],
+      ),
+      throwsFormatException,
+    );
+  });
 }
+
+const _rotatedOtherValidKey = DataPackSigningPublicKey(
+  modulusBase64Url:
+      'lQ6A4ixeNua0Z8Cwu4vnG31z4U1668w55WtoWJxnneqbTSWG446B5_uaRNvIsEAxv6WrIDpVH_MZMF2YWFkpm63HJ9EMYzyEKwLMvYp6jbjVQf0_8grbJcpcdK68AzLpDxBA-A63KXxDlp5-IFYUnPjfzSTMZDuPQf-VCv7GpxadwJn3jLx8ycHlq01Fkuiq0DXHGTQw4Rrcj4o95kuaA4Ljt2pEArF_Y40HlTcVnab2U0YKa2QL2H8nwskAWobzk00bYUVjbPbN4r8kAqYhwKI_60mpC1lNJvy7rzkjSGg7YmWPhjifFCP3qR2-qR0ky5I_fyFWbI6QKXUln7Ji7Q',
+  exponentBase64Url: 'AQAB',
+  keyId: 'rotated-key-v9',
+);
+
+const _rotatedEnvelopeSignatureByOtherValidKey =
+    'J6y-uoHa8C2XAHwmEr1wcSv_l8Ucf6-T0KCUJa9X0Zi0T_jFvSBJoRXyIs8EtEXgTaHWX43S7iKyHJXWTrSVpkI1blz5nPY4GttkPv5BL53wibQonL1thr7N59BZg7NYQHE1A9q0hoHJkYUNAW2eRJKjU1TnY36nSNk_PiIsDLPBhXcQFAAe5-C6mc7LluqnkLsAwgFjcr8raheyNVOEzr9hnmmSnx-mhsSRWReZAKluHOxFLvJGL1awsSmJXv28SEBHafTkBSfOnZ9NO80J2OFLsHperVcqmQfd2qY-iboAUp4hQFUZTa1T4Xt_z2PUT5XfBVbCUxe6ceVDzjdAyw';
 
 String _canonicalWithoutSignature(Map<String, Object?> manifest) {
   return canonicalDataPackJson({

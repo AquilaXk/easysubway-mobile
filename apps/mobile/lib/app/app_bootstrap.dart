@@ -264,7 +264,7 @@ Future<void> _defaultDataPackUpdateRunner({
     client: DataPackClient(
       manifestUri: manifestUri,
       stateRepository: stateRepository,
-      productionSigningPublicKey: endpoints.productionDataPackSigningPublicKey,
+      productionSigningPublicKeys: endpoints.productionDataPackSigningPublicKeys,
       expectedManifestChannel: endpoints.expectedDataPackChannel,
     ),
     installer: DataPackInstaller(

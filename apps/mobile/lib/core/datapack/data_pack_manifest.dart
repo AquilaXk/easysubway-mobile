@@ -6,6 +6,8 @@ import 'package:easysubway_mobile/core/datapack/canonical_json.dart';
 
 final _sha256Pattern = RegExp(r'^[a-f0-9]{64}$');
 
+const int maxTrustedDataPackSigningKeys = 8;
+
 class DataPackManifest {
   const DataPackManifest({
     required this.manifestVersion,
@@ -26,7 +28,12 @@ class DataPackManifest {
   factory DataPackManifest.fromJson(
     Map<String, Object?> json, {
     DataPackSigningPublicKey? productionSigningPublicKey,
+    List<DataPackSigningPublicKey>? productionSigningPublicKeys,
   }) {
+    final trustedSigningKeys = _normalizeTrustedSigningKeys(
+      productionSigningPublicKey: productionSigningPublicKey,
+      productionSigningPublicKeys: productionSigningPublicKeys,
+    );
     final manifestVersion = _parseManifestVersion(json['manifestVersion']);
     final ttlSeconds = json['ttlSeconds'];
     final rawPacks = json['packs'];
@@ -40,6 +47,11 @@ class DataPackManifest {
     final signedCanonicalManifest = manifestVersion == 2
         ? canonicalDataPackJson(_withoutSignature(json))
         : null;
+    final matchedSigningPublicKey = _selectManifestSigningKey(
+      trustedSigningKeys: trustedSigningKeys,
+      manifestVersion: manifestVersion,
+      keyId: keyId,
+    );
 
     final manifest = DataPackManifest(
       manifestVersion: manifestVersion,
@@ -52,7 +64,7 @@ class DataPackManifest {
             return DataPackManifestEntry.fromJson(
               rawPack,
               manifestVersion: manifestVersion,
-              productionSigningPublicKey: productionSigningPublicKey,
+              productionSigningPublicKey: matchedSigningPublicKey,
             );
           })
           .toList(growable: false),
@@ -79,7 +91,7 @@ class DataPackManifest {
     );
     manifest._validateEnvelopeSignature(
       signedCanonicalManifest,
-      productionSigningPublicKey,
+      matchedSigningPublicKey,
     );
     return manifest;
   }
@@ -174,7 +186,12 @@ class DataPackManifestEntry {
     Map<String, Object?> json, {
     int manifestVersion = 1,
     DataPackSigningPublicKey? productionSigningPublicKey,
+    List<DataPackSigningPublicKey>? productionSigningPublicKeys,
   }) {
+    final trustedSigningKeys = _normalizeTrustedSigningKeys(
+      productionSigningPublicKey: productionSigningPublicKey,
+      productionSigningPublicKeys: productionSigningPublicKeys,
+    );
     final id = _readPackId(json['id']);
     final version = _readPackVersion(json['version']);
     final url = _parsePackUrl(_requiredString(json, 'url'));
@@ -221,7 +238,7 @@ class DataPackManifestEntry {
           .toList(growable: false),
       minimumTableRows: _parseMinimumTableRows(minimumTableRows),
       dependencies: _parsePackDependencies(json['dependencies']),
-    ).._validateManifestContract(productionSigningPublicKey);
+    ).._validateManifestContract(trustedSigningKeys);
   }
 
   final String id;
@@ -244,14 +261,14 @@ class DataPackManifestEntry {
   final List<ActiveDataPackManifest> dependencies;
 
   void _validateManifestContract(
-    DataPackSigningPublicKey? productionSigningPublicKey,
+    List<DataPackSigningPublicKey> trustedSigningKeys,
   ) {
     final expectedSizeBytes = sizeBytes;
-    if (productionSigningPublicKey != null &&
+    if (trustedSigningKeys.isNotEmpty &&
         artifactKind != DataPackArtifactKind.production) {
       throw const FormatException('Invalid data pack artifact kind.');
     }
-    _validateSignature(expectedSizeBytes, productionSigningPublicKey);
+    _validateSignature(expectedSizeBytes, trustedSigningKeys);
     if (artifactKind != DataPackArtifactKind.production) {
       return;
     }
@@ -271,24 +288,27 @@ class DataPackManifestEntry {
 
   void _validateSignature(
     int? expectedSizeBytes,
-    DataPackSigningPublicKey? productionSigningPublicKey,
+    List<DataPackSigningPublicKey> trustedSigningKeys,
   ) {
     if (expectedSizeBytes == null) {
       return;
     }
     final canonical = _signaturePayload(expectedSizeBytes);
     if (artifactKind == DataPackArtifactKind.production) {
-      final publicKey = productionSigningPublicKey;
-      if (publicKey == null) {
+      if (trustedSigningKeys.isEmpty ||
+          signature.algorithm != _packSignatureAlgorithm(production: true)) {
         throw const FormatException('Invalid data pack signature.');
       }
-      if (signature.algorithm != _packSignatureAlgorithm(production: true) ||
-          !publicKey.verify(canonical, signature.value)) {
+      final matchedPublicKey = _findMatchingPackSigningKey(
+        canonical,
+        trustedSigningKeys,
+      );
+      if (matchedPublicKey == null) {
         throw const FormatException('Invalid data pack signature.');
       }
       _validateRepresentativeRouteRegressionSignature(
         expectedSizeBytes,
-        productionSigningPublicKey,
+        matchedPublicKey,
       );
       return;
     }
@@ -300,8 +320,20 @@ class DataPackManifestEntry {
     }
     _validateRepresentativeRouteRegressionSignature(
       expectedSizeBytes,
-      productionSigningPublicKey,
+      null,
     );
+  }
+
+  DataPackSigningPublicKey? _findMatchingPackSigningKey(
+    String canonical,
+    List<DataPackSigningPublicKey> trustedSigningKeys,
+  ) {
+    for (final publicKey in trustedSigningKeys) {
+      if (publicKey.verify(canonical, signature.value)) {
+        return publicKey;
+      }
+    }
+    return null;
   }
 
   String _signaturePayload(int expectedSizeBytes) {
@@ -387,6 +419,60 @@ void _validatePayloadKind(Object? rawPayloadKind) {
   if (rawPayloadKind != 'sqlite_catalog') {
     throw const FormatException('Invalid data pack payload kind.');
   }
+}
+
+List<DataPackSigningPublicKey> _normalizeTrustedSigningKeys({
+  DataPackSigningPublicKey? productionSigningPublicKey,
+  List<DataPackSigningPublicKey>? productionSigningPublicKeys,
+}) {
+  if (productionSigningPublicKey != null &&
+      productionSigningPublicKeys != null) {
+    throw const FormatException(
+      'Invalid data pack signing key configuration.',
+    );
+  }
+  final keys =
+      productionSigningPublicKeys ??
+      (productionSigningPublicKey == null
+          ? const <DataPackSigningPublicKey>[]
+          : <DataPackSigningPublicKey>[productionSigningPublicKey]);
+  if (keys.isEmpty) {
+    return const <DataPackSigningPublicKey>[];
+  }
+  if (keys.length > maxTrustedDataPackSigningKeys) {
+    throw const FormatException(
+      'Invalid data pack signing key configuration.',
+    );
+  }
+  final seenKeyIds = <String>{};
+  for (final key in keys) {
+    final keyId = key.keyId;
+    if (keyId.isEmpty || keyId.trim() != keyId || !seenKeyIds.add(keyId)) {
+      throw const FormatException(
+        'Invalid data pack signing key configuration.',
+      );
+    }
+  }
+  return List<DataPackSigningPublicKey>.unmodifiable(keys);
+}
+
+DataPackSigningPublicKey? _selectManifestSigningKey({
+  required List<DataPackSigningPublicKey> trustedSigningKeys,
+  required int manifestVersion,
+  required String? keyId,
+}) {
+  if (trustedSigningKeys.isEmpty) {
+    return null;
+  }
+  if (manifestVersion != 2) {
+    throw const FormatException('Invalid data pack manifest version.');
+  }
+  for (final key in trustedSigningKeys) {
+    if (key.keyId == keyId) {
+      return key;
+    }
+  }
+  throw const FormatException('Invalid data pack manifest signature.');
 }
 
 class DataPackSigningPublicKey {

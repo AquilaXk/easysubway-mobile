@@ -225,10 +225,98 @@ void main() {
       isNull,
     );
   });
+
+  test('앱 endpoint는 주 키와 차기 로테이션 키가 모두 유효하면 두 공개키를 반환하고 업데이트를 시작한다', () {
+    final endpoints = AppEndpoints(
+      dataPackBaseUrl: 'https://cdn.easysubway.example/datapacks/',
+      dataPackSigningPublicKeyModulus: _rsaModulusBase64Url,
+      dataPackSigningPublicKeyExponent: 'AQAB',
+      dataPackSigningKeyId: 'production-v1',
+      dataPackNextSigningPublicKeyModulus: _nextRsaModulusBase64Url,
+      dataPackNextSigningPublicKeyExponent: 'AQAB',
+      dataPackNextSigningKeyId: 'production-v2',
+      reportApiBaseUrl: '',
+    );
+
+    expect(
+      endpoints.productionDataPackSigningPublicKeys.map((key) => key.keyId),
+      ['production-v1', 'production-v2'],
+    );
+    expect(
+      endpoints.dataPackSigningPublicKeyStatus,
+      DataPackSigningPublicKeyStatus.present,
+    );
+    expect(
+      endpoints.dataPackUpdateStartDecision,
+      DataPackUpdateStartDecision.start,
+    );
+  });
+
+  test('앱 endpoint는 차기 로테이션 키가 불완전 주입·형식 오류·중복 keyId이면 malformed로 차단한다', () {
+    final missingNextKeyId = AppEndpoints(
+      dataPackBaseUrl: 'https://cdn.easysubway.example/datapacks/',
+      dataPackSigningPublicKeyModulus: _rsaModulusBase64Url,
+      dataPackSigningPublicKeyExponent: 'AQAB',
+      dataPackSigningKeyId: 'production-v1',
+      dataPackNextSigningPublicKeyModulus: _nextRsaModulusBase64Url,
+      dataPackNextSigningPublicKeyExponent: 'AQAB',
+      dataPackNextSigningKeyId: '   ',
+      reportApiBaseUrl: '',
+    );
+    final missingNextModulus = AppEndpoints(
+      dataPackBaseUrl: 'https://cdn.easysubway.example/datapacks/',
+      dataPackSigningPublicKeyModulus: _rsaModulusBase64Url,
+      dataPackSigningPublicKeyExponent: 'AQAB',
+      dataPackSigningKeyId: 'production-v1',
+      dataPackNextSigningPublicKeyModulus: '',
+      dataPackNextSigningPublicKeyExponent: 'AQAB',
+      dataPackNextSigningKeyId: 'production-v2',
+      reportApiBaseUrl: '',
+    );
+    final malformedNextKey = AppEndpoints(
+      dataPackBaseUrl: 'https://cdn.easysubway.example/datapacks/',
+      dataPackSigningPublicKeyModulus: _rsaModulusBase64Url,
+      dataPackSigningPublicKeyExponent: 'AQAB',
+      dataPackSigningKeyId: 'production-v1',
+      dataPackNextSigningPublicKeyModulus: 'not-a-2048-bit-modulus',
+      dataPackNextSigningPublicKeyExponent: 'AQAB',
+      dataPackNextSigningKeyId: 'production-v2',
+      reportApiBaseUrl: '',
+    );
+    final duplicateKeyId = AppEndpoints(
+      dataPackBaseUrl: 'https://cdn.easysubway.example/datapacks/',
+      dataPackSigningPublicKeyModulus: _rsaModulusBase64Url,
+      dataPackSigningPublicKeyExponent: 'AQAB',
+      dataPackSigningKeyId: 'production-v1',
+      dataPackNextSigningPublicKeyModulus: _nextRsaModulusBase64Url,
+      dataPackNextSigningPublicKeyExponent: 'AQAB',
+      dataPackNextSigningKeyId: 'production-v1',
+      reportApiBaseUrl: '',
+    );
+
+    for (final endpoint in [
+      missingNextKeyId,
+      missingNextModulus,
+      malformedNextKey,
+      duplicateKeyId,
+    ]) {
+      expect(
+        endpoint.dataPackSigningPublicKeyStatus,
+        DataPackSigningPublicKeyStatus.malformed,
+      );
+      expect(
+        endpoint.dataPackUpdateStartDecision,
+        DataPackUpdateStartDecision.malformedProductionSigningKey,
+      );
+    }
+  });
 }
 
 /// RC 게이트(`tools/ci/validate-store-privacy-env.mjs`)가 요구하는 최소 길이(2048비트)를
 /// 만족하는 modulus. 값 자체는 서명 검증에 쓰지 않으므로 형식만 맞춘다.
 final String _rsaModulusBase64Url = base64Url.encode(
   List<int>.filled(256, 0xab),
+);
+final String _nextRsaModulusBase64Url = base64Url.encode(
+  List<int>.filled(256, 0xcd),
 );

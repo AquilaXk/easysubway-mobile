@@ -58,6 +58,9 @@ class AppEndpoints {
     required this.dataPackSigningPublicKeyExponent,
     required this.reportApiBaseUrl,
     this.dataPackSigningKeyId = 'production-v1',
+    this.dataPackNextSigningPublicKeyModulus = '',
+    this.dataPackNextSigningPublicKeyExponent = '',
+    this.dataPackNextSigningKeyId = '',
     this.dataPackChannel = 'production',
   });
 
@@ -79,6 +82,18 @@ class AppEndpoints {
         'EASYSUBWAY_DATAPACK_SIGNING_KEY_ID',
         defaultValue: 'production-v1',
       ),
+      dataPackNextSigningPublicKeyModulus: String.fromEnvironment(
+        'EASYSUBWAY_DATAPACK_NEXT_SIGNING_PUBLIC_KEY_N',
+        defaultValue: '',
+      ),
+      dataPackNextSigningPublicKeyExponent: String.fromEnvironment(
+        'EASYSUBWAY_DATAPACK_NEXT_SIGNING_PUBLIC_KEY_E',
+        defaultValue: '',
+      ),
+      dataPackNextSigningKeyId: String.fromEnvironment(
+        'EASYSUBWAY_DATAPACK_NEXT_SIGNING_KEY_ID',
+        defaultValue: '',
+      ),
       dataPackChannel: String.fromEnvironment(
         'EASYSUBWAY_DATAPACK_CHANNEL',
         defaultValue: 'production',
@@ -94,6 +109,9 @@ class AppEndpoints {
   final String dataPackSigningPublicKeyModulus;
   final String dataPackSigningPublicKeyExponent;
   final String dataPackSigningKeyId;
+  final String dataPackNextSigningPublicKeyModulus;
+  final String dataPackNextSigningPublicKeyExponent;
+  final String dataPackNextSigningKeyId;
   final String dataPackChannel;
   final String reportApiBaseUrl;
 
@@ -125,19 +143,50 @@ class AppEndpoints {
     );
   }
 
+  DataPackSigningPublicKey? get _nextDataPackSigningPublicKey {
+    final modulus = dataPackNextSigningPublicKeyModulus.trim();
+    final exponent = dataPackNextSigningPublicKeyExponent.trim();
+    final keyId = dataPackNextSigningKeyId.trim();
+    if (modulus.isEmpty && exponent.isEmpty && keyId.isEmpty) {
+      return null;
+    }
+    return DataPackSigningPublicKey(
+      modulusBase64Url: modulus,
+      exponentBase64Url: exponent,
+      keyId: keyId,
+    );
+  }
+
+  List<DataPackSigningPublicKey> get productionDataPackSigningPublicKeys {
+    final primary = productionDataPackSigningPublicKey;
+    final next = _nextDataPackSigningPublicKey;
+    return List<DataPackSigningPublicKey>.unmodifiable([?primary, ?next]);
+  }
+
   /// 서명 공개키 dart-define의 주입 상태(이슈 #2532).
   ///
   /// [productionDataPackSigningPublicKey]는 미주입이면 `null`, 형식이 깨졌으면 검증에서만
   /// 실패하는 키 객체를 돌려주므로 호출자가 둘을 구분할 수 없었다. 형식 오류는 매 시도마다
   /// 서명 검증 실패로 끝나 네트워크·파싱 실패와 섞여 보이므로 별도로 구분한다.
   DataPackSigningPublicKeyStatus get dataPackSigningPublicKeyStatus {
-    final key = productionDataPackSigningPublicKey;
-    if (key == null) {
+    final primary = productionDataPackSigningPublicKey;
+    if (primary == null) {
       return DataPackSigningPublicKeyStatus.missing;
     }
-    return key.hasSupportedRsaFormat
-        ? DataPackSigningPublicKeyStatus.present
-        : DataPackSigningPublicKeyStatus.malformed;
+    if (!primary.hasSupportedRsaFormat) {
+      return DataPackSigningPublicKeyStatus.malformed;
+    }
+    final next = _nextDataPackSigningPublicKey;
+    if (next != null) {
+      if (next.modulusBase64Url.isEmpty ||
+          next.exponentBase64Url.isEmpty ||
+          next.keyId.isEmpty ||
+          !next.hasSupportedRsaFormat ||
+          next.keyId == primary.keyId) {
+        return DataPackSigningPublicKeyStatus.malformed;
+      }
+    }
+    return DataPackSigningPublicKeyStatus.present;
   }
 
   /// 이 빌드가 스스로 production 채널이라고 선언했는지(이슈 #2532).

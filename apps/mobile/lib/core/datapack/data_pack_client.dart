@@ -12,6 +12,7 @@ class DataPackClient {
     required this.manifestUri,
     required this.stateRepository,
     this.productionSigningPublicKey,
+    this.productionSigningPublicKeys,
     this.expectedManifestChannel = 'production',
     HttpClient? httpClient,
     DateTime Function()? now,
@@ -21,6 +22,7 @@ class DataPackClient {
   final Uri manifestUri;
   final DataPackUpdateStateRepository stateRepository;
   final DataPackSigningPublicKey? productionSigningPublicKey;
+  final List<DataPackSigningPublicKey>? productionSigningPublicKeys;
   final String expectedManifestChannel;
   final HttpClient _httpClient;
   final DateTime Function() _now;
@@ -76,6 +78,7 @@ class DataPackClient {
       manifest = DataPackManifest.fromJson(
         decoded,
         productionSigningPublicKey: productionSigningPublicKey,
+        productionSigningPublicKeys: productionSigningPublicKeys,
       );
     } on FormatException {
       throw const DataPackClientException('이동 정보 형식이 올바르지 않습니다.');
