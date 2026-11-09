@@ -18,7 +18,7 @@ void main() {
     expect(
       sql,
       contains(
-        "CHECK (target_facility_type IN ('STAIR', 'ELEVATOR', 'ESCALATOR', 'TRANSFER'))",
+        "CHECK (target_facility_type IN ('STAIR', 'ELEVATOR', 'ESCALATOR', 'TRANSFER', 'WHEELCHAIR_LIFT'))",
       ),
     );
     expect(

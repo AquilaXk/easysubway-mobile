@@ -678,6 +678,20 @@ void main() {
       '에스컬레이터 가까운 7호차 3번 문, 계단 가까운 2호차 4번 문, 1개 역 이동, 2분',
     );
 
+    final wheelchairLift = rideWith(const [
+      JourneyAlightingCarDoor(
+        carNumber: 3,
+        doorNumber: 2,
+        targetFacilityType: AlightingTargetFacilityType.wheelchairLift,
+      ),
+    ]);
+    expect(wheelchairLift.carDoorLines, ['휠체어 리프트 가까운 문: 3-2']);
+    expect(
+      wheelchairLift.semanticsLabel,
+      '2호선 교대역 방면 탑승, 08:15 출발, '
+      '휠체어 리프트 가까운 3호차 2번 문, 1개 역 이동, 2분',
+    );
+
     expect(rideWith(const []).carDoorLines, isEmpty);
   });
 

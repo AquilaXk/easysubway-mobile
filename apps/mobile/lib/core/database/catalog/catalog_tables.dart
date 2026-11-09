@@ -891,7 +891,7 @@ class StationCarDoorHints extends Table {
   List<String> get customConstraints => [
     'CHECK (car_number >= 1 AND car_number <= 10)',
     'CHECK (door_number >= 1 AND door_number <= 4)',
-    "CHECK (target_facility_type IN ('STAIR', 'ELEVATOR', 'ESCALATOR', 'TRANSFER'))",
+    "CHECK (target_facility_type IN ('STAIR', 'ELEVATOR', 'ESCALATOR', 'TRANSFER', 'WHEELCHAIR_LIFT'))",
     'FOREIGN KEY (station_id, line_id) REFERENCES station_lines(station_id, line_id)',
   ];
 }

@@ -252,6 +252,36 @@ void main() {
         throwsA(isA<FormatException>()),
       );
     });
+
+    test('alightingCarDoors의 WHEELCHAIR_LIFT를 해석하고 wire로 직렬화한다', () {
+      final json = _fixture('search-success.backend-main.json');
+      final firstJourney =
+          ((json['journeys']! as List).cast<Map<String, Object?>>()).first;
+      final firstLeg =
+          ((firstJourney['legs']! as List).cast<Map<String, Object?>>()).first;
+      firstLeg['alightingCarDoors'] = [
+        {
+          'carNumber': 3,
+          'doorNumber': 2,
+          'targetFacilityType': 'WHEELCHAIR_LIFT',
+        },
+      ];
+
+      final success = JourneySearchSuccess.fromJson(json);
+      final rideLeg = success.journeys.first.legs.first as JourneyRideLeg;
+
+      expect(rideLeg.alightingCarDoors.single.carNumber, 3);
+      expect(rideLeg.alightingCarDoors.single.doorNumber, 2);
+      expect(
+        rideLeg.alightingCarDoors.single.targetFacilityType,
+        AlightingTargetFacilityType.wheelchairLift,
+      );
+      expect(rideLeg.alightingCarDoors.single.toJson(), {
+        'carNumber': 3,
+        'doorNumber': 2,
+        'targetFacilityType': 'WHEELCHAIR_LIFT',
+      });
+    });
   });
 
   group('Station timetable success wire shape', () {
