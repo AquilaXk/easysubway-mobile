@@ -652,8 +652,10 @@ class StationFacilityInfo {
 
   /// 원천 응답이 미설치(`NOT_INSTALLED`)로 표기한 시설 행인지 판별한다.
   static bool isNotInstalledPayload(Map<String, Object?> json) {
-    final installationStatus = _stringOrEmpty(json, 'installationStatus')
-        .toUpperCase();
+    final installationStatus = _stringOrEmpty(
+      json,
+      'installationStatus',
+    ).toUpperCase();
     if (installationStatus == 'NOT_INSTALLED') {
       return true;
     }

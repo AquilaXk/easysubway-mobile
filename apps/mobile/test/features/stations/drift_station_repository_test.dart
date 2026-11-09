@@ -697,11 +697,7 @@ void main() {
       ],
       'confirmedAbsentFacilityTypes': ['WHEELCHAIR_LIFT', 'ELEVATOR'],
       'contacts': [
-        {
-          'lineId': 'seoul-2',
-          'lineName': '수도권 2호선',
-          'phone': '02-6110-2261',
-        },
+        {'lineId': 'seoul-2', 'lineName': '수도권 2호선', 'phone': '02-6110-2261'},
       ],
     });
 

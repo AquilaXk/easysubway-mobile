@@ -1859,9 +1859,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
         : networkMapNearbySelectedLine(primary, _nearbySelectedLineId);
     final searchRepository = _effectiveStationSearchRepository;
     final canExpandDetail =
-        _nearbyPanelExpanded &&
-        primary != null &&
-        searchRepository != null;
+        _nearbyPanelExpanded && primary != null && searchRepository != null;
     final Widget? expandedDetail;
     if (canExpandDetail) {
       expandedDetail = StationDetailExpandHost(

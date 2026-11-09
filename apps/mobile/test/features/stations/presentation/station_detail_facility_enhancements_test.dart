@@ -797,66 +797,67 @@ void main() {
     },
   );
 
-  testWidgets('StationDetailBody는 선택 역(detail)이 바뀌면 첫차·막차 시간표 요약을 새 역으로 다시 조회한다', (
-    tester,
-  ) async {
-    final timetableRepo = _StationAwareTimetableRepository();
-    const otherStation = StationDetail(
-      id: 'station-sadang',
-      nameKo: '사당',
-      nameEn: 'Sadang',
-      region: '수도권',
-      dataQualityLevel: 'LEVEL_1',
-      lastVerifiedAt: '2026-09-27',
-      lines: [
-        StationSearchLine(
-          id: 'seoul-4',
-          name: '수도권 4호선',
-          color: '#00A5DE',
-          stationCode: '433',
-        ),
-      ],
-    );
+  testWidgets(
+    'StationDetailBody는 선택 역(detail)이 바뀌면 첫차·막차 시간표 요약을 새 역으로 다시 조회한다',
+    (tester) async {
+      final timetableRepo = _StationAwareTimetableRepository();
+      const otherStation = StationDetail(
+        id: 'station-sadang',
+        nameKo: '사당',
+        nameEn: 'Sadang',
+        region: '수도권',
+        dataQualityLevel: 'LEVEL_1',
+        lastVerifiedAt: '2026-09-27',
+        lines: [
+          StationSearchLine(
+            id: 'seoul-4',
+            name: '수도권 4호선',
+            color: '#00A5DE',
+            stationCode: '433',
+          ),
+        ],
+      );
 
-    StationDetail currentStation = testStation;
-    late StateSetter updateHost;
+      StationDetail currentStation = testStation;
+      late StateSetter updateHost;
 
-    await tester.pumpWidget(
-      MaterialApp(
-        home: Scaffold(
-          body: StatefulBuilder(
-            builder: (context, setState) {
-              updateHost = setState;
-              return StationDetailBody(
-                state: StationDetailState(
-                  status: StationDetailStatus.success,
-                  detail: currentStation,
-                  exits: const [],
-                  facilities: const [],
-                ),
-                onRetryRealtime: _noop,
-                onOpenFacilityReport: _noopFacility,
-                timetableRepository: timetableRepo,
-              );
-            },
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: StatefulBuilder(
+              builder: (context, setState) {
+                updateHost = setState;
+                return StationDetailBody(
+                  state: StationDetailState(
+                    status: StationDetailStatus.success,
+                    detail: currentStation,
+                    exits: const [],
+                    facilities: const [],
+                  ),
+                  onRetryRealtime: _noop,
+                  onOpenFacilityReport: _noopFacility,
+                  timetableRepository: timetableRepo,
+                );
+              },
+            ),
           ),
         ),
-      ),
-    );
-    await tester.pumpAndSettle();
+      );
+      await tester.pumpAndSettle();
 
-    expect(timetableRepo.requestedStationIds, ['station-sangnoksu']);
-    expect(find.textContaining('반월 방면'), findsOneWidget);
+      expect(timetableRepo.requestedStationIds, ['station-sangnoksu']);
+      expect(find.textContaining('반월 방면'), findsOneWidget);
 
-    updateHost(() => currentStation = otherStation);
-    await tester.pumpAndSettle();
+      updateHost(() => currentStation = otherStation);
+      await tester.pumpAndSettle();
 
-    expect(timetableRepo.requestedStationIds, [
-      'station-sangnoksu',
-      'station-sadang',
-    ]);
-    expect(find.textContaining('남태령 방면'), findsOneWidget);
-  });
+      expect(timetableRepo.requestedStationIds, [
+        'station-sangnoksu',
+        'station-sadang',
+      ]);
+      expect(find.textContaining('남태령 방면'), findsOneWidget);
+    },
+  );
 }
 
 void _noop() {}
