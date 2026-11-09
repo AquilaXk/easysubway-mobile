@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "issue": 478,
   "capturedAt": "2026-10-18",
-  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 1배로 캡처, Pretendard 번들 폰트 로드. 일부 글자는 테스트 환경의 폰트 한계로 네모로 보일 수 있으며 레이아웃 확인용이다.",
+  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 1배로 캡처, 시스템 기본 서체 로드. 일부 글자는 테스트 환경의 폰트 한계로 네모로 보일 수 있으며 레이아웃 확인용이다.",
   "assertions": [
     "수정 전 lib에서는 networkMapMenuNotificationsButton이 없어 알림 바가 숨겨지면 알림함을 열 수 없다(RED 테스트 2건 실패)",
     "수정 후 메뉴 알림 항목으로 알림함이 열리고, 조회 실패는 오류 상태와 다시 시도로 보이며 재시도 성공 시 목록이 보인다",

@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "issue": 469,
   "capturedAt": "2026-10-18",
-  "platform": "flutter test 호스트 렌더링(macOS), 360dp 폭, 팬 메뉴 골든은 NanumGothic 테스트 폰트, 나머지는 Pretendard 번들 폰트 로드(exit-panel은 오버플로 재현을 위해 테스트 기본 폰트). 일부 아이콘과 상단바 문구는 테스트 환경의 폰트 한계로 네모로 보일 수 있으며 레이아웃과 색 확인용이다.",
+  "platform": "flutter test 호스트 렌더링(macOS), 360dp 폭, 팬 메뉴 골든은 NanumGothic 테스트 폰트, 나머지는 시스템 기본 서체 로드(exit-panel은 오버플로 재현을 위해 테스트 기본 폰트). 일부 아이콘과 상단바 문구는 테스트 환경의 폰트 한계로 네모로 보일 수 있으며 레이아웃과 색 확인용이다.",
   "assertions": [
     "수정 전 lib에서 확대한 표(216개 조합)는 60개에서 실패한다",
     "수정 후 216개 조합이 모두 통과한다",

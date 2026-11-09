@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "issue": 473,
   "capturedAt": "2026-10-18",
-  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 2배로 캡처, Pretendard 번들 폰트와 Material 아이콘 폰트 로드. 핀 안쪽 라벨은 테스트 환경에서 글자 대신 네모로 보일 수 있으며 레이아웃 확인용이다.",
+  "platform": "flutter test 호스트 렌더링(macOS), 360x640dp 화면을 2배로 캡처, 시스템 기본 서체 로드 및 Material 아이콘 폰트 로드. 핀 안쪽 라벨은 테스트 환경에서 글자 대신 네모로 보일 수 있으며 레이아웃 확인용이다.",
   "assertions": [
     "수정 전 lib에서 network_map_overlay_inset_test.dart의 '핀을 지정하면 오버레이 아래로 내려온다'·팬 메뉴 단언이 실패한다. 예: 경유 핀 Rect.fromLTRB(112.9, 78.0, 190.9, 140.0)의 위 끝 78.0이 상단바·알림 바 아래 끝 228.0보다 위에 있다",
     "수정 후 같은 테스트가 통과한다. 핀 위 끝이 오버레이 아래 끝 이상이다(글자 1.0배·1.5배)",
