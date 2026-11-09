@@ -374,7 +374,7 @@ extension PlatformHeightDiffGradeWire on PlatformHeightDiffGrade {
   }
 }
 
-enum AlightingTargetFacilityType { transfer, elevator, escalator, stair }
+enum AlightingTargetFacilityType { transfer, elevator, escalator, stair, wheelchairLift }
 
 extension AlightingTargetFacilityTypeWire on AlightingTargetFacilityType {
   String get wire => switch (this) {
@@ -382,6 +382,7 @@ extension AlightingTargetFacilityTypeWire on AlightingTargetFacilityType {
     AlightingTargetFacilityType.elevator => "ELEVATOR",
     AlightingTargetFacilityType.escalator => "ESCALATOR",
     AlightingTargetFacilityType.stair => "STAIR",
+    AlightingTargetFacilityType.wheelchairLift => "WHEELCHAIR_LIFT",
   };
   static AlightingTargetFacilityType fromWire(Object? value) {
     if (value is! String) throw const FormatException('wire value must be string');
@@ -390,6 +391,7 @@ extension AlightingTargetFacilityTypeWire on AlightingTargetFacilityType {
       "ELEVATOR" => AlightingTargetFacilityType.elevator,
       "ESCALATOR" => AlightingTargetFacilityType.escalator,
       "STAIR" => AlightingTargetFacilityType.stair,
+      "WHEELCHAIR_LIFT" => AlightingTargetFacilityType.wheelchairLift,
       _ => throw const FormatException('unrecognized wire value'),
     };
   }

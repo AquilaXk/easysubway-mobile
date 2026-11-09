@@ -282,7 +282,9 @@ function validateSchemas(schemas, enforceSchemasProjection) {
 // backend deploys. Each entry mirrors the PR's journey-v3.openapi.yaml change
 // (descriptions omitted). When the lock moves to a bundle that already has an
 // entry, generation fails until the entry is removed here.
-const pendingContractAdditions = Object.freeze([]);
+const pendingContractAdditions = Object.freeze([
+  Object.freeze({ source: 'AquilaXk/easysubway-data#856', schema: 'JourneyAlightingCarDoor', property: 'targetFacilityType', replaces: Object.freeze({ type: 'string', enum: ['TRANSFER', 'ELEVATOR', 'ESCALATOR', 'STAIR'] }), definition: Object.freeze({ type: 'string', enum: ['TRANSFER', 'ELEVATOR', 'ESCALATOR', 'STAIR', 'WHEELCHAIR_LIFT'] }) }),
+]);
 
 function applyPendingContractAdditions(lockedSchemas, pendingAdditions = pendingContractAdditions) {
   const schemas = JSON.parse(JSON.stringify(lockedSchemas));

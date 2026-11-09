@@ -700,6 +700,7 @@ String _carDoorPrefix(AlightingTargetFacilityType type) => switch (type) {
   AlightingTargetFacilityType.elevator => '엘리베이터 가까운 문',
   AlightingTargetFacilityType.escalator => '에스컬레이터 가까운 문',
   AlightingTargetFacilityType.stair => '계단 가까운 문',
+  AlightingTargetFacilityType.wheelchairLift => '휠체어 리프트 가까운 문',
 };
 
 String _carDoorSemanticsPrefix(AlightingTargetFacilityType type) =>
@@ -708,4 +709,5 @@ String _carDoorSemanticsPrefix(AlightingTargetFacilityType type) =>
       AlightingTargetFacilityType.elevator => '엘리베이터 가까운',
       AlightingTargetFacilityType.escalator => '에스컬레이터 가까운',
       AlightingTargetFacilityType.stair => '계단 가까운',
+      AlightingTargetFacilityType.wheelchairLift => '휠체어 리프트 가까운',
     };
