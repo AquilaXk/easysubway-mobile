@@ -639,4 +639,79 @@ void main() {
     expect(sangnoksu.contacts.single.phone, '031-409-7788');
     expect(sangnoksu.contacts.single.spokenPhone, '031 409 7788');
   });
+
+  test('status 컬럼에 NOT_INSTALLED가 기록된 시설도 시설 목록과 출구 엘리베이터 연결에서 제외한다', () async {
+    final database = CatalogDatabase.memory();
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+      INSERT INTO station_exits (id, station_id, exit_number, has_elevator_connection)
+      VALUES ('exit-sangnoksu-4', 'station-sangnoksu', '4', 0)
+    ''');
+    await database.customStatement('''
+      INSERT INTO facilities (id, station_id, exit_id, type, name, status, installation_status)
+      VALUES (
+        'facility-sangnoksu-exit4-elevator-status-absent',
+        'station-sangnoksu',
+        'exit-sangnoksu-4',
+        'ELEVATOR',
+        '4번 출구 미설치 엘리베이터',
+        'NOT_INSTALLED',
+        ''
+      )
+    ''');
+    final repository = DriftStationRepository(database: database);
+
+    final exits = await repository.listStationExits('station-sangnoksu');
+    final facilities = await repository.listStationFacilities(
+      'station-sangnoksu',
+    );
+
+    final exit4 = exits.singleWhere((exit) => exit.id == 'exit-sangnoksu-4');
+    expect(exit4.hasElevatorConnection, isFalse);
+    expect(
+      facilities.map((facility) => facility.id),
+      isNot(contains('facility-sangnoksu-exit4-elevator-status-absent')),
+    );
+  });
+
+  test('서버 응답 StationDetail.fromJson은 미설치 확인 시설 유형과 역무실 연락처를 보존한다', () {
+    final detail = StationDetail.fromJson(const {
+      'id': 'station-sadang',
+      'nameKo': '사당',
+      'nameEn': 'Sadang',
+      'nameSub': '',
+      'region': '수도권',
+      'latitude': 37.4765,
+      'longitude': 126.9816,
+      'dataQualityLevel': 'LEVEL_1',
+      'dataSourceType': 'OFFICIAL_API',
+      'lastVerifiedAt': '2026-09-27',
+      'lines': [
+        {
+          'id': 'seoul-2',
+          'name': '수도권 2호선',
+          'color': '#00A84D',
+          'stationCode': '226',
+        },
+      ],
+      'confirmedAbsentFacilityTypes': ['WHEELCHAIR_LIFT', 'ELEVATOR'],
+      'contacts': [
+        {
+          'lineId': 'seoul-2',
+          'lineName': '수도권 2호선',
+          'phone': '02-6110-2261',
+        },
+      ],
+    });
+
+    expect(
+      detail.confirmedAbsentFacilityTypes,
+      equals({'WHEELCHAIR_LIFT', 'ELEVATOR'}),
+    );
+    expect(detail.contacts, hasLength(1));
+    expect(detail.contacts.single.lineId, 'seoul-2');
+    expect(detail.contacts.single.lineName, '수도권 2호선');
+    expect(detail.contacts.single.phone, '02-6110-2261');
+  });
 }

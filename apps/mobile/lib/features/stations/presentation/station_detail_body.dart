@@ -737,6 +737,10 @@ class _StationInfoSection extends StatelessWidget {
     onOpenFacilityReport,
   }) {
     final absentTypes = station.confirmedAbsentFacilityTypes;
+    final firstByType = <String, StationFacilityInfo>{};
+    for (final facility in facilities) {
+      firstByType.putIfAbsent(facility.type, () => facility);
+    }
     return [
       _facilityInfoGroup(facilities),
       _StationInfoGroup(
@@ -744,6 +748,7 @@ class _StationInfoSection extends StatelessWidget {
         items: _knownItems(
           _amenityKinds,
           facilities,
+          firstByType,
           absentTypes,
           (kind, _, isAvailable) => _AmenityGridItem(
             icon: kind.icon,
@@ -757,6 +762,7 @@ class _StationInfoSection extends StatelessWidget {
         items: _knownItems(
           _accessibleKinds,
           facilities,
+          firstByType,
           absentTypes,
           (kind, installed, isAvailable) => _AccessibleFacilityItem(
             key: installed == null
@@ -793,6 +799,7 @@ class _StationInfoSection extends StatelessWidget {
   static List<Widget> _knownItems(
     List<_FacilityKind> kinds,
     List<StationFacilityInfo> facilities,
+    Map<String, StationFacilityInfo> firstByType,
     Set<String> absentTypes,
     Widget Function(
       _FacilityKind kind,
@@ -803,7 +810,7 @@ class _StationInfoSection extends StatelessWidget {
   ) {
     final items = <Widget>[];
     for (final kind in kinds) {
-      final installed = kind.findInstalled(facilities);
+      final installed = kind.findInstalled(facilities, firstByType);
       final knowledge = kind.knowledgeOf(installed, absentTypes);
       if (knowledge != _FacilityKnowledge.unknown) {
         items.add(
@@ -814,28 +821,63 @@ class _StationInfoSection extends StatelessWidget {
     return items;
   }
 
+  static const int _toiletInsideBit = 1 << 0;
+  static const int _toiletOutsideBit = 1 << 1;
+  static const int _toiletBothBits = _toiletInsideBit | _toiletOutsideBit;
+
   static _StationInfoGroup _facilityInfoGroup(
     List<StationFacilityInfo> facilities,
   ) {
-    final ordered = [
-      ...facilities.where((f) => f.type != 'PLATFORM'),
-      ...facilities.where((f) => f.type == 'PLATFORM'),
-    ];
-    final texts = ordered
-        .map((f) => '${f.name} ${f.description}'.toLowerCase())
-        .toList();
+    String? platformTag;
+    String? doorTag;
+    String? crossPlatformTag;
+    var toiletGateMask = 0;
+
+    void applyFacilityRules(StationFacilityInfo facility) {
+      final text = '${facility.name} ${facility.description}'.toLowerCase();
+      final compactText = text.replaceAll(' ', '');
+      platformTag = _matchRules(text, _platformRules) ?? platformTag;
+      doorTag = _matchRules(text, _doorRules) ?? doorTag;
+      crossPlatformTag =
+          _matchRules(compactText, _crossPlatformRules) ?? crossPlatformTag;
+    }
+
+    for (final facility in facilities) {
+      if (facility.type != 'PLATFORM') {
+        applyFacilityRules(facility);
+      }
+      if (_isToilet(facility)) {
+        final toiletText =
+            '${facility.name} ${facility.description} ${facility.floorFrom}'
+                .toLowerCase();
+        if ((toiletGateMask & _toiletInsideBit) == 0 &&
+            _containsAnyKeyword(toiletText, _insideGateKeywords)) {
+          toiletGateMask |= _toiletInsideBit;
+        }
+        if ((toiletGateMask & _toiletOutsideBit) == 0 &&
+            _containsAnyKeyword(toiletText, _outsideGateKeywords)) {
+          toiletGateMask |= _toiletOutsideBit;
+        }
+      }
+    }
+    for (final facility in facilities) {
+      if (facility.type == 'PLATFORM') {
+        applyFacilityRules(facility);
+      }
+    }
+
+    final toiletTag = switch (toiletGateMask) {
+      _toiletBothBits => '개찰구 안/밖',
+      _toiletInsideBit => '개찰구 안',
+      _toiletOutsideBit => '개찰구 밖',
+      _ => null,
+    };
+
     final tags = [
-      (Icons.train_outlined, '플랫폼', _lastTag(texts, _platformRules)),
-      (Icons.wc_outlined, '화장실', _toiletTag(facilities)),
-      (Icons.meeting_room_outlined, '내리는문', _lastTag(texts, _doorRules)),
-      (
-        Icons.swap_horiz,
-        '반대편',
-        _lastTag(
-          texts.map((text) => text.replaceAll(' ', '')),
-          _crossPlatformRules,
-        ),
-      ),
+      (Icons.train_outlined, '플랫폼', platformTag),
+      (Icons.wc_outlined, '화장실', toiletTag),
+      (Icons.meeting_room_outlined, '내리는문', doorTag),
+      (Icons.swap_horiz, '반대편', crossPlatformTag),
     ];
     return _StationInfoGroup(
       title: '시설정보',
@@ -846,32 +888,23 @@ class _StationInfoSection extends StatelessWidget {
     );
   }
 
-  /// 텍스트를 차례로 보며 마지막으로 맞은 규칙의 태그를 돌려준다.
-  static String? _lastTag(Iterable<String> texts, List<_TagRule> rules) {
-    String? tag;
-    for (final text in texts) {
-      for (final rule in rules) {
-        if (rule.matches(text)) tag = rule.tag;
+  static String? _matchRules(String text, List<_TagRule> rules) {
+    String? matched;
+    for (final rule in rules) {
+      if (rule.matches(text)) {
+        matched = rule.tag;
       }
     }
-    return tag;
+    return matched;
   }
 
-  static String? _toiletTag(List<StationFacilityInfo> facilities) {
-    final texts = facilities
-        .where(_isToilet)
-        .map((t) => '${t.name} ${t.description} ${t.floorFrom}'.toLowerCase())
-        .toList();
-    final insideGate = texts.any(
-      (text) => _insideGateKeywords.any(text.contains),
-    );
-    final outsideGate = texts.any(
-      (text) => _outsideGateKeywords.any(text.contains),
-    );
-    if (insideGate && outsideGate) return '개찰구 안/밖';
-    if (insideGate) return '개찰구 안';
-    if (outsideGate) return '개찰구 밖';
-    return null;
+  static bool _containsAnyKeyword(String text, List<String> keywords) {
+    for (final keyword in keywords) {
+      if (text.contains(keyword)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static bool _isToilet(StationFacilityInfo f) =>
@@ -935,9 +968,23 @@ class _FacilityKind {
   /// 원천이 NOT_EXISTS로 확인할 수 있는 유형 코드. 확인 수단이 없으면 null.
   final String? absenceType;
 
-  StationFacilityInfo? findInstalled(List<StationFacilityInfo> facilities) =>
-      facilities.where((f) => types.contains(f.type)).firstOrNull ??
-      facilities.where(_matchesKeywordFallback).firstOrNull;
+  StationFacilityInfo? findInstalled(
+    List<StationFacilityInfo> facilities,
+    Map<String, StationFacilityInfo> firstByType,
+  ) {
+    for (final type in types) {
+      final direct = firstByType[type];
+      if (direct != null) {
+        return direct;
+      }
+    }
+    for (final facility in facilities) {
+      if (_matchesKeywordFallback(facility)) {
+        return facility;
+      }
+    }
+    return null;
+  }
 
   bool _matchesKeywordFallback(StationFacilityInfo facility) =>
       (!_StationInfoSection._explicitFacilityTypes.contains(facility.type) ||
@@ -1639,62 +1686,101 @@ class _StationTimetableEntry extends StatefulWidget {
 class _StationTimetableEntryState extends State<_StationTimetableEntry> {
   StationTimetable? _timetable;
   bool _unavailable = false;
+  int _loadToken = 0;
 
   @override
   void initState() {
     super.initState();
+    _scheduleLoad();
+  }
+
+  @override
+  void didUpdateWidget(covariant _StationTimetableEntry oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.detail.id != widget.detail.id ||
+        !_sameLineIds(oldWidget.detail.lines, widget.detail.lines) ||
+        oldWidget.repository != widget.repository) {
+      _timetable = null;
+      _unavailable = false;
+      _scheduleLoad();
+    }
+  }
+
+  static bool _sameLineIds(
+    List<StationSearchLine> left,
+    List<StationSearchLine> right,
+  ) {
+    if (identical(left, right)) {
+      return true;
+    }
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var i = 0; i < left.length; i++) {
+      if (left[i].id != right[i].id) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  void _scheduleLoad() {
+    final token = ++_loadToken;
     final repository = widget.repository;
     if (repository != null && widget.detail.lines.isNotEmpty) {
-      unawaited(_load(repository, widget.detail.lines));
+      unawaited(_load(repository, widget.detail.id, widget.detail.lines, token));
     }
   }
 
   Future<void> _load(
     StationTimetableRepository repository,
+    String stationId,
     List<StationSearchLine> lines,
+    int token,
   ) async {
     try {
       final date = journeyCurrentServiceDay(clock.now());
       StationTimetable? unavailable;
       for (final line in lines) {
         final timetable = await repository.loadStationTimetableForDate(
-          stationId: widget.detail.id,
+          stationId: stationId,
           date: date,
           lineId: line.id,
         );
+        if (!mounted || token != _loadToken) {
+          return;
+        }
         if (timetable.isAvailable) {
-          if (mounted) {
-            setState(() {
-              _timetable = timetable;
-              _unavailable = false;
-            });
-          }
+          setState(() {
+            _timetable = timetable;
+            _unavailable = false;
+          });
           return;
         }
         unavailable ??= timetable;
       }
-      if (mounted) {
+      if (mounted && token == _loadToken) {
         setState(() {
           _timetable = unavailable;
           _unavailable = true;
         });
       }
     } on StationTimetableUnavailable {
-      if (mounted) {
+      if (mounted && token == _loadToken) {
         setState(() {
           _timetable = null;
           _unavailable = true;
         });
       }
     } on ServerConnectionException {
-      if (mounted) {
+      if (mounted && token == _loadToken) {
         setState(() {
           _timetable = null;
           _unavailable = true;
         });
       }
     } catch (error, stackTrace) {
-      if (mounted) {
+      if (mounted && token == _loadToken) {
         setState(() {
           _timetable = null;
           _unavailable = true;

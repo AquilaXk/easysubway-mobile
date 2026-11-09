@@ -386,8 +386,19 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     }
   }
 
+  StationSearchRepository? get _effectiveStationSearchRepository {
+    final explicit = widget.stationSearchRepository;
+    if (explicit != null) {
+      return explicit;
+    }
+    final mapRepository = widget.repository;
+    return mapRepository is StationSearchRepository
+        ? mapRepository as StationSearchRepository
+        : null;
+  }
+
   void _enterSearchMode() {
-    final repository = widget.stationSearchRepository;
+    final repository = _effectiveStationSearchRepository;
     if (repository == null) {
       return;
     }
@@ -559,7 +570,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   /// canvas가 띄운 역 말풍선만 유지한다. 신원 해석 await는 허용되며, 해석 후
   /// 데이터 로드는 fire-and-forget이다.
   Future<void> _handleCanvasStationTapped(NetworkMapStation station) async {
-    final repository = widget.stationSearchRepository;
+    final repository = _effectiveStationSearchRepository;
     if (repository == null) {
       return;
     }
@@ -614,7 +625,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (!_searchMode) {
       return null;
     }
-    final searchRepository = widget.stationSearchRepository;
+    final searchRepository = _effectiveStationSearchRepository;
     if (searchRepository == null) {
       return null;
     }
@@ -1558,9 +1569,9 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     });
   }
 
-  /// 저장소가 있을 때만 "상세 보기"를 탭 가능 컨트롤로 노출한다.
+  /// 역 상세 저장소가 있을 때만 "상세 보기"를 탭 가능 컨트롤로 노출한다.
   VoidCallback? get _nearbyStationDetailAction =>
-      widget.stationSearchRepository != null && widget.reportRepository != null
+      _effectiveStationSearchRepository != null
       ? _openNearbyStationDetail
       : null;
 
@@ -1569,9 +1580,8 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     if (results.isEmpty) {
       return;
     }
-    final stationRepository = widget.stationSearchRepository;
-    final reportRepository = widget.reportRepository;
-    if (stationRepository == null || reportRepository == null) {
+    final stationRepository = _effectiveStationSearchRepository;
+    if (stationRepository == null) {
       return;
     }
     // 펼친 역 상세가 지도를 덮으므로 그 뒤의 역 말풍선은 닫는다.
@@ -1586,7 +1596,7 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
   Future<void> _selectNearbyNeighborStation(
     StationDetailNeighbor neighbor,
   ) async {
-    final repository = widget.stationSearchRepository;
+    final repository = _effectiveStationSearchRepository;
     if (repository == null) {
       return;
     }
@@ -1847,17 +1857,17 @@ class _NetworkMapScreenState extends State<NetworkMapScreen> {
     final selectedLine = primary == null
         ? null
         : networkMapNearbySelectedLine(primary, _nearbySelectedLineId);
+    final searchRepository = _effectiveStationSearchRepository;
     final canExpandDetail =
         _nearbyPanelExpanded &&
         primary != null &&
-        widget.stationSearchRepository != null &&
-        widget.reportRepository != null;
+        searchRepository != null;
     final Widget? expandedDetail;
     if (canExpandDetail) {
       expandedDetail = StationDetailExpandHost(
         key: ValueKey('nearbyStationDetailHost-${primary.id}'),
-        repository: widget.stationSearchRepository!,
-        reportRepository: widget.reportRepository!,
+        repository: searchRepository,
+        reportRepository: widget.reportRepository,
         favoriteRepository: widget.favoriteRepository,
         bottomAdBuilder: _stationDetailBottomAdBuilder(widget.adRepository),
         realtimeRepository: widget.realtimeRepository,

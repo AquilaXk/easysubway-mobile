@@ -39,11 +39,12 @@ const defaultStationSearchRegions = <EasySubwayRegionMenuItem>[
 class StationSearchScreen extends StatefulWidget {
   const StationSearchScreen({
     required this.repository,
-    required this.reportRepository,
+    this.reportRepository,
     this.favoriteRepository,
     this.bottomAdBuilder,
     this.searchHistoryRepository,
     this.realtimeRepository,
+    this.timetableRepository,
     this.facilityReportDraftTargetStore,
     this.onOpenFacilityReport,
     this.routeDraftController,
@@ -56,11 +57,12 @@ class StationSearchScreen extends StatefulWidget {
   });
 
   final StationSearchRepository repository;
-  final FacilityReportRepository reportRepository;
+  final FacilityReportRepository? reportRepository;
   final FavoriteStationRepository? favoriteRepository;
   final WidgetBuilder? bottomAdBuilder;
   final SearchHistoryRepository? searchHistoryRepository;
   final RealtimeRepository? realtimeRepository;
+  final StationTimetableRepository? timetableRepository;
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final Future<void> Function(FacilityReportTarget target)?
   onOpenFacilityReport;
@@ -534,6 +536,7 @@ class _StationSearchScreenState extends State<StationSearchScreen> {
         favoriteRepository: widget.favoriteRepository,
         bottomAdBuilder: widget.bottomAdBuilder,
         realtimeRepository: widget.realtimeRepository,
+        timetableRepository: widget.timetableRepository,
         stationId: result.id,
         facilityReportDraftTargetStore: widget.facilityReportDraftTargetStore,
         routeDraftController: widget.routeDraftController,

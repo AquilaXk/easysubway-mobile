@@ -796,6 +796,67 @@ void main() {
       expect(find.byType(StationDetailBody), findsOneWidget);
     },
   );
+
+  testWidgets('StationDetailBody는 선택 역(detail)이 바뀌면 첫차·막차 시간표 요약을 새 역으로 다시 조회한다', (
+    tester,
+  ) async {
+    final timetableRepo = _StationAwareTimetableRepository();
+    const otherStation = StationDetail(
+      id: 'station-sadang',
+      nameKo: '사당',
+      nameEn: 'Sadang',
+      region: '수도권',
+      dataQualityLevel: 'LEVEL_1',
+      lastVerifiedAt: '2026-09-27',
+      lines: [
+        StationSearchLine(
+          id: 'seoul-4',
+          name: '수도권 4호선',
+          color: '#00A5DE',
+          stationCode: '433',
+        ),
+      ],
+    );
+
+    StationDetail currentStation = testStation;
+    late StateSetter updateHost;
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: StatefulBuilder(
+            builder: (context, setState) {
+              updateHost = setState;
+              return StationDetailBody(
+                state: StationDetailState(
+                  status: StationDetailStatus.success,
+                  detail: currentStation,
+                  exits: const [],
+                  facilities: const [],
+                ),
+                onRetryRealtime: _noop,
+                onOpenFacilityReport: _noopFacility,
+                timetableRepository: timetableRepo,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    expect(timetableRepo.requestedStationIds, ['station-sangnoksu']);
+    expect(find.textContaining('반월 방면'), findsOneWidget);
+
+    updateHost(() => currentStation = otherStation);
+    await tester.pumpAndSettle();
+
+    expect(timetableRepo.requestedStationIds, [
+      'station-sangnoksu',
+      'station-sadang',
+    ]);
+    expect(find.textContaining('남태령 방면'), findsOneWidget);
+  });
 }
 
 void _noop() {}
@@ -832,4 +893,64 @@ final class _FailingTimetableRepository implements StationTimetableRepository {
   }) {
     throw const ServerConnectionException('서버 연결 실패');
   }
+}
+
+final class _StationAwareTimetableRepository
+    implements StationTimetableRepository {
+  final requestedStationIds = <String>[];
+
+  @override
+  Future<StationTimetable> loadStationTimetable({
+    required String stationId,
+    required String lineId,
+    required StationTimetableDayType dayType,
+    required DateTime referenceDate,
+  }) async {
+    requestedStationIds.add(stationId);
+    final directionName = stationId == 'station-sadang' ? '남태령 방면' : '반월 방면';
+    return StationTimetable(
+      stationId: stationId,
+      lineId: lineId,
+      dayType: dayType,
+      directions: [
+        StationTimetableDirection(
+          name: directionName,
+          departures: [
+            StationTimetableDeparture(
+              directionName: directionName,
+              seconds: 5 * 3600 + 30 * 60,
+            ),
+            StationTimetableDeparture(
+              directionName: directionName,
+              seconds: 23 * 3600 + 50 * 60,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<StationTimetable> loadStationTimetableForDate({
+    required String stationId,
+    required String lineId,
+    required DateTime date,
+  }) => loadStationTimetable(
+    stationId: stationId,
+    lineId: lineId,
+    dayType: StationTimetableDayType.weekday,
+    referenceDate: date,
+  );
+
+  @override
+  Future<StationTimetable> loadNextStationTimetable({
+    required String stationId,
+    required String lineId,
+    required DateTime asOf,
+    int horizonDays = 1,
+  }) => loadStationTimetableForDate(
+    stationId: stationId,
+    lineId: lineId,
+    date: asOf,
+  );
 }

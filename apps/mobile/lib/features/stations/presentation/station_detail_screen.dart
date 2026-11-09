@@ -22,8 +22,8 @@ import 'station_line_badges.dart';
 Future<T?> showStationDetailSheet<T>({
   required BuildContext context,
   required StationSearchRepository repository,
-  required FacilityReportRepository reportRepository,
   required String stationId,
+  FacilityReportRepository? reportRepository,
   FavoriteStationRepository? favoriteRepository,
   WidgetBuilder? bottomAdBuilder,
   RealtimeRepository? realtimeRepository,
@@ -72,8 +72,8 @@ Future<T?> showStationDetailSheet<T>({
 class StationDetailScreen extends StatefulWidget {
   const StationDetailScreen({
     required this.repository,
-    required this.reportRepository,
     required this.stationId,
+    this.reportRepository,
     this.favoriteRepository,
     this.bottomAdBuilder,
     this.realtimeRepository,
@@ -90,7 +90,7 @@ class StationDetailScreen extends StatefulWidget {
   });
 
   final StationSearchRepository repository;
-  final FacilityReportRepository reportRepository;
+  final FacilityReportRepository? reportRepository;
   final FavoriteStationRepository? favoriteRepository;
   final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;
@@ -257,8 +257,8 @@ class _StationDetailAppBarTitle extends StatelessWidget {
 class StationDetailExpandHost extends StatefulWidget {
   const StationDetailExpandHost({
     required this.repository,
-    required this.reportRepository,
     required this.stationId,
+    this.reportRepository,
     this.favoriteRepository,
     this.bottomAdBuilder,
     this.realtimeRepository,
@@ -279,7 +279,7 @@ class StationDetailExpandHost extends StatefulWidget {
   });
 
   final StationSearchRepository repository;
-  final FacilityReportRepository reportRepository;
+  final FacilityReportRepository? reportRepository;
   final FavoriteStationRepository? favoriteRepository;
   final WidgetBuilder? bottomAdBuilder;
   final RealtimeRepository? realtimeRepository;

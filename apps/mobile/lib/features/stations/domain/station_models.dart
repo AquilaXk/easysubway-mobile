@@ -363,14 +363,25 @@ class StationContact {
     required this.phone,
   });
 
+  factory StationContact.fromJson(Map<String, Object?> json) {
+    return StationContact(
+      lineId: _requiredString(json, 'lineId'),
+      lineName: _stringOrEmpty(json, 'lineName'),
+      phone: _requiredString(json, 'phone'),
+    );
+  }
+
+  static final _hyphenPattern = RegExp(r'-+');
+  static final _whitespacePattern = RegExp(r'\s+');
+
   final String lineId;
   final String lineName;
   final String phone;
 
   String get spokenPhone => phone
       .trim()
-      .replaceAll(RegExp(r'-+'), ' ')
-      .replaceAll(RegExp(r'\s+'), ' ');
+      .replaceAll(_hyphenPattern, ' ')
+      .replaceAll(_whitespacePattern, ' ');
 }
 
 class StationDetail {
@@ -395,6 +406,38 @@ class StationDetail {
     if (rawLines is! List<Object?>) {
       throw const FormatException('Invalid station detail lines payload');
     }
+    final rawAbsent = json['confirmedAbsentFacilityTypes'];
+    if (rawAbsent != null && rawAbsent is! List<Object?>) {
+      throw const FormatException(
+        'Invalid station detail confirmedAbsentFacilityTypes payload',
+      );
+    }
+    final rawContacts = json['contacts'];
+    if (rawContacts != null && rawContacts is! List<Object?>) {
+      throw const FormatException('Invalid station detail contacts payload');
+    }
+
+    final absentTypes = <String>{};
+    if (rawAbsent is List<Object?>) {
+      for (final item in rawAbsent) {
+        if (item is! String || item.trim().isEmpty) {
+          throw const FormatException(
+            'Invalid station detail confirmedAbsentFacilityType item',
+          );
+        }
+        absentTypes.add(item.trim().toUpperCase());
+      }
+    }
+
+    final contacts = <StationContact>[];
+    if (rawContacts is List<Object?>) {
+      for (final item in rawContacts) {
+        if (item is! Map<String, Object?>) {
+          throw const FormatException('Invalid station detail contact payload');
+        }
+        contacts.add(StationContact.fromJson(item));
+      }
+    }
 
     return StationDetail(
       id: _requiredString(json, 'id'),
@@ -417,6 +460,12 @@ class StationDetail {
             return StationSearchLine.fromJson(item);
           })
           .toList(growable: false),
+      confirmedAbsentFacilityTypes: absentTypes.isEmpty
+          ? const {}
+          : Set<String>.unmodifiable(absentTypes),
+      contacts: contacts.isEmpty
+          ? const []
+          : List<StationContact>.unmodifiable(contacts),
     );
   }
 
@@ -599,6 +648,17 @@ class StationFacilityInfo {
         'UNKNOWN',
       ),
     );
+  }
+
+  /// 원천 응답이 미설치(`NOT_INSTALLED`)로 표기한 시설 행인지 판별한다.
+  static bool isNotInstalledPayload(Map<String, Object?> json) {
+    final installationStatus = _stringOrEmpty(json, 'installationStatus')
+        .toUpperCase();
+    if (installationStatus == 'NOT_INSTALLED') {
+      return true;
+    }
+    final status = _stringOrEmpty(json, 'status').toUpperCase();
+    return status == 'NOT_INSTALLED';
   }
 
   final String id;

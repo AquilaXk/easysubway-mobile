@@ -195,14 +195,17 @@ class StationSearchApiRepository
       throw const StationSearchException(_stationSearchErrorMessage);
     }
     try {
-      return data
-          .map((item) {
-            if (item is! Map<String, Object?>) {
-              throw const FormatException('Invalid station facility payload');
-            }
-            return StationFacilityInfo.fromJson(item);
-          })
-          .toList(growable: false);
+      final facilities = <StationFacilityInfo>[];
+      for (final item in data) {
+        if (item is! Map<String, Object?>) {
+          throw const FormatException('Invalid station facility payload');
+        }
+        if (StationFacilityInfo.isNotInstalledPayload(item)) {
+          continue;
+        }
+        facilities.add(StationFacilityInfo.fromJson(item));
+      }
+      return List<StationFacilityInfo>.unmodifiable(facilities);
     } catch (error, stackTrace) {
       reportMobileError(
         error,

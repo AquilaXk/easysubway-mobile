@@ -375,9 +375,33 @@ class DriftStationRepository
   @override
   Future<List<StationExitInfo>> listStationExits(String stationId) async {
     stationId = await database.resolveCanonicalStationId(stationId);
+    final stationVariable = Variable.withString(stationId);
     final rows = await database
         .customSelect(
           '''
+          WITH latest_exit_quality AS (
+            SELECT
+              q.target_id,
+              q.quality_level,
+              q.checked_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY q.target_id
+                ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
+              ) AS rn
+            FROM data_quality_records q
+            JOIN station_exits se ON se.id = q.target_id
+            WHERE se.station_id = ?
+              AND UPPER(q.target_type) = 'STATION_EXIT'
+          ),
+          connected_elevator_exits AS (
+            SELECT DISTINCT f.exit_id
+            FROM facilities f
+            JOIN station_exits se ON se.id = f.exit_id
+            WHERE se.station_id = ?
+              AND UPPER(f.type) = 'ELEVATOR'
+              AND UPPER(COALESCE(f.installation_status, '')) <> 'NOT_INSTALLED'
+              AND UPPER(COALESCE(f.status, '')) <> 'NOT_INSTALLED'
+          )
           SELECT
             e.id,
             e.station_id,
@@ -387,48 +411,35 @@ class DriftStationRepository
             e.longitude,
             e.data_source_type,
             CAST(e.last_verified_at AS INTEGER) AS exit_last_verified_at,
-            (
-              SELECT q.quality_level
-              FROM data_quality_records q
-              WHERE UPPER(q.target_type) = 'STATION_EXIT'
-                AND q.target_id = e.id
-              ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
-              LIMIT 1
-            ) AS field_quality_level,
-            (
-              SELECT q.checked_at
-              FROM data_quality_records q
-              WHERE UPPER(q.target_type) = 'STATION_EXIT'
-                AND q.target_id = e.id
-              ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
-              LIMIT 1
-            ) AS field_checked_at_value,
+            q.quality_level AS field_quality_level,
+            q.checked_at AS field_checked_at_value,
             CASE
-              WHEN e.has_elevator_connection = 1 OR EXISTS(
-                SELECT 1
-                FROM facilities f
-                WHERE f.exit_id = e.id
-                  AND UPPER(f.type) = 'ELEVATOR'
-                  AND f.installation_status <> 'NOT_INSTALLED'
-              )
+              WHEN e.has_elevator_connection = 1 OR ce.exit_id IS NOT NULL
               THEN 1
               ELSE 0
             END AS has_elevator_connection
           FROM station_exits e
+          LEFT JOIN latest_exit_quality q
+            ON q.target_id = e.id AND q.rn = 1
+          LEFT JOIN connected_elevator_exits ce
+            ON ce.exit_id = e.id
           WHERE e.station_id = ?
           ORDER BY CAST(e.exit_number AS INTEGER), e.exit_number
           ''',
-          variables: [Variable.withString(stationId)],
+          variables: [stationVariable, stationVariable, stationVariable],
         )
         .get();
 
     return rows
-        .map(
-          (row) => StationExitInfo(
+        .map((row) {
+          final exitNumber = row.read<String>('exit_number');
+          final fieldQualityLevel = row.read<String?>('field_quality_level');
+          final fieldCheckedAt = row.read<int?>('field_checked_at_value');
+          return StationExitInfo(
             id: row.read<String>('id'),
             stationId: row.read<String>('station_id'),
-            exitNumber: row.read<String>('exit_number'),
-            name: '${row.read<String>('exit_number')}번 출구',
+            exitNumber: exitNumber,
+            name: '$exitNumber번 출구',
             description: row.read<String?>('description') ?? '',
             latitude: row.read<double?>('latitude'),
             longitude: row.read<double?>('longitude'),
@@ -436,19 +447,19 @@ class DriftStationRepository
                 row.read<int>('has_elevator_connection') == 1,
             hasStairOnlyPath: StairOnlyPathStatus.unknown,
             dataConfidence: _fieldValidationConfidence(
-              row.read<String?>('field_quality_level'),
-              row.read<int?>('field_checked_at_value'),
+              fieldQualityLevel,
+              fieldCheckedAt,
             ),
             dataSourceType: row.read<String>('data_source_type'),
             fieldValidationStatus: _fieldValidationStatus(
-              row.read<String?>('field_quality_level'),
-              row.read<int?>('field_checked_at_value'),
+              fieldQualityLevel,
+              fieldCheckedAt,
             ),
             lastVerifiedAt: _dateLabelFromEpoch(
               row.read<int?>('exit_last_verified_at'),
             ),
-          ),
-        )
+          );
+        })
         .toList(growable: false);
   }
 
@@ -457,9 +468,24 @@ class DriftStationRepository
     String stationId,
   ) async {
     stationId = await database.resolveCanonicalStationId(stationId);
+    final stationVariable = Variable.withString(stationId);
     final rows = await database
         .customSelect(
           '''
+          WITH latest_facility_quality AS (
+            SELECT
+              q.target_id,
+              q.quality_level,
+              q.checked_at,
+              ROW_NUMBER() OVER (
+                PARTITION BY q.target_id
+                ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
+              ) AS rn
+            FROM data_quality_records q
+            JOIN facilities sf ON sf.id = q.target_id
+            WHERE sf.station_id = ?
+              AND UPPER(q.target_type) = 'FACILITY'
+          )
           SELECT
             f.id,
             f.station_id,
@@ -472,35 +498,26 @@ class DriftStationRepository
             f.description,
             s.data_source_type,
             CAST(s.last_verified_at AS INTEGER) AS last_verified_at_value,
-            (
-              SELECT q.quality_level
-              FROM data_quality_records q
-              WHERE UPPER(q.target_type) = 'FACILITY'
-                AND q.target_id = f.id
-              ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
-              LIMIT 1
-            ) AS field_quality_level,
-            (
-              SELECT q.checked_at
-              FROM data_quality_records q
-              WHERE UPPER(q.target_type) = 'FACILITY'
-                AND q.target_id = f.id
-              ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
-              LIMIT 1
-            ) AS field_checked_at_value
+            q.quality_level AS field_quality_level,
+            q.checked_at AS field_checked_at_value
           FROM facilities f
           JOIN stations s ON s.id = f.station_id
+          LEFT JOIN latest_facility_quality q
+            ON q.target_id = f.id AND q.rn = 1
           WHERE f.station_id = ?
-            AND f.installation_status <> 'NOT_INSTALLED'
+            AND UPPER(COALESCE(f.installation_status, '')) <> 'NOT_INSTALLED'
+            AND UPPER(COALESCE(f.status, '')) <> 'NOT_INSTALLED'
           ORDER BY f.type, f.name
           ''',
-          variables: [Variable.withString(stationId)],
+          variables: [stationVariable, stationVariable],
         )
         .get();
 
     return rows
-        .map(
-          (row) => StationFacilityInfo(
+        .map((row) {
+          final fieldQualityLevel = row.read<String?>('field_quality_level');
+          final fieldCheckedAt = row.read<int?>('field_checked_at_value');
+          return StationFacilityInfo(
             id: row.read<String>('id'),
             stationId: row.read<String>('station_id'),
             exitId: row.read<String?>('exit_id') ?? '',
@@ -511,20 +528,19 @@ class DriftStationRepository
             description: row.read<String?>('description') ?? '',
             status: row.read<String?>('status') ?? '',
             dataConfidence: _fieldValidationConfidence(
-              row.read<String?>('field_quality_level'),
-              row.read<int?>('field_checked_at_value'),
+              fieldQualityLevel,
+              fieldCheckedAt,
             ),
             dataSourceType: row.read<String?>('data_source_type') ?? '',
             lastUpdatedAt: _dateLabelFromEpoch(
-              row.read<int?>('field_checked_at_value') ??
-                  row.read<int?>('last_verified_at_value'),
+              fieldCheckedAt ?? row.read<int?>('last_verified_at_value'),
             ),
             fieldValidationStatus: _fieldValidationStatus(
-              row.read<String?>('field_quality_level'),
-              row.read<int?>('field_checked_at_value'),
+              fieldQualityLevel,
+              fieldCheckedAt,
             ),
-          ),
-        )
+          );
+        })
         .toList(growable: false);
   }
 

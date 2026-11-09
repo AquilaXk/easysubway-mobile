@@ -1,12 +1,14 @@
 import 'dart:io';
 
 import 'package:clock/clock.dart';
+import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/features/network_map/data/network_map_owner_labels_cache.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/application/network_map_nearby_panel_state.dart';
 import 'package:easysubway_mobile/features/network_map/presentation/network_map_nearby_panel_content.dart';
 import 'package:easysubway_mobile/features/route_draft/application/route_draft_controller.dart';
 import 'package:easysubway_mobile/app/network_map_screen.dart';
+import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_line.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
@@ -368,6 +370,59 @@ void main() {
 
     expect(recordingRepo.requestedDates, [DateTime.utc(2026, 7, 5)]);
   });
+
+  testWidgets(
+    '번들 데이터팩 로컬 repository만 주입된 노선도 하단 시트는 역 캡슐 탭 시 출구·승강기·시설 섹션을 모두 표시한다',
+    (tester) async {
+      tester.view.physicalSize = const Size(800, 2400);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+
+      final database = CatalogDatabase.memory();
+      addTearDown(database.close);
+      await database.seedBaselineIfEmpty();
+      final catalogRepository = DriftStationRepository(database: database);
+      final sangnoksu = (await catalogRepository.searchStations('상록수')).single;
+
+      final routeDraftController = RouteDraftController();
+      addTearDown(routeDraftController.dispose);
+      StationSearchResult? focusStationRequest;
+      late StateSetter updateHost;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) {
+              updateHost = setState;
+              return NetworkMapScreen(
+                repository: catalogRepository,
+                routeDraftController: routeDraftController,
+                onOpenStationSearch: (_, _) {},
+                focusStationRequest: focusStationRequest,
+              );
+            },
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      updateHost(() => focusStationRequest = sangnoksu);
+      await tester.pumpAndSettle();
+
+      final centerCapsule = find.byKey(
+        const Key('nearbyStationLineBarCapsule'),
+      );
+      expect(centerCapsule, findsOneWidget);
+      await tester.tap(centerCapsule);
+      await tester.pumpAndSettle();
+
+      expect(find.text('역정보'), findsOneWidget);
+      expect(find.text('교통약자 시설'), findsOneWidget);
+      expect(find.text('출구정보'), findsOneWidget);
+      expect(find.text('시설 상세 및 고장 신고'), findsOneWidget);
+      expect(find.text('역 안 이동'), findsOneWidget);
+    },
+  );
 }
 
 final class _RecordingTimetableRepository
