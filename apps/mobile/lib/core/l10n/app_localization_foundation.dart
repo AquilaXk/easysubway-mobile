@@ -16,9 +16,7 @@ enum SupportedAppLocale {
 
 /// 시스템 로케일 목록을 받아 지원 로케일(`ko`, `en`)을 선택하고
 /// 나머지 언어는 제품 정책에 따라 `ko`로 결정론적으로 폴백하는 해석기.
-final class AppLocalePolicy {
-  const AppLocalePolicy._();
-
+abstract final class AppLocalePolicy {
   /// 비정상 대량 로케일 목록을 차단하기 위한 후보 수 상한.
   static const int maxLocaleCandidates = 64;
 
@@ -91,9 +89,7 @@ final class StationLocalizedIdentity {
 ///
 /// 영문 역명이 비어 있거나 임의 음차(`isFabricatedRomanization: true`)이면
 /// 영문 표기를 지어내지 않고 공식 국문 역명을 그대로 유지한다.
-final class OfficialStationDisplayNamePolicy {
-  const OfficialStationDisplayNamePolicy._();
-
+abstract final class OfficialStationDisplayNamePolicy {
   static const int maxStationIdLength = 128;
   static const int maxStationNameLength = 256;
 
@@ -258,9 +254,7 @@ final class JourneyV3LocalizedErrorEntry {
 }
 
 /// Journey V3 오류·행동(Action) 한·영 1:1 패리티 카탈로그.
-final class JourneyV3LocalizedCatalog {
-  const JourneyV3LocalizedCatalog._();
-
+abstract final class JourneyV3LocalizedCatalog {
   static const int maxErrorCodeLength = 64;
 
   static const List<String> supportedErrorCodes = <String>[
@@ -590,9 +584,7 @@ final class LocalizedFormattedValue {
 ///
 /// 누락(`null`)·음수·상한 초과 입력은 `0`이나 더미 문자열로 합성하지 않고
 /// 명시적으로 `null`을 반환한다.
-final class LocaleValueFormatter {
-  const LocaleValueFormatter._();
-
+abstract final class LocaleValueFormatter {
   static const int maxDurationMinutes = 14400;
   static const int maxDistanceMeters = 1000000;
   static const int maxFareWon = 10000000;

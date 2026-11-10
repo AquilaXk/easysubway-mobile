@@ -194,6 +194,25 @@ void main() {
         ),
         throwsArgumentError,
       );
+      expect(
+        () => OfficialStationDisplayNamePolicy.resolve(
+          stationId: 'st_seoul_0222',
+          koreanName: '강남',
+          officialEnglishName: 'Gangnam\u0000',
+          locale: SupportedAppLocale.en,
+        ),
+        throwsArgumentError,
+      );
+      expect(
+        () => OfficialStationDisplayNamePolicy.resolve(
+          stationId: 'st_seoul_0222',
+          koreanName: '강남',
+          officialEnglishName:
+              'G' * (OfficialStationDisplayNamePolicy.maxStationNameLength + 1),
+          locale: SupportedAppLocale.en,
+        ),
+        throwsArgumentError,
+      );
     });
   });
 
@@ -279,9 +298,19 @@ void main() {
         locale: SupportedAppLocale.en,
         rawBackendMessage: rawBackendSecret,
       );
+      final blankFallback = JourneyV3LocalizedCatalog.resolveError(
+        '   ',
+        locale: SupportedAppLocale.en,
+      );
+      final oversizedFallback = JourneyV3LocalizedCatalog.resolveError(
+        'X' * (JourneyV3LocalizedCatalog.maxErrorCodeLength + 1),
+        locale: SupportedAppLocale.ko,
+      );
 
       expect(koFallback.code, 'UNKNOWN_FAILURE');
       expect(enFallback.code, 'UNKNOWN_FAILURE');
+      expect(blankFallback.code, 'UNKNOWN_FAILURE');
+      expect(oversizedFallback.code, 'UNKNOWN_FAILURE');
       expect(koFallback.title, isNot(contains('PSQLException')));
       expect(koFallback.guidance, isNot(contains('10.0.14.9')));
       expect(koFallback.semanticsLabel, isNot(contains('PSQLException')));
@@ -305,6 +334,46 @@ void main() {
       expect(koDuration?.semanticsLabel, '소요 시간 12분');
       expect(enDuration?.visualText, '12 min');
       expect(enDuration?.semanticsLabel, 'Duration 12 minutes');
+
+      final koExactHour = LocaleValueFormatter.formatDurationMinutes(
+        60,
+        locale: SupportedAppLocale.ko,
+      );
+      final enExactHour = LocaleValueFormatter.formatDurationMinutes(
+        60,
+        locale: SupportedAppLocale.en,
+      );
+      final enExactTwoHours = LocaleValueFormatter.formatDurationMinutes(
+        120,
+        locale: SupportedAppLocale.en,
+      );
+      final koHourAndMinute = LocaleValueFormatter.formatDurationMinutes(
+        61,
+        locale: SupportedAppLocale.ko,
+      );
+      final enHourAndOneMinute = LocaleValueFormatter.formatDurationMinutes(
+        61,
+        locale: SupportedAppLocale.en,
+      );
+      final enTwoHoursFiveMinutes = LocaleValueFormatter.formatDurationMinutes(
+        125,
+        locale: SupportedAppLocale.en,
+      );
+      expect(koExactHour?.visualText, '1시간');
+      expect(koExactHour?.semanticsLabel, '소요 시간 1시간');
+      expect(enExactHour?.visualText, '1 hr');
+      expect(enExactHour?.semanticsLabel, 'Duration 1 hour');
+      expect(enExactTwoHours?.visualText, '2 hr');
+      expect(enExactTwoHours?.semanticsLabel, 'Duration 2 hours');
+      expect(koHourAndMinute?.visualText, '1시간 1분');
+      expect(koHourAndMinute?.semanticsLabel, '소요 시간 1시간 1분');
+      expect(enHourAndOneMinute?.visualText, '1 hr 1 min');
+      expect(enHourAndOneMinute?.semanticsLabel, 'Duration 1 hour 1 minute');
+      expect(enTwoHoursFiveMinutes?.visualText, '2 hr 5 min');
+      expect(
+        enTwoHoursFiveMinutes?.semanticsLabel,
+        'Duration 2 hours 5 minutes',
+      );
 
       final koDistance = LocaleValueFormatter.formatDistanceMeters(
         180,
