@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
+import 'package:drift/native.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
@@ -1177,4 +1178,126 @@ void main() {
       isA<UserDataDeletionLocalRepository>(),
     );
   });
+
+  test('즐겨찾기 목록 조회는 N+1 없이 청크 IN 배치 조회로 동작한다', () async {
+    final catalogRecorder = _FavoriteSqlCounterInterceptor();
+    final userRecorder = _FavoriteSqlCounterInterceptor();
+    final catalogDatabase = CatalogDatabase(
+      NativeDatabase.memory().interceptWith(catalogRecorder),
+    );
+    final userDatabase = user_db.UserDatabase(
+      NativeDatabase.memory().interceptWith(userRecorder),
+    );
+    addTearDown(catalogDatabase.close);
+    addTearDown(userDatabase.close);
+    await catalogDatabase.seedBaselineIfEmpty();
+
+    const totalCount = 505;
+    await catalogDatabase.transaction(() async {
+      for (var i = 0; i < totalCount; i++) {
+        final stationId = 'station-batch-$i';
+        await catalogDatabase.customStatement(
+          'INSERT INTO stations (id, name_ko, name_en, name_sub, normalized_name, region, data_quality_level, data_source_type) '
+          "VALUES (?, ?, ?, '', ?, '수도권', 'LEVEL_1', 'OFFICIAL_FILE')",
+          [stationId, '배치역$i', 'Batch$i', '배치역$i'],
+        );
+        await catalogDatabase.customStatement(
+          'INSERT INTO station_lines (station_id, line_id, station_code, line_sequence) '
+          "VALUES (?, 'seoul-4', ?, ?)",
+          [stationId, 'B$i', i + 100],
+        );
+        await catalogDatabase.customStatement(
+          'INSERT INTO facilities (id, station_id, type, name, installation_status) '
+          "VALUES (?, ?, 'ELEVATOR', ?, 'INSTALLED')",
+          ['facility-batch-$i', stationId, '배치시설$i'],
+        );
+      }
+    });
+
+    await userDatabase.transaction(() async {
+      for (var i = 0; i < totalCount; i++) {
+        final stationId = 'station-batch-$i';
+        await userDatabase.customStatement(
+          "INSERT INTO favorite_stations (station_id, line_id, added_at) VALUES (?, 'seoul-4', ?)",
+          [stationId, 1750000000 + i],
+        );
+        await userDatabase.customStatement(
+          'INSERT INTO favorite_facilities (facility_id, station_id, added_at) VALUES (?, ?, ?)',
+          ['facility-batch-$i', stationId, 1750000000 + i],
+        );
+      }
+      for (var i = 0; i < 8; i++) {
+        await userDatabase.customStatement(
+          "INSERT INTO favorite_routes (route_id, origin_station_id, destination_station_id, mobility_profile, added_at) "
+          "VALUES (?, ?, ?, 'WHEELCHAIR', ?)",
+          [
+            'route-batch-$i',
+            'station-batch-$i',
+            'station-batch-${i + 1}',
+            1750000000 + i,
+          ],
+        );
+      }
+      for (var i = 0; i < 2; i++) {
+        await userDatabase.customStatement(
+          "INSERT INTO favorite_routes (route_id, origin_station_id, destination_station_id, mobility_profile, added_at) "
+          "VALUES (?, 'station-batch-0', 'station-batch-1', 'WHEELCHAIR', 1750000000)",
+          ['local-stale-$i'],
+        );
+      }
+      await userDatabase.customStatement(
+        "INSERT INTO app_preferences (key, value, updated_at) VALUES (?, ?, 1750000000)",
+        ['favorite_route_snapshot:route-batch-0', '{broken-json'],
+      );
+    });
+
+    final stationRepo = DriftFavoriteStationRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+    );
+    final facilityRepo = DriftFavoriteFacilityRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+    );
+    final routeRepo = DriftFavoriteRouteRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+    );
+
+    catalogRecorder.selectCount = 0;
+    userRecorder.selectCount = 0;
+    final favoriteStations = await stationRepo.listFavoriteStations();
+    expect(favoriteStations, hasLength(totalCount));
+    expect(catalogRecorder.selectCount, lessThanOrEqualTo(8));
+    expect(userRecorder.selectCount, lessThanOrEqualTo(2));
+
+    catalogRecorder.selectCount = 0;
+    userRecorder.selectCount = 0;
+    final favoriteFacilities = await facilityRepo.listFavoriteFacilities();
+    expect(favoriteFacilities, hasLength(totalCount));
+    expect(catalogRecorder.selectCount, lessThanOrEqualTo(6));
+    expect(userRecorder.selectCount, lessThanOrEqualTo(2));
+
+    catalogRecorder.selectCount = 0;
+    userRecorder.selectCount = 0;
+    final favoriteRoutes = await routeRepo.listFavoriteRoutes();
+    expect(favoriteRoutes, hasLength(8));
+    expect(favoriteRoutes.first.originStationName, startsWith('배치역'));
+    expect(catalogRecorder.selectCount, lessThanOrEqualTo(3));
+    expect(userRecorder.selectCount, lessThanOrEqualTo(3));
+  });
+}
+
+class _FavoriteSqlCounterInterceptor extends QueryInterceptor {
+  int selectCount = 0;
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    selectCount++;
+    return super.runSelect(executor, statement, args);
+  }
 }

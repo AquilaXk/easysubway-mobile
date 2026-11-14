@@ -13,6 +13,7 @@ import '../domain/favorite_route.dart';
 
 const _localUserId = 'local-user';
 const _routeSnapshotPrefix = 'favorite_route_snapshot:';
+const _sqliteInClauseChunkSize = 500;
 
 class DriftFavoriteStationRepository implements FavoriteStationRepository {
   DriftFavoriteStationRepository({
@@ -38,45 +39,66 @@ class DriftFavoriteStationRepository implements FavoriteStationRepository {
           readsFrom: {userDatabase.favoriteStations},
         )
         .get();
+    if (favoriteRows.isEmpty) {
+      return const [];
+    }
+
+    final storedIds = <String>{
+      for (final row in favoriteRows) row.read<String>('station_id'),
+    }.toList(growable: false);
+    final canonicalByStoredId = await _resolveCanonicalStationIdsBatch(
+      storedIds,
+    );
 
     // 호선 단위 행이 있는 역은 레거시(line_id='') 행을 건너뛰어 중복 노출을 막는다.
     final stationsWithLineScoped = <String>{};
-    final resolvedRows =
+    final pendingMigrations =
         <
           ({
             String storedStationId,
-            String stationId,
-            String favoritedLineId,
+            String canonicalStationId,
+            String lineId,
             int addedAt,
           })
         >[];
+    final resolvedRows =
+        <({String stationId, String favoritedLineId, int addedAt})>[];
     for (final favoriteRow in favoriteRows) {
       final storedStationId = favoriteRow.read<String>('station_id');
       final favoritedLineId = favoriteRow.read<String>('line_id');
-      final stationId = await catalogDatabase.findCanonicalStationId(
-        storedStationId,
-      );
+      final stationId = canonicalByStoredId[storedStationId];
       if (stationId == null) {
         continue;
       }
+      final addedAt = favoriteRow.read<int>('added_at_value');
       if (stationId != storedStationId) {
-        await _migrateFavoriteStationId(
-          storedStationId,
-          stationId,
-          favoritedLineId,
-          favoriteRow.read<int>('added_at_value'),
-        );
+        pendingMigrations.add((
+          storedStationId: storedStationId,
+          canonicalStationId: stationId,
+          lineId: favoritedLineId,
+          addedAt: addedAt,
+        ));
       }
       if (favoritedLineId.isNotEmpty) {
         stationsWithLineScoped.add(stationId);
       }
       resolvedRows.add((
-        storedStationId: storedStationId,
         stationId: stationId,
         favoritedLineId: favoritedLineId,
-        addedAt: favoriteRow.read<int>('added_at_value'),
+        addedAt: addedAt,
       ));
     }
+
+    if (pendingMigrations.isNotEmpty) {
+      await _migrateFavoriteStationIdsBatch(pendingMigrations);
+    }
+
+    final uniqueStationIds = <String>{
+      for (final resolved in resolvedRows) resolved.stationId,
+    }.toList(growable: false);
+    final stationMetadataById = await _loadFavoriteStationMetadataBatch(
+      uniqueStationIds,
+    );
 
     final favorites = <FavoriteStation>[];
     final seenKeys = <String>{};
@@ -91,6 +113,98 @@ class DriftFavoriteStationRepository implements FavoriteStationRepository {
       if (!seenKeys.add(key)) {
         continue;
       }
+      final metadata = stationMetadataById[stationId];
+      if (metadata == null) {
+        continue;
+      }
+      final lines = <StationSearchLine>[];
+      for (final line in metadata.lines) {
+        // 호선 단위 즐겨찾기는 해당 호선만, 레거시(빈 line_id)는 전 호선.
+        if (favoritedLineId.isNotEmpty && line.id != favoritedLineId) {
+          continue;
+        }
+        lines.add(line);
+      }
+      favorites.add(
+        FavoriteStation(
+          userId: _localUserId,
+          stationId: stationId,
+          lineId: favoritedLineId,
+          nameKo: metadata.nameKo,
+          nameEn: metadata.nameEn,
+          region: metadata.region,
+          dataQualityLevel: metadata.dataQualityLevel,
+          dataSourceType: metadata.dataSourceType,
+          lastVerifiedAt: metadata.lastVerifiedAt,
+          lines: List.unmodifiable(lines),
+          addedAt: _isoFromEpoch(resolved.addedAt),
+        ),
+      );
+    }
+
+    return favorites;
+  }
+
+  Future<Map<String, String?>> _resolveCanonicalStationIdsBatch(
+    List<String> storedIds,
+  ) async {
+    final candidatesById = <String, Set<String>>{
+      for (final id in storedIds) id: <String>{},
+    };
+    for (final chunk in _chunkValues(storedIds)) {
+      final directRows = await catalogDatabase
+          .customSelect(
+            'SELECT id FROM stations WHERE id IN (${_sqlPlaceholders(chunk.length)})',
+            variables: [for (final id in chunk) Variable.withString(id)],
+            readsFrom: {catalogDatabase.stations},
+          )
+          .get();
+      for (final row in directRows) {
+        final id = row.read<String>('id');
+        candidatesById[id]?.add(id);
+      }
+
+      final aliasCandidates = [
+        for (final id in chunk)
+          if (id.startsWith('station-')) id,
+      ];
+      if (aliasCandidates.isNotEmpty) {
+        final aliasRows = await catalogDatabase
+            .customSelect(
+              '''
+              SELECT sa.alias, sa.station_id
+              FROM station_aliases sa
+              JOIN stations s ON s.id = sa.station_id
+              WHERE sa.alias IN (${_sqlPlaceholders(aliasCandidates.length)})
+                AND sa.alias LIKE 'station-%'
+              ''',
+              variables: [
+                for (final id in aliasCandidates) Variable.withString(id),
+              ],
+              readsFrom: {
+                catalogDatabase.stationAliases,
+                catalogDatabase.stations,
+              },
+            )
+            .get();
+        for (final row in aliasRows) {
+          final alias = row.read<String>('alias');
+          final stationId = row.read<String>('station_id');
+          candidatesById[alias]?.add(stationId);
+        }
+      }
+    }
+    return {
+      for (final entry in candidatesById.entries)
+        entry.key: entry.value.length == 1 ? entry.value.first : null,
+    };
+  }
+
+  Future<Map<String, _BatchStationMetadata>> _loadFavoriteStationMetadataBatch(
+    List<String> stationIds,
+  ) async {
+    final metadataById = <String, _BatchStationMetadata>{};
+    for (final chunk in _chunkValues(stationIds)) {
       final stationRows = await catalogDatabase
           .customSelect(
             '''
@@ -109,10 +223,10 @@ class DriftFavoriteStationRepository implements FavoriteStationRepository {
             FROM stations s
             LEFT JOIN station_lines sl ON sl.station_id = s.id
             LEFT JOIN lines l ON l.id = sl.line_id
-            WHERE s.id = ?
+            WHERE s.id IN (${_sqlPlaceholders(chunk.length)})
             ORDER BY sl.line_sequence
             ''',
-            variables: [Variable.withString(stationId)],
+            variables: [for (final id in chunk) Variable.withString(id)],
             readsFrom: {
               catalogDatabase.stations,
               catalogDatabase.stationLines,
@@ -120,45 +234,35 @@ class DriftFavoriteStationRepository implements FavoriteStationRepository {
             },
           )
           .get();
-      if (stationRows.isEmpty) {
-        continue;
-      }
-      final firstRow = stationRows.first;
-      final builder = FavoriteStationBuilder(
-        stationId: stationId,
-        lineId: favoritedLineId,
-        nameKo: firstRow.read<String>('name_ko'),
-        nameEn: firstRow.read<String?>('name_en') ?? '',
-        region: firstRow.read<String?>('region') ?? '',
-        dataQualityLevel: firstRow.read<String?>('data_quality_level') ?? '',
-        dataSourceType: firstRow.read<String?>('data_source_type') ?? '',
-        lastVerifiedAt: _dateLabelFromEpoch(
-          firstRow.read<int?>('last_verified_at_value'),
-        ),
-        addedAt: _isoFromEpoch(resolved.addedAt),
-      );
       for (final row in stationRows) {
-        final lineId = row.read<String?>('line_id');
-        if (lineId == null) {
-          continue;
-        }
-        // 호선 단위 즐겨찾기는 해당 호선만, 레거시(빈 line_id)는 전 호선.
-        if (favoritedLineId.isNotEmpty && lineId != favoritedLineId) {
-          continue;
-        }
-        builder.lines.add(
-          StationSearchLine(
-            id: lineId,
-            name: row.read<String>('line_name'),
-            color: row.read<String>('line_color'),
-            stationCode: row.read<String>('station_code'),
+        final stationId = row.read<String>('id');
+        final metadata = metadataById.putIfAbsent(
+          stationId,
+          () => _BatchStationMetadata(
+            nameKo: row.read<String>('name_ko'),
+            nameEn: row.read<String?>('name_en') ?? '',
+            region: row.read<String?>('region') ?? '',
+            dataQualityLevel: row.read<String?>('data_quality_level') ?? '',
+            dataSourceType: row.read<String?>('data_source_type') ?? '',
+            lastVerifiedAt: _dateLabelFromEpoch(
+              row.read<int?>('last_verified_at_value'),
+            ),
           ),
         );
+        final lineId = row.read<String?>('line_id');
+        if (lineId != null) {
+          metadata.lines.add(
+            StationSearchLine(
+              id: lineId,
+              name: row.read<String>('line_name'),
+              color: row.read<String>('line_color'),
+              stationCode: row.read<String>('station_code'),
+            ),
+          );
+        }
       }
-      favorites.add(builder.build());
     }
-
-    return favorites;
+    return metadataById;
   }
 
   @override
@@ -264,29 +368,36 @@ class DriftFavoriteStationRepository implements FavoriteStationRepository {
     });
   }
 
-  Future<void> _migrateFavoriteStationId(
-    String storedStationId,
-    String canonicalStationId,
-    String lineId,
-    int addedAt,
+  Future<void> _migrateFavoriteStationIdsBatch(
+    List<
+      ({
+        String storedStationId,
+        String canonicalStationId,
+        String lineId,
+        int addedAt,
+      })
+    >
+    migrations,
   ) async {
     await userDatabase.transaction(() async {
-      await userDatabase.customStatement(
-        '''
-        INSERT INTO favorite_stations (station_id, line_id, added_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(station_id, line_id) DO UPDATE SET
-          added_at = MAX(favorite_stations.added_at, excluded.added_at)
-        ''',
-        [canonicalStationId, lineId, addedAt],
-      );
-      await userDatabase.customStatement(
-        '''
-        DELETE FROM favorite_stations
-        WHERE station_id = ? AND line_id = ?
-        ''',
-        [storedStationId, lineId],
-      );
+      for (final migration in migrations) {
+        await userDatabase.customStatement(
+          '''
+          INSERT INTO favorite_stations (station_id, line_id, added_at)
+          VALUES (?, ?, ?)
+          ON CONFLICT(station_id, line_id) DO UPDATE SET
+            added_at = MAX(favorite_stations.added_at, excluded.added_at)
+          ''',
+          [migration.canonicalStationId, migration.lineId, migration.addedAt],
+        );
+        await userDatabase.customStatement(
+          '''
+          DELETE FROM favorite_stations
+          WHERE station_id = ? AND line_id = ?
+          ''',
+          [migration.storedStationId, migration.lineId],
+        );
+      }
     });
   }
 
@@ -362,11 +473,19 @@ class DriftFavoriteFacilityRepository implements FavoriteFacilityRepository {
           readsFrom: {userDatabase.favoriteFacilities},
         )
         .get();
+    if (favoriteRows.isEmpty) {
+      return const [];
+    }
 
-    final favorites = <FavoriteFacility>[];
-    for (final favoriteRow in favoriteRows) {
-      final facilityId = favoriteRow.read<String>('facility_id');
-      final row = await catalogDatabase
+    final facilityIds = <String>{
+      for (final row in favoriteRows) row.read<String>('facility_id'),
+    }.toList(growable: false);
+    final rowsByFacilityId = <String, QueryRow>{};
+    final qualityByFacilityId = <String, ({String? level, int? checkedAt})>{};
+
+    for (final chunk in _chunkValues(facilityIds)) {
+      final variables = [for (final id in chunk) Variable.withString(id)];
+      final facilityRows = await catalogDatabase
           .customSelect(
             '''
             SELECT
@@ -382,39 +501,68 @@ class DriftFavoriteFacilityRepository implements FavoriteFacilityRepository {
               s.name_ko AS station_name_ko,
               s.name_en AS station_name_en,
               s.data_source_type,
-              CAST(s.last_verified_at AS INTEGER) AS last_verified_at_value,
-              (
-                SELECT q.quality_level
-                FROM data_quality_records q
-                WHERE UPPER(q.target_type) = 'FACILITY'
-                  AND q.target_id = f.id
-                ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
-                LIMIT 1
-              ) AS field_quality_level,
-              (
-                SELECT q.checked_at
-                FROM data_quality_records q
-                WHERE UPPER(q.target_type) = 'FACILITY'
-                  AND q.target_id = f.id
-                ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
-                LIMIT 1
-              ) AS field_checked_at_value
+              CAST(s.last_verified_at AS INTEGER) AS last_verified_at_value
             FROM facilities f
             JOIN stations s ON s.id = f.station_id
-            WHERE f.id = ?
+            WHERE f.id IN (${_sqlPlaceholders(chunk.length)})
               AND f.installation_status <> 'NOT_INSTALLED'
             ''',
-            variables: [Variable.withString(facilityId)],
-            readsFrom: {
-              catalogDatabase.facilities,
-              catalogDatabase.stations,
-              catalogDatabase.dataQualityRecords,
-            },
+            variables: variables,
+            readsFrom: {catalogDatabase.facilities, catalogDatabase.stations},
           )
-          .getSingleOrNull();
+          .get();
+      if (facilityRows.isEmpty) {
+        continue;
+      }
+      final matchedIds = <String>[];
+      for (final row in facilityRows) {
+        final id = row.read<String>('id');
+        rowsByFacilityId[id] = row;
+        matchedIds.add(id);
+      }
+
+      final qualityRows = await catalogDatabase
+          .customSelect(
+            '''
+            WITH ranked_quality AS (
+              SELECT
+                q.target_id,
+                q.quality_level,
+                q.checked_at,
+                ROW_NUMBER() OVER (
+                  PARTITION BY q.target_id
+                  ORDER BY q.checked_at IS NULL, q.checked_at DESC, q.id DESC
+                ) AS rn
+              FROM data_quality_records q
+              WHERE UPPER(q.target_type) = 'FACILITY'
+                AND q.target_id IN (${_sqlPlaceholders(matchedIds.length)})
+            )
+            SELECT target_id, quality_level, checked_at
+            FROM ranked_quality
+            WHERE rn = 1
+            ''',
+            variables: [for (final id in matchedIds) Variable.withString(id)],
+            readsFrom: {catalogDatabase.dataQualityRecords},
+          )
+          .get();
+      for (final row in qualityRows) {
+        qualityByFacilityId[row.read<String>('target_id')] = (
+          level: row.read<String?>('quality_level'),
+          checkedAt: row.read<int?>('checked_at'),
+        );
+      }
+    }
+
+    final favorites = <FavoriteFacility>[];
+    for (final favoriteRow in favoriteRows) {
+      final facilityId = favoriteRow.read<String>('facility_id');
+      final row = rowsByFacilityId[facilityId];
       if (row == null) {
         continue;
       }
+      final quality = qualityByFacilityId[facilityId];
+      final fieldQualityLevel = quality?.level;
+      final fieldCheckedAt = quality?.checkedAt;
       favorites.add(
         FavoriteFacility(
           userId: _localUserId,
@@ -432,12 +580,11 @@ class DriftFavoriteFacilityRepository implements FavoriteFacilityRepository {
           dataConfidence: 'MEDIUM',
           dataSourceType: row.read<String?>('data_source_type') ?? '',
           fieldValidationStatus: _fieldValidationStatus(
-            row.read<String?>('field_quality_level'),
-            row.read<int?>('field_checked_at_value'),
+            fieldQualityLevel,
+            fieldCheckedAt,
           ),
           lastUpdatedAt: _dateLabelFromEpoch(
-            row.read<int?>('field_checked_at_value') ??
-                row.read<int?>('last_verified_at_value'),
+            fieldCheckedAt ?? row.read<int?>('last_verified_at_value'),
           ),
           addedAt: _isoFromEpoch(favoriteRow.read<int?>('added_at_value')),
         ),
@@ -513,31 +660,80 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
           readsFrom: {userDatabase.favoriteRoutes},
         )
         .get();
+    if (rows.isEmpty) {
+      return const [];
+    }
 
-    final favorites = <FavoriteRoute>[];
+    final snapshotKeys = <String>[
+      for (final row in rows)
+        if (!row.read<String>('route_id').startsWith('local-'))
+          '$_routeSnapshotPrefix${row.read<String>('route_id')}',
+    ];
+    final snapshotsByRouteId = await _readRouteSnapshotsBatch(snapshotKeys);
+
+    final staleRouteIds = <String>[];
+    final validRows =
+        <
+          ({
+            String routeId,
+            String originStationId,
+            String destinationStationId,
+            String mobilityType,
+            String addedAt,
+          })
+        >[];
+    final stationIds = <String>{};
     for (final row in rows) {
       final routeId = row.read<String>('route_id');
-      final snapshot = await _readRouteSnapshot(routeId);
+      final snapshot = snapshotsByRouteId[routeId];
       if (routeId.startsWith('local-') ||
           _isStaleLocalRouteSnapshot(snapshot)) {
-        await _removeStaleLocalFavoriteRoute(routeId);
+        staleRouteIds.add(routeId);
         continue;
       }
-      final addedAt = _isoFromEpoch(row.read<int?>('added_at_value'));
       final originStationId = row.read<String>('origin_station_id');
       final destinationStationId = row.read<String>('destination_station_id');
-      final mobilityType = row.read<String>('mobility_profile');
-      favorites.add(
-        await _researchRequiredFavorite(
-          routeId: routeId,
-          originStationId: originStationId,
-          destinationStationId: destinationStationId,
-          mobilityType: mobilityType,
-          addedAt: addedAt,
-          snapshot: snapshot,
-        ),
-      );
+      stationIds.add(originStationId);
+      stationIds.add(destinationStationId);
+      validRows.add((
+        routeId: routeId,
+        originStationId: originStationId,
+        destinationStationId: destinationStationId,
+        mobilityType: row.read<String>('mobility_profile'),
+        addedAt: _isoFromEpoch(row.read<int?>('added_at_value')),
+      ));
     }
+
+    if (staleRouteIds.isNotEmpty) {
+      await _removeStaleLocalFavoriteRoutesBatch(staleRouteIds);
+    }
+
+    final stationNamesById = stationIds.isEmpty
+        ? const <String, String>{}
+        : await _stationNamesBatch(stationIds.toList(growable: false));
+    final favorites = [
+      for (final row in validRows)
+        FavoriteRoute(
+          userId: _localUserId,
+          favoriteRouteId: row.routeId,
+          routeSearchId: row.routeId,
+          originStationId: row.originStationId,
+          originStationName:
+              stationNamesById[row.originStationId] ?? row.originStationId,
+          destinationStationId: row.destinationStationId,
+          destinationStationName:
+              stationNamesById[row.destinationStationId] ??
+              row.destinationStationId,
+          mobilityType: row.mobilityType,
+          status: 'RESEARCH_REQUIRED',
+          lineId: '',
+          lineName: '',
+          score: 0,
+          routeCreatedAt: row.addedAt,
+          addedAt: row.addedAt,
+          needsResearch: true,
+        ),
+    ];
     favorites.sort((left, right) => right.addedAt.compareTo(left.addedAt));
     return favorites;
   }
@@ -547,16 +743,19 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
     return routeSearchId is String && routeSearchId.trim().startsWith('local-');
   }
 
-  Future<void> _removeStaleLocalFavoriteRoute(String routeId) {
+  Future<void> _removeStaleLocalFavoriteRoutesBatch(List<String> routeIds) {
     return userDatabase.transaction(() async {
-      await userDatabase.customStatement(
-        'DELETE FROM favorite_routes WHERE route_id = ?',
-        [routeId],
-      );
-      await userDatabase.customStatement(
-        'DELETE FROM app_preferences WHERE key = ?',
-        ['$_routeSnapshotPrefix$routeId'],
-      );
+      for (final chunk in _chunkValues(routeIds)) {
+        final placeholders = _sqlPlaceholders(chunk.length);
+        await userDatabase.customStatement(
+          'DELETE FROM favorite_routes WHERE route_id IN ($placeholders)',
+          chunk,
+        );
+        await userDatabase.customStatement(
+          'DELETE FROM app_preferences WHERE key IN ($placeholders)',
+          [for (final id in chunk) '$_routeSnapshotPrefix$id'],
+        );
+      }
     });
   }
 
@@ -575,63 +774,92 @@ class DriftFavoriteRouteRepository implements FavoriteRouteRepository {
     });
   }
 
-  Future<Map<String, Object?>?> _readRouteSnapshot(String routeId) async {
-    final row = await userDatabase
-        .customSelect(
-          'SELECT value FROM app_preferences WHERE key = ?',
-          variables: [Variable.withString('$_routeSnapshotPrefix$routeId')],
-          readsFrom: {userDatabase.appPreferences},
-        )
-        .getSingleOrNull();
-    if (row == null) {
-      return null;
+  Future<Map<String, Map<String, Object?>>> _readRouteSnapshotsBatch(
+    List<String> keys,
+  ) async {
+    if (keys.isEmpty) {
+      return const {};
     }
-    try {
-      final decoded = jsonDecode(row.read<String>('value'));
-      return decoded is Map<String, Object?> ? decoded : null;
-    } on FormatException {
-      return null;
+    final snapshots = <String, Map<String, Object?>>{};
+    for (final chunk in _chunkValues(keys)) {
+      final rows = await userDatabase
+          .customSelect(
+            'SELECT key, value FROM app_preferences WHERE key IN (${_sqlPlaceholders(chunk.length)})',
+            variables: [for (final key in chunk) Variable.withString(key)],
+            readsFrom: {userDatabase.appPreferences},
+          )
+          .get();
+      for (final row in rows) {
+        final key = row.read<String>('key');
+        final routeId = key.startsWith(_routeSnapshotPrefix)
+            ? key.substring(_routeSnapshotPrefix.length)
+            : key;
+        try {
+          final decoded = jsonDecode(row.read<String>('value'));
+          if (decoded is Map<String, Object?>) {
+            snapshots[routeId] = decoded;
+          }
+        } on FormatException {
+          continue;
+        }
+      }
     }
+    return snapshots;
   }
 
-  Future<FavoriteRoute> _researchRequiredFavorite({
-    required String routeId,
-    required String originStationId,
-    required String destinationStationId,
-    required String mobilityType,
-    required String addedAt,
-    required Map<String, Object?>? snapshot,
-  }) async {
-    return FavoriteRoute(
-      userId: _localUserId,
-      favoriteRouteId: routeId,
-      routeSearchId: routeId,
-      originStationId: originStationId,
-      originStationName: await _stationName(originStationId),
-      destinationStationId: destinationStationId,
-      destinationStationName: await _stationName(destinationStationId),
-      mobilityType: mobilityType,
-      status: 'RESEARCH_REQUIRED',
-      lineId: '',
-      lineName: '',
-      score: 0,
-      routeCreatedAt: addedAt,
-      addedAt: addedAt,
-      needsResearch: true,
-    );
-  }
-
-  Future<String> _stationName(String stationId) async {
-    final row = await catalogDatabase
-        .customSelect(
-          'SELECT name_ko FROM stations WHERE id = ?',
-          variables: [Variable.withString(stationId)],
-        )
-        .getSingleOrNull();
-    final catalogName = row?.read<String?>('name_ko')?.trim() ?? '';
-    return catalogName.isEmpty ? stationId : catalogName;
+  Future<Map<String, String>> _stationNamesBatch(
+    List<String> stationIds,
+  ) async {
+    final namesById = <String, String>{};
+    for (final chunk in _chunkValues(stationIds)) {
+      final rows = await catalogDatabase
+          .customSelect(
+            'SELECT id, name_ko FROM stations WHERE id IN (${_sqlPlaceholders(chunk.length)})',
+            variables: [for (final id in chunk) Variable.withString(id)],
+            readsFrom: {catalogDatabase.stations},
+          )
+          .get();
+      for (final row in rows) {
+        final stationId = row.read<String>('id');
+        final catalogName = row.read<String?>('name_ko')?.trim() ?? '';
+        if (catalogName.isNotEmpty) {
+          namesById[stationId] = catalogName;
+        }
+      }
+    }
+    return namesById;
   }
 }
+
+class _BatchStationMetadata {
+  _BatchStationMetadata({
+    required this.nameKo,
+    required this.nameEn,
+    required this.region,
+    required this.dataQualityLevel,
+    required this.dataSourceType,
+    required this.lastVerifiedAt,
+  });
+
+  final String nameKo;
+  final String nameEn;
+  final String region;
+  final String dataQualityLevel;
+  final String dataSourceType;
+  final String lastVerifiedAt;
+  final List<StationSearchLine> lines = [];
+}
+
+Iterable<List<String>> _chunkValues(List<String> values) sync* {
+  for (var i = 0; i < values.length; i += _sqliteInClauseChunkSize) {
+    final end = i + _sqliteInClauseChunkSize > values.length
+        ? values.length
+        : i + _sqliteInClauseChunkSize;
+    yield values.sublist(i, end);
+  }
+}
+
+String _sqlPlaceholders(int count) => List.filled(count, '?').join(', ');
 
 class FavoriteStationBuilder {
   FavoriteStationBuilder({

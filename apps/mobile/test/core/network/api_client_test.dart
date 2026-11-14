@@ -490,4 +490,122 @@ void main() {
     expect(response.isOk, isTrue);
     expect(response.jsonBody, {'ok': true});
   });
+
+  test('ApiClient는 프로덕션 비-HTTPS와 비-루프백 HTTP를 거부한다', () {
+    expect(
+      () => ApiClient(
+        baseUri: Uri.parse('http://127.0.0.1:8080'),
+        isReleaseMode: true,
+      ),
+      throwsA(isA<ApiException>()),
+    );
+    expect(
+      () => ApiClient(
+        baseUri: Uri.parse('http://api.easysubway.example'),
+        isReleaseMode: false,
+      ),
+      throwsA(isA<ApiException>()),
+    );
+    expect(
+      () => ApiClient(
+        baseUri: Uri.parse('https://api.easysubway.example'),
+        isReleaseMode: true,
+      ).close(),
+      returnsNormally,
+    );
+  });
+
+  test('ApiClient는 상대 경로 해석 시 동일 출처 이탈과 스킴 다운그레이드를 차단한다', () async {
+    final client = ApiClient(
+      baseUri: Uri.parse('https://api.easysubway.example:8443/v1'),
+    );
+    addTearDown(client.close);
+
+    for (final escapedPath in [
+      'https://evil.example/steal',
+      '//evil.example/steal',
+      'http://api.easysubway.example:8443/v1/downgrade',
+      'https://api.easysubway.example:9443/v1/port-escape',
+    ]) {
+      await expectLater(
+        client.getJson(escapedPath),
+        throwsA(isA<ApiException>()),
+        reason: 'should reject cross-origin target $escapedPath',
+      );
+    }
+
+    await expectLater(
+      client.putBytes(
+        Uri.parse('http://uploads.easysubway.example/photo'),
+        body: const [1, 2, 3],
+        contentType: ContentType.binary,
+      ),
+      throwsA(isA<ApiException>()),
+    );
+
+    await expectLater(
+      client.getJson('http://[::1'),
+      throwsA(isA<ApiException>()),
+    );
+    expect(
+      () => ApiClient(baseUri: Uri.parse('/relative-no-host')),
+      throwsA(isA<ApiException>()),
+    );
+    expect(
+      () => ApiClient(
+        baseUri: Uri.parse('https://user:pass@api.easysubway.example'),
+      ),
+      throwsA(isA<ApiException>()),
+    );
+  });
+
+  test('ApiClient는 3xx 리다이렉트를 따라가지 않고 Fail-Closed로 거부한다', () async {
+    var redirectedTargetHits = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      if (request.uri.path == '/redirect') {
+        request.response
+          ..statusCode = HttpStatus.found
+          ..headers.set(HttpHeaders.locationHeader, '/target');
+        await request.response.close();
+        return;
+      }
+      if (request.uri.path == '/upload-redirect') {
+        request.response
+          ..statusCode = HttpStatus.temporaryRedirect
+          ..headers.set(HttpHeaders.locationHeader, '/target');
+        await request.response.close();
+        return;
+      }
+      redirectedTargetHits += 1;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write('{"ok":true}');
+      await request.response.close();
+    });
+
+    final client = ApiClient(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+    );
+    addTearDown(() => client.close(force: true));
+
+    await expectLater(
+      client.getJson('/redirect'),
+      throwsA(isA<ApiException>()),
+    );
+    await expectLater(
+      client.putBytes(
+        Uri.parse(
+          'http://${server.address.host}:${server.port}/upload-redirect',
+        ),
+        body: const [1, 2],
+        contentType: ContentType.binary,
+      ),
+      throwsA(isA<ApiException>()),
+    );
+    expect(redirectedTargetHits, 0);
+  });
 }

@@ -30,6 +30,7 @@ class DataPackManifest {
     DataPackSigningPublicKey? productionSigningPublicKey,
     List<DataPackSigningPublicKey>? productionSigningPublicKeys,
   }) {
+    _ensureMaxManifestDepth(json);
     final trustedSigningKeys = _normalizeTrustedSigningKeys(
       productionSigningPublicKey: productionSigningPublicKey,
       productionSigningPublicKeys: productionSigningPublicKeys,
@@ -44,16 +45,24 @@ class DataPackManifest {
         ? _parseManifestEnvelopeSignature(json['signature'])
         : null;
     final keyId = manifestVersion == 2 ? _requiredString(json, 'keyId') : null;
-    final signedCanonicalManifest = manifestVersion == 2
-        ? canonicalDataPackJson(_withoutSignature(json))
-        : null;
     final matchedSigningPublicKey = _selectManifestSigningKey(
       trustedSigningKeys: trustedSigningKeys,
       manifestVersion: manifestVersion,
       keyId: keyId,
     );
+    final signedCanonicalManifest = manifestVersion == 2
+        ? canonicalDataPackJson(_withoutSignature(json))
+        : null;
+    if (manifestVersion == 2) {
+      _validateV2EnvelopeSignature(
+        canonical: signedCanonicalManifest!,
+        signature: signature!,
+        keyId: keyId!,
+        productionSigningPublicKey: matchedSigningPublicKey,
+      );
+    }
 
-    final manifest = DataPackManifest(
+    return DataPackManifest(
       manifestVersion: manifestVersion,
       ttl: Duration(seconds: ttlSeconds),
       packs: rawPacks
@@ -89,11 +98,6 @@ class DataPackManifest {
           : null,
       rollout: manifestVersion == 2 ? _parseRollout(json['rollout']) : null,
     );
-    manifest._validateEnvelopeSignature(
-      signedCanonicalManifest,
-      matchedSigningPublicKey,
-    );
-    return manifest;
   }
 
   final int manifestVersion;
@@ -116,43 +120,51 @@ class DataPackManifest {
     final expiry = expiresAt;
     return expiry != null && !now.toUtc().isBefore(expiry);
   }
+}
 
-  /// 파싱 시점에 이미 계산한 정준 문자열을 그대로 받는다. 서명 경계가 두 번
-  /// 계산되면 규칙이 갈라질 여지가 생기므로 계산 지점을 하나로 유지한다.
-  void _validateEnvelopeSignature(
-    String? canonical,
-    DataPackSigningPublicKey? productionSigningPublicKey,
-  ) {
-    if (manifestVersion != 2) {
-      // 이슈 #2531(DP-05): v1 봉투는 봉투 서명·채널·순번·만료를 아예 담지 않아
-      // 신선도를 증명할 방법이 없다. production 서명 공개키가 주입된 빌드는
-      // production 채널만 바라보므로 그 빌드에서는 수락 경로를 fail closed로 닫는다.
-      // 공개키가 없는 개발·테스트 빌드의 동작은 그대로 둔다.
-      if (productionSigningPublicKey != null) {
-        throw const FormatException('Invalid data pack manifest version.');
+void _validateV2EnvelopeSignature({
+  required String canonical,
+  required DataPackSignature signature,
+  required String keyId,
+  required DataPackSigningPublicKey? productionSigningPublicKey,
+}) {
+  final publicKey = productionSigningPublicKey;
+  if (publicKey != null) {
+    if (keyId != publicKey.keyId ||
+        signature.algorithm != 'rsa-sha256-manifest-v2' ||
+        !publicKey.verify(canonical, signature.value)) {
+      throw const FormatException('Invalid data pack manifest signature.');
+    }
+    return;
+  }
+  if (signature.algorithm != 'sha256-manifest-v2' ||
+      signature.value != sha256.convert(utf8.encode(canonical)).toString()) {
+    throw const FormatException('Invalid data pack manifest signature.');
+  }
+}
+
+void _ensureMaxManifestDepth(Object? root) {
+  final stack = <(Object?, int)>[(root, 0)];
+  while (stack.isNotEmpty) {
+    final (current, depth) = stack.removeLast();
+    if (current is Map<Object?, Object?>) {
+      if (depth >= maxCanonicalJsonDepth) {
+        throw const FormatException(
+          'Data pack manifest exceeds maximum nesting depth.',
+        );
       }
-      return;
-    }
-    if (canonical == null) {
-      throw const FormatException('Invalid data pack manifest signature.');
-    }
-    final parsedSignature = signature;
-    if (parsedSignature == null) {
-      throw const FormatException('Invalid data pack manifest signature.');
-    }
-    final publicKey = productionSigningPublicKey;
-    if (publicKey != null) {
-      if (keyId != publicKey.keyId ||
-          parsedSignature.algorithm != 'rsa-sha256-manifest-v2' ||
-          !publicKey.verify(canonical, parsedSignature.value)) {
-        throw const FormatException('Invalid data pack manifest signature.');
+      for (final value in current.values) {
+        stack.add((value, depth + 1));
       }
-      return;
-    }
-    if (parsedSignature.algorithm != 'sha256-manifest-v2' ||
-        parsedSignature.value !=
-            sha256.convert(utf8.encode(canonical)).toString()) {
-      throw const FormatException('Invalid data pack manifest signature.');
+    } else if (current is List<Object?>) {
+      if (depth >= maxCanonicalJsonDepth) {
+        throw const FormatException(
+          'Data pack manifest exceeds maximum nesting depth.',
+        );
+      }
+      for (final item in current) {
+        stack.add((item, depth + 1));
+      }
     }
   }
 }
@@ -1044,27 +1056,31 @@ String _requiredString(Map<String, Object?> json, String key) {
 }
 
 Uri _parsePackUrl(String rawUrl) {
-  if (_containsRawDotSegment(rawUrl) || _containsEncodedPathBoundary(rawUrl)) {
+  if (rawUrl.contains(r'\') ||
+      rawUrl.contains('?') ||
+      rawUrl.contains('#') ||
+      _containsRawDotSegment(rawUrl) ||
+      _containsEncodedPathBoundary(rawUrl)) {
     throw const FormatException('Invalid data pack URL.');
   }
-  final uri = Uri.parse(rawUrl);
+  final uri = Uri.tryParse(rawUrl);
+  if (uri == null || uri.userInfo.isNotEmpty) {
+    throw const FormatException('Invalid data pack URL.');
+  }
   if (uri.isAbsolute) {
-    if (uri.scheme != 'https') {
+    if (!_isAbsoluteHttpsWithHost(uri)) {
       throw const FormatException('Invalid data pack URL.');
     }
     return uri;
   }
-  if (uri.hasAuthority ||
-      rawUrl.startsWith('/') ||
-      rawUrl.startsWith('//') ||
-      rawUrl.contains(r'\')) {
+  if (uri.hasAuthority || rawUrl.startsWith('/')) {
     throw const FormatException('Invalid data pack URL.');
   }
   return uri;
 }
 
 bool _containsRawDotSegment(String rawUrl) {
-  return rawUrl.split('/').any((segment) => segment == '..');
+  return rawUrl.split('/').any((segment) => segment == '..' || segment == '.');
 }
 
 bool _containsEncodedPathBoundary(String rawUrl) {

@@ -115,6 +115,35 @@ void main() {
 
     expect(find.text('station-sadang'), findsOneWidget);
   });
+
+  test('stationIdFromHomeWidgetUri는 유효하지 않거나 조작된 deep link를 거부한다', () {
+    expect(
+      stationIdFromHomeWidgetUri(
+        Uri.parse(
+          'easysubway://station/detail?stationId=KRIC_123:A.1&lineId=seoul-4',
+        ),
+      ),
+      'KRIC_123:A.1',
+    );
+    for (final badUri in [
+      null,
+      Uri.parse('https://station/detail?stationId=station-sadang'),
+      Uri.parse('easysubway://other/detail?stationId=station-sadang'),
+      Uri.parse('easysubway://station/other?stationId=station-sadang'),
+      Uri.parse('easysubway://user@station/detail?stationId=station-sadang'),
+      Uri.parse('easysubway://station:8080/detail?stationId=station-sadang'),
+      Uri.parse('easysubway://station/detail?stationId=station-sadang#frag'),
+      Uri.parse('easysubway://station/detail?stationId=../sadang'),
+      Uri.parse('easysubway://station/detail?stationId=station%20sadang'),
+      Uri.parse('easysubway://station/detail?stationId=${'a' * 65}'),
+      Uri.parse(
+        'easysubway://station/detail?stationId=station-sadang&lineId=../bad',
+      ),
+      Uri.parse('easysubway://station/detail?stationId=station-sadang&extra=1'),
+    ]) {
+      expect(stationIdFromHomeWidgetUri(badUri), isNull, reason: '$badUri');
+    }
+  });
 }
 
 const _selection = WidgetStationSelection(

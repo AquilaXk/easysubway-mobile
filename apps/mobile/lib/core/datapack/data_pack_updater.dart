@@ -4,8 +4,10 @@ import 'dart:developer' as developer;
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:meta/meta.dart';
 
+import 'atomic_file_replace.dart';
 import 'data_pack_client.dart';
 import 'data_pack_installer.dart';
 import 'data_pack_manifest.dart';
@@ -27,6 +29,7 @@ class DataPackUpdater {
       NetworkCondition.unmetered,
     ),
     this.policy = DataPackUpdatePolicyDefaults.policy,
+    this.isReleaseMode = kReleaseMode,
     HttpClient? httpClient,
     DateTime Function()? now,
   }) : _httpClient = httpClient ?? HttpClient(),
@@ -39,6 +42,7 @@ class DataPackUpdater {
   final String activePackId;
   final NetworkConditionSource networkConditionSource;
   final DataPackUpdatePolicy policy;
+  final bool isReleaseMode;
   final HttpClient _httpClient;
   final bool _ownsHttpClient;
   final DateTime Function() _now;
@@ -454,22 +458,28 @@ class DataPackUpdater {
     Uri uri,
     DataPackManifestEntry pack,
   ) async {
+    if (!isAllowedDataPackTransportUri(uri, isReleaseMode: isReleaseMode)) {
+      throw const DataPackClientException('안전하지 않은 다운로드 주소입니다.');
+    }
     final request = await _httpClient
         .getUrl(uri)
         .timeout(_dataPackDownloadTimeout);
+    request.followRedirects = false;
     final response = await request.close().timeout(_dataPackDownloadTimeout);
     if (response.statusCode != HttpStatus.ok) {
+      await response.drain<void>().timeout(_dataPackDownloadTimeout);
       throw const DataPackClientException('이동 정보를 내려받지 못했어요.');
     }
     final expectedSizeBytes = pack.sizeBytes;
     final contentLength = response.contentLength;
     final maxBytes = expectedSizeBytes ?? _maxDataPackDownloadBytes;
     if (contentLength > maxBytes || contentLength > _maxDataPackDownloadBytes) {
+      await response.drain<void>().timeout(_dataPackDownloadTimeout);
       throw const DataPackClientException('이동 정보 파일이 너무 큽니다.');
     }
     final directory = await installer.catalogDirectory.create(recursive: true);
     final temporary = File(
-      '${directory.path}/${pack.id}-v${pack.version}.sqlite.gz.downloading',
+      '${directory.path}/${pack.id}-v${pack.version}.${uniqueTempToken()}.sqlite.gz.downloading',
     );
     final sink = temporary.openWrite();
     var received = 0;

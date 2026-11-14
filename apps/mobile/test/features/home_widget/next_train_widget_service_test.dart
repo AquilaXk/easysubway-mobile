@@ -305,6 +305,29 @@ void main() {
     },
   );
 
+  test(
+    'headless refresh는 CloseableStationTimetableRepository를 실행 후 close 한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      final repo = _CloseableNoopTimetableRepository();
+
+      await expectLater(
+        runHeadlessNextTrainWidgetRefresh(
+          createTimetableRepository: (_) => repo,
+          openDatabases: () async => (catalog: catalog, user: user),
+          refresh: (_) async => throw StateError('fail'),
+          closeDatabases: ({required catalog, required user}) async {},
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(repo.closeCount, 1);
+    },
+  );
+
   test('widget configuration 루트는 ko_KR 단일 locale과 전역 delegate를 선언한다', () async {
     Widget? capturedApp;
 
@@ -419,6 +442,29 @@ void main() {
 
       expect(registered, 1);
       expect(closed, 1);
+    },
+  );
+
+  test(
+    'headless refresh는 CloseableStationTimetableRepository를 실행 후 close 한다',
+    () async {
+      final catalog = CatalogDatabase.memory();
+      final user = UserDatabase.memory();
+      addTearDown(catalog.close);
+      addTearDown(user.close);
+      final repo = _CloseableNoopTimetableRepository();
+
+      await expectLater(
+        runHeadlessNextTrainWidgetRefresh(
+          createTimetableRepository: (_) => repo,
+          openDatabases: () async => (catalog: catalog, user: user),
+          refresh: (_) async => throw StateError('fail'),
+          closeDatabases: ({required catalog, required user}) async {},
+        ),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(repo.closeCount, 1);
     },
   );
 
@@ -1003,6 +1049,39 @@ void main() {
     expect(loaded, ['station-a', 'station-b']);
     expect(updateCount, 1);
   });
+
+  testWidgets('configureMain은 loadSelections 후 timetable repository를 닫는다', (
+    tester,
+  ) async {
+    final catalog = CatalogDatabase.memory();
+    final user = UserDatabase.memory();
+    addTearDown(catalog.close);
+    addTearDown(user.close);
+    final repo = _CloseableNoopTimetableRepository();
+    late Widget launchedWidget;
+    var closedDbCount = 0;
+
+    await configureMain(
+      createTimetableRepository: (_) => repo,
+      initializeAndRegisterRefresh: () async {},
+      readWidgetId: () async => '42',
+      runWidgetApp: (widget) => launchedWidget = widget,
+      openDatabases: () async => (catalog: catalog, user: user),
+      closeDatabases: ({required catalog, required user}) async {
+        closedDbCount += 1;
+      },
+      saveWidgetValue: (_, _) async {},
+      updateNativeWidget: () async {},
+      finishConfiguration: () async {},
+    );
+
+    await tester.pumpWidget(launchedWidget);
+    await tester.pumpAndSettle();
+
+    expect(find.text('시간표가 있는 즐겨찾기 역이 없어요.'), findsOneWidget);
+    expect(repo.closeCount, 1);
+    expect(closedDbCount, 1);
+  });
 }
 
 Map<String, String> _twoWidgetValues() => {
@@ -1122,4 +1201,14 @@ class _NoopTimetableRepository implements StationTimetableRepository {
     required String lineId,
     required DateTime date,
   }) => throw UnimplementedError();
+}
+
+class _CloseableNoopTimetableRepository extends _NoopTimetableRepository
+    implements CloseableStationTimetableRepository {
+  int closeCount = 0;
+
+  @override
+  void close({bool force = false}) {
+    closeCount += 1;
+  }
 }

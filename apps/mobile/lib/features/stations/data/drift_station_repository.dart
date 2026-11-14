@@ -77,11 +77,12 @@ class DriftStationRepository
 
       final candidateIds = <String>{};
       if (_isHangulJamoOnly(normalizedQuery)) {
-        candidateIds.addAll(
-          index.lookupChosungPrefix(_chosungKey(normalizedQuery)),
+        index.collectChosungPrefixInto(
+          _chosungKey(normalizedQuery),
+          candidateIds,
         );
       } else {
-        candidateIds.addAll(index.lookupNamePrefix(normalizedQuery));
+        index.collectNamePrefixInto(normalizedQuery, candidateIds);
         // substring(rank 2) 보존: prefix에 없는 역만 포함 여부를 검사한다.
         for (final station in stations) {
           if (candidateIds.contains(station.id)) {
@@ -128,12 +129,17 @@ class DriftStationRepository
         }
         return a.station.nameKo.compareTo(b.station.nameKo);
       });
-      final exactCount = ranked.where((entry) => entry.rank == 0).length;
-      final limit = math.max(_maxSearchResults, exactCount);
-      return ranked
-          .take(limit)
-          .map((entry) => entry.station.toSearchResult())
-          .toList(growable: false);
+      var exactCount = 0;
+      while (exactCount < ranked.length && ranked[exactCount].rank == 0) {
+        exactCount++;
+      }
+      final limit = math.min(
+        ranked.length,
+        math.max(_maxSearchResults, exactCount),
+      );
+      return [
+        for (var i = 0; i < limit; i++) ranked[i].station.toSearchResult(),
+      ];
     });
   }
 
@@ -573,50 +579,73 @@ class DriftStationRepository
           ),
         )
         .toList(growable: false);
-    final selectedLineIds = {
-      for (final line in lines)
-        if (lineId == null || lineId.trim().isEmpty || line.id == lineId.trim())
-          line.id,
-    };
-    final stationRows = await database
-        .customSelect(
-          '''
-          SELECT
-            s.id,
-            s.name_ko,
-            s.name_en,
-            s.region,
-            sl.line_id,
-            sl.station_code,
-            sl.line_sequence,
-            rmp.x,
-            rmp.y,
-            rmp.label_dx,
-            rmp.label_dy,
-            rmp.label_polygon,
-            rmp.up_path,
-            rmp.down_path,
-            rmp.source_id
-          FROM route_map_positions rmp
-          JOIN station_lines sl
-            ON sl.station_id = rmp.station_id
-           AND sl.line_id = rmp.line_id
-          JOIN stations s ON s.id = rmp.station_id
-          WHERE rmp.region = ?
-          ORDER BY sl.line_id, sl.line_sequence
-          ''',
-          variables: [Variable.withString(selectedRegion)],
-        )
-        .get();
-    final stations = stationRows
-        .where((row) => selectedLineIds.contains(row.read<String>('line_id')))
-        .map(
-          (row) => NetworkMapStation(
-            id: row.read<String>('id'),
+    final requestedLineId = lineId?.trim();
+    final hasLineFilter = requestedLineId != null && requestedLineId.isNotEmpty;
+    final selectedLineIds = hasLineFilter
+        ? {
+            for (final line in lines)
+              if (line.id == requestedLineId) line.id,
+          }
+        : {for (final line in lines) line.id};
+
+    final stations = <NetworkMapStation>[];
+    final stationLineMemberships = <NetworkMapStationLineMembership>[];
+    if (!hasLineFilter || selectedLineIds.isNotEmpty) {
+      final stationRows = await database
+          .customSelect(
+            '''
+            SELECT
+              s.id,
+              s.name_ko,
+              s.name_en,
+              s.region,
+              sl.line_id,
+              sl.station_code,
+              sl.line_sequence,
+              rmp.x,
+              rmp.y,
+              rmp.label_dx,
+              rmp.label_dy,
+              rmp.label_polygon,
+              rmp.up_path,
+              rmp.down_path,
+              rmp.source_id
+            FROM route_map_positions rmp
+            JOIN station_lines sl
+              ON sl.station_id = rmp.station_id
+             AND sl.line_id = rmp.line_id
+            JOIN stations s ON s.id = rmp.station_id
+            WHERE rmp.region = ?${hasLineFilter ? ' AND sl.line_id = ?' : ''}
+            ORDER BY sl.line_id, sl.line_sequence
+            ''',
+            variables: [
+              Variable.withString(selectedRegion),
+              if (hasLineFilter) Variable.withString(requestedLineId),
+            ],
+          )
+          .get();
+      for (final row in stationRows) {
+        final stationId = row.read<String>('id');
+        final rowLineId = row.read<String>('line_id');
+        if (!hasLineFilter) {
+          stationLineMemberships.add(
+            NetworkMapStationLineMembership(
+              stationId: stationId,
+              lineId: rowLineId,
+            ),
+          );
+          if (!selectedLineIds.contains(rowLineId)) {
+            continue;
+          }
+        }
+        final labelPolygon = row.read<String>('label_polygon');
+        stations.add(
+          NetworkMapStation(
+            id: stationId,
             nameKo: row.read<String>('name_ko'),
             nameEn: row.read<String>('name_en'),
             region: row.read<String>('region'),
-            lineId: row.read<String>('line_id'),
+            lineId: rowLineId,
             stationCode: row.read<String>('station_code'),
             sequence: row.read<int>('line_sequence'),
             position: NetworkMapPosition(
@@ -624,52 +653,92 @@ class DriftStationRepository
               y: (row.data['y'] as num).round(),
               labelDx: row.read<int>('label_dx'),
               labelDy: row.read<int>('label_dy'),
-              labelPolygon: row.read<String>('label_polygon'),
+              labelPolygon: labelPolygon,
               upPath: row.read<String>('up_path'),
               downPath: row.read<String>('down_path'),
               sourceId: row.read<String>('source_id'),
+              parsedLabelPolygon: parseRouteMapLabelPolygonData(labelPolygon),
             ),
           ),
-        )
-        .toList(growable: false);
-    final stationLineMemberships = stationRows
-        .map(
-          (row) => NetworkMapStationLineMembership(
-            stationId: row.read<String>('id'),
-            lineId: row.read<String>('line_id'),
-          ),
-        )
-        .toList(growable: false);
+        );
+      }
+    }
+    if (hasLineFilter) {
+      stationLineMemberships.addAll(
+        await _networkMapStationLineMemberships(selectedRegion),
+      );
+    }
     return NetworkMapData(
       regions: await _networkMapRegions(),
       selectedRegion: selectedRegion,
       lines: lines,
-      stations: stations,
+      stations: List<NetworkMapStation>.unmodifiable(stations),
       edges: await _networkMapRideEdges(
         stations: stations,
         selectedLineIds: selectedLineIds,
+        filterLineId: hasLineFilter ? requestedLineId : null,
       ),
       positionSources: await _networkMapPositionSources(selectedRegion),
-      stationLineMemberships: stationLineMemberships,
-      lineTracks: await _networkMapLineTracks(selectedRegion, selectedLineIds),
+      stationLineMemberships:
+          List<NetworkMapStationLineMembership>.unmodifiable(
+            stationLineMemberships,
+          ),
+      lineTracks: await _networkMapLineTracks(
+        selectedRegion,
+        selectedLineIds,
+        filterLineId: hasLineFilter ? requestedLineId : null,
+      ),
     );
+  }
+
+  Future<List<NetworkMapStationLineMembership>>
+  _networkMapStationLineMemberships(String region) async {
+    final rows = await database
+        .customSelect(
+          '''
+          SELECT rmp.station_id AS id, sl.line_id
+          FROM route_map_positions rmp
+          JOIN station_lines sl
+            ON sl.station_id = rmp.station_id
+           AND sl.line_id = rmp.line_id
+          WHERE rmp.region = ?
+          ORDER BY sl.line_id, sl.line_sequence
+          ''',
+          variables: [Variable.withString(region)],
+        )
+        .get();
+    return [
+      for (final row in rows)
+        NetworkMapStationLineMembership(
+          stationId: row.read<String>('id'),
+          lineId: row.read<String>('line_id'),
+        ),
+    ];
   }
 
   /// route_map_line_tracks에서 노선별 track path를 track_index 순으로 로드한다(#1638).
   /// 선택 노선 필터를 반영하고, 구팩(테이블 없음)은 빈 목록을 반환한다.
   Future<List<NetworkMapLineTrack>> _networkMapLineTracks(
     String region,
-    Set<String> selectedLineIds,
-  ) async {
+    Set<String> selectedLineIds, {
+    String? filterLineId,
+  }) async {
+    if (selectedLineIds.isEmpty) {
+      return const [];
+    }
+    final hasLineFilter = filterLineId != null && filterLineId.isNotEmpty;
     final rows = await database
         .customSelect(
           '''
           SELECT line_id, path
           FROM route_map_line_tracks
-          WHERE region = ?
+          WHERE region = ?${hasLineFilter ? ' AND line_id = ?' : ''}
           ORDER BY line_id, track_index
           ''',
-          variables: [Variable.withString(region)],
+          variables: [
+            Variable.withString(region),
+            if (hasLineFilter) Variable.withString(filterLineId),
+          ],
         )
         .get();
     final pathsByLine = <String, List<String>>{};
@@ -749,14 +818,17 @@ class DriftStationRepository
   Future<List<NetworkMapEdge>> _networkMapRideEdges({
     required List<NetworkMapStation> stations,
     required Set<String> selectedLineIds,
+    String? filterLineId,
   }) async {
     if (stations.isEmpty || selectedLineIds.isEmpty) {
       return const [];
     }
+    final hasLineFilter = filterLineId != null && filterLineId.isNotEmpty;
     final stationKeys = {
       for (final station in stations) _mapStationKey(station),
     };
-    final rows = await database.customSelect('''
+    final rows = await database.customSelect(
+      '''
           SELECT
             id,
             from_node_id,
@@ -766,8 +838,20 @@ class DriftStationRepository
           FROM network_edges
           WHERE edge_type = 'RIDE'
             AND UPPER(COALESCE(service_class, 'SUBWAY')) = 'SUBWAY'
-            AND UPPER(COALESCE(NULLIF(service_pattern, ''), 'LOCAL')) = 'LOCAL'
-          ''').get();
+            AND UPPER(COALESCE(NULLIF(service_pattern, ''), 'LOCAL')) = 'LOCAL'${hasLineFilter ? '''
+
+            AND INSTR(from_node_id, ':') > 1
+            AND SUBSTR(from_node_id, INSTR(from_node_id, ':') + 1) = ?
+            AND INSTR(to_node_id, ':') > 1
+            AND SUBSTR(to_node_id, INSTR(to_node_id, ':') + 1) = ?''' : ''}
+          ''',
+      variables: hasLineFilter
+          ? [
+              Variable.withString(filterLineId),
+              Variable.withString(filterLineId),
+            ]
+          : const [],
+    ).get();
     final edges = <NetworkMapEdge>[];
     for (final row in rows) {
       final fromNodeId = row.read<String>('from_node_id');
@@ -814,9 +898,12 @@ class DriftStationRepository
     stationId = await database.resolveCanonicalStationId(stationId);
     final cached = _stationSummaryCache;
     if (cached != null) {
-      return (await cached)
-          .where((summary) => summary.id == stationId)
-          .toList(growable: false);
+      final cachedStations = await cached;
+      final byId = _stationByIdCache ??= {
+        for (final summary in cachedStations) summary.id: summary,
+      };
+      final match = byId[stationId];
+      return match == null ? const [] : [match];
     }
 
     return _readStationSummaries(stationId: stationId);
@@ -1144,8 +1231,10 @@ String _lineSearchName(String lineName) {
   return lineName.replaceAll('수도권 ', '').replaceAll('광역 ', '').trim();
 }
 
+final _numberedLinePattern = RegExp(r'(\d+)\s*호선');
+
 String _lineCode(String lineName) {
-  final numberedLine = RegExp(r'(\d+)\s*호선').firstMatch(lineName);
+  final numberedLine = _numberedLinePattern.firstMatch(lineName);
   if (numberedLine != null) {
     return numberedLine.group(1) ?? '';
   }

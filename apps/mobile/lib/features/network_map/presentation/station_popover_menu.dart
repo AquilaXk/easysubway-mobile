@@ -226,9 +226,10 @@ class StationPopoverMenu extends StatelessWidget {
 
 /// 몸통 아래 가운데에서 역을 가리키는 꼬리.
 class _TailPainter extends CustomPainter {
-  _TailPainter(this.color);
+  _TailPainter(this.color) : _paint = Paint()..color = color;
 
   final Color color;
+  final Paint _paint;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -239,7 +240,7 @@ class _TailPainter extends CustomPainter {
       ..lineTo(center + halfBase, 0)
       ..lineTo(center, size.height)
       ..close();
-    canvas.drawPath(path, Paint()..color = color);
+    canvas.drawPath(path, _paint);
   }
 
   @override

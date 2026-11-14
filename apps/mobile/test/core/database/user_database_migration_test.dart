@@ -767,7 +767,12 @@ void main() {
 
     final locker = sqlite.sqlite3.open('${directory.path}/user.db');
     addTearDown(locker.close);
+    locker.execute('PRAGMA locking_mode = EXCLUSIVE');
     locker.execute('BEGIN EXCLUSIVE');
+    locker.execute(
+      "INSERT INTO favorite_stations (station_id, line_id, added_at) "
+      "VALUES ('station-sadang', '', 1750320001)",
+    );
 
     final opener = UserDatabaseOpener(databaseDirectory: directory);
     await expectLater(opener.open(), throwsA(isA<Object>()));
@@ -826,7 +831,13 @@ void main() {
 
     final preservedPath = opener.lastRecovery!.preservedFilePath!;
     expect(await File('$preservedPath-shm').exists(), isTrue);
-    expect(await sidecar.exists(), isFalse);
+    expect(await File('$preservedPath-shm').readAsBytes(), const [0, 1, 2, 3]);
+    await database.close();
+    // macOS Apple libsqlite3는 WAL close 뒤에도 새 32KB WAL-index(-shm)를 남길 수 있다.
+    // 핵심 불변식은 기존 사이드카가 보관본으로 이동해 원본 경로에 남지 않는 것이다.
+    if (await sidecar.exists()) {
+      expect(await sidecar.readAsBytes(), isNot(const [0, 1, 2, 3]));
+    }
   });
 
   test('사용자 데이터 삭제는 보관된 원본 DB 파일도 지운다', () async {
@@ -852,6 +863,93 @@ void main() {
         .customSelect('SELECT COUNT(*) AS count FROM report_receipts')
         .getSingle();
     expect(receipts.read<int>('count'), 0);
+  });
+
+  test(
+    'UserDatabase.file은 WAL·busy_timeout·secure_delete PRAGMA를 설정한다',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'easysubway-user-pragma-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final file = File('${directory.path}/user.db');
+      final database = await _openUserDatabase(file);
+
+      final journalMode = await database
+          .customSelect('PRAGMA journal_mode')
+          .getSingle();
+      final busyTimeout = await database
+          .customSelect('PRAGMA busy_timeout')
+          .getSingle();
+      final secureDelete = await database
+          .customSelect('PRAGMA secure_delete')
+          .getSingle();
+
+      expect(journalMode.read<String>('journal_mode').toLowerCase(), 'wal');
+      expect(busyTimeout.read<int>('timeout'), 5000);
+      expect(secureDelete.read<int>('secure_delete'), 1);
+    },
+  );
+
+  test('UserDatabase는 검색 이력·즐겨찾기·접수증 조회 인덱스를 생성한다', () async {
+    final database = UserDatabase.memory();
+    addTearDown(database.close);
+    await database.customSelect('SELECT 1').get();
+
+    Future<Set<String>> indexNamesFor(String table) async {
+      final rows = await database
+          .customSelect('PRAGMA index_list($table)')
+          .get();
+      return {for (final row in rows) row.read<String>('name')};
+    }
+
+    expect(
+      await indexNamesFor('route_search_history'),
+      contains('idx_route_search_history_region_searched_at'),
+    );
+    expect(
+      await indexNamesFor('search_history'),
+      contains('idx_search_history_region_searched_at'),
+    );
+    expect(
+      await indexNamesFor('favorite_stations'),
+      contains('idx_favorite_stations_added_at'),
+    );
+    expect(
+      await indexNamesFor('favorite_facilities'),
+      containsAll([
+        'idx_favorite_facilities_station_added_at',
+        'idx_favorite_facilities_added_at',
+      ]),
+    );
+    expect(
+      await indexNamesFor('favorite_routes'),
+      containsAll([
+        'idx_favorite_routes_added_at',
+        'idx_favorite_routes_stations',
+      ]),
+    );
+    expect(
+      await indexNamesFor('report_receipts'),
+      containsAll([
+        'idx_report_receipts_report_id',
+        'idx_report_receipts_created_at',
+      ]),
+    );
+
+    final planRows = await database.customSelect('''
+      EXPLAIN QUERY PLAN
+      SELECT region, searched_at
+      FROM route_search_history
+      WHERE region = '수도권'
+      ORDER BY searched_at DESC, id DESC
+      LIMIT 10
+      ''').get();
+    final planText = planRows
+        .map((row) => row.read<String>('detail'))
+        .join('\n');
+    expect(planText, contains('idx_route_search_history_region_searched_at'));
+    expect(planText, isNot(contains('USE TEMP B-TREE FOR ORDER BY')));
   });
 }
 

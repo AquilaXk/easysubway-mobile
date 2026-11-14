@@ -23,8 +23,9 @@ StationTimetableRepository createNextTrainWidgetTimetableRepository(
   if (baseUri == null) {
     throw StateError('Journey V3 API base URL is not configured.');
   }
-  final journeyRepository = JourneyApiRepository(ApiClient(baseUri: baseUri));
-  return ServerStationTimetableRepository(
+  final apiClient = ApiClient(baseUri: baseUri);
+  final journeyRepository = JourneyApiRepository(apiClient);
+  return _CloseableNextTrainWidgetTimetableRepository(
     journeyRepository: journeyRepository,
     stationNameResolver: stationDetailNameResolver(
       DriftStationRepository(database: catalog),
@@ -33,5 +34,24 @@ StationTimetableRepository createNextTrainWidgetTimetableRepository(
       repository: journeyRepository,
       attestor: createAttestor(),
     ),
+    onClose: apiClient.close,
   );
+}
+
+class _CloseableNextTrainWidgetTimetableRepository
+    extends ServerStationTimetableRepository
+    implements CloseableStationTimetableRepository {
+  _CloseableNextTrainWidgetTimetableRepository({
+    required super.journeyRepository,
+    required super.stationNameResolver,
+    required super.sessionProvider,
+    required this._onClose,
+  });
+
+  final void Function({bool force}) _onClose;
+
+  @override
+  void close({bool force = false}) {
+    _onClose(force: force);
+  }
 }

@@ -54,13 +54,33 @@ class _HomeWidgetLinkHandlerState extends State<HomeWidgetLinkHandler> {
   }
 }
 
+final RegExp _homeWidgetIdentifierPattern = RegExp(r'^[A-Za-z0-9._:-]{1,64}$');
+
 String? stationIdFromHomeWidgetUri(Uri? uri) {
   if (uri == null ||
       uri.scheme != 'easysubway' ||
       uri.host != 'station' ||
-      uri.path != '/detail') {
+      uri.path != '/detail' ||
+      uri.userInfo.isNotEmpty ||
+      uri.hasPort ||
+      uri.hasFragment) {
     return null;
   }
-  final stationId = uri.queryParameters['stationId']?.trim();
-  return stationId == null || stationId.isEmpty ? null : stationId;
+  final query = uri.queryParameters;
+  for (final key in query.keys) {
+    if (key != 'stationId' && key != 'lineId') {
+      return null;
+    }
+  }
+  final stationId = query['stationId']?.trim();
+  if (stationId == null || !_homeWidgetIdentifierPattern.hasMatch(stationId)) {
+    return null;
+  }
+  final lineId = query['lineId']?.trim();
+  if (lineId != null &&
+      lineId.isNotEmpty &&
+      !_homeWidgetIdentifierPattern.hasMatch(lineId)) {
+    return null;
+  }
+  return stationId;
 }

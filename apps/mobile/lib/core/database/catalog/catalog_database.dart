@@ -174,7 +174,14 @@ class CatalogDatabase extends _$CatalogDatabase {
   bool get didRunSchemaMigration => _didRunSchemaMigration;
 
   factory CatalogDatabase.file(File file) {
-    return CatalogDatabase(NativeDatabase.createInBackground(file));
+    return CatalogDatabase(
+      NativeDatabase.createInBackground(
+        file,
+        setup: (database) {
+          database.execute('PRAGMA busy_timeout = 5000');
+        },
+      ),
+    );
   }
 
   factory CatalogDatabase.memory() {

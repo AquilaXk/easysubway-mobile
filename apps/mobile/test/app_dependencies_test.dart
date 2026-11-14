@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easysubway_mobile/app/app_dependencies.dart';
+import 'package:easysubway_mobile/app/next_train_widget_timetable_composition.dart';
+import 'package:easysubway_mobile/auth_headers.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
@@ -11,10 +13,14 @@ import 'package:easysubway_mobile/features/facility_report/domain/facility_repor
 import 'package:easysubway_mobile/features/facility_report/domain/facility_report_request.dart';
 import 'package:easysubway_mobile/features/ads/ad_repository.dart';
 import 'package:easysubway_mobile/features/journey/domain/journey_repository.dart';
+import 'package:easysubway_mobile/features/journey/journey_session_provider.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/realtime/realtime_repository.dart';
 import 'package:easysubway_mobile/features/service_notice/data/notice_repository.dart';
 import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
+import 'package:easysubway_mobile/features/stations/domain/station_models.dart'
+    as station_models;
+import 'package:easysubway_mobile/features/stations/domain/station_repositories.dart';
 import 'package:easysubway_mobile/features/train_search/domain/train_search_models.dart';
 import 'package:easysubway_mobile/main.dart' as app;
 import 'package:easysubway_mobile/features/journey/domain/journey_profile_models.dart';
@@ -551,6 +557,148 @@ void main() {
       );
     },
   );
+
+  test(
+    'AppDependencies.close는 내부 생성 ApiClient를 닫고 외부 주입 client는 유지한다',
+    () async {
+      var closedServerHits = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+      server.listen((request) async {
+        closedServerHits += 1;
+        request.response.statusCode = HttpStatus.noContent;
+        await request.response.close();
+      });
+
+      final catalogDatabase = CatalogDatabase.memory();
+      addTearDown(catalogDatabase.close);
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+
+      final externalClient = ApiClient(
+        baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      );
+      addTearDown(() => externalClient.close(force: true));
+
+      final dependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        apiBaseUri: () =>
+            Uri.parse('http://${server.address.host}:${server.port}'),
+        userDataDeletionAuthProvider: const NoAuthorizationHeaderProvider(),
+        enablePushNotifications: false,
+      );
+
+      // 사전 생성된 클라이언트와 지연 생성된 클라이언트를 모두 활성화한 뒤 close()를 호출한다.
+      await dependencies.adRepository!.fetchActive(
+        AdPlacement.routeResultBottom,
+      );
+      await expectLater(
+        dependencies.trainSearchRepository.stations('서울'),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        dependencies.reportRepository.getReport('report-1'),
+        throwsA(isA<Object>()),
+      );
+      final hitsBeforeClose = closedServerHits;
+      dependencies.close(force: true);
+
+      await expectLater(
+        dependencies.adRepository!.fetchActive(AdPlacement.routeResultBottom),
+        throwsA(isA<ApiException>()),
+      );
+      await expectLater(
+        dependencies.trainSearchRepository.stations('서울'),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        dependencies.userDataDeletionRepository!.deleteCurrentUserData(),
+        throwsA(isA<Object>()),
+      );
+      // close() 이후 지연 생성된 noticeRepository도 live ApiClient를 열지 못한다.
+      await dependencies.noticeRepository!.activeNotices();
+      expect(closedServerHits, hitsBeforeClose);
+      final closedLazyAds = AdRepository.lazy(
+        () => Uri.parse('http://${server.address.host}:${server.port}'),
+      )..close(force: true);
+      await expectLater(
+        closedLazyAds.fetchActive(AdPlacement.routeResultBottom),
+        throwsA(isA<ApiException>()),
+      );
+      final externalResponse = await externalClient.getJson('/health');
+      expect(externalResponse.statusCode, HttpStatus.noContent);
+    },
+  );
+
+  test(
+    'createNextTrainWidgetTimetableRepository는 위임 메서드와 close를 연결한다',
+    () async {
+      var serverHits = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+      server.listen((request) async {
+        serverHits += 1;
+        request.response.statusCode = HttpStatus.serviceUnavailable;
+        await request.response.close();
+      });
+
+      final catalogDatabase = CatalogDatabase.memory();
+      addTearDown(catalogDatabase.close);
+
+      expect(
+        () => createNextTrainWidgetTimetableRepository(
+          catalogDatabase,
+          resolveBaseUri: () => null,
+        ),
+        throwsStateError,
+      );
+
+      final repo = createNextTrainWidgetTimetableRepository(
+        catalogDatabase,
+        resolveBaseUri: () =>
+            Uri.parse('http://${server.address.host}:${server.port}'),
+        createAttestor: () => _ThrowingWidgetAttestor(),
+      );
+      expect(repo, isA<CloseableStationTimetableRepository>());
+
+      final now = DateTime.utc(2026, 8, 1, 9);
+      await expectLater(
+        repo.loadNextStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          asOf: now,
+        ),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        repo.loadStationTimetable(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          dayType: station_models.StationTimetableDayType.weekday,
+          referenceDate: now,
+        ),
+        throwsA(isA<Object>()),
+      );
+      await expectLater(
+        repo.loadStationTimetableForDate(
+          stationId: 'station-sadang',
+          lineId: 'seoul-4',
+          date: now,
+        ),
+        throwsA(isA<Object>()),
+      );
+      (repo as CloseableStationTimetableRepository).close(force: true);
+      expect(serverHits, 0);
+    },
+  );
+}
+
+class _ThrowingWidgetAttestor implements JourneyV3IntegrityAttestor {
+  @override
+  Future<String> attest(String requestHash) async {
+    throw StateError('attest failed');
+  }
 }
 
 class _InjectedNetworkMapRepository implements NetworkMapRepository {

@@ -4,7 +4,6 @@ import 'package:flutter/widgets.dart';
 
 import '../domain/network_map_models.dart';
 import '../domain/network_map_station_spatial_index.dart';
-import '../domain/route_map_label_polygon.dart';
 import '../infrastructure/cached_route_map_path.dart';
 import 'network_map_camera_policy.dart';
 
@@ -81,11 +80,9 @@ class NetworkMapGeometry {
           maxY = math.max(maxY, bounds.bottom);
         }
       }
-      final labelPolygon = parseRouteMapLabelPolygon(
-        station.position.labelPolygon,
-      );
+      final labelPolygon = station.position.parsedLabelPolygon;
       if (labelPolygon != null) {
-        final bounds = networkMapPolygonBounds(labelPolygon);
+        final bounds = labelPolygon.bounds;
         if (bounds.right <= 12000 && bounds.bottom <= 12000) {
           minX = math.min(minX, bounds.left);
           minY = math.min(minY, bounds.top);

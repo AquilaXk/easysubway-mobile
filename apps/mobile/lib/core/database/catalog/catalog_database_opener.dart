@@ -1,5 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
@@ -13,19 +15,24 @@ import '../../datapack/emergency_override_repository.dart';
 import 'catalog_database.dart';
 import 'catalog_schema_diagnostics.dart';
 
+const int _defaultBundledMaxDecompressedPackBytes = 512 * 1024 * 1024;
+
 class CatalogDatabaseOpener {
   CatalogDatabaseOpener({
     required this.databaseDirectory,
     required this.assetBundle,
     this.emergencyOverrideRepository,
+    this.maxDecompressedPackBytes = _defaultBundledMaxDecompressedPackBytes,
     DateTime Function()? now,
-  }) : _now = now ?? DateTime.now;
+  }) : assert(maxDecompressedPackBytes > 0),
+       _now = now ?? DateTime.now;
 
   static const indexAssetPath = 'assets/datapacks/index.json';
 
   final Directory databaseDirectory;
   final AssetBundle assetBundle;
   final EmergencyOverrideRepository? emergencyOverrideRepository;
+  final int maxDecompressedPackBytes;
   final DateTime Function() _now;
   bool _openedBundledDataPack = false;
   String _openedArtifactIdentity = '';
@@ -60,13 +67,23 @@ class CatalogDatabaseOpener {
     await restoreInterruptedReplacements(datapackDirectory);
     final index = await _installBundledDataPacks(datapackDirectory);
 
-    final database = CatalogDatabase.file(
-      File(p.join(datapackDirectory.path, 'nationwide.sqlite')),
+    final targetFile = File(
+      p.join(datapackDirectory.path, 'nationwide.sqlite'),
     );
+    if (!await targetFile.exists()) {
+      throw StateError('Bundled nationwide catalog database is missing.');
+    }
+    final database = CatalogDatabase.file(targetFile);
     // 번들 경로도 설치 경로와 같은 구제를 거친다(#2527). 번들 팩은 마지막 대안이라
     // 거부할 상위 팩이 없으므로 구제만 하고 강등 판정은 하지 않는다.
     await database.rescueMissingCatalogTables();
-    await database.seedBaselineIfEmpty();
+    final stationCountRow = await database
+        .customSelect('SELECT COUNT(*) AS count FROM stations')
+        .getSingle();
+    if (stationCountRow.read<int>('count') <= 0) {
+      await database.close();
+      throw StateError('Bundled catalog database contains no stations.');
+    }
     await _writeBundledFreshness(datapackDirectory, index);
     _openedBundledDataPack = true;
     _openedArtifactIdentity = p.normalize(
@@ -405,6 +422,11 @@ class CatalogDatabaseOpener {
   ) async {
     final id = pack.id;
     final asset = pack.asset;
+    if (!asset.startsWith('assets/') ||
+        asset.contains('..') ||
+        asset.contains(r'\')) {
+      throw FormatException('Invalid bundled data pack asset path: $asset');
+    }
     final expectedCompressedSha256 = pack.sha256;
     final expectedSqliteSha256 = pack.sqliteSha256;
 
@@ -422,15 +444,26 @@ class CatalogDatabaseOpener {
       byteData.offsetInBytes,
       byteData.lengthInBytes,
     );
-    if (sha256.convert(compressedBytes).toString() !=
-        expectedCompressedSha256) {
-      throw const FormatException('Data pack checksum mismatch.');
-    }
-
-    final databaseBytes = gzip.decode(compressedBytes);
-    if (sha256.convert(databaseBytes).toString() != expectedSqliteSha256) {
-      throw const FormatException('Data pack sqlite checksum mismatch.');
-    }
+    final maxBytes = maxDecompressedPackBytes;
+    final transferableCompressed = TransferableTypedData.fromList([
+      compressedBytes,
+    ]);
+    final transferableDatabase = await Isolate.run(() {
+      final compressed = transferableCompressed.materialize().asUint8List();
+      if (sha256.convert(compressed).toString() != expectedCompressedSha256) {
+        throw const FormatException('Data pack checksum mismatch.');
+      }
+      final sink = _BoundedBytesSink(maxBytes);
+      final input = gzip.decoder.startChunkedConversion(sink);
+      input.add(compressed);
+      input.close();
+      final decoded = sink.takeBytes();
+      if (sha256.convert(decoded).toString() != expectedSqliteSha256) {
+        throw const FormatException('Data pack sqlite checksum mismatch.');
+      }
+      return TransferableTypedData.fromList([decoded]);
+    });
+    final databaseBytes = transferableDatabase.materialize().asUint8List();
 
     await _replaceInstalledDataPack(target, databaseBytes);
   }
@@ -447,12 +480,16 @@ class CatalogDatabaseOpener {
     final target = File(
       p.join(datapackDirectory.path, 'bundled-freshness.json'),
     );
-    final temporary = File('${target.path}.installing');
-    await temporary.writeAsString(
-      '${jsonEncode({'status': stale ? 'STALE' : 'FRESH', 'freshnessExpiresAt': index.freshnessExpiresAt.toIso8601String(), 'reasonCode': stale ? 'BUNDLED_PACK_EXPIRED' : 'NONE', 'labelKo': stale ? '저장된 데이터 기준 · 갱신 필요' : ''})}\n',
-      flush: true,
-    );
-    await _replaceFile(temporary, target);
+    final temporary = File('${target.path}.${uniqueTempToken()}.installing');
+    try {
+      await temporary.writeAsString(
+        '${jsonEncode({'status': stale ? 'STALE' : 'FRESH', 'freshnessExpiresAt': index.freshnessExpiresAt.toIso8601String(), 'reasonCode': stale ? 'BUNDLED_PACK_EXPIRED' : 'NONE', 'labelKo': stale ? '저장된 데이터 기준 · 갱신 필요' : ''})}\n',
+        flush: true,
+      );
+      await _replaceFile(temporary, target);
+    } finally {
+      await _deleteIfExists(temporary);
+    }
   }
 
   /// 번들 팩을 디스크의 팩 파일로 되돌린다(#2532).
@@ -466,13 +503,13 @@ class CatalogDatabaseOpener {
     File target,
     List<int> databaseBytes,
   ) async {
-    final temporary = File('${target.path}.installing');
-    if (await temporary.exists()) {
-      await temporary.delete();
+    final temporary = File('${target.path}.${uniqueTempToken()}.installing');
+    try {
+      await temporary.writeAsBytes(databaseBytes, flush: true);
+      await replaceFileAtomically(temporary: temporary, target: target);
+    } finally {
+      await _deleteIfExists(temporary);
     }
-
-    await temporary.writeAsBytes(databaseBytes, flush: true);
-    await replaceFileAtomically(temporary: temporary, target: target);
   }
 
   Future<void> _replaceFile(File temporary, File target) async {
@@ -492,4 +529,26 @@ int _installedPackVersion(File file) {
     return 0;
   }
   return int.tryParse(match.group(1)!) ?? 0;
+}
+
+class _BoundedBytesSink implements Sink<List<int>> {
+  _BoundedBytesSink(this.maxBytes);
+
+  final int maxBytes;
+  final BytesBuilder _builder = BytesBuilder(copy: false);
+  int _totalBytes = 0;
+
+  @override
+  void add(List<int> chunk) {
+    _totalBytes += chunk.length;
+    if (_totalBytes > maxBytes) {
+      throw FormatException('Decompressed data pack exceeds $maxBytes bytes.');
+    }
+    _builder.add(chunk);
+  }
+
+  @override
+  void close() {}
+
+  Uint8List takeBytes() => _builder.takeBytes();
 }

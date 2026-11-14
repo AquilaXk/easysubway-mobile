@@ -10,7 +10,15 @@ import 'server_station_timetable_repository.dart';
 class DriftStationTimetableRepository implements StationTimetableRepository {
   const DriftStationTimetableRepository({required this.database});
 
+  static const int _maxHorizonDays = 8;
+
   final CatalogDatabase database;
+
+  static String _formatDateKey(DateTime seoulDate) {
+    return '${seoulDate.year.toString().padLeft(4, '0')}'
+        '${seoulDate.month.toString().padLeft(2, '0')}'
+        '${seoulDate.day.toString().padLeft(2, '0')}';
+  }
 
   @override
   Future<StationTimetable> loadStationTimetable({
@@ -26,10 +34,11 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
     };
 
     final seoulRef = journeySeoulWallTime(referenceDate);
-    final dateKey =
-        '${seoulRef.year.toString().padLeft(4, '0')}'
-        '${seoulRef.month.toString().padLeft(2, '0')}'
-        '${seoulRef.day.toString().padLeft(2, '0')}';
+    final dateKey = _formatDateKey(seoulRef);
+    final feedEndDate = await database.transitFeedEndDate();
+    if (feedEndDate != null && dateKey.compareTo(feedEndDate) > 0) {
+      throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
+    }
 
     final rows = await database
         .customSelect(
@@ -42,8 +51,8 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
             FROM transit_stop_times st2
             JOIN stations s2 ON s2.id = st2.station_id
             WHERE st2.trip_id = st.trip_id
-              AND st2.departure_seconds > st.departure_seconds
-            ORDER BY st2.departure_seconds ASC LIMIT 1
+              AND st2.stop_sequence > st.stop_sequence
+            ORDER BY st2.stop_sequence ASC LIMIT 1
           ) || ' 방면',
           r.direction_name
         ) AS resolved_direction_name,
@@ -54,30 +63,46 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       FROM transit_stop_times st
       JOIN transit_trips t ON t.id = st.trip_id
       JOIN transit_routes r ON r.id = t.route_id
-      JOIN service_calendars sc ON sc.service_id = t.service_id
+      LEFT JOIN service_calendars sc ON sc.service_id = t.service_id
       WHERE st.station_id = ?
         AND st.line_id = ?
         AND st.pickup_type = 0
         AND (
-          (? = 'weekday' AND (sc.monday = 1 OR sc.tuesday = 1 OR sc.wednesday = 1 OR sc.thursday = 1 OR sc.friday = 1))
-          OR (? = 'saturday' AND sc.saturday = 1)
-          OR (? = 'sundayHoliday' AND sc.sunday = 1)
-        )
-        AND NOT EXISTS (
-          SELECT 1
-          FROM service_calendar_dates scd
-          WHERE scd.service_id = t.service_id
-            AND scd.date = ?
-            AND scd.exception_type = 2
+          (
+            sc.start_date <= ?
+            AND sc.end_date >= ?
+            AND (
+              (? = 'weekday' AND (sc.monday = 1 OR sc.tuesday = 1 OR sc.wednesday = 1 OR sc.thursday = 1 OR sc.friday = 1))
+              OR (? = 'saturday' AND sc.saturday = 1)
+              OR (? = 'sundayHoliday' AND sc.sunday = 1)
+            )
+            AND NOT EXISTS (
+              SELECT 1
+              FROM service_calendar_dates scd
+              WHERE scd.service_id = t.service_id
+                AND scd.date = ?
+                AND scd.exception_type = 2
+            )
+          )
+          OR EXISTS (
+            SELECT 1
+            FROM service_calendar_dates scd_add
+            WHERE scd_add.service_id = t.service_id
+              AND scd_add.date = ?
+              AND scd_add.exception_type = 1
+          )
         )
       ORDER BY resolved_direction_name, st.departure_seconds
       ''',
           variables: [
             Variable.withString(stationId),
             Variable.withString(lineId),
+            Variable.withString(dateKey),
+            Variable.withString(dateKey),
             Variable.withString(dayKey),
             Variable.withString(dayKey),
             Variable.withString(dayKey),
+            Variable.withString(dateKey),
             Variable.withString(dateKey),
           ],
         )
@@ -157,58 +182,130 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
     required DateTime asOf,
     int horizonDays = 1,
   }) async {
+    if (horizonDays < 1 || horizonDays > _maxHorizonDays) {
+      throw const StationTimetableUnavailable(
+        'Invalid next-departures horizon.',
+      );
+    }
     final serviceDate = journeyCurrentServiceDay(asOf);
-    final timetable = await loadStationTimetableForDate(
-      stationId: stationId,
-      lineId: lineId,
-      date: serviceDate,
-    );
     final wall = journeySeoulWallTime(asOf);
     final nowSeconds = wall.hour * 3600 + wall.minute * 60 + wall.second;
     final effectiveSeconds = wall.hour < 3 ? nowSeconds + 86400 : nowSeconds;
-    final filteredDirections = <StationTimetableDirection>[];
-    for (final dir in timetable.directions) {
-      final upcoming = dir.departures
-          .where((d) => d.seconds >= effectiveSeconds)
-          .toList(growable: false);
-      if (upcoming.isNotEmpty) {
-        filteredDirections.add(
-          StationTimetableDirection(name: dir.name, departures: upcoming),
+
+    StationTimetableDayType? firstCoveredDayType;
+    late StationTimetableUnavailable lastUnavailable;
+
+    for (var dayOffset = 0; dayOffset < horizonDays; dayOffset++) {
+      final targetDate = DateTime.utc(
+        serviceDate.year,
+        serviceDate.month,
+        serviceDate.day + dayOffset,
+      );
+      final StationTimetable timetable;
+      try {
+        timetable = await loadStationTimetableForDate(
+          stationId: stationId,
+          lineId: lineId,
+          date: targetDate,
+        );
+      } on StationTimetableUnavailable catch (error) {
+        lastUnavailable = error;
+        if (dayOffset == 0 && horizonDays == 1) {
+          rethrow;
+        }
+        continue;
+      }
+
+      firstCoveredDayType ??= timetable.dayType;
+      final minSeconds = dayOffset == 0 ? effectiveSeconds : 0;
+      final filteredDirections = <StationTimetableDirection>[];
+      for (final dir in timetable.directions) {
+        final upcoming = dir.departures
+            .where((d) => d.seconds >= minSeconds)
+            .toList(growable: false);
+        if (upcoming.isNotEmpty) {
+          filteredDirections.add(
+            StationTimetableDirection(name: dir.name, departures: upcoming),
+          );
+        }
+      }
+      if (filteredDirections.isNotEmpty) {
+        return StationTimetable(
+          stationId: stationId,
+          lineId: lineId,
+          dayType: timetable.dayType,
+          directions: List.unmodifiable(filteredDirections),
+          isOfflineFallback: true,
         );
       }
     }
-    return StationTimetable(
-      stationId: stationId,
-      lineId: lineId,
-      dayType: timetable.dayType,
-      directions: List.unmodifiable(filteredDirections),
-      isOfflineFallback: true,
-    );
+
+    if (firstCoveredDayType != null) {
+      return StationTimetable(
+        stationId: stationId,
+        lineId: lineId,
+        dayType: firstCoveredDayType,
+        directions: const [],
+        isOfflineFallback: true,
+      );
+    }
+    throw lastUnavailable;
   }
 
   Future<StationTimetableDayType> _resolveDayTypeForDate(DateTime date) async {
     final seoulDate = journeySeoulWallTime(date);
-    final dateKey =
-        '${seoulDate.year.toString().padLeft(4, '0')}'
-        '${seoulDate.month.toString().padLeft(2, '0')}'
-        '${seoulDate.day.toString().padLeft(2, '0')}';
-
-    final holidayExceptionRows = await database
-        .customSelect(
-          '''
-      SELECT 1 FROM service_calendar_dates
-      WHERE date = ? AND exception_type = 1
-      LIMIT 1
-      ''',
-          variables: [Variable.withString(dateKey)],
-        )
-        .get();
-
-    if (holidayExceptionRows.isNotEmpty ||
-        seoulDate.weekday == DateTime.sunday) {
+    if (seoulDate.weekday == DateTime.sunday) {
       return StationTimetableDayType.sundayHoliday;
     }
-    if (seoulDate.weekday == DateTime.saturday) {
+    final dateKey = _formatDateKey(seoulDate);
+    final weekday = seoulDate.weekday;
+
+    final holidayOverrideRow = await database
+        .customSelect(
+          '''
+      SELECT EXISTS(
+        SELECT 1
+        FROM service_calendar_dates scd
+        JOIN service_calendars sc ON sc.service_id = scd.service_id
+        WHERE scd.date = ?
+          AND scd.exception_type = 1
+          AND (
+            sc.sunday = 1
+            OR NOT EXISTS (
+              SELECT 1
+              FROM service_calendars reg
+              WHERE reg.start_date <= ?
+                AND reg.end_date >= ?
+                AND (
+                  (? = 6 AND reg.saturday = 1)
+                  OR (? BETWEEN 1 AND 5 AND (reg.monday = 1 OR reg.tuesday = 1 OR reg.wednesday = 1 OR reg.thursday = 1 OR reg.friday = 1))
+                )
+                AND NOT EXISTS (
+                  SELECT 1
+                  FROM service_calendar_dates exc
+                  WHERE exc.service_id = reg.service_id
+                    AND exc.date = ?
+                    AND exc.exception_type = 2
+                )
+            )
+          )
+      ) AS is_holiday_override
+      ''',
+          variables: [
+            Variable.withString(dateKey),
+            Variable.withString(dateKey),
+            Variable.withString(dateKey),
+            Variable.withInt(weekday),
+            Variable.withInt(weekday),
+            Variable.withString(dateKey),
+          ],
+        )
+        .getSingle();
+
+    if (holidayOverrideRow.read<int>('is_holiday_override') == 1) {
+      return StationTimetableDayType.sundayHoliday;
+    }
+    if (weekday == DateTime.saturday) {
       return StationTimetableDayType.saturday;
     }
     return StationTimetableDayType.weekday;

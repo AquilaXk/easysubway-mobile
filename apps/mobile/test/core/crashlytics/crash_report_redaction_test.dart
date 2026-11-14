@@ -611,6 +611,73 @@ void main() {
       expect(sanitizeCrashCustomKeyValue('device_class', 'pixel8pro'), isNull);
     });
   });
+
+  group('토큰·헤더·내부 경로 redaction', () {
+    test('Authorization 헤더와 Bearer 토큰을 마스킹한다', () {
+      const header =
+          'Authorization: Bearer '
+          'eyJhbGciOiJIUzI1NiJ9.U1lOVEhFVElDLXBheWxvYWQ.U1lOVEhFVElDLXNpZ25hdHVyZQ';
+      final redactedHeader = redactSensitiveText(header);
+      expect(redactedHeader, isNot(contains('eyJhbGciOiJIUzI1NiJ9')));
+      expect(redactedHeader, contains('<redacted-token>'));
+
+      const standaloneBearer = 'Bearer synthetic-bearer-secret-001';
+      expect(redactSensitiveText(standaloneBearer), 'Bearer <redacted-token>');
+
+      const basicHeader =
+          'Authorization: Basic c3ludGhldGljOnN5bnRoZXRpYy1wYXNzd29yZA==';
+      final redactedBasic = redactSensitiveText(basicHeader);
+      expect(
+        redactedBasic,
+        isNot(contains('c3ludGhldGljOnN5bnRoZXRpYy1wYXNzd29yZA==')),
+      );
+      expect(redactedBasic, contains('<redacted-token>'));
+    });
+
+    test('x-admin-token, API key, 상대 URL query token을 마스킹한다', () {
+      final adminHeader = redactSensitiveText(
+        'x-admin-token: synthetic-admin-token-xyz, x-api-key=synthetic-api-xyz',
+      );
+      expect(adminHeader, isNot(contains('synthetic-admin-token-xyz')));
+      expect(adminHeader, isNot(contains('synthetic-api-xyz')));
+      expect(adminHeader, contains('<redacted-token>'));
+
+      final relativeQuery = redactSensitiveText(
+        'GET /api/v1/stations?token=synthetic-q-123&api_key=synthetic-k-456',
+      );
+      expect(relativeQuery, isNot(contains('synthetic-q-123')));
+      expect(relativeQuery, isNot(contains('synthetic-k-456')));
+      expect(relativeQuery, contains('<redacted-token>'));
+
+      final prefixedKey = redactSensitiveText(
+        'key=AIzaSy-SYNTHETIC-not-a-real-key '
+        'oauth=ya29.SYNTHETIC-oauth-access-token-not-real-0000',
+      );
+      expect(prefixedKey, isNot(contains('AIzaSy-SYNTHETIC-not-a-real-key')));
+      expect(prefixedKey, isNot(contains('ya29.SYNTHETIC')));
+      expect(prefixedKey, contains('<redacted-token>'));
+    });
+
+    test('Android /data/user 및 macOS /Users 내부 경로를 마스킹한다', () {
+      expect(
+        redactSensitiveText(
+          'failed opening /data/user/0/com.easysubway.app/files/user.sqlite',
+        ),
+        'failed opening <redacted-path>',
+      );
+      expect(
+        redactSensitiveText(
+          'cache missing /Users/synthetic-person/Library/Caches/pack.sqlite',
+        ),
+        'cache missing <redacted-path>',
+      );
+      final fileOnce = redactSensitiveText(
+        'file:///Users/synthetic-person/app/lib/main.dart:1:1',
+      );
+      expect(fileOnce, 'file://<redacted-path>/lib/main.dart:1:1');
+      expect(redactSensitiveText(fileOnce), fileOnce);
+    });
+  });
 }
 
 /// `toString()`이 동기 throw하는 custom StackTrace(R6#3 재현용).

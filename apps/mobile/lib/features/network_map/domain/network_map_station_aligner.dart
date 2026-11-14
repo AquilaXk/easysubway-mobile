@@ -3,10 +3,12 @@ import 'route_map_line_overlay_index.dart' show routeMapBasemapRegionId;
 import 'route_map_owner_labels.dart';
 import 'route_map_owner_nodes.dart';
 
+final RegExp _parenthesizedSuffixPattern = RegExp(r'\(.*?\)');
+
 /// 역명 정규화: '석남(거북시장)' -> '석남', '서해구청' -> '서구청' 등
 /// 부역명/괄호 표기를 제거해 오너 SVG 노드(`nodes.json`) 및 라벨(`labels.json`)의 정본 역명과 매칭한다.
 String normalizeStationNameForBasemap(String name) {
-  final clean = name.replaceAll(RegExp(r'\(.*?\)'), '').trim();
+  final clean = name.replaceAll(_parenthesizedSuffixPattern, '').trim();
   if (clean == '서해구청') {
     return '서구청';
   }

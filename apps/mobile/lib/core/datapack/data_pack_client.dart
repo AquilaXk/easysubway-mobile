@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
+
 import 'data_pack_manifest.dart';
 import 'data_pack_update_state.dart';
 
@@ -17,11 +19,23 @@ class DataPackClient {
     this.productionSigningPublicKeys,
     this.expectedManifestChannel = 'production',
     this.maxResponseBytes = _defaultMaxManifestBytes,
+    this.isReleaseMode = kReleaseMode,
     HttpClient? httpClient,
     DateTime Function()? now,
   }) : _httpClient = httpClient ?? HttpClient(),
        _ownsHttpClient = httpClient == null,
-       _now = now ?? DateTime.now;
+       _now = now ?? DateTime.now {
+    if (!isAllowedDataPackTransportUri(
+      manifestUri,
+      isReleaseMode: isReleaseMode,
+    )) {
+      throw ArgumentError.value(
+        manifestUri,
+        'manifestUri',
+        'HTTPS manifest URI is required.',
+      );
+    }
+  }
 
   final Uri manifestUri;
   final DataPackUpdateStateRepository stateRepository;
@@ -29,6 +43,7 @@ class DataPackClient {
   final List<DataPackSigningPublicKey>? productionSigningPublicKeys;
   final String expectedManifestChannel;
   final int maxResponseBytes;
+  final bool isReleaseMode;
   final HttpClient _httpClient;
   final bool _ownsHttpClient;
   final DateTime Function() _now;
@@ -50,6 +65,7 @@ class DataPackClient {
     final request = await _httpClient
         .getUrl(manifestUri)
         .timeout(_manifestFetchTimeout);
+    request.followRedirects = false;
     final etag = cache?.etag;
     if (etag != null && etag.isNotEmpty) {
       request.headers.set(HttpHeaders.ifNoneMatchHeader, etag);
@@ -189,4 +205,21 @@ class DataPackClientException implements Exception {
 
   @override
   String toString() => message;
+}
+
+bool isAllowedDataPackTransportUri(Uri uri, {required bool isReleaseMode}) {
+  if (!uri.hasAuthority || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+    return false;
+  }
+  if (uri.scheme == 'https') {
+    return true;
+  }
+  if (isReleaseMode || uri.scheme != 'http') {
+    return false;
+  }
+  final host = uri.host.toLowerCase();
+  return host == 'localhost' ||
+      host == '127.0.0.1' ||
+      host == '::1' ||
+      host == '[::1]';
 }

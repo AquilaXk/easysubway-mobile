@@ -2868,6 +2868,138 @@ void main() {
       expect(override?.version, '18');
     },
   );
+
+  test('DataPackUpdater는 팩 다운로드 시 3xx 리다이렉트를 따라가지 않고 실패한다', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'easysubway-datapack-updater-redirect-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(userDatabase.close);
+    final sqliteBytes = await _validCatalogSqliteBytes(directory);
+    final compressedBytes = gzip.encode(sqliteBytes);
+
+    var redirectTargetHits = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      switch (request.uri.path) {
+        case '/manifest.json':
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..headers.contentType = ContentType.json
+            ..write(
+              jsonEncode({
+                'ttlSeconds': 60,
+                'packs': [
+                  _packJson(
+                    version: '19',
+                    url: 'packs/redirect.sqlite.gz',
+                    compressedBytes: compressedBytes,
+                    sqliteBytes: sqliteBytes,
+                  ),
+                ],
+              }),
+            );
+        case '/packs/redirect.sqlite.gz':
+          request.response
+            ..statusCode = HttpStatus.found
+            ..headers.set(HttpHeaders.locationHeader, '/packs/final.sqlite.gz');
+        default:
+          redirectTargetHits += 1;
+          request.response
+            ..statusCode = HttpStatus.ok
+            ..add(compressedBytes);
+      }
+      await request.response.close();
+    });
+
+    final updater = DataPackUpdater(
+      client: DataPackClient(
+        manifestUri: Uri.parse(
+          'http://${server.address.host}:${server.port}/manifest.json',
+        ),
+        stateRepository: DataPackUpdateStateRepository(
+          userDatabase: userDatabase,
+          now: () => DateTime.utc(2026, 7, 26, 10),
+        ),
+      ),
+      installer: DataPackInstaller(
+        catalogDirectory: Directory('${directory.path}/catalog'),
+        userDatabase: userDatabase,
+      ),
+    );
+    addTearDown(() => updater.close(force: true));
+
+    await expectLater(
+      updater.checkForUpdates(),
+      throwsA(isA<DataPackClientException>()),
+    );
+    expect(redirectTargetHits, 0);
+  });
+
+  test('DataPackUpdater는 Content-Length가 허용 크기를 넘으면 본문 읽기 전에 실패한다', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'easysubway-datapack-updater-oversize-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(userDatabase.close);
+    final sqliteBytes = await _validCatalogSqliteBytes(directory);
+    final compressedBytes = gzip.encode(sqliteBytes);
+    final declaredOversize = sqliteBytes.length + 512;
+
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      if (request.uri.path == '/manifest.json') {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..write(
+            jsonEncode({
+              'ttlSeconds': 60,
+              'packs': [
+                _packJson(
+                  version: '19',
+                  url: 'packs/oversize.sqlite.gz',
+                  compressedBytes: compressedBytes,
+                  sqliteBytes: sqliteBytes,
+                ),
+              ],
+            }),
+          );
+      } else {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentLength = declaredOversize
+          ..add(List<int>.filled(declaredOversize, 0));
+      }
+      await request.response.close();
+    });
+
+    final updater = DataPackUpdater(
+      client: DataPackClient(
+        manifestUri: Uri.parse(
+          'http://${server.address.host}:${server.port}/manifest.json',
+        ),
+        stateRepository: DataPackUpdateStateRepository(
+          userDatabase: userDatabase,
+          now: () => DateTime.utc(2026, 7, 26, 10),
+        ),
+      ),
+      installer: DataPackInstaller(
+        catalogDirectory: Directory('${directory.path}/catalog'),
+        userDatabase: userDatabase,
+      ),
+    );
+    addTearDown(() => updater.close(force: true));
+
+    await expectLater(
+      updater.checkForUpdates(),
+      throwsA(isA<DataPackClientException>()),
+    );
+  });
 }
 
 class _OverrideIntegrityFixture {

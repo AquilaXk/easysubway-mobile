@@ -1,4 +1,16 @@
 import 'dart:io';
+import 'dart:math';
+
+final Random _tempTokenRandom = Random.secure();
+var _tempTokenCounter = 0;
+
+/// 동일 프로세스·동시 isolate 간 임시 파일명 충돌을 막는 고유 접미사 토큰을 생성한다.
+String uniqueTempToken() {
+  _tempTokenCounter = (_tempTokenCounter + 1) & 0x7fffffff;
+  final timestamp = DateTime.now().microsecondsSinceEpoch.toRadixString(36);
+  final entropy = _tempTokenRandom.nextInt(0x10000000).toRadixString(36);
+  return '${pid.toRadixString(36)}-$timestamp-${_tempTokenCounter.toRadixString(36)}-$entropy';
+}
 
 /// 교체 도중 옆으로 옮겨 둔 직전 파일에 붙이는 접미사(#2532).
 ///

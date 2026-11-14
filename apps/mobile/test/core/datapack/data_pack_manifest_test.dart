@@ -734,6 +734,69 @@ void main() {
       throwsFormatException,
     );
   });
+
+  test('manifest v2는 payload 파싱 전 envelope 서명과 깊이 상한을 먼저 검증한다', () {
+    final forgedWithInvalidPack = <String, Object?>{
+      'manifestVersion': 2,
+      'channel': 'production',
+      'releaseSequence': 42,
+      'publishedAt': '2026-06-25T00:00:00.000Z',
+      'expiresAt': '2026-06-26T00:00:00.000Z',
+      'ttlSeconds': 3600,
+      'keyId': 'fixture-key',
+      'packs': [
+        {
+          'id': 'evil',
+          'version': '1',
+          // 의도적으로 잘못된 URL을 넣어 payload 파싱이 먼저 돌면 URL 오류로 빠지게 한다.
+          'url': 'http://insecure.invalid/evil.sqlite.gz',
+        },
+      ],
+      'signature': {'algorithm': 'sha256-manifest-v2', 'value': '0' * 64},
+    };
+
+    expect(
+      () => DataPackManifest.fromJson(forgedWithInvalidPack),
+      throwsA(
+        isA<FormatException>().having(
+          (error) => error.message,
+          'message',
+          contains('signature'),
+        ),
+      ),
+    );
+
+    Object? deepValue = 'leaf';
+    for (var i = 0; i < 34; i += 1) {
+      deepValue = <String, Object?>{'nested': deepValue};
+    }
+    final deepManifest = _v2FixtureManifest()..['extra'] = deepValue;
+    expect(
+      () => DataPackManifest.fromJson(deepManifest),
+      throwsFormatException,
+    );
+  });
+
+  test('데이터팩 manifest는 userInfo·query·fragment·backslash 우회 URL을 거부한다', () {
+    for (final unsafeUrl in [
+      'https://user@cdn.easysubway.example/catalog/capital-v18.sqlite.gz',
+      'https://cdn.easysubway.example/catalog/capital-v18.sqlite.gz?token=1',
+      'https://cdn.easysubway.example/catalog/capital-v18.sqlite.gz#frag',
+      r'https://cdn.easysubway.example/catalog\capital-v18.sqlite.gz',
+      'catalog/capital-v18.sqlite.gz?x=1',
+      'catalog/capital-v18.sqlite.gz#frag',
+      r'catalog\capital-v18.sqlite.gz',
+    ]) {
+      expect(
+        () => DataPackManifest.fromJson({
+          'ttlSeconds': 3600,
+          'packs': [_fixturePack(url: unsafeUrl)],
+        }),
+        throwsFormatException,
+        reason: 'should reject $unsafeUrl',
+      );
+    }
+  });
 }
 
 Map<String, Object?> _fixturePack({

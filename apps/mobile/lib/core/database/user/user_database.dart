@@ -20,6 +20,7 @@ void _setUpUserDatabaseConnection(sqlite.Database database) {
   // user.db는 foreground와 WorkManager isolate(홈 위젯·하차 알람)가 같은 경로로
   // 연다. busy timeout이 0이면 순간적인 쓰기 락도 즉시 SQLITE_BUSY로 떨어진다.
   database.execute('PRAGMA busy_timeout = 5000');
+  database.execute('PRAGMA secure_delete = ON');
 }
 
 @DriftDatabase(
@@ -92,6 +93,54 @@ class UserDatabase extends _$UserDatabase {
       },
       beforeOpen: (_) async {
         await customStatement('PRAGMA foreign_keys = ON');
+        await customStatement('PRAGMA busy_timeout = 5000');
+        await customStatement('PRAGMA journal_mode = WAL');
+        await customStatement('PRAGMA secure_delete = ON');
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_route_search_history_region_searched_at '
+          'ON route_search_history (region, searched_at DESC, id DESC)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_search_history_region_searched_at '
+          'ON search_history (region, searched_at DESC, id DESC)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_favorite_stations_added_at '
+          'ON favorite_stations (added_at DESC)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_favorite_facilities_station_added_at '
+          'ON favorite_facilities (station_id, added_at DESC)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_favorite_facilities_added_at '
+          'ON favorite_facilities (added_at DESC)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_favorite_routes_added_at '
+          'ON favorite_routes (added_at DESC)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_favorite_routes_stations '
+          'ON favorite_routes (origin_station_id, destination_station_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_report_receipts_report_id '
+          'ON report_receipts (report_id)',
+        );
+        await customStatement(
+          'CREATE INDEX IF NOT EXISTS '
+          'idx_report_receipts_created_at '
+          'ON report_receipts (created_at DESC)',
+        );
       },
     );
   }

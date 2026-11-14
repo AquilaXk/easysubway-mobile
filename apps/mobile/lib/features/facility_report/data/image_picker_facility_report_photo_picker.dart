@@ -52,8 +52,14 @@ class ImagePickerFacilityReportPhotoPicker {
   }
 
   Future<FacilityReportPhotoAttachment> _attachmentFromFile(XFile image) async {
+    final byteLength = await image.length();
+    if (byteLength <= 0 || byteLength > _maxPhotoBytes) {
+      throw const FacilityReportPhotoException(
+        _facilityReportPhotoTooLargeMessage,
+      );
+    }
     final bytes = await image.readAsBytes();
-    if (bytes.lengthInBytes > _maxPhotoBytes) {
+    if (bytes.isEmpty || bytes.lengthInBytes > _maxPhotoBytes) {
       throw const FacilityReportPhotoException(
         _facilityReportPhotoTooLargeMessage,
       );

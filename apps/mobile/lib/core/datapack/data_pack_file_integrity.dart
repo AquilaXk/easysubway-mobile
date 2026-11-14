@@ -64,7 +64,7 @@ Future<void> writeInstalledPackBaseline(
   final baseline = installedPackBaselineFile(packFile);
   // 앱과 홈 위젯 isolate가 같은 팩을 동시에 열 수 있다. 임시 이름이 고정이면 두 쪽이 같은
   // 파일에 쓰고 rename을 겨뤄, 늦은 쪽이 기준선을 옆으로 옮긴 창에서 중단될 수 있다.
-  final temporary = File('${baseline.path}.$pid.installing');
+  final temporary = File('${baseline.path}.${uniqueTempToken()}.installing');
   try {
     await temporary.writeAsString('$sha256Value\n', flush: true);
     await replaceFileAtomically(temporary: temporary, target: baseline);

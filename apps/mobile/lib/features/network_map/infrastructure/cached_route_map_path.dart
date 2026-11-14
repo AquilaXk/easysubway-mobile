@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:ui';
 
 /// Parsed route-map path와 이미 계산한 source bounds를 함께 보관한다.
@@ -8,27 +9,46 @@ class CachedRouteMapPath {
   final Rect bounds;
 }
 
-final _routeMapPathCache = <String, CachedRouteMapPath>{};
+const int _maxRouteMapPathCacheEntries = 1024;
+final LinkedHashMap<String, CachedRouteMapPath> _routeMapPathCache =
+    LinkedHashMap<String, CachedRouteMapPath>();
+final RegExp _svgPathTokenPattern = RegExp(r'[A-Za-z]|-?\d+(?:\.\d+)?');
+
+bool _isAsciiLetter(String token) {
+  if (token.length != 1) {
+    return false;
+  }
+  final code = token.codeUnitAt(0) & 0xDF;
+  return code >= 0x41 && code <= 0x5A;
+}
 
 CachedRouteMapPath cachedRouteMapPath(String pathData, Offset origin) {
   final key = '${origin.dx}:${origin.dy}:$pathData';
-  return _routeMapPathCache.putIfAbsent(key, () {
-    final path = _pathFromSvg(pathData).shift(-origin);
-    return CachedRouteMapPath(path, path.getBounds());
-  });
+  final existing = _routeMapPathCache.remove(key);
+  if (existing != null) {
+    _routeMapPathCache[key] = existing;
+    return existing;
+  }
+  final path = _pathFromSvg(pathData).shift(-origin);
+  final created = CachedRouteMapPath(path, path.getBounds());
+  if (_routeMapPathCache.length >= _maxRouteMapPathCacheEntries) {
+    _routeMapPathCache.remove(_routeMapPathCache.keys.first);
+  }
+  _routeMapPathCache[key] = created;
+  return created;
 }
 
 Path _pathFromSvg(String data) {
-  final tokens = RegExp(
-    r'[A-Za-z]|-?\d+(?:\.\d+)?',
-  ).allMatches(data).map((match) => match.group(0)!).toList();
+  final tokens = [
+    for (final match in _svgPathTokenPattern.allMatches(data)) match.group(0)!,
+  ];
   final path = Path();
   var index = 0;
   var command = '';
   var current = Offset.zero;
   var lastControl = Offset.zero;
   while (index < tokens.length) {
-    if (RegExp(r'^[A-Za-z]$').hasMatch(tokens[index])) {
+    if (_isAsciiLetter(tokens[index])) {
       command = tokens[index++];
     }
     double number() => double.parse(tokens[index++]);

@@ -41,6 +41,10 @@ Map<String, Color> routeMapLineColors(Map<String, String> hexColorByLineId) {
 /// - GTX 계열은 전체 유지: "GTX-A"→"GTX-A".
 /// - 그 외는 노선 표기 앞 4자: "수인분당"→"수인분당", "부산김해경전철"→"부산김해".
 /// 순수 함수라 전 노선 입력→출력을 스냅샷 테스트로 고정한다.
+final RegExp _hosunLineNumberPattern = RegExp(r'^(\D*?)(\d+)호선');
+final Paint _structuredAttributionBackdropPaint = Paint()
+  ..color = const Color(0xCCFFFFFF);
+
 String routeMapLineBadgeLabel(String nameKo) {
   final trimmed = nameKo.trim();
   final spaceIndex = trimmed.indexOf(' ');
@@ -50,7 +54,7 @@ String routeMapLineBadgeLabel(String nameKo) {
   if (line.isEmpty) {
     return trimmed;
   }
-  final hosun = RegExp(r'^(\D*?)(\d+)호선').firstMatch(line);
+  final hosun = _hosunLineNumberPattern.firstMatch(line);
   if (hosun != null) {
     return '${hosun.group(1)}${hosun.group(2)}';
   }
@@ -475,7 +479,7 @@ class StructuredRouteMapPainter extends CustomPainter {
     );
     canvas.drawRRect(
       RRect.fromRectAndRadius(background, const Radius.circular(3)),
-      Paint()..color = const Color(0xCCFFFFFF),
+      _structuredAttributionBackdropPaint,
     );
     painter.paint(canvas, origin);
   }
@@ -733,6 +737,10 @@ class _StructuredRouteMapViewState extends State<StructuredRouteMapView> {
   @override
   Widget build(BuildContext context) {
     _ensureAttributionPainter();
+    if (widget.camera.viewportSize.isEmpty ||
+        (widget.map.isEmpty && _attributionPainter == null)) {
+      return const SizedBox.shrink();
+    }
     final picture = _picture;
     final design = _design;
     // Picture 준비 전: 빈 레이어만 두어 첫 프레임 build를 가볍게 유지한다.

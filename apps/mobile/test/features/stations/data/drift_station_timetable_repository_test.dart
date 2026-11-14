@@ -1,5 +1,6 @@
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/features/stations/data/drift_station_timetable_repository.dart';
+import 'package:easysubway_mobile/features/stations/data/server_station_timetable_repository.dart';
 import 'package:easysubway_mobile/features/stations/domain/station_models.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -178,5 +179,223 @@ void main() {
         [60000, 88200],
       );
     });
+
+    test(
+      'transit_feed_info.feed_end_date 만료 시 TIMETABLE_NOT_COVERED로 거부한다',
+      () async {
+        await database.customStatement('''
+        CREATE TABLE transit_feed_info (
+          feed_end_date TEXT NOT NULL
+        )
+      ''');
+        await database.customStatement(
+          "INSERT INTO transit_feed_info (feed_end_date) VALUES ('20260926')",
+        );
+
+        final onBoundary = await repository.loadStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.saturday,
+          referenceDate: DateTime.utc(2026, 9, 26),
+        );
+        expect(onBoundary.isAvailable, isTrue);
+
+        await expectLater(
+          repository.loadStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            dayType: StationTimetableDayType.sundayHoliday,
+            referenceDate: DateTime.utc(2026, 9, 27),
+          ),
+          throwsA(isA<StationTimetableUnavailable>()),
+        );
+      },
+    );
+
+    test('service_calendars start_date/end_date 범위 밖 날짜는 제외한다', () async {
+      await database.customStatement('''
+        UPDATE service_calendars
+        SET start_date = '20260901', end_date = '20260930'
+        WHERE service_id = 'cal-sat'
+      ''');
+
+      await expectLater(
+        repository.loadStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.saturday,
+          referenceDate: DateTime.utc(2026, 10, 3),
+        ),
+        throwsA(isA<StationTimetableUnavailable>()),
+      );
+    });
+
+    test('service_calendar_dates exception_type = 1 추가 운행을 반영한다', () async {
+      await database.customStatement('''
+        INSERT INTO service_calendars (service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date)
+        VALUES ('cal-weekday', 1, 1, 1, 1, 1, 0, 0, '20260101', '20261231'),
+               ('cal-special', 0, 0, 0, 0, 0, 0, 0, '20260101', '20261231')
+      ''');
+      await database.customStatement('''
+        INSERT INTO transit_routes (id, line_id, direction_name)
+        VALUES ('route-weekday', 'seoul-4', '당고개 방면')
+      ''');
+      await database.customStatement('''
+        INSERT INTO transit_trips (id, route_id, service_id, service_class, service_pattern)
+        VALUES ('trip-wd-1', 'route-weekday', 'cal-weekday', 'SUBWAY', 'LOCAL'),
+               ('trip-sp-1', 'route-weekday', 'cal-special', 'SUBWAY', 'LOCAL')
+      ''');
+      await database.customStatement('''
+        INSERT INTO transit_stop_times (trip_id, stop_sequence, station_id, line_id, arrival_seconds, departure_seconds, pickup_type, drop_off_type)
+        VALUES ('trip-wd-1', 1, 'station-sangnoksu', 'seoul-4', 36000, 36000, 0, 0),
+               ('trip-sp-1', 1, 'station-sangnoksu', 'seoul-4', 50400, 50400, 0, 0)
+      ''');
+      await database.customStatement('''
+        INSERT INTO service_calendar_dates (service_id, date, exception_type)
+        VALUES ('cal-special', '20260929', 1)
+      ''');
+
+      // 평일 기본 열차 + exception_type = 1 추가 열차가 함께 조회된다.
+      final withExtra = await repository.loadStationTimetableForDate(
+        stationId: 'station-sangnoksu',
+        lineId: 'seoul-4',
+        date: DateTime.utc(2026, 9, 29, 3),
+      );
+      expect(withExtra.directions.single.departures.map((d) => d.seconds), [
+        36000,
+        50400,
+      ]);
+    });
+
+    test(
+      'loadNextStationTimetable은 horizonDays 상한(1~8)을 검증하고 다음 날 열차를 탐색한다',
+      () async {
+        await expectLater(
+          repository.loadNextStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            asOf: DateTime.utc(2026, 9, 26, 2, 0),
+            horizonDays: 0,
+          ),
+          throwsA(isA<StationTimetableUnavailable>()),
+        );
+        await expectLater(
+          repository.loadNextStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            asOf: DateTime.utc(2026, 9, 26, 2, 0),
+            horizonDays: 9,
+          ),
+          throwsA(isA<StationTimetableUnavailable>()),
+        );
+
+        // 토요일 23:00 KST (UTC 14:00) 이후 당일 열차는 끝났지만 horizonDays = 2로 일요일 열차를 찾는다.
+        final nextDay = await repository.loadNextStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          asOf: DateTime.utc(2026, 9, 26, 14, 0),
+          horizonDays: 2,
+        );
+        expect(nextDay.dayType, StationTimetableDayType.sundayHoliday);
+        expect(nextDay.directions.single.departures.single.seconds, 40000);
+
+        // 당일이 exception_type = 2로 전부 제외돼도 horizonDays = 2면 다음 날 열차를 이어서 탐색한다.
+        await database.customStatement(
+          "INSERT INTO service_calendar_dates (service_id, date, exception_type) VALUES ('cal-sat', '20260926', 2)",
+        );
+        final skippedExcludedDay = await repository.loadNextStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          asOf: DateTime.utc(2026, 9, 26, 0, 0),
+          horizonDays: 2,
+        );
+        expect(
+          skippedExcludedDay.dayType,
+          StationTimetableDayType.sundayHoliday,
+        );
+        expect(
+          skippedExcludedDay.directions.single.departures.single.seconds,
+          40000,
+        );
+
+        // 탐색 범위 모든 날이 제외되면 TIMETABLE_NOT_COVERED를 던진다.
+        await database.customStatement(
+          "INSERT INTO service_calendar_dates (service_id, date, exception_type) VALUES ('cal-sun', '20260927', 2)",
+        );
+        await expectLater(
+          repository.loadNextStationTimetable(
+            stationId: 'station-sangnoksu',
+            lineId: 'seoul-4',
+            asOf: DateTime.utc(2026, 9, 26, 0, 0),
+            horizonDays: 2,
+          ),
+          throwsA(isA<StationTimetableUnavailable>()),
+        );
+      },
+    );
+
+    test(
+      '평일 휴일 대체(exception_type=2 + exception_type=1) 시 일요일·공휴일 시간표를 선택한다',
+      () async {
+        await database.customStatement('''
+        INSERT INTO service_calendars (service_id, monday, tuesday, wednesday, thursday, friday, saturday, sunday, start_date, end_date)
+        VALUES ('cal-weekday', 1, 1, 1, 1, 1, 0, 0, '20260101', '20261231')
+      ''');
+        await database.customStatement('''
+        INSERT INTO transit_routes (id, line_id, direction_name)
+        VALUES ('route-weekday', 'seoul-4', '당고개 방면')
+      ''');
+        await database.customStatement('''
+        INSERT INTO transit_trips (id, route_id, service_id, service_class, service_pattern)
+        VALUES ('trip-wd-1', 'route-weekday', 'cal-weekday', 'SUBWAY', 'LOCAL')
+      ''');
+        await database.customStatement('''
+        INSERT INTO transit_stop_times (trip_id, stop_sequence, station_id, line_id, arrival_seconds, departure_seconds, pickup_type, drop_off_type)
+        VALUES ('trip-wd-1', 1, 'station-sangnoksu', 'seoul-4', 36000, 36000, 0, 0)
+      ''');
+        await database.customStatement('''
+        INSERT INTO service_calendar_dates (service_id, date, exception_type)
+        VALUES ('cal-weekday', '20260929', 2),
+               ('cal-sun', '20260929', 1)
+      ''');
+
+        final holidayWeekday = await repository.loadStationTimetableForDate(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          date: DateTime.utc(2026, 9, 29, 3),
+        );
+        expect(holidayWeekday.dayType, StationTimetableDayType.sundayHoliday);
+        expect(
+          holidayWeekday.directions.single.departures.single.seconds,
+          40000,
+        );
+      },
+    );
+
+    test(
+      '(trip_id, stop_sequence) 인접 순번 조회로 출발 시각이 같아도 다음 역 방면을 찾는다',
+      () async {
+        await database.customStatement('''
+        INSERT INTO stations (id, name_ko, normalized_name)
+        VALUES ('station-banwol', '반월', '반월')
+      ''');
+        await database.customStatement('''
+        INSERT INTO station_lines (station_id, line_id, line_sequence)
+        VALUES ('station-banwol', 'seoul-4', 42)
+      ''');
+        await database.customStatement('''
+        INSERT INTO transit_stop_times (trip_id, stop_sequence, station_id, line_id, arrival_seconds, departure_seconds, pickup_type, drop_off_type)
+        VALUES ('trip-sat-1', 2, 'station-banwol', 'seoul-4', 36000, 36000, 0, 0)
+      ''');
+
+        final sat = await repository.loadStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          dayType: StationTimetableDayType.saturday,
+          referenceDate: DateTime.utc(2026, 9, 26),
+        );
+        expect(sat.directions.single.name, '반월 방면');
+      },
+    );
   });
 }

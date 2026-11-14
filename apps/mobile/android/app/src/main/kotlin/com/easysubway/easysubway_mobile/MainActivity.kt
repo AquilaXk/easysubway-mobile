@@ -8,6 +8,7 @@ import android.content.res.Configuration
 import android.location.Location
 import android.location.LocationListener
 import android.location.LocationManager
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.CancellationSignal
@@ -16,6 +17,7 @@ import android.os.Looper
 import android.provider.Settings
 import androidx.annotation.RequiresApi
 import androidx.core.app.NotificationManagerCompat
+import es.antonborri.home_widget.HomeWidgetLaunchIntent
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.plugin.common.StandardMessageCodec
@@ -29,6 +31,7 @@ class MainActivity : FlutterActivity() {
     private val locationTimeoutMillis = 10_000L
     private val nearbyLocationMaxAgeMillis = 5 * 60 * 1000L
     private val nearbyLocationMaxAccuracyMeters = 500f
+    private val homeWidgetIdentifierPattern = Regex("^[A-Za-z0-9._:-]{1,64}$")
 
     private var pendingLocationResult: MethodChannel.Result? = null
     private var pendingNotificationPermissionResult: MethodChannel.Result? = null
@@ -43,7 +46,55 @@ class MainActivity : FlutterActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         applyScreenOrientationPolicy(resources.configuration)
+        intent = sanitizeWidgetLaunchIntent(intent)
         super.onCreate(savedInstanceState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        val sanitized = sanitizeWidgetLaunchIntent(intent) ?: return
+        setIntent(sanitized)
+        super.onNewIntent(sanitized)
+    }
+
+    private fun sanitizeWidgetLaunchIntent(targetIntent: Intent?): Intent? {
+        if (targetIntent == null) {
+            return null
+        }
+        if (targetIntent.action == HomeWidgetLaunchIntent.HOME_WIDGET_LAUNCH_ACTION &&
+            !isValidStationDetailUri(targetIntent.data)
+        ) {
+            return Intent(targetIntent).apply {
+                action = null
+                data = null
+            }
+        }
+        return targetIntent
+    }
+
+    private fun isValidStationDetailUri(uri: Uri?): Boolean {
+        if (uri == null ||
+            !uri.isHierarchical ||
+            uri.scheme != "easysubway" ||
+            uri.host != "station" ||
+            uri.path != "/detail" ||
+            uri.userInfo != null ||
+            uri.port != -1 ||
+            uri.encodedFragment != null
+        ) {
+            return false
+        }
+        if (!uri.queryParameterNames.all { it == "stationId" || it == "lineId" }) {
+            return false
+        }
+        val stationId = uri.getQueryParameter("stationId")?.trim().orEmpty()
+        if (!homeWidgetIdentifierPattern.matches(stationId)) {
+            return false
+        }
+        val lineId = uri.getQueryParameter("lineId")?.trim().orEmpty()
+        if (lineId.isNotEmpty() && !homeWidgetIdentifierPattern.matches(lineId)) {
+            return false
+        }
+        return true
     }
 
     override fun onConfigurationChanged(newConfig: Configuration) {

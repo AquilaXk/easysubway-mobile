@@ -38,14 +38,27 @@ final class AdCreative {
 }
 
 final class AdRepository {
-  AdRepository(ApiClient apiClient) : _apiClient = apiClient, _baseUri = null;
+  AdRepository(ApiClient apiClient)
+    : _apiClient = apiClient,
+      _baseUri = null,
+      _ownsApiClient = false;
 
   AdRepository.lazy(Uri? Function() baseUri)
     : _apiClient = null,
-      _baseUri = baseUri;
+      _baseUri = baseUri,
+      _ownsApiClient = true;
 
   ApiClient? _apiClient;
   final Uri? Function()? _baseUri;
+  final bool _ownsApiClient;
+  bool _closed = false;
+
+  void close({bool force = false}) {
+    if (_ownsApiClient) {
+      _closed = true;
+      _apiClient?.close(force: force);
+    }
+  }
 
   /// ponytail: 현재 200 응답만 사용한다. 소재 캐시와 event 저장/재시도는 범위 밖이다.
   ///
@@ -134,6 +147,9 @@ final class AdRepository {
   }
 
   ApiClient? _lazyClient() {
+    if (_closed) {
+      throw const ApiException('AdRepository is closed.');
+    }
     final baseUri = _baseUri!();
     return baseUri == null ? null : _apiClient = ApiClient(baseUri: baseUri);
   }

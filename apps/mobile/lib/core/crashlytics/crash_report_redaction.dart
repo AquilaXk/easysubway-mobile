@@ -80,6 +80,7 @@ const String _redactedPathToken = '<redacted-path>';
 const String _redactedHostToken = '<redacted-host>';
 const String _redactedUserInfoToken = '<redacted-userinfo>';
 const String _redactedQueryToken = '<redacted-query>';
+const String _redactedSecretToken = '<redacted-token>';
 
 /// shape allowlist를 통과하지 못한 stack 라인 치환 토큰.
 const String redactedStackFrameToken = '<redacted-frame>';
@@ -354,7 +355,8 @@ String sanitizeStackTraceText(String text) {
 /// 필요하므로 그대로 둔다.
 String redactSensitiveText(String text) {
   final withoutUris = text.replaceAllMapped(_uriPattern, _redactUriMatch);
-  final withoutPosixPaths = withoutUris.replaceAllMapped(
+  final withoutSecrets = _redactCredentialsAndQueries(withoutUris);
+  final withoutPosixPaths = withoutSecrets.replaceAllMapped(
     _absolutePosixPathPattern,
     (match) => _normalizePathWithLocation(match.group(1)!),
   );
@@ -362,6 +364,30 @@ String redactSensitiveText(String text) {
     _windowsPathPattern,
     (match) => _normalizePathWithLocation(match.group(1)!),
   );
+}
+
+String _redactCredentialsAndQueries(String text) {
+  var result = text.replaceAllMapped(
+    _sensitiveQueryParamPattern,
+    (match) => '${match.group(1)}$_redactedSecretToken',
+  );
+  result = result.replaceAllMapped(
+    _bearerTokenPattern,
+    (_) => 'Bearer $_redactedSecretToken',
+  );
+  result = result.replaceAllMapped(_authorizationHeaderPattern, (match) {
+    final headerName = match.group(1)!;
+    final separator = match.group(2)!;
+    final scheme = match.group(3) ?? '';
+    return '$headerName$separator ${scheme.isEmpty ? '' : scheme}$_redactedSecretToken';
+  });
+  result = result.replaceAllMapped(_sensitiveHeaderOrKeyPattern, (match) {
+    final keyName = match.group(1)!;
+    final separator = match.group(2)!;
+    final spacer = separator == ':' ? ' ' : '';
+    return '$keyName$separator$spacer$_redactedSecretToken';
+  });
+  return result.replaceAll(_prefixedSecretPattern, _redactedSecretToken);
 }
 
 /// allowlist를 통과한 custom key 값만 돌려준다. 통과 못 하면 `null`(폐기).
@@ -476,6 +502,9 @@ String _sanitizeTypeToken(Object? error) {
 String _redactUriMatch(Match match) {
   final scheme = match.group(1)!.toLowerCase();
   final rest = match.group(2)!;
+  if (rest.isEmpty) {
+    return match.group(0)!;
+  }
   if (scheme == 'file') {
     return 'file://${_normalizePathWithLocation(rest)}';
   }
@@ -568,6 +597,10 @@ String _sanitizeStackLine(String line) {
     return line.substring(0, aotHeader.end);
   }
 
+  if (line.contains(_redactedSecretToken)) {
+    return redactedStackFrameToken;
+  }
+
   // JIT/friendly frame: 문법을 끝까지 검증하고, 어느 토큰이라도 비밀 형태면 버린다.
   // frame에는 고엔트로피 hex 주소가 없어 secret-token 판정이 오탐하지 않는다.
   if ((_jitFramePattern.hasMatch(line) ||
@@ -653,6 +686,30 @@ final RegExp _absolutePosixPathPattern = RegExp(
 
 final RegExp _windowsPathPattern = RegExp(
   r'(?<![\w])([A-Za-z]:\\(?:[A-Za-z0-9_.\-+%@~]+\\)*[A-Za-z0-9_.\-+%@~]+)',
+);
+
+final RegExp _sensitiveQueryParamPattern = RegExp(
+  r'([?&](?:token|access_token|refresh_token|id_token|api_key|apikey|key|secret|auth|sig|signature|x-amz-signature|x-amz-credential|x-amz-security-token)=)(?!<redacted-token>)([^\s&#\x27"\)\}\]]+)',
+  caseSensitive: false,
+);
+
+final RegExp _bearerTokenPattern = RegExp(
+  r'\bBearer\s+(?!<redacted-token>)([^\s,;\x27"\)\}\]]+)',
+  caseSensitive: false,
+);
+
+final RegExp _authorizationHeaderPattern = RegExp(
+  r'\b(Authorization)\s*([:=])\s*(?!Bearer\s+<redacted-token>|<redacted-token>)(Basic\s+|Digest\s+|Token\s+|ApiKey\s+)?([^\s,;\x27"\)\}\]]+)',
+  caseSensitive: false,
+);
+
+final RegExp _sensitiveHeaderOrKeyPattern = RegExp(
+  r'\b(x-admin-token|x-api-key|x-report-receipt-token|api[_-]?key|access[_-]?token|refresh[_-]?token|id[_-]?token|client[_-]?secret)\s*([:=])\s*(?!<redacted-token>)([^\s,;\x27"\)\}\]]+)',
+  caseSensitive: false,
+);
+
+final RegExp _prefixedSecretPattern = RegExp(
+  r'(?<![A-Za-z0-9_])(?:ya29\.[A-Za-z0-9_.\-]{8,}|(?:AIza|AKIA|ASIA|rrt_|ghp_|gho_|sk_(?:live|test)_|xox[baprs]-)[A-Za-z0-9_.\-]{8,})',
 );
 
 final RegExp _locationSuffixPattern = RegExp(r'(:\d+)+$');

@@ -98,6 +98,9 @@ Offset _viewBoxOriginInViewport(MapCameraState camera, Offset sourceOrigin) =>
     camera.viewportSize.center(Offset.zero) -
     (camera.center + sourceOrigin) * camera.scale;
 
+final Paint _basemapAttributionBackdropPaint = Paint()
+  ..color = const Color(0xCCFFFFFF);
+
 /// 화면 왼쪽 아래에 고정한 출처 표기.
 void _paintAttribution(
   Canvas canvas,
@@ -122,7 +125,7 @@ void _paintAttribution(
   );
   canvas.drawRRect(
     RRect.fromRectAndRadius(background, const Radius.circular(3)),
-    Paint()..color = const Color(0xCCFFFFFF),
+    _basemapAttributionBackdropPaint,
   );
   painter.paint(canvas, origin);
 }
@@ -249,37 +252,62 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   /// 색인을 아직 읽지 않았으면 읽은 뒤 다시 정한다. 레이어가 준비되기 전에는 바탕을
   /// 흐리지 않는다.
   void _syncLayers() {
-    _baseAsset = null;
-    _overlayAsset = null;
+    final prevBaseAsset = _baseAsset;
+    final prevOverlayAsset = _overlayAsset;
+    String? nextBaseAsset;
+    String? nextOverlayAsset;
     final regionId = widget.regionId;
     if (regionId == null) {
+      _baseAsset = null;
+      _overlayAsset = null;
+      _releaseIfChanged(prevBaseAsset, null);
+      _releaseIfChanged(prevOverlayAsset, null);
       return;
     }
     final files = _assets.files;
     if (files == null) {
+      _baseAsset = null;
+      _overlayAsset = null;
+      _releaseIfChanged(prevBaseAsset, null);
+      _releaseIfChanged(prevOverlayAsset, null);
       _syncWhenFilesLoad();
       return;
     }
-    final baseAsset = files.baseAssetFor(regionId);
-    _baseAsset = baseAsset;
-    _decodeIfMissing(baseAsset);
-    final lineId = widget.highlightedLineId;
-    if (lineId == null) {
-      return;
+    nextBaseAsset = files.baseAssetFor(regionId);
+    if (nextBaseAsset != prevBaseAsset) {
+      _assets.retain(nextBaseAsset);
     }
-    try {
-      final overlayAsset = files.overlayAssetFor(
-        regionId: regionId,
-        lineId: lineId,
-      );
-      _overlayAsset = overlayAsset;
-      _decodeIfMissing(overlayAsset);
-    } on RouteMapLineOverlayMissing catch (error, stack) {
-      reportRouteMapBasemapFailure(
-        error,
-        stack,
-        '노선 강조 레이어 조회 실패($regionId/$lineId)',
-      );
+    _baseAsset = nextBaseAsset;
+    _decodeIfMissing(nextBaseAsset);
+
+    final lineId = widget.highlightedLineId;
+    if (lineId != null) {
+      try {
+        final resolvedOverlayAsset = files.overlayAssetFor(
+          regionId: regionId,
+          lineId: lineId,
+        );
+        if (resolvedOverlayAsset != prevOverlayAsset) {
+          _assets.retain(resolvedOverlayAsset);
+        }
+        nextOverlayAsset = resolvedOverlayAsset;
+        _decodeIfMissing(resolvedOverlayAsset);
+      } on RouteMapLineOverlayMissing catch (error, stack) {
+        reportRouteMapBasemapFailure(
+          error,
+          stack,
+          '노선 강조 레이어 조회 실패($regionId/$lineId)',
+        );
+      }
+    }
+    _overlayAsset = nextOverlayAsset;
+    _releaseIfChanged(prevBaseAsset, nextBaseAsset);
+    _releaseIfChanged(prevOverlayAsset, nextOverlayAsset);
+  }
+
+  void _releaseIfChanged(String? previous, String? next) {
+    if (previous != null && previous != next) {
+      _assets.release(previous);
     }
   }
 
@@ -482,12 +510,19 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
   void dispose() {
     _pendingTileGrid?.timer.cancel();
     _tiles.retainWithin(null);
+    _releaseIfChanged(_baseAsset, null);
+    _releaseIfChanged(_overlayAsset, null);
+    _baseAsset = null;
+    _overlayAsset = null;
     _attributionPainter?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    if (widget.camera.viewportSize.isEmpty) {
+      return const SizedBox.shrink();
+    }
     _ensureAttributionPainter();
     final basemapInfo = _pictureOf(_baseAsset);
     final highlight = basemapInfo == null

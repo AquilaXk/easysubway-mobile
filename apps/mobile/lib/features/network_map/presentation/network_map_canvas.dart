@@ -200,6 +200,19 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   Object? _alignedDataInput;
   Object? _alignedDataOwnerNodes;
   Object? _alignedDataOwnerEntries;
+  List<NetworkMapStation>? _stationLookupSource;
+  NetworkMapStationLookup? _stationLookupCache;
+
+  NetworkMapStationLookup _stationLookup(List<NetworkMapStation> stations) {
+    final cached = _stationLookupCache;
+    if (identical(_stationLookupSource, stations) && cached != null) {
+      return cached;
+    }
+    final built = NetworkMapStationLookup.fromStations(stations);
+    _stationLookupSource = stations;
+    _stationLookupCache = built;
+    return built;
+  }
 
   NetworkMapData _alignedData(NetworkMapData data) {
     final basemapAssetId = routeMapBasemapRegionId(data.selectedRegion);
@@ -372,7 +385,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
           return;
         }
         final data = _alignedData(widget.data);
-        final station = networkMapStationById(data.stations, selectedId);
+        final station = _stationLookup(data.stations).byId(selectedId);
         if (station != null) {
           _panCameraToRevealStationPopover(station);
         }
@@ -552,7 +565,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   }) {
     final focusedStation = widget.focusedStationId == null
         ? null
-        : networkMapStationById(data.stations, widget.focusedStationId);
+        : _stationLookup(data.stations).byId(widget.focusedStationId);
     final focusedStationKey = focusedStation == null
         ? null
         : (focusedStation.id, widget.preserveFocusedStationScale);
@@ -660,18 +673,10 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     NetworkMapData data,
     NetworkMapGeometry geometry,
   ) {
-    final originStation = networkMapStationById(
-      data.stations,
-      widget.originStationId,
-    );
-    final waypointStation = networkMapStationById(
-      data.stations,
-      widget.waypointStationId,
-    );
-    final destinationStation = networkMapStationById(
-      data.stations,
-      widget.destinationStationId,
-    );
+    final lookup = _stationLookup(data.stations);
+    final originStation = lookup.byId(widget.originStationId);
+    final waypointStation = lookup.byId(widget.waypointStationId);
+    final destinationStation = lookup.byId(widget.destinationStationId);
     // 드래프트 핀은 줌/팬 중에도 유지한다(역 hit·역 말풍선과 달리 상태
     // 표시). Positioned는 Stack 직접 자식이어야 하므로, 제스처 중
     // 포인터 통과는 핀 위젯 내부 IgnorePointer로 처리한다.
@@ -814,9 +819,11 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
   }
 
   /// 역 말풍선이 열려 있는 역. 지도에서 직접 고른 역이 부모가 지정한 역보다 우선한다.
-  NetworkMapStation? _selectedStationIn(NetworkMapData data) =>
-      networkMapStationByIdentity(data.stations, _selectedStation) ??
-      networkMapStationById(data.stations, widget.selectedStationId);
+  NetworkMapStation? _selectedStationIn(NetworkMapData data) {
+    final lookup = _stationLookup(data.stations);
+    return lookup.byIdentity(_selectedStation) ??
+        lookup.byId(widget.selectedStationId);
+  }
 
   NetworkMapGeometry _geometryFor(NetworkMapData data) {
     // basemap 오너 라벨 sidecar(로드는 async)를 geometry bounds에 반영한다(#2068).
@@ -1014,7 +1021,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     final data = _alignedData(widget.data);
     final geometry = _geometryFor(data);
     final alignedStation =
-        networkMapStationById(data.stations, station.id) ?? station;
+        _stationLookup(data.stations).byId(station.id) ?? station;
     final stationPoint = camera.sourceToViewportPoint(
       _stationPopoverTailAnchorSource(alignedStation, geometry),
     );
@@ -1100,11 +1107,12 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
       widget.waypointStationId,
       widget.destinationStationId,
     };
+    final lookup = _stationLookup(data.stations);
     final anchors = [
       for (final id in stationIds)
         // 지정 뒤 지워진 핀은 그릴 대상이 아니다.
         if (currentPinIds.contains(id))
-          if (networkMapStationById(data.stations, id) case final station?)
+          if (lookup.byId(id) case final station?)
             camera.sourceToViewportPoint(
               _stationPopoverAnchorSource(station, geometry),
             ),
@@ -1276,7 +1284,7 @@ class _NetworkMapCanvasState extends State<NetworkMapCanvas>
     _ensureStructuredRouteMap();
     final data = _alignedData(widget.data);
     final alignedStation =
-        networkMapStationById(data.stations, station.id) ?? station;
+        _stationLookup(data.stations).byId(station.id) ?? station;
     final tapped = Offset(
       alignedStation.position.x.toDouble(),
       alignedStation.position.y.toDouble(),

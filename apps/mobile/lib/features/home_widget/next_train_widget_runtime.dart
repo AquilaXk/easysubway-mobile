@@ -477,15 +477,19 @@ Future<bool> runHeadlessNextTrainWidgetRefresh({
     openOverride: openDatabases,
     closeOverride: closeDatabases,
   );
+  final timetableRepository = createTimetableRepository(databases.catalog);
   try {
     await (refresh ?? refreshNextTrainWidgets)(
       NextTrainWidgetRepository(
         catalogDatabase: databases.catalog,
         userDatabase: databases.user,
-        timetableRepository: createTimetableRepository(databases.catalog),
+        timetableRepository: timetableRepository,
       ),
     );
   } finally {
+    if (timetableRepository is CloseableStationTimetableRepository) {
+      timetableRepository.close();
+    }
     await databases.close();
   }
   return true;
@@ -524,35 +528,37 @@ Future<void> configureMain({
           localizationsDelegates: appLocalizationsDelegates,
           home: NextTrainWidgetConfigurationScreen(
             loadSelections: () => _withConfigurationDatabases(
-              (databases) => NextTrainWidgetRepository(
-                catalogDatabase: databases.catalog,
-                userDatabase: databases.user,
-                timetableRepository: createTimetableRepository(
-                  databases.catalog,
-                ),
-              ).availableSelections(),
+              (databases) => _withDisposableTimetableRepository(
+                createTimetableRepository(databases.catalog),
+                (timetableRepository) => NextTrainWidgetRepository(
+                  catalogDatabase: databases.catalog,
+                  userDatabase: databases.user,
+                  timetableRepository: timetableRepository,
+                ).availableSelections(),
+              ),
               openDatabases: openDatabases,
               closeDatabases: closeDatabases,
             ),
             configure: (selection) => configureNextTrainWidgetSelection(
               selection: selection,
               configure: (selection) => _withConfigurationDatabases(
-                (databases) =>
-                    NextTrainWidgetService(
-                      load: NextTrainWidgetRepository(
-                        catalogDatabase: databases.catalog,
-                        userDatabase: databases.user,
-                        timetableRepository: createTimetableRepository(
-                          databases.catalog,
-                        ),
-                      ).load,
-                      saveValue: saveWidgetValue ?? _saveWidgetValue,
-                      updateWidget: updateNativeWidget ?? _updateNativeWidget,
-                    ).configure(
-                      appWidgetId: appWidgetId,
-                      selection: selection,
-                      now: DateTime.now(),
-                    ),
+                (databases) => _withDisposableTimetableRepository(
+                  createTimetableRepository(databases.catalog),
+                  (timetableRepository) =>
+                      NextTrainWidgetService(
+                        load: NextTrainWidgetRepository(
+                          catalogDatabase: databases.catalog,
+                          userDatabase: databases.user,
+                          timetableRepository: timetableRepository,
+                        ).load,
+                        saveValue: saveWidgetValue ?? _saveWidgetValue,
+                        updateWidget: updateNativeWidget ?? _updateNativeWidget,
+                      ).configure(
+                        appWidgetId: appWidgetId,
+                        selection: selection,
+                        now: DateTime.now(),
+                      ),
+                ),
                 openDatabases: openDatabases,
                 closeDatabases: closeDatabases,
               ),
@@ -623,6 +629,19 @@ Future<_WidgetDatabases> _openWidgetDatabases({
   } on Object {
     await user.close();
     rethrow;
+  }
+}
+
+Future<T> _withDisposableTimetableRepository<T>(
+  StationTimetableRepository repository,
+  Future<T> Function(StationTimetableRepository repository) operation,
+) async {
+  try {
+    return await operation(repository);
+  } finally {
+    if (repository is CloseableStationTimetableRepository) {
+      repository.close();
+    }
   }
 }
 

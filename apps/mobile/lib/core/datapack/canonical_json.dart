@@ -6,6 +6,7 @@ import 'dart:convert';
 /// 못한다. 세 언어가 같은 정준 문자열을 만들려면 범위 밖 숫자를 매니페스트에서
 /// 금지해야 한다. 계약 원본은 `contracts/datapack/canonical-number-contract.json`.
 const int maxSafeCanonicalNumberMagnitude = 9007199254740991;
+const int maxCanonicalJsonDepth = 32;
 
 /// 매니페스트 서명 대상 정준 JSON 문자열을 만든다.
 ///
@@ -39,7 +40,7 @@ String ecmascriptNumberText(num value) {
   return plain == '-0' ? '0' : plain;
 }
 
-void _writeCanonical(Object? value, StringBuffer out) {
+void _writeCanonical(Object? value, StringBuffer out, {int depth = 0}) {
   switch (value) {
     case null:
       out.write('null');
@@ -50,15 +51,25 @@ void _writeCanonical(Object? value, StringBuffer out) {
     case final String text:
       out.write(jsonEncode(text));
     case final List<Object?> items:
+      if (depth >= maxCanonicalJsonDepth) {
+        throw const FormatException(
+          'Data pack manifest exceeds maximum nesting depth.',
+        );
+      }
       out.write('[');
       for (var index = 0; index < items.length; index += 1) {
         if (index > 0) {
           out.write(',');
         }
-        _writeCanonical(items[index], out);
+        _writeCanonical(items[index], out, depth: depth + 1);
       }
       out.write(']');
     case final Map<String, Object?> entries:
+      if (depth >= maxCanonicalJsonDepth) {
+        throw const FormatException(
+          'Data pack manifest exceeds maximum nesting depth.',
+        );
+      }
       final keys = entries.keys.toList()..sort();
       out.write('{');
       for (var index = 0; index < keys.length; index += 1) {
@@ -68,7 +79,7 @@ void _writeCanonical(Object? value, StringBuffer out) {
         out
           ..write(jsonEncode(keys[index]))
           ..write(':');
-        _writeCanonical(entries[keys[index]], out);
+        _writeCanonical(entries[keys[index]], out, depth: depth + 1);
       }
       out.write('}');
     default:

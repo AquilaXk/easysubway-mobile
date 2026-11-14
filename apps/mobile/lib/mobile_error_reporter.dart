@@ -39,7 +39,7 @@ Future<T> runWithMobileErrorReporter<T>(
 }
 
 /// 전역 핸들러 3면 배선. 기존 `runWithMobileErrorReporter` zone 계약은 유지한다.
-void installMobileErrorHandlers() {
+void installMobileErrorHandlers({bool isReleaseMode = kReleaseMode}) {
   FlutterError.onError = (details) {
     final zoneReporter = Zone.current[_mobileErrorReporterZoneKey];
     if (zoneReporter is MobileErrorReporter) {
@@ -59,7 +59,9 @@ void installMobileErrorHandlers() {
     // 미초기화·테스트 환경에서도 예외를 던지지 않는다.
     // Crashlytics Future 실패가 PlatformDispatcher.onError로 재진입하지 않게 흡수한다.
     unawaited(_recordCrashlyticsSafely(recordFatalFlutterError(details)));
-    FlutterError.presentError(details);
+    if (!isReleaseMode) {
+      FlutterError.presentError(details);
+    }
   };
 
   PlatformDispatcher.instance.onError = (error, stack) {

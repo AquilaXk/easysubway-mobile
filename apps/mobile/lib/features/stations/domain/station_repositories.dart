@@ -237,6 +237,11 @@ abstract class StationTimetableRepository {
   });
 }
 
+abstract interface class CloseableStationTimetableRepository
+    implements StationTimetableRepository {
+  void close({bool force = false});
+}
+
 abstract class CurrentLocationProvider {
   Future<bool> needsLocationPermissionRequest();
 

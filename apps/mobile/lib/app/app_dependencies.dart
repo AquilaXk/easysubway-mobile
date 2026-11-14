@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
+
 import '../auth_headers.dart';
 import '../core/database/catalog/catalog_database.dart';
 import '../core/database/user/user_database.dart';
@@ -74,6 +76,7 @@ class AppDependencies {
     required this.journeySessionProvider,
     required this.stationTimetableRepository,
     this.transferGuideRepository,
+    this._ownedClosers = const [],
   });
 
   factory AppDependencies.resolve({
@@ -100,6 +103,8 @@ class AppDependencies {
     UserDatabase? userDatabase,
     Directory? userDatabaseDirectory,
     Uri? Function() apiBaseUri = defaultOptionalStationApiBaseUri,
+    @visibleForTesting
+    AuthorizationHeaderProvider? userDataDeletionAuthProvider,
     required bool enablePushNotifications,
   }) {
     Uri? cachedBaseUri;
@@ -139,13 +144,37 @@ class AppDependencies {
         ? notificationPermissionProvider
         : null;
 
+    var closed = false;
+    var closedForce = false;
+    final ownedClosers = <void Function({bool force})>[
+      ({bool force = false}) {
+        closed = true;
+        closedForce = closedForce || force;
+      },
+    ];
+    ApiClient ownApiClient(Uri baseUri) {
+      final client = ApiClient(baseUri: baseUri);
+      if (closed) {
+        client.close(force: closedForce);
+      } else {
+        ownedClosers.add(client.close);
+      }
+      return client;
+    }
+
     final catalogRepository = catalogDatabase == null
         ? null
         : DriftStationRepository(database: catalogDatabase);
     final StationSearchRepository resolvedStationRepository =
         repository ??
         catalogRepository ??
-        StationSearchApiRepository(baseUri: requireBaseUri());
+        (() {
+          final baseUri = requireBaseUri();
+          return StationSearchApiRepository(
+            baseUri: baseUri,
+            apiClient: ownApiClient(baseUri),
+          );
+        })();
     final resolvedNetworkMapRepository =
         networkMapRepository ??
         catalogRepository ??
@@ -153,7 +182,10 @@ class AppDependencies {
 
     final resolvedRealtimeRepository =
         realtimeRepository ??
-        _defaultRealtimeRepository(baseUri: optionalBaseUri);
+        _defaultRealtimeRepository(
+          baseUri: optionalBaseUri,
+          createApiClient: ownApiClient,
+        );
     JourneyRepository? cachedJourneyRepository = journeyRepository;
     JourneyRepository resolveJourneyRepository() {
       final cachedRepository = cachedJourneyRepository;
@@ -161,7 +193,7 @@ class AppDependencies {
       final journeyBaseUri = optionalBaseUri();
       return cachedJourneyRepository = journeyBaseUri == null
           ? const _UnavailableJourneyRepository()
-          : JourneyApiRepository(ApiClient(baseUri: journeyBaseUri));
+          : JourneyApiRepository(ownApiClient(journeyBaseUri));
     }
 
     final lazyJourneyRepository = _LazyJourneyRepository(
@@ -192,6 +224,14 @@ class AppDependencies {
               )
             : resolvedServerStationTimetableRepository);
 
+    final resolvedAdRepository =
+        adRepository ??
+        (() {
+          final owned = AdRepository.lazy(optionalBaseUri);
+          ownedClosers.add(owned.close);
+          return owned;
+        })();
+
     return AppDependencies(
       repository: resolvedStationRepository,
       reportRepository:
@@ -199,6 +239,7 @@ class AppDependencies {
           _defaultFacilityReportRepository(
             baseUri: optionalBaseUri,
             userDatabase: userDatabase,
+            createApiClient: ownApiClient,
           ),
       // Keep every consumer behind the same lazy authority.  In particular,
       // station-timetable/session users and the public factory must not resolve
@@ -252,14 +293,15 @@ class AppDependencies {
           locationProvider ?? MethodChannelCurrentLocationProvider(),
       trainSearchRepository:
           trainSearchRepository ??
-          _LazyDefaultTrainSearchRepository(optionalBaseUri),
+          _LazyDefaultTrainSearchRepository(optionalBaseUri, ownApiClient),
       userDataDeletionRepository:
           userDataDeletionRepository ??
           _defaultUserDataDeletionRepository(
             baseUri: requireBaseUri,
-            authProvider: null,
+            authProvider: userDataDeletionAuthProvider,
             userDatabase: userDatabase,
             userDatabaseDirectory: userDatabaseDirectory,
+            createApiClient: ownApiClient,
           ),
       getOffAlarmController: _resolveGetOffAlarmController(
         userDatabase,
@@ -269,8 +311,13 @@ class AppDependencies {
           noticeRepository ??
           (userDatabase == null
               ? null
-              : _LazyDefaultNoticeRepository(optionalBaseUri, userDatabase)),
-      adRepository: adRepository ?? AdRepository.lazy(optionalBaseUri),
+              : _LazyDefaultNoticeRepository(
+                  optionalBaseUri,
+                  userDatabase,
+                  ownApiClient,
+                )),
+      adRepository: resolvedAdRepository,
+      ownedClosers: ownedClosers,
     );
   }
 
@@ -297,6 +344,13 @@ class AppDependencies {
   final JourneyV3IntegrityAttestor journeyAttestor;
   final JourneySessionProvider journeySessionProvider;
   final StationTimetableRepository stationTimetableRepository;
+  final List<void Function({bool force})> _ownedClosers;
+
+  void close({bool force = false}) {
+    for (final closeClient in _ownedClosers) {
+      closeClient(force: force);
+    }
+  }
 }
 
 class _UnavailableJourneyRepository implements JourneyRepository {
@@ -380,9 +434,10 @@ class _LazyJourneyRepository implements JourneyRepository {
 }
 
 class _LazyDefaultTrainSearchRepository implements TrainSearchRepository {
-  _LazyDefaultTrainSearchRepository(this._baseUri);
+  _LazyDefaultTrainSearchRepository(this._baseUri, this._createApiClient);
 
   final Uri? Function() _baseUri;
+  final ApiClient Function(Uri baseUri) _createApiClient;
   TrainSearchRepository? _delegate;
 
   TrainSearchRepository _resolveDelegate() {
@@ -391,7 +446,7 @@ class _LazyDefaultTrainSearchRepository implements TrainSearchRepository {
     final resolvedBaseUri = _baseUri();
     return _delegate = resolvedBaseUri == null
         ? const UnavailableTrainSearchRepository()
-        : ApiTrainSearchRepository(ApiClient(baseUri: resolvedBaseUri));
+        : ApiTrainSearchRepository(_createApiClient(resolvedBaseUri));
   }
 
   @override
@@ -408,10 +463,15 @@ class _LazyDefaultTrainSearchRepository implements TrainSearchRepository {
 /// 공개 공지 API는 선택 기능이라 앱 시작 중 base URL을 강제 평가하지 않는다.
 /// 첫 조회 시점에 base URL을 해소하고, 없으면 조용히 빈 결과를 돌려준다.
 class _LazyDefaultNoticeRepository implements NoticeRepository {
-  _LazyDefaultNoticeRepository(this._baseUri, this._userDatabase);
+  _LazyDefaultNoticeRepository(
+    this._baseUri,
+    this._userDatabase,
+    this._createApiClient,
+  );
 
   final Uri? Function() _baseUri;
   final UserDatabase _userDatabase;
+  final ApiClient Function(Uri baseUri) _createApiClient;
   NoticeRepository? _delegate;
 
   @override
@@ -428,7 +488,7 @@ class _LazyDefaultNoticeRepository implements NoticeRepository {
     final resolvedDelegate = resolvedBaseUri == null
         ? const _UnavailableNoticeRepository()
         : ApiNoticeRepository(
-            apiClient: HttpNoticeApiClient(ApiClient(baseUri: resolvedBaseUri)),
+            apiClient: HttpNoticeApiClient(_createApiClient(resolvedBaseUri)),
             cacheStore: DriftNoticeCacheStore(userDatabase: _userDatabase),
           );
     _delegate = resolvedDelegate;
@@ -447,14 +507,16 @@ class _UnavailableNoticeRepository implements NoticeRepository {
 
 RealtimeRepository _defaultRealtimeRepository({
   required Uri? Function() baseUri,
+  required ApiClient Function(Uri baseUri) createApiClient,
 }) {
-  return _LazyDefaultRealtimeRepository(baseUri);
+  return _LazyDefaultRealtimeRepository(baseUri, createApiClient);
 }
 
 class _LazyDefaultRealtimeRepository implements RealtimeRepository {
-  _LazyDefaultRealtimeRepository(this._baseUri);
+  _LazyDefaultRealtimeRepository(this._baseUri, this._createApiClient);
 
   final Uri? Function() _baseUri;
+  final ApiClient Function(Uri baseUri) _createApiClient;
   RealtimeRepository? _delegate;
 
   @override
@@ -470,7 +532,10 @@ class _LazyDefaultRealtimeRepository implements RealtimeRepository {
     final resolvedBaseUri = _baseUri();
     final resolvedDelegate = resolvedBaseUri == null
         ? const UnavailableRealtimeRepository()
-        : RealtimeApiRepository(baseUri: resolvedBaseUri);
+        : RealtimeApiRepository(
+            baseUri: resolvedBaseUri,
+            apiClient: _createApiClient(resolvedBaseUri),
+          );
     _delegate = resolvedDelegate;
     return resolvedDelegate;
   }
@@ -525,16 +590,26 @@ GetOffAlarmController? _resolveGetOffAlarmController(
 FacilityReportRepository _defaultFacilityReportRepository({
   required Uri? Function() baseUri,
   required UserDatabase? userDatabase,
+  required ApiClient Function(Uri baseUri) createApiClient,
 }) {
-  return _LazyDefaultFacilityReportRepository(baseUri, userDatabase);
+  return _LazyDefaultFacilityReportRepository(
+    baseUri,
+    userDatabase,
+    createApiClient,
+  );
 }
 
 class _LazyDefaultFacilityReportRepository implements FacilityReportRepository {
-  _LazyDefaultFacilityReportRepository(this._baseUri, this._userDatabase);
+  _LazyDefaultFacilityReportRepository(
+    this._baseUri,
+    this._userDatabase,
+    this._createApiClient,
+  );
 
   // 시설 신고 API는 선택 기능이라 앱 시작 중 base URL을 강제 평가하지 않는다.
   final Uri? Function() _baseUri;
   final UserDatabase? _userDatabase;
+  final ApiClient Function(Uri baseUri) _createApiClient;
   FacilityReportRepository? _delegate;
 
   @override
@@ -569,7 +644,7 @@ class _LazyDefaultFacilityReportRepository implements FacilityReportRepository {
     }
     return FacilityReportApiRepository(
       baseUri: resolvedBaseUri,
-      apiClient: ApiClient(baseUri: resolvedBaseUri),
+      apiClient: _createApiClient(resolvedBaseUri),
       authProvider: null,
       receiptStore: _userDatabase == null
           ? null
@@ -583,6 +658,7 @@ UserDataDeletionRepository? _defaultUserDataDeletionRepository({
   required AuthorizationHeaderProvider? authProvider,
   required UserDatabase? userDatabase,
   required Directory? userDatabaseDirectory,
+  required ApiClient Function(Uri baseUri) createApiClient,
 }) {
   final localRepository = userDatabase == null
       ? null
@@ -599,7 +675,7 @@ UserDataDeletionRepository? _defaultUserDataDeletionRepository({
           final resolvedBaseUri = baseUri();
           return UserDataDeletionApiRepository(
             baseUri: resolvedBaseUri,
-            apiClient: ApiClient(baseUri: resolvedBaseUri),
+            apiClient: createApiClient(resolvedBaseUri),
             authProvider: authProvider,
           );
         })();

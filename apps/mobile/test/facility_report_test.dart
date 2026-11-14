@@ -210,6 +210,54 @@ void main() {
         ),
       ),
     );
+
+    final oversizedUntouchedFile = _TrackingPhotoXFile(
+      reportedLength: 900 * 1024 + 1,
+      bytes: Uint8List(4),
+    );
+    final preflightPicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(
+          file: oversizedUntouchedFile,
+          type: RetrieveType.image,
+        ),
+      ),
+    );
+    await expectLater(
+      preflightPicker.retrieveLostPhoto(),
+      throwsA(isA<FacilityReportPhotoException>()),
+    );
+    expect(oversizedUntouchedFile.readAsBytesCalled, isFalse);
+
+    final emptyUntouchedFile = _TrackingPhotoXFile(
+      reportedLength: 0,
+      bytes: Uint8List(0),
+    );
+    final emptyPicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(file: emptyUntouchedFile, type: RetrieveType.image),
+      ),
+    );
+    await expectLater(
+      emptyPicker.retrieveLostPhoto(),
+      throwsA(isA<FacilityReportPhotoException>()),
+    );
+    expect(emptyUntouchedFile.readAsBytesCalled, isFalse);
+
+    final deceptiveLengthFile = _TrackingPhotoXFile(
+      reportedLength: 16,
+      bytes: Uint8List(900 * 1024 + 1),
+    );
+    final deceptivePicker = ImagePickerFacilityReportPhotoPicker(
+      imagePicker: FakeLostDataImagePicker(
+        LostDataResponse(file: deceptiveLengthFile, type: RetrieveType.image),
+      ),
+    );
+    await expectLater(
+      deceptivePicker.retrieveLostPhoto(),
+      throwsA(isA<FacilityReportPhotoException>()),
+    );
+    expect(deceptiveLengthFile.readAsBytesCalled, isTrue);
   });
 
   test('시설 신고 사진 오류는 쉬운 안내 문자열을 그대로 노출한다', () {
@@ -1683,6 +1731,62 @@ void main() {
       isA<StateError>(),
     ]);
   });
+
+  test('내 신고 목록 조회는 receipt 토큰을 재사용하고 동시 요청 수를 4 이하로 제한한다', () async {
+    var activeRequests = 0;
+    var maxActiveRequests = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+
+    server.listen((request) async {
+      activeRequests++;
+      if (activeRequests > maxActiveRequests) {
+        maxActiveRequests = activeRequests;
+      }
+      final reportId = request.uri.pathSegments.last;
+      final index = int.parse(reportId.split('-').last);
+      // 앞선 항목이 더 느려도 결과 순서가 유지되는지 함께 검증한다.
+      await Future<void>.delayed(Duration(milliseconds: (10 - index) * 8));
+      activeRequests--;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(
+          jsonEncode({
+            'success': true,
+            'data': {
+              'id': reportId,
+              'stationId': 'station-sangnoksu',
+              'facilityId': 'facility-sangnoksu-elevator-1',
+              'reportType': 'BROKEN',
+              'description': '점검 요청',
+              'status': 'ACCEPTED',
+              'createdAt': '2026-06-14T09:00:00',
+              'publicReceiptCode': 'ES-$index',
+            },
+          }),
+        );
+      await request.response.close();
+    });
+
+    final tokens = <String, String>{
+      for (var i = 0; i < 10; i++) 'report-$i': 'token-$i',
+    };
+    final receiptStore = _CountingReceiptStore(tokens);
+    final repository = FacilityReportApiRepository(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      receiptStore: receiptStore,
+    );
+
+    final reports = await repository.listMyReports();
+
+    expect(reports.map((report) => report.id).toList(), [
+      for (var i = 0; i < 10; i++) 'report-$i',
+    ]);
+    expect(maxActiveRequests, greaterThan(1));
+    expect(maxActiveRequests, lessThanOrEqualTo(4));
+    expect(receiptStore.receiptTokenForReportCount, 0);
+  });
 }
 
 class FakeLostDataImagePicker extends ImagePicker {
@@ -2064,5 +2168,38 @@ class RetryAuthorizationHeaderProvider implements AuthorizationHeaderProvider {
   @override
   Future<void> invalidateAuthorization() async {
     invalidateCount++;
+  }
+}
+
+class _TrackingPhotoXFile extends XFile {
+  _TrackingPhotoXFile({
+    required this.reportedLength,
+    required this.bytes,
+    String name = 'photo.jpg',
+  }) : super.fromData(bytes, name: name);
+
+  final int reportedLength;
+  final Uint8List bytes;
+  bool readAsBytesCalled = false;
+
+  @override
+  Future<int> length() async => reportedLength;
+
+  @override
+  Future<Uint8List> readAsBytes() async {
+    readAsBytesCalled = true;
+    return bytes;
+  }
+}
+
+class _CountingReceiptStore extends FakeFacilityReportReceiptStore {
+  _CountingReceiptStore(super.receiptTokens);
+
+  int receiptTokenForReportCount = 0;
+
+  @override
+  Future<String?> receiptTokenForReport(String reportId) {
+    receiptTokenForReportCount++;
+    return super.receiptTokenForReport(reportId);
   }
 }

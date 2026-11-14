@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:crypto/crypto.dart';
 import 'package:path/path.dart' as p;
@@ -109,7 +110,7 @@ class DataPackInstaller {
     final compressedFile = File(
       p.join(
         catalogDirectory.path,
-        '${pack.id}-v${pack.version}.sqlite.gz.tmp',
+        '${pack.id}-v${pack.version}.${uniqueTempToken()}.sqlite.gz.tmp',
       ),
     );
     try {
@@ -152,7 +153,10 @@ class DataPackInstaller {
     }
 
     final temporary = File(
-      p.join(catalogDirectory.path, '${pack.id}-v${pack.version}.sqlite.tmp'),
+      p.join(
+        catalogDirectory.path,
+        '${pack.id}-v${pack.version}.${uniqueTempToken()}.sqlite.tmp',
+      ),
     );
     try {
       final sqliteHash = await _inflateGzipToFile(
@@ -481,60 +485,73 @@ class DataPackInstaller {
   Future<DataPackInstallRejectionReason?> _validateSqlite(
     File file,
     DataPackManifestEntry pack,
-  ) async {
-    final header = await file
-        .openRead(0, 16)
-        .fold<List<int>>(<int>[], (bytes, chunk) => bytes..addAll(chunk));
-    if (!_hasSqliteHeader(header)) {
-      return DataPackInstallRejectionReason.invalidSqliteHeader;
-    }
-
-    final database = sqlite.sqlite3.open(
-      file.path,
-      mode: sqlite.OpenMode.readOnly,
+  ) {
+    final filePath = file.path;
+    final expectedSchemaVersion = pack.schemaVersion;
+    final requiredTables = List<String>.unmodifiable(pack.requiredTables);
+    final minimumTableRows = Map<String, int>.unmodifiable(
+      pack.minimumTableRows,
     );
-    try {
-      final quickCheck = database.select('PRAGMA quick_check');
-      if (quickCheck.any((row) => row.values.first != 'ok')) {
-        return DataPackInstallRejectionReason.quickCheckFailed;
+    return Isolate.run(() {
+      final headerReader = File(filePath).openSync();
+      final List<int> header;
+      try {
+        header = headerReader.readSync(16);
+      } finally {
+        headerReader.closeSync();
       }
-      final schemaVersion = database.select(
-        "SELECT value FROM catalog_metadata WHERE key = 'schemaVersion'",
-      );
-      if (schemaVersion.isEmpty ||
-          schemaVersion.first['value'] != pack.schemaVersion) {
-        return DataPackInstallRejectionReason.schemaVersionMismatch;
+      if (!_hasSqliteHeader(header)) {
+        return DataPackInstallRejectionReason.invalidSqliteHeader;
       }
-      final userVersion = database.select('PRAGMA user_version').first;
-      final catalogUserVersion = userVersion['user_version'];
-      if (catalogUserVersion is! int ||
-          catalogUserVersion > catalogDatabaseSchemaVersion) {
-        return DataPackInstallRejectionReason.unsupportedCatalogUserVersion;
-      }
-      for (final table in pack.requiredTables) {
-        final rows = database.select(
-          "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-          [table],
-        );
-        if (rows.isEmpty) {
-          return DataPackInstallRejectionReason.requiredTableMissing;
-        }
-      }
-      for (final entry in pack.minimumTableRows.entries) {
-        final rows = database.select(
-          'SELECT COUNT(*) AS count FROM ${_quotedSqlIdentifier(entry.key)}',
-        );
-        if ((rows.first['count'] as int) < entry.value) {
-          return DataPackInstallRejectionReason.minimumRowsMissing;
-        }
-      }
-    } on Object {
-      return DataPackInstallRejectionReason.quickCheckFailed;
-    } finally {
-      database.close();
-    }
 
-    return null;
+      final database = sqlite.sqlite3.open(
+        filePath,
+        mode: sqlite.OpenMode.readOnly,
+      );
+      try {
+        database.execute('PRAGMA busy_timeout = 5000');
+        final quickCheck = database.select('PRAGMA quick_check');
+        if (quickCheck.any((row) => row.values.first != 'ok')) {
+          return DataPackInstallRejectionReason.quickCheckFailed;
+        }
+        final schemaVersion = database.select(
+          "SELECT value FROM catalog_metadata WHERE key = 'schemaVersion'",
+        );
+        if (schemaVersion.isEmpty ||
+            schemaVersion.first['value'] != expectedSchemaVersion) {
+          return DataPackInstallRejectionReason.schemaVersionMismatch;
+        }
+        final userVersion = database.select('PRAGMA user_version').first;
+        final catalogUserVersion = userVersion['user_version'];
+        if (catalogUserVersion is! int ||
+            catalogUserVersion > catalogDatabaseSchemaVersion) {
+          return DataPackInstallRejectionReason.unsupportedCatalogUserVersion;
+        }
+        for (final table in requiredTables) {
+          final rows = database.select(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            [table],
+          );
+          if (rows.isEmpty) {
+            return DataPackInstallRejectionReason.requiredTableMissing;
+          }
+        }
+        for (final entry in minimumTableRows.entries) {
+          final rows = database.select(
+            'SELECT COUNT(*) AS count FROM ${_quotedSqlIdentifier(entry.key)}',
+          );
+          if ((rows.first['count'] as int) < entry.value) {
+            return DataPackInstallRejectionReason.minimumRowsMissing;
+          }
+        }
+      } on Object {
+        return DataPackInstallRejectionReason.quickCheckFailed;
+      } finally {
+        database.close();
+      }
+
+      return null;
+    });
   }
 
   Future<InstalledDataPackPointer> _writeCurrentPointer(
@@ -612,39 +629,74 @@ Future<String?> _inflateGzipToFile({
   required File compressedFile,
   required File targetFile,
   required int maxOutputBytes,
-}) async {
-  final output = Sha256DigestSink();
-  final input = sha256.startChunkedConversion(output);
-  IOSink? sink;
-  var totalBytes = 0;
-  try {
-    sink = targetFile.openWrite();
-    await for (final chunk in compressedFile.openRead().transform(
-      gzip.decoder,
-    )) {
-      totalBytes += chunk.length;
-      if (totalBytes > maxOutputBytes) {
-        input.close();
-        return null;
+}) {
+  final compressedPath = compressedFile.path;
+  final targetPath = targetFile.path;
+  return Isolate.run(() {
+    final output = Sha256DigestSink();
+    final hashInput = sha256.startChunkedConversion(output);
+    final reader = File(compressedPath).openSync();
+    final writer = File(targetPath).openSync(mode: FileMode.writeOnly);
+    final decompressSink = _InflateToFileSink(
+      writer: writer,
+      hashInput: hashInput,
+      maxOutputBytes: maxOutputBytes,
+    );
+    try {
+      final gzipInput = gzip.decoder.startChunkedConversion(decompressSink);
+      const chunkSize = 64 * 1024;
+      while (true) {
+        final chunk = reader.readSync(chunkSize);
+        if (chunk.isEmpty) {
+          break;
+        }
+        gzipInput.add(chunk);
       }
-      input.add(chunk);
-      sink.add(chunk);
+      gzipInput.close();
+      writer.flushSync();
+      hashInput.close();
+      return output.value.toString();
+    } on _MaxOutputBytesExceededException {
+      hashInput.close();
+      return null;
+    } on FormatException {
+      hashInput.close();
+      return null;
+    } finally {
+      reader.closeSync();
+      writer.closeSync();
     }
-    await sink.flush();
-    await sink.close();
-    sink = null;
-    input.close();
-    return output.value.toString();
-  } on FormatException {
-    input.close();
-    return null;
-  } finally {
-    if (sink != null) {
-      try {
-        await sink.close();
-      } catch (_) {}
+  });
+}
+
+class _MaxOutputBytesExceededException implements Exception {
+  const _MaxOutputBytesExceededException();
+}
+
+class _InflateToFileSink implements Sink<List<int>> {
+  _InflateToFileSink({
+    required this.writer,
+    required this.hashInput,
+    required this.maxOutputBytes,
+  });
+
+  final RandomAccessFile writer;
+  final Sink<List<int>> hashInput;
+  final int maxOutputBytes;
+  int _totalBytes = 0;
+
+  @override
+  void add(List<int> chunk) {
+    _totalBytes += chunk.length;
+    if (_totalBytes > maxOutputBytes) {
+      throw const _MaxOutputBytesExceededException();
     }
+    hashInput.add(chunk);
+    writer.writeFromSync(chunk);
   }
+
+  @override
+  void close() {}
 }
 
 /// 설치본 재활성화 조회 결과(#2532).

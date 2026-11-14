@@ -1,4 +1,6 @@
-import 'package:drift/drift.dart' show Value;
+import 'package:drift/drift.dart'
+    show ApplyInterceptor, QueryExecutor, QueryInterceptor, Value;
+import 'package:drift/native.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart'
     as user_db;
 import 'package:easysubway_mobile/features/search_history/data/drift_search_history_repository.dart';
@@ -196,4 +198,152 @@ void main() {
       expect(legacyCount.read<int>('count'), 0);
     },
   );
+
+  test(
+    'listRecentEntries와 프루닝은 region WHERE/LIMIT과 SQL DELETE를 사용한다',
+    () async {
+      final recorder = _HistorySqlRecordingInterceptor();
+      final userDatabase = user_db.UserDatabase(
+        NativeDatabase.memory().interceptWith(recorder),
+      );
+      addTearDown(userDatabase.close);
+      final repository = DriftSearchHistoryRepository(
+        userDatabase: userDatabase,
+        maxEntries: 2,
+      );
+
+      await userDatabase
+          .into(userDatabase.searchHistory)
+          .insert(
+            user_db.SearchHistoryCompanion.insert(
+              query: '사당',
+              region: const Value('수도권'),
+              searchedAt: DateTime.utc(2026, 6, 1),
+            ),
+          );
+      await userDatabase
+          .into(userDatabase.searchHistory)
+          .insert(
+            user_db.SearchHistoryCompanion.insert(
+              query: '서면',
+              region: const Value('부산권'),
+              searchedAt: DateTime.utc(2026, 7, 1),
+            ),
+          );
+      await repository.recordRouteSearch(
+        RecentRouteSearchEntry(
+          originStationId: 'busan-1',
+          originStationName: '부산역',
+          destinationStationId: 'busan-2',
+          destinationStationName: '해운대',
+          region: '부산',
+          searchedAt: DateTime.utc(2026, 7, 2),
+        ),
+      );
+
+      recorder.selects.clear();
+      recorder.customStatements.clear();
+      final recent = await repository.listRecentEntries(region: '부산', limit: 2);
+
+      expect(recent, hasLength(2));
+      expect(
+        recorder.selects.where((sql) => sql.contains('FROM search_history')),
+        everyElement(
+          allOf(
+            contains('WHERE'),
+            contains('ORDER BY searched_at DESC, id DESC LIMIT ?'),
+          ),
+        ),
+      );
+      expect(
+        recorder.selects.where(
+          (sql) => sql.contains('FROM route_search_history'),
+        ),
+        everyElement(
+          allOf(
+            contains('WHERE'),
+            contains('ORDER BY searched_at DESC, id DESC LIMIT ?'),
+          ),
+        ),
+      );
+
+      recorder.selects.clear();
+      recorder.customStatements.clear();
+      await repository.recordSearch('강남', region: '수도권');
+
+      expect(
+        recorder.customStatements.any(
+          (sql) =>
+              sql.contains('DELETE FROM search_history') &&
+              sql.contains('LIMIT -1 OFFSET ?'),
+        ),
+        isTrue,
+      );
+      expect(
+        recorder.customStatements.any(
+          (sql) =>
+              sql.contains('DELETE FROM route_search_history') &&
+              sql.contains('LIMIT -1 OFFSET ?'),
+        ),
+        isTrue,
+      );
+      expect(
+        recorder.selects.any((sql) => sql.contains("AS kind, searched_at")),
+        isFalse,
+      );
+
+      final limitCheckRepository = DriftSearchHistoryRepository(
+        userDatabase: userDatabase,
+        maxEntries: 5,
+      );
+      await limitCheckRepository.recordSearch('남포', region: '부산');
+      await limitCheckRepository.recordRouteSearch(
+        RecentRouteSearchEntry(
+          originStationId: 'busan-3',
+          originStationName: '서면',
+          destinationStationId: 'busan-4',
+          destinationStationName: '광안',
+          region: '부산',
+          searchedAt: DateTime.now().toUtc(),
+        ),
+      );
+      final topOne = await limitCheckRepository.listRecentEntries(
+        region: '부산',
+        limit: 1,
+      );
+      expect(topOne, hasLength(1));
+
+      final zeroMaxRepository = DriftSearchHistoryRepository(
+        userDatabase: userDatabase,
+        maxEntries: 0,
+      );
+      await zeroMaxRepository.recordSearch('남포', region: '부산');
+      expect(await zeroMaxRepository.listRecentEntries(region: '부산'), isEmpty);
+    },
+  );
+}
+
+class _HistorySqlRecordingInterceptor extends QueryInterceptor {
+  final List<String> selects = <String>[];
+  final List<String> customStatements = <String>[];
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    selects.add(statement);
+    return super.runSelect(executor, statement, args);
+  }
+
+  @override
+  Future<void> runCustom(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    customStatements.add(statement);
+    return super.runCustom(executor, statement, args);
+  }
 }

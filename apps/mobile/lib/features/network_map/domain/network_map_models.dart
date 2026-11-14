@@ -5,6 +5,9 @@ import 'route_map_major_stations.dart';
 import 'route_map_min_scale.dart';
 import 'structured_route_map.dart';
 
+export 'route_map_label_polygon.dart'
+    show ParsedRouteMapLabelPolygon, parseRouteMapLabelPolygonData;
+
 abstract interface class NetworkMapRepository {
   Future<NetworkMapData> getNetworkMap({String? region, String? lineId});
 }
@@ -119,8 +122,7 @@ class NetworkMapData {
             station.position.y.toDouble(),
           ),
           labelPolygon:
-              parseRouteMapLabelPolygon(station.position.labelPolygon) ??
-              const [],
+              station.position.parsedLabelPolygon?.toOffsetList() ?? const [],
         ),
       ),
       lineTracks: [
@@ -299,6 +301,7 @@ class NetworkMapPosition {
     required this.downPath,
     required this.sourceId,
     this.labelPolygon = '',
+    this._parsedLabelPolygon,
   });
 
   final int x;
@@ -309,6 +312,10 @@ class NetworkMapPosition {
   final String upPath;
   final String downPath;
   final String sourceId;
+  final ParsedRouteMapLabelPolygon? _parsedLabelPolygon;
+
+  ParsedRouteMapLabelPolygon? get parsedLabelPolygon =>
+      _parsedLabelPolygon ?? parseRouteMapLabelPolygonData(labelPolygon);
 
   NetworkMapPosition copyWith({
     int? x,
@@ -320,28 +327,36 @@ class NetworkMapPosition {
     String? downPath,
     String? sourceId,
   }) {
+    final resolvedPolygon = labelPolygon ?? this.labelPolygon;
+    final resolvedParsed =
+        labelPolygon == null || labelPolygon == this.labelPolygon
+        ? _parsedLabelPolygon
+        : parseRouteMapLabelPolygonData(resolvedPolygon);
     return NetworkMapPosition(
       x: x ?? this.x,
       y: y ?? this.y,
       labelDx: labelDx ?? this.labelDx,
       labelDy: labelDy ?? this.labelDy,
-      labelPolygon: labelPolygon ?? this.labelPolygon,
+      labelPolygon: resolvedPolygon,
       upPath: upPath ?? this.upPath,
       downPath: downPath ?? this.downPath,
       sourceId: sourceId ?? this.sourceId,
+      parsedLabelPolygon: resolvedParsed,
     );
   }
 
   factory NetworkMapPosition.fromJson(Map<String, Object?> json) {
+    final labelPolygon = json['labelPolygon'] as String? ?? '';
     return NetworkMapPosition(
       x: json['x'] as int? ?? 0,
       y: json['y'] as int? ?? 0,
       labelDx: json['labelDx'] as int? ?? 0,
       labelDy: json['labelDy'] as int? ?? 0,
-      labelPolygon: json['labelPolygon'] as String? ?? '',
+      labelPolygon: labelPolygon,
       upPath: json['upPath'] as String? ?? '',
       downPath: json['downPath'] as String? ?? '',
       sourceId: json['sourceId'] as String? ?? '',
+      parsedLabelPolygon: parseRouteMapLabelPolygonData(labelPolygon),
     );
   }
 }

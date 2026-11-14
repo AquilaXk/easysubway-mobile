@@ -11,9 +11,30 @@ import android.view.View
 import android.widget.RemoteViews
 import androidx.work.WorkManager
 import es.antonborri.home_widget.HomeWidgetLaunchIntent
+import es.antonborri.home_widget.HomeWidgetPlugin
 import es.antonborri.home_widget.HomeWidgetProvider
 
 class NextTrainWidgetProvider : HomeWidgetProvider() {
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val widgetData = HomeWidgetPlugin.getData(context)
+        val editor = widgetData.edit()
+        var changed = false
+        for (widgetId in appWidgetIds) {
+            val prefix = "widget_${widgetId}_"
+            for (key in widgetData.all.keys) {
+                if (key.startsWith(prefix)) {
+                    editor.remove(key)
+                    editor.remove("home_widget.double.$key")
+                    changed = true
+                }
+            }
+        }
+        if (changed) {
+            editor.apply()
+        }
+    }
+
     override fun onDisabled(context: Context) {
         super.onDisabled(context)
         WorkManager.getInstance(context).cancelUniqueWork("next-train-widget-refresh")

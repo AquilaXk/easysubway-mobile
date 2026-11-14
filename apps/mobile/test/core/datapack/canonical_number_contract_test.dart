@@ -142,6 +142,35 @@ void main() {
       throwsA(isA<FormatException>()),
     );
   });
+
+  test('canonicalDataPackJson은 중첩 깊이 32까지 허용하고 33 이상을 거부한다', () {
+    Object? nestedMap(int depth) {
+      Object? current = <String, Object?>{'leaf': 1};
+      for (var i = 1; i < depth; i += 1) {
+        current = <String, Object?>{'child': current};
+      }
+      return current;
+    }
+
+    Object? nestedList(int depth) {
+      Object? current = <Object?>[1];
+      for (var i = 1; i < depth; i += 1) {
+        current = <Object?>[current];
+      }
+      return current;
+    }
+
+    expect(canonicalDataPackJson(nestedMap(32)), contains('"leaf":1'));
+    expect(
+      () => canonicalDataPackJson(nestedMap(33)),
+      throwsA(isA<FormatException>()),
+    );
+    expect(canonicalDataPackJson(nestedList(32)), contains('[1]'));
+    expect(
+      () => canonicalDataPackJson(nestedList(33)),
+      throwsA(isA<FormatException>()),
+    );
+  });
 }
 
 double _specialValue(String value) {

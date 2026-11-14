@@ -66,6 +66,12 @@ void main() {
     expect(await target.readAsString(), 'next');
     expect(await replacedTargetBackupFile(target).exists(), isFalse);
   });
+
+  test('uniqueTempToken은 연속 호출 시 충돌 없는 안전한 임시 토큰을 생성한다', () {
+    final tokens = {for (var i = 0; i < 100; i += 1) uniqueTempToken()};
+    expect(tokens, hasLength(100));
+    expect(tokens, everyElement(matches(RegExp(r'^[A-Za-z0-9_-]{8,}$'))));
+  });
 }
 
 Future<Directory> _temporaryDirectory(String prefix) async {

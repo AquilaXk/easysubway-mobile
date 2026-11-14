@@ -161,6 +161,8 @@ List<Offset> _closeNearLoopPolyline(List<Offset> points) {
   return points;
 }
 
+final RegExp _polylineNumberPattern = RegExp(r'-?\d+(?:\.\d+)?');
+
 /// "M x y L x y ..." 형태의 절대 좌표 path를 정점 목록으로 파싱한다.
 /// 데이터팩(enrich-capital-route-map-layer.mjs)은 절대 M/L 세그먼트만 방출하므로
 /// 명령 문자는 무시하고 숫자 쌍만 읽는다. (H/V/상대 명령은 대상 아님.)
@@ -168,12 +170,16 @@ List<Offset> parseRouteMapPolyline(String path) {
   if (path.trim().isEmpty) {
     return const [];
   }
-  final numbers = RegExp(
-    r'-?\d+(?:\.\d+)?',
-  ).allMatches(path).map((match) => double.parse(match.group(0)!)).toList();
   final points = <Offset>[];
-  for (var index = 0; index + 1 < numbers.length; index += 2) {
-    points.add(Offset(numbers[index], numbers[index + 1]));
+  double? firstX;
+  for (final match in _polylineNumberPattern.allMatches(path)) {
+    final value = double.parse(match.group(0)!);
+    if (firstX == null) {
+      firstX = value;
+    } else {
+      points.add(Offset(firstX, value));
+      firstX = null;
+    }
   }
   return points;
 }

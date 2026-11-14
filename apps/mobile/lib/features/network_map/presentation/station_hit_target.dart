@@ -1,11 +1,11 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../domain/map_camera.dart';
 import '../domain/network_map_models.dart';
 import '../domain/network_map_station_tap_score.dart';
-import '../domain/route_map_label_polygon.dart';
 import '../infrastructure/cached_route_map_path.dart';
 import 'network_map_geometry.dart';
 
@@ -64,9 +64,9 @@ class NetworkMapStationHitGeometry {
       width: nodeRadius * 2,
       height: nodeRadius * 2,
     );
-    final labelPolygon = _labelPolygonFor(station, geometry);
+    final labelPolygon = station.position.parsedLabelPolygon;
     if (labelPolygon != null) {
-      return node.expandToInclude(networkMapPolygonBounds(labelPolygon));
+      return node.expandToInclude(labelPolygon.bounds.shift(-geometry.origin));
     }
     return node.expandToInclude(
       _stationLabelRect(station, geometry, labelHeight: labelHeight),
@@ -108,11 +108,37 @@ class NetworkMapStationHitGeometry {
     final visibleSourceRect = camera.visibleSourceRect.inflate(
       96 / camera.scale,
     );
-    return _canonicalStations(
-      geometry.stationIndex.query(visibleSourceRect).where((station) {
-        return sourceBoundsFor(station).overlaps(visibleSourceRect);
-      }),
-    );
+    final canonicalStations = <NetworkMapStation>[];
+    final entriesById = <String, List<({int index, Rect inflatedBounds})>>{};
+    for (final station in geometry.stationIndex.query(visibleSourceRect)) {
+      final bounds = sourceBoundsFor(station);
+      if (!bounds.overlaps(visibleSourceRect)) {
+        continue;
+      }
+      final inflatedBounds = bounds.inflate(8);
+      final group = entriesById[station.id];
+      var existingIndex = -1;
+      if (group != null) {
+        for (final entry in group) {
+          if (entry.inflatedBounds.overlaps(inflatedBounds)) {
+            existingIndex = entry.index;
+            break;
+          }
+        }
+      }
+      if (existingIndex < 0) {
+        final newIndex = canonicalStations.length;
+        canonicalStations.add(station);
+        (entriesById[station.id] ??= []).add((
+          index: newIndex,
+          inflatedBounds: inflatedBounds,
+        ));
+      } else if (_stationGeometryPriority(station) >
+          _stationGeometryPriority(canonicalStations[existingIndex])) {
+        canonicalStations[existingIndex] = station;
+      }
+    }
+    return canonicalStations;
   }
 
   NetworkMapStation? stationAtViewportPosition(
@@ -140,30 +166,6 @@ class NetworkMapStationHitGeometry {
     return bestStation;
   }
 
-  List<NetworkMapStation> _canonicalStations(
-    Iterable<NetworkMapStation> stations,
-  ) {
-    final canonicalStations = <NetworkMapStation>[];
-    for (final station in stations) {
-      final existingIndex = canonicalStations.indexWhere((existing) {
-        return existing.id == station.id &&
-            sourceBoundsFor(
-              existing,
-            ).inflate(8).overlaps(sourceBoundsFor(station).inflate(8));
-      });
-      if (existingIndex == -1) {
-        canonicalStations.add(station);
-        continue;
-      }
-      final existing = canonicalStations[existingIndex];
-      if (_stationGeometryPriority(station) >
-          _stationGeometryPriority(existing)) {
-        canonicalStations[existingIndex] = station;
-      }
-    }
-    return canonicalStations;
-  }
-
   NetworkMapStationTapScore? _stationTapScore(
     Offset viewportPosition,
     NetworkMapStation station,
@@ -183,14 +185,19 @@ class NetworkMapStationHitGeometry {
     var bestHitDistance = containsNode ? 0.0 : double.infinity;
     var bestSelectionDistance = containsNode ? nodeDistance : double.infinity;
     var containsShape = containsNode;
-    final labelPolygon = _labelPolygonFor(station, geometry);
+    final labelPolygon = station.position.parsedLabelPolygon;
     if (labelPolygon != null) {
-      final viewportPolygon = [
-        for (final point in labelPolygon) camera.sourceToViewportPoint(point),
-      ];
-      final polygonDistance = math.sqrt(
-        _distanceSquaredToPolygon(viewportPosition, viewportPolygon),
-      );
+      final rawTap =
+          camera.viewportToSourcePoint(viewportPosition) + geometry.origin;
+      final polygonDistance =
+          math.sqrt(
+            _distanceSquaredToPolygonCoordinates(
+              rawTap.dx,
+              rawTap.dy,
+              labelPolygon.coordinates,
+            ),
+          ) *
+          safeScale;
       bestHitDistance = math.min(bestHitDistance, polygonDistance);
       if (polygonDistance <= _maximumStationHitDistance) {
         bestSelectionDistance = math.min(
@@ -303,80 +310,83 @@ double _distanceToRect(Offset point, Rect rect) {
   return math.sqrt(dx * dx + dy * dy);
 }
 
-List<Offset>? _labelPolygonFor(
-  NetworkMapStation station,
-  NetworkMapGeometry geometry,
+double _distanceSquaredToPolygonCoordinates(
+  double px,
+  double py,
+  Float32List coordinates,
 ) {
-  final polygon = parseRouteMapLabelPolygon(station.position.labelPolygon);
-  if (polygon == null) {
-    return null;
-  }
-  return [
-    for (final point in polygon)
-      Offset(point.dx - geometry.origin.dx, point.dy - geometry.origin.dy),
-  ];
-}
-
-double _distanceSquaredToPolygon(Offset point, List<Offset> polygon) {
-  if (_pointInPolygon(point, polygon)) {
+  if (_pointInPolygonCoordinates(px, py, coordinates)) {
     return 0;
   }
+  final length = coordinates.length;
   var best = double.infinity;
-  for (var index = 0; index < polygon.length; index += 1) {
-    best = math.min(
-      best,
-      _distanceSquaredToSegment(
-        point,
-        polygon[index],
-        polygon[(index + 1) % polygon.length],
-      ),
+  var prevX = coordinates[length - 2];
+  var prevY = coordinates[length - 1];
+  for (var i = 0; i < length; i += 2) {
+    final currX = coordinates[i];
+    final currY = coordinates[i + 1];
+    final segDistSq = _distanceSquaredToSegmentValues(
+      px,
+      py,
+      prevX,
+      prevY,
+      currX,
+      currY,
     );
+    if (segDistSq < best) {
+      best = segDistSq;
+    }
+    prevX = currX;
+    prevY = currY;
   }
   return best;
 }
 
-bool _pointInPolygon(Offset point, List<Offset> polygon) {
+bool _pointInPolygonCoordinates(double px, double py, Float32List coordinates) {
+  final length = coordinates.length;
   var inside = false;
-  for (
-    var index = 0, previous = polygon.length - 1;
-    index < polygon.length;
-    previous = index, index += 1
-  ) {
-    final currentPoint = polygon[index];
-    final previousPoint = polygon[previous];
-    final crossesY =
-        (currentPoint.dy > point.dy) != (previousPoint.dy > point.dy);
-    if (!crossesY) {
-      continue;
+  var prevX = coordinates[length - 2];
+  var prevY = coordinates[length - 1];
+  for (var i = 0; i < length; i += 2) {
+    final currX = coordinates[i];
+    final currY = coordinates[i + 1];
+    final crossesY = (currY > py) != (prevY > py);
+    if (crossesY) {
+      final intersectionX =
+          (prevX - currX) * (py - currY) / (prevY - currY) + currX;
+      if (px < intersectionX) {
+        inside = !inside;
+      }
     }
-    final intersectionX =
-        (previousPoint.dx - currentPoint.dx) *
-            (point.dy - currentPoint.dy) /
-            (previousPoint.dy - currentPoint.dy) +
-        currentPoint.dx;
-    if (point.dx < intersectionX) {
-      inside = !inside;
-    }
+    prevX = currX;
+    prevY = currY;
   }
   return inside;
 }
 
-double _distanceSquaredToSegment(Offset point, Offset start, Offset end) {
-  final segment = end - start;
-  final lengthSquared = segment.distanceSquared;
+double _distanceSquaredToSegmentValues(
+  double px,
+  double py,
+  double startX,
+  double startY,
+  double endX,
+  double endY,
+) {
+  final segX = endX - startX;
+  final segY = endY - startY;
+  final lengthSquared = segX * segX + segY * segY;
   if (lengthSquared == 0) {
-    return (point - start).distanceSquared;
+    final dx = px - startX;
+    final dy = py - startY;
+    return dx * dx + dy * dy;
   }
-  final t =
-      (((point.dx - start.dx) * segment.dx) +
-          ((point.dy - start.dy) * segment.dy)) /
-      lengthSquared;
-  final clampedT = t.clamp(0.0, 1.0).toDouble();
-  final projection = Offset(
-    start.dx + segment.dx * clampedT,
-    start.dy + segment.dy * clampedT,
-  );
-  return (point - projection).distanceSquared;
+  final t = (((px - startX) * segX) + ((py - startY) * segY)) / lengthSquared;
+  final clampedT = t < 0 ? 0.0 : (t > 1 ? 1.0 : t);
+  final projX = startX + segX * clampedT;
+  final projY = startY + segY * clampedT;
+  final dx = px - projX;
+  final dy = py - projY;
+  return dx * dx + dy * dy;
 }
 
 bool _usesOfficialRouteMapSource(NetworkMapStation station) {

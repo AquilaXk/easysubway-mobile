@@ -7,6 +7,7 @@
 // 무관하게 일정 간격). 데이터(track 좌표)는 건드리지 않는다.
 import 'dart:ui' show Offset;
 
+import 'network_map_station_spatial_index.dart';
 import 'structured_route_map.dart';
 
 /// 각 노선 polyline 정점에 적용할 평행 오프셋 방향 벡터를 계산한다.
@@ -19,7 +20,7 @@ Map<String, List<List<Offset>>> routeMapParallelLineOffsets(
   List<RouteMapLineGeometry> lines,
 ) {
   // 정점 좌표 키 → 그 점을 지나는 노선 집합.
-  final linesByPoint = <String, Set<String>>{};
+  final linesByPoint = <int, Set<String>>{};
   for (final line in lines) {
     for (final polyline in line.polylines) {
       for (final point in polyline) {
@@ -29,15 +30,16 @@ Map<String, List<List<Offset>>> routeMapParallelLineOffsets(
       }
     }
   }
+  final sortedMembersByPoint = <int, List<String>>{};
 
   final result = <String, List<List<Offset>>>{};
   for (final line in lines) {
     final perPolyline = <List<Offset>>[];
     for (final polyline in line.polylines) {
       // 각 정점이 다른 노선과 공유되는지 미리 계산(런 판정용).
+      final pointKeys = [for (final point in polyline) _pointKey(point)];
       final shared = [
-        for (final point in polyline)
-          (linesByPoint[_pointKey(point)]?.length ?? 0) > 1,
+        for (final key in pointKeys) (linesByPoint[key]?.length ?? 0) > 1,
       ];
       final offsets = <Offset>[];
       for (var i = 0; i < polyline.length; i += 1) {
@@ -48,8 +50,12 @@ Map<String, List<List<Offset>>> routeMapParallelLineOffsets(
           offsets.add(Offset.zero);
           continue;
         }
+        final key = pointKeys[i];
         // 공유 노선을 정렬해 결정적 rank → 중앙 기준 부호 배수(대칭 배치).
-        final members = linesByPoint[_pointKey(polyline[i])]!.toList()..sort();
+        final members = sortedMembersByPoint.putIfAbsent(
+          key,
+          () => linesByPoint[key]!.toList()..sort(),
+        );
         final mult = members.indexOf(line.lineId) - (members.length - 1) / 2;
         offsets.add(_unitNormal(polyline, i) * mult);
       }
@@ -60,8 +66,8 @@ Map<String, List<List<Offset>>> routeMapParallelLineOffsets(
   return result;
 }
 
-/// 공유 판정용 정점 키. 정수 좌표계라 반올림해 미세 오차를 흡수한다.
-String _pointKey(Offset p) => '${p.dx.round()},${p.dy.round()}';
+/// 공유 판정용 정점 키. 정수 좌표계라 반올림 후 64비트 정수로 패킹한다.
+int _pointKey(Offset p) => packRouteMapGridKey(p.dx.round(), p.dy.round());
 
 /// polyline 정점 i에서 진행 방향에 수직인 단위 법선. 인접 정점으로 접선을
 /// 추정한다(끝점은 한쪽 세그먼트). 접선 길이 0이면 Offset.zero.

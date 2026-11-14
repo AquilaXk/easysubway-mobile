@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import '../domain/facility_report_exception.dart';
 
 class FacilityReportPhotoUploadIntent {
@@ -32,13 +34,19 @@ class FacilityReportPhotoUploadIntent {
   final String uploadMethod;
   final Map<String, String> uploadHeaders;
 
-  Uri uploadUri(Uri baseUri) {
-    final parsed = Uri.parse(uploadUrl);
-    final resolved = parsed.hasScheme ? parsed : baseUri.resolve(uploadUrl);
+  Uri uploadUri(Uri baseUri, {bool isReleaseMode = kReleaseMode}) {
+    final parsed = Uri.tryParse(uploadUrl.trim());
+    if (parsed == null || (!parsed.hasScheme && parsed.hasAuthority)) {
+      throw const FacilityReportException(facilityReportSubmitFailureMessage);
+    }
+    final resolved = parsed.hasScheme ? parsed : baseUri.resolveUri(parsed);
     final isLoopbackHttp =
+        !isReleaseMode &&
         resolved.scheme == 'http' &&
         const {'localhost', '127.0.0.1', '::1'}.contains(resolved.host);
-    if (resolved.scheme != 'https' && !isLoopbackHttp) {
+    if (resolved.userInfo.isNotEmpty ||
+        resolved.host.isEmpty ||
+        (resolved.scheme != 'https' && !isLoopbackHttp)) {
       throw const FacilityReportException(facilityReportSubmitFailureMessage);
     }
     return resolved;

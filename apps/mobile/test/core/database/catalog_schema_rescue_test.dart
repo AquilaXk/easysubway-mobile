@@ -8,6 +8,7 @@ import 'package:easysubway_mobile/core/database/catalog/catalog_database_opener.
 import 'package:easysubway_mobile/core/database/catalog/catalog_schema_diagnostics.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart';
 import 'package:easysubway_mobile/core/datapack/data_pack_installer.dart';
+import 'package:flutter/foundation.dart' show FlutterError;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sqlite3/sqlite3.dart' as sqlite;
@@ -438,6 +439,214 @@ void main() {
     expect(migratedSha256, isNot(installedSha256));
     expect(lookup.pointer?.sha256, migratedSha256);
   });
+
+  test('CatalogDatabase.file은 PRAGMA busy_timeout = 5000을 설정한다', () async {
+    final directory = await _temporaryDirectory('busy-timeout-');
+    final file = File('${directory.path}/catalog.sqlite');
+    final database = CatalogDatabase.file(file);
+    addTearDown(database.close);
+
+    final row = await database.customSelect('PRAGMA busy_timeout').getSingle();
+    expect(row.read<int>('timeout'), 5000);
+  });
+
+  test(
+    'CatalogDatabaseOpener.open은 번들 index/asset 결측·변조 시 더미 역으로 폴백하지 않는다',
+    () async {
+      final missingIndexBundle = _InMemoryAssetBundle(const {});
+      final missingDir = await _temporaryDirectory('missing-bundle-index-');
+      await expectLater(
+        CatalogDatabaseOpener(
+          databaseDirectory: missingDir,
+          assetBundle: missingIndexBundle,
+        ).open(),
+        throwsA(isA<Object>()),
+      );
+
+      final emptyPacksBundle = _InMemoryAssetBundle({
+        'assets/datapacks/index.json': utf8.encode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'builtAt': '2026-09-24T03:34:28.000Z',
+            'qualityAsOf': '2026-09-09T03:16:08.098Z',
+            'freshnessExpiresAt': '2026-10-09T03:16:08.098Z',
+            'sourceSnapshotSetHash': 'a' * 64,
+            'schemaIdentity': 'catalog-schema-v1',
+            'packs': <Object?>[],
+          }),
+        ),
+      });
+      final emptyDir = await _temporaryDirectory('empty-bundle-packs-');
+      await expectLater(
+        CatalogDatabaseOpener(
+          databaseDirectory: emptyDir,
+          assetBundle: emptyPacksBundle,
+        ).open(),
+        throwsFormatException,
+      );
+
+      final invalidAssetBundle = _InMemoryAssetBundle({
+        'assets/datapacks/index.json': utf8.encode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'builtAt': '2026-09-24T03:34:28.000Z',
+            'qualityAsOf': '2026-09-09T03:16:08.098Z',
+            'freshnessExpiresAt': '2026-10-09T03:16:08.098Z',
+            'sourceSnapshotSetHash': 'a' * 64,
+            'schemaIdentity': 'catalog-schema-v1',
+            'packs': [
+              {
+                'id': 'nationwide',
+                'asset': '../evil.sqlite.gz',
+                'sha256': 'a' * 64,
+                'sqliteSha256': 'b' * 64,
+                'byteSize': 16,
+              },
+            ],
+          }),
+        ),
+      });
+      final invalidAssetDir = await _temporaryDirectory(
+        'invalid-bundle-asset-',
+      );
+      await expectLater(
+        CatalogDatabaseOpener(
+          databaseDirectory: invalidAssetDir,
+          assetBundle: invalidAssetBundle,
+        ).open(),
+        throwsFormatException,
+      );
+
+      // 빈 SQLite DB(0 stations) 번들에서도 더미 역을 채우지 않고 Fail-Closed로 거부한다.
+      final blankDbDir = await _temporaryDirectory('blank-bundle-db-src-');
+      final blankFile = File('${blankDbDir.path}/blank.sqlite');
+      final blankDb = CatalogDatabase.file(blankFile);
+      await blankDb.customSelect('SELECT 1').get();
+      await blankDb.close();
+      final blankSqliteBytes = await blankFile.readAsBytes();
+      final blankGzipBytes = gzip.encode(blankSqliteBytes);
+      final blankBundle = _InMemoryAssetBundle({
+        'assets/datapacks/index.json': utf8.encode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'builtAt': '2026-09-24T03:34:28.000Z',
+            'qualityAsOf': '2026-09-09T03:16:08.098Z',
+            'freshnessExpiresAt': '2026-10-09T03:16:08.098Z',
+            'sourceSnapshotSetHash': 'a' * 64,
+            'schemaIdentity': 'catalog-schema-v1',
+            'packs': [
+              {
+                'id': 'nationwide',
+                'asset': 'assets/datapacks/nationwide.sqlite.gz',
+                'sha256': sha256.convert(blankGzipBytes).toString(),
+                'sqliteSha256': sha256.convert(blankSqliteBytes).toString(),
+                'byteSize': blankGzipBytes.length,
+              },
+            ],
+          }),
+        ),
+        'assets/datapacks/nationwide.sqlite.gz': blankGzipBytes,
+      });
+      final blankTargetDir = await _temporaryDirectory(
+        'blank-bundle-db-target-',
+      );
+      await expectLater(
+        CatalogDatabaseOpener(
+          databaseDirectory: blankTargetDir,
+          assetBundle: blankBundle,
+        ).open(),
+        throwsStateError,
+      );
+
+      // nationwide가 없는 인덱스여도 더미 DB로 폴백하지 않고 거부한다.
+      final otherPackBundle = _InMemoryAssetBundle({
+        'assets/datapacks/index.json': utf8.encode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'builtAt': '2026-09-24T03:34:28.000Z',
+            'qualityAsOf': '2026-09-09T03:16:08.098Z',
+            'freshnessExpiresAt': '2026-10-09T03:16:08.098Z',
+            'sourceSnapshotSetHash': 'a' * 64,
+            'schemaIdentity': 'catalog-schema-v1',
+            'packs': [
+              {
+                'id': 'other',
+                'asset': 'assets/datapacks/other.sqlite.gz',
+                'sha256': sha256.convert(blankGzipBytes).toString(),
+                'sqliteSha256': sha256.convert(blankSqliteBytes).toString(),
+                'byteSize': blankGzipBytes.length,
+              },
+            ],
+          }),
+        ),
+        'assets/datapacks/other.sqlite.gz': blankGzipBytes,
+      });
+      final otherPackDir = await _temporaryDirectory(
+        'missing-nationwide-pack-',
+      );
+      await expectLater(
+        CatalogDatabaseOpener(
+          databaseDirectory: otherPackDir,
+          assetBundle: otherPackBundle,
+        ).open(),
+        throwsStateError,
+      );
+    },
+  );
+
+  test(
+    'CatalogDatabaseOpener는 maxDecompressedPackBytes 초과 번들 압축 해제 시 거부한다',
+    () async {
+      final payload = List<int>.filled(256, 65);
+      final compressed = gzip.encode(payload);
+      final bundle = _InMemoryAssetBundle({
+        'assets/datapacks/index.json': utf8.encode(
+          jsonEncode({
+            'schemaVersion': 1,
+            'builtAt': '2026-09-24T03:34:28.000Z',
+            'qualityAsOf': '2026-09-09T03:16:08.098Z',
+            'freshnessExpiresAt': '2026-10-09T03:16:08.098Z',
+            'sourceSnapshotSetHash': 'a' * 64,
+            'schemaIdentity': 'catalog-schema-v1',
+            'packs': [
+              {
+                'id': 'nationwide',
+                'asset': 'assets/datapacks/nationwide.sqlite.gz',
+                'sha256': sha256.convert(compressed).toString(),
+                'sqliteSha256': sha256.convert(payload).toString(),
+                'byteSize': compressed.length,
+              },
+            ],
+          }),
+        ),
+        'assets/datapacks/nationwide.sqlite.gz': compressed,
+      });
+      final targetDir = await _temporaryDirectory('oversized-bundle-');
+      await expectLater(
+        CatalogDatabaseOpener(
+          databaseDirectory: targetDir,
+          assetBundle: bundle,
+          maxDecompressedPackBytes: 64,
+        ).open(),
+        throwsFormatException,
+      );
+    },
+  );
+}
+
+class _InMemoryAssetBundle extends CachingAssetBundle {
+  _InMemoryAssetBundle(this._assets);
+
+  final Map<String, List<int>> _assets;
+
+  @override
+  Future<ByteData> load(String key) async {
+    final bytes = _assets[key];
+    if (bytes == null) {
+      throw FlutterError('Missing bundled asset: $key');
+    }
+    return ByteData.sublistView(Uint8List.fromList(bytes));
+  }
 }
 
 Future<Directory> _temporaryDirectory(String prefix) async {

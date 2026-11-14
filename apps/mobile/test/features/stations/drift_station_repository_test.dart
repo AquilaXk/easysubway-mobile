@@ -1,3 +1,6 @@
+import 'package:drift/drift.dart'
+    show ApplyInterceptor, QueryExecutor, QueryInterceptor;
+import 'package:drift/native.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/features/stations/data/drift_station_repository.dart';
@@ -710,4 +713,91 @@ void main() {
     expect(detail.contacts.single.lineName, '수도권 2호선');
     expect(detail.contacts.single.phone, '02-6110-2261');
   });
+
+  test('getNetworkMap(lineId:)는 line_id 필터를 SQL에 푸시다운하고 환승 소속을 유지한다', () async {
+    final recorder = _StationSqlRecordingInterceptor();
+    final database = CatalogDatabase(
+      NativeDatabase.memory().interceptWith(recorder),
+    );
+    addTearDown(database.close);
+    await database.seedBaselineIfEmpty();
+    await database.customStatement('''
+        INSERT INTO route_map_line_tracks
+          (region, line_id, track_index, path, svg_color, source_id, source_name,
+           source_url, license, license_status, commercial_use_allowed, attribution_required)
+        VALUES
+          ('수도권', 'seoul-4', 0, 'M 0 0 L 10 0', '', 's', 'n', 'u', 'l', 'reviewed', 0, 1),
+          ('수도권', 'seoul-2', 0, 'M 5 5 L 15 5', '', 's', 'n', 'u', 'l', 'reviewed', 0, 1)
+        ''');
+    await database.customStatement('''
+        INSERT INTO network_edges
+          (id, from_node_id, to_node_id, edge_type, service_class, service_pattern,
+           accessibility_status, reliability_score)
+        VALUES
+          ('edge-4', 'station-sangnoksu:seoul-4', 'station-sadang:seoul-4',
+           'RIDE', 'SUBWAY', 'LOCAL', 'ACCESSIBLE', 100),
+          ('edge-2', 'station-sadang:seoul-2', 'station-sangnoksu:seoul-2',
+           'RIDE', 'SUBWAY', 'LOCAL', 'ACCESSIBLE', 100)
+        ''');
+    final repository = DriftStationRepository(database: database);
+    await repository.warmSearchCache();
+    recorder.selects.clear();
+
+    final map = await repository.getNetworkMap(
+      region: '수도권',
+      lineId: 'seoul-4',
+    );
+    final detail = await repository.getStationDetail('station-sadang');
+
+    expect(detail.id, 'station-sadang');
+    expect(
+      map.stations.every((station) => station.lineId == 'seoul-4'),
+      isTrue,
+    );
+    expect(map.lineTracks.map((track) => track.lineId), ['seoul-4']);
+    expect(map.edges.map((edge) => edge.id), contains('edge-4'));
+    expect(map.edges.map((edge) => edge.lineId), everyElement('seoul-4'));
+    expect(
+      map.stationLineMemberships
+          .where((membership) => membership.stationId == 'station-sadang')
+          .map((membership) => membership.lineId),
+      containsAll(['seoul-2', 'seoul-4']),
+    );
+    expect(
+      recorder.selects.any(
+        (sql) =>
+            sql.contains('FROM route_map_positions rmp') &&
+            sql.contains('sl.line_id = ?'),
+      ),
+      isTrue,
+    );
+    expect(
+      recorder.selects.any(
+        (sql) =>
+            sql.contains('FROM route_map_line_tracks') &&
+            sql.contains('line_id = ?'),
+      ),
+      isTrue,
+    );
+    expect(
+      recorder.selects.any(
+        (sql) => sql.contains('FROM network_edges') && sql.contains('SUBSTR('),
+      ),
+      isTrue,
+    );
+  });
+}
+
+class _StationSqlRecordingInterceptor extends QueryInterceptor {
+  final List<String> selects = <String>[];
+
+  @override
+  Future<List<Map<String, Object?>>> runSelect(
+    QueryExecutor executor,
+    String statement,
+    List<Object?> args,
+  ) {
+    selects.add(statement);
+    return super.runSelect(executor, statement, args);
+  }
 }

@@ -168,17 +168,34 @@ class DriftSearchHistoryRepository implements SearchHistoryRepository {
     String? region,
     int limit = 10,
   }) async {
+    if (limit <= 0) {
+      return const [];
+    }
     final filterRegion = _normalizeRegion(region);
-    // 지역 없는 레거시 행은 v3 마이그레이션에서 한 번만 정리된다(#2419).
-    // 조회는 아래 _stationMatchesRegion 필터로 결과에서만 제외한다.
+    final hasRegionFilter = filterRegion != null && filterRegion.isNotEmpty;
+    final regionVariants = hasRegionFilter
+        ? _storedRegionVariants(filterRegion)
+        : const <String>[];
+    final regionWhere = !hasRegionFilter
+        ? ''
+        : regionVariants.length == 1
+        ? 'WHERE region = ?'
+        : 'WHERE region IN (${_placeholders(regionVariants.length)})';
+    final queryVariables = <Variable<Object>>[
+      for (final variant in regionVariants) Variable.withString(variant),
+      Variable.withInt(limit),
+    ];
+
     final stationRows = await userDatabase
         .customSelect(
           '''
           SELECT query, region, searched_at,
                  station_id, line_id, line_name, line_color, station_code
           FROM search_history
-          ORDER BY searched_at DESC, id DESC
+          $regionWhere
+          ORDER BY searched_at DESC, id DESC LIMIT ?
           ''',
+          variables: queryVariables,
           readsFrom: {userDatabase.searchHistory},
         )
         .get();
@@ -196,8 +213,10 @@ class DriftSearchHistoryRepository implements SearchHistoryRepository {
                  destination_line_color, destination_station_code,
                  region, searched_at
           FROM route_search_history
-          ORDER BY searched_at DESC, id DESC
+          $regionWhere
+          ORDER BY searched_at DESC, id DESC LIMIT ?
           ''',
+          variables: queryVariables,
           readsFrom: {userDatabase.routeSearchHistory},
         )
         .get();
@@ -205,9 +224,6 @@ class DriftSearchHistoryRepository implements SearchHistoryRepository {
     final entries = <RecentSearchEntry>[];
     for (final row in stationRows) {
       final rowRegion = row.read<String?>('region');
-      if (!_stationMatchesRegion(rowRegion, filterRegion)) {
-        continue;
-      }
       entries.add(
         RecentStationSearchEntry(
           query: row.read<String>('query'),
@@ -224,11 +240,6 @@ class DriftSearchHistoryRepository implements SearchHistoryRepository {
     }
     for (final row in routeRows) {
       final rowRegion = row.read<String>('region');
-      if (filterRegion != null &&
-          filterRegion.isNotEmpty &&
-          !stationBelongsToRegion(rowRegion, filterRegion)) {
-        continue;
-      }
       entries.add(
         RecentRouteSearchEntry(
           originStationId: row.read<String>('origin_station_id'),
@@ -262,7 +273,10 @@ class DriftSearchHistoryRepository implements SearchHistoryRepository {
     }
 
     entries.sort((a, b) => b.searchedAt.compareTo(a.searchedAt));
-    return entries.take(limit).toList(growable: false);
+    if (entries.length <= limit) {
+      return List<RecentSearchEntry>.unmodifiable(entries);
+    }
+    return List<RecentSearchEntry>.unmodifiable(entries.sublist(0, limit));
   }
 
   @override
@@ -319,55 +333,62 @@ class DriftSearchHistoryRepository implements SearchHistoryRepository {
 
   /// 역·경로를 합친 통합 목록이 [maxEntries]를 넘으면 오래된 것부터 지운다.
   Future<void> _pruneUnified() async {
-    // 리뷰 finding E: 지역 없는 레거시 행(v3 마이그레이션 이전에 생긴 것 등)이
-    // 남아 있으면 통합 prune 슬롯을 차지해 정상 행을 밀어낸다. prune마다 먼저
-    // 지운다(listRecentEntries 읽기 경로에는 넣지 않음 — 이전 리뷰에서 마이그
-    // 레이션으로 옮긴 결정 유지).
-    await userDatabase.customStatement('''
-          DELETE FROM search_history WHERE region IS NULL OR region = ''
-          ''');
-    final rows = await userDatabase.customSelect('''
-          SELECT id, 'station' AS kind, searched_at FROM search_history
-          UNION ALL
-          SELECT id, 'route' AS kind, searched_at FROM route_search_history
-          ORDER BY searched_at DESC, id DESC, kind ASC
-          ''').get();
-    if (rows.length <= maxEntries) {
-      return;
-    }
-    final overflow = rows.skip(maxEntries);
-    final stationIds = <int>[];
-    final routeIds = <int>[];
-    for (final row in overflow) {
-      final id = row.read<int>('id');
-      if (row.read<String>('kind') == 'station') {
-        stationIds.add(id);
-      } else {
-        routeIds.add(id);
+    await userDatabase.transaction(() async {
+      // 지역 없는 레거시 행(v3 마이그레이션 이전에 생긴 것 등)이 남아 있으면
+      // 통합 prune 슬롯을 차지해 정상 행을 밀어내므로 먼저 지운다.
+      await userDatabase.customStatement('''
+            DELETE FROM search_history WHERE region IS NULL OR region = ''
+            ''');
+      if (maxEntries <= 0) {
+        await userDatabase.customStatement('DELETE FROM search_history');
+        await userDatabase.customStatement('DELETE FROM route_search_history');
+        return;
       }
-    }
-    if (stationIds.isNotEmpty) {
+      // 상위 maxEntries 행은 유지되므로 station 먼저 제거해도
+      // 이어지는 route OVERFLOW 위치는 변하지 않는다.
       await userDatabase.customStatement(
-        'DELETE FROM search_history WHERE id IN (${_placeholders(stationIds.length)})',
-        stationIds,
+        '''
+        DELETE FROM search_history
+        WHERE id IN (
+          SELECT id FROM (
+            SELECT id, 'station' AS kind, searched_at FROM search_history
+            UNION ALL
+            SELECT id, 'route' AS kind, searched_at FROM route_search_history
+            ORDER BY searched_at DESC, id DESC, kind ASC
+            LIMIT -1 OFFSET ?
+          )
+          WHERE kind = 'station'
+        )
+        ''',
+        [maxEntries],
       );
-    }
-    if (routeIds.isNotEmpty) {
       await userDatabase.customStatement(
-        'DELETE FROM route_search_history WHERE id IN (${_placeholders(routeIds.length)})',
-        routeIds,
+        '''
+        DELETE FROM route_search_history
+        WHERE id IN (
+          SELECT id FROM (
+            SELECT id, 'station' AS kind, searched_at FROM search_history
+            UNION ALL
+            SELECT id, 'route' AS kind, searched_at FROM route_search_history
+            ORDER BY searched_at DESC, id DESC, kind ASC
+            LIMIT -1 OFFSET ?
+          )
+          WHERE kind = 'route'
+        )
+        ''',
+        [maxEntries],
       );
-    }
+    });
   }
 
-  bool _stationMatchesRegion(String? rowRegion, String? filterRegion) {
-    if (filterRegion == null || filterRegion.isEmpty) {
-      return true;
-    }
-    if (rowRegion == null || rowRegion.isEmpty) {
-      return false;
-    }
-    return stationBelongsToRegion(rowRegion, filterRegion);
+  List<String> _storedRegionVariants(String normalizedRegion) {
+    return switch (normalizedRegion) {
+      '부산' => const ['부산', '부산권'],
+      '광주' => const ['광주', '광주권'],
+      '대구' => const ['대구', '대구권'],
+      '대전' => const ['대전', '대전권'],
+      _ => [normalizedRegion],
+    };
   }
 
   String? _normalizeRegion(String? region) {

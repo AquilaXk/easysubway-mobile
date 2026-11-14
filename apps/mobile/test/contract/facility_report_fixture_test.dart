@@ -123,19 +123,34 @@ void main() {
         Uri.parse(loopbackUrl),
       );
     }
+    for (final rejectedUrl in const [
+      'http://upload.example.com/object',
+      'https://user:pass@upload.example.com/object',
+      '//upload.example.com/object',
+      'http://[::1',
+    ]) {
+      expect(
+        () => FacilityReportPhotoUploadIntent(
+          objectKey: 'k',
+          uploadUrl: rejectedUrl,
+          uploadMethod: 'PUT',
+        ).uploadUri(baseUri),
+        throwsA(
+          isA<FacilityReportException>().having(
+            (error) => '$error',
+            'toString',
+            '제보를 보내지 못했어요.',
+          ),
+        ),
+      );
+    }
     expect(
       () => const FacilityReportPhotoUploadIntent(
         objectKey: 'k',
-        uploadUrl: 'http://upload.example.com/object',
+        uploadUrl: 'http://127.0.0.1:8080/upload',
         uploadMethod: 'PUT',
-      ).uploadUri(baseUri),
-      throwsA(
-        isA<Exception>().having(
-          (error) => '$error',
-          'toString',
-          '제보를 보내지 못했어요.',
-        ),
-      ),
+      ).uploadUri(baseUri, isReleaseMode: true),
+      throwsA(isA<FacilityReportException>()),
     );
   });
 }

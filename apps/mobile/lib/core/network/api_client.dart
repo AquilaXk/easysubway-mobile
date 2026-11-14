@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
+
 import 'api_error.dart';
 
 export 'api_error.dart';
@@ -16,12 +18,16 @@ class ApiClient {
     HttpClient? httpClient,
     this.timeout = defaultApiTimeout,
     this.maxResponseBytes = defaultMaxApiResponseBytes,
+    this.isReleaseMode = kReleaseMode,
   }) : _httpClient = httpClient ?? HttpClient(),
-       _ownsHttpClient = httpClient == null;
+       _ownsHttpClient = httpClient == null {
+    _validateTransportUri(baseUri, isReleaseMode: isReleaseMode);
+  }
 
   final Uri baseUri;
   final Duration timeout;
   final int maxResponseBytes;
+  final bool isReleaseMode;
   final HttpClient _httpClient;
   final bool _ownsHttpClient;
 
@@ -77,8 +83,10 @@ class ApiClient {
     required ContentType contentType,
     Map<String, String> headers = const {},
   }) async {
+    _validateTransportUri(uri, isReleaseMode: isReleaseMode);
     try {
       final request = await _httpClient.putUrl(uri).timeout(timeout);
+      request.followRedirects = false;
       headers.forEach(request.headers.set);
       request.headers.contentType = contentType;
       request.contentLength = body.length;
@@ -86,7 +94,16 @@ class ApiClient {
 
       final response = await request.close().timeout(timeout);
       await response.drain<void>().timeout(timeout);
+      if (_isRedirectStatus(response.statusCode)) {
+        throw ApiException(
+          '리다이렉트 응답은 허용되지 않습니다.',
+          statusCode: response.statusCode,
+          path: uri.path,
+        );
+      }
       return ApiResponse(statusCode: response.statusCode, jsonBody: null);
+    } on ApiException {
+      rethrow;
     } on TimeoutException catch (error, stackTrace) {
       throw ApiException(
         '연결 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요.',
@@ -117,7 +134,7 @@ class ApiClient {
     required Map<String, String> headers,
     Map<String, Object?>? requestBody,
   }) async {
-    final uri = baseUri.resolve(path);
+    final uri = _resolveSameOriginUri(path);
     try {
       final request = await _open(method, uri).timeout(timeout);
       request.headers.set(HttpHeaders.acceptHeader, ContentType.json.mimeType);
@@ -128,6 +145,14 @@ class ApiClient {
       }
 
       final response = await request.close().timeout(timeout);
+      if (_isRedirectStatus(response.statusCode)) {
+        await response.drain<void>().timeout(timeout);
+        throw ApiException(
+          '리다이렉트 응답은 허용되지 않습니다.',
+          statusCode: response.statusCode,
+          path: uri.path,
+        );
+      }
       final etag = response.headers.value(HttpHeaders.etagHeader);
       final responseBody = await _readResponseBody(response, uri);
       if (!_isSuccessStatus(response.statusCode)) {
@@ -234,19 +259,67 @@ class ApiClient {
     }
   }
 
-  Future<HttpClientRequest> _open(HttpMethod method, Uri uri) {
+  Uri _resolveSameOriginUri(String path) {
+    final Uri uri;
+    try {
+      uri = baseUri.resolve(path);
+    } on FormatException catch (error, stackTrace) {
+      throw ApiException(
+        '허용되지 않은 요청 경로입니다.',
+        path: path,
+        cause: error,
+        causeStackTrace: stackTrace,
+      );
+    }
+    if (uri.scheme != baseUri.scheme ||
+        uri.host != baseUri.host ||
+        uri.port != baseUri.port ||
+        uri.userInfo.isNotEmpty) {
+      throw ApiException('허용되지 않은 요청 대상입니다.', path: uri.path);
+    }
+    return uri;
+  }
+
+  Future<HttpClientRequest> _open(HttpMethod method, Uri uri) async {
+    final Future<HttpClientRequest> pending;
     switch (method) {
       case HttpMethod.get:
-        return _httpClient.getUrl(uri);
+        pending = _httpClient.getUrl(uri);
       case HttpMethod.delete:
-        return _httpClient.deleteUrl(uri);
+        pending = _httpClient.deleteUrl(uri);
       case HttpMethod.post:
-        return _httpClient.postUrl(uri);
+        pending = _httpClient.postUrl(uri);
       case HttpMethod.put:
-        return _httpClient.putUrl(uri);
+        pending = _httpClient.putUrl(uri);
     }
+    final request = await pending;
+    request.followRedirects = false;
+    return request;
   }
 }
+
+void _validateTransportUri(Uri uri, {required bool isReleaseMode}) {
+  if (!uri.hasAuthority || uri.host.isEmpty || uri.userInfo.isNotEmpty) {
+    throw ApiException('안전하지 않은 연결 주소입니다.', path: uri.path);
+  }
+  if (uri.scheme == 'https') {
+    return;
+  }
+  if (!isReleaseMode && uri.scheme == 'http' && _isLoopbackHost(uri.host)) {
+    return;
+  }
+  throw ApiException('HTTPS 연결이 필요합니다.', path: uri.path);
+}
+
+bool _isLoopbackHost(String host) {
+  final normalized = host.toLowerCase();
+  return normalized == 'localhost' ||
+      normalized == '127.0.0.1' ||
+      normalized == '::1' ||
+      normalized == '[::1]';
+}
+
+bool _isRedirectStatus(int statusCode) => statusCode >= 300 && statusCode < 400;
 
 class ApiResponse {
   const ApiResponse({

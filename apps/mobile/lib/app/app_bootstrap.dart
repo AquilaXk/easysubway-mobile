@@ -193,6 +193,7 @@ class AppBootstrap {
     if (closeUpdater != null) {
       await closeResource(closeUpdater);
     }
+    await closeResource(() async => dependencies.close());
     await closeResource(catalogDatabase.close);
     await closeResource(userDatabase.close);
     if (firstError != null) {

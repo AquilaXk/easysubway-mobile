@@ -2,6 +2,10 @@ import 'package:flutter/widgets.dart';
 
 import 'network_map_models.dart';
 
+/// 2D 정수 격자 좌표 `(gx, gy)`를 64비트 정수로 패킹한다.
+/// 음수 `gy`의 상위 비트가 `gx`를 덮어쓰지 않도록 하위 32비트로 마스킹한다.
+int packRouteMapGridKey(int gx, int gy) => (gx << 32) | (gy & 0xFFFFFFFF);
+
 class NetworkMapStationSpatialIndex {
   NetworkMapStationSpatialIndex._({
     required this._buckets,
@@ -17,7 +21,7 @@ class NetworkMapStationSpatialIndex {
 
   static const _cellSize = 256.0;
 
-  final Map<_NetworkMapStationSpatialCell, List<NetworkMapStation>> _buckets;
+  final Map<int, List<NetworkMapStation>> _buckets;
   final Map<String, int> _stationOrder;
   final String Function(NetworkMapStation station)? _stationKeyFor;
 
@@ -26,13 +30,21 @@ class NetworkMapStationSpatialIndex {
     required Rect Function(NetworkMapStation station) sourceBoundsForStation,
     required String Function(NetworkMapStation station) stationKeyFor,
   }) {
-    final buckets = <_NetworkMapStationSpatialCell, List<NetworkMapStation>>{};
+    final buckets = <int, List<NetworkMapStation>>{};
     final stationOrder = <String, int>{};
     for (var index = 0; index < stations.length; index += 1) {
       final station = stations[index];
       stationOrder[stationKeyFor(station)] = index;
-      for (final cell in _cellsFor(sourceBoundsForStation(station))) {
-        buckets.putIfAbsent(cell, () => []).add(station);
+      final bounds = sourceBoundsForStation(station);
+      final left = _cellFor(bounds.left);
+      final right = _cellFor(bounds.right);
+      final top = _cellFor(bounds.top);
+      final bottom = _cellFor(bounds.bottom);
+      for (var x = left; x <= right; x += 1) {
+        for (var y = top; y <= bottom; y += 1) {
+          final key = packRouteMapGridKey(x, y);
+          (buckets[key] ??= <NetworkMapStation>[]).add(station);
+        }
       }
     }
     return NetworkMapStationSpatialIndex._(
@@ -48,9 +60,19 @@ class NetworkMapStationSpatialIndex {
     }
     final stationKeyFor = _stationKeyFor!;
     final byKey = <String, NetworkMapStation>{};
-    for (final cell in _cellsFor(sourceBounds)) {
-      for (final station in _buckets[cell] ?? const <NetworkMapStation>[]) {
-        byKey[stationKeyFor(station)] = station;
+    final left = _cellFor(sourceBounds.left);
+    final right = _cellFor(sourceBounds.right);
+    final top = _cellFor(sourceBounds.top);
+    final bottom = _cellFor(sourceBounds.bottom);
+    for (var x = left; x <= right; x += 1) {
+      for (var y = top; y <= bottom; y += 1) {
+        final bucket = _buckets[packRouteMapGridKey(x, y)];
+        if (bucket == null) {
+          continue;
+        }
+        for (final station in bucket) {
+          byKey[stationKeyFor(station)] = station;
+        }
       }
     }
     final result = byKey.values.toList(growable: false);
@@ -62,35 +84,5 @@ class NetworkMapStationSpatialIndex {
     return result;
   }
 
-  static Iterable<_NetworkMapStationSpatialCell> _cellsFor(Rect bounds) sync* {
-    final left = _cellFor(bounds.left);
-    final right = _cellFor(bounds.right);
-    final top = _cellFor(bounds.top);
-    final bottom = _cellFor(bounds.bottom);
-    for (var x = left; x <= right; x += 1) {
-      for (var y = top; y <= bottom; y += 1) {
-        yield _NetworkMapStationSpatialCell(x, y);
-      }
-    }
-  }
-
   static int _cellFor(double value) => (value / _cellSize).floor();
-}
-
-@immutable
-class _NetworkMapStationSpatialCell {
-  const _NetworkMapStationSpatialCell(this.x, this.y);
-
-  final int x;
-  final int y;
-
-  @override
-  bool operator ==(Object other) {
-    return other is _NetworkMapStationSpatialCell &&
-        other.x == x &&
-        other.y == y;
-  }
-
-  @override
-  int get hashCode => Object.hash(x, y);
 }

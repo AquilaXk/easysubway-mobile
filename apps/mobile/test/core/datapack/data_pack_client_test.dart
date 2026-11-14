@@ -183,4 +183,63 @@ void main() {
       expect(serverHits, 5);
     },
   );
+
+  test('DataPackClient는 3xx 리다이렉트와 안전하지 않은 HTTP manifestUri를 거부한다', () async {
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(userDatabase.close);
+    final stateRepository = DataPackUpdateStateRepository(
+      userDatabase: userDatabase,
+      now: () => DateTime.utc(2026, 7, 6, 10),
+    );
+
+    expect(
+      () => DataPackClient(
+        manifestUri: Uri.parse('http://cdn.easysubway.example/manifest.json'),
+        stateRepository: stateRepository,
+      ),
+      throwsArgumentError,
+    );
+    expect(
+      () => DataPackClient(
+        manifestUri: Uri.parse('http://127.0.0.1:8080/manifest.json'),
+        stateRepository: stateRepository,
+        isReleaseMode: true,
+      ),
+      throwsArgumentError,
+    );
+
+    var targetHits = 0;
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      if (request.uri.path == '/manifest.json') {
+        request.response
+          ..statusCode = HttpStatus.movedPermanently
+          ..headers.set(HttpHeaders.locationHeader, '/target.json');
+        await request.response.close();
+        return;
+      }
+      targetHits += 1;
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write(jsonEncode({'ttlSeconds': 60, 'packs': <Object?>[]}));
+      await request.response.close();
+    });
+
+    final client = DataPackClient(
+      manifestUri: Uri.parse(
+        'http://${server.address.host}:${server.port}/manifest.json',
+      ),
+      stateRepository: stateRepository,
+      now: () => DateTime.utc(2026, 7, 6, 10),
+    );
+    addTearDown(() => client.close(force: true));
+
+    await expectLater(
+      client.fetchManifestIfNeeded(),
+      throwsA(isA<DataPackClientException>()),
+    );
+    expect(targetHits, 0);
+  });
 }

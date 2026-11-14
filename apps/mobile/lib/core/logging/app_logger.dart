@@ -1,26 +1,45 @@
 import 'package:flutter/foundation.dart';
 import 'package:logger/logger.dart';
 
-/// 앱 공통 로거. release는 WARN 이상, debug는 상세(cause 포함) 출력.
+import '../crashlytics/crash_report_redaction.dart';
+
+/// 앱 공통 로거. release는 콘솔(debugPrint) 원시 오류/스택 노출을 차단하고,
+/// 모든 모드에서 토큰·헤더·내부 경로를 마스킹한다.
 class AppLogger {
-  AppLogger._(this._logger);
+  AppLogger._(this._logger, {required this.isReleaseMode});
 
   final Logger _logger;
+  final bool isReleaseMode;
 
-  static AppLogger instance = AppLogger._(_createLogger());
+  static AppLogger instance = AppLogger._(
+    _createLogger(isReleaseMode: kReleaseMode),
+    isReleaseMode: kReleaseMode,
+  );
 
-  static Logger _createLogger() {
+  @visibleForTesting
+  factory AppLogger.forTest({bool isReleaseMode = false, LogOutput? output}) {
+    return AppLogger._(
+      _createLogger(isReleaseMode: isReleaseMode, output: output),
+      isReleaseMode: isReleaseMode,
+    );
+  }
+
+  static Logger _createLogger({
+    required bool isReleaseMode,
+    LogOutput? output,
+  }) {
     return Logger(
-      level: kReleaseMode ? Level.warning : Level.debug,
+      level: isReleaseMode ? Level.warning : Level.debug,
       printer: PrettyPrinter(
-        methodCount: kReleaseMode ? 0 : 2,
-        errorMethodCount: kReleaseMode ? 4 : 8,
+        methodCount: isReleaseMode ? 0 : 2,
+        errorMethodCount: isReleaseMode ? 0 : 8,
         lineLength: 100,
-        colors: !kReleaseMode,
+        colors: !isReleaseMode,
         printEmojis: false,
         dateTimeFormat: DateTimeFormat.none,
       ),
-      output: _DebugPrintOutput(),
+      output:
+          output ?? (isReleaseMode ? _NoopLogOutput() : _DebugPrintOutput()),
     );
   }
 
@@ -31,7 +50,10 @@ class AppLogger {
 
   @visibleForTesting
   static void reset() {
-    instance = AppLogger._(_createLogger());
+    instance = AppLogger._(
+      _createLogger(isReleaseMode: kReleaseMode),
+      isReleaseMode: kReleaseMode,
+    );
   }
 
   void d(
@@ -41,15 +63,25 @@ class AppLogger {
     Object? cause,
     StackTrace? causeStackTrace,
   }) {
+    if (isReleaseMode) {
+      return;
+    }
     _logger.d(
       _compose(message, cause: cause, causeStackTrace: causeStackTrace),
-      error: error,
-      stackTrace: stackTrace,
+      error: _redactError(error),
+      stackTrace: _redactStackTrace(stackTrace),
     );
   }
 
   void i(String message, {Object? error, StackTrace? stackTrace}) {
-    _logger.i(message, error: error, stackTrace: stackTrace);
+    if (isReleaseMode) {
+      return;
+    }
+    _logger.i(
+      redactSensitiveText(message),
+      error: _redactError(error),
+      stackTrace: _redactStackTrace(stackTrace),
+    );
   }
 
   void w(
@@ -59,10 +91,14 @@ class AppLogger {
     Object? cause,
     StackTrace? causeStackTrace,
   }) {
+    if (isReleaseMode) {
+      _logger.w(redactSensitiveText(message));
+      return;
+    }
     _logger.w(
       _compose(message, cause: cause, causeStackTrace: causeStackTrace),
-      error: error,
-      stackTrace: stackTrace,
+      error: _redactError(error),
+      stackTrace: _redactStackTrace(stackTrace),
     );
   }
 
@@ -73,10 +109,14 @@ class AppLogger {
     Object? cause,
     StackTrace? causeStackTrace,
   }) {
+    if (isReleaseMode) {
+      _logger.e(redactSensitiveText(message));
+      return;
+    }
     _logger.e(
       _compose(message, cause: cause, causeStackTrace: causeStackTrace),
-      error: error,
-      stackTrace: stackTrace,
+      error: _redactError(error),
+      stackTrace: _redactStackTrace(stackTrace),
     );
   }
 
@@ -85,27 +125,61 @@ class AppLogger {
     Object? cause,
     StackTrace? causeStackTrace,
   }) {
-    if (!kDebugMode || (cause == null && causeStackTrace == null)) {
-      return message;
+    final safeMessage = redactSensitiveText(message);
+    if (isReleaseMode ||
+        !kDebugMode ||
+        (cause == null && causeStackTrace == null)) {
+      return safeMessage;
     }
-    final buffer = StringBuffer(message);
+    final buffer = StringBuffer(safeMessage);
     if (cause != null) {
-      buffer.write(' | cause=$cause');
+      buffer.write(' | cause=${_safeString(cause)}');
     }
     if (causeStackTrace != null) {
-      buffer.write(' | causeStack=$causeStackTrace');
+      buffer.write(' | causeStack=${_safeString(causeStackTrace)}');
     }
     return buffer.toString();
+  }
+
+  Object? _redactError(Object? error) {
+    if (error == null) {
+      return null;
+    }
+    return _safeString(error);
+  }
+
+  StackTrace? _redactStackTrace(StackTrace? stackTrace) {
+    if (stackTrace == null) {
+      return null;
+    }
+    return StackTrace.fromString(_safeString(stackTrace));
+  }
+
+  String _safeString(Object value) {
+    try {
+      return redactSensitiveText(value.toString());
+    } catch (_) {
+      return '<unprintable>';
+    }
   }
 }
 
 class _DebugPrintOutput extends LogOutput {
+  _DebugPrintOutput();
+
   @override
   void output(OutputEvent event) {
     for (final line in event.lines) {
-      debugPrint(line);
+      debugPrint(redactSensitiveText(line));
     }
   }
+}
+
+class _NoopLogOutput extends LogOutput {
+  _NoopLogOutput();
+
+  @override
+  void output(OutputEvent event) {}
 }
 
 AppLogger get appLog => AppLogger.instance;

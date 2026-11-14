@@ -1,6 +1,7 @@
 // 역 검색용 정렬 prefix term 인덱스.
 // 모든 prefix 조합을 Map으로 펼치지 않고, 정렬된 term 테이블에서
 // lower-bound + startsWith 순회로 후보 station id만 모은다.
+import 'dart:collection';
 
 enum StationSearchTermKind { korean, english, subname, chosung }
 
@@ -118,14 +119,48 @@ class StationSearchIndex {
     chosung.sort();
 
     return StationSearchIndex._(
-      sortedKoreanTerms: List.unmodifiable(korean),
-      sortedEnglishTerms: List.unmodifiable(english),
-      sortedSubnameTerms: List.unmodifiable(subname),
-      sortedChosungTerms: List.unmodifiable(chosung),
+      sortedKoreanTerms: UnmodifiableListView(korean),
+      sortedEnglishTerms: UnmodifiableListView(english),
+      sortedSubnameTerms: UnmodifiableListView(subname),
+      sortedChosungTerms: UnmodifiableListView(chosung),
     );
   }
 
   /// [query]로 시작하는 term의 station id를 중복 없이 모은다.
+  void collectPrefixMatches(
+    List<StationSearchTermEntry> sortedTerms,
+    String query,
+    Set<String> sink,
+  ) {
+    if (query.isEmpty || sortedTerms.isEmpty) {
+      return;
+    }
+    final start = _lowerBound(sortedTerms, query);
+    if (start >= sortedTerms.length) {
+      return;
+    }
+    for (var i = start; i < sortedTerms.length; i++) {
+      final entry = sortedTerms[i];
+      if (!entry.normalizedKey.startsWith(query)) {
+        break;
+      }
+      sink.add(entry.stationId);
+    }
+  }
+
+  void collectChosungPrefixInto(String query, Set<String> sink) {
+    collectPrefixMatches(sortedChosungTerms, query, sink);
+  }
+
+  void collectNamePrefixInto(String query, Set<String> sink) {
+    if (query.isEmpty) {
+      return;
+    }
+    collectPrefixMatches(sortedKoreanTerms, query, sink);
+    collectPrefixMatches(sortedEnglishTerms, query, sink);
+    collectPrefixMatches(sortedSubnameTerms, query, sink);
+  }
+
   Set<String> lookupPrefix(
     List<StationSearchTermEntry> sortedTerms,
     String query,
@@ -133,18 +168,8 @@ class StationSearchIndex {
     if (query.isEmpty || sortedTerms.isEmpty) {
       return const {};
     }
-    final start = _lowerBound(sortedTerms, query);
-    if (start >= sortedTerms.length) {
-      return const {};
-    }
     final ids = <String>{};
-    for (var i = start; i < sortedTerms.length; i++) {
-      final entry = sortedTerms[i];
-      if (!entry.normalizedKey.startsWith(query)) {
-        break;
-      }
-      ids.add(entry.stationId);
-    }
+    collectPrefixMatches(sortedTerms, query, ids);
     return ids;
   }
 
@@ -152,11 +177,12 @@ class StationSearchIndex {
       lookupPrefix(sortedChosungTerms, query);
 
   Set<String> lookupNamePrefix(String query) {
-    return {
-      ...lookupPrefix(sortedKoreanTerms, query),
-      ...lookupPrefix(sortedEnglishTerms, query),
-      ...lookupPrefix(sortedSubnameTerms, query),
-    };
+    if (query.isEmpty) {
+      return const {};
+    }
+    final ids = <String>{};
+    collectNamePrefixInto(query, ids);
+    return ids;
   }
 }
 

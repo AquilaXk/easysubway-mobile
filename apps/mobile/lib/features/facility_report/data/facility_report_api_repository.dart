@@ -17,6 +17,7 @@ import 'facility_report_result_projection.dart';
 
 const _facilityReportTimeout = Duration(seconds: 8);
 const _facilityReportPhotoUploadMaxAttempts = 2;
+const _maxConcurrentReportRequests = 4;
 
 class FacilityReportApiRepository implements FacilityReportRepository {
   FacilityReportApiRepository({
@@ -221,15 +222,24 @@ class FacilityReportApiRepository implements FacilityReportRepository {
 
   @override
   Future<FacilityReportResult> getReport(String reportId) async {
+    return _getReportWithToken(reportId);
+  }
+
+  Future<FacilityReportResult> _getReportWithToken(
+    String reportId, {
+    String? receiptTokenOverride,
+  }) async {
     final trimmedReportId = reportId.trim();
     if (trimmedReportId.isEmpty) {
       throw const FacilityReportException(facilityReportStatusFailureMessage);
     }
 
     try {
-      final receiptToken = await receiptStore
-          ?.receiptTokenForReport(trimmedReportId)
-          .timeout(_facilityReportTimeout);
+      final receiptToken =
+          receiptTokenOverride ??
+          await receiptStore
+              ?.receiptTokenForReport(trimmedReportId)
+              .timeout(_facilityReportTimeout);
       final response = await _apiClient.getJson(
         '/api/v1/reports/${Uri.encodeComponent(trimmedReportId)}',
         headers: receiptToken == null || receiptToken.isEmpty
@@ -267,24 +277,20 @@ class FacilityReportApiRepository implements FacilityReportRepository {
         return const [];
       }
 
-      return Future.wait(
-        receipts.map((receipt) async {
-          try {
-            final report = await getReport(receipt.reportId);
-            final reportWithReceiptCode =
-                facilityReportResultWithReceiptCodeFallback(report, receipt);
-            await _refreshReceiptIfPossible(receipt, reportWithReceiptCode);
-            return reportWithReceiptCode;
-          } catch (error, stackTrace) {
-            reportMobileError(
-              error,
-              stackTrace,
-              context: '시설 제보 receipt 기반 상태 조회 중 예외가 발생했습니다.',
-            );
-            return facilityReportResultFromReceipt(receipt);
-          }
-        }),
-      );
+      final results = List<FacilityReportResult?>.filled(receipts.length, null);
+      var nextIndex = 0;
+      final workerCount = min(_maxConcurrentReportRequests, receipts.length);
+
+      Future<void> runWorker() async {
+        while (nextIndex < receipts.length) {
+          final currentIndex = nextIndex++;
+          final receipt = receipts[currentIndex];
+          results[currentIndex] = await _loadReceiptReport(receipt);
+        }
+      }
+
+      await Future.wait([for (var i = 0; i < workerCount; i++) runWorker()]);
+      return results.cast<FacilityReportResult>();
     } on FacilityReportException {
       rethrow;
     } catch (error, stackTrace) {
@@ -294,6 +300,30 @@ class FacilityReportApiRepository implements FacilityReportRepository {
         context: '내 시설 제보 목록 응답 처리 중 예외가 발생했습니다.',
       );
       throw const FacilityReportException(facilityReportListFailureMessage);
+    }
+  }
+
+  Future<FacilityReportResult> _loadReceiptReport(
+    FacilityReportReceipt receipt,
+  ) async {
+    try {
+      final report = await _getReportWithToken(
+        receipt.reportId,
+        receiptTokenOverride: receipt.receiptToken,
+      );
+      final reportWithReceiptCode = facilityReportResultWithReceiptCodeFallback(
+        report,
+        receipt,
+      );
+      await _refreshReceiptIfPossible(receipt, reportWithReceiptCode);
+      return reportWithReceiptCode;
+    } catch (error, stackTrace) {
+      reportMobileError(
+        error,
+        stackTrace,
+        context: '시설 제보 receipt 기반 상태 조회 중 예외가 발생했습니다.',
+      );
+      return facilityReportResultFromReceipt(receipt);
     }
   }
 
