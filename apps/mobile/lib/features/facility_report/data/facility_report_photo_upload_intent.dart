@@ -34,10 +34,14 @@ class FacilityReportPhotoUploadIntent {
 
   Uri uploadUri(Uri baseUri) {
     final parsed = Uri.parse(uploadUrl);
-    if (parsed.hasScheme) {
-      return parsed;
+    final resolved = parsed.hasScheme ? parsed : baseUri.resolve(uploadUrl);
+    final isLoopbackHttp =
+        resolved.scheme == 'http' &&
+        const {'localhost', '127.0.0.1', '::1'}.contains(resolved.host);
+    if (resolved.scheme != 'https' && !isLoopbackHttp) {
+      throw const FacilityReportException(facilityReportSubmitFailureMessage);
     }
-    return baseUri.resolve(uploadUrl);
+    return resolved;
   }
 }
 

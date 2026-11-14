@@ -288,6 +288,38 @@ void main() {
     expect(await userDatabase.select(userDatabase.reportDrafts).get(), isEmpty);
   });
 
+  test('로컬 삭제 저장소는 route_search_history와 접수증 토큰 콜백을 함께 지운다', () async {
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(userDatabase.close);
+    await userDatabase
+        .into(userDatabase.routeSearchHistory)
+        .insert(
+          user_db.RouteSearchHistoryCompanion.insert(
+            originStationId: 'station-sadang',
+            originStationName: '사당',
+            destinationStationId: 'station-gangnam',
+            destinationStationName: '강남',
+            region: '수도권',
+            searchedAt: DateTime.utc(2026, 8, 1),
+          ),
+        );
+    var tokenClearCalls = 0;
+    final repository = UserDataDeletionLocalRepository(
+      userDatabase: userDatabase,
+      clearReceiptTokens: () async {
+        tokenClearCalls += 1;
+      },
+    );
+
+    await repository.deleteCurrentUserData();
+
+    expect(tokenClearCalls, 1);
+    expect(
+      await userDatabase.select(userDatabase.routeSearchHistory).get(),
+      isEmpty,
+    );
+  });
+
   test('합성 사용자 데이터 삭제 저장소는 서버 삭제 성공 후 로컬 삭제를 실행한다', () async {
     final calls = <String>[];
     final remoteRepository = RecordingUserDataDeletionRepository(

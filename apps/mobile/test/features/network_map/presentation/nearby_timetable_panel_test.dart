@@ -596,4 +596,55 @@ void main() {
       expect(find.text('운행종료'), findsNothing);
     },
   );
+
+  testWidgets('심야 03시 경계 전에는 심야 출발을 보여주고 03시30분에는 운행종료를 표시한다', (tester) async {
+    const data = NearbyTimetablePanelData(
+      directions: [
+        NearbyTimetableDirectionData(
+          name: '당고개방면',
+          departures: [
+            NearbyTimetableDepartureData(
+              directionName: '당고개',
+              seconds: 97440,
+              timeLabel: '03:04',
+              semanticLabel: '새벽 3시 4분 당고개행',
+              isExpress: false,
+            ),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NearbyTimetablePanel(
+            data: data,
+            leftName: '사당',
+            rightName: '남태령',
+            now: _kst(2026, 8, 12, 2, 59),
+            expressBadgeBuilder: () => const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('5분'), findsOneWidget);
+    expect(find.text('운행종료'), findsNothing);
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: NearbyTimetablePanel(
+            data: data,
+            leftName: '사당',
+            rightName: '남태령',
+            now: _kst(2026, 8, 12, 3, 30),
+            expressBadgeBuilder: () => const SizedBox.shrink(),
+          ),
+        ),
+      ),
+    );
+    expect(find.text('운행종료'), findsOneWidget);
+    expect(find.text('5분'), findsNothing);
+  });
 }

@@ -87,7 +87,7 @@ class NetworkMapDraftPin extends StatelessWidget {
         .toDouble();
     final hitTop = math.max(4.0, pinTop - _hitPadTop);
     final pinOffsetInHit = Offset(pinLeft - hitLeft, pinTop - hitTop);
-    // ✕는 카카오처럼 핀 머리 안쪽·약간 위에 붙인다. 터치 타깃은 그 중심 기준 56.
+    // ✕는 핀 머리 안쪽·약간 위에 붙인다. 터치 타깃은 그 중심 기준 56.
     final clearVisualLeft = pinOffsetInHit.dx + _pinWidth - (_clearSize * 0.92);
     final clearVisualTop = pinOffsetInHit.dy - (_clearSize * 0.42);
     final clearHitLeft =

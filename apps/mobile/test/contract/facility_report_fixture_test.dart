@@ -89,4 +89,53 @@ void main() {
       ),
     );
   });
+
+  test('uploadUri는 HTTPS와 루프백 HTTP만 허용하고 원격 HTTP를 거부한다', () {
+    final baseUri = Uri.parse('https://api.example.com');
+
+    expect(
+      const FacilityReportPhotoUploadIntent(
+        objectKey: 'k',
+        uploadUrl: 'https://upload.example.com/object?sig=1',
+        uploadMethod: 'PUT',
+      ).uploadUri(baseUri),
+      Uri.parse('https://upload.example.com/object?sig=1'),
+    );
+    expect(
+      const FacilityReportPhotoUploadIntent(
+        objectKey: 'k',
+        uploadUrl: '/upload/object',
+        uploadMethod: 'PUT',
+      ).uploadUri(baseUri),
+      Uri.parse('https://api.example.com/upload/object'),
+    );
+    for (final loopbackUrl in const [
+      'http://localhost:8080/upload',
+      'http://127.0.0.1:8080/upload',
+      'http://[::1]:8080/upload',
+    ]) {
+      expect(
+        FacilityReportPhotoUploadIntent(
+          objectKey: 'k',
+          uploadUrl: loopbackUrl,
+          uploadMethod: 'PUT',
+        ).uploadUri(baseUri),
+        Uri.parse(loopbackUrl),
+      );
+    }
+    expect(
+      () => const FacilityReportPhotoUploadIntent(
+        objectKey: 'k',
+        uploadUrl: 'http://upload.example.com/object',
+        uploadMethod: 'PUT',
+      ).uploadUri(baseUri),
+      throwsA(
+        isA<Exception>().having(
+          (error) => '$error',
+          'toString',
+          '제보를 보내지 못했어요.',
+        ),
+      ),
+    );
+  });
 }

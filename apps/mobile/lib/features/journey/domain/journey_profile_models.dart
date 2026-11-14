@@ -495,11 +495,10 @@ class JourneyProfileSuccess {
     final effectiveDeparture = journeys.isNotEmpty
         ? journeys.first.journey.plannedDepartureTime
         : calculatedAt;
-    final seoul = effectiveDeparture.toUtc().add(const Duration(hours: 9));
-    final serviceDateStr =
-        '${seoul.year.toString().padLeft(4, '0')}-'
-        '${seoul.month.toString().padLeft(2, '0')}-'
-        '${seoul.day.toString().padLeft(2, '0')}';
+    final serviceDateStr = seoulServiceDateForCutoff(
+      effectiveDeparture,
+      serviceDayCutoff,
+    );
 
     return JourneySearchSuccess(
       contractVersion: JourneyContractVersion.journeySearchV3,
@@ -526,4 +525,21 @@ class JourneyProfileSuccess {
       journeys: journeyList,
     );
   }
+}
+
+/// 서울(Asia/Seoul) 기준 [instant]에서 운행일 경계 [serviceDayCutoff] (`HH:MM`)를
+/// 차감해 `YYYY-MM-DD` 운행일 문자열을 계산한다.
+String seoulServiceDateForCutoff(DateTime instant, String serviceDayCutoff) {
+  final parts = serviceDayCutoff.split(':');
+  final cutoff = Duration(
+    hours: int.parse(parts[0]),
+    minutes: int.parse(parts[1]),
+  );
+  final serviceWall = instant
+      .toUtc()
+      .add(const Duration(hours: 9))
+      .subtract(cutoff);
+  return '${serviceWall.year.toString().padLeft(4, '0')}-'
+      '${serviceWall.month.toString().padLeft(2, '0')}-'
+      '${serviceWall.day.toString().padLeft(2, '0')}';
 }

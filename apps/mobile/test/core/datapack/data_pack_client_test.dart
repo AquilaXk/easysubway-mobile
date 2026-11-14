@@ -86,4 +86,101 @@ void main() {
       throwsA(isA<DataPackClientException>()),
     );
   });
+
+  test(
+    '매니페스트 크기가 maxResponseBytes를 넘거나 UTF-8이 잘못되면 예외를 던지고 304/500 응답을 정리한다',
+    () async {
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+      var currentTime = DateTime.utc(2026, 7, 6, 10);
+      final stateRepository = DataPackUpdateStateRepository(
+        userDatabase: userDatabase,
+        now: () => currentTime,
+      );
+      var mode = 'oversized';
+      var serverHits = 0;
+      final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+      addTearDown(server.close);
+      server.listen((request) async {
+        serverHits += 1;
+        switch (mode) {
+          case 'oversized':
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..add(utf8.encode('{"payload":"${'a' * 64}"}'));
+          case 'invalid-utf8':
+            request.response
+              ..statusCode = HttpStatus.ok
+              ..add([0xff, 0xfe]);
+          case 'not-modified':
+            request.response
+              ..statusCode = HttpStatus.notModified
+              ..write('ignored body');
+          case 'server-error':
+            request.response
+              ..statusCode = HttpStatus.internalServerError
+              ..write('server error body');
+        }
+        await request.response.close();
+      });
+
+      final manifestUri = Uri.parse(
+        'http://${server.address.host}:${server.port}/manifest.json',
+      );
+      final boundedClient = DataPackClient(
+        manifestUri: manifestUri,
+        stateRepository: stateRepository,
+        now: () => currentTime,
+        maxResponseBytes: 16,
+      );
+
+      await expectLater(
+        boundedClient.fetchManifestIfNeeded(),
+        throwsA(isA<DataPackClientException>()),
+      );
+
+      mode = 'invalid-utf8';
+      await expectLater(
+        boundedClient.fetchManifestIfNeeded(),
+        throwsA(isA<DataPackClientException>()),
+      );
+
+      mode = 'not-modified';
+      await stateRepository.saveManifestCache(
+        etag: '"e1"',
+        checkedAt: currentTime.subtract(const Duration(hours: 2)),
+        ttl: const Duration(minutes: 5),
+      );
+      final notModifiedResult = await boundedClient.fetchManifestIfNeeded();
+      expect(notModifiedResult.manifest, isNull);
+
+      currentTime = currentTime.add(const Duration(minutes: 10));
+      mode = 'server-error';
+      await expectLater(
+        boundedClient.fetchManifestIfNeeded(),
+        throwsA(isA<DataPackClientException>()),
+      );
+      expect(serverHits, 4);
+
+      boundedClient.close(force: true);
+      await expectLater(
+        boundedClient.fetchManifestIfNeeded(),
+        throwsA(isA<StateError>()),
+      );
+
+      final externalHttpClient = HttpClient();
+      addTearDown(() => externalHttpClient.close(force: true));
+      final injectedClient = DataPackClient(
+        manifestUri: manifestUri,
+        stateRepository: stateRepository,
+        httpClient: externalHttpClient,
+        now: () => currentTime,
+      );
+      injectedClient.close(force: true);
+      mode = 'not-modified';
+      final injectedResult = await injectedClient.fetchManifestIfNeeded();
+      expect(injectedResult.manifest, isNull);
+      expect(serverHits, 5);
+    },
+  );
 }

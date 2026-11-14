@@ -30,6 +30,7 @@ class DataPackUpdater {
     HttpClient? httpClient,
     DateTime Function()? now,
   }) : _httpClient = httpClient ?? HttpClient(),
+       _ownsHttpClient = httpClient == null,
        _now = now ?? DateTime.now;
 
   final DataPackClient client;
@@ -39,8 +40,16 @@ class DataPackUpdater {
   final NetworkConditionSource networkConditionSource;
   final DataPackUpdatePolicy policy;
   final HttpClient _httpClient;
+  final bool _ownsHttpClient;
   final DateTime Function() _now;
   Future<List<DataPackInstallResult>>? _inFlight;
+
+  void close({bool force = false}) {
+    client.close(force: force);
+    if (_ownsHttpClient) {
+      _httpClient.close(force: force);
+    }
+  }
 
   Future<List<DataPackInstallResult>> checkForUpdates({
     UpdateTrigger trigger = UpdateTrigger.appStart,

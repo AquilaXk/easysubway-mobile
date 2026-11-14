@@ -119,7 +119,7 @@ class _NetworkMapChromeState extends State<NetworkMapChrome> {
     final topPadding = MediaQuery.paddingOf(context).top;
     final inSearchMode = widget.searchMode && widget.searchBody != null;
     // 지도를 상단바 아래로 약간 겹쳐 그리면, 구분선·짧은 드롭이 흰 배경이 아니라
-    // 노선 색 위에 앉아 카카오처럼 닿는 부위가 하얗게 끊기지 않는다.
+    // 노선 색 위에 앉아 닿는 부위가 하얗게 끊기지 않는다.
     const mapUnderTopBarPx = 10.0;
     // 검색 모드는 흰 상단바와 옅은 띠 바로 아래에서 결과 목록이 시작한다.
     final mapTop = inSearchMode
@@ -589,8 +589,8 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
             child: Column(mainAxisSize: MainAxisSize.min, children: fieldRows),
           ),
           const SizedBox(width: 8),
-          SizedBox(
-            height: _draftRowHeight,
+          ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: _draftRowHeight),
             child: Align(
               alignment: Alignment.centerRight,
               child: _draftLockedRegionLabel(regionLabel),
@@ -637,8 +637,7 @@ class NetworkMapTopBarRouteDraft extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 88),
           child: Text(
             regionLabel,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            softWrap: true,
             textAlign: TextAlign.right,
             style: const TextStyle(
               color: EasySubwayAccessibleColors.interactionOnPrimary,
@@ -752,14 +751,19 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
         height: 1.2,
       ),
     );
-    final valueRow = Row(children: [Expanded(child: valueName)]);
+    final valueRow = Padding(
+      padding: const EdgeInsets.symmetric(
+        vertical: (_draftRowHeight - easySubwaySearchFieldVisualHeight) / 2 + 4,
+      ),
+      child: Row(children: [Expanded(child: valueName)]),
+    );
 
     final Widget pickArea = onPick == null
         ? Semantics(
             label: filled ? filledSemanticsCore : _valuePlaceholder,
             child: ExcludeSemantics(
-              child: SizedBox(
-                height: _draftRowHeight,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: _draftRowHeight),
                 child: Center(child: valueRow),
               ),
             ),
@@ -773,8 +777,8 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
                 key: Key(_pickKey),
                 behavior: HitTestBehavior.opaque,
                 onTap: onPick,
-                child: SizedBox(
-                  height: _draftRowHeight,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: _draftRowHeight),
                   child: Center(child: valueRow),
                 ),
               ),
@@ -783,19 +787,26 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
 
     // 시각 박스(40dp)는 배경만 그리고, 그 위 행의 입력·지우기 영역이 줄 높이
     // (48dp)만큼 눌려 최소 터치 영역을 채운다.
-    final rowContainer = SizedBox(
-      height: _draftRowHeight,
+    final rowContainer = ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: _draftRowHeight),
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Container(
-            height: easySubwaySearchFieldVisualHeight,
-            decoration: BoxDecoration(
-              color: EasySubwayAccessibleColors.searchFieldSurface,
-              borderRadius: easySubwaySearchFieldRadius,
-              border: Border.all(
-                color: easySubwaySearchFieldBorderColor,
-                width: easySubwaySearchFieldBorderWidth,
+          Positioned.fill(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical:
+                    (_draftRowHeight - easySubwaySearchFieldVisualHeight) / 2,
+              ),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: EasySubwayAccessibleColors.searchFieldSurface,
+                  borderRadius: easySubwaySearchFieldRadius,
+                  border: Border.all(
+                    color: easySubwaySearchFieldBorderColor,
+                    width: easySubwaySearchFieldBorderWidth,
+                  ),
+                ),
               ),
             ),
           ),
@@ -868,7 +879,9 @@ class _NetworkMapRouteDraftField extends StatelessWidget {
           child: SizedBox(
             width: 220,
             child: Container(
-              height: easySubwaySearchFieldVisualHeight,
+              constraints: const BoxConstraints(
+                minHeight: easySubwaySearchFieldVisualHeight,
+              ),
               decoration: BoxDecoration(
                 color: EasySubwayAccessibleColors.searchFieldSurface,
                 borderRadius: easySubwaySearchFieldRadius,

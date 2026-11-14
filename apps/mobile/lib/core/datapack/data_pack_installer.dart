@@ -20,6 +20,8 @@ class DataPackLateCompletionException implements Exception {
   String toString() => 'DataPackLateCompletionException: $message';
 }
 
+const _defaultMaxDecompressedPackBytes = 512 * 1024 * 1024;
+
 /// Enforces the data-pack pointer contract.
 ///
 /// A pack can replace `current.json` only after archive, hash, schema, table,
@@ -30,11 +32,13 @@ class DataPackInstaller {
     required this.catalogDirectory,
     required this.userDatabase,
     DateTime Function()? now,
+    this.maxDecompressedPackBytes = _defaultMaxDecompressedPackBytes,
   }) : _now = now ?? DateTime.now;
 
   final Directory catalogDirectory;
   final user_db.UserDatabase userDatabase;
   final DateTime Function() _now;
+  final int maxDecompressedPackBytes;
 
   int _activeTransactionId = 0;
   int _lastCommittedTransactionId = 0;
@@ -154,6 +158,7 @@ class DataPackInstaller {
       final sqliteHash = await _inflateGzipToFile(
         compressedFile: compressedFile,
         targetFile: temporary,
+        maxOutputBytes: maxDecompressedPackBytes,
       );
       await _deleteIfExists(compressedFile);
       if (sqliteHash == null) {
@@ -606,15 +611,22 @@ class DataPackInstaller {
 Future<String?> _inflateGzipToFile({
   required File compressedFile,
   required File targetFile,
+  required int maxOutputBytes,
 }) async {
   final output = Sha256DigestSink();
   final input = sha256.startChunkedConversion(output);
   IOSink? sink;
+  var totalBytes = 0;
   try {
     sink = targetFile.openWrite();
     await for (final chunk in compressedFile.openRead().transform(
       gzip.decoder,
     )) {
+      totalBytes += chunk.length;
+      if (totalBytes > maxOutputBytes) {
+        input.close();
+        return null;
+      }
       input.add(chunk);
       sink.add(chunk);
     }
@@ -624,6 +636,7 @@ Future<String?> _inflateGzipToFile({
     input.close();
     return output.value.toString();
   } on FormatException {
+    input.close();
     return null;
   } finally {
     if (sink != null) {

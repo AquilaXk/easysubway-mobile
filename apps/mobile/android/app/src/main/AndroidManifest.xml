@@ -105,6 +105,18 @@
             <data android:scheme="kakaomap"/>
         </intent>
         <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="srt"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="korailtalk"/>
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.VIEW"/>
+            <data android:scheme="korail"/>
+        </intent>
+        <intent>
             <action android:name="android.intent.action.PROCESS_TEXT"/>
             <data android:mimeType="text/plain"/>
         </intent>

@@ -49,7 +49,7 @@ const NUL_CHARACTER = String.fromCharCode(0);
 
 // 실측을 거쳐 실제 loading으로 확인된 문구만 여기 명시적으로 나열한다. 새
 // '확인 중'류 문자열이 발견되면 이 목록에 없는 한 review로 떨어져야 한다
-// (CodeRabbit finding: 포괄 정규식은 drift 감시 계약을 깨뜨린다).
+// (포괄 정규식은 drift 감시 계약을 깨뜨린다).
 const VERIFIED_LOADING_TEXTS = new Set([
   '확인 중',
   '제보 진행 상황 확인 중',

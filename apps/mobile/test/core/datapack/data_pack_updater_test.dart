@@ -2697,6 +2697,58 @@ void main() {
     expect(override, isNull);
   });
 
+  test('updater close는 자체 HttpClient와 client를 닫고 주입된 HttpClient는 유지한다', () async {
+    final ownedFixture = await _overrideIntegrityFixture('close-owned-');
+    ownedFixture.updater.close(force: true);
+    await expectLater(
+      ownedFixture.updater.client.fetchManifestIfNeeded(),
+      throwsA(isA<StateError>()),
+    );
+
+    final directory = await Directory.systemTemp.createTemp(
+      'easysubway-datapack-updater-close-injected-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final userDatabase = user_db.UserDatabase.memory();
+    addTearDown(userDatabase.close);
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    var serverHits = 0;
+    server.listen((request) async {
+      serverHits += 1;
+      request.response.statusCode = HttpStatus.internalServerError;
+      await request.response.close();
+    });
+    final externalHttpClient = HttpClient();
+    addTearDown(() => externalHttpClient.close(force: true));
+    final catalogDirectory = Directory('${directory.path}/catalog');
+    await catalogDirectory.create(recursive: true);
+    final updater = DataPackUpdater(
+      client: DataPackClient(
+        manifestUri: Uri.parse(
+          'http://${server.address.host}:${server.port}/datapacks/catalog/current.json',
+        ),
+        stateRepository: DataPackUpdateStateRepository(
+          userDatabase: userDatabase,
+          now: () => DateTime.utc(2026, 7, 26, 10),
+        ),
+        httpClient: externalHttpClient,
+      ),
+      installer: DataPackInstaller(
+        catalogDirectory: catalogDirectory,
+        userDatabase: userDatabase,
+      ),
+      httpClient: externalHttpClient,
+    );
+
+    updater.close(force: true);
+    await expectLater(
+      updater.client.fetchManifestIfNeeded(),
+      throwsA(isA<DataPackClientException>()),
+    );
+    expect(serverHits, 1);
+  });
+
   test(
     'updater는 rollout heldOut + activePack 미설치 시에도 emergencyOverride를 저장한다',
     () async {

@@ -1079,7 +1079,13 @@ void main() {
 
       await expectLater(
         repository.profileJourneys(profileRequest, sessionToken: '   '),
-        throwsA(isA<JourneyProtocolFailure>()),
+        throwsA(
+          isA<JourneyProtocolFailure>().having(
+            (error) => error.operation,
+            'operation',
+            JourneyOperation.profileJourneys,
+          ),
+        ),
       );
       expect(client.posts, isEmpty);
     });
@@ -1095,9 +1101,316 @@ void main() {
 
       await expectLater(
         repository.profileJourneys(profileRequest, sessionToken: 'valid-token'),
-        throwsA(isA<JourneyProtocolFailure>()),
+        throwsA(
+          isA<JourneyProtocolFailure>().having(
+            (error) => error.operation,
+            'operation',
+            JourneyOperation.profileJourneys,
+          ),
+        ),
       );
       expect(client.posts, hasLength(1));
+    });
+
+    test('rejects profile response when requestId mismatches', () async {
+      final journeyJson =
+          (_successJson()['journeys'] as List).first as Map<String, Object?>;
+      final client = _StubApiClient([
+        ApiResponse(
+          statusCode: 200,
+          jsonBody: {
+            'contractVersion': 'JOURNEY_PROFILE_V1',
+            'requestId': '01ARZ3NDEKTSV4RRFFQ69G5FBW',
+            'queryId': 'q-1',
+            'calculatedAt': '2026-08-11T08:50:00.000Z',
+            'validUntil': '2026-08-11T09:50:00.000Z',
+            'temporalQuery': {
+              'kind': 'DEPART_BETWEEN',
+              'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+              'latestReadyAt': '2026-08-11T10:00:00.000Z',
+            },
+            'serviceDays': [
+              {
+                'serviceDate': '2026-08-11',
+                'serviceTimezone': 'Asia/Seoul',
+                'serviceDayCutoff': '03:00',
+              },
+            ],
+            'journeys': [
+              {
+                'journeyId': 'j-1',
+                'readyAt': '2026-08-11T09:00:00.000Z',
+                'journeyStartTime': '2026-08-11T09:02:00.000Z',
+                'firstBoardingTime': '2026-08-11T09:05:00.000Z',
+                'arrivalAtPlatform': '2026-08-11T09:20:00.000Z',
+                'arrivalAtDestination': '2026-08-11T09:25:00.000Z',
+                'objectiveTags': ['FASTEST'],
+                'journey': journeyJson,
+              },
+            ],
+            'sourceIdentity': {
+              'routeBundleId': 'rb-1',
+              'routeBundleGeneration': 'gen-1',
+              'routeBundleSha256': 'a' * 64,
+              'timetableSnapshotId': 'tt-1',
+              'accessibilitySnapshotId': 'acc-1',
+              'realtimeSnapshotId': null,
+            },
+            'algorithmIdentity': <String, Object?>{},
+            'frontierPolicyIdentity': <String, Object?>{},
+            'resourcePolicyIdentity': <String, Object?>{},
+            'profileSegments': <Object?>[],
+            'summary': <String, Object?>{},
+          },
+        ),
+      ]);
+      final repository = JourneyApiRepository(client);
+
+      await expectLater(
+        repository.profileJourneys(profileRequest, sessionToken: 'valid-token'),
+        throwsA(
+          isA<JourneyProtocolFailure>()
+              .having(
+                (error) => error.operation,
+                'operation',
+                JourneyOperation.profileJourneys,
+              )
+              .having(
+                (error) => '${error.cause}',
+                'cause',
+                contains('Journey profile requestId mismatch'),
+              ),
+        ),
+      );
+    });
+
+    test(
+      'rejects profile response when validUntil is not after calculatedAt',
+      () async {
+        final journeyJson =
+            (_successJson()['journeys'] as List).first as Map<String, Object?>;
+        final client = _StubApiClient([
+          ApiResponse(
+            statusCode: 200,
+            jsonBody: {
+              'contractVersion': 'JOURNEY_PROFILE_V1',
+              'requestId': '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+              'queryId': 'q-1',
+              'calculatedAt': '2026-08-11T08:50:00.000Z',
+              'validUntil': '2026-08-11T08:50:00.000Z',
+              'temporalQuery': {
+                'kind': 'DEPART_BETWEEN',
+                'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+                'latestReadyAt': '2026-08-11T10:00:00.000Z',
+              },
+              'serviceDays': [
+                {
+                  'serviceDate': '2026-08-11',
+                  'serviceTimezone': 'Asia/Seoul',
+                  'serviceDayCutoff': '03:00',
+                },
+              ],
+              'journeys': [
+                {
+                  'journeyId': 'j-1',
+                  'readyAt': '2026-08-11T09:00:00.000Z',
+                  'journeyStartTime': '2026-08-11T09:02:00.000Z',
+                  'firstBoardingTime': '2026-08-11T09:05:00.000Z',
+                  'arrivalAtPlatform': '2026-08-11T09:20:00.000Z',
+                  'arrivalAtDestination': '2026-08-11T09:25:00.000Z',
+                  'objectiveTags': ['FASTEST'],
+                  'journey': journeyJson,
+                },
+              ],
+              'sourceIdentity': {
+                'routeBundleId': 'rb-1',
+                'routeBundleGeneration': 'gen-1',
+                'routeBundleSha256': 'a' * 64,
+                'timetableSnapshotId': 'tt-1',
+                'accessibilitySnapshotId': 'acc-1',
+                'realtimeSnapshotId': null,
+              },
+              'algorithmIdentity': <String, Object?>{},
+              'frontierPolicyIdentity': <String, Object?>{},
+              'resourcePolicyIdentity': <String, Object?>{},
+              'profileSegments': <Object?>[],
+              'summary': <String, Object?>{},
+            },
+          ),
+        ]);
+        final repository = JourneyApiRepository(client);
+
+        await expectLater(
+          repository.profileJourneys(
+            profileRequest,
+            sessionToken: 'valid-token',
+          ),
+          throwsA(
+            isA<JourneyProtocolFailure>()
+                .having(
+                  (error) => error.operation,
+                  'operation',
+                  JourneyOperation.profileJourneys,
+                )
+                .having(
+                  (error) => '${error.cause}',
+                  'cause',
+                  contains('Journey profile validity window mismatch'),
+                ),
+          ),
+        );
+        expect(
+          seoulServiceDateForCutoff(DateTime.utc(2026, 8, 11, 17, 30), '03:00'),
+          '2026-08-11',
+        );
+      },
+    );
+
+    test(
+      'accepts profile response with more journeys than alternativeCount',
+      () async {
+        final singleAltRequest = JourneyProfileRequest(
+          requestId: '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+          originStationId: 'station-origin',
+          destinationStationId: 'station-destination',
+          temporalQuery: JourneyDepartBetweenQuery(
+            earliestReadyAt: DateTime.parse('2026-08-11T09:00:00.000Z'),
+            latestReadyAt: DateTime.parse('2026-08-11T10:00:00.000Z'),
+          ),
+          timePolicy: TimePolicy.timetableRequired,
+          walkingPace: WalkingPace.standard,
+          mobilityProfile: MobilityProfile.standard,
+          constraintMode: ConstraintMode.none,
+          maxTransfers: 2,
+          alternativeCount: 1,
+        );
+        final journeys = _successJson()['journeys']! as List<Object?>;
+        final client = _StubApiClient([
+          ApiResponse(
+            statusCode: 200,
+            jsonBody: {
+              'contractVersion': 'JOURNEY_PROFILE_V1',
+              'requestId': '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+              'queryId': 'q-1',
+              'calculatedAt': '2026-08-11T08:50:00.000Z',
+              'validUntil': '2026-08-11T09:50:00.000Z',
+              'temporalQuery': {
+                'kind': 'DEPART_BETWEEN',
+                'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+                'latestReadyAt': '2026-08-11T10:00:00.000Z',
+              },
+              'serviceDays': [
+                {
+                  'serviceDate': '2026-08-11',
+                  'serviceTimezone': 'Asia/Seoul',
+                  'serviceDayCutoff': '03:00',
+                },
+              ],
+              'journeys': [
+                {
+                  'journeyId': 'j-1',
+                  'readyAt': '2026-08-11T09:00:00.000Z',
+                  'journeyStartTime': '2026-08-11T09:02:00.000Z',
+                  'firstBoardingTime': '2026-08-11T09:05:00.000Z',
+                  'arrivalAtPlatform': '2026-08-11T09:20:00.000Z',
+                  'arrivalAtDestination': '2026-08-11T09:25:00.000Z',
+                  'objectiveTags': ['FASTEST'],
+                  'journey': journeys[0],
+                },
+                {
+                  'journeyId': 'j-2',
+                  'readyAt': '2026-08-11T09:10:00.000Z',
+                  'journeyStartTime': '2026-08-11T09:12:00.000Z',
+                  'firstBoardingTime': '2026-08-11T09:15:00.000Z',
+                  'arrivalAtPlatform': '2026-08-11T09:30:00.000Z',
+                  'arrivalAtDestination': '2026-08-11T09:35:00.000Z',
+                  'objectiveTags': ['FEWEST_TRANSFERS'],
+                  'journey': journeys[1],
+                },
+              ],
+              'sourceIdentity': {
+                'routeBundleId': 'rb-1',
+                'routeBundleGeneration': 'gen-1',
+                'routeBundleSha256': 'a' * 64,
+                'timetableSnapshotId': 'tt-1',
+                'accessibilitySnapshotId': 'acc-1',
+                'realtimeSnapshotId': null,
+              },
+              'algorithmIdentity': <String, Object?>{},
+              'frontierPolicyIdentity': <String, Object?>{},
+              'resourcePolicyIdentity': <String, Object?>{},
+              'profileSegments': <Object?>[],
+              'summary': <String, Object?>{},
+            },
+          ),
+        ]);
+        final repository = JourneyApiRepository(client);
+
+        final result = await repository.profileJourneys(
+          singleAltRequest,
+          sessionToken: 'valid-token',
+        );
+        expect(result.journeys, hasLength(2));
+      },
+    );
+
+    test('rejects profile response when journeys is empty', () async {
+      final client = _StubApiClient([
+        ApiResponse(
+          statusCode: 200,
+          jsonBody: {
+            'contractVersion': 'JOURNEY_PROFILE_V1',
+            'requestId': '01ARZ3NDEKTSV4RRFFQ69G5FAV',
+            'queryId': 'q-1',
+            'calculatedAt': '2026-08-11T08:50:00.000Z',
+            'validUntil': '2026-08-11T09:50:00.000Z',
+            'temporalQuery': {
+              'kind': 'DEPART_BETWEEN',
+              'earliestReadyAt': '2026-08-11T09:00:00.000Z',
+              'latestReadyAt': '2026-08-11T10:00:00.000Z',
+            },
+            'serviceDays': [
+              {
+                'serviceDate': '2026-08-11',
+                'serviceTimezone': 'Asia/Seoul',
+                'serviceDayCutoff': '03:00',
+              },
+            ],
+            'journeys': <Object?>[],
+            'sourceIdentity': {
+              'routeBundleId': 'rb-1',
+              'routeBundleGeneration': 'gen-1',
+              'routeBundleSha256': 'a' * 64,
+              'timetableSnapshotId': 'tt-1',
+              'accessibilitySnapshotId': 'acc-1',
+              'realtimeSnapshotId': null,
+            },
+            'algorithmIdentity': <String, Object?>{},
+            'frontierPolicyIdentity': <String, Object?>{},
+            'resourcePolicyIdentity': <String, Object?>{},
+            'profileSegments': <Object?>[],
+            'summary': <String, Object?>{},
+          },
+        ),
+      ]);
+      final repository = JourneyApiRepository(client);
+
+      await expectLater(
+        repository.profileJourneys(profileRequest, sessionToken: 'valid-token'),
+        throwsA(
+          isA<JourneyProtocolFailure>()
+              .having(
+                (error) => error.operation,
+                'operation',
+                JourneyOperation.profileJourneys,
+              )
+              .having(
+                (error) => '${error.cause}',
+                'cause',
+                contains('Journey candidates must be non-empty'),
+              ),
+        ),
+      );
     });
   });
 }

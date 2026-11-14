@@ -7,6 +7,7 @@ import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
 import 'package:easysubway_mobile/app/app_bootstrap.dart';
 import 'package:easysubway_mobile/app/app_dependencies.dart';
+import 'package:easysubway_mobile/app/app_endpoints.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database.dart';
 import 'package:easysubway_mobile/core/database/catalog/catalog_database_opener.dart';
 import 'package:easysubway_mobile/core/database/user/user_database.dart';
@@ -1655,6 +1656,109 @@ void main() {
 
     expect(metadata.read<String>('value'), '1');
     expect(httpRequestCount, 0);
+
+    await bootstrap.resumeDataPackUpdate();
+    await bootstrap.acceptMeteredDataPackUpdate();
+    await bootstrap.close();
+  });
+
+  test('앱 부트스트랩 기본 데이터팩 실행기는 단일 업데이터를 공유해 중복 요청을 막고 종료 시 닫는다', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'easysubway-bootstrap-default-updater-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+
+    const connectivityChannel = MethodChannel(
+      'dev.fluttercommunity.plus/connectivity',
+    );
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(connectivityChannel, (call) async {
+      if (call.method == 'check') {
+        return <String>['wifi'];
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(connectivityChannel, null),
+    );
+
+    var manifestRequests = 0;
+    var closeCalls = 0;
+    final firstRequestArrived = Completer<void>();
+    final releaseResponse = Completer<void>();
+    final secondRequestArrived = Completer<void>();
+    final secondReleaseResponse = Completer<void>();
+    var currentArrived = firstRequestArrived;
+    var currentRelease = releaseResponse;
+    addTearDown(() {
+      if (!releaseResponse.isCompleted) {
+        releaseResponse.complete();
+      }
+      if (!secondReleaseResponse.isCompleted) {
+        secondReleaseResponse.complete();
+      }
+    });
+
+    final reports = <FlutterErrorDetails>[];
+    AppBootstrap? bootstrap;
+    addTearDown(() => bootstrap?.close());
+    await runWithMobileErrorReporter(
+      reports.add,
+      () => HttpOverrides.runZoned(
+        () async {
+          bootstrap = await AppBootstrap.initialize(
+            databaseDirectory: directory,
+            assetBundle: rootBundle,
+            endpoints: const AppEndpoints(
+              dataPackBaseUrl: 'https://datapack.easysubway.example/datapacks/',
+              dataPackSigningPublicKeyModulus: '',
+              dataPackSigningPublicKeyExponent: '',
+              dataPackChannel: 'staging',
+              reportApiBaseUrl: '',
+            ),
+            enablePushNotifications: false,
+          );
+
+          await firstRequestArrived.future;
+          final resumeFuture = bootstrap!.resumeDataPackUpdate();
+          releaseResponse.complete();
+          await bootstrap!.dataPackUpdate;
+          await resumeFuture;
+          expect(manifestRequests, 1);
+          expect(closeCalls, 0);
+
+          currentArrived = secondRequestArrived;
+          currentRelease = secondReleaseResponse;
+          final inFlightConsent = bootstrap!.acceptMeteredDataPackUpdate();
+          await secondRequestArrived.future;
+          final closeFuture = bootstrap!.close();
+          await Future<void>.delayed(Duration.zero);
+          expect(closeCalls, 0);
+
+          secondReleaseResponse.complete();
+          await closeFuture;
+          await inFlightConsent;
+          bootstrap = null;
+        },
+        createHttpClient: (_) => _Delayed503HttpClient(
+          onRequest: () {
+            manifestRequests += 1;
+            if (!currentArrived.isCompleted) {
+              currentArrived.complete();
+            }
+          },
+          waitRelease: () => currentRelease.future,
+          onClose: () {
+            closeCalls += 1;
+          },
+        ),
+      ),
+    );
+
+    expect(manifestRequests, 2);
+    expect(closeCalls, 2);
+    expect(reports, hasLength(3));
   });
 
   test('user DB는 catalog 데이터팩 교체와 독립적으로 즐겨찾기와 신고 receipt를 보존한다', () async {
@@ -1849,6 +1953,81 @@ class _RequestCountingHttpClient implements HttpClient {
     onRequest();
     throw StateError('startup must not open HTTP request: $method $url');
   }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Delayed503HttpClient implements HttpClient {
+  _Delayed503HttpClient({
+    required this.onRequest,
+    required this.waitRelease,
+    required this.onClose,
+  });
+
+  final void Function() onRequest;
+  final Future<void> Function() waitRelease;
+  final void Function() onClose;
+
+  @override
+  Future<HttpClientRequest> getUrl(Uri url) async {
+    onRequest();
+    return _DelayedHttpClientRequest(waitRelease);
+  }
+
+  @override
+  void close({bool force = false}) {
+    onClose();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _DelayedHttpClientRequest implements HttpClientRequest {
+  _DelayedHttpClientRequest(this.waitRelease);
+
+  final Future<void> Function() waitRelease;
+  final HttpHeaders _headers = _FakeHttpHeaders();
+
+  @override
+  HttpHeaders get headers => _headers;
+
+  @override
+  Future<HttpClientResponse> close() async {
+    await waitRelease();
+    return _Fake503HttpClientResponse();
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _FakeHttpHeaders implements HttpHeaders {
+  @override
+  void set(String name, Object value, {bool preserveHeaderCase = false}) {}
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+class _Fake503HttpClientResponse extends Stream<List<int>>
+    implements HttpClientResponse {
+  @override
+  int get statusCode => HttpStatus.serviceUnavailable;
+
+  @override
+  StreamSubscription<List<int>> listen(
+    void Function(List<int> event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) => const Stream<List<int>>.empty().listen(
+    onData,
+    onError: onError,
+    onDone: onDone,
+    cancelOnError: cancelOnError,
+  );
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);

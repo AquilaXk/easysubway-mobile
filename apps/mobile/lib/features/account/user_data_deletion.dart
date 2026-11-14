@@ -95,6 +95,7 @@ class UserDataDeletionLocalRepository implements UserDataDeletionRepository {
   UserDataDeletionLocalRepository({
     required this.userDatabase,
     this.databaseDirectory,
+    this.clearReceiptTokens,
   });
 
   final UserDatabase userDatabase;
@@ -104,10 +105,12 @@ class UserDataDeletionLocalRepository implements UserDataDeletionRepository {
   /// 보관본에는 즐겨찾기·검색 이력·신고 초안·접수증이 원본 그대로 들어 있어
   /// 행 삭제만으로는 기기에서 지워지지 않는다(#2546).
   final Directory? databaseDirectory;
+  final Future<void> Function()? clearReceiptTokens;
 
   @override
   Future<UserDataDeletionResult> deleteCurrentUserData() async {
     try {
+      await clearReceiptTokens?.call();
       late final int deletedFavoriteStationCount;
       late final int deletedFavoriteFacilityCount;
       late final int deletedFavoriteRouteCount;
@@ -125,6 +128,7 @@ class UserDataDeletionLocalRepository implements UserDataDeletionRepository {
             .delete(userDatabase.favoriteRoutes)
             .go();
         await userDatabase.delete(userDatabase.searchHistory).go();
+        await userDatabase.delete(userDatabase.routeSearchHistory).go();
         deletedAppPreferenceCount = await userDatabase
             .delete(userDatabase.appPreferences)
             .go();

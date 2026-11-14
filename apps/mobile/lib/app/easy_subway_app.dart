@@ -8,6 +8,7 @@ import '../core/datapack/bundled_data_pack_freshness.dart';
 import '../core/error/error_feedback.dart';
 import '../core/datapack/data_pack_metered_consent_gate.dart';
 import '../core/datapack/data_pack_update_state.dart';
+import '../core/l10n/app_localization_foundation.dart';
 import '../design_tokens.dart';
 import '../features/facility_report/presentation/facility_report_screen.dart';
 import '../features/favorites/favorite_facility.dart';
@@ -19,6 +20,7 @@ import '../features/facility_report/domain/facility_report_photo.dart';
 import '../features/facility_report/domain/facility_report_repository.dart';
 import '../features/facility_report/domain/facility_report_target.dart';
 import '../features/get_off_alarm/get_off_alarm_controller.dart';
+import '../features/home_widget/next_train_widget_runtime.dart';
 import 'home_screen.dart';
 import '../features/mobility_profile/mobility_profile_policy.dart';
 import '../features/realtime/realtime_repository.dart';
@@ -68,6 +70,7 @@ class EasySubwayApp extends StatelessWidget {
     bool isUsingBundledDataPack = false,
     OnboardingState initialOnboardingState = const OnboardingState.initial(),
     GlobalKey<NavigatorState>? navigatorKey,
+    Future<void> Function()? clearHomeWidgetData,
     Key? key,
   }) : this._(
          dependencies: dependencies,
@@ -91,6 +94,7 @@ class EasySubwayApp extends StatelessWidget {
                  ? const DemoFavoriteRouteRepository().listFavoriteRoutes()
                  : null),
          navigatorKey: navigatorKey,
+         clearHomeWidgetData: clearHomeWidgetData,
          key: key,
        );
 
@@ -110,6 +114,7 @@ class EasySubwayApp extends StatelessWidget {
     this.isUsingBundledDataPack = false,
     required this.recentRoutesFuture,
     this.navigatorKey,
+    this.clearHomeWidgetData,
     super.key,
   }) : repository = dependencies.repository,
        reportRepository = dependencies.reportRepository,
@@ -167,6 +172,7 @@ class EasySubwayApp extends StatelessWidget {
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final FacilityReportLostPhotoRestorer? facilityReportLostPhotoRestorer;
   final LegacyCredentialCleaner legacyCredentialCleaner;
+  final Future<void> Function()? clearHomeWidgetData;
   final SupportAccessInfo supportAccessInfo;
   final SupportAccessLauncher supportAccessLauncher;
   final DataPackUpdateStateRepository? dataPackUpdateStateRepository;
@@ -184,6 +190,8 @@ class EasySubwayApp extends StatelessWidget {
       title: 'EasySubway',
       locale: appLocale,
       supportedLocales: appSupportedLocales,
+      localeListResolutionCallback:
+          AppLocalePolicy.localeListResolutionCallback,
       localizationsDelegates: appLocalizationsDelegates,
       debugShowCheckedModeBanner: false,
       scrollBehavior: const EasySubwayScrollBehavior(),
@@ -330,6 +338,7 @@ class EasySubwayApp extends StatelessWidget {
           facilityReportDraftTargetStore: facilityReportDraftTargetStore,
           facilityReportLostPhotoRestorer: facilityReportLostPhotoRestorer,
           legacyCredentialCleaner: legacyCredentialCleaner,
+          clearHomeWidgetData: clearHomeWidgetData,
           supportAccessInfo: supportAccessInfo,
           supportAccessLauncher: supportAccessLauncher,
           userDataDeletionRepository: userDataDeletionRepository,
@@ -468,6 +477,7 @@ class _EasySubwayHome extends StatefulWidget {
     required this.recentRoutesFuture,
     required this.bundledDataPackFreshness,
     this.isUsingBundledDataPack = false,
+    this.clearHomeWidgetData,
   });
 
   final StationSearchRepository repository;
@@ -496,6 +506,7 @@ class _EasySubwayHome extends StatefulWidget {
   final FacilityReportDraftTargetStore? facilityReportDraftTargetStore;
   final FacilityReportLostPhotoRestorer? facilityReportLostPhotoRestorer;
   final LegacyCredentialCleaner legacyCredentialCleaner;
+  final Future<void> Function()? clearHomeWidgetData;
   final SupportAccessInfo supportAccessInfo;
   final SupportAccessLauncher supportAccessLauncher;
   final UserDataDeletionRepository? userDataDeletionRepository;
@@ -691,18 +702,47 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
     });
   }
 
-  Future<void> _handleUserDataDeleted(UserDataDeletionResult result) async {
+  Future<void> _runDeletionCleanup(
+    Future<void> Function() action, {
+    required String context,
+  }) async {
     try {
-      await widget.legacyCredentialCleaner.clear();
+      await action();
     } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '정보 삭제 후 기존 익명 인증 저장값을 정리하는 중 예외가 발생했습니다.',
+      reportMobileError(error, stackTrace, context: context);
+    }
+  }
+
+  Future<void> _handleUserDataDeleted(UserDataDeletionResult result) async {
+    await _runDeletionCleanup(
+      widget.legacyCredentialCleaner.clear,
+      context: '정보 삭제 후 기존 익명 인증 저장값을 정리하는 중 예외가 발생했습니다.',
+    );
+    final onboardingStore = widget.onboardingStore;
+    if (onboardingStore != null) {
+      await _runDeletionCleanup(
+        onboardingStore.clearResult,
+        context: '정보 삭제 후 온보딩 설정을 정리하는 중 예외가 발생했습니다.',
       );
     }
-    await widget.onboardingStore?.clearResult();
-    await widget.facilityReportDraftTargetStore?.clearTarget();
+    final draftTargetStore = widget.facilityReportDraftTargetStore;
+    if (draftTargetStore != null) {
+      await _runDeletionCleanup(
+        draftTargetStore.clearTarget,
+        context: '정보 삭제 후 시설 제보 대상 저장값을 정리하는 중 예외가 발생했습니다.',
+      );
+    }
+    final alarmController = widget.getOffAlarmController;
+    if (alarmController != null) {
+      await _runDeletionCleanup(
+        alarmController.disable,
+        context: '정보 삭제 후 하차 알림을 해제하는 중 예외가 발생했습니다.',
+      );
+    }
+    await _runDeletionCleanup(
+      widget.clearHomeWidgetData ?? clearAllNextTrainWidgetData,
+      context: '정보 삭제 후 홈 위젯 저장값을 정리하는 중 예외가 발생했습니다.',
+    );
     if (!mounted) {
       return;
     }
@@ -717,15 +757,10 @@ class _EasySubwayHomeState extends State<_EasySubwayHome>
   }
 
   Future<void> _clearLegacyCredentialsOnStartup() async {
-    try {
-      await widget.legacyCredentialCleaner.clear();
-    } catch (error, stackTrace) {
-      reportMobileError(
-        error,
-        stackTrace,
-        context: '기존 익명 인증 저장값을 정리하는 중 예외가 발생했습니다.',
-      );
-    }
+    await _runDeletionCleanup(
+      widget.legacyCredentialCleaner.clear,
+      context: '기존 익명 인증 저장값을 정리하는 중 예외가 발생했습니다.',
+    );
   }
 
   Future<void> _restoreOnboardingState() async {

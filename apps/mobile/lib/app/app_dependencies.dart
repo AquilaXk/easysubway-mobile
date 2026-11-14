@@ -340,7 +340,7 @@ class _UnavailableJourneyRepository implements JourneyRepository {
     required String sessionToken,
   }) async {
     throw const JourneyTransportFailure(
-      JourneyOperation.searchJourneys,
+      JourneyOperation.profileJourneys,
       'Journey API base URL is unavailable.',
     );
   }
@@ -589,6 +589,9 @@ UserDataDeletionRepository? _defaultUserDataDeletionRepository({
       : UserDataDeletionLocalRepository(
           userDatabase: userDatabase,
           databaseDirectory: userDatabaseDirectory,
+          clearReceiptTokens: () => DriftFacilityReportReceiptStore(
+            userDatabase: userDatabase,
+          ).deleteAllReceiptTokens(),
         );
   final remoteRepository = authProvider == null
       ? null

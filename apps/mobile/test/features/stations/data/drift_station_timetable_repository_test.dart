@@ -150,6 +150,33 @@ void main() {
         mondayAfterCutoff.directions.single.departures.map((d) => d.seconds),
         [60000, 88200],
       );
+
+      await repository.database.customStatement('''
+        INSERT INTO service_calendar_dates (service_id, date, exception_type)
+        SELECT service_id, '20260928', 2 FROM service_calendars
+      ''');
+
+      await expectLater(
+        repository.loadNextStationTimetable(
+          stationId: 'station-sangnoksu',
+          lineId: 'seoul-4',
+          asOf: DateTime.utc(2026, 9, 27, 18, 15),
+        ),
+        throwsA(isA<Exception>()),
+      );
+
+      final tuesdayWithoutExclusion = await repository.loadNextStationTimetable(
+        stationId: 'station-sangnoksu',
+        lineId: 'seoul-4',
+        asOf: DateTime.utc(2026, 9, 28, 18, 15),
+      );
+      expect(tuesdayWithoutExclusion.dayType, StationTimetableDayType.weekday);
+      expect(
+        tuesdayWithoutExclusion.directions.single.departures.map(
+          (d) => d.seconds,
+        ),
+        [60000, 88200],
+      );
     });
   });
 }

@@ -793,6 +793,44 @@ void main() {
       isFalse,
     );
   });
+
+  test(
+    'installer는 압축 해제 크기가 상한을 넘으면 invalidArchive로 거부하고 임시 파일을 지운다',
+    () async {
+      final directory = await Directory.systemTemp.createTemp(
+        'easysubway-datapack-decompress-limit-',
+      );
+      addTearDown(() => directory.delete(recursive: true));
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+      final catalogDirectory = Directory('${directory.path}/catalog');
+      await catalogDirectory.create(recursive: true);
+      final installer = DataPackInstaller(
+        catalogDirectory: catalogDirectory,
+        userDatabase: userDatabase,
+        maxDecompressedPackBytes: 64,
+      );
+      final oversizedPayload = List<int>.filled(256, 65);
+      final compressedBytes = gzip.encode(oversizedPayload);
+
+      final result = await installer.install(
+        pack: _pack(
+          version: '18',
+          sha256: sha256.convert(compressedBytes).toString(),
+          sqliteSha256: sha256.convert(oversizedPayload).toString(),
+          sizeBytes: compressedBytes.length,
+        ),
+        compressedBytes: compressedBytes,
+      );
+
+      expect(result.status, DataPackInstallStatus.rejected);
+      expect(result.reason, DataPackInstallRejectionReason.invalidArchive);
+      expect(
+        await File('${catalogDirectory.path}/capital-v18.sqlite.tmp').exists(),
+        isFalse,
+      );
+    },
+  );
 }
 
 class _InstalledFixture {

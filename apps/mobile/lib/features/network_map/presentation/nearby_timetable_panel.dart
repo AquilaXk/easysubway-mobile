@@ -367,10 +367,10 @@ bool _isLateNightCandidate(
   if (seconds >= Duration.secondsPerDay) {
     return seconds >= lateNightServiceSeconds;
   }
-  // 자정 이후 당일 심야 열차(현재 시각 이후 2시간 이내이거나 04시 이전)
+  // 자정 이후 당일 심야 열차(현재 시각 이후 2시간 이내이거나 03시 이전)
   return seconds >= currentSeconds &&
       (seconds - currentSeconds <= 2 * Duration.secondsPerHour ||
-          seconds < 4 * Duration.secondsPerHour);
+          seconds < 3 * Duration.secondsPerHour);
 }
 
 class _NearbyTimetableDepartureView extends StatelessWidget {

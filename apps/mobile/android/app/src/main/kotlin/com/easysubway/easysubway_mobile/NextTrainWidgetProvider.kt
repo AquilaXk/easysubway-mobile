@@ -55,13 +55,19 @@ class NextTrainWidgetProvider : HomeWidgetProvider() {
                     }
                 PendingIntent.getActivity(context, widgetId, configIntent, flags)
             }
+            val direction2 = widgetData.getString("${prefix}direction_2", "").orEmpty()
+            val departure2 = widgetData.getString("${prefix}departure_2", "").orEmpty()
             val views = RemoteViews(context.packageName, R.layout.next_train_widget).apply {
                 setTextViewText(R.id.widget_station_name, stationName)
                 setTextViewText(R.id.widget_line_name, lineName)
                 setTextViewText(R.id.widget_direction_1, widgetData.getString("${prefix}direction_1", ""))
                 setTextViewText(R.id.widget_departure_1, widgetData.getString("${prefix}departure_1", ""))
-                setTextViewText(R.id.widget_direction_2, widgetData.getString("${prefix}direction_2", ""))
-                setTextViewText(R.id.widget_departure_2, widgetData.getString("${prefix}departure_2", ""))
+                setTextViewText(R.id.widget_direction_2, direction2)
+                setTextViewText(R.id.widget_departure_2, departure2)
+                setViewVisibility(
+                    R.id.widget_direction_column_2,
+                    if (direction2.isBlank()) View.GONE else View.VISIBLE,
+                )
                 setTextViewText(R.id.widget_status, widgetData.getString("${prefix}status_label", "시간표를 확인할 수 없어요."))
                 setViewVisibility(
                     R.id.widget_departures,

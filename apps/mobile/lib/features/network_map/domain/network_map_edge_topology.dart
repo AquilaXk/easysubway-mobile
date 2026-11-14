@@ -2,22 +2,31 @@ import 'network_map_models.dart';
 
 String _stationLineKey(String stationId, String lineId) => '$stationId:$lineId';
 
-NetworkMapStation? networkMapStationForMapEdgeEndpoint({
-  required String endpoint,
-  required String lineId,
-  required Iterable<NetworkMapStation> stations,
-}) {
+({
+  Map<String, List<NetworkMapStation>> stationsById,
+  Map<String, NetworkMapStation> stationByLineKey,
+})
+_indexStations(Iterable<NetworkMapStation> stations) {
   final stationsById = <String, List<NetworkMapStation>>{};
   final stationByLineKey = <String, NetworkMapStation>{};
   for (final station in stations) {
     stationsById.putIfAbsent(station.id, () => []).add(station);
     stationByLineKey[_stationLineKey(station.id, station.lineId)] = station;
   }
+  return (stationsById: stationsById, stationByLineKey: stationByLineKey);
+}
+
+NetworkMapStation? networkMapStationForMapEdgeEndpoint({
+  required String endpoint,
+  required String lineId,
+  required Iterable<NetworkMapStation> stations,
+}) {
+  final index = _indexStations(stations);
   return _stationForEdgeEndpoint(
     endpoint,
     lineId,
-    stationByLineKey,
-    stationsById,
+    index.stationByLineKey,
+    index.stationsById,
   );
 }
 
@@ -48,10 +57,9 @@ networkMapAdjacentStationPair({
   required String stationId,
   String? lineId,
 }) {
-  final selectedStations = stations
-      .where((station) => station.id == stationId)
-      .toList(growable: false);
-  if (selectedStations.isEmpty) {
+  final index = _indexStations(stations);
+  final selectedStations = index.stationsById[stationId];
+  if (selectedStations == null || selectedStations.isEmpty) {
     return (
       leftName: null,
       rightName: null,
@@ -73,15 +81,17 @@ networkMapAdjacentStationPair({
     if (edge.lineId != selected.lineId) {
       continue;
     }
-    final from = networkMapStationForMapEdgeEndpoint(
-      endpoint: edge.fromStationId,
-      lineId: edge.lineId,
-      stations: stations,
+    final from = _stationForEdgeEndpoint(
+      edge.fromStationId,
+      edge.lineId,
+      index.stationByLineKey,
+      index.stationsById,
     );
-    final to = networkMapStationForMapEdgeEndpoint(
-      endpoint: edge.toStationId,
-      lineId: edge.lineId,
-      stations: stations,
+    final to = _stationForEdgeEndpoint(
+      edge.toStationId,
+      edge.lineId,
+      index.stationByLineKey,
+      index.stationsById,
     );
     NetworkMapStation? candidate;
     if (_sameStation(from, selected)) {

@@ -51,6 +51,10 @@ import WebKit
       binaryMessenger: engineBridge.applicationRegistrar.messenger()
     )
     notificationChannel.setMethodCallHandler { [weak self] call, result in
+      if call.method == "notificationPermissionStatus" {
+        self?.notificationPermissionStatus(result)
+        return
+      }
       guard call.method == "requestNotificationPermission" else {
         result(FlutterMethodNotImplemented)
         return
@@ -174,6 +178,20 @@ import WebKit
     }
     UIApplication.shared.open(url, options: [:]) { success in
       result(success)
+    }
+  }
+
+  private func notificationPermissionStatus(_ result: @escaping FlutterResult) {
+    UNUserNotificationCenter.current().getNotificationSettings { settings in
+      DispatchQueue.main.async {
+        var granted =
+          settings.authorizationStatus == .authorized ||
+          settings.authorizationStatus == .provisional
+        if #available(iOS 14.0, *), settings.authorizationStatus == .ephemeral {
+          granted = true
+        }
+        result(granted)
+      }
     }
   }
 

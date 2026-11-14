@@ -25,6 +25,12 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       StationTimetableDayType.sundayHoliday => 'sundayHoliday',
     };
 
+    final seoulRef = journeySeoulWallTime(referenceDate);
+    final dateKey =
+        '${seoulRef.year.toString().padLeft(4, '0')}'
+        '${seoulRef.month.toString().padLeft(2, '0')}'
+        '${seoulRef.day.toString().padLeft(2, '0')}';
+
     final rows = await database
         .customSelect(
           '''
@@ -57,6 +63,13 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
           OR (? = 'saturday' AND sc.saturday = 1)
           OR (? = 'sundayHoliday' AND sc.sunday = 1)
         )
+        AND NOT EXISTS (
+          SELECT 1
+          FROM service_calendar_dates scd
+          WHERE scd.service_id = t.service_id
+            AND scd.date = ?
+            AND scd.exception_type = 2
+        )
       ORDER BY resolved_direction_name, st.departure_seconds
       ''',
           variables: [
@@ -65,11 +78,10 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
             Variable.withString(dayKey),
             Variable.withString(dayKey),
             Variable.withString(dayKey),
+            Variable.withString(dateKey),
           ],
         )
         .get();
-
-    final seoulRef = journeySeoulWallTime(referenceDate);
     final directionsMap = <String, List<StationTimetableDeparture>>{};
     for (final row in rows) {
       final directionName = row.read<String>('resolved_direction_name');

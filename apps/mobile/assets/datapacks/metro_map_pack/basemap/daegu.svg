@@ -7,7 +7,7 @@
    role="img"
    aria-labelledby="map-title map-description"
    preserveAspectRatio="xMidYMid meet"
-   id="daegu-metro-kakao-full-accurate-v1"
+   id="daegu-metro-sma-v4-accurate-v1"
    style="font-family: Pretendard;"
    data-design-family="easy-subway-sma-v4"
    data-design-family-version="sma-v4-size-matched-daegu-v1"
@@ -19,7 +19,7 @@
    data-octolinear="softened-octolinear"
    data-font-policy="Pretendard-only"
    data-state-policy="class-toggle-not-delete"
-   data-source-geometry="kakao-daegu-full-network-reference"
+   data-source-geometry="sma-v4-daegu-full-network-reference"
    data-current-as-of="2026-07-12"
    data-line3-tail-layout="soft-u-turn-horizontal-labels"
    data-station-count-metro="94"
@@ -59,7 +59,7 @@
      inkscape:window-y="30"
      inkscape:window-maximized="1"
      inkscape:current-layer="station-name-labels-layer" />
-  <!-- Full Kakao-reference reflow: Line 1, Line 2, Line 3, and Daegyeong Line. -->
+  <!-- Full reference reflow: Line 1, Line 2, Line 3, and Daegyeong Line. -->
   <defs
      id="sma-v1-family-definitions">
     <clipPath
@@ -118,7 +118,7 @@
        stroke-linecap="round"
        stroke-linejoin="round"
        d="M 348.10977,488.32384 550,700 l 516.6783,516.6783 c 41.4592,39.8633 42.4688,42.2991 99.0299,43.3217 H 2142 l 360,-360 h 261.5317 c 35.1926,0.92768 35.8778,2.07058 59.3997,22.93138 l 250.2935,250.29352 c 27.4849,24.2957 29.6495,25.8986 72.3909,26.7956 l 951.5147,0.428"
-       data-geometry="kakao-full-nw-daegu-dongdaegu-gyeongsan-v1"
+       data-geometry="sma-v4-nw-daegu-dongdaegu-gyeongsan-v1"
        data-curve-policy="soft-cubic-at-every-direction-change"
        data-straight-segments="preserved-between-curves"
        sodipodi:nodetypes="ccccccccccc" />
@@ -134,7 +134,7 @@
        stroke-width="18"
        stroke-linecap="round"
        stroke-linejoin="round"
-       data-geometry="kakao-full-nw-central-se-v1"
+       data-geometry="sma-v4-nw-central-se-v1"
        data-soft-turn="line3-northwest-tail"
        d="m 1050,60 v 691.23398 c 0,30 12.2226,47.83962 43.0868,49.1981 l 636.933,1.15012 c 49.9624,0.83792 67.2482,9.18444 67.9273,41.29581 0.6899,32.62255 2.2655,382.96399 2.0529,417.12199 l 1.0318,336.9906 c 0.034,11.1473 5.591,22.3193 25.417,22.3215 l 1134.3809,0.124 c 23.593,0 39.1703,15.7968 39.1703,33.3742 v 301.9113 c -0.039,16.5157 10.2547,25.4258 28.838,25.2382 l 423.7355,1.2942"
        data-curve-policy="soft-cubic-at-every-direction-change"
@@ -153,7 +153,7 @@
        stroke-width="18"
        stroke-linecap="round"
        stroke-linejoin="round"
-       data-geometry="kakao-full-straight-ew-v1"
+       data-geometry="sma-v4-straight-ew-v1"
        data-curve-policy="not-applicable-no-direction-change" />
     <path
        id="route-line-1"
@@ -168,7 +168,7 @@
        stroke-linecap="round"
        stroke-linejoin="round"
        d="M 77.593287,2100.355 340,2100 H 2050.8506 C 2094.206,2100 2100,2084.517 2100,2046.6117 V 1260 l 480,-480 h 1302.571 c 24.62,-0.0208 29.504,-14.4168 28.9878,-33.12241 l -0.2752,-436.19147"
-       data-geometry="kakao-full-sw-horizontal-central-spine-ne-east-v1"
+       data-geometry="sma-v4-sw-horizontal-central-spine-ne-east-v1"
        data-curve-policy="soft-cubic-at-every-direction-change"
        data-straight-segments="preserved-between-curves"
        sodipodi:nodetypes="ccssccccc" />

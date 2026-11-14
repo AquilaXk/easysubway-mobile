@@ -275,6 +275,15 @@ void main() {
     expect((await store.listReceipts()).map((receipt) => receipt.reportId), [
       'report-1',
     ]);
+    storage.values['easysubway.facilityReport.receipt.report-1'] =
+        'direct-report-token';
+    await store.deleteAllReceiptTokens();
+    expect(
+      storage.values.keys.where(
+        (key) => key.startsWith('easysubway.facilityReport.receipt.'),
+      ),
+      isEmpty,
+    );
   });
 
   test('시설 신고 API 저장소는 백엔드 계약에 맞춰 신고를 전송한다', () async {

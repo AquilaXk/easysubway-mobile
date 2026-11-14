@@ -808,14 +808,49 @@ void main() {
     expect(stored, isEmpty);
   });
 
-  test('available이어도 한 방향뿐이면 configure는 저장하거나 갱신하지 않는다', () async {
-    var saveCount = 0;
+  test('한 방향만 있어도 available이면 configure는 첫 방향을 저장하고 두 번째 칸을 비운다', () async {
+    final stored = <String, Object?>{};
     var updateCount = 0;
     final service = NextTrainWidgetService(
       load: (_, _) async => NextTrainWidgetData(
         selection: _selection,
         status: NextTrainWidgetStatus.available,
         directions: [_availableData.directions.first],
+        statusLabel: '시간표 기준',
+        updatedAt: DateTime(2026, 7, 10, 9),
+      ),
+      saveValue: (key, value) async => stored[key] = value,
+      updateWidget: () async => updateCount += 1,
+    );
+
+    await service.configure(
+      appWidgetId: 42,
+      selection: _selection,
+      now: DateTime(2026, 7, 10, 9),
+    );
+
+    expect(
+      stored['widget_42_direction_1'],
+      _availableData.directions.first.name,
+    );
+    expect(
+      stored['widget_42_departure_1'],
+      _availableData.directions.first.departureLabel,
+    );
+    expect(stored['widget_42_direction_2'], '');
+    expect(stored['widget_42_departure_2'], '');
+    expect(stored['widget_42_status'], 'available');
+    expect(updateCount, 1);
+  });
+
+  test('available이어도 방향 목록이 비어 있으면 configure는 저장하거나 갱신하지 않는다', () async {
+    var saveCount = 0;
+    var updateCount = 0;
+    final service = NextTrainWidgetService(
+      load: (_, _) async => NextTrainWidgetData(
+        selection: _selection,
+        status: NextTrainWidgetStatus.available,
+        directions: const [],
         statusLabel: '시간표 기준',
         updatedAt: DateTime(2026, 7, 10, 9),
       ),

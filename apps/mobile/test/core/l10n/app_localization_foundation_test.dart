@@ -68,6 +68,42 @@ void main() {
         ], AppLocalePolicy.supportedLocales),
         const Locale('en'),
       );
+      expect(
+        AppLocalePolicy.localeListResolutionCallback(const [
+          Locale('ko', 'KR'),
+        ], AppLocalePolicy.supportedLocales),
+        const Locale('ko'),
+      );
+      expect(
+        AppLocalePolicy.localeListResolutionCallback(
+          const [Locale('ko')],
+          const [Locale('ko', 'KR'), Locale('en')],
+        ),
+        const Locale('ko', 'KR'),
+      );
+      expect(
+        AppLocalePolicy.localeListResolutionCallback(
+          const [Locale('fr', 'FR')],
+          const [Locale('en'), Locale('ja')],
+        ),
+        const Locale('en'),
+      );
+      expect(
+        AppLocalePolicy.localeListResolutionCallback(const [
+          Locale('ko', 'KR'),
+        ], const []),
+        const Locale('ko'),
+      );
+      expect(
+        AppLocalePolicy.localeListResolutionCallback(
+          List<Locale>.filled(
+            AppLocalePolicy.maxLocaleCandidates + 1,
+            const Locale('ko', 'KR'),
+          ),
+          AppLocalePolicy.supportedLocales,
+        ),
+        const Locale('ko'),
+      );
     });
 
     test('로케일 후보 목록이 상한(64개)을 초과하면 Fail-Closed로 거부한다', () {
@@ -577,5 +613,37 @@ void main() {
         },
       );
     }
+
+    testWidgets(
+      'LocalizedJourneyErrorBanner는 onActionPressed가 null이면 비활성 버튼으로 그린다',
+      (tester) async {
+        final entry = JourneyV3LocalizedCatalog.resolveError(
+          'UNKNOWN_FAILURE',
+          locale: SupportedAppLocale.ko,
+        );
+        await tester.pumpWidget(
+          MaterialApp(
+            home: Scaffold(
+              body: LocalizedJourneyErrorBanner(
+                entry: entry,
+                onActionPressed: null,
+              ),
+            ),
+          ),
+        );
+
+        final semantics = tester.ensureSemantics();
+        try {
+          final actionFinder = find.widgetWithText(
+            OutlinedButton,
+            entry.actionLabel,
+          );
+          expect(actionFinder, findsOneWidget);
+          expect(tester.widget<OutlinedButton>(actionFinder).onPressed, isNull);
+        } finally {
+          semantics.dispose();
+        }
+      },
+    );
   });
 }

@@ -855,6 +855,86 @@ void main() {
     expect(owner, isNot(contains('route_draft_controller.dart')));
     expect(owner, isNot(contains("import '../../../design_tokens.dart';")));
   });
+
+  testWidgets('top-bar route draft는 큰 글씨 배율(2.0x)과 드래그 피드백에서도 overflow가 없다', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _host(
+        MediaQuery(
+          data: const MediaQueryData(textScaler: TextScaler.linear(2.0)),
+          child: SizedBox(
+            width: 360,
+            child: NetworkMapTopBarRouteDraft(
+              draft: const RouteDraft(
+                origin: RouteDraftStation(
+                  id: 'origin',
+                  nameKo: '동대문역사문화공원',
+                  lineId: 'seoul-2',
+                  lineName: '2호선',
+                  lineColor: '#00A84D',
+                ),
+                destination: null,
+                lastModifiedAt: null,
+              ),
+              showWaypointRow: false,
+              regionLabel: '수도권',
+              onClearDraft: _noop,
+              onOpenWaypointSlot: _noop,
+              onClearOrigin: _noop,
+              onClearDestination: _noop,
+              onClearWaypoint: _noop,
+              onReorderDraft: (_, _) {},
+              onPickOrigin: _noop,
+              onPickDestination: _noop,
+              roleColorForSlot: (_) => Colors.black,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(tester.takeException(), isNull);
+    final originRow = find.byKey(const Key('networkMapRouteDraftOriginRow'));
+    final backdropFinder = find.descendant(
+      of: originRow,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Container &&
+            widget.decoration is BoxDecoration &&
+            (widget.decoration! as BoxDecoration).color ==
+                EasySubwayAccessibleColors.searchFieldSurface,
+      ),
+    );
+    final originTextFinder = find.descendant(
+      of: find.byKey(const Key('networkMapRouteDraftPickOrigin')),
+      matching: find.byType(Text),
+    );
+    final backdropRect = tester.getRect(backdropFinder);
+    final originTextRect = tester.getRect(originTextFinder);
+    expect(backdropRect.top, lessThanOrEqualTo(originTextRect.top - 3.5));
+    expect(
+      backdropRect.bottom,
+      greaterThanOrEqualTo(originTextRect.bottom + 3.5),
+    );
+
+    final regionTextFinder = find.descendant(
+      of: find.byKey(const Key('networkMapRouteDraftRegionLabel')),
+      matching: find.text('수도권'),
+    );
+    final regionTextWidget = tester.widget<Text>(regionTextFinder);
+    expect(regionTextWidget.maxLines, isNull);
+    expect(regionTextWidget.overflow, isNull);
+    expect(tester.getRect(regionTextFinder).height, greaterThanOrEqualTo(40));
+
+    final gesture = await tester.startGesture(tester.getCenter(originRow));
+    await tester.pump(const Duration(milliseconds: 600));
+    await gesture.moveBy(const Offset(0, 48));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+    await gesture.up();
+    await tester.pumpAndSettle();
+  });
 }
 
 void _noop() {}

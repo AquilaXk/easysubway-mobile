@@ -130,7 +130,7 @@ class NextTrainWidgetRepository {
         );
       }
       directions.sort((a, b) => a.departureAt.compareTo(b.departureAt));
-      if (directions.length < 2) {
+      if (directions.isEmpty) {
         return NextTrainWidgetData.unavailable(canonicalSelection, now);
       }
       return NextTrainWidgetData(

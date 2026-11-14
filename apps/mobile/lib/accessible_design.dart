@@ -235,7 +235,7 @@ const easySubwayHeaderDividerColor = EasySubwayColorPrimitives.brand800;
 
 /// 상단바·시트와 본문을 나누는 1px 구분선.
 ///
-/// 선 톤은 전 화면이 [easySubwayHeaderDividerColor]를 쓴다. 카카오식 짧은
+/// 선 톤은 전 화면이 [easySubwayHeaderDividerColor]를 쓴다. 짧은
 /// 드롭은 노선도·좌측 메뉴만 [EasySubwayHeaderDivider.mapChrome]으로 켠다.
 /// 그림자는 이 공용 위젯에만 두고 화면 파일에 직접 쓰지 않는다(#1933).
 class EasySubwayHeaderDivider extends SizedBox {
@@ -248,9 +248,9 @@ class EasySubwayHeaderDivider extends SizedBox {
         ),
       );
 
-  /// 노선도 상단바·좌측 메뉴 헤더용. 동일 선 톤 + 카카오식 짧은 드롭.
+  /// 노선도 상단바·좌측 메뉴 헤더용. 동일 선 톤 + 짧은 드롭.
   ///
-  /// 그림자 톤은 카카오 참조 스크린의 흰 지도 위 페이드
+  /// 그림자 톤은 참조 앱 스크린의 흰 지도 위 페이드
   /// (#CD→#E2→#EE→#F8→투명, ~5px)를 검정 반투명으로 그대로 환산했다.
   /// BoxShadow 근사 대신 짧은 페이드 드롭으로 길이와 색을 맞춘다.
   const EasySubwayHeaderDivider.mapChrome({super.key})
@@ -261,7 +261,7 @@ class EasySubwayHeaderDivider extends SizedBox {
       );
 }
 
-/// 카카오 참조: 흰 배경 기준 205/226/238/248 → alpha 0x32/0x1D/0x11/0x07.
+/// 참조 앱 톤 환산: 흰 배경 기준 205/226/238/248 → alpha 0x32/0x1D/0x11/0x07.
 ///
 /// Material gradient decoration은 design_guard 하드 밴(#1915)이라
 /// [CustomPaint] + `dart:ui` 셰이더로만 그린다.
@@ -279,7 +279,7 @@ class _EasySubwayMapChromeHeaderDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 카카오 실측치: 단정하고 은은한 소프트 마이크로 드롭 섀도우 (logical 3.5dp)
+    // 참조 앱 기준 실측치: 단정하고 은은한 소프트 마이크로 드롭 섀도우 (logical 3.5dp)
     const dropHeight = 3.5;
     return Stack(
       clipBehavior: Clip.none,

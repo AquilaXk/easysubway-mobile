@@ -512,6 +512,45 @@ void main() {
       );
     },
   );
+
+  test(
+    'AppDependencies.resolve는 userDatabase가 있으면 삭제 저장소에 접수증 토큰 정리를 연결한다',
+    () async {
+      final catalogDatabase = CatalogDatabase.memory();
+      addTearDown(catalogDatabase.close);
+      final userDatabase = user_db.UserDatabase.memory();
+      addTearDown(userDatabase.close);
+      await catalogDatabase.customSelect('SELECT 1').get();
+      await userDatabase.customSelect('SELECT 1').get();
+      await userDatabase
+          .into(userDatabase.routeSearchHistory)
+          .insert(
+            user_db.RouteSearchHistoryCompanion.insert(
+              originStationId: 'station-sadang',
+              originStationName: '사당',
+              destinationStationId: 'station-gangnam',
+              destinationStationName: '강남',
+              region: '수도권',
+              searchedAt: DateTime.utc(2026, 8, 1),
+            ),
+          );
+
+      final dependencies = AppDependencies.resolve(
+        catalogDatabase: catalogDatabase,
+        userDatabase: userDatabase,
+        reportRepository: const UnavailableFacilityReportRepository(),
+        apiBaseUri: () => Uri.parse('https://api.example.com'),
+        enablePushNotifications: false,
+      );
+
+      await dependencies.userDataDeletionRepository!.deleteCurrentUserData();
+
+      expect(
+        await userDatabase.select(userDatabase.routeSearchHistory).get(),
+        isEmpty,
+      );
+    },
+  );
 }
 
 class _InjectedNetworkMapRepository implements NetworkMapRepository {

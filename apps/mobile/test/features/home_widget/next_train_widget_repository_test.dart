@@ -108,7 +108,7 @@ void main() {
     expect(fake.nextRequests, 0);
   });
 
-  test('양방향 출발이 부족하면 server 응답도 unavailable으로 표현한다', () async {
+  test('단방향 출발만 있는 종점·server 응답도 available으로 표현한다', () async {
     final fake = _RecordingServerTimetableFake(
       timetable: StationTimetable(
         stationId: 'station-sadang',
@@ -126,6 +126,31 @@ void main() {
             ],
           ),
         ],
+      ),
+    );
+    final serverRepository = NextTrainWidgetRepository(
+      catalogDatabase: catalogDatabase,
+      userDatabase: userDatabase,
+      timetableRepository: fake,
+    );
+
+    final data = await serverRepository.load(
+      _sadangLine4,
+      DateTime.utc(2026, 8, 11),
+    );
+
+    expect(data.status, NextTrainWidgetStatus.available);
+    expect(data.directions.map((d) => d.name), ['상록수 방면']);
+    expect(data.selection, same(_sadangLine4));
+  });
+
+  test('출발 방향이 비어 있으면 server 응답을 unavailable으로 표현한다', () async {
+    final fake = _RecordingServerTimetableFake(
+      timetable: const StationTimetable(
+        stationId: 'station-sadang',
+        lineId: 'seoul-4',
+        dayType: StationTimetableDayType.weekday,
+        directions: [],
       ),
     );
     final serverRepository = NextTrainWidgetRepository(

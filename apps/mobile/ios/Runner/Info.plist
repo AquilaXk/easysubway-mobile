@@ -35,6 +35,9 @@
 	<key>LSApplicationQueriesSchemes</key>
 	<array>
 		<string>kakaomap</string>
+		<string>srt</string>
+		<string>korailtalk</string>
+		<string>korail</string>
 	</array>
 	<key>UIApplicationSceneManifest</key>
 	<dict>

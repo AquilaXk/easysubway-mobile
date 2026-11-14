@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -387,5 +388,106 @@ void main() {
             ),
       ),
     );
+  });
+
+  test('maxResponseBytes 초과 응답이나 잘못된 UTF-8 바이트는 ApiException으로 거부한다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      if (request.uri.path == '/oversized') {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..headers.contentType = ContentType.json
+          ..add(utf8.encode(jsonEncode({'payload': 'x' * 64})));
+      } else {
+        request.response
+          ..statusCode = HttpStatus.ok
+          ..add([0xff, 0xfe]);
+      }
+      await request.response.close();
+    });
+
+    final client = ApiClient(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      maxResponseBytes: 16,
+    );
+    addTearDown(() => client.close(force: true));
+
+    await expectLater(
+      client.getJson('/oversized'),
+      throwsA(isA<ApiException>()),
+    );
+    await expectLater(
+      client.getJson('/invalid-utf8'),
+      throwsA(isA<ApiException>()),
+    );
+  });
+
+  test('응답 본문 수신이 timeout을 넘기면 구독을 취소하고 ApiException을 던진다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    final releaseBody = Completer<void>();
+    addTearDown(() async {
+      if (!releaseBody.isCompleted) releaseBody.complete();
+      await server.close(force: true);
+    });
+    server.listen((request) async {
+      request.response
+        ..bufferOutput = false
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..add([123]);
+      await request.response.flush();
+      await releaseBody.future;
+      await request.response.close();
+    });
+
+    final client = ApiClient(
+      baseUri: Uri.parse('http://${server.address.host}:${server.port}'),
+      timeout: const Duration(milliseconds: 50),
+    );
+    addTearDown(() => client.close(force: true));
+
+    await expectLater(
+      client.getJson('/slow-body'),
+      throwsA(
+        isA<ApiException>().having(
+          (error) => error.cause,
+          'cause',
+          isA<TimeoutException>(),
+        ),
+      ),
+    );
+  });
+
+  test('close는 자체 생성 HttpClient만 닫고 주입된 HttpClient는 유지한다', () async {
+    final server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
+    addTearDown(server.close);
+    server.listen((request) async {
+      request.response
+        ..statusCode = HttpStatus.ok
+        ..headers.contentType = ContentType.json
+        ..write('{"ok":true}');
+      await request.response.close();
+    });
+    final baseUri = Uri.parse('http://${server.address.host}:${server.port}');
+
+    final ownedClient = ApiClient(baseUri: baseUri);
+    ownedClient.close(force: true);
+    await expectLater(
+      ownedClient.getJson('/stations'),
+      throwsA(isA<ApiException>()),
+    );
+
+    final externalHttpClient = HttpClient();
+    addTearDown(() => externalHttpClient.close(force: true));
+    final injectedClient = ApiClient(
+      baseUri: baseUri,
+      httpClient: externalHttpClient,
+    );
+    injectedClient.close(force: true);
+
+    final response = await injectedClient.getJson('/stations');
+    expect(response.isOk, isTrue);
+    expect(response.jsonBody, {'ok': true});
   });
 }

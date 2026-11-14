@@ -1,11 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'data_pack_manifest.dart';
 import 'data_pack_update_state.dart';
 
 const _manifestFetchTimeout = Duration(seconds: 8);
+const _defaultMaxManifestBytes = 2 * 1024 * 1024;
 
 class DataPackClient {
   DataPackClient({
@@ -14,9 +16,11 @@ class DataPackClient {
     this.productionSigningPublicKey,
     this.productionSigningPublicKeys,
     this.expectedManifestChannel = 'production',
+    this.maxResponseBytes = _defaultMaxManifestBytes,
     HttpClient? httpClient,
     DateTime Function()? now,
   }) : _httpClient = httpClient ?? HttpClient(),
+       _ownsHttpClient = httpClient == null,
        _now = now ?? DateTime.now;
 
   final Uri manifestUri;
@@ -24,8 +28,16 @@ class DataPackClient {
   final DataPackSigningPublicKey? productionSigningPublicKey;
   final List<DataPackSigningPublicKey>? productionSigningPublicKeys;
   final String expectedManifestChannel;
+  final int maxResponseBytes;
   final HttpClient _httpClient;
+  final bool _ownsHttpClient;
   final DateTime Function() _now;
+
+  void close({bool force = false}) {
+    if (_ownsHttpClient) {
+      _httpClient.close(force: force);
+    }
+  }
 
   Future<DataPackManifestFetchResult> fetchManifestIfNeeded() async {
     final cache = await stateRepository.readManifestCache();
@@ -46,6 +58,7 @@ class DataPackClient {
 
     final response = await request.close().timeout(_manifestFetchTimeout);
     if (response.statusCode == HttpStatus.notModified && cache != null) {
+      await response.drain<void>();
       final checkedAt = _now().toUtc();
       await stateRepository.saveManifestCache(
         etag: cache.etag,
@@ -58,14 +71,22 @@ class DataPackClient {
       );
     }
     if (response.statusCode != HttpStatus.ok) {
+      await response.drain<void>();
       throw const DataPackClientException('이동 정보를 확인하지 못했어요.');
     }
 
-    final body = await utf8
-        .decodeStream(response)
-        .timeout(_manifestFetchTimeout);
+    final builder = BytesBuilder(copy: false);
+    var totalBytes = 0;
+    await for (final chunk in response.timeout(_manifestFetchTimeout)) {
+      totalBytes += chunk.length;
+      if (totalBytes > maxResponseBytes) {
+        throw const DataPackClientException('이동 정보가 허용 크기를 초과했습니다.');
+      }
+      builder.add(chunk);
+    }
     final Object? decoded;
     try {
+      final body = utf8.decode(builder.takeBytes());
       decoded = jsonDecode(body);
     } on FormatException {
       throw const DataPackClientException('이동 정보 형식이 올바르지 않습니다.');

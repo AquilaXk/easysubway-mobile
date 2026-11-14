@@ -64,7 +64,22 @@ abstract final class AppLocalePolicy {
   static Locale localeListResolutionCallback(
     List<Locale>? locales,
     Iterable<Locale> supportedLocales,
-  ) => resolveSystemLocales(locales).locale;
+  ) {
+    final boundedLocales =
+        locales != null && locales.length > maxLocaleCandidates
+        ? locales.sublist(0, maxLocaleCandidates)
+        : locales;
+    final resolved = resolveSystemLocales(boundedLocales).locale;
+    for (final supported in supportedLocales) {
+      if (supported.languageCode.toLowerCase() == resolved.languageCode) {
+        return supported;
+      }
+    }
+    if (supportedLocales.isNotEmpty) {
+      return supportedLocales.first;
+    }
+    return resolved;
+  }
 }
 
 /// 역 식별자 불변성을 유지한 채 로케일별 표시 역명과 스크린리더 읽기 라벨을 담는 값 객체.
@@ -790,6 +805,8 @@ class LocalizedJourneyErrorBanner extends StatelessWidget {
             constraints: const BoxConstraints(minHeight: 48),
             child: Semantics(
               button: true,
+              enabled: onActionPressed != null,
+              onTap: onActionPressed,
               label: actionSemantics,
               excludeSemantics: true,
               child: OutlinedButton(

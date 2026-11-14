@@ -44,6 +44,7 @@ class AppBootstrap {
     required this.acceptMeteredDataPackUpdate,
     required this.bundledDataPackFreshness,
     this.isUsingBundledDataPack = false,
+    this.closeDataPackUpdater,
   });
 
   final AppDependencies dependencies;
@@ -54,6 +55,7 @@ class AppBootstrap {
   final Future<void> Function() acceptMeteredDataPackUpdate;
   final BundledDataPackFreshness? bundledDataPackFreshness;
   final bool isUsingBundledDataPack;
+  final Future<void> Function()? closeDataPackUpdater;
 
   static Future<AppBootstrap> initialize({
     Directory? databaseDirectory,
@@ -69,6 +71,7 @@ class AppBootstrap {
     CurrentLocationProvider? locationProvider,
     UserDataDeletionRepository? userDataDeletionRepository,
     DataPackUpdateRunner? dataPackUpdateRunner,
+    AppEndpoints? endpoints,
     required bool enablePushNotifications,
   }) async {
     final supportDirectory =
@@ -84,6 +87,7 @@ class AppBootstrap {
     );
 
     Future<void>? dataPackUpdate;
+    DataPackUpdater? ownedUpdater;
     try {
       final catalogDatabaseOpener = CatalogDatabaseOpener(
         databaseDirectory: supportDirectory,
@@ -95,17 +99,6 @@ class AppBootstrap {
           catalogDatabaseOpener.openedBundledDataPack
           ? await BundledDataPackFreshness.read(supportDirectory)
           : await _installedDataPackFreshness(userDatabase);
-      final runner = dataPackUpdateRunner ?? _defaultDataPackUpdateRunner;
-
-      // 설치 pointer는 갱신하되, 세션의 catalog 의존성은 다음 bootstrap까지
-      // 함께 열린 동일 DB를 유지해 기능별로 서로 다른 데이터팩을 노출하지 않는다.
-      dataPackUpdate = _runDataPackUpdateSafely(
-        supportDirectory: supportDirectory,
-        userDatabase: userDatabase,
-        runner: runner,
-        trigger: UpdateTrigger.appStart,
-      );
-
       final dependencies = AppDependencies.resolve(
         repository: repository,
         reportRepository: reportRepository,
@@ -122,26 +115,58 @@ class AppBootstrap {
         userDatabaseDirectory: userDatabaseDirectory,
         enablePushNotifications: enablePushNotifications,
       );
+      final runner =
+          dataPackUpdateRunner ??
+          (({
+            required Directory supportDirectory,
+            required UserDatabase userDatabase,
+            required UpdateTrigger trigger,
+          }) async {
+            final updater = ownedUpdater ??= _createDefaultDataPackUpdater(
+              supportDirectory: supportDirectory,
+              userDatabase: userDatabase,
+              endpoints: endpoints,
+            );
+            if (updater == null) {
+              return;
+            }
+            await updater.checkForUpdates(trigger: trigger);
+          });
+
+      final pendingDataPackUpdates = <Future<void>>{};
+      Future<void> trackDataPackUpdate(UpdateTrigger trigger) {
+        late final Future<void> tracked;
+        tracked = _runDataPackUpdateSafely(
+          supportDirectory: supportDirectory,
+          userDatabase: userDatabase,
+          runner: runner,
+          trigger: trigger,
+        ).whenComplete(() => pendingDataPackUpdates.remove(tracked));
+        pendingDataPackUpdates.add(tracked);
+        return tracked;
+      }
+
+      // 설치 pointer는 갱신하되, 세션의 catalog 의존성은 다음 bootstrap까지
+      // 함께 열린 동일 DB를 유지해 기능별로 서로 다른 데이터팩을 노출하지 않는다.
+      dataPackUpdate = trackDataPackUpdate(UpdateTrigger.appStart);
 
       return AppBootstrap(
         dependencies: dependencies,
         catalogDatabase: catalogDatabase,
         userDatabase: userDatabase,
         dataPackUpdate: dataPackUpdate,
-        resumeDataPackUpdate: () => _runDataPackUpdateSafely(
-          supportDirectory: supportDirectory,
-          userDatabase: userDatabase,
-          runner: runner,
-          trigger: UpdateTrigger.foregroundResume,
-        ),
-        acceptMeteredDataPackUpdate: () => _runDataPackUpdateSafely(
-          supportDirectory: supportDirectory,
-          userDatabase: userDatabase,
-          runner: runner,
-          trigger: UpdateTrigger.userConsent,
-        ),
+        resumeDataPackUpdate: () =>
+            trackDataPackUpdate(UpdateTrigger.foregroundResume),
+        acceptMeteredDataPackUpdate: () =>
+            trackDataPackUpdate(UpdateTrigger.userConsent),
         bundledDataPackFreshness: bundledDataPackFreshness,
         isUsingBundledDataPack: catalogDatabaseOpener.openedBundledDataPack,
+        closeDataPackUpdater: () async {
+          while (pendingDataPackUpdates.isNotEmpty) {
+            await Future.wait(pendingDataPackUpdates.toList(growable: false));
+          }
+          ownedUpdater?.close();
+        },
       );
     } catch (error, stackTrace) {
       await dataPackUpdate;
@@ -164,6 +189,10 @@ class AppBootstrap {
     }
 
     await closeResource(() => dataPackUpdate);
+    final closeUpdater = closeDataPackUpdater;
+    if (closeUpdater != null) {
+      await closeResource(closeUpdater);
+    }
     await closeResource(catalogDatabase.close);
     await closeResource(userDatabase.close);
     if (firstError != null) {
@@ -230,15 +259,15 @@ Future<void> _runDataPackUpdateSafely({
 /// foreground 복귀마다 도는데, 원인이 빌드 구성이라 반복 보고는 같은 사실만 늘린다.
 bool _reportedBlockedDataPackUpdate = false;
 
-Future<void> _defaultDataPackUpdateRunner({
+DataPackUpdater? _createDefaultDataPackUpdater({
   required Directory supportDirectory,
   required UserDatabase userDatabase,
-  required UpdateTrigger trigger,
-}) async {
-  final endpoints = AppEndpoints.fromEnvironment();
+  AppEndpoints? endpoints,
+}) {
+  final resolvedEndpoints = endpoints ?? AppEndpoints.fromEnvironment();
   // production 빌드에 서명 공개키가 없으면 봉투 서명이 자기해시 대조로 강등돼 발신자
   // 인증이 사라진다(#2532). base URL만 보고 진행하지 않고 여기서 닫는다.
-  final decision = endpoints.dataPackUpdateStartDecision;
+  final decision = resolvedEndpoints.dataPackUpdateStartDecision;
   if (decision != DataPackUpdateStartDecision.start) {
     final message = decision.blockedDiagnosticMessage;
     if (message != null && !_reportedBlockedDataPackUpdate) {
@@ -249,24 +278,24 @@ Future<void> _defaultDataPackUpdateRunner({
         context: '이동 정보 업데이트를 시작하지 않았습니다.',
       );
     }
-    return;
+    return null;
   }
-  final manifestUri = endpoints.dataPackManifestUri;
+  final manifestUri = resolvedEndpoints.dataPackManifestUri;
   if (manifestUri == null) {
-    return;
+    return null;
   }
   final stateRepository = createDataPackUpdateStateRepository(
     userDatabase: userDatabase,
-    endpoints: endpoints,
+    endpoints: resolvedEndpoints,
   );
   final catalogDirectory = Directory(p.join(supportDirectory.path, 'catalog'));
-  await DataPackUpdater(
+  return DataPackUpdater(
     client: DataPackClient(
       manifestUri: manifestUri,
       stateRepository: stateRepository,
       productionSigningPublicKeys:
-          endpoints.productionDataPackSigningPublicKeys,
-      expectedManifestChannel: endpoints.expectedDataPackChannel,
+          resolvedEndpoints.productionDataPackSigningPublicKeys,
+      expectedManifestChannel: resolvedEndpoints.expectedDataPackChannel,
     ),
     installer: DataPackInstaller(
       catalogDirectory: catalogDirectory,
@@ -276,7 +305,7 @@ Future<void> _defaultDataPackUpdateRunner({
       userDatabase: userDatabase,
     ),
     networkConditionSource: ConnectivityNetworkConditionSource(),
-  ).checkForUpdates(trigger: trigger);
+  );
 }
 
 class AppBootstrapLifecycle extends StatefulWidget {

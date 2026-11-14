@@ -129,11 +129,13 @@ class ApiNoticeRepository implements NoticeRepository {
     required this.apiClient,
     required this.cacheStore,
     this.now = DateTime.now,
+    this.maxStaleAge = const Duration(hours: 24),
   });
 
   final NoticeApiClient apiClient;
   final NoticeCacheStore cacheStore;
   final DateTime Function() now;
+  final Duration maxStaleAge;
   String? _validatedEtag;
 
   @override
@@ -155,10 +157,7 @@ class ApiNoticeRepository implements NoticeRepository {
 
       if (response.isNotModified && cached != null) {
         if (_validatedEtag == null || _validatedEtag != cached.etag) {
-          return ActiveNoticesResult.stale(
-            _activeAt(cached.notices, now()),
-            asOf: cached.fetchedAt,
-          );
+          return _staleOrUnavailable(cached);
         }
         final fetchedAt = now();
         final notices = _activeAt(cached.notices, fetchedAt);
@@ -211,12 +210,20 @@ class ApiNoticeRepository implements NoticeRepository {
     }
 
     if (cached != null) {
-      return ActiveNoticesResult.stale(
-        _activeAt(cached.notices, now()),
-        asOf: cached.fetchedAt,
-      );
+      return _staleOrUnavailable(cached);
     }
     return const ActiveNoticesResult.unavailable();
+  }
+
+  ActiveNoticesResult _staleOrUnavailable(NoticeCacheEntry cached) {
+    final current = now();
+    if (current.difference(cached.fetchedAt) > maxStaleAge) {
+      return const ActiveNoticesResult.unavailable();
+    }
+    return ActiveNoticesResult.stale(
+      _activeAt(cached.notices, current),
+      asOf: cached.fetchedAt,
+    );
   }
 
   Future<bool> _saveCache(NoticeCacheEntry entry) async {

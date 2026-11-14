@@ -1412,7 +1412,7 @@ void main() {
       60,
     );
 
-    // 노선도·메뉴만 mapChrome 짧은 드롭(카카오 페이드 환산). 선 톤은 전 화면 공통.
+    // 노선도·메뉴만 mapChrome 짧은 드롭(참조 앱 페이드 환산). 선 톤은 전 화면 공통.
     final topBarLine = tester.widget<ColoredBox>(
       find.descendant(
         of: find.byKey(const Key('networkMapTopBarDivider')),
@@ -10624,6 +10624,143 @@ void main() {
     expect(find.byKey(const Key('startScreenStartButton')), findsOneWidget);
   });
 
+  testWidgets('데이터 삭제 후 하차 알림·홈 위젯 정리를 실행하고 정리 예외가 나도 완료 화면으로 전환한다', (
+    tester,
+  ) async {
+    Future<void> runDeletion({
+      required Future<void> Function() clearHomeWidgetData,
+      required _RecordingGetOffAlarmNotifier alarmNotifier,
+      OnboardingResultStore? onboardingStore,
+      FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
+    }) async {
+      final stationRepository = FakeStationSearchRepository();
+      final baseDependencies = AppDependencies.resolve(
+        repository: stationRepository,
+        reportRepository: FakeFacilityReportRepository(),
+        favoriteRepository: FakeFavoriteStationRepository(),
+        notificationRepository: FakeNotificationSettingsRepository(),
+        userDataDeletionRepository: FakeUserDataDeletionRepository(),
+        networkMapRepository: stationRepository,
+        enablePushNotifications: false,
+      );
+      final alarmController = GetOffAlarmController(
+        notifier: alarmNotifier,
+        permissionGate: _StubExactAlarmPermissionGate(),
+        notificationPermissionProvider: FakeNotificationPermissionProvider(
+          nextStatus: NotificationPermissionStatus.granted,
+        ),
+        repository: _MemoryGetOffAlarmStateRepository(),
+      );
+      addTearDown(alarmController.dispose);
+      final dependencies = AppDependencies(
+        repository: baseDependencies.repository,
+        reportRepository: baseDependencies.reportRepository,
+        favoriteRepository: baseDependencies.favoriteRepository,
+        favoriteFacilityRepository: baseDependencies.favoriteFacilityRepository,
+        favoriteRouteRepository: baseDependencies.favoriteRouteRepository,
+        searchHistoryRepository: baseDependencies.searchHistoryRepository,
+        networkMapRepository: baseDependencies.networkMapRepository,
+        networkMapViewportRepository:
+            baseDependencies.networkMapViewportRepository,
+        realtimeRepository: baseDependencies.realtimeRepository,
+        notificationRepository: baseDependencies.notificationRepository,
+        notificationPermissionProvider:
+            baseDependencies.notificationPermissionProvider,
+        locationProvider: baseDependencies.locationProvider,
+        trainSearchRepository: baseDependencies.trainSearchRepository,
+        userDataDeletionRepository: baseDependencies.userDataDeletionRepository,
+        getOffAlarmController: alarmController,
+        noticeRepository: baseDependencies.noticeRepository,
+        adRepository: baseDependencies.adRepository,
+        journeyRepositoryFactory: baseDependencies.journeyRepositoryFactory,
+        journeyAttestor: baseDependencies.journeyAttestor,
+        journeySessionProvider: baseDependencies.journeySessionProvider,
+        stationTimetableRepository: baseDependencies.stationTimetableRepository,
+        transferGuideRepository: baseDependencies.transferGuideRepository,
+      );
+
+      await tester.pumpWidget(
+        KeyedSubtree(
+          key: UniqueKey(),
+          child: buildEasySubwayTestApp(
+            dependencies: dependencies,
+            onboardingStore: onboardingStore,
+            facilityReportDraftTargetStore: facilityReportDraftTargetStore,
+            clearHomeWidgetData: clearHomeWidgetData,
+            initialOnboardingState: _completedOnboardingState(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await _openSupportAccessScreen(tester);
+      await tester.scrollUntilVisible(
+        find.byKey(const Key('dataDeletionAccessItem')),
+        120,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.tap(find.byKey(const Key('dataDeletionAccessItem')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('dataDeletionStartButton')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const Key('dataDeletionConfirmButton')));
+      await tester.pumpAndSettle();
+    }
+
+    final alarmNotifier = _RecordingGetOffAlarmNotifier();
+    var widgetClearCalls = 0;
+    await runDeletion(
+      alarmNotifier: alarmNotifier,
+      clearHomeWidgetData: () async {
+        widgetClearCalls += 1;
+      },
+    );
+    expect(alarmNotifier.cancelCalls, greaterThanOrEqualTo(1));
+    expect(widgetClearCalls, 1);
+    expect(find.text('내 정보가 삭제됐어요'), findsOneWidget);
+
+    final onboardingErrorNotifier = _RecordingGetOffAlarmNotifier();
+    var onboardingErrorWidgetClears = 0;
+    await runDeletion(
+      alarmNotifier: onboardingErrorNotifier,
+      onboardingStore: MemoryOnboardingResultStore(
+        initialResult: _completedOnboardingState().result,
+        clearError: StateError('onboarding clear failure'),
+      ),
+      clearHomeWidgetData: () async {
+        onboardingErrorWidgetClears += 1;
+      },
+    );
+    expect(tester.takeException(), isA<StateError>());
+    expect(onboardingErrorNotifier.cancelCalls, greaterThanOrEqualTo(1));
+    expect(onboardingErrorWidgetClears, 1);
+    expect(find.text('내 정보가 삭제됐어요'), findsOneWidget);
+
+    final draftTargetErrorNotifier = _RecordingGetOffAlarmNotifier();
+    var draftTargetErrorWidgetClears = 0;
+    await runDeletion(
+      alarmNotifier: draftTargetErrorNotifier,
+      facilityReportDraftTargetStore: MemoryFacilityReportDraftTargetStore()
+        ..throwOnClear = true,
+      clearHomeWidgetData: () async {
+        draftTargetErrorWidgetClears += 1;
+      },
+    );
+    expect(tester.takeException(), isA<StateError>());
+    expect(draftTargetErrorNotifier.cancelCalls, greaterThanOrEqualTo(1));
+    expect(draftTargetErrorWidgetClears, 1);
+    expect(find.text('내 정보가 삭제됐어요'), findsOneWidget);
+
+    final failingAlarmNotifier = _RecordingGetOffAlarmNotifier();
+    await runDeletion(
+      alarmNotifier: failingAlarmNotifier,
+      clearHomeWidgetData: () =>
+          Future<void>.error(StateError('cleanup failure')),
+    );
+    expect(tester.takeException(), isA<StateError>());
+    expect(failingAlarmNotifier.cancelCalls, greaterThanOrEqualTo(1));
+    expect(find.text('내 정보가 삭제됐어요'), findsOneWidget);
+  });
+
   testWidgets('데이터 삭제 결과 시작 버튼은 Android 시스템 내비게이션 바와 여백을 둔다', (tester) async {
     tester.view.devicePixelRatio = 1;
     tester.view.viewPadding = const FakeViewPadding(bottom: 34);
@@ -18207,12 +18344,14 @@ class MemoryOnboardingResultStore implements OnboardingResultStore {
     OnboardingResult? initialResult,
     this.throwOnRead = false,
     this.saveError,
+    this.clearError,
     this.saveCompleters = const [],
   }) : savedResult = initialResult;
 
   OnboardingResult? savedResult;
   final bool throwOnRead;
   final Object? saveError;
+  final Object? clearError;
   final List<Completer<void>> saveCompleters;
   int readCount = 0;
   int saveCount = 0;
@@ -18242,6 +18381,10 @@ class MemoryOnboardingResultStore implements OnboardingResultStore {
 
   @override
   Future<void> clearResult() async {
+    final error = clearError;
+    if (error != null) {
+      throw error;
+    }
     savedResult = null;
   }
 }

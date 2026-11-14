@@ -1,23 +1,35 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'api_error.dart';
 
 export 'api_error.dart';
 
 const defaultApiTimeout = Duration(seconds: 8);
+const defaultMaxApiResponseBytes = 8 * 1024 * 1024;
 
 class ApiClient {
   ApiClient({
     required this.baseUri,
     HttpClient? httpClient,
     this.timeout = defaultApiTimeout,
-  }) : _httpClient = httpClient ?? HttpClient();
+    this.maxResponseBytes = defaultMaxApiResponseBytes,
+  }) : _httpClient = httpClient ?? HttpClient(),
+       _ownsHttpClient = httpClient == null;
 
   final Uri baseUri;
   final Duration timeout;
+  final int maxResponseBytes;
   final HttpClient _httpClient;
+  final bool _ownsHttpClient;
+
+  void close({bool force = false}) {
+    if (_ownsHttpClient) {
+      _httpClient.close(force: force);
+    }
+  }
 
   Future<ApiResponse> getJson(
     String path, {
@@ -117,7 +129,7 @@ class ApiClient {
 
       final response = await request.close().timeout(timeout);
       final etag = response.headers.value(HttpHeaders.etagHeader);
-      final responseBody = await utf8.decodeStream(response).timeout(timeout);
+      final responseBody = await _readResponseBody(response, uri);
       if (!_isSuccessStatus(response.statusCode)) {
         return ApiResponse(
           statusCode: response.statusCode,
@@ -161,6 +173,51 @@ class ApiClient {
     } catch (error, stackTrace) {
       throw ApiException(
         '요청을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.',
+        path: uri.path,
+        cause: error,
+        causeStackTrace: stackTrace,
+      );
+    }
+  }
+
+  Future<String> _readResponseBody(HttpClientResponse response, Uri uri) async {
+    final builder = BytesBuilder(copy: false);
+    final completer = Completer<Uint8List>();
+    var totalBytes = 0;
+    late final StreamSubscription<List<int>> subscription;
+    subscription = response.listen(
+      (chunk) {
+        totalBytes += chunk.length;
+        if (totalBytes > maxResponseBytes) {
+          unawaited(subscription.cancel());
+          completer.completeError(
+            ApiException(
+              '받은 정보가 너무 커서 처리하지 못했어요.',
+              statusCode: response.statusCode,
+              path: uri.path,
+            ),
+          );
+          return;
+        }
+        builder.add(chunk);
+      },
+      onError: completer.completeError,
+      onDone: () => completer.complete(builder.takeBytes()),
+      cancelOnError: true,
+    );
+    final Uint8List bytes;
+    try {
+      bytes = await completer.future.timeout(timeout);
+    } on TimeoutException {
+      await subscription.cancel();
+      rethrow;
+    }
+    try {
+      return utf8.decode(bytes);
+    } on FormatException catch (error, stackTrace) {
+      throw ApiException(
+        '받은 정보를 읽지 못했어요. 잠시 후 다시 시도해 주세요.',
+        statusCode: response.statusCode,
         path: uri.path,
         cause: error,
         causeStackTrace: stackTrace,

@@ -398,4 +398,34 @@ void main() {
       'future',
     ]);
   });
+
+  test(
+    '캐시가 maxStaleAge(24시간)를 넘겼으면 오프라인이나 미검증 304에서 unavailable을 반환한다',
+    () async {
+      final expiredCacheEntry = NoticeCacheEntry(
+        etag: '"stale-etag"',
+        notices: [ServiceNotice.fromJson(noticeJson('n1', 'DISRUPTION'))!],
+        fetchedAt: now.subtract(const Duration(hours: 25)),
+      );
+
+      final offlineCache = _InMemoryCache()..entry = expiredCacheEntry;
+      final offlineResult = await repo(
+        _FakeApiClient(okResponse(const []), throwError: true),
+        offlineCache,
+      ).activeNotices();
+      expect(offlineResult.state, NoticeResultState.unavailable);
+      expect(offlineResult.stale, isFalse);
+      expect(offlineResult.notices, isEmpty);
+
+      final unverified304Cache = _InMemoryCache()..entry = expiredCacheEntry;
+      final unverified304Result = await repo(
+        _FakeApiClient(
+          ApiResponse(statusCode: 304, jsonBody: null, etag: '"stale-etag"'),
+        ),
+        unverified304Cache,
+      ).activeNotices();
+      expect(unverified304Result.state, NoticeResultState.unavailable);
+      expect(unverified304Result.notices, isEmpty);
+    },
+  );
 }

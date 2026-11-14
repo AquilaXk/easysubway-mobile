@@ -105,10 +105,15 @@ jobs:
         with:
           node-version-file: .nvmrc
       - name: Check documentation fragment preflight sync
-        if: github.event_name == 'pull_request'
         env:
+          EVENT_NAME: ${{ github.event_name }}
           BASE_REF: ${{ github.event.pull_request.base.sha }}
-        run: node tools/ci/check-documentation-fragment-sync.mjs --base "${BASE_REF}"
+        run: |
+          if [ "${EVENT_NAME}" = "pull_request" ]; then
+            node tools/ci/check-documentation-fragment-sync.mjs --base "${BASE_REF}"
+          else
+            node tools/ci/check-documentation-fragment-sync.mjs --check-all
+          fi
       - name: Set up ORAS
         uses: oras-project/setup-oras@5e2f2482b30b0cb3e14e67f89a80c88c659a7c63
         with:
@@ -658,7 +663,7 @@ jobs:
       actions: read
       security-events: write
       contents: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@f4cfcc01edc9c8b756a9b873b7a623ca674da51e
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@f4cfcc01edc9c8b756a9b873b7a623ca674da51e
     with:
       export-results: false
       upload-sarif: true

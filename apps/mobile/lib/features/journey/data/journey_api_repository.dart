@@ -110,24 +110,25 @@ class JourneyApiRepository implements JourneyRepository {
   }) async {
     if (sessionToken.trim().isEmpty) {
       throw const JourneyProtocolFailure(
-        JourneyOperation.searchJourneys,
+        JourneyOperation.profileJourneys,
         cause: FormatException('Journey session token must be nonblank'),
       );
     }
     final response = await _post(
-      JourneyOperation.searchJourneys,
+      JourneyOperation.profileJourneys,
       _profilePath,
       request.toJson(),
       headers: {'Authorization': 'Bearer $sessionToken'},
       expectedRequestId: request.requestId,
     );
-    final body = _successBody(JourneyOperation.searchJourneys, response);
+    final body = _successBody(JourneyOperation.profileJourneys, response);
     try {
       final success = JourneyProfileSuccess.fromJson(body);
+      _validateProfileSuccess(success, request);
       return success;
     } on FormatException catch (error) {
       throw JourneyProtocolFailure(
-        JourneyOperation.searchJourneys,
+        JourneyOperation.profileJourneys,
         cause: error,
         statusCode: response.statusCode,
       );
@@ -230,21 +231,54 @@ class JourneyApiRepository implements JourneyRepository {
       throw const FormatException('Journey success validity window mismatch');
     }
     if (success.serviceDate.toString() !=
-        _seoulServiceDate(success.effectiveDepartureTime)) {
+        seoulServiceDateForCutoff(
+          success.effectiveDepartureTime,
+          success.serviceDayCutoff,
+        )) {
       throw const FormatException('Journey success service date mismatch');
     }
     if (success.journeys.length > policy.alternativeCount) {
       throw const FormatException('Journey success candidate count mismatch');
     }
+    _validateJourneyCandidates(
+      journeys: success.journeys,
+      constraintMode: policy.constraintMode,
+    );
+    _validateAlternativeCategories(success.journeys);
+  }
+
+  void _validateProfileSuccess(
+    JourneyProfileSuccess success,
+    JourneyProfileRequest request,
+  ) {
+    if (success.requestId != request.requestId) {
+      throw const FormatException('Journey profile requestId mismatch');
+    }
+    if (!success.validUntil.isAfter(success.calculatedAt)) {
+      throw const FormatException('Journey profile validity window mismatch');
+    }
+    _validateJourneyCandidates(
+      journeys: success.journeyList,
+      constraintMode: request.constraintMode,
+    );
+  }
+
+  void _validateJourneyCandidates({
+    required List<Journey> journeys,
+    required ConstraintMode constraintMode,
+  }) {
+    if (journeys.isEmpty) {
+      throw const FormatException('Journey candidates must be non-empty');
+    }
     final journeyIds = <String>{};
-    for (final journey in success.journeys) {
+    for (final journey in journeys) {
       if (journey.planSource != JourneyPlanSource.serverTimetableRaptor ||
           !journeyIds.add(journey.journeyId)) {
         throw const FormatException(
           'Journey success identity or source mismatch',
         );
       }
-      if (policy.constraintMode == ConstraintMode.requireStepFree &&
+      if (constraintMode == ConstraintMode.requireStepFree &&
           (journey.accessibility.result !=
                   JourneyAccessibilityResult.verified ||
               !journey.accessibility.stairFree)) {
@@ -254,7 +288,6 @@ class JourneyApiRepository implements JourneyRepository {
       }
       _validateJourneySemantics(journey);
     }
-    _validateAlternativeCategories(success.journeys);
   }
 
   /// backend #471 대표 묶음 규칙. 계약 문구만 검사한다(OpenAPI
@@ -384,12 +417,5 @@ class JourneyApiRepository implements JourneyRepository {
     if (departure.isAfter(arrival)) {
       throw FormatException('$label must be ordered');
     }
-  }
-
-  String _seoulServiceDate(DateTime instant) {
-    final seoul = instant.toUtc().add(const Duration(hours: 9));
-    return '${seoul.year.toString().padLeft(4, '0')}-'
-        '${seoul.month.toString().padLeft(2, '0')}-'
-        '${seoul.day.toString().padLeft(2, '0')}';
   }
 }

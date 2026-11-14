@@ -83,4 +83,21 @@ class DriftFacilityReportReceiptStore implements FacilityReportReceiptStore {
     }
     return results;
   }
+
+  Future<void> deleteAllReceiptTokens() async {
+    final receipts = await userDatabase
+        .select(userDatabase.reportReceipts)
+        .get();
+    for (final receipt in receipts) {
+      await storage.delete(
+        key: 'easysubway.facilityReport.receipt.${receipt.receiptId}',
+      );
+      final reportId = receipt.reportId?.trim();
+      if (reportId != null && reportId.isNotEmpty) {
+        await storage.delete(
+          key: 'easysubway.facilityReport.receipt.$reportId',
+        );
+      }
+    }
+  }
 }

@@ -26,7 +26,7 @@ class NextTrainWidgetService {
   }) async {
     final data = await load(selection, now);
     if (data.status == NextTrainWidgetStatus.timetableUnavailable ||
-        data.directions.length < 2) {
+        data.directions.isEmpty) {
       throw StateError('선택한 역의 시간표를 확인할 수 없어요.');
     }
     await _save(appWidgetId, data);

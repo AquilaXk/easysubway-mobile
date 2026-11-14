@@ -43,6 +43,7 @@ EasySubwayApp buildEasySubwayTestApp({
   OnboardingResultStore? onboardingStore,
   FacilityReportDraftTargetStore? facilityReportDraftTargetStore,
   FacilityReportLostPhotoRestorer? facilityReportLostPhotoRestorer,
+  Future<void> Function()? clearHomeWidgetData,
   SupportAccessInfo supportAccessInfo =
       const SupportAccessInfo.fromEnvironment(),
   SupportAccessLauncher supportAccessLauncher =
@@ -96,6 +97,7 @@ EasySubwayApp buildEasySubwayTestApp({
     onboardingStore: onboardingStore,
     facilityReportDraftTargetStore: facilityReportDraftTargetStore,
     facilityReportLostPhotoRestorer: facilityReportLostPhotoRestorer,
+    clearHomeWidgetData: clearHomeWidgetData,
     supportAccessInfo: supportAccessInfo,
     supportAccessLauncher: supportAccessLauncher,
     dataPackUpdateStateRepository: dataPackUpdateStateRepository,

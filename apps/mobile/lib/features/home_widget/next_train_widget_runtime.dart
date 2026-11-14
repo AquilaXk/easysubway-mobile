@@ -270,6 +270,41 @@ Future<void> cancelNextTrainWidgetRefresh({
   );
 }
 
+const _nextTrainWidgetDataKeys = <String>[
+  'station_id',
+  'line_id',
+  'station_name',
+  'line_name',
+  'direction_1',
+  'departure_1',
+  'direction_2',
+  'departure_2',
+  'status',
+  'status_label',
+  'updated_at',
+];
+
+/// Deletes persisted data for every installed next-train widget and cancels
+/// background refresh work when user data is wiped.
+Future<void> clearAllNextTrainWidgetData({
+  NextTrainWidgetAndroidBindings? bindings,
+  Future<void> Function(String key)? clearValue,
+  Future<void> Function()? updateWidget,
+}) async {
+  final clear = clearValue ?? ((key) => _saveWidgetValue(key, null));
+  final widgetIds = await installedNextTrainWidgetIds(bindings: bindings);
+  for (final widgetId in widgetIds) {
+    final prefix = 'widget_${widgetId}_';
+    for (final suffix in _nextTrainWidgetDataKeys) {
+      await clear('$prefix$suffix');
+    }
+  }
+  await cancelNextTrainWidgetRefresh(bindings: bindings);
+  if (widgetIds.isNotEmpty) {
+    await (updateWidget ?? _updateNativeWidget)();
+  }
+}
+
 Future<List<int>> installedNextTrainWidgetIds({
   NextTrainWidgetAndroidBindings? bindings,
 }) async {
