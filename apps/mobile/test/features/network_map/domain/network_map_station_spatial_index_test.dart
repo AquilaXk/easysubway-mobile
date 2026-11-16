@@ -69,6 +69,31 @@ void main() {
     expect(NetworkMapStationSpatialIndex.empty.query(Rect.zero), isEmpty);
   });
 
+  test('64비트 워드 경계(인덱스 63, 127 포함 150개 역)에서도 손실·오프바이원 없이 입력 순서를 보존한다', () {
+    final stations = List<NetworkMapStation>.generate(
+      150,
+      (i) => _station('st_$i', (149 - i) * 20),
+    );
+    final index = NetworkMapStationSpatialIndex.fromStations(
+      stations,
+      sourceBoundsForStation: (station) =>
+          Rect.fromLTWH(station.position.x.toDouble(), 0, 16, 16),
+      stationKeyFor: (station) => station.id,
+    );
+
+    final allHits = index.query(const Rect.fromLTWH(0, 0, 4000, 50));
+    expect(allHits, hasLength(150));
+    for (var i = 0; i < 150; i++) {
+      expect(allHits[i], same(stations[i]));
+    }
+
+    // 인덱스 63(x = 86 * 20 = 1720)과 인덱스 127(x = 22 * 20 = 440) 단독 조회 검증
+    final hit63 = index.query(const Rect.fromLTWH(1720, 0, 10, 10));
+    expect(hit63.single, same(stations[63]));
+    final hit127 = index.query(const Rect.fromLTWH(440, 0, 10, 10));
+    expect(hit127.single, same(stations[127]));
+  });
+
   test('canvas는 geometry owner를 조립하고 root private spatial-index를 두지 않는다', () {
     final root = File('lib/app/network_map_screen.dart').readAsStringSync();
     final canvas = File(

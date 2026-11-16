@@ -1,88 +1,86 @@
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 
+import 'flatbush_spatial_index.dart';
 import 'network_map_models.dart';
 
 /// 2D 정수 격자 좌표 `(gx, gy)`를 64비트 정수로 패킹한다.
-/// 음수 `gy`의 상위 비트가 `gx`를 덮어쓰지 않도록 하위 32비트로 마스킹한다.
 int packRouteMapGridKey(int gx, int gy) => (gx << 32) | (gy & 0xFFFFFFFF);
 
 class NetworkMapStationSpatialIndex {
   NetworkMapStationSpatialIndex._({
-    required this._buckets,
-    required this._stationOrder,
-    required this._stationKeyFor,
+    required this.stations,
+    required this.flatbush,
+    required this._scratchBitset,
   });
 
   static final empty = NetworkMapStationSpatialIndex._(
-    buckets: const {},
-    stationOrder: const {},
-    stationKeyFor: null,
+    stations: const [],
+    flatbush: FlatbushSpatialIndex.empty,
+    scratchBitset: Uint64List(0),
   );
 
-  static const _cellSize = 256.0;
-
-  final Map<int, List<NetworkMapStation>> _buckets;
-  final Map<String, int> _stationOrder;
-  final String Function(NetworkMapStation station)? _stationKeyFor;
+  final List<NetworkMapStation> stations;
+  final FlatbushSpatialIndex flatbush;
+  final Uint64List _scratchBitset;
 
   factory NetworkMapStationSpatialIndex.fromStations(
     List<NetworkMapStation> stations, {
     required Rect Function(NetworkMapStation station) sourceBoundsForStation,
     required String Function(NetworkMapStation station) stationKeyFor,
   }) {
-    final buckets = <int, List<NetworkMapStation>>{};
-    final stationOrder = <String, int>{};
+    if (stations.isEmpty) {
+      return empty;
+    }
+
+    final uniqueStations = <NetworkMapStation>[];
+    final keyToIndex = <String, int>{};
     for (var index = 0; index < stations.length; index += 1) {
       final station = stations[index];
-      stationOrder[stationKeyFor(station)] = index;
-      final bounds = sourceBoundsForStation(station);
-      final left = _cellFor(bounds.left);
-      final right = _cellFor(bounds.right);
-      final top = _cellFor(bounds.top);
-      final bottom = _cellFor(bounds.bottom);
-      for (var x = left; x <= right; x += 1) {
-        for (var y = top; y <= bottom; y += 1) {
-          final key = packRouteMapGridKey(x, y);
-          (buckets[key] ??= <NetworkMapStation>[]).add(station);
-        }
+      final key = stationKeyFor(station);
+      final existing = keyToIndex[key];
+      if (existing != null) {
+        uniqueStations[existing] = station;
+      } else {
+        keyToIndex[key] = uniqueStations.length;
+        uniqueStations.add(station);
       }
     }
+
+    final flatbush = FlatbushSpatialIndex(uniqueStations.length);
+    for (var index = 0; index < uniqueStations.length; index += 1) {
+      final bounds = sourceBoundsForStation(uniqueStations[index]);
+      flatbush.add(bounds.left, bounds.top, bounds.right, bounds.bottom);
+    }
+    flatbush.finish();
+
     return NetworkMapStationSpatialIndex._(
-      buckets: buckets,
-      stationOrder: stationOrder,
-      stationKeyFor: stationKeyFor,
+      stations: List.unmodifiable(uniqueStations),
+      flatbush: flatbush,
+      scratchBitset: Uint64List((uniqueStations.length + 63) >> 6),
     );
   }
 
   List<NetworkMapStation> query(Rect sourceBounds) {
-    if (_buckets.isEmpty || sourceBounds.isEmpty) {
+    if (stations.isEmpty || sourceBounds.isEmpty) {
       return const [];
     }
-    final stationKeyFor = _stationKeyFor!;
-    final byKey = <String, NetworkMapStation>{};
-    final left = _cellFor(sourceBounds.left);
-    final right = _cellFor(sourceBounds.right);
-    final top = _cellFor(sourceBounds.top);
-    final bottom = _cellFor(sourceBounds.bottom);
-    for (var x = left; x <= right; x += 1) {
-      for (var y = top; y <= bottom; y += 1) {
-        final bucket = _buckets[packRouteMapGridKey(x, y)];
-        if (bucket == null) {
-          continue;
-        }
-        for (final station in bucket) {
-          byKey[stationKeyFor(station)] = station;
-        }
-      }
-    }
-    final result = byKey.values.toList(growable: false);
-    result.sort((a, b) {
-      final aOrder = _stationOrder[stationKeyFor(a)] ?? 0;
-      final bOrder = _stationOrder[stationKeyFor(b)] ?? 0;
-      return aOrder.compareTo(bOrder);
+
+    final bitset = _scratchBitset;
+    bitset.fillRange(0, bitset.length, 0);
+    flatbush.searchWithBitset(
+      sourceBounds.left,
+      sourceBounds.top,
+      sourceBounds.right,
+      sourceBounds.bottom,
+      bitset,
+    );
+
+    final result = <NetworkMapStation>[];
+    FlatbushSpatialIndex.scanBits(bitset, (index) {
+      result.add(stations[index]);
     });
     return result;
   }
-
-  static int _cellFor(double value) => (value / _cellSize).floor();
 }

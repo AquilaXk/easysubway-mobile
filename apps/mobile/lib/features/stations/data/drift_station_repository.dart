@@ -83,7 +83,8 @@ class DriftStationRepository
         );
       } else {
         index.collectNamePrefixInto(normalizedQuery, candidateIds);
-        // substring(rank 2) 보존: prefix에 없는 역만 포함 여부를 검사한다.
+        final queryBloom = computeSearchBloom64(normalizedQuery);
+        // substring(rank 2) 보존: prefix에 없는 역만 2-gram Bloom 서명 대조 후 포함 여부를 검사한다.
         for (final station in stations) {
           if (candidateIds.contains(station.id)) {
             continue;
@@ -94,6 +95,10 @@ class DriftStationRepository
           }
           if (lineFilter.isNotEmpty &&
               !station.lines.any((line) => line.id == lineFilter)) {
+            continue;
+          }
+          // 64-bit 2-gram Bloom 필터로 불일치 역을 즉시 기각
+          if ((station.bloom64 & queryBloom) != queryBloom) {
             continue;
           }
           if (station.hasNormalizedContains(normalizedQuery)) {
@@ -959,7 +964,6 @@ class DriftStationRepository
           lastVerifiedAt: _dateLabelFromEpoch(
             row.read<int?>('last_verified_at_value'),
           ),
-          aliases: [],
           lines: [],
         ),
       );
@@ -975,22 +979,6 @@ class DriftStationRepository
           ),
         );
       }
-    }
-
-    final aliasRows = await database
-        .customSelect(
-          '''
-          SELECT station_id, alias
-          FROM station_aliases
-          ${stationId == null ? '' : 'WHERE station_id = ?'}
-          ''',
-          variables: [if (stationId != null) Variable.withString(stationId)],
-        )
-        .get();
-    for (final row in aliasRows) {
-      summaries[row.read<String>('station_id')]?.aliases.add(
-        row.read<String>('alias'),
-      );
     }
 
     return summaries.values.toList(growable: false);
@@ -1020,7 +1008,6 @@ class _LocalStationSummary {
     required this.dataQualityLevel,
     required this.dataSourceType,
     required this.lastVerifiedAt,
-    required this.aliases,
     required this.lines,
   });
 
@@ -1034,14 +1021,13 @@ class _LocalStationSummary {
   final String dataQualityLevel;
   final String dataSourceType;
   final String lastVerifiedAt;
-  final List<String> aliases;
   final List<StationSearchLine> lines;
 
   List<String>? _normalizedTermsCache;
   List<String>? _chosungTermsCache;
+  int? _bloom64Cache;
 
   /// 검색은 역 이름만 본다(한글명·영문명·부역명).
-  /// aliases에 섞인 역번호·호선 합성어("448", "4호선 상록수")는 쓰지 않는다.
   List<String> get _normalizedTerms {
     return _normalizedTermsCache ??= [
       nameKo,
@@ -1059,9 +1045,20 @@ class _LocalStationSummary {
         .toList(growable: false);
   }
 
+  /// 64-bit 2-gram Bloom 서명 캐시.
+  int get bloom64 {
+    if (_bloom64Cache != null) return _bloom64Cache!;
+    var mask = 0;
+    for (final term in _normalizedTerms) {
+      mask |= computeSearchBloom64(term);
+    }
+    return _bloom64Cache = mask;
+  }
+
   void primeSearchTerms() {
     _normalizedTerms;
     _chosungTerms;
+    bloom64;
   }
 
   StationSearchIndexStationRow toIndexRow() {

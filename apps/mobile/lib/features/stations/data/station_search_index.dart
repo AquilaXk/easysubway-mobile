@@ -5,6 +5,30 @@ import 'dart:collection';
 
 enum StationSearchTermKind { korean, english, subname, chosung }
 
+/// 검색 질의 및 정규화 문자열의 64-bit 2-gram Bloom 필터 서명을 계산한다.
+///
+/// 부분일치(`contains`) 스캔 시 `(target.bloom64 & queryBloom) == queryBloom` 비트
+/// 연산으로 불일치 대상을 문자열 비교 전에 O(1)로 즉시 기각한다.
+int computeSearchBloom64(String text) {
+  if (text.isEmpty) return 0;
+  var mask = 0;
+  final len = text.length;
+  if (len == 1) {
+    final c = text.codeUnitAt(0);
+    final h1 = (c * 31) & 63;
+    final h2 = ((c * 17) ^ (c >> 4)) & 63;
+    return (1 << h1) | (1 << h2);
+  }
+  for (var i = 0; i < len - 1; i++) {
+    final c1 = text.codeUnitAt(i);
+    final c2 = text.codeUnitAt(i + 1);
+    final h1 = ((c1 * 31) ^ c2) & 63;
+    final h2 = (((c1 << 5) - c1) ^ (c2 * 17)) & 63;
+    mask |= (1 << h1) | (1 << h2);
+  }
+  return mask;
+}
+
 class StationSearchTermEntry implements Comparable<StationSearchTermEntry> {
   const StationSearchTermEntry({
     required this.normalizedKey,

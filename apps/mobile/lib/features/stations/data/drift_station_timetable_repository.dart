@@ -26,6 +26,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
     required String lineId,
     required StationTimetableDayType dayType,
     required DateTime referenceDate,
+    int? minDepartureSeconds,
   }) async {
     final dayKey = switch (dayType) {
       StationTimetableDayType.weekday => 'weekday',
@@ -40,6 +41,8 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       throw const StationTimetableUnavailable('TIMETABLE_NOT_COVERED');
     }
 
+    final hasMinDeparture =
+        minDepartureSeconds != null && minDepartureSeconds > 0;
     final rows = await database
         .customSelect(
           '''
@@ -67,6 +70,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       WHERE st.station_id = ?
         AND st.line_id = ?
         AND st.pickup_type = 0
+        ${hasMinDeparture ? 'AND st.departure_seconds >= ?' : ''}
         AND (
           (
             sc.start_date <= ?
@@ -97,6 +101,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
           variables: [
             Variable.withString(stationId),
             Variable.withString(lineId),
+            if (hasMinDeparture) Variable.withInt(minDepartureSeconds),
             Variable.withString(dateKey),
             Variable.withString(dateKey),
             Variable.withString(dayKey),
@@ -165,6 +170,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
     required String stationId,
     required String lineId,
     required DateTime date,
+    int? minDepartureSeconds,
   }) async {
     final dayType = await _resolveDayTypeForDate(date);
     return loadStationTimetable(
@@ -172,6 +178,7 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       lineId: lineId,
       dayType: dayType,
       referenceDate: date,
+      minDepartureSeconds: minDepartureSeconds,
     );
   }
 
@@ -201,8 +208,28 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
         serviceDate.month,
         serviceDate.day + dayOffset,
       );
+      final minSeconds = dayOffset == 0 ? effectiveSeconds : 0;
       final StationTimetable timetable;
       try {
+        if (minSeconds > 0) {
+          // 1단계: minDepartureSeconds를 SQL에 푸시다운해 지나간 열차(수백 건)를 DB 단계에서 걸러낸다.
+          try {
+            final fastTimetable = await loadStationTimetableForDate(
+              stationId: stationId,
+              lineId: lineId,
+              date: targetDate,
+              minDepartureSeconds: minSeconds,
+            );
+            firstCoveredDayType ??= fastTimetable.dayType;
+            if (fastTimetable.directions.isNotEmpty) {
+              return fastTimetable;
+            }
+          } on StationTimetableUnavailable {
+            // fast 쿼리가 0건이면 전체 시간표 자체가 없는지, 아니면 당일 막차 이후인지
+            // 전체 시간표 로드로 1회 확인한다.
+          }
+        }
+
         timetable = await loadStationTimetableForDate(
           stationId: stationId,
           lineId: lineId,
@@ -217,7 +244,6 @@ class DriftStationTimetableRepository implements StationTimetableRepository {
       }
 
       firstCoveredDayType ??= timetable.dayType;
-      final minSeconds = dayOffset == 0 ? effectiveSeconds : 0;
       final filteredDirections = <StationTimetableDirection>[];
       for (final dir in timetable.directions) {
         final upcoming = dir.departures

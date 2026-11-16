@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart';
@@ -53,16 +52,25 @@ class RouteMapBasemapTileRange {
   /// 범위 가운데에서 가까운 타일부터. flutter_map TileLayer._loadTiles가 불러올 타일을
   /// 범위 중심과의 거리로 정렬하는 것과 같다.
   List<RouteMapBasemapTileKey> keysFromCenter() {
-    final centerColumn = (left + right) / 2;
-    final centerRow = (top + bottom) / 2;
-    double distance(RouteMapBasemapTileKey key) =>
-        math.pow(key.column - centerColumn, 2) +
-        math.pow(key.row - centerRow, 2).toDouble();
-    return [
+    final centerColumn = (left + right) * 0.5;
+    final centerRow = (top + bottom) * 0.5;
+    final keys = <RouteMapBasemapTileKey>[
       for (var row = top; row <= bottom; row++)
         for (var column = left; column <= right; column++)
           (column: column, row: row),
-    ]..sort((a, b) => distance(a).compareTo(distance(b)));
+    ];
+    keys.sort((a, b) {
+      final daX = a.column - centerColumn;
+      final daY = a.row - centerRow;
+      final distA = daX * daX + daY * daY;
+
+      final dbX = b.column - centerColumn;
+      final dbY = b.row - centerRow;
+      final distB = dbX * dbX + dbY * dbY;
+
+      return distA.compareTo(distB);
+    });
+    return keys;
   }
 }
 
@@ -201,10 +209,23 @@ class RouteMapBasemapTileGrid {
   }
 }
 
+final int _kDefaultTileMipBytes = _computeMipChainBytes(
+  kRouteMapBasemapTileSize,
+  kRouteMapBasemapTileSize,
+);
+
 /// [width]×[height] RGBA 이미지와 밉맵 사슬이 쓰는 바이트. Impeller는 Picture를 이미지로
 /// 구울 때 밉맵을 늘 만든다(shell/common/snapshot_controller_impeller.cc
 /// DoMakeRasterSnapshot의 generate_mips=true, impeller/geometry/size.h MipCount).
 int routeMapTileBytes(int width, int height) {
+  if (width <= 0 || height <= 0) return 0;
+  if (width == kRouteMapBasemapTileSize && height == kRouteMapBasemapTileSize) {
+    return _kDefaultTileMipBytes;
+  }
+  return _computeMipChainBytes(width, height);
+}
+
+int _computeMipChainBytes(int width, int height) {
   var bytes = 0;
   var w = width;
   var h = height;
@@ -213,8 +234,8 @@ int routeMapTileBytes(int width, int height) {
     if (w == 1 && h == 1) {
       return bytes;
     }
-    w = math.max(1, w ~/ 2);
-    h = math.max(1, h ~/ 2);
+    w = w > 1 ? w >> 1 : 1;
+    h = h > 1 ? h >> 1 : 1;
   }
 }
 

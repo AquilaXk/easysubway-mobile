@@ -178,7 +178,10 @@ class CatalogDatabase extends _$CatalogDatabase {
       NativeDatabase.createInBackground(
         file,
         setup: (database) {
-          database.execute('PRAGMA busy_timeout = 5000');
+          database.execute('PRAGMA busy_timeout = 5000;');
+          database.execute('PRAGMA temp_store = MEMORY;');
+          database.execute('PRAGMA mmap_size = 67108864;');
+          database.execute('PRAGMA cache_size = -8192;');
         },
       ),
     );

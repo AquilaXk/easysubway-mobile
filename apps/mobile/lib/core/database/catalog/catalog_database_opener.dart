@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
-import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/services.dart';
@@ -448,24 +447,47 @@ class CatalogDatabaseOpener {
     final transferableCompressed = TransferableTypedData.fromList([
       compressedBytes,
     ]);
-    final transferableDatabase = await Isolate.run(() {
-      final compressed = transferableCompressed.materialize().asUint8List();
-      if (sha256.convert(compressed).toString() != expectedCompressedSha256) {
-        throw const FormatException('Data pack checksum mismatch.');
-      }
-      final sink = _BoundedBytesSink(maxBytes);
-      final input = gzip.decoder.startChunkedConversion(sink);
-      input.add(compressed);
-      input.close();
-      final decoded = sink.takeBytes();
-      if (sha256.convert(decoded).toString() != expectedSqliteSha256) {
-        throw const FormatException('Data pack sqlite checksum mismatch.');
-      }
-      return TransferableTypedData.fromList([decoded]);
-    });
-    final databaseBytes = transferableDatabase.materialize().asUint8List();
-
-    await _replaceInstalledDataPack(target, databaseBytes);
+    final temporary = File('${target.path}.${uniqueTempToken()}.installing');
+    try {
+      final temporaryPath = temporary.path;
+      await Isolate.run(() {
+        final compressed = transferableCompressed.materialize().asUint8List();
+        if (sha256.convert(compressed).toString() != expectedCompressedSha256) {
+          throw const FormatException('Data pack checksum mismatch.');
+        }
+        final writer = File(temporaryPath).openSync(mode: FileMode.writeOnly);
+        final digestSink = _Sha256AccumulatorSink();
+        final shaInput = sha256.startChunkedConversion(digestSink);
+        var totalBytes = 0;
+        final fileSink = _StreamDecompressToFileSink(
+          onChunk: (chunk) {
+            totalBytes += chunk.length;
+            if (totalBytes > maxBytes) {
+              throw FormatException(
+                'Decompressed data pack exceeds $maxBytes bytes.',
+              );
+            }
+            writer.writeFromSync(chunk);
+            shaInput.add(chunk);
+          },
+        );
+        try {
+          final gzipInput = gzip.decoder.startChunkedConversion(fileSink);
+          gzipInput.add(compressed);
+          gzipInput.close();
+          writer.flushSync();
+          shaInput.close();
+        } finally {
+          writer.closeSync();
+        }
+        if (digestSink.value != expectedSqliteSha256) {
+          throw const FormatException('Data pack sqlite checksum mismatch.');
+        }
+      });
+      await replaceFileAtomically(temporary: temporary, target: target);
+    } finally {
+      await _deleteIfExists(temporary);
+    }
   }
 
   Future<void> _writeBundledFreshness(
@@ -492,26 +514,6 @@ class CatalogDatabaseOpener {
     }
   }
 
-  /// 번들 팩을 디스크의 팩 파일로 되돌린다(#2532).
-  ///
-  /// [target]은 이 세션이 곧 열 카탈로그 DB 파일이다. `open()`이 번들 설치를 먼저 끝내고
-  /// 그 뒤에 열므로 이 시점에는 아직 열려 있지 않지만, 이전 세션이나 홈 위젯 isolate가
-  /// 같은 파일을 열고 있을 수 있다. 그래서 교체 실패 시 대상을 지우지 않고
-  /// [replaceFileAtomically]가 직전 파일을 되돌리게 둔다 — 지웠다가 중단되면 카탈로그가
-  /// 통째로 사라진다.
-  Future<void> _replaceInstalledDataPack(
-    File target,
-    List<int> databaseBytes,
-  ) async {
-    final temporary = File('${target.path}.${uniqueTempToken()}.installing');
-    try {
-      await temporary.writeAsBytes(databaseBytes, flush: true);
-      await replaceFileAtomically(temporary: temporary, target: target);
-    } finally {
-      await _deleteIfExists(temporary);
-    }
-  }
-
   Future<void> _replaceFile(File temporary, File target) async {
     await replaceFileAtomically(temporary: temporary, target: target);
   }
@@ -531,24 +533,26 @@ int _installedPackVersion(File file) {
   return int.tryParse(match.group(1)!) ?? 0;
 }
 
-class _BoundedBytesSink implements Sink<List<int>> {
-  _BoundedBytesSink(this.maxBytes);
-
-  final int maxBytes;
-  final BytesBuilder _builder = BytesBuilder(copy: false);
-  int _totalBytes = 0;
+class _Sha256AccumulatorSink implements Sink<Digest> {
+  String value = '';
 
   @override
-  void add(List<int> chunk) {
-    _totalBytes += chunk.length;
-    if (_totalBytes > maxBytes) {
-      throw FormatException('Decompressed data pack exceeds $maxBytes bytes.');
-    }
-    _builder.add(chunk);
+  void add(Digest data) {
+    value = data.toString();
   }
 
   @override
   void close() {}
+}
 
-  Uint8List takeBytes() => _builder.takeBytes();
+class _StreamDecompressToFileSink implements Sink<List<int>> {
+  _StreamDecompressToFileSink({required this.onChunk});
+
+  final void Function(List<int> chunk) onChunk;
+
+  @override
+  void add(List<int> chunk) => onChunk(chunk);
+
+  @override
+  void close() {}
 }

@@ -603,7 +603,7 @@ class _RouteMapBasemapLayersState extends State<_RouteMapBasemapLayers> {
     return CustomPaint(
       size: widget.camera.viewportSize,
       isComplex: true,
-      willChange: true,
+      willChange: false,
       painter: RouteMapBasemapPainter(
         picture: picture,
         camera: widget.camera,

@@ -754,7 +754,7 @@ class _StructuredRouteMapViewState extends State<StructuredRouteMapView> {
       child: CustomPaint(
         size: widget.camera.viewportSize,
         isComplex: true,
-        willChange: true,
+        willChange: false,
         painter: StructuredRouteMapPainter(
           picture: picture,
           designScale: design.designScale,
