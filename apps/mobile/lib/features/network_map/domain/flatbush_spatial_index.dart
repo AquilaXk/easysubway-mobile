@@ -247,12 +247,11 @@ class FlatbushSpatialIndex {
   }
 
   int _childLevelLimit(int nodeIndex) {
-    for (var i = 0; i < _levelBounds.length; i++) {
-      if (nodeIndex < _levelBounds[i]) {
-        return i > 0 ? _levelBounds[i - 1] : numItems;
-      }
+    var i = 1;
+    while (i < _levelBounds.length - 1 && nodeIndex >= _levelBounds[i]) {
+      i++;
     }
-    return numItems;
+    return _levelBounds[i - 1];
   }
 
   static int _hilbert(int x, int y) {

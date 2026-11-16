@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:easysubway_mobile/features/network_map/domain/flatbush_spatial_index.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_models.dart';
 import 'package:easysubway_mobile/features/network_map/domain/network_map_station_spatial_index.dart';
 import 'package:flutter/widgets.dart';
@@ -92,6 +93,40 @@ void main() {
     expect(hit63.single, same(stations[63]));
     final hit127 = index.query(const Rect.fromLTWH(440, 0, 10, 10));
     expect(hit127.single, same(stations[127]));
+  });
+
+  test('FlatbushSpatialIndex 상태 가드(isBuilt, add 초과, 미완성 finish)와 다층 레벨 탐색을 검증한다', () {
+    final tree = FlatbushSpatialIndex(2);
+    expect(tree.isBuilt, isFalse);
+
+    final preFinishHits = <int>[];
+    tree.search(0, 0, 100, 100, preFinishHits.add);
+    expect(preFinishHits, isEmpty);
+
+    tree.add(0, 0, 10, 10);
+    expect(tree.finish, throwsStateError);
+
+    tree.add(double.nan, double.infinity, 30, 30);
+    expect(() => tree.add(40, 40, 50, 50), throwsStateError);
+
+    tree.finish();
+    expect(tree.isBuilt, isTrue);
+    tree.finish(); // 중복 호출 멱등성
+
+    final hits = <int>[];
+    tree.search(0, 0, 35, 35, hits.add);
+    expect(hits, unorderedEquals(<int>[0, 1]));
+
+    // 3단계 이상 다층 레벨(nodeSize=2, 9개 항목 -> levelBounds [9, 14, 17, 19, 20]) 탐색 검증
+    final deepTree = FlatbushSpatialIndex(9, nodeSize: 2);
+    for (var i = 0; i < 9; i++) {
+      final x = (i * 10).toDouble();
+      deepTree.add(x, x, x + 5, x + 5);
+    }
+    deepTree.finish();
+    final deepHits = <int>[];
+    deepTree.search(0, 0, 100, 100, deepHits.add);
+    expect(deepHits, unorderedEquals(List<int>.generate(9, (i) => i)));
   });
 
   test('canvas는 geometry owner를 조립하고 root private spatial-index를 두지 않는다', () {
